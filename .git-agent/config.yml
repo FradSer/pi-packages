@@ -1,0 +1,11 @@
+scopes:
+    - name: cc
+      description: code context analysis and research utilities in code-context/; does not cover git or project-specific tools.
+    - name: git
+      description: git workflow automation, hooks, and commit management in git/; does not cover github platform integrations.
+    - name: gh
+      description: github issue, pull request, and review workflows in github/; does not cover core git operations.
+    - name: lark
+      description: lark platform integration, including drive, docs, calendar, and apps in lark/; does not cover code-context or git.
+    - name: mem
+      description: shared memory, state management, and persistence logic in memory/; does not cover application-specific skill definitions.
