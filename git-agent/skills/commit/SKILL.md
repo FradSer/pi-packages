@@ -23,6 +23,5 @@ CRITICAL:
    ```bash
    git-agent commit --free --intent "<intent>"
    ```
-6. **Fallback** (if `git-agent` binary is not found): follow manual commit fallback ladder in `../../references/coauthor-attribution.md` using `GIT_SKILL_FALLBACK=1`.
 
 CLI Reference: `../../references/cli.md`

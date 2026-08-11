@@ -15,23 +15,3 @@ To suppress co-author trailers entirely:
 ```bash
 git-agent commit --no-attribution
 ```
-
----
-
-## 2. Fallback Ladder (Binary Absent)
-
-If `git-agent` binary is unavailable or fails due to network/auth issues:
-
-1. **Auth / Gateway Retry**: Retry with `--free`:
-   ```bash
-   git-agent commit --free --intent "<intent>"
-   ```
-2. **Manual Fallback**: Execute raw `git commit` with Conventional Commits HEREDOC and prefix with `GIT_SKILL_FALLBACK=1` (required by PreToolUse hook):
-   ```bash
-   GIT_SKILL_FALLBACK=1 git add -A && git commit -m "$(cat <<'EOF'
-   feat(scope): intent description
-
-   Co-Authored-By: Claude <noreply@anthropic.com>
-   EOF
-   )"
-   ```

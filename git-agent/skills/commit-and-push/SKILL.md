@@ -19,8 +19,7 @@ CRITICAL:
    ```bash
    git-agent commit --free --intent "<intent>"
    ```
-5. **Fallback** (if `git-agent` binary is not found): follow manual commit fallback ladder in `../../references/coauthor-attribution.md` using `GIT_SKILL_FALLBACK=1`.
-6. Push to remote repository:
+5. Push to remote repository:
    ```bash
    git push
    ```
