@@ -1,0 +1,19 @@
+{
+  "name": "utils",
+  "version": "0.2.1",
+  "description": "Utility skills for keeping project READMEs and changelogs accurate",
+  "keywords": [
+    "pi-package",
+    "documentation",
+    "readme",
+    "changelog",
+    "project-maintenance"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  }
+}
