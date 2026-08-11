@@ -48,10 +48,7 @@ Arguments (`invocation args`) are **optional**. If `invocation args` is empty or
    ```
 2. For `hotfix` and `release`:
    - Update project version files (`package.json`, `Cargo.toml`, `pyproject.toml`, `VERSION`, etc.) to `<TARGET>`.
-   - Stage version files and commit in ONE chained command per `coauthor-attribution.md`:
-     ```bash
-     git add <modified version files> && git commit -m "chore: bump version to <TARGET>"
-     ```
+   - Commit via the `/commit` skill with intent `chore: bump version to <TARGET>`.
 3. Push branch to remote:
    ```bash
    git push -u origin <type>/<NAME_OR_TARGET>

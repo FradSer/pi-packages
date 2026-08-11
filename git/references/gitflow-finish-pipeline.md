@@ -27,10 +27,7 @@ See `invariants.md`.
 1. Get previous tag: `git tag --sort=-v:refname | head -1`.
 2. Collect commits per `changelog-generation.md`.
 3. Update `CHANGELOG.md` per `../examples/changelog.md`.
-4. Stage and commit in ONE chained command per `coauthor-attribution.md`:
-   ```bash
-   git add CHANGELOG.md && git commit -m "docs: update changelog for $NAME"
-   ```
+4. Commit via the `/commit` skill with intent `docs: update changelog for $NAME`.
 
 ## Phase 4: Execute GitFlow Finish & Push
 

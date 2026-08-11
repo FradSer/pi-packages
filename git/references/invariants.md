@@ -44,13 +44,7 @@ See `changelog-generation.md` for complete mapping rules.
 
 ## Committing
 
-When specific files must be staged (CHANGELOG.md, version files), stage and commit in ONE command:
-
-```bash
-git add <files> && git commit -m "<type>: <intent>"
-```
-
-Use standard Conventional Commits format (`feat`, `fix`, `chore`, `docs`, etc.).
+All commits go through the `/commit` skill with a Conventional Commit intent (`feat`, `fix`, `chore`, `docs`, etc.). The working tree is verified clean before start/finish, so the skill stages and commits the intended files atomically.
 
 ## Cleanup
 

@@ -4,27 +4,14 @@ Standard Git commit and co-author rules for GitFlow operations in the `git` pack
 
 ## 1. Conventional Commit Format
 
-When committing version bumps, changelog updates, or branch changes, use standard Conventional Commits syntax:
+When committing version bumps, changelog updates, or branch changes, delegate to the `/commit` skill. Pass the desired Conventional Commit message as the intent:
 
-```bash
-git commit -m "<type>(<scope>): <short description>"
-```
+- `chore: bump version to <TARGET>` — version bumps
+- `docs: update changelog for <NAME>` — changelog updates
+- `feat`, `fix`, `chore`, `docs` — branch changes per type
 
-Common types:
-- `chore`: version bumps, configuration updates
-- `docs`: changelog updates, documentation changes
-- `feat`: new features
-- `fix`: bug fixes
+The `/commit` skill creates an atomic commit from the intent and stages only the files that belong to the change.
 
 ## 2. Co-Author Attribution
 
-If a co-author trailer is requested by user prompt or environment configuration, append standard `Co-Authored-By` footers using multi-line HEREDOC format:
-
-```bash
-git commit -m "$(cat <<'EOF'
-<type>(<scope>): <description>
-
-Co-Authored-By: Name <email>
-EOF
-)"
-```
+If a co-author trailer is requested by user prompt or environment configuration, pass it to the `/commit` skill so the trailer is appended to the commit message.
