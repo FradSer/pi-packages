@@ -7,10 +7,9 @@
 # built-in flow instead of git-agent. This hook intercepts the Bash call and
 # denies it with a message pointing at git-agent.
 #
-# Allowed exceptions:
-#   1. `git add <path> && git-agent commit ...` chained in one command — scoped staging
-#      for `git-agent commit --no-stage`.
-#   2. The GIT_SKILL_FALLBACK=1 marker — manual fallback path when git-agent binary is absent.
+# Allowed exception:
+#   `git add <path> && git-agent commit ...` chained in one command — scoped staging
+#   for `git-agent commit --no-stage`.
 
 set -uo pipefail
 
@@ -37,9 +36,7 @@ deny() {
   exit 0
 }
 
-# Escape hatch: manual fallback prefix
-MARKER='(^|[;&|[:space:]])GIT_SKILL_FALLBACK=1([;&|[:space:]]|$)'
-[[ $cmd =~ $MARKER ]] && exit 0
+# Escape hatch removed: raw git commit/add has no sanctioned bypass — git-agent is the only path.
 
 # Command position anchor
 POS=$'(^|[;&|\n])[[:space:]]*([A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:space:]]+)*'

@@ -1,10 +1,9 @@
 """Tests for hooks/validate-commit-pretool.sh — the git-agent plugin's PreToolUse guard.
 
 The hook denies raw `git commit` (always) and standalone `git add` on Bash tool
-calls, redirecting to git-agent. Two documented exceptions pass:
-  1. `git add <path> && git-agent commit ...` chained in ONE command — scoped
-     staging for `git-agent commit --no-stage`.
-  2. The GIT_SKILL_FALLBACK=1 marker — manual fallback when git-agent binary is unavailable.
+calls, redirecting to git-agent. One documented exception passes:
+  `git add <path> && git-agent commit ...` chained in one command — scoped
+  staging for `git-agent commit --no-stage`.
 """
 from __future__ import annotations
 
@@ -17,8 +16,6 @@ from pathlib import Path
 
 GIT_AGENT_PLUGIN_DIR = Path(__file__).resolve().parents[1]
 HOOK = GIT_AGENT_PLUGIN_DIR / "hooks" / "validate-commit-pretool.sh"
-
-ESCAPE_MARKER = "GIT_SKILL_FALLBACK=1"
 
 
 def run_hook(stdin_text: str, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -44,7 +41,6 @@ class DenyPathTests(unittest.TestCase):
         out = json.loads(result.stdout)
         decision = out["hookSpecificOutput"]["permissionDecision"]
         self.assertEqual(decision, "deny", f"expected deny for: {command}")
-        self.assertNotIn(ESCAPE_MARKER, out["hookSpecificOutput"]["permissionDecisionReason"])
         return out
 
     def test_raw_commit(self) -> None:
@@ -75,8 +71,9 @@ class DenyPathTests(unittest.TestCase):
         for command in ("git commit&&true", "git commit|cat", "git commit;"):
             self.assert_denied(command)
 
-    def test_escape_marker_requires_word_boundary(self) -> None:
-        self.assert_denied(f"FOO_{ESCAPE_MARKER} git commit -m x")
+    def test_git_skill_fallback_marker_no_longer_bypasses(self) -> None:
+        self.assert_denied("GIT_SKILL_FALLBACK=1 git commit -m foo")
+        self.assert_denied("GIT_SKILL_FALLBACK=1 git add -A && git commit -m foo")
 
 
 class AllowPathTests(unittest.TestCase):
@@ -110,15 +107,6 @@ class AllowPathTests(unittest.TestCase):
     def test_substrings_do_not_match(self) -> None:
         for command in ("git address-book", "git commitish", "npm run add-thing"):
             self.assert_allowed(command)
-
-    def test_escape_hatch_add_and_commit(self) -> None:
-        self.assert_allowed(f'{ESCAPE_MARKER} git add -A && git commit -m "fix: x"')
-
-    def test_escape_hatch_commit_only(self) -> None:
-        self.assert_allowed(f'{ESCAPE_MARKER} git commit -m "fix: x"')
-
-    def test_escape_hatch_with_semicolon_suffix(self) -> None:
-        self.assert_allowed(f"export {ESCAPE_MARKER}; git commit -m x")
 
     def test_quoted_mentions_do_not_deny(self) -> None:
         for command in (

@@ -7,11 +7,6 @@ export default function (pi: ExtensionAPI) {
       const cmd = event.input.command || "";
       if (!cmd.includes("git")) return;
 
-      // Escape hatch: manual fallback marker
-      if (/(^|[;&|\s])GIT_SKILL_FALLBACK=1([;&|\s]|$)/.test(cmd)) {
-        return;
-      }
-
       // Command-position anchors
       const pos = "(?:^|[;&|\\n])\\s*(?:[A-Za-z_][A-Za-z_0-9]*=[^\\s]*\\s+)*";
       const end = "(?:[;&|\\s]|$)";
