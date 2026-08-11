@@ -1,10 +1,10 @@
 # PR Creation Handoff Contract
 
-This is the canonical contract for how PRs get created across the `/skill:*` plugin. All skills that need a PR created delegate to `/skill:github-create-pr`; none call `gh pr create` themselves.
+This is the canonical contract for how PRs get created across the `/skill:*` plugin. All skills that need a PR created delegate to `/skill:create-pr`; none call `gh pr create` themselves.
 
 ## CRITICAL: create-pr is the plugin's ONLY PR-creating path
 
-No other skill calls `gh pr create`. Other skills (`/skill:resolve-issues`, and any future caller) delegate via ``/skill:github-create-pr <issue reference>`` so no PR escapes the quality gate or the mandatory `/skill:review-pr` handoff. **Do not add a bypass.**
+No other skill calls `gh pr create`. Other skills (`/skill:resolve-issues`, and any future caller) delegate via ``/skill:create-pr <issue reference>`` so no PR escapes the quality gate or the mandatory `/skill:review-pr` handoff. **Do not add a bypass.**
 
 ## Duties owned by create-pr (not duplicated by callers)
 
@@ -15,7 +15,7 @@ No other skill calls `gh pr create`. Other skills (`/skill:resolve-issues`, and 
 
 ## Caller contract (resolve-issues and any future caller)
 
-- Invoke ``/skill:github-create-pr Closes #<n>`` with the issue reference **verbatim** — do not re-derive or second-guess the auto-closing keyword.
+- Invoke ``/skill:create-pr Closes #<n>`` with the issue reference **verbatim** — do not re-derive or second-guess the auto-closing keyword.
 - Pass `--draft` through if early feedback is needed.
 - Pass `--no-monitor` through **only** on an explicit user opt-out (never infer it).
 - Pass `--auto-merge` through **only** on an explicit user opt-in (never infer it). create-pr forwards it to `/skill:review-pr` as ``/skill:review-pr <PR#> --auto-merge``; review-pr then skips the merge `ask the user in conversation` — the closeout ceremony (summary comment + body rewrite) still runs first — and runs `gh pr merge --merge` once CI is green and every non-escalate comment is triaged. `escalate` items suspend the opt-in and fall back to the explicit question — see `review-pr/references/closeout.md` (Auto-merge branch).

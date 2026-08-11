@@ -1,6 +1,6 @@
 ---
 name: resolve-issues
-description: Resolves GitHub issues using isolated worktrees and test-driven development, then delegates PR creation to /skill:github-create-pr so the quality gate and the /skill:review-pr loop always run. Use when the user asks to "resolve an issue", "fix issue #123", or needs to implement a solution for a specific GitHub ticket using a structured workflow.
+description: Resolves GitHub issues using isolated worktrees and test-driven development, then delegates PR creation to /skill:create-pr so the quality gate and the /skill:review-pr loop always run. Use when the user asks to "resolve an issue", "fix issue #123", or needs to implement a solution for a specific GitHub ticket using a structured workflow.
 ---
 
 # Resolve GitHub Issues
@@ -62,19 +62,19 @@ git worktree add -b "fix/${NAME}" ".pi/worktrees/${NAME}"
 2. Write failing tests that verify issue is resolved (RED)
 3. Implement minimal code to make tests pass (GREEN)
 4. Refactor while keeping tests green (REFACTOR)
-5. Run quality validation for local feedback (see `references/workflow-details.md`). `/skill:github-create-pr` re-runs the full gate and is the authoritative pre-PR check.
+5. Run quality validation for local feedback (see `references/workflow-details.md`). `/skill:create-pr` re-runs the full gate and is the authoritative pre-PR check.
 
 ## Phase 3: PR Creation and Cleanup
 
-**Goal**: Hand PR creation to `/skill:github-create-pr` so the quality gate and review loop run.
+**Goal**: Hand PR creation to `/skill:create-pr` so the quality gate and review loop run.
 
 **Actions**:
 1. Push branch: `git push -u origin <branch-name>`
-2. **CRITICAL: Do NOT call `gh pr create` here.** Invoke `/skill:github-create-pr Closes #<n>` (or `Fixes #<n>`). That skill owns the quality/security gate, auto-closing keywords, non-default-branch warning, and mandatory `/skill:review-pr` handoff. See `references/pr-creation-handoff.md`.
+2. **CRITICAL: Do NOT call `gh pr create` here.** Invoke `/skill:create-pr Closes #<n>` (or `Fixes #<n>`). That skill owns the quality/security gate, auto-closing keywords, non-default-branch warning, and mandatory `/skill:review-pr` handoff. See `references/pr-creation-handoff.md`.
    - Append `--draft` if further feedback is needed
    - Append `--no-monitor` only on explicit user opt-out
    - Append `--auto-merge` only on explicit user opt-in
-3. **This skill does not resume here.** `/skill:github-create-pr` reports the PR URL; `/skill:review-pr` owns the PR through merge. Do NOT wait inline or re-report the URL.
+3. **This skill does not resume here.** `/skill:create-pr` reports the PR URL; `/skill:review-pr` owns the PR through merge. Do NOT wait inline or re-report the URL.
 
 ## Phase 4: Post-Merge Cleanup (later turn, fallback)
 

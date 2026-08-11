@@ -24,8 +24,8 @@ The keyword is case-insensitive and accepts a `#`-prefixed issue number (`Closes
 
 ## Who enforces this
 
-- **`/skill:github-create-issues`**: warn at issue-creation time when the issue is PR-scoped and the eventual PR base may be non-default.
-- **`/skill:github-create-pr`**: warn at PR-creation time (Phase 3, target base branch validation) when the PR targets a non-default branch.
-- **`/skill:resolve-issues`**: surfaced via the `/skill:github-create-pr` handoff — do not re-warn here; create-pr owns the warning at PR-creation time.
+- **`/skill:create-issues`**: warn at issue-creation time when the issue is PR-scoped and the eventual PR base may be non-default.
+- **`/skill:create-pr`**: warn at PR-creation time (Phase 3, target base branch validation) when the PR targets a non-default branch.
+- **`/skill:resolve-issues`**: surfaced via the `/skill:create-pr` handoff — do not re-warn here; create-pr owns the warning at PR-creation time.
 
 This file replaces the per-skill copies that had drifted between "main/master", "default branch", and "must be closed manually" — the canonical phrasing is "default branch" everywhere.

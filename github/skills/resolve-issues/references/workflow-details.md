@@ -54,11 +54,11 @@ Follow the red-green-refactor cycle with agent collaboration:
 
 ## Quality Validation
 
-During the TDD cycle, run project-specific quality checks for fast local feedback — see `references/quality-validation.md` for commands. `/skill:github-create-pr` re-runs the full quality and security gate before it opens the PR, so these checks are not the gate itself.
+During the TDD cycle, run project-specific quality checks for fast local feedback — see `references/quality-validation.md` for commands. `/skill:create-pr` re-runs the full quality and security gate before it opens the PR, so these checks are not the gate itself.
 
 ## PR Creation and Cleanup
 
 1. **Push branch**: `git push -u origin <branch-name>`
-2. **Create PR**: **CRITICAL: never call `gh pr create` from this skill.** Invoke ``/skill:github-create-pr Closes #456`` with the issue reference — see `references/pr-creation-handoff.md` for the full contract. Pass `--no-monitor` through only on an explicit user opt-out. Pass `--auto-merge` through only on an explicit user opt-in (it forwards through create-pr to `/skill:review-pr`, which auto-merges with a merge commit once CI is green and every non-escalate comment is triaged — escalate items suspend it and fall back to the explicit question).
+2. **Create PR**: **CRITICAL: never call `gh pr create` from this skill.** Invoke ``/skill:create-pr Closes #456`` with the issue reference — see `references/pr-creation-handoff.md` for the full contract. Pass `--no-monitor` through only on an explicit user opt-out. Pass `--auto-merge` through only on an explicit user opt-in (it forwards through create-pr to `/skill:review-pr`, which auto-merges with a merge commit once CI is green and every non-escalate comment is triaged — escalate items suspend it and fall back to the explicit question).
 3. **After merge**: `/skill:review-pr` owns the merge decision and the post-merge cleanup — it removes the linked worktree via ``git worktree remove` on the `.pi/worktrees/` path`, switches to `main`, and syncs `main`/`develop` with origin. resolve-issues Phase 4 only runs as a fallback if review-pr's cleanup was skipped (e.g. "Don't merge", an interrupt, or a fresh session) — check `git worktree list` first and ``git worktree remove` on the `.pi/worktrees/` path` only if the worktree persists.
    - If uncommitted changes exist, git worktree remove will refuse; confirm with the user before setting `discard_changes: true`

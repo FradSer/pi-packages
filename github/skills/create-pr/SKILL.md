@@ -1,5 +1,5 @@
 ---
-name: github-create-pr
+name: create-pr
 description: Creates comprehensive GitHub pull requests with automated quality validation and security scanning, then hands off to /skill:review-pr for CI monitoring and reviewer-comment triage. Use when the user asks to "create a PR", "submit a pull request", or needs to merge completed work with full compliance checks.
 ---
 
@@ -15,7 +15,7 @@ Handoffs use `/skill:<name>` (or `read` the skill file and follow it). There is 
 
 ## Invocation args
 
-When invoked as `/skill:github-create-pr <args>`, the text after the skill block is the user-provided arguments (Pi does not expand `$ARGUMENTS` placeholders). May include, in any combination:
+When invoked as `/skill:create-pr <args>`, the text after the skill block is the user-provided arguments (Pi does not expand `$ARGUMENTS` placeholders). May include, in any combination:
 
 - Issue reference (`Closes #456`, `Fixes #12`, or bare `#456`)
 - Free-text description

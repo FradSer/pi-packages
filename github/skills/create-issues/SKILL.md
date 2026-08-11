@@ -1,5 +1,5 @@
 ---
-name: github-create-issues
+name: create-issues
 description: Creates GitHub issues following test-driven development principles and proper labeling conventions. Use when the user asks to "create an issue", "file a bug", or needs to document new requirements, epics, or PR-scoped tasks.
 ---
 
@@ -13,7 +13,7 @@ Use only Pi built-ins: `bash` (for `gh` / `git`), `read`, `edit`, `write`. No Cl
 
 ## Invocation args
 
-When invoked as `/skill:github-create-issues <args>`, the text after the skill block is the user-provided arguments (issue description(s)). Parse that trailing text — Pi does not expand `$ARGUMENTS` placeholders inside skill bodies.
+When invoked as `/skill:create-issues <args>`, the text after the skill block is the user-provided arguments (issue description(s)). Parse that trailing text — Pi does not expand `$ARGUMENTS` placeholders inside skill bodies.
 
 ## Bootstrap (run with bash)
 
