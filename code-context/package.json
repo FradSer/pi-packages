@@ -1,0 +1,19 @@
+{
+  "name": "code-context",
+  "version": "0.3.2",
+  "description": "Retrieve code context for any repo, library, or natural-language query via DeepWiki, Context7, Exa, git clone, and web search+fetch. Optional MCP: DeepWiki, Context7, Exa (see .mcp.json). Always available: git clone + curl via bash.",
+  "keywords": [
+    "pi-package",
+    "code-context",
+    "deepwiki",
+    "context7",
+    "exa"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  }
+}
