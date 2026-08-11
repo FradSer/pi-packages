@@ -71,7 +71,7 @@ Remove all operation history (version numbers, dates-as-timeline, "first X then 
 
 Each line: one concise sentence, no version numbers, no date ranges, no timeline descriptions. One line per surviving file. Prefer ≤50 lines for scanability; if more files exist, **keep every entry** and group by theme — never drop entries to hit 50.
 
-Good: `feedback_git_commit_hook_needed.md — git PreToolUse hook intercepts git add/commit, redirects to /skill:commit; allows chain + GIT_SKILL_FALLBACK=1 escape`
+Good: `feedback_git_commit_hook_needed.md — git PreToolUse hook intercepts git add/commit, redirects to /skill:commit; only chain with git-agent commit is allowed`
 Bad:  `feedback_git_commit_hook_needed.md — git PreToolUse hook intercepts git add/commit; v0.5.3 command position anchoring + two exceptions + 26 regression tests`
 
 ## Red lines
