@@ -347,6 +347,7 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/macos,node,python
 ### end git-agent ###
 
+### custom rules ###
 # git-agent generated files (never track)
 .git-agent/graph.db
 *.db-shm

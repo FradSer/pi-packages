@@ -9,3 +9,5 @@ scopes:
       description: lark platform integration, including drive, docs, calendar, and apps in lark/; does not cover code-context or git.
     - name: mem
       description: shared memory, state management, and persistence logic in memory/; does not cover application-specific skill definitions.
+    - name: ga
+      description: git agent hooks, extensions, and commit skills in git-agent/; does not cover core git workflows

@@ -1,22 +1,22 @@
-# Frad's Pi Packages
+# Frad's Pi Packages ![](https://img.shields.io/badge/packages-8-blue)
 
-A collection of Pi Agent packages, skills, extensions, and workflows.
+[![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
+
+**English** | [简体中文](README.zh-CN.md)
+
+Native Pi packages for reusable agent skills, extensions, and project workflows.
 
 ## Invocation
 
-All skills are loaded with Pi's **`/skill:<name>`** command (not Claude `/plugin:cmd` slash forms). Arguments are appended after the skill body; Pi does not expand `$ARGUMENTS` or run `` !`cmd` `` injections inside skill Markdown.
-
-Extension packages (`memory`, `git`, `git-agent`) declare `peerDependencies` on `@earendil-works/pi-coding-agent`.
-
+Invoke every skill with Pi's `/skill:<name>` command. Arguments are appended after the skill body. Pi does not expand `$ARGUMENTS` or run shell injections inside skill Markdown.
 
 ## Packages
 
-### 1. `code-context`
-Retrieve code context for any repository, library, or natural-language query via DeepWiki, Context7, Exa, git clone, and web search+fetch.
+### [`code-context`](code-context/)
 
-**Skills included:**
-- `code-context`: Code context retrieval workflow and token isolation principles
-- `get-context`: Multi-source context researcher invocation
+Retrieves code context through DeepWiki, Context7, Exa, direct git cloning, and web fetches. The MCP methods are optional; git clone and HTTP fetch remain available as fallbacks.
+
+**Skills:** `code-context`, `get-context`
 
 **Installation:**
 ```bash
@@ -25,33 +25,11 @@ pi install /Users/FradSer/Developer/FradSer/pi-packages/code-context
 
 ---
 
-### 2. `github`
-GitHub project operations with quality gates, TDD workflows, and validation.
+### [`git`](git/)
 
-**Skills included:**
-- `github-create-issues`: Creates GitHub issues following TDD and conventional commit standards
-- `github-create-pr`: Creates Pull Requests with quality gates
-- `resolve-issues`: Resolves GitHub issues using TDD workflow
-- `review-pr`: Comprehensive PR review workflow and monitoring
+Automates GitFlow feature, hotfix, and release branch lifecycles, including tests, changelog updates, tags, releases, and cleanup.
 
-**Installation:**
-```bash
-pi install /Users/FradSer/Developer/FradSer/pi-packages/github
-```
-
----
-
-### 3. `git`
-Conventional Git automation, advanced repository management, and GitFlow workflow automation for feature, hotfix, and release branches with post-finish cleanup.
-
-**Skills included:**
-- `commit` / `commit-and-push`: GitFlow-oriented commit helpers (note: may collide with `git-agent` skill names — install order decides which wins)
-- `start-feature`: Starts a `feature/*` branch from develop via git-flow-next
-- `finish-feature`: Runs tests, updates changelog, finishes feature into develop, pushes, and cleans up
-- `start-hotfix`: Resolves next patch version and starts `hotfix/*` branch from main
-- `finish-hotfix`: Runs tests, updates changelog, finishes hotfix into main and develop with tag, and cleans up
-- `start-release`: Resolves next semver version and starts `release/*` branch from develop
-- `finish-release`: Runs tests, updates changelog, finishes release with tag, creates GitHub release, and cleans up
+**Skills:** `start-feature`, `finish-feature`, `start-hotfix`, `finish-hotfix`, `start-release`, `finish-release`, `commit`, `commit-and-push`
 
 **Installation:**
 ```bash
@@ -60,14 +38,11 @@ pi install /Users/FradSer/Developer/FradSer/pi-packages/git
 
 ---
 
-### 4. `git-agent`
-AI-first Git CLI automation — atomic AI commits, co-change relations (`git-agent related`), pre-tool hook safety, and workspace initialization.
+### [`git-agent`](git-agent/)
 
-**Skills included:**
-- `commit`: Creates atomic conventional commits via `git-agent`
-- `commit-and-push`: Creates atomic conventional commits and pushes to remote
-- `related`: Mines git history for historically coupled files and test suites
-- `init`: Regenerates commit scopes and `.gitignore` rules from history
+Provides AI-first atomic commits, co-change analysis, workspace initialization, and a pre-tool guard for raw Git commit operations.
+
+**Skills:** `commit`, `commit-and-push`, `related`, `init`
 
 **Installation:**
 ```bash
@@ -76,11 +51,26 @@ pi install /Users/FradSer/Developer/FradSer/pi-packages/git-agent
 
 ---
 
-### 5. `lark`
-Feishu/Lark CLI skills mirrored from `larksuite/cli` — docs, sheets, IM, calendar, approval, drive, wiki, contacts, minutes, mail, tasks, events, video conferences, whiteboards, and more.
+### [`github`](github/)
 
-**Skills included:**
-- `lark`: Router skill indexing all Lark/Feishu sub-skills (`lark-shared`, `lark-doc`, `lark-sheets`, `lark-im`, `lark-calendar`, etc.)
+Handles GitHub issues and pull requests with TDD-oriented quality gates, validation, and a persistent CI and review-comment workflow.
+
+**Skills:** `github-create-issues`, `github-create-pr`, `resolve-issues`, `review-pr`
+
+**Requirements:** GitHub CLI (`gh`) must be installed and authenticated, and the repository must have a GitHub remote.
+
+**Installation:**
+```bash
+pi install /Users/FradSer/Developer/FradSer/pi-packages/github
+```
+
+---
+
+### [`lark`](lark/)
+
+Provides Feishu/Lark CLI skills for documents, sheets, messaging, calendars, approvals, drives, wikis, contacts, mail, tasks, meetings, and related services.
+
+**Skills:** `lark` router plus the mirrored Lark sub-skills
 
 **Installation:**
 ```bash
@@ -89,11 +79,22 @@ pi install /Users/FradSer/Developer/FradSer/pi-packages/lark
 
 ---
 
-### 5. `memory`
-Active memory writing and consolidated project memory management (`.memory/` canonical git-tracked files + harness memory).
+### [`mattpocock`](mattpocock/)
 
-**Skills included:**
-- `consolidate`: Consolidates project memory with theme clustering, practical-expiry prune, ground-truth verify, and validation.
+BDD-first engineering and productivity skills adapted from Matt Pocock's skills. Covers TDD, implementation, debugging, architecture, research, code review, planning, handoff, teaching, and skill writing.
+
+**Installation:**
+```bash
+pi install /Users/FradSer/Developer/FradSer/pi-packages/mattpocock
+```
+
+---
+
+### [`memory`](memory/)
+
+Maintains project memory in `.memory/` and provides manual consolidation with clustering, staleness checks, ground-truth verification, and privacy validation.
+
+**Skills:** `consolidate`
 
 **Installation:**
 ```bash
@@ -102,12 +103,39 @@ pi install /Users/FradSer/Developer/FradSer/pi-packages/memory
 
 ---
 
-## SDK harness (optional)
+### [`utils`](utils/)
 
-`examples/sdk-session.ts` shows a programmatic `createAgentSession()` consumer that wires package extensions and inspects discovered skills. Packages themselves remain skill/extension packages, not embedded apps.
+Keeps project READMEs synchronized and creates or updates changelogs in Keep a Changelog 1.1.0 format.
+
+**Skills:** `update-readme`, `update-changelog`
+
+**Installation:**
+```bash
+pi install /Users/FradSer/Developer/FradSer/pi-packages/utils
+```
+
+## Notes
+
+The `git` and `git-agent` packages both expose `commit` and `commit-and-push`. Install order determines which skill wins if both packages are enabled.
+
+## SDK Harness
+
+`examples/sdk-session.ts` shows a programmatic `createAgentSession()` consumer that wires package extensions and inspects discovered skills. Packages remain installable skill and extension bundles rather than embedded applications.
 
 ```bash
 npx tsx examples/sdk-session.ts
 # optional live model turn:
 PI_SDK_LIVE=1 npx tsx examples/sdk-session.ts
 ```
+
+## Adding a Package
+
+1. Create a package directory under the repository root.
+2. Add `package.json` with the `pi-package` keyword and a `pi` resource manifest.
+3. Add skills, extensions, prompts, or themes under the paths declared in `package.json`.
+4. Install the local package with `pi install /absolute/path/to/package` and run its tests.
+5. Run `/skill:update-readme` manually to synchronize both README files.
+
+## Licensing
+
+Each package currently declares the MIT license in its own manifest. The repository does not have a separate root license file.
