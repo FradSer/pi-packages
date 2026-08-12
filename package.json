@@ -1,0 +1,31 @@
+{
+  "name": "fradser-pi-packages",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Monorepo of Frad's pi packages — skills and extensions published to npm and listed on pi.dev/packages",
+  "scripts": {
+    "test": "pytest packages",
+    "example:sdk": "tsx examples/sdk-session.ts",
+    "publish": "pnpm -r publish --access public",
+    "publish:dry-run": "pnpm -r pack"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.84.1",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "^0.84.1",
+    "tsx": "^4.19.0",
+    "typebox": "^1.3.12",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@google/genai",
+      "protobufjs"
+    ]
+  },
+  "type": "module"
+}

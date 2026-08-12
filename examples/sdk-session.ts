@@ -20,7 +20,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const packagesRoot = path.resolve(here, "..");
+const packagesRoot = path.resolve(here, "..", "packages");
 
 const packageRoots = [
   "code-context",

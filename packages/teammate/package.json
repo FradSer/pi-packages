@@ -1,0 +1,32 @@
+{
+  "name": "@fradser/teammate",
+  "version": "0.1.0",
+  "description": "Reference skill for OpenAI Teammates: ChatGPT workspace agents, the Workspace Agents API, knowledge files via the Files API, file search and vector stores, and thread attachment",
+  "keywords": [
+    "pi-package",
+    "teammates",
+    "openai",
+    "workspace-agents",
+    "agents",
+    "api",
+    "reference"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "skills",
+    "README.md"
+  ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@fradser/memory",
+  "version": "0.1.5",
+  "description": "Active memory writing and consolidated project memory management",
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "memory",
+    "consolidation"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "skills",
+    "extensions",
+    "scripts",
+    "README.md"
+  ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ],
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

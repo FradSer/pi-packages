@@ -1,13 +1,13 @@
 scopes:
     - name: cc
-      description: code context analysis and research utilities in code-context/; does not cover git or project-specific tools.
+      description: code context analysis and research utilities in packages/code-context/; does not cover git or project-specific tools.
     - name: git
-      description: git workflow automation, hooks, and commit management in git/; does not cover github platform integrations.
+      description: git workflow automation, hooks, and commit management in packages/git/; does not cover github platform integrations.
     - name: gh
-      description: github issue, pull request, and review workflows in github/; does not cover core git operations.
+      description: github issue, pull request, and review workflows in packages/github/; does not cover core git operations.
     - name: lark
-      description: lark platform integration, including drive, docs, calendar, and apps in lark/; does not cover code-context or git.
+      description: lark platform integration, including drive, docs, calendar, and apps in packages/lark/; does not cover code-context or git.
     - name: mem
-      description: shared memory, state management, and persistence logic in memory/; does not cover application-specific skill definitions.
+      description: shared memory, state management, and persistence logic in packages/memory/; does not cover application-specific skill definitions.
     - name: ga
-      description: git agent hooks, extensions, and commit skills in git-agent/; does not cover core git workflows
+      description: git agent hooks, extensions, and commit skills in packages/git-agent/; does not cover core git workflows

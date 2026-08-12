@@ -1,0 +1,38 @@
+{
+  "name": "@fradser/code-context",
+  "version": "0.4.0",
+  "description": "Retrieve code context for any repo, library, or natural-language query via DeepWiki, Context7, Exa, git clone, and web search+fetch. Native pi tools (context_deepwiki/context_context7/context_exa) call the public REST APIs directly — no MCP servers.",
+  "keywords": [
+    "pi-package",
+    "code-context",
+    "deepwiki",
+    "context7",
+    "exa"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "skills",
+    "extensions",
+    "agents",
+    "README.md"
+  ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ],
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

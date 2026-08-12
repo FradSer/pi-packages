@@ -12,20 +12,21 @@
 
 ## 包列表
 
-### [`code-context`](code-context/)
+### [`code-context`](packages/code-context/)
 
-通过 DeepWiki、Context7、Exa、直接 git clone 和网页抓取获取代码上下文。MCP 方法是可选的；没有配置时仍可使用 git clone 和 HTTP 抓取。
+通过 DeepWiki、Context7、Exa、直接 git clone 和网页抓取获取代码上下文。三种检索方式都是原生 pi 工具（`context_deepwiki`、`context_context7`、`context_exa`），直接调用公开 REST API——不需要 MCP 服务器；git clone 和 HTTP 抓取始终可用。
 
 **Skills：** `code-context`、`get-context`
 
 **安装：**
 ```bash
-pi install /Users/FradSer/Developer/FradSer/pi-packages/code-context
+pi install npm:@fradser/code-context
+# 或本地安装：pi install /path/to/pi-packages/packages/code-context
 ```
 
 ---
 
-### [`git`](git/)
+### [`git`](packages/git/)
 
 自动处理 GitFlow 的 feature、hotfix 和 release 分支生命周期，包括测试、changelog 更新、tag、release 和清理。
 
@@ -33,12 +34,13 @@ pi install /Users/FradSer/Developer/FradSer/pi-packages/code-context
 
 **安装：**
 ```bash
-pi install /Users/FradSer/Developer/FradSer/pi-packages/git
+pi install npm:@fradser/git
+# 或本地安装：pi install /path/to/pi-packages/packages/git
 ```
 
 ---
 
-### [`git-agent`](git-agent/)
+### [`git-agent`](packages/git-agent/)
 
 提供 AI 驱动的原子提交、共同变更分析、工作区初始化，以及拦截原始 Git 提交操作的 pre-tool 防护。
 
@@ -46,12 +48,13 @@ pi install /Users/FradSer/Developer/FradSer/pi-packages/git
 
 **安装：**
 ```bash
-pi install /Users/FradSer/Developer/FradSer/pi-packages/git-agent
+pi install npm:@fradser/git-agent
+# 或本地安装：pi install /path/to/pi-packages/packages/git-agent
 ```
 
 ---
 
-### [`github`](github/)
+### [`github`](packages/github/)
 
 处理 GitHub issue 和 pull request，包含以 TDD 为导向的质量门禁、验证，以及持续监控 CI 和 reviewer 评论的工作流。
 
@@ -61,12 +64,13 @@ pi install /Users/FradSer/Developer/FradSer/pi-packages/git-agent
 
 **安装：**
 ```bash
-pi install /Users/FradSer/Developer/FradSer/pi-packages/github
+pi install npm:@fradser/github
+# 或本地安装：pi install /path/to/pi-packages/packages/github
 ```
 
 ---
 
-### [`lark`](lark/)
+### [`lark`](packages/lark/)
 
 提供飞书/Lark CLI skills，覆盖文档、表格、消息、日历、审批、云盘、知识库、通讯录、邮件、任务、会议及相关服务。
 
@@ -74,23 +78,25 @@ pi install /Users/FradSer/Developer/FradSer/pi-packages/github
 
 **安装：**
 ```bash
-pi install /Users/FradSer/Developer/FradSer/pi-packages/lark
+pi install npm:@fradser/lark
+# 或本地安装：pi install /path/to/pi-packages/packages/lark
 ```
 
 ---
 
-### [`mattpocock`](mattpocock/)
+### [`mattpocock`](packages/mattpocock/)
 
 从 Matt Pocock skills 改编的 BDD 优先工程与生产力 skills，涵盖 TDD、实现、调试、架构、研究、代码审查、计划、交接、教学和 skill 编写。
 
 **安装：**
 ```bash
-pi install /Users/FradSer/Developer/FradSer/pi-packages/mattpocock
+pi install npm:@fradser/mattpocock
+# 或本地安装：pi install /path/to/pi-packages/packages/mattpocock
 ```
 
 ---
 
-### [`memory`](memory/)
+### [`memory`](packages/memory/)
 
 维护 `.memory/` 项目记忆，并提供手动 consolidation，包含聚类、陈旧性检查、基于当前代码的事实验证和隐私校验。
 
@@ -98,12 +104,13 @@ pi install /Users/FradSer/Developer/FradSer/pi-packages/mattpocock
 
 **安装：**
 ```bash
-pi install /Users/FradSer/Developer/FradSer/pi-packages/memory
+pi install npm:@fradser/memory
+# 或本地安装：pi install /path/to/pi-packages/packages/memory
 ```
 
 ---
 
-### [`utils`](utils/)
+### [`utils`](packages/utils/)
 
 同步项目 README，并按照 Keep a Changelog 1.1.0 格式创建或更新 changelog。
 
@@ -111,7 +118,8 @@ pi install /Users/FradSer/Developer/FradSer/pi-packages/memory
 
 **安装：**
 ```bash
-pi install /Users/FradSer/Developer/FradSer/pi-packages/utils
+pi install npm:@fradser/utils
+# 或本地安装：pi install /path/to/pi-packages/packages/utils
 ```
 
 ## 注意事项
@@ -123,6 +131,8 @@ pi install /Users/FradSer/Developer/FradSer/pi-packages/utils
 `examples/sdk-session.ts` 展示了如何以编程方式使用 `createAgentSession()`，加载包的 extensions 并检查已发现的 skills。这些包仍然是可安装的 skill 和 extension 集合，不是内嵌应用。
 
 ```bash
+pnpm example:sdk
+# 或直接运行：
 npx tsx examples/sdk-session.ts
 # optional live model turn:
 PI_SDK_LIVE=1 npx tsx examples/sdk-session.ts
@@ -130,11 +140,21 @@ PI_SDK_LIVE=1 npx tsx examples/sdk-session.ts
 
 ## 添加包
 
-1. 在仓库根目录下创建包目录。
+1. 在 `packages/` 下创建包目录。
 2. 添加包含 `pi-package` 关键词和 `pi` 资源清单的 `package.json`。
 3. 将 skills、extensions、prompts 或 themes 放到 `package.json` 声明的路径下。
-4. 使用 `pi install /absolute/path/to/package` 安装本地包并运行测试。
+4. 使用 `pi install /path/to/pi-packages/packages/<name>` 安装本地包并运行测试。
 5. 手动运行 `/skill:update-readme`，同步两个 README。
+
+## 发布
+
+所有包都以 `@fradser` scope 发布到 npm，并通过 `pi-package` 关键词出现在 [pi.dev/packages](https://pi.dev/packages) 画廊中。
+
+```bash
+pnpm install          # 安装 workspace 开发依赖
+pnpm publish          # 发布所有包（pnpm -r publish --access public）
+pnpm publish:dry-run  # 生成 tarball，检查包内容
+```
 
 ## 许可证
 

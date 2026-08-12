@@ -354,3 +354,9 @@ pyrightconfig.json
 *.db-wal
 *.db-journal
 .git-agent/config.local.yml
+
+# pi project-level package installs
+.pi/npm/
+
+# npm/pnpm pack artifacts
+*.tgz

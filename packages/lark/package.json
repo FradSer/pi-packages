@@ -1,0 +1,36 @@
+{
+  "name": "@fradser/lark",
+  "version": "0.1.0",
+  "description": "Feishu/Lark CLI skills mirrored from larksuite/cli — docs, sheets, IM, calendar, approval, drive, wiki, contacts, and more",
+  "keywords": [
+    "pi-package",
+    "lark",
+    "feishu",
+    "cli"
+  ],
+  "license": "MIT",
+  "author": "Frad LEE <fradser@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "skills",
+    "README.md",
+    "extensions"
+  ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ],
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "@fradser/github",
+  "version": "0.7.5",
+  "description": "GitHub project operations with quality gates, TDD workflows, native pi interaction tools (gh_ask_merge / gh_confirm), and validation. Requires: gh CLI, git.",
+  "keywords": [
+    "pi-package",
+    "github",
+    "issues",
+    "pull-requests",
+    "quality-gates"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "skills",
+    "extensions",
+    "README.md"
+  ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ],
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
