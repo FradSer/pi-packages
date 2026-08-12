@@ -12,6 +12,9 @@ Generates and creates atomic AI commits from repository changes.
 git-agent commit
 
 # Specify intent
+# The intent is the PRIMARY DIRECTIVE for the commit message generator.
+# Prefer 2-4 sentences grounded in session context (via the session_context
+# tool): what the user asked for, why the change exists, how it was verified.
 git-agent commit --intent "refactor auth token handling"
 
 # Pre-staged files only (skip auto-staging)
@@ -25,6 +28,13 @@ git-agent commit --free
 git-agent commit --co-author "Alice <alice@example.com>"
 git-agent commit --trailer "Ticket: #123"
 ```
+
+**Intent guidance**: the CLI never reads agent session files. The only bridge
+from the conversation is `--intent` (plus `--trailer`). Call the
+`session_context` extension tool before committing and build the intent from
+its output — user's own words, rationale, and verification steps — rather
+than a compressed one-liner. A detailed intent produces a body that records
+*why* a change exists, not just *what* changed.
 
 ### 2. `git-agent related`
 Query historical co-change relationships from git commit history. Read-only and offline.

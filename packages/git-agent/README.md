@@ -10,6 +10,7 @@ This package integrates `git-agent` into the Pi coding agent environment:
 - **Co-change Relations**: Mined from git commit history to reveal files and test suites that historically change together (`git-agent related`).
 - **Automatic Model Identity Resolution**: `git-agent` auto-detects active agent environment variables (`PI_MODEL`, `CLAUDE_CODE_MODEL`, `CODEX_MODEL`, `MODEL`), eliminating the need to pass manual co-author flags.
 - **Native Extension Guard**: A pi extension (`extensions/validate-commit.ts`) intercepts raw `git commit` / `git add` tool calls and redirects to `git-agent` atomic commits.
+- **Session-Grounded Commits**: A pi extension (`extensions/session-context.ts`) exposes the `session_context` tool, which reads the live session entries so commit intents are built from what the user actually asked for (requests, decisions, verification), not a compressed one-liner.
 
 ## Skills Included
 

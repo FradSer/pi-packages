@@ -9,17 +9,22 @@ CRITICAL:
 
 ## Execution
 
-1. Derive a concise one-sentence intent from the conversation or invocation args.
-2. Pass `--co-author "<co-author>"` if explicitly specified in invocation args or user instructions.
-3. Run primary commit command:
+1. **Extract session context first.** Call the `session_context` tool to pull the recent user requests and decisions from the current session. (If the tool is unavailable, reconstruct the context from the conversation instead.)
+2. **Build a detailed intent from that context.** The intent is the PRIMARY DIRECTIVE for the commit message generator — the richer it is, the more accurate the message. Cover:
+   - **What** the user asked for (their words, not paraphrased into a tagline)
+   - **Why** the change exists (decisions, rationale, rejected alternatives)
+   - **How** it was verified (tests run, commands executed, quality gates)
+   Write 2–4 sentences. Do not compress to a single sentence.
+3. Pass `--co-author "<co-author>"` if explicitly specified in invocation args or user instructions.
+4. Run primary commit command:
    ```bash
    git-agent commit --intent "<intent>"
    ```
-4. On auth error (401), retry with `--free`:
+5. On auth error (401), retry with `--free`:
    ```bash
    git-agent commit --free --intent "<intent>"
    ```
-5. Push to remote repository:
+6. Push to remote repository:
    ```bash
    git push
    ```

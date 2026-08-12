@@ -71,5 +71,43 @@ class TestValidateCommitExtension(unittest.TestCase):
         self.assertIn("block: true", content)
 
 
+class TestSessionContextExtension(unittest.TestCase):
+    def test_extension_exists_and_registers_tool(self):
+        """extensions/session-context.ts registers a session_context tool that reads session entries."""
+        ext_path = os.path.join(GA_PKG_DIR, "extensions", "session-context.ts")
+        self.assertTrue(os.path.exists(ext_path), "extensions/session-context.ts is missing")
+        with open(ext_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("session_context", content)
+        self.assertIn("registerTool", content)
+        self.assertIn("getEntries", content)
+        self.assertIn('"message"', content)
+
+    def test_commit_skill_prioritizes_session_context(self):
+        """commit skill must instruct building the intent from session context, not a one-liner."""
+        skill = os.path.join(GA_PKG_DIR, "skills", "commit", "SKILL.md")
+        with open(skill, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("session_context", content)
+        self.assertIn("intent", content)
+        self.assertIn("session", content)
+
+    def test_commit_and_push_skill_prioritizes_session_context(self):
+        """commit-and-push skill must also build the intent from session context."""
+        skill = os.path.join(GA_PKG_DIR, "skills", "commit-and-push", "SKILL.md")
+        with open(skill, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("session_context", content)
+        self.assertIn("intent", content)
+
+    def test_commit_skill_no_longer_asks_for_one_sentence(self):
+        """The one-sentence-intent instruction must be gone in favor of session-driven context."""
+        skill = os.path.join(GA_PKG_DIR, "skills", "commit", "SKILL.md")
+        with open(skill, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertNotIn("one-sentence", content)
+        self.assertNotIn("concise one-sentence", content)
+
+
 if __name__ == "__main__":
     unittest.main()
