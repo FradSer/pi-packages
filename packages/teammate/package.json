@@ -1,15 +1,16 @@
 {
   "name": "@fradser/teammate",
-  "version": "0.1.0",
-  "description": "Reference skill for OpenAI Teammates: ChatGPT workspace agents, the Workspace Agents API, knowledge files via the Files API, file search and vector stores, and thread attachment",
+  "version": "0.2.0",
+  "description": "Multi-agent team system for Pi — mailbox-based communication, task management, and team-leader orchestration",
   "keywords": [
     "pi-package",
     "teammates",
     "openai",
     "workspace-agents",
     "agents",
-    "api",
-    "reference"
+    "multi-agent",
+    "team",
+    "orchestration"
   ],
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",
@@ -21,12 +22,20 @@
     "access": "public"
   },
   "files": [
+    "src",
     "skills",
+    ".memory",
     "README.md"
   ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
   "pi": {
     "skills": [
       "./skills"
+    ],
+    "extensions": [
+      "./src/index.ts"
     ]
   }
 }

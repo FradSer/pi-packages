@@ -1,127 +1,217 @@
 ---
 name: using-teammate
 description: >
-  Use when building, creating, configuring, setting up, or using an OpenAI
-  Teammate — an AI teammate in ChatGPT — including requests that mention
-  workflow.md, the Teammate API, workspace agents, knowledge files, file
-  search, vector stores, or thread attachment. Reference for the documented
-  developer surface: workflow configuration, workspace-agent triggers,
-  knowledge files via the Files API, file search and vector stores, and the
-  Threads API.
+  Use when working with the teammate extension — registering agents, mailbox
+  communication, task assignment, broadcasting, and team workflows. Load this
+  skill when the user asks about teammate setup, multi-agent coordination,
+  task management, or the teammate tool APIs.
 ---
 
-# OpenAI Teammates
+# Teammate Extension — Usage Guide
 
-## Scope and terminology
+This skill documents the `@fradser/teammate` Pi extension: a multi-agent team system with mailbox-based communication, task management, and team-leader orchestration.
 
-In OpenAI's current developer documentation, a "teammate" is an AI teammate in the ChatGPT workspace. The Codex use-case guides describe setting up a teammate as a work chief of staff ([Set up a teammate](https://developers.openai.com/codex/use-cases/proactive-teammate)) and as a dedicated project teammate ([Set up a project teammate](https://developers.openai.com/codex/use-cases/project-teammate)). These teammates are ChatGPT workspace agents: shared agents that run repeatable workflows across ChatGPT and independently complete end-to-end tasks ([Building workspace agents in ChatGPT](https://developers.openai.com/cookbook/articles/chatgpt-agents-sales-meeting-prep)).
+## Quick Start
 
-The developer API surface for teammates documented on developers.openai.com is the Workspace Agents API for triggering published workspace agents ([Trigger workspace agent runs](https://developers.openai.com/workspace-agents/trigger-runs)), together with the agent-building APIs that supply knowledge and conversation state: the Files API, file search, vector stores, and the Threads API.
+```
+1. Register a team-leader:
+   teammate_register name="alice" role="team-leader" description="Project coordinator"
 
-**Terminology note.** The current OpenAI API reference defines no `/teammates` resource: there is no teammate endpoint group in the API reference. Requests that mention a Teammate API endpoint map to the Workspace Agents API and the agent-building APIs documented below. Likewise, the current developer documentation does not define a `workflow.md` file format; workflow configuration for teammates is expressed through the surfaces described in the next section. Do not assume undocumented endpoints or file formats.
+2. Register workers:
+   teammate_register name="bob" role="worker" description="Full-stack developer"
+   teammate_register name="charlie" role="reviewer" description="Code reviewer"
 
-## Teammates in the ChatGPT workspace
+3. Assign tasks (team-leader):
+   teammate_assign_task assignee="bob" title="Implement auth" description="Add JWT login/register"
 
-ChatGPT workspace agents are available in research preview for ChatGPT Business, Enterprise, and Edu customers; they are evolutions of GPTs that can work across tools to complete high-value tasks, and they can use connected apps, follow skills, run on a schedule, and be shared with colleagues in the workspace ([Building workspace agents in ChatGPT](https://developers.openai.com/cookbook/articles/chatgpt-agents-sales-meeting-prep)). The Codex use-case guides show two teammate configurations: a work chief of staff that checks connected messages, email, calendar, documents, and project trackers on an hourly schedule ([Set up a teammate](https://developers.openai.com/codex/use-cases/proactive-teammate)), and a project teammate with a dedicated task for one project or workstream that reviews relevant sources, tracks meaningful changes on a schedule, prepares the next step, and waits for approval before taking action ([Set up a project teammate](https://developers.openai.com/codex/use-cases/project-teammate)). Both guides ship a starter prompt and name the connected work tools the teammate may review.
+4. Communicate via mailbox:
+   teammate_send to="bob" subject="Priority" body="Start with login endpoint first"
+   teammate_read_mailbox name="bob" unreadOnly=true
 
-## Workflow as code
+5. Track progress:
+   teammate_update_task taskId="task_1" status="in_progress"
+   teammate_update_task taskId="task_1" status="completed" result="Done in src/auth.ts"
 
-The current developer documentation does not document a `workflow.md` file. Workflow configuration for teammates is expressed through the documented surfaces below, and those are the surfaces to use:
+6. Broadcast:
+   teammate_broadcast subject="API change" body="Use v2 of auth library"
 
-- **Workspace agents in ChatGPT.** Agents are created through a conversational builder, given access to the team's connected apps and knowledge bases, tested before publishing, scheduled to run on a recurring schedule, and shared with the workspace ([Building workspace agents in ChatGPT](https://developers.openai.com/cookbook/articles/chatgpt-agents-sales-meeting-prep)).
-- **The Workspace Agents API.** The programmatic entry point: a trigger request carries the message text passed to the agent and an optional caller-defined conversation key that continues the same conversation across trigger events ([Trigger workspace agent runs](https://developers.openai.com/workspace-agents/trigger-runs)).
-- **Agent Builder workflows.** Agent Builder is a visual canvas for building multi-step agent workflows; a workflow is a combination of agents, tools, and control-flow logic that encapsulates the steps and actions for handling a task, and it is published as an object with an ID and versioning. Note that OpenAI is deprecating Agent Builder and schedules the product to shut down on November 30, 2026 ([Agent Builder](https://developers.openai.com/api/docs/guides/agent-builder)).
+7. Wire task dependencies (optional):
+   teammate_task_deps taskId="task_2" blockedBy=["task_1"]
 
-## Workspace Agents API
+8. Spawn a real worker for a ready task:
+   teammate_spawn name="bob" taskId="task_1"
+```
 
-The Workspace Agents API triggers a published ChatGPT workspace agent from an external system or automation ([Trigger workspace agent runs](https://developers.openai.com/workspace-agents/trigger-runs)).
+## Tools Reference
 
-- **Endpoints.** `POST https://api.chatgpt.com/v1/workspace_agents/{id}/trigger` starts a run; `GET https://api.chatgpt.com/v1/workspace_agents/{id}/runs/{run_id}` polls run status ([Trigger workspace agent runs](https://developers.openai.com/workspace-agents/trigger-runs)).
-- **Identifiers.** `id` is the stable public API trigger identifier for the published API channel, in an `agtch_XXX` format; `run_id` is the trigger run identifier returned by a trigger request, in an `apirun_XXX` format ([Trigger workspace agent runs](https://developers.openai.com/workspace-agents/trigger-runs)).
-- **Authentication.** Authenticate with a Workspace Agent access token as a bearer credential on `api.chatgpt.com` ([Trigger workspace agent runs](https://developers.openai.com/workspace-agents/trigger-runs), [Authenticate with Workspace Agent access tokens](https://developers.openai.com/workspace-agents/authentication)).
-- **Request body.** `input` (string, required): message text passed to the agent as trigger input. `conversation_key` (string, optional): a caller-defined stable identifier for continuing the same agent conversation across multiple trigger events. To safely retry the same trigger event, send an optional `Idempotency-Key` header and reuse the same key only when retrying the same event; a retried request with the same key returns the original accepted outcome instead of adding a second trigger event to the queue ([Trigger workspace agent runs](https://developers.openai.com/workspace-agents/trigger-runs)).
-- **Response.** The API durably queues the trigger event and returns `202 Accepted` with a `conversation_url` link to the ChatGPT conversation, for example `{ "conversation_url": "https://chatgpt.com/c/123" }`. The agent's response cannot currently be retrieved through the API ([Trigger workspace agent runs](https://developers.openai.com/workspace-agents/trigger-runs)).
-- **Run status polling (beta).** Include the header `OpenAI-Beta: workspace_agent_runs=v1` when triggering to receive an `agent_trigger_run_id` in the trigger response, then poll the run endpoint until a terminal status. The run object is `workspace_agent.trigger_run` with `id`, `status`, `created_at`, `agent_id`, `api_trigger_id`, `conversation_url`, and `error`; status values are `queued`, `in_progress`, `suspended`, `completed`, and `failed`, where `completed` and `failed` are terminal ([Trigger workspace agent runs](https://developers.openai.com/workspace-agents/trigger-runs)).
+### teammate_register
 
-**Workspace Agent access tokens.** Tokens are provisioned from the ChatGPT admin access-token flow and are scoped for workspace use. A workspace admin must first enable workspace agents and turn on "Allow users to create personal access tokens" in Admin > Permissions & roles, then create an access token in Admin > Access tokens with the **Workspace Agents** scope. The token is used as a bearer credential and is scoped to Workspace Agents API operations only ([Authenticate with Workspace Agent access tokens](https://developers.openai.com/workspace-agents/authentication)).
+Register a new teammate.
 
-## Knowledge files: the Files API
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | yes | Unique name for the teammate |
+| `role` | yes | `team-leader`, `worker`, `reviewer`, `specialist`, or `observer` |
+| `description` | yes | What this teammate is responsible for |
+| `model` | no | Preferred model for this agent |
+| `tools` | no | Allowed tools list |
 
-Files are used to upload documents that can be used with features like Assistants and Fine-tuning ([Files](https://developers.openai.com/api/reference/resources/files)).
+### teammate_list
 
-### FileObject
+List all registered teammates with roles, descriptions, and unread message counts.
 
-The `File` object represents a document that has been uploaded to OpenAI ([Files](https://developers.openai.com/api/reference/resources/files)). The live `FileObject` schema lists these fields:
+### teammate_send
 
-- `id` — string; the file identifier, which can be referenced in API endpoints.
-- `bytes` — number; the size of the file, in bytes.
-- `created_at` — number; the Unix timestamp (in seconds) for when the file was created.
-- `filename` — string; the name of the file.
-- `object` — always `"file"`.
-- `purpose` — the intended purpose of the file: `assistants`, `assistants_output`, `batch`, `batch_output`, `fine-tune`, `fine-tune-results`, `vision`, or `user_data`.
-- `status`, `expires_at`, and `status_details` — documented on the current schema and marked deprecated.
+Send a message to a teammate's mailbox.
 
-The schema exposes the file length through `bytes`; there is no separate size field on `FileObject` ([Files](https://developers.openai.com/api/reference/resources/files)).
+| Field | Required | Description |
+|-------|----------|-------------|
+| `to` | yes | Recipient teammate name |
+| `subject` | yes | Message subject |
+| `body` | yes | Message body content |
+| `taskId` | no | Optional associated task ID |
 
-### POST /files
+### teammate_read_mailbox
 
-Upload a file as multipart form data with `file` (the File object, not the file name) and `purpose`, plus an optional `expires_after` object with `anchor` and `seconds`. Documented `purpose` values for upload are `assistants`, `batch`, `fine-tune`, `vision`, `user_data`, and `evals`. Individual files can be up to 512 MB, each project can store up to 2.5 TB of files in total, there is no organization-wide storage limit, and uploads to this endpoint are rate-limited to 1,000 requests per minute per authenticated user. The Assistants API supports files up to 2 million tokens and of specific file types; the Fine-tuning and Batch APIs only support `.jsonl` files. Vector store attachment has separate limits, including 2,000 attached files per minute per organization ([Upload file](https://developers.openai.com/api/reference/resources/files/methods/create)).
+Read messages from a teammate's mailbox.
 
-### GET /files and related endpoints
+| Field | Default | Description |
+|-------|---------|-------------|
+| `name` | `"agent"` | Teammate name to read mailbox for |
+| `markRead` | `true` | Mark messages as read after viewing |
+| `unreadOnly` | `true` | Only show unread messages |
 
-- `GET /files` lists files. The optional `purpose` query parameter limits the list to files with the given purpose; pagination is controlled by `limit` (1 to 10,000, default 10,000), `order` (asc or desc by the `created_at` timestamp), and `after`. The response `data` field is an array of `FileObject` ([List files](https://developers.openai.com/api/reference/resources/files/methods/list)).
-- `GET /files/{file_id}` retrieves a file as a `FileObject` ([Retrieve file](https://developers.openai.com/api/reference/resources/files/methods/retrieve)).
-- `DELETE /files/{file_id}` deletes a file and returns a `FileDeleted` object with `id`, `deleted`, and `object` ([Delete file](https://developers.openai.com/api/reference/resources/files/methods/delete)).
+### teammate_assign_task
 
-## File search and vector stores
+Assign a task to a teammate (team-leader only). The assignee receives a mailbox notification.
 
-File search is a tool available in the Responses API. It enables models to retrieve information in a knowledge base of previously uploaded files through semantic and keyword search; by creating vector stores and uploading files to them, you give the model access to these knowledge bases, or vector stores. It is a hosted tool managed by OpenAI, so no code is required to handle its execution ([File search](https://developers.openai.com/api/docs/guides/tools-file-search)).
+| Field | Required | Description |
+|-------|----------|-------------|
+| `assignee` | yes | Teammate to assign the task to |
+| `title` | yes | Task title |
+| `description` | yes | Detailed task description |
 
-A vector store is a collection of processed files used by the `file_search` tool ([Vector Stores](https://developers.openai.com/api/reference/resources/vector_stores)). Adding a file to a vector store automatically parses, chunks, embeds, and stores the file in a vector database capable of both keyword and semantic search; each vector store can hold up to 10,000 files, and for vector stores created starting in November 2025 the limit is 100,000,000 files. Vector stores can be attached to both assistants and threads, at most one per assistant and at most one per thread ([File Search tool](https://developers.openai.com/api/docs/assistants/tools/file-search)). By default `max_chunk_size_tokens` is 800 and `chunk_overlap_tokens` is 400; chunking is configurable per file through `chunking_strategy`, where `max_chunk_size_tokens` must be between 100 and 4096 inclusive. The maximum file size is 512 MB and each file should contain no more than 5,000,000 tokens ([File Search tool](https://developers.openai.com/api/docs/assistants/tools/file-search)).
+### teammate_list_tasks
 
-Vector Stores endpoints, all documented in the reference ([Vector Stores](https://developers.openai.com/api/reference/resources/vector_stores)):
+List tasks, optionally filtered.
 
-- `POST /vector_stores` — create a vector store ([Create vector store](https://developers.openai.com/api/reference/resources/vector_stores/methods/create)).
-- `GET /vector_stores` — list vector stores ([List vector stores](https://developers.openai.com/api/reference/resources/vector_stores/methods/list)).
-- `GET /vector_stores/{vector_store_id}` — retrieve a vector store ([Retrieve vector store](https://developers.openai.com/api/reference/resources/vector_stores/methods/retrieve)).
-- `POST /vector_stores/{vector_store_id}` — modify a vector store ([Modify vector store](https://developers.openai.com/api/reference/resources/vector_stores/methods/update)).
-- `DELETE /vector_stores/{vector_store_id}` — delete a vector store ([Delete vector store](https://developers.openai.com/api/reference/resources/vector_stores/methods/delete)).
-- `POST /vector_stores/{vector_store_id}/search` — search a vector store for relevant chunks based on a query and file attributes filter. The body takes `query` (a string or array of strings) and an optional `filters` value, either a `ComparisonFilter` with an operator (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`) or a `CompoundFilter`; results are returned as `vector_store.search_results.page` objects with `file_id`, `filename`, `score`, `attributes`, `content`, `has_more`, and `next_page` ([Search vector store](https://developers.openai.com/api/reference/resources/vector_stores/methods/search)).
-- Subresources for adding files: vector store files ([Vector Store Files](https://developers.openai.com/api/reference/resources/vector_stores/subresources/files), [Create vector store file](https://developers.openai.com/api/reference/resources/vector_stores/subresources/files/methods/create)) and vector store file batches for attaching many files in one request ([Vector Store File Batches](https://developers.openai.com/api/reference/resources/vector_stores/subresources/file_batches), [Create vector store file batch](https://developers.openai.com/api/reference/resources/vector_stores/subresources/file_batches/methods/create)).
+| Field | Description |
+|-------|-------------|
+| `status` | Filter by: `created`, `assigned`, `in_progress`, `completed`, `failed`, `cancelled` |
+| `assignee` | Filter by assignee name |
 
-## Threads and thread attachment
+### teammate_update_task
 
-Threads and messages represent a conversation session between an assistant and a user ([Assistants API deep dive](https://developers.openai.com/api/docs/assistants/deep-dive)). The Threads API is documented in the Beta Threads reference group ([Threads](https://developers.openai.com/api/reference/resources/beta/subresources/threads)) and belongs to the Assistants API, which the reference labels as deprecated in favor of the Responses API ([Create thread](https://developers.openai.com/api/reference/resources/beta/subresources/threads/methods/create)).
+Update a task's status.
 
-### POST /threads
+| Field | Required | Description |
+|-------|----------|-------------|
+| `taskId` | yes | ID of the task to update |
+| `status` | yes | `in_progress`, `completed`, `failed`, or `cancelled` |
+| `result` | no | Result/output (for completed tasks) |
+| `errorMessage` | no | Error message (for failed tasks) |
 
-`POST /threads` creates a thread ([Create thread](https://developers.openai.com/api/reference/resources/beta/subresources/threads/methods/create)). The documented request body:
+### teammate_broadcast
 
-- `messages` — optional array of objects with `content`, `role`, `attachments`, and `metadata`: a list of messages to start the thread with.
-  - `content` — string, or an array of content parts: `TextContentBlockParam` with `text` and `type` (`"text"`), `ImageFileContentBlock` with `image_file` and `type` (`"image_file"`), or `ImageURLContentBlock` with `image_url` and `type` (`"image_url"`).
-  - `role` — `"user"` or `"assistant"`.
-  - `attachments` — optional array of objects with `file_id` (optional string) and `tools` (optional array of `CodeInterpreterTool` with `type` `"code_interpreter"` or `FileSearchTool` with `type` `"file_search"`), or null: the files attached to the message and the tools they should be added to.
-  - `metadata` — a set of up to 16 key-value pairs; keys have a maximum length of 64 characters and values a maximum length of 512 characters.
-- `tool_resources` — optional object with `code_interpreter.file_ids` (a list of file IDs, up to 20 files) and `file_search.vector_store_ids` (up to 1 vector store attached to the thread), or the `file_search.vector_stores` helper that creates a vector store from `file_ids` and attaches it to the thread, with an optional `chunking_strategy` (`auto`, or `static` with `max_chunk_size_tokens` and `chunk_overlap_tokens`).
+Broadcast a message to all teammates (team-leader only). Can filter by role.
 
-The response is a `Thread` object with `id`, `created_at`, `metadata`, `object` (`"thread"`), and `tool_resources` ([Create thread](https://developers.openai.com/api/reference/resources/beta/subresources/threads/methods/create)).
+| Field | Required | Description |
+|-------|----------|-------------|
+| `subject` | yes | Broadcast subject |
+| `body` | yes | Broadcast message body |
+| `role` | no | Only send to teammates with this role |
 
-### Limits and truncation
+### teammate_task_deps
 
-There is a limit of 100,000 messages per thread. Once the size of the messages exceeds the context window of the model, the thread attempts smart truncation — the documentation describes the thread attempting to "smartly truncate" messages — before fully dropping the messages it considers the least important ([Assistants API deep dive](https://developers.openai.com/api/docs/assistants/deep-dive)).
+Wire dependencies on the task board. A task cannot be spawned until every `blockedBy` task is completed or cancelled; inverse `blocks` edges are maintained automatically.
 
-### Thread and message endpoints
+| Field | Required | Description |
+|-------|----------|-------------|
+| `taskId` | yes | Task ID to update dependencies for |
+| `blocks` | no | Task IDs this task blocks |
+| `blockedBy` | no | Task IDs that block this task |
 
-- Threads: create ([Create thread](https://developers.openai.com/api/reference/resources/beta/subresources/threads/methods/create)), retrieve ([Retrieve thread](https://developers.openai.com/api/reference/resources/beta/subresources/threads/methods/retrieve)), modify ([Modify thread](https://developers.openai.com/api/reference/resources/beta/subresources/threads/methods/update)), and delete ([Delete thread](https://developers.openai.com/api/reference/resources/beta/subresources/threads/methods/delete)).
-- Messages: create ([Create message](https://developers.openai.com/api/reference/resources/beta/subresources/threads/subresources/messages/methods/create)), list ([List messages](https://developers.openai.com/api/reference/resources/beta/subresources/threads/subresources/messages/methods/list)), plus retrieve, update, and delete ([Messages](https://developers.openai.com/api/reference/resources/beta/subresources/threads/subresources/messages)).
-- Runs, run steps, and tool outputs are documented under the thread runs resource ([Runs](https://developers.openai.com/api/reference/resources/beta/subresources/threads/subresources/runs)).
+### teammate_spawn
 
-## API stability and availability
+Spawn a real child Pi process as the teammate to execute a task. The worker runs in non-interactive mode (`--print`) with the teammate's model and tool scope. The task must be ready (all `blockedBy` completed). On exit, the task is marked completed (stdout stored as result) or failed (stderr/error stored), and the teammate returns to `idle`.
 
-Mirror the documentation's own labeling when describing these surfaces:
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | yes | Teammate to spawn as the worker |
+| `taskId` | yes | Task ID to execute in the child process |
+| `isolation` | no | `worktree` runs the worker in a fresh git worktree (own branch, captured as a patch on completion, then removed); `none` (default) runs in the project directory |
+| `timeoutMs` | no | Kill the worker after this many milliseconds (default: 1800000 = 30 min) |
 
-- **Workspace agents** — research preview for ChatGPT Business, Enterprise, and Edu customers ([Building workspace agents in ChatGPT](https://developers.openai.com/cookbook/articles/chatgpt-agents-sales-meeting-prep)).
-- **Run status polling** — in beta, opt-in via the `OpenAI-Beta: workspace_agent_runs=v1` header ([Trigger workspace agent runs](https://developers.openai.com/workspace-agents/trigger-runs)).
-- **Threads, Messages, and Runs** — Beta Threads reference group; the Assistants API is deprecated in favor of the Responses API ([Threads](https://developers.openai.com/api/reference/resources/beta/subresources/threads), [Create thread](https://developers.openai.com/api/reference/resources/beta/subresources/threads/methods/create)).
-- **FileObject** — `status`, `expires_at`, and `status_details` are marked deprecated on the current schema ([Files](https://developers.openai.com/api/reference/resources/files)).
-- **Agent Builder** — deprecated and scheduled to shut down on November 30, 2026 ([Agent Builder](https://developers.openai.com/api/docs/guides/agent-builder)).
+## Command
+
+- `/teammate-status` — Show teammate system status summary (number of teammates, tasks, unread messages).
+
+## Team Workflow Patterns
+
+### Standard workflow
+
+```
+team-leader → assign_task → worker → in_progress → completed/failed
+                                                      ↓
+                                              reviewer reviews
+```
+
+### Multi-worker parallel
+
+```
+team-leader → assign_task to worker-a
+            → assign_task to worker-b (parallel)
+            → broadcast to workers: "status update please"
+```
+
+### Review pipeline
+
+```
+team-leader → assign_task "Implement feature" to worker
+worker      → update_task to completed
+team-leader → assign_task "Review PR" to reviewer
+            → send message to reviewer with PR link
+reviewer    → update_task to completed/failed
+```
+
+### Dependency-gated pipeline
+
+```
+team-leader → assign_task "Setup" to worker-a
+            → assign_task "Build" to worker-b
+            → teammate_task_deps taskId="build-task" blockedBy=["setup-task"]
+            → teammate_spawn name="worker-a" taskId="setup-task"   # runs now
+            → teammate_spawn name="worker-b" taskId="build-task"   # rejected until setup completes
+```
+
+## Real Worker Execution
+
+Teammates registered with a `model` (and optional `tools`) can be spawned as real child Pi processes via `teammate_spawn`. The worker:
+
+- Runs `pi --print --mode json --no-session [--model <model>] [--tools <tools>] Task: <description>` in the project cwd (or a fresh git worktree when `isolation: "worktree"`).
+- Has its own model context and tool scope; it never sees the leader's conversation history.
+- Reports completion by exiting 0 (stdout becomes the task result) or failure via non-zero exit (stderr becomes the error).
+- Reports token/cost usage (parsed from JSON output) stored on the task and shown by `teammate_list_tasks`.
+- Is killed after `timeoutMs` (default 30 min) if it hangs; the task is then marked failed with a timeout reason.
+- With `isolation: "worktree"`, works on branch `teammate/<taskId>` under `.pi/worktrees/`; its diff is captured into the task result and the worktree is removed afterwards, so parallel workers never collide.
+- Spawn info (pid, status, timestamps, usage) is stored on the task and shown by `teammate_list_tasks`.
+
+## Liveness
+
+Each teammate tracks `idle` / `running` status: `teammate_spawn` marks the teammate running (with its current task id); when the worker exits or fails to start, the teammate returns to `idle`. `teammate_list` shows the current status, so "registered" and "actually working" are always distinguishable.
+
+## State Persistence
+
+Teammate state (registrations, mailboxes, tasks) is persisted to session entries automatically. It survives `Ctrl+C`, `/resume`, and session restarts. No manual save is needed.
+
+## Best Practices
+
+1. Register a team-leader first — this role is required for `assign_task` and `broadcast`
+2. Use `teammate_list` to check the team before assigning tasks
+3. Workers should read their mailbox with `teammate_read_mailbox` after receiving a task notification
+4. Use `teammate_list_tasks status="assigned"` to see pending work
+5. Always provide a `result` when completing a task so the team-leader knows what was done
+6. Wire dependencies with `teammate_task_deps` before spawning so blocked tasks fail fast
+7. Give workers a `model` at registration so `teammate_spawn` can run them with the right model
+8. Use `isolation: "worktree"` when spawning parallel workers that write files, so they never collide on the working tree
+9. Set `timeoutMs` on long-running or risky tasks so a hung worker is killed and the task fails with a clear reason
