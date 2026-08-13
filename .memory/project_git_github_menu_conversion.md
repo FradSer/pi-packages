@@ -12,7 +12,7 @@ The user directed that the packages' commands should be pi menus, not skills ("�
 **How to apply:**
 1. `/git` — GitFlow start/finish for feature/hotfix/release + commit/commit-and-push (standard git); `procedures/start.md` & `finish.md` substitute `{{WORKFLOW_TYPE}}`; the package must never contain the literal `git-agent` (test-enforced decoupling).
 2. `/git-agent` — commit, commit-and-push, init, related; procedures point at `{{PKG_DIR}}/references/cli.md`; a small `before_agent_start` guidance block keeps "commit this" routing without a skill.
-3. `/github` — create-issues, create-pr, resolve-issues, review-pr; references live in `references/{create-issues,create-pr,resolve-issues,review-pr,shared}/` with per-workflow symlinks to `references/shared/`; `scripts/review-loop.sh` stays; create-pr remains the only PR-creating path.
+3. `git`/`github` moved to pure skills in ~/Developer/FradSer/skills (see the skills repo) — their pi menu packages were removed from this monorepo.
 4. package.json: `pi` = `{ "extensions": [...] }` only; `files` includes `procedures` (+ `references`, `scripts` for github). Delete `skills/` entirely.
 5. Procedures must not reference `/skill:`; reference paths resolve through the `{{PKG_DIR}}` placeholder at send time.
 6. Natural-language routing still exists via `before_agent_start` GUIDANCE injection ("create a PR", "commit this") — the shortcut for users who skip both the menu and slash-command knowledge.

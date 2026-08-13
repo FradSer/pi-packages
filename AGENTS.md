@@ -4,7 +4,7 @@ Monorepo of native **Pi** packages (`pi-packages/`). Each package under `package
 
 ## Layout & Tooling
 
-- `packages/<name>/` — one pi package each (`btw`, `code-context`, `git`, `git-agent`, `github`, `lark`, `mattpocock`, `memory`, `monitor`, `teammate`, `utils`).
+- `packages/<name>/` — one pi package each (`btw`, `code-context`, `lark`, `mattpocock`, `memory`, `monitor`, `teammate`, `utils`). (The former `git-agent` package now lives at `~/Developer/FradSer/git-agent/git-agent-pi-package`; the former `git`/`github` packages became pure skills in `~/Developer/FradSer/skills`.)
 - pnpm workspace at the root (`pnpm-workspace.yaml`); per-package deps live in `packages/<name>/node_modules`.
 - **Tests**: `python3 -m pytest packages/<name>/tests/`. BDD: write/update `.feature` files under `packages/<name>/features/` before behavior changes.
 - **Typecheck**: `npx tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution bundler --types "" packages/<name>/src/*.ts` (or `extensions/*.ts`).
@@ -18,8 +18,8 @@ Monorepo of native **Pi** packages (`pi-packages/`). Each package under `package
 
 ## Command menus vs skills (settled UX)
 
-- `git`/`git-agent`/`github`/`memory`/`btw` expose workflows as **pi menu commands** (`/git`, `/git-agent`, `/github`, `/memory`, `/btw`), not skills: `pi.registerCommand(...)` + `ctx.ui.select` + the full procedure embedded via `pi.sendUserMessage(..., { deliverAs: "followUp" })` with `{{PKG_DIR}}` substituted at send time. Keep this pattern; do not reintroduce per-workflow skills.
-- Skill names are global — avoid collisions (the old `commit`/`commit-and-push` clash between `git` and `git-agent` was resolved by moving to menus).
+- `memory`/`btw` expose workflows as **pi menu commands** (`/memory`, `/btw`), not skills: `pi.registerCommand(...)` + `ctx.ui.select` + the full procedure embedded via `pi.sendUserMessage(..., { deliverAs: "followUp" })` with `{{PKG_DIR}}` substituted at send time. Keep this pattern; do not reintroduce per-workflow skills. (The former `git-agent` package follows the same pattern from `~/Developer/FradSer/git-agent/git-agent-pi-package`; the former `git`/`github` packages moved to pure skills in `~/Developer/FradSer/skills`.)
+- Skill names are global — avoid collisions (the old `commit`/`commit-and-push` clash between `git` and `git-agent` was resolved by moving to menus; the git/github skills now live in `~/Developer/FradSer/skills`).
 - Natural-language routing ("commit this", "create a PR") is preserved with small `before_agent_start` GUIDANCE blocks, not skills.
 
 ## TUI pattern — follow `@packages/btw` (canonical)
@@ -42,8 +42,6 @@ Interactive extension UI mirrors `packages/btw/src/overlay.ts`:
 
 ## Constraints
 
-- The `git` package stays decoupled from `git-agent`: the literal string `git-agent` must never appear in it (test-enforced).
-- Git worktrees live under `.pi/worktrees/` (the `git` extension rewrites bare `git worktree add` targets there).
 - Commits go through git-agent (`git-agent commit` with an intent built from the session) — never bare `git add`/`git commit`; scope with exact staging + `--no-stage`.
 
 ## Memory

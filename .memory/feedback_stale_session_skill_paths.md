@@ -4,7 +4,7 @@ description: pi caches package/skill paths at session startup — after restruct
 type: feedback
 ---
 
-When a pi session is started, it resolves package paths from `~/.pi/agent/settings.json` once and holds skill file locations in memory for the whole session. If the repo layout changes afterwards (e.g. `pi-packages/git-agent/` moved to `pi-packages/packages/git-agent/`), any already-running session still points skills at the old paths and `/skill:commit` fails with `ENOENT ... open '.../pi-packages/git-agent/skills/commit/SKILL.md'`.
+When a pi session is started, it resolves package paths from `~/.pi/agent/settings.json` once and holds skill file locations in memory for the whole session. If the repo layout changes afterwards (e.g. `pi-packages/git-agent/` moved to `pi-packages/packages/git-agent/`, later to `~/Developer/FradSer/git-agent/git-agent-pi-package`), any already-running session still points skills at the old paths and `/skill:commit` fails with `ENOENT ... open '.../pi-packages/git-agent/skills/commit/SKILL.md'`.
 
 **Why:**
 Observed Aug 12: after the pi-packages monorepo restructure into `packages/`, sessions started before the settings.json update produced exactly this ENOENT (missing `packages/` segment), even though the file existed at the new path and settings.json was already corrected. pi loads skills fresh per session — there is no persistent skill cache — so a restart fully fixes it.
