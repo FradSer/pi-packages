@@ -1,5 +1,5 @@
 /**
- * @fradser/btw — side questions for Pi.
+ * @fradser/pi-btw — side questions for Pi.
  *
  * `/btw <question>` answers a quick side question in a full-width popup at
  * the bottom of the terminal (above the input box), without interrupting the

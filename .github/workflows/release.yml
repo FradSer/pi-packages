@@ -27,7 +27,10 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # --allow-build: pnpm 11 exits non-zero on ignored build scripts in a
+        # clean CI environment unless the allowed list is passed explicitly
+        # (the same list as pnpm-workspace.yaml onlyBuiltDependencies).
+        run: pnpm install --frozen-lockfile --allow-build=esbuild --allow-build=@google/genai --allow-build=protobufjs
 
       # pnpm-native changesets: `pnpm version -r` consumes .changeset/*.md
       # (written by `pnpm change`), bumps versions + writes CHANGELOGs, then

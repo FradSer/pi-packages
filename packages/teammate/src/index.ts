@@ -402,7 +402,7 @@ function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> {
     const up = /^\u001b\[(?:[0-9;:]*)?A$|^\u001bOA$/;
     const down = /^\u001b\[(?:[0-9;:]*)?B$|^\u001bOB$/;
 
-    // btw-style callbacks (same accent/muted/dim/border/success/error language as @fradser/btw).
+    // btw-style callbacks (same accent/muted/dim/border/success/error language as @fradser/pi-btw).
     const style = {
       accent: (s: string) => theme.fg("accent", s),
       muted: (s: string) => theme.fg("muted", s),

@@ -640,7 +640,7 @@ def test_live_poll_merges_worker_writes() -> None:
 
 
 def test_console_matches_btw_style() -> None:
-    """The /teammate console uses the @fradser/btw popup style language:
+    """The /teammate console uses the @fradser/pi-btw popup style language:
     top/bottom borders, accent header, dim footer hints, same color callbacks."""
     ext = (SRC / "index.ts").read_text(encoding="utf-8")
     assert 'accent: (s: string) => theme.fg("accent", s)' in ext
