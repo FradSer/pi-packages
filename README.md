@@ -1,4 +1,4 @@
-# Frad's Pi Packages ![](https://img.shields.io/badge/packages-8-blue)
+# Frad's Pi Packages ![](https://img.shields.io/badge/packages-7-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -20,7 +20,7 @@ Skills are invoked with Pi's `/skill:<name>` command. Arguments are appended aft
 
 **Installation:**
 ```bash
-pi install npm:@fradser/btw
+pi install npm:@fradser/pi-btw
 # or from this repo: pi install /path/to/pi-packages/packages/btw
 ```
 
@@ -36,20 +36,6 @@ Retrieves code context through DeepWiki, Context7, Exa, direct git clone, and we
 ```bash
 pi install npm:@fradser/code-context
 # or from this repo: pi install /path/to/pi-packages/packages/code-context
-```
-
----
-
-### [`lark`](packages/lark/)
-
-Feishu/Lark CLI skills mirrored from larksuite/cli: docs, sheets, messaging, calendars, approvals, drives, wikis, contacts, mail, tasks, meetings, and related services.
-
-**Skills:** `lark` router plus the mirrored Lark sub-skills
-
-**Installation:**
-```bash
-pi install npm:@fradser/lark
-# or from this repo: pi install /path/to/pi-packages/packages/lark
 ```
 
 ---
@@ -72,11 +58,11 @@ pi install npm:@fradser/mattpocock
 
 Native `/memory` command for auto-memory guidance, an instructions menu, and memory consolidation (clustering, staleness checks, ground-truth verification, privacy validation). Consolidation runs as an inline procedure in a background worker. No skill surface.
 
-**Command:** `/memory` menu: consolidate now, edit instructions, open auto-memory folder, toggle auto-memory
+**Command:** `/memory` menu (consolidate now, edit instructions, open auto-memory folder, toggle auto-memory) plus `/consolidate` for one-shot consolidation
 
 **Installation:**
 ```bash
-pi install npm:@fradser/memory
+pi install npm:@fradser/pi-memory
 # or from this repo: pi install /path/to/pi-packages/packages/memory
 ```
 
@@ -90,7 +76,7 @@ Runs a shell command in the background and streams its stdout to the agent as no
 
 **Installation:**
 ```bash
-pi install npm:@fradser/monitor
+pi install npm:@fradser/pi-monitor
 # or from this repo: pi install /path/to/pi-packages/packages/monitor
 ```
 
@@ -112,13 +98,13 @@ pi install npm:@fradser/teammate
 
 ### [`utils`](packages/utils/)
 
-A pi-native `/effort` command for setting the session thinking level (menu or inline, e.g. `/effort max`).
+Pi-native utility commands: `/effort` sets the session thinking level (menu or inline, e.g. `/effort max`), `/continue` (or `/继续`) resumes from an interrupted step or continues the previous response, and `git worktree add` paths are redirected into `.pi/worktrees/`.
 
-**Command:** `/effort`
+**Commands:** `/effort`, `/continue` · `/继续`
 
 **Installation:**
 ```bash
-pi install npm:@fradser/utils
+pi install npm:@fradser/pi-utils
 # or from this repo: pi install /path/to/pi-packages/packages/utils
 ```
 

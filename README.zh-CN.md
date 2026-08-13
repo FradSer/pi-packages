@@ -1,4 +1,4 @@
-# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-8-blue)
+# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-7-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -20,7 +20,7 @@
 
 **安装:**
 ```bash
-pi install npm:@fradser/btw
+pi install npm:@fradser/pi-btw
 # 或本地安装:pi install /path/to/pi-packages/packages/btw
 ```
 
@@ -36,22 +36,6 @@ pi install npm:@fradser/btw
 ```bash
 pi install npm:@fradser/code-context
 # 或本地安装:pi install /path/to/pi-packages/packages/code-context
-```
-
----
-
-### [`lark`](packages/lark/)
-
-### [`lark`](packages/lark/)
-
-镜像自 larksuite/cli 的飞书/Lark CLI skills:文档、表格、消息、日历、审批、云盘、知识库、通讯录、邮件、任务、会议及相关服务。
-
-**Skills:** `lark` 路由加镜像的 Lark 子 skills
-
-**安装:**
-```bash
-pi install npm:@fradser/lark
-# 或本地安装:pi install /path/to/pi-packages/packages/lark
 ```
 
 ---
@@ -74,11 +58,11 @@ pi install npm:@fradser/mattpocock
 
 原生 `/memory` 命令:自动记忆引导、指令编辑菜单和记忆整合(聚类、时效检查、接地验证、隐私校验)。整合以内联流程在后台 worker 中运行。无 skill 面。
 
-**命令:** `/memory` 菜单: 立即整合、编辑指令、打开自动记忆目录、开关自动记忆
+**命令:** `/memory` 菜单(立即整合、编辑指令、打开自动记忆目录、开关自动记忆)和 `/consolidate` 一键整合
 
 **安装:**
 ```bash
-pi install npm:@fradser/memory
+pi install npm:@fradser/pi-memory
 # 或本地安装:pi install /path/to/pi-packages/packages/memory
 ```
 
@@ -92,7 +76,7 @@ pi install npm:@fradser/memory
 
 **安装:**
 ```bash
-pi install npm:@fradser/monitor
+pi install npm:@fradser/pi-monitor
 # 或本地安装:pi install /path/to/pi-packages/packages/monitor
 ```
 
@@ -114,13 +98,13 @@ pi install npm:@fradser/teammate
 
 ### [`utils`](packages/utils/)
 
-一个 pi 原生的 `/effort` 命令,用于设置会话的 thinking level(菜单或内联,例如 `/effort max`)。
+pi 原生实用命令:`/effort` 设置会话的 thinking level(菜单或内联,例如 `/effort max`),`/continue`(或 `/继续`)从中断步骤恢复或继续上一段回复,并把 `git worktree add` 的路径重定向到 `.pi/worktrees/`。
 
-**命令:** `/effort`
+**命令:** `/effort`、`/continue` · `/继续`
 
 **安装:**
 ```bash
-pi install npm:@fradser/utils
+pi install npm:@fradser/pi-utils
 # 或本地安装:pi install /path/to/pi-packages/packages/utils
 ```
 
