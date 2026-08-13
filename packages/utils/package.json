@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-utils",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Native /effort and /继续 (/continue) commands for pi — set thinking levels, resume interrupted steps, and redirect git worktrees",
   "keywords": [
     "pi-package",
