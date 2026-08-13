@@ -1,5 +1,5 @@
 /**
- * @fradser/memory — native pi /memory command.
+ * @fradser/pi-memory — native pi /memory command.
  *
  * Replaces the /skill:consolidate skill surface with a pi-native command menu:
  *
@@ -186,7 +186,7 @@ async function resolveProjectInstructionsFile(
 }
 
 /**
- * Resolve the @fradser/memory package dir. Covers npm/git installs under
+ * Resolve the @fradser/pi-memory package dir. Covers npm/git installs under
  * ~/.pi/agent (via settings.json packages, including relative-path dev
  * checkouts) and the monorepo layout relative to cwd.
  */

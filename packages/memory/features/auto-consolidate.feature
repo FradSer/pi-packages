@@ -7,7 +7,7 @@ Feature: Auto-consolidation at context fill threshold (async dreaming)
   shows the background consolidation state until the child exits.
 
   Background:
-    Given the @fradser/memory package is installed
+    Given the @fradser/pi-memory package is installed
     And auto-memory is on
     And the default fraction consolidateAtContextFraction is 0.4
 

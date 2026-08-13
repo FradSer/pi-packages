@@ -4,7 +4,7 @@ description: /memory menu design — consolidate first, single project-instructi
 type: feedback
 ---
 
-The @fradser/memory /memory menu follows three rules: "Consolidate memory now" is the first option; the project-instructions entry resolves from cwd (`AGENTS.md` preferred, `CLAUDE.md` fallback — pi treats them as equivalent); consolidation runs through pi's native mechanism.
+The @fradser/pi-memory /memory menu follows three rules: "Consolidate memory now" is the first option; the project-instructions entry resolves from cwd (`AGENTS.md` preferred, `CLAUDE.md` fallback — pi treats them as equivalent); consolidation runs through pi's native mechanism.
 
 **Why:**
 User feedback during a menu review: the hardcoded `~/Developer/FradSer/CLAUDE.md` was wrong for subprojects (each project has its own workspace CLAUDE.md), consolidate deserved top billing, and pointing the agent at a skill-style doc file (`skills/consolidate/SKILL.md`) added a dynamic path dependency that could break depending on install layout.

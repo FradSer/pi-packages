@@ -17,7 +17,7 @@ Two locations must stay **identical** (idempotent):
 
 ```bash
 # published
-pi install npm:@fradser/memory
+pi install npm:@fradser/pi-memory
 # or from this repo: pi install /path/to/pi-packages/packages/memory
 ```
 
