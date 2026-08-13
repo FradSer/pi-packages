@@ -33,15 +33,18 @@ jobs:
       # Standard changesets CLI (pnpm 11's native `pnpm version -r` has a bug:
       # it reads change intents but does not apply the bump — verified locally,
       # see memory). @changesets/cli applies bumps correctly in this workspace.
-      # publish uses `changeset publish` (not `pnpm publish -r`) so ONLY
-      # changeset-tracked, version-bumped packages are published — never a
-      # sweep of all never-published workspace packages.
+      #
+      # Publish is intentionally scoped: `changeset publish` / `pnpm publish -r`
+      # would also sweep every never-published workspace package (code-context,
+      # lark, mattpocock, ...) because they carry version numbers. Only the
+      # packages in PUBLISH_SCOPE are ever published here — keep it in sync
+      # with what the user wants on npm.
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
         with:
           version: pnpm changeset version
-          publish: pnpm changeset publish
+          publish: pnpm publish -r --provenance --access public --filter @fradser/pi-memory --filter @fradser/pi-btw
           commit: "chore(release): version packages"
           title: "chore(release): version packages"
         env:
