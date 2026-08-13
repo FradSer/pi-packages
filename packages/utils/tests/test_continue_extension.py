@@ -23,6 +23,14 @@ class TestContinueExtension(unittest.TestCase):
         self.assertIn('"继续"', content)
         self.assertIn('"繼續"', content)
 
+    def test_standalone_keyword_matching_only(self) -> None:
+        content = self.ext_source()
+        # Assert exact Set matching logic is present and no wildcards/substring matches exist
+        self.assertIn("CONTINUE_SET = new Set", content)
+        self.assertIn("CONTINUE_SET.has(normalized)", content)
+        self.assertNotIn("includes(", content)
+        self.assertNotIn("startsWith(", content)
+
     def test_continuation_prompt_logic(self) -> None:
         content = self.ext_source()
         self.assertIn("resolveContinuation", content)
