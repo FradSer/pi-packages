@@ -19,13 +19,34 @@ The extension (`src/index.ts`) registers 10 tools and 1 command:
 | `teammate_list` | List all registered teammates |
 | `teammate_send` | Send a message to a teammate's mailbox |
 | `teammate_read_mailbox` | Read messages from a teammate's mailbox |
-| `teammate_assign_task` | Assign a task to a teammate (team-leader only) |
+| `teammate_assign_task` | Assign a task to a teammate (leader = current main session) |
 | `teammate_list_tasks` | List tasks filtered by status or assignee |
 | `teammate_update_task` | Update task status (in_progress, completed, failed, cancelled) |
-| `teammate_broadcast` | Broadcast a message to all teammates (team-leader only) |
+| `teammate_broadcast` | Broadcast a message to all teammates (leader = current main session) |
 | `teammate_task_deps` | Wire task dependencies (blocks / blockedBy) on the board |
-| `teammate_spawn` | Spawn a real child Pi process as a teammate to execute a task |
+| `teammate_spawn` | Spawn a real child Pi process as a teammate (autonomous worker) |
+| `teammate_remove` | Unregister a teammate and delete its mailbox |
+| `teammate_cleanup` | Prune finished tasks, or remove a single task |
+| `teammate_reset` | Wipe the whole board (teammates, mailboxes, tasks) |
 | `/teammate-status` | Show teammate system status summary |
+
+### Team UI: passive widget + full-screen console
+
+No global key interception — pi's model selector, history and dialogs always
+work. The teammate UI is:
+
+- **Widget (display only)** above the prompt editor: one colored row per
+  teammate (name, `(teammate)` label, `● running task_x` / `○ idle`), plus an
+  alert `N message(s) to you from teammates` when the leader inbox has unread
+  messages. Passive — it never touches your keys.
+- **`/teammate` full-screen console**: `↑`/`↓` select, `Enter` open (leader
+  inbox or a teammate's full page with unread/task sections + mailbox), `r`
+  inline reply, `Esc` back/close, `x` stop a running worker, `q` close.
+
+**Leader inbox**: teammates can message your window by writing to
+`mailboxes["agent"]`; the panel then shows a selectable
+`N message(s) to you from teammates` row that opens the full-screen inbox, and
+`teammate_read_mailbox name="agent"` reads it.
 
 ### Roles
 
@@ -51,7 +72,8 @@ teammate/
 │   ├── index.ts              — Extension entry point (10 tools + 1 command + before_agent_start injection)
 │   ├── state.ts              — State management (mailbox, tasks, registry, dependencies, liveness)
 │   ├── types.ts              — TypeScript types and typebox schemas
-│   ├── spawner.ts            — Child Pi process spawner (real worker execution)
+│   ├── spawner.ts            — Child Pi process spawner (autonomous guardian-loop workers, blocking + background)
+│   ├── statefile.ts          — Shared state file (parent ↔ worker mailbox/task board sync)
 │   └── worktree.ts           — Git worktree isolation for parallel workers
 ├── skills/
 │   └── using-teammate/

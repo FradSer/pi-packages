@@ -98,6 +98,40 @@ export function getTeammate(name: string): Teammate | undefined {
   return state.teammates[name];
 }
 
+/**
+ * Unregister a teammate and delete its mailbox. Refuses while the teammate is
+ * running a spawned worker unless force is set (the child keeps running but
+ * its completion finds no registry entry — safe).
+ */
+export function removeTeammate(name: string, force = false): { ok: boolean; error?: string } {
+  const teammate = state.teammates[name];
+  if (!teammate) {
+    return { ok: false, error: `Teammate "${name}" not found.` };
+  }
+  if (!force && teammate.status === "running") {
+    return {
+      ok: false,
+      error: `Teammate "${name}" is running a worker — wait for it to finish, or pass force to remove anyway.`,
+    };
+  }
+  delete state.teammates[name];
+  delete state.mailboxes[name];
+  return { ok: true };
+}
+
+/**
+ * Change the model a teammate is spawned with. Applies to its next spawn;
+ * a currently running worker keeps the model it started with.
+ */
+export function updateTeammateModel(name: string, model: string): { ok: boolean; error?: string } {
+  const teammate = state.teammates[name];
+  if (!teammate) {
+    return { ok: false, error: `Teammate "${name}" not found.` };
+  }
+  teammate.model = model;
+  return { ok: true };
+}
+
 export function listTeammates(): Teammate[] {
   return Object.values(state.teammates);
 }
@@ -144,6 +178,25 @@ export function readMailbox(
 
 export function getUnreadCount(name: string): number {
   return (state.mailboxes[name] ?? []).filter((m) => !m.read).length;
+}
+
+/** Every message across every mailbox (for building full conversation transcripts). */
+export function listAllMessages(): MailboxMessage[] {
+  return Object.values(state.mailboxes).flat();
+}
+
+/**
+ * Mark the task-assignment notification(s) for a task as read once the task
+ * actually starts (spawned or set in_progress). Keeps the footer unread count
+ * meaningful: assignment notifications are consumed when work begins instead
+ * of piling up as stale "unread" items.
+ */
+export function markTaskNotificationsRead(taskId: string): void {
+  for (const mailbox of Object.values(state.mailboxes)) {
+    for (const msg of mailbox) {
+      if (msg.taskId === taskId) msg.read = true;
+    }
+  }
 }
 
 // ── Task management ───────────────────────────────────────────────
@@ -311,6 +364,78 @@ export function listTasks(filters: { status?: string; assignee?: string } = {}):
   return tasks;
 }
 
+/**
+ * Remove a single task from the board. Refuses while a worker is running on
+ * it. Dependency edges referencing the removed task are stripped from the
+ * remaining tasks so the board stays traversable.
+ */
+export function removeTask(taskId: string): { ok: boolean; error?: string } {
+  const task = state.tasks[taskId];
+  if (!task) {
+    return { ok: false, error: `Task "${taskId}" not found.` };
+  }
+  if (task.spawn?.status === "running") {
+    return {
+      ok: false,
+      error: `Task "${taskId}" has a running worker — wait for it to finish first.`,
+    };
+  }
+  delete state.tasks[taskId];
+  for (const t of Object.values(state.tasks)) {
+    t.blockedBy = t.blockedBy.filter((dep) => dep !== taskId);
+    t.blocks = t.blocks.filter((b) => b !== taskId);
+  }
+  return { ok: true };
+}
+
+/**
+ * Prune all finished tasks (completed / failed / cancelled) from the board.
+ * Returns how many were removed. Terminal tasks never block anything, so
+ * pruning them never strands a dependent task; edges are stripped anyway.
+ */
+export function pruneFinishedTasks(): number {
+  const terminal = new Set(["completed", "failed", "cancelled"]);
+  const ids = Object.values(state.tasks)
+    .filter((t) => terminal.has(t.status))
+    .map((t) => t.id);
+  const idSet = new Set(ids);
+  for (const id of ids) delete state.tasks[id];
+  for (const t of Object.values(state.tasks)) {
+    t.blockedBy = t.blockedBy.filter((dep) => !idSet.has(dep));
+    t.blocks = t.blocks.filter((b) => !idSet.has(b));
+  }
+  return ids.length;
+}
+
+/**
+ * Wipe the entire board: all teammates, mailboxes, and tasks. Refuses while
+ * any teammate is running a worker. Counters reset so new ids start fresh.
+ */
+export function resetBoard(): {
+  ok: boolean;
+  error?: string;
+  removedTeammates: number;
+  removedTasks: number;
+} {
+  const running = Object.values(state.teammates).some((t) => t.status === "running");
+  if (running) {
+    return {
+      ok: false,
+      error: "A teammate is running a worker — wait for it to finish before resetting.",
+      removedTeammates: 0,
+      removedTasks: 0,
+    };
+  }
+  const removedTeammates = Object.keys(state.teammates).length;
+  const removedTasks = Object.keys(state.tasks).length;
+  state.teammates = {};
+  state.mailboxes = {};
+  state.tasks = {};
+  state.messageCounter = 0;
+  state.taskCounter = 0;
+  return { ok: true, removedTeammates, removedTasks };
+}
+
 export function getTask(taskId: string): Task | undefined {
   return state.tasks[taskId];
 }
@@ -321,8 +446,46 @@ export function getState(): TeammateState {
   return state;
 }
 
-export function getSummary(): string {
+/**
+ * Merge changes a worker wrote to the shared state file back into memory.
+ * Adopts: any messages the worker added to mailboxes (replies, deduped by id)
+ * and any status/result updates it made to tasks. Parent-side state wins on
+ * conflict for teammates; counters only ever move forward.
+ */
+export function applyStateFile(file: string, readFile: (f: string) => TeammateState | undefined): void {
+  const fresh = readFile(file);
+  if (!fresh) return;
+  for (const [name, msgs] of Object.entries(fresh.mailboxes)) {
+    const existing = state.mailboxes[name] ?? [];
+    const byId = new Map<string, MailboxMessage>();
+    for (const m of existing) byId.set(m.id, m);
+    for (const m of msgs) {
+      const prior = byId.get(m.id);
+      // The parent owns read state: a message the leader already consumed must
+      // never be un-read by a later worker file write (live poll / exit merge).
+      if (prior?.read) m.read = true;
+      byId.set(m.id, m);
+    }
+    state.mailboxes[name] = Array.from(byId.values());
+  }
+  for (const [id, t] of Object.entries(fresh.tasks)) {
+    const cur = state.tasks[id];
+    if (!cur) continue;
+    cur.status = t.status;
+    if (t.result !== undefined) cur.result = t.result;
+    if (t.errorMessage !== undefined) cur.errorMessage = t.errorMessage;
+    if (t.completedAt) cur.completedAt = t.completedAt;
+  }
+  state.messageCounter = Math.max(state.messageCounter, fresh.messageCounter ?? 0);
+  state.taskCounter = Math.max(state.taskCounter, fresh.taskCounter ?? 0);
+}
+
+export function getSummary(): string | undefined {
   const teammateCount = Object.keys(state.teammates).length;
+  // Nothing to show until the first teammate is registered — an all-zero footer
+  // ("0 teammate(s) | 0 unread message(s) | 0 active task(s), 0 total") is noise
+  // on session entry. setStatus(..., undefined) clears the footer.
+  if (teammateCount === 0) return undefined;
   const unreadTotal = Object.keys(state.mailboxes).reduce(
     (sum, name) => sum + getUnreadCount(name),
     0,

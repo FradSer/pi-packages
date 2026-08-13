@@ -190,6 +190,31 @@ export const TeammateTaskDepsParams = Type.Object({
   blockedBy: Type.Optional(Type.Array(Type.String(), { description: "Task IDs that block this task" })),
 });
 
+export const TeammateRemoveParams = Type.Object({
+  name: Type.String({ description: "Teammate name to unregister" }),
+  force: Type.Optional(
+    Type.Boolean({
+      description: "Remove even when the teammate is running a worker (default: false)",
+      default: false,
+    }),
+  ),
+});
+
+export const TeammateUpdateModelParams = Type.Object({
+  name: Type.String({ description: "Teammate name to update" }),
+  model: Type.String({
+    description: "New model pattern for this teammate (e.g. \"anthropic/claude-sonnet-4\"). Applied to its next spawn.",
+  }),
+});
+
+export const TeammateCleanupParams = Type.Object({
+  taskId: Type.Optional(
+    Type.String({
+      description: "Remove a single task. Omit to prune all finished (completed/failed/cancelled) tasks.",
+    }),
+  ),
+});
+
 export const TeammateSpawnParams = Type.Object({
   name: Type.String({ description: "Name of the teammate to spawn as a worker" }),
   taskId: Type.String({ description: "Task ID to execute in the child process" }),
@@ -199,10 +224,18 @@ export const TeammateSpawnParams = Type.Object({
       { description: "Run the worker in a fresh git worktree (default: none)" },
     ),
   ),
+  background: Type.Optional(
+    Type.Boolean({
+      description:
+        "false (default): block until the worker autonomously closes and return its report. " +
+        "true: fire-and-forget — the worker keeps watching its mailbox until it decides to close; check the board/mailbox later.",
+      default: false,
+    }),
+  ),
   timeoutMs: Type.Optional(
     Type.Integer({
       minimum: 1,
-      description: "Kill the worker after this many milliseconds (default: 1800000 = 30 min)",
+      description: "Hard wall-clock cap before the worker is killed (default: 1800000 = 30 min)",
     }),
   ),
 });
