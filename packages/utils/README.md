@@ -1,6 +1,7 @@
 # Utils Pi Package
 
-Utility skills for keeping project READMEs and changelogs accurate.
+A pi-native `/effort` command for setting the session thinking level, plus a
+git worktree path redirect for keeping linked worktrees inside the repo.
 
 ## Installation
 
@@ -10,17 +11,38 @@ pi install npm:@fradser/utils
 # or from this repo: pi install /path/to/pi-packages/packages/utils
 ```
 
-Skills are invoked as `/skill:<name>`.
+## Commands
 
-## Skills
+### `effort` — set the thinking level
 
-### `update-readme`
+`/effort` with no argument opens a menu of the thinking levels the current
+model supports (the current level is marked). With an argument it sets the
+level directly:
 
-Keeps `README.md` and `README.zh-CN.md` synchronized with the project's current state. Run `/skill:update-readme` manually when adding, removing, or renaming project components.
+```
+/effort          # menu
+/effort max      # set directly
+/effort min      # aliases: min, med, xh, none, 0
+```
 
-### `update-changelog`
+Valid levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
+Unknown values are rejected with a hint listing the valid levels. The level
+is clamped to the model's capabilities, and the menu is narrowed to what the
+model actually supports (a reasoning-off model only gets `off`).
 
-Creates or updates `CHANGELOG.md` in Keep a Changelog 1.1.0 format from tags and commit history. Run `/skill:update-changelog` manually before a release or when documenting changes.
+## Git worktree redirect
+
+Any `git worktree add` bash command is transparently rewritten so the linked
+worktree lives inside `.pi/worktrees/<name>` instead of a sibling directory:
+
+```
+git worktree add ../foo feature/foo
+# → mkdir -p .pi/worktrees && git worktree add .pi/worktrees/foo feature/foo
+```
+
+Flags (`-b`, `-B`, `--reason`, `--lock`) and trailing positional arguments
+(branch, start commit) are preserved, and a path that is already inside
+`.pi/worktrees/` is left untouched.
 
 ## License
 

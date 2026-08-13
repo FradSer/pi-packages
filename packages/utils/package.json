@@ -1,13 +1,14 @@
 {
   "name": "@fradser/utils",
   "version": "0.2.2",
-  "description": "Utility skills for keeping project READMEs and changelogs accurate",
+  "description": "Native /effort command for pi — set the session thinking level from a menu or inline",
   "keywords": [
     "pi-package",
-    "documentation",
-    "readme",
-    "changelog",
-    "project-maintenance"
+    "effort",
+    "thinking",
+    "reasoning",
+    "git",
+    "worktree"
   ],
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",
@@ -19,12 +20,16 @@
     "access": "public"
   },
   "files": [
-    "skills",
+    "extensions",
     "README.md"
   ],
   "pi": {
-    "skills": [
-      "./skills"
+    "extensions": [
+      "./extensions"
     ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
   }
 }
