@@ -1,1 +1,0 @@
-../../references/repository-templates.md

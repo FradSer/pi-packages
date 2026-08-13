@@ -1,7 +1,7 @@
 {
   "name": "@fradser/github",
-  "version": "0.7.5",
-  "description": "GitHub project operations with quality gates, TDD workflows, native pi interaction tools (gh_ask_merge / gh_confirm), and validation. Requires: gh CLI, git.",
+  "version": "0.7.6",
+  "description": "GitHub project operations with quality gates, TDD workflows, and a native /github menu — no skill surface. Requires: gh CLI, git.",
   "keywords": [
     "pi-package",
     "github",
@@ -19,14 +19,13 @@
     "access": "public"
   },
   "files": [
-    "skills",
+    "procedures",
+    "references",
     "extensions",
+    "scripts",
     "README.md"
   ],
   "pi": {
-    "skills": [
-      "./skills"
-    ],
     "extensions": [
       "./extensions"
     ]

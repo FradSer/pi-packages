@@ -1,8 +1,8 @@
 # GitHub Pi Package
 
-GitHub project operations with quality gates, TDD workflows, and comprehensive issue management.
+GitHub project operations with quality gates, TDD workflows, and comprehensive issue management. Native `/github` command menu — **no skill surface**.
 
-**Version**: 0.7.5
+**Version**: 0.7.6
 
 ## Installation
 
@@ -12,7 +12,7 @@ pi install npm:@fradser/github
 # or from this repo: pi install /path/to/pi-packages/packages/github
 ```
 
-Skills are invoked as `/skill:<name>` (for example `/skill:create-pr`, `/skill:review-pr`).
+Workflows are invoked through the native `/github` menu (or `/github <keyword>` shorthand).
 
 **Requirements:**
 - GitHub CLI (`gh`) must be installed and authenticated
@@ -20,11 +20,39 @@ Skills are invoked as `/skill:<name>` (for example `/skill:create-pr`, `/skill:r
 - Project must have lint, test, and build commands configured
 - Git must support worktrees (Git 2.5+)
 
+## Usage
+
+Type `/github` to open the native menu:
+
+```
+GitHub workflows:
+❯ 1. Create issue(s)
+  2. Create pull request
+  3. Resolve issue(s)
+  4. Review PR
+```
+
+Shorthand — pass a workflow keyword on the command line to skip the menu:
+
+```bash
+/github create-issues "Add rate limiting"
+/github create-pr Closes #456 --draft
+/github resolve-issues 456
+/github review-pr 123
+/github review-pr https://github.com/owner/repo/pull/123 --auto-merge
+```
+
+Each selection embeds the full procedure (`procedures/*.md`) into a follow-up
+message via `pi.sendUserMessage`, with reference docs under `references/`
+resolved through the `{{PKG_DIR}}` placeholder. A short guidance block is
+injected into the system prompt so natural-language requests ("create a PR",
+"review PR #123") route straight to the procedures.
+
 ## Overview
 
-The GitHub Plugin automates GitHub operations including pull request creation, issue management, and quality validation. It ensures all PRs meet quality standards before submission and follows TDD principles with atomic commits and conventional commit formats.
+The GitHub plugin automates GitHub operations including pull request creation, issue management, and quality validation. It ensures all PRs meet quality standards before submission and follows TDD principles with atomic commits and conventional commit formats.
 
-**Every PR enters the review loop.** `/skill:create-pr` is the plugin's single PR-creating path, and it always hands off to `/skill:review-pr` once the PR exists. Other skills — `/skill:resolve-issues` included — delegate to it rather than calling `gh pr create` themselves, so no PR can skip the quality gate or the loop:
+**Every PR enters the review loop.** The create-pr procedure is the plugin's single PR-creating path, and it always hands off to the review-pr procedure once the PR exists. Other workflows — resolve-issues included — delegate to it rather than calling `gh pr create` themselves, so no PR can skip the quality gate or the loop:
 
 ```
 create PR → baseline review → triage each comment skeptically
@@ -35,62 +63,40 @@ create PR → baseline review → triage each comment skeptically
           → post-merge: prune stale head + sync main/develop
 ```
 
-The loop is the default; opting out takes a deliberate act — passing `--no-monitor` to `/skill:create-pr`, or telling the agent directly that you only want the PR created or only want a baseline review. It is never skipped just because CI looks quiet: auto-review services and human reviewers comment on their own schedule, so a repo with no CI workflows still gets watched.
-
-**Package Architecture**: Optimized with progressive disclosure - core workflows (~500 tokens) in SKILL.md files with detailed references in `references/` subdirectories for efficient context loading.
+The loop is the default; opting out takes a deliberate act — passing `--no-monitor` to the create-pr workflow, or telling the agent directly that you only want the PR created or only want a baseline review. It is never skipped just because CI looks quiet: auto-review services and human reviewers comment on their own schedule, so a repo with no CI workflows still gets watched.
 
 ## Plugin Structure
 
-Each skill follows a phase-based workflow structure with detailed reference materials:
+Each workflow uses a phase-based procedure with detailed reference materials:
 
 ```
-skills/
-├── create-issues/
-│   ├── SKILL.md                    # Core workflow (~534 tokens)
-│   └── references/
-│       ├── requirements.md         # TDD and commit standards
-│       ├── decision-logic.md       # Branch decisions and issue types
-│       ├── issue-structure.md      # Structure requirements
-│       └── examples.md             # Commit message examples
-├── create-pr/
-│   ├── SKILL.md                    # Core workflow (~634 tokens)
-│   └── references/
-│       ├── requirements.md         # Pre-creation checklist
-│       ├── quality-validation.md   # Node.js/Python checks
-│       ├── pr-structure.md         # Title/body templates
-│       ├── failure-resolution.md   # Agent collaboration
-│       └── examples.md             # Commit message examples
-├── resolve-issues/
-│   ├── SKILL.md                    # Core workflow (~591 tokens)
-│   └── references/
-│       ├── requirements.md         # Worktree and TDD workflow
-│       ├── workflow-details.md     # Detailed process steps
-│       └── examples.md             # Commit message examples
-└── review-pr/
-    ├── SKILL.md                    # Review + CI/comment watch loop
-    ├── scripts/
-    │   └── review-loop.sh          # CI/comment poll script
-    └── references/
-        ├── review-loop.md          # Poll interval, triage prompt, verdicts
-        └── closeout.md             # Summary, body rewrite, merge, post-merge hygiene
-extensions/
-└── interactive.ts                  # Native pi dialogs: gh_ask_merge + gh_confirm
+github/
+├── extensions/
+│   ├── menu.ts               # /github command menu + guidance injection
+│   └── risky-gate.ts         # tool_call hook: model-generated option dialog for gh pr merge / worktree remove --force
+├── procedures/
+│   ├── create-issues.md      # Issue creation workflow (~534 tokens)
+│   ├── create-pr.md          # PR creation workflow (~634 tokens)
+│   ├── resolve-issues.md     # Issue resolution workflow (~591 tokens)
+│   └── review-pr.md          # Review + CI/comment watch loop
+├── references/
+│   ├── create-issues/        # decision-logic, issue-structure, requirements
+│   ├── create-pr/            # failure-resolution, pr-structure, requirements
+│   ├── resolve-issues/       # requirements, workflow-details
+│   ├── review-pr/            # review-loop, closeout
+│   └── shared/               # auto-closing-keywords, quality-validation, ...
+│       └── (symlinked from each per-workflow dir)
+└── scripts/
+    └── review-loop.sh        # CI/comment poll script
 ```
 
 This architecture enables efficient context loading by keeping core workflows concise while providing comprehensive reference materials on demand.
 
-## Commands
+## Workflows
 
-### `/skill:create-pr`
+### Create pull request
 
-Creates comprehensive GitHub pull requests with quality validation and gates, then hands off to `/skill:review-pr`. This is the plugin's only PR-creating path.
-
-**Metadata:**
-
-| Field | Value |
-|-------|-------|
-| Allowed Tools | a clean independent reasoning pass, `Bash(gh:*)`, `Bash(git:*)`, `Skill` |
-| Argument Hint | `[optional description or issue reference] [--no-monitor]` |
+Creates comprehensive GitHub pull requests with quality validation and gates, then hands off to the review-pr workflow. This is the plugin's only PR-creating path.
 
 **What it does:**
 1. Validates repository status and GitHub authentication
@@ -114,33 +120,17 @@ Creates comprehensive GitHub pull requests with quality validation and gates, th
    - Quality validation status
 8. Applies automated labels based on changes
 9. Creates PR using GitHub CLI with proper metadata
-10. Hands off to `/skill:review-pr` for the review loop (unless `--no-monitor`)
+10. Hands off to the review-pr workflow (unless `--no-monitor`)
 
 **Usage:**
 ```bash
-/skill:create-pr
+/github create-pr
 
 # Create the PR but skip the review loop
-/skill:create-pr --no-monitor
-```
+/github create-pr --no-monitor
 
-**Example workflow:**
-```bash
-# Make atomic commits following conventional format
-/skill:commit  # First feature commit
-/skill:commit  # Second feature commit
-
-# Create PR with quality gates
-/skill:create-pr
-
-# Claude will:
-# - Validate all commits follow conventional format
-# - Run lint, test, build, security checks
-# - Ensure all quality gates pass
-# - Generate comprehensive PR description
-# - Apply labels and link issues
-# - Create PR and provide URL
-# - Hand off to /skill:review-pr to watch CI and reviewer comments
+# Link an issue and open as draft
+/github create-pr Closes #456 --draft
 ```
 
 **Features:**
@@ -152,26 +142,17 @@ Creates comprehensive GitHub pull requests with quality validation and gates, th
 - **Issue linking**: Automatically links related issues
 - **Security scanning**: Checks for sensitive data exposure
 - **Failure resolution**: Systematic process to fix issues
-- **Review loop handoff**: Delegates to `/skill:review-pr` after creation
+- **Review loop handoff**: Delegates to the review-pr workflow after creation
 
 **Failure resolution process:**
-When quality checks fail, the command:
+When quality checks fail, the workflow:
 1. Creates specific task lists for failures
 2. Fixes issues systematically with validation
 3. Re-runs checks until all pass
 
----
-
-### `/skill:create-issues`
+### Create issues
 
 Creates GitHub issues following TDD principles with proper labels, scope, and auto-closing keywords.
-
-**Metadata:**
-
-| Field | Value |
-|-------|-------|
-| Allowed Tools | a clean independent reasoning pass, `Bash(gh:*)`, `Bash(git:*)` |
-| Argument Hint | `[description]` |
 
 **What it does:**
 1. Analyzes repository context and existing issues
@@ -191,20 +172,8 @@ Creates GitHub issues following TDD principles with proper labels, scope, and au
 
 **Usage:**
 ```bash
-/skill:create-issues [\"Bug description\" \"Feature description\"]
-```
-
-**Example workflows:**
-```bash
-# Create single issue
-/skill:create-issues \"Fix memory leak in auth service\"
-
-# Create multiple issues
-/skill:create-issues \"Add rate limiting\" \"Update payment API\" \"Fix mobile layout\"
-
-# With detailed description (interactive)
-/skill:create-issues
-# Claude will ask for details and create properly formatted issue
+/github create-issues "Fix memory leak in auth service"
+/github create-issues "Add rate limiting" "Update payment API" "Fix mobile layout"
 ```
 
 **Features:**
@@ -217,7 +186,7 @@ Creates GitHub issues following TDD principles with proper labels, scope, and au
 
 **Branch-based decision logic:**
 - **On main/develop**: Create issue directly
-- **On PR branch**: Ask "Must this be fixed before merge?" via the `gh_confirm` native dialog
+- **On PR branch**: Ask "Must this be fixed before merge?" directly in the conversation
   - **Yes**: Comment in PR with detailed context
   - **No**: Create new issue for later with justification
 
@@ -226,18 +195,9 @@ Creates GitHub issues following TDD principles with proper labels, scope, and au
 2. **PR-scoped issues**: Single PR resolution (use auto-close keywords)
 3. **Review issues**: Non-blocking feedback from PR reviews
 
----
-
-### `/skill:resolve-issues`
+### Resolve issues
 
 Resolves GitHub issues using isolated worktrees and TDD workflow with comprehensive quality validation.
-
-**Metadata:**
-
-| Field | Value |
-|-------|-------|
-| Allowed Tools | `Bash(gh:*)`, `Bash(git:*)`, `mkdir -p .pi/worktrees && git worktree add .pi/worktrees/under `.pi/worktrees/``, `git worktree remove`, a clean independent reasoning pass, `Skill` |
-| Argument Hint | `[issue number or description]` |
 
 **What it does:**
 1. **Issue Selection**: Evaluates open issues and prioritizes next actionable item
@@ -248,68 +208,44 @@ Resolves GitHub issues using isolated worktrees and TDD workflow with comprehens
    - Implement fixes
    - Refactor while keeping tests green
 4. **Quality Validation**: Runs project-specific lint, test, and build commands for fast local feedback
-5. **PR Creation**: Pushes the branch, then delegates to `/skill:create-pr` with the issue reference — which runs the authoritative quality gate and enters the `/skill:review-pr` loop. This skill does not resume inline; `/skill:review-pr` owns the PR through merge, the post-merge worktree removal, and the switch/sync to `main`.
-6. **Cleanup** (fallback only): `/skill:review-pr`'s closeout removes the linked worktree and syncs `main` after a merge. This step runs only if that cleanup was skipped (e.g. "Don't merge", an interrupt, or a fresh session) — verify `git worktree list` first and ``git worktree remove` on the `.pi/worktrees/` path` only if the worktree persists
+5. **PR Creation**: Pushes the branch, then delegates to the create-pr workflow with the issue reference — which runs the authoritative quality gate and enters the review-pr loop. This workflow does not resume inline; the review-pr workflow owns the PR through merge, the post-merge worktree removal, and the switch/sync to `main`.
+6. **Cleanup** (fallback only): The review-pr closeout removes the linked worktree and syncs `main` after a merge. This step runs only if that cleanup was skipped (e.g. "Don't merge", an interrupt, or a fresh session) — verify `git worktree list` first and `git worktree remove` on the `.pi/worktrees/` path only if the worktree persists
 
 **Usage:**
 ```bash
-/skill:resolve-issues
-```
-
-**Example workflow:**
-```bash
-# Start issue resolution
-/skill:resolve-issues
-
-# Claude will:
-# - Show open issues and ask which to resolve
-# - Create worktree: git worktree add ../fix-123-auth-redirect
-# - Plan with tech-lead-reviewer
-# - Write failing tests
-# - Implement fix
-# - Run quality checks
-# - Delegate to /skill:create-pr with \"Fixes #123\"
-#   └─ which hands off to /skill:review-pr for the loop
-# - review-pr closeout removes the worktree, switches to main, syncs origin
+/github resolve-issues
+/github resolve-issues 456
 ```
 
 **Features:**
 - **Isolated worktrees**: Clean environment for each issue
 - **TDD workflow**: Red → Green → Refactor cycle
 - **Quality gates**: All checks must pass
-- **Review loop**: Reaches `/skill:review-pr` via `/skill:create-pr`
+- **Review loop**: Reaches the review-pr workflow via create-pr
 - **Auto-cleanup**: review-pr closeout removes the worktree and syncs `main` after merge
 - **Documentation**: Tracks all decisions and actions
 
----
+### Review PR
 
-### `/skill:review-pr`
-
-Reviews a PR, then keeps a persistent watch over CI results and incoming reviewer comments until the PR settles. Reached automatically from `/skill:create-pr`; also usable standalone on any existing PR.
-
-**Metadata:**
-
-| Field | Value |
-|-------|-------|
-| Allowed Tools | a clean independent reasoning pass, `Bash(gh:*)`, `Bash(git:*)`, `git worktree remove`, bash poll via `scripts/review-loop.sh`, `gh_ask_merge` (native merge dialog), `gh_confirm` (risky-action gate), `notify the user in conversation`, `stop re-polling`, `Skill`, `Read`, `Edit`, `Write` |
-| Argument Hint | `<PR number or URL>` |
+Reviews a PR, then keeps a persistent watch over CI results and incoming reviewer comments until the PR settles. Reached automatically from the create-pr workflow; also usable standalone on any existing PR.
 
 **What it does:**
 1. Runs its own baseline review of the PR diff via an independent agent, treating the findings as the first comment batch
-2. Launches one persistent background bash poll via `scripts/review-loop.sh` polling CI and new comments, with the interval sized to the PR
+2. Launches one persistent background bash poll via `scripts/review-loop.sh` (bundled in the `@fradser/github` package — resolve from installed copy or `settings.json` relative-path checkout) polling CI and new comments, with the interval sized to the PR
 3. On each event:
    - **CI failure** → fetches logs, fixes, commits + pushes (stops and reports for auth, secret, flaky, or infra failures)
    - **New comments** → spawns an independent skeptical triage agent with a clean context, which returns `fix` / `reject <reason>` / `escalate` per comment
 4. Applies only the `fix` verdicts, replies to rejections, notifies on escalations
 5. Commits + pushes each round, which triggers fresh CI that the same poll script re-emits — the loop continues
 6. Hides resolved comments and resolves their threads
-7. Once CI is green and every comment is triaged: asks whether to merge via a **native `gh_ask_merge` dialog** (blocks until answered), then posts a summary comment, rewrites the PR body to link it
+7. Once CI is green and every comment is triaged: asks the user in the conversation whether to merge and waits for the reply, then posts a summary comment, rewrites the PR body to link it
 8. After merge: removes the linked worktree, cleans up the head branch when safe, switches to `main`, syncs `main`/`develop`, prunes stale locals
 
 **Usage:**
 ```bash
-/skill:review-pr 123
-/skill:review-pr https://github.com/owner/repo/pull/123
+/github review-pr 123
+/github review-pr https://github.com/owner/repo/pull/123
+/github review-pr 123 --auto-merge
 ```
 
 **Features:**
@@ -321,7 +257,7 @@ Reviews a PR, then keeps a persistent watch over CI results and incoming reviewe
 
 ## Best Practices
 
-### Using `/skill:create-pr`
+### Create PR
 - **Quality-first**: All checks must pass before PR creation
 - **Atomic commits**: Each commit should be a logical unit
 - **Conventional format**: Follow commit message standards
@@ -329,7 +265,7 @@ Reviews a PR, then keeps a persistent watch over CI results and incoming reviewe
 - **Issue linking**: Reference issues in commits for auto-closing
 - **Review the PR**: Verify description accuracy before submission
 
-### Using `/skill:create-issues`
+### Create issues
 - **Clear descriptions**: Provide specific problem statements
 - **Acceptance criteria**: Define measurable completion conditions
 - **TDD workflow**: Create issues before implementation
@@ -337,11 +273,10 @@ Reviews a PR, then keeps a persistent watch over CI results and incoming reviewe
 - **Label consistently**: Use priority and type labels
 - **Link related items**: Connect issues to related work
 
-### Using `/skill:resolve-issues`
+### Resolve issues
 - **Select wisely**: Prioritize the next actionable issue
 - **Follow TDD**: Write tests before implementation
 - **Use worktrees**: Keep environments isolated
-- **Collaborate**: Use specialized agents for review
 - **Quality gates**: All checks must pass before PR
 - **Clean up**: Remove worktrees after merge
 - **Document**: Track decisions and lessons learned
@@ -351,34 +286,31 @@ Reviews a PR, then keeps a persistent watch over CI results and incoming reviewe
 ### Complete development workflow:
 ```bash
 # 1. Create issue for feature
-/skill:create-issues \"Add OAuth authentication\"
+/github create-issues "Add OAuth authentication"
 
 # 2. Resolve the issue
-/skill:resolve-issues
+/github resolve-issues
 # - Select the OAuth issue
 # - Work in isolated worktree
 # - Follow TDD cycle
-# - Delegate to /skill:create-pr when complete
+# - Delegate to create-pr when complete
 
-# 3. Or manual development
-/skill:commit  # Follow conventional format
-/skill:commit
+# 3. Or manual development — commit via your installed commit workflow
 
 # 4. Create PR with quality gates
-/skill:create-pr
+/github create-pr
 # - All checks pass
 # - PR description generated
 # - Issues linked automatically
 
 # 5. The review loop runs automatically from step 2 or 4
-# /skill:review-pr takes over:
 # - Baseline review, then watches CI and reviewer comments
 # - Triages each comment, fixes what's verified, pushes
 # - Repeats until CI is green and no comments remain
 # - Asks whether to merge
 ```
 
-Steps 2 and 4 both funnel through `/skill:create-pr` → `/skill:review-pr`, so no PR opens and gets walked away from unless you explicitly opt out.
+Steps 2 and 4 both funnel through create-pr → review-pr, so no PR opens and gets walked away from unless you explicitly opt out.
 
 ## Requirements
 
@@ -390,14 +322,14 @@ Steps 2 and 4 both funnel through `/skill:create-pr` → `/skill:review-pr`, so 
 
 ## Troubleshooting
 
-### `/skill:create-pr` fails quality checks
+### create-pr fails quality checks
 
 **Issue**: Lint, test, build, or security checks fail
 
 **Solution**:
 - Review failure output carefully
 - Fix all issues systematically
-- Re-run `/skill:create-pr` after all fixes
+- Re-run `/github create-pr` after all fixes
 - Consider splitting large PRs if too many issues
 
 ### GitHub CLI not authenticated
@@ -455,7 +387,7 @@ Steps 2 and 4 both funnel through `/skill:create-pr` → `/skill:review-pr`, so 
 
 ## Key Principles
 
-- **TDD-First**: Test → Code → Refactor cycle
+- **TDD-First**: Test → Code → Refactor Cycle
 - **Quality Gates**: All checks pass before PR
 - **Atomic Commits**: One logical change per commit
 - **Issue-Driven**: Work from well-defined issues
