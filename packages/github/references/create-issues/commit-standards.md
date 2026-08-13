@@ -1,1 +1,0 @@
-../shared/commit-standards.md

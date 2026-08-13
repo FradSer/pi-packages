@@ -1,1 +1,0 @@
-../shared/quality-validation.md
