@@ -1,6 +1,6 @@
 {
   "name": "@fradser/utils",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Utility skills for keeping project READMEs and changelogs accurate",
   "keywords": [
     "pi-package",

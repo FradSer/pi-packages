@@ -1,0 +1,36 @@
+{
+  "name": "@fradser/btw",
+  "version": "0.1.0",
+  "description": "Side questions for Pi — /btw answers in a read-only overlay, never entering the session history. Unlike Claude Code's /btw, it can actually call read-only tools (read, grep, find, ls) to verify facts in the codebase.",
+  "keywords": [
+    "pi-package",
+    "btw",
+    "side-questions",
+    "read-only",
+    "overlay",
+    "context"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    ".memory",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  }
+}

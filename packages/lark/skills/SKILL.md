@@ -53,12 +53,10 @@ This skill is a **router only**. Do not invent CLI commands from memory. Match u
 4. Multi-domain tasks: load each relevant Entry in task order (auth shared once)
 5. Document-embedded whiteboards: coordinate [`lark-doc/lark-doc.md`](lark-doc/lark-doc.md) + [`lark-whiteboard/lark-whiteboard.md`](lark-whiteboard/lark-whiteboard.md)
 
-## High-risk write approval (native dialog)
+## High-risk write approval (conversation consent)
 
 lark-cli exits with code `10` and a `confirmation_required` envelope on high-risk writes (`risk: "high-risk-write"`) unless `--yes` is passed. When that happens:
 
-1. **Call the `lark_confirm_action` tool** with `action` / `risk` from the envelope's `error.action` / `error.risk` and the key params as `params`. It renders a native yes/no dialog and blocks until the user answers — the consent cannot be hallucinated.
-2. `approved: true` → retry the **original argv** with `--yes` appended. `approved: false` → stop; never rewrite args or skip the gate.
-3. Tool unavailable (returns `mode: "conversation"` or not loaded, e.g. non-interactive run) → show the user the action/risk/params in the conversation and wait for explicit consent (see the exit-10 protocol in `lark-shared/lark-shared.md`).
-
-Never add `--yes` silently, and never treat `confirmation_required` as a network/permission error.
+1. **Ask the user directly in the conversation** for explicit consent — show `action` / `risk` from the envelope's `error.action` / `error.risk` and the key params, state that this is a high-risk operation, and wait for their reply.
+2. User explicitly agrees → retry the **original argv** with `--yes` appended. User declines → stop; never rewrite args or skip the gate.
+3. Never add `--yes` silently, and never treat `confirmation_required` as a network/permission error.

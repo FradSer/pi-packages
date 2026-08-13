@@ -1,6 +1,6 @@
 {
   "name": "@fradser/lark",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Feishu/Lark CLI skills mirrored from larksuite/cli — docs, sheets, IM, calendar, approval, drive, wiki, contacts, and more",
   "keywords": [
     "pi-package",
@@ -19,18 +19,11 @@
   },
   "files": [
     "skills",
-    "README.md",
-    "extensions"
+    "README.md"
   ],
   "pi": {
     "skills": [
       "./skills"
-    ],
-    "extensions": [
-      "./extensions"
     ]
-  },
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
   }
 }

@@ -24,6 +24,8 @@ class TestCodeContextManifest(unittest.TestCase):
         self.assertIn("skills", data["pi"])
         self.assertIn("extensions", data["pi"])
         self.assertIn("@earendil-works/pi-coding-agent", data.get("peerDependencies", {}))
+        self.assertIn("@earendil-works/pi-ai", data.get("peerDependencies", {}))
+        self.assertIn("typebox", data.get("peerDependencies", {}))
         self.assertNotIn(".mcp.json", data.get("files", []))
 
     def test_no_mcp_server_config(self):
@@ -32,6 +34,20 @@ class TestCodeContextManifest(unittest.TestCase):
             os.path.exists(os.path.join(CC_PKG_DIR, ".mcp.json")),
             ".mcp.json must be removed — pi has no built-in MCP support",
         )
+
+
+class TestModificationResearchGuidance(unittest.TestCase):
+    def test_maintainer_guidance_requires_applicable_native_context_tools(self):
+        """Package changes document when each native context tool must be used."""
+        with open(os.path.join(CC_PKG_DIR, "AGENTS.md"), "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("context_deepwiki", content)
+        self.assertIn("context_context7", content)
+        self.assertIn("context_exa", content)
+        self.assertIn("Before editing", content)
+        self.assertIn("applicable", content)
+        self.assertIn("Change type", content)
+        self.assertIn("fallback", content)
 
 
 class TestContextToolsExtension(unittest.TestCase):

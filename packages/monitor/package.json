@@ -1,0 +1,41 @@
+{
+  "name": "@fradser/monitor",
+  "version": "0.1.0",
+  "description": "Background process monitoring for Pi — stream a command's stdout to the agent as notifications, no polling",
+  "keywords": [
+    "pi-package",
+    "monitor",
+    "background",
+    "watch",
+    "logs",
+    "observability",
+    "streaming"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "skills",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "pi": {
+    "skills": [
+      "./skills"
+    ],
+    "extensions": [
+      "./src/index.ts"
+    ]
+  }
+}

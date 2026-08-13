@@ -11,6 +11,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { truncateHead, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 
@@ -29,7 +30,8 @@ function textResult(text: string, details: Record<string, unknown> = {}): ToolTe
 
 function truncate(text: string): string {
 	if (text.length <= MAX_CHARS) return text;
-	return `${text.slice(0, MAX_CHARS)}\n\n…[truncated ${text.length - MAX_CHARS} chars]`;
+	const result = truncateHead(text, { maxLines: DEFAULT_MAX_LINES, maxBytes: MAX_CHARS });
+	return `${result.content}\n\n…[truncated ${text.length - MAX_CHARS} chars]`;
 }
 
 async function httpJson(url: string, init: RequestInit = {}): Promise<{ ok: boolean; status: number; body: string }> {
@@ -115,6 +117,10 @@ export default function (pi: ExtensionAPI) {
 			"Fetch AI-generated documentation for a public GitHub repository from DeepWiki. " +
 			"mode=structure returns the table of contents; mode=contents returns the full wiki text; " +
 			"mode=ask answers a specific question with sources. No API key required.",
+		promptSnippet: "Look up AI-generated documentation for a public GitHub repo from DeepWiki",
+		promptGuidelines: [
+			"Use context_deepwiki to fetch structured repo documentation via DeepWiki instead of cloning when you only need a high-level understanding.",
+		],
 		parameters: DeepWikiParams,
 		executionMode: "sequential",
 
@@ -144,6 +150,10 @@ export default function (pi: ExtensionAPI) {
 			"Fetch up-to-date, version-aware documentation snippets for a library from Context7. " +
 			"Searches the library, then retrieves markdown docs (optionally focused on a topic). " +
 			"Anonymous usage is rate-limited; set CONTEXT7_API_KEY (Authorization: Bearer) for per-key quota.",
+		promptSnippet: "Look up version-aware library documentation from Context7",
+		promptGuidelines: [
+			"Use context_context7 to look up library docs instead of guessing APIs from memory. Anonymous usage is rate-limited; set CONTEXT7_API_KEY for higher quota.",
+		],
 		parameters: Context7Params,
 		executionMode: "sequential",
 
@@ -207,6 +217,10 @@ export default function (pi: ExtensionAPI) {
 		description:
 			"Search the web for real-world code patterns, comparisons, and up-to-date information via Exa. " +
 			"Requires the EXA_API_KEY environment variable. Returns titles, URLs, and text snippets.",
+		promptSnippet: "Search the web for real-world code patterns, comparisons, and up-to-date information via Exa",
+		promptGuidelines: [
+			"Use context_exa to search the web when you need current information, code patterns, or comparisons. Requires EXA_API_KEY to be set.",
+		],
 		parameters: ExaParams,
 		executionMode: "sequential",
 
