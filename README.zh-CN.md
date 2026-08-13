@@ -1,4 +1,4 @@
-# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-7-blue)
+# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-8-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -11,6 +11,20 @@
 所有 skill 都使用 Pi 的 `/skill:<name>` 命令调用。参数会追加在 skill 内容之后;Pi 不会展开 `$ARGUMENTS`,也不会执行 skill Markdown 中的 shell 注入。工作流类包使用原生命令(`/memory`、`/btw`、`/teammate`)。
 
 ## 包列表
+
+### [`vision`](packages/vision/)
+
+为不具备视觉能力的 Pi 模型提供透明的图片转文字桥接。使用 `/vision model provider/model` 配置视觉模型;图片提示会先交给视觉模型阅读,再将视觉上下文交给当前文本模型继续处理。
+
+**命令:** `/vision model provider/model`、`/vision on`、`/vision off`
+
+**安装:**
+```bash
+pi install npm:@fradser/pi-vision
+# 或本地安装:pi install /path/to/pi-packages/packages/vision
+```
+
+---
 
 ### [`btw`](packages/btw/)
 
@@ -82,16 +96,16 @@ pi install npm:@fradser/pi-monitor
 
 ---
 
-### [`teammate`](packages/teammate/)
+### [`agent-teams`](packages/agent-teams/)
 
-多 agent 团队系统:注册 teammate、分配任务、邮箱通信,以及监控自己邮箱并自主决定何时关闭的自治子 Pi worker。通过 `/teammate` 全屏控制台管理。
+多 agent 团队系统:注册 teammate、分配任务、并行运行独立 worker、使用 `teammate_wait` 汇总结果,以及通过 `/teammate` 全屏控制台管理自治子 Pi worker。
 
-**工具:** `teammate_register` / `list` / `send` / `read_mailbox` / `assign_task` / `list_tasks` / `update_task` / `broadcast` / `spawn` / `task_deps` / `remove` / `cleanup` / `reset` / `update_model` · **命令:** `/teammate` · **Skill:** `using-teammate`
+**工具:** `teammate_register` / `list` / `send` / `read_mailbox` / `assign_task` / `list_tasks` / `update_task` / `broadcast` / `spawn` / `wait` / `task_deps` / `remove` / `cleanup` / `reset` / `update_model` · **命令:** `/teammate`
 
 **安装:**
 ```bash
-pi install npm:@fradser/teammate
-# 或本地安装:pi install /path/to/pi-packages/packages/teammate
+pi install npm:@fradser/pi-agent-teams
+# 或本地安装:pi install /path/to/pi-packages/packages/agent-teams
 ```
 
 ---

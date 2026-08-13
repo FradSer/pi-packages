@@ -30,6 +30,18 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
+  packages/agent-teams:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '*'
+        version: 0.84.1(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-tui':
+        specifier: '*'
+        version: 0.84.1
+      typebox:
+        specifier: '*'
+        version: 1.3.12
+
   packages/btw:
     dependencies:
       '@earendil-works/pi-coding-agent':
@@ -51,8 +63,6 @@ importers:
         specifier: '*'
         version: 1.3.12
 
-  packages/lark: {}
-
   packages/mattpocock: {}
 
   packages/memory:
@@ -73,18 +83,6 @@ importers:
         specifier: '*'
         version: 1.3.12
 
-  packages/teammate:
-    dependencies:
-      '@earendil-works/pi-coding-agent':
-        specifier: '*'
-        version: 0.84.1(ws@8.21.3)(zod@4.4.3)
-      '@earendil-works/pi-tui':
-        specifier: '*'
-        version: 0.84.1
-      typebox:
-        specifier: '*'
-        version: 1.3.12
-
   packages/utils:
     dependencies:
       '@earendil-works/pi-coding-agent':
@@ -93,6 +91,15 @@ importers:
       '@earendil-works/pi-tui':
         specifier: '*'
         version: 0.84.1
+
+  packages/vision:
+    dependencies:
+      '@earendil-works/pi-ai':
+        specifier: '*'
+        version: 0.84.1(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-coding-agent':
+        specifier: '*'
+        version: 0.84.1(ws@8.21.3)(zod@4.4.3)
 
 packages:
 

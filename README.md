@@ -1,4 +1,4 @@
-# Frad's Pi Packages ![](https://img.shields.io/badge/packages-7-blue)
+# Frad's Pi Packages ![](https://img.shields.io/badge/packages-8-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -11,6 +11,20 @@ Native Pi packages for reusable agent skills, extensions, and project workflows.
 Skills are invoked with Pi's `/skill:<name>` command. Arguments are appended after the skill body. Pi does not expand `$ARGUMENTS` or run shell injections inside skill Markdown. Workflow packages use native commands instead (`/memory`, `/btw`, `/teammate`).
 
 ## Packages
+
+### [`vision`](packages/vision/)
+
+Transparent image-to-text bridge for text-only Pi models. Configure a vision-capable model with `/vision model provider/model`; image prompts are analyzed first, then passed to the active text-only model as visual context.
+
+**Command:** `/vision model provider/model`, `/vision on`, `/vision off`
+
+**Installation:**
+```bash
+pi install npm:@fradser/pi-vision
+# or from this repo: pi install /path/to/pi-packages/packages/vision
+```
+
+---
 
 ### [`btw`](packages/btw/)
 
@@ -82,16 +96,16 @@ pi install npm:@fradser/pi-monitor
 
 ---
 
-### [`teammate`](packages/teammate/)
+### [`agent-teams`](packages/agent-teams/)
 
-Multi-agent team system: register teammates, assign tasks, mailbox messaging, and autonomous child-Pi workers that watch their mailbox and decide when to close. Managed through the `/teammate` full-screen console.
+Multi-agent team system: register teammates, assign tasks, run independent workers in parallel, collect results with `teammate_wait`, and manage autonomous child-Pi workers through the `/teammate` console.
 
-**Tools:** `teammate_register` / `list` / `send` / `read_mailbox` / `assign_task` / `list_tasks` / `update_task` / `broadcast` / `spawn` / `task_deps` / `remove` / `cleanup` / `reset` / `update_model` · **Command:** `/teammate` · **Skill:** `using-teammate`
+**Tools:** `teammate_register` / `list` / `send` / `read_mailbox` / `assign_task` / `list_tasks` / `update_task` / `broadcast` / `spawn` / `wait` / `task_deps` / `remove` / `cleanup` / `reset` / `update_model` · **Command:** `/teammate`
 
 **Installation:**
 ```bash
-pi install npm:@fradser/teammate
-# or from this repo: pi install /path/to/pi-packages/packages/teammate
+pi install npm:@fradser/pi-agent-teams
+# or from this repo: pi install /path/to/pi-packages/packages/agent-teams
 ```
 
 ---
