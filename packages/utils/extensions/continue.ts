@@ -1,11 +1,12 @@
 /**
  * @fradser/utils — native pi /continue command and "continue" input interception.
  *
- * Resume execution from interrupted steps, re-run aborted requests directly,
- * or prompt the LLM to continue based on suggestions/next steps from the previous response.
+ * Resume execution from interrupted steps, re-run aborted requests directly (silently),
+ * or prompt the LLM to continue based on suggestions/next steps (visibly).
  *
- * Messages are sent as non-displaying custom messages (display: false) to avoid
- * cluttering the chat transcript with visible user continuation prompts.
+ * Behavior matrix:
+ *   - Interrupted / Aborted turn -> Silent resume (display: false) to avoid chat transcript clutter.
+ *   - Normal Completed turn -> Visible message (display: true / sendUserMessage) so the transcript clearly shows the continuation prompt.
  *
  * Usage:
  *   /continue [optional extra prompt]
@@ -13,6 +14,11 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+
+export interface ContinuationTarget {
+  promptText: string;
+  isInterrupted: boolean;
+}
 
 /**
  * Find the text of the last user prompt in the active session branch.
@@ -40,12 +46,18 @@ function getLastUserPrompt(ctx: ExtensionContext): string | null {
 }
 
 /**
- * Inspect the session history to construct a continuation prompt.
+ * Inspect the session history to construct a continuation prompt and determine
+ * whether the turn was interrupted (requires silent resume) or completed (requires visible message).
  */
-function buildContinuationPrompt(ctx: ExtensionContext): string {
+export function resolveContinuation(ctx: ExtensionContext, customArgs?: string): ContinuationTarget {
+  const raw = customArgs?.trim();
+  if (raw) {
+    return { promptText: raw, isInterrupted: false };
+  }
+
   const branch = ctx.sessionManager.getBranch();
   if (branch.length === 0) {
-    return "Please continue execution.";
+    return { promptText: "Please continue execution.", isInterrupted: false };
   }
 
   // Find the last message entry in the branch
@@ -59,99 +71,105 @@ function buildContinuationPrompt(ctx: ExtensionContext): string {
   }
 
   if (!lastMessageEntry) {
-    return "Please continue execution.";
+    return { promptText: "Please continue execution.", isInterrupted: false };
   }
 
   const msg = lastMessageEntry.message;
 
-  // Case 1: Trailing message is a user prompt (assistant turn was aborted before saving assistant entry)
+  // Case 1: Trailing message is a user prompt (assistant turn was aborted before saving entry)
   if (msg.role === "user") {
     const userText = getLastUserPrompt(ctx);
-    if (userText) return userText;
+    return {
+      promptText: userText ?? "Please resume execution from the last request.",
+      isInterrupted: true,
+    };
   }
 
-  // Case 2: Most recent assistant message was aborted (stopReason === "aborted") -> re-run last user request directly
+  // Case 2: Most recent assistant message was aborted (stopReason === "aborted") -> re-run last user request directly & silently
   for (let i = branch.length - 1; i >= 0; i--) {
     const entry = branch[i];
     if (entry.type === "message" && entry.message.role === "assistant") {
       if (entry.message.stopReason === "aborted") {
         const lastUserText = getLastUserPrompt(ctx);
-        if (lastUserText) return lastUserText;
-        return "The previous turn was aborted. Please resume execution from where it was interrupted.";
+        return {
+          promptText: lastUserText ?? "The previous turn was aborted. Please resume execution from where it was interrupted.",
+          isInterrupted: true,
+        };
       }
       break; // Only check the latest assistant message
     }
   }
 
-  // Case 3: Last message was a toolResult that failed or errored
+  // Case 3: Last message was a toolResult that failed or errored -> resume silently
   if (msg.role === "toolResult" && msg.isError) {
     const toolName = msg.toolName ? ` (${msg.toolName})` : "";
-    return `The previous step${toolName} was interrupted or encountered an error. Please inspect the error details and system state, then resume execution from the interrupted step.`;
+    return {
+      promptText: `The previous step${toolName} was interrupted or encountered an error. Please inspect the error details and system state, then resume execution from the interrupted step.`,
+      isInterrupted: true,
+    };
   }
 
-  // Case 4: Last assistant message completed normally — continue based on suggestions / next steps
-  let lastAssistantText = "";
-  for (let i = branch.length - 1; i >= 0; i--) {
-    const entry = branch[i];
-    if (entry.type === "message" && entry.message.role === "assistant") {
-      const texts = entry.message.content
-        ?.filter((c): c is { type: "text"; text: string } => c.type === "text")
-        .map((c) => c.text)
-        .join("\n");
-      if (texts) {
-        lastAssistantText = texts;
-        break;
-      }
-    }
-  }
-
-  if (lastAssistantText) {
-    return "Please continue execution based on the suggestions, incomplete steps, or next actions from your previous response.";
-  }
-
-  return "Please continue execution.";
+  // Case 4: Last assistant message completed normally — prompt AI to continue based on suggestions (visible message)
+  return {
+    promptText: "Please continue execution based on the suggestions, incomplete steps, or next actions from your previous response.",
+    isInterrupted: false,
+  };
 }
 
 export default function (pi: ExtensionAPI) {
-  // 1. Intercept plain user input "continue" and trigger turn without displaying in UI
+  // 1. Intercept plain user input "continue"
   pi.on("input", async (event, ctx) => {
     const text = event.text.trim().toLowerCase();
     if (text === "continue") {
-      const promptText = buildContinuationPrompt(ctx);
-      pi.sendMessage(
-        {
-          customType: "continue-extension",
-          content: promptText,
-          display: false,
-        },
-        {
-          triggerTurn: true,
-        },
-      );
-      return { action: "handled" };
+      const { promptText, isInterrupted } = resolveContinuation(ctx);
+
+      if (isInterrupted) {
+        // Interrupted turn: silently trigger re-run without cluttering UI with duplicate prompt
+        pi.sendMessage(
+          {
+            customType: "continue-extension",
+            content: promptText,
+            display: false,
+          },
+          {
+            triggerTurn: true,
+          },
+        );
+        return { action: "handled" };
+      }
+
+      // Completed task: user typed "continue" to proceed to next steps — transform and display visibly
+      return {
+        action: "transform",
+        text: promptText,
+      };
     }
     return { action: "continue" };
   });
 
   // 2. Register /continue slash command
   pi.registerCommand("continue", {
-    description: "Resume from an interrupted step or continue execution without adding a visible message to the chat",
+    description: "Resume from an interrupted step (silently) or continue execution based on previous response (visibly)",
     handler: async (args, ctx) => {
       await ctx.waitForIdle();
-      const rawArgs = args.trim();
-      const promptText = rawArgs || buildContinuationPrompt(ctx);
-      const shouldDisplay = Boolean(rawArgs);
+      const { promptText, isInterrupted } = resolveContinuation(ctx, args);
 
-      pi.sendMessage(
-        {
-          customType: "continue-extension",
-          content: promptText,
-          display: shouldDisplay,
-        },
-        {
-          triggerTurn: true,
-        },
-      );
+      if (isInterrupted) {
+        // Interrupted: silent resume
+        pi.sendMessage(
+          {
+            customType: "continue-extension",
+            content: promptText,
+            display: false,
+          },
+          {
+            triggerTurn: true,
+          },
+        );
+      } else {
+        // Normal completion: visible user message
+        pi.sendUserMessage(promptText);
+      }
     },
   });
 }
