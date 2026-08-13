@@ -80,19 +80,15 @@ Bad:  `feedback_git_commit_hook_needed.md — git PreToolUse hook intercepts git
 
 ---
 
-## Consolidate (via /memory menu or auto-trigger)
+## Consolidate (via /memory menu, /consolidate, or auto-trigger)
 
-User-invoked via the /memory menu, or **auto-triggered** by the extension when
-the session context fill reaches `consolidateAtContextFraction` of the active
-model's context window (default 0.4 = 40%, based on research that long-context
-quality degrades from ~40-50% fill; 0 = off, persisted in
-`~/.pi/agent/memory/settings.json`). The auto-trigger runs the procedure in a
-**background child Pi process** (`--print --mode json --no-session`) so the
-session is never blocked — a "Memory: dreaming" widget shows above the input
-editor until the child exits. It fires once per fraction boundary (40%, 80%, …)
-after a real user turn (`input` source "interactive") in a TUI session, so the
-consolidation run itself never re-triggers. The child receives the current
-session file path for Step 0 session-context capture.
+User-invoked via the /memory menu or /consolidate, or **auto-triggered** by the
+extension when the session context fill reaches `consolidateAtContextFraction`
+of the active model's context window (default 0.4 = 40%, based on research that
+long-context quality degrades from ~40-50% fill; 0 = off, persisted in
+`~/.pi/agent/memory/settings.json`). It fires once per fraction boundary
+(40%, 80%, …) after a real user turn (`input` source "interactive") in a TUI
+session, so the consolidation run itself never re-triggers.
 Default failure mode of a weak run is **cosmetic tidy while leaving thematic
 redundancy and factually dead notes**. This procedure is fail-closed against that.
 

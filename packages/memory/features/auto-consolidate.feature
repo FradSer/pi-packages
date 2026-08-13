@@ -43,6 +43,11 @@ Feature: Auto-consolidation at context fill threshold (async dreaming)
     When context percent reaches 80 (tier 2)
     Then no second consolidation child is spawned
 
+  Scenario: Dedicated /consolidate command is a sibling of /memory
+    Given the user types /consolidate
+    Then the extension spawns the same consolidation as /memory's first item
+    And the /memory management menu is unchanged
+
   Scenario: Child receives the session file for Step 0 capture
     Given a consolidation child is spawned
     Then the task includes the current session file path

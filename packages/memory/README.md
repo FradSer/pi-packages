@@ -44,6 +44,11 @@ Auto-memory: on
   run the full fail-closed consolidation procedure (`procedures/consolidate.md`)
   without blocking or cluttering the active session context. A "Memory: dreaming"
   widget shows above the input editor until the worker exits.
+- **`/consolidate`**: a dedicated one-shot trigger for the same consolidation,
+  sitting as a sibling of `/memory` — no menu, starts it immediately
+  (single-flight: a running consolidation blocks a second one). It already runs
+  entirely in the background, so the foreground user just sees the "Memory:
+  dreaming" widget.
 - **Auto-consolidate**: while auto-memory is on, the extension watches
   `ctx.getContextUsage()` and, once the session context fill reaches
   `consolidateAtContextFraction` of the active model's context window (default

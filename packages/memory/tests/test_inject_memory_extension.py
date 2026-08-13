@@ -131,6 +131,16 @@ class TestAutoConsolidation(unittest.TestCase):
         self.assertIn("spawnAsyncConsolidation", content)
         self.assertNotIn("sendUserMessage", content)
 
+    def test_dedicated_consolidate_command_is_sibling_of_memory(self):
+        """A dedicated /consolidate command exists alongside /memory and triggers the
+        same background worker without going through the management menu."""
+        content = self.ext_source()
+        self.assertIn('registerCommand("consolidate"', content)
+        self.assertIn("spawnAsyncConsolidation", content)
+        self.assertIn('"consolidate"', content)
+        # The /memory menu itself must stay unchanged: only one registerCommand("memory")
+        self.assertEqual(content.count('registerCommand("memory"'), 1)
+
     def test_tier_prevents_retrigger(self):
         """Tier-based firing (one trigger per fraction boundary) stops the
         consolidation run itself from re-triggering."""

@@ -154,9 +154,9 @@ preference, lesson, gotcha, or non-obvious project fact during this session,
 Run \`/memory\` to review, edit, or consolidate memory at any time.
 - When the session context reaches the configured fraction of the active model's
   context window (\`consolidateAtContextFraction\`, default 0.4 = 40%), the
-  extension spawns a **background child Pi process** to consolidate memory while
-  you keep working — a \`Memory: dreaming\` widget shows above the input box
-  until it finishes; your session is never blocked.
+  extension consolidates memory automatically in the background — a
+  \`Memory: dreaming\` widget shows above the input box until it finishes; your
+  session is never blocked.
 `;
 
 // ── locate this package (consolidate procedure doc) ────────────────
@@ -562,6 +562,38 @@ export default function (pi: ExtensionAPI) {
         await writeSettings(next);
         ctx.ui.notify(`Auto-memory: ${next.autoMemory ? "on" : "off"}`, "info");
       }
+    },
+  });
+
+  // /consolidate — dedicated one-shot consolidation trigger, sibling of
+  // /memory (no menu). Kept separate from /memory so the management menu
+  // stays focused on instructions + settings. The consolidation itself already
+  // runs entirely in a background child, so the foreground user just sees the
+  // "Memory: dreaming" widget — no need to surface the worker mechanics.
+  pi.registerCommand("consolidate", {
+    description: "Consolidate project memory now",
+    handler: async (_args, ctx) => {
+      const cwd = ctx.cwd || process.cwd();
+      const pkgDir = await resolvePackageDir();
+      const procedureFile = path.join(pkgDir, "procedures", "consolidate.md");
+
+      if (!ctx.hasUI) {
+        ctx.ui.notify(`Consolidate procedure: ${procedureFile}`, "info");
+        return;
+      }
+
+      if (dreamState.active) {
+        ctx.ui.notify("Memory consolidation is already running.", "info");
+        return;
+      }
+
+      ctx.ui.notify("Starting memory consolidation…", "info");
+      await spawnAsyncConsolidation(ctx, dreamState, {
+        pkgDir,
+        cwd,
+        sessionFile: ctx.sessionManager?.getSessionFile(),
+        reason: "Consolidate the project memory now (user-invoked via /consolidate command).",
+      });
     },
   });
 
