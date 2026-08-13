@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # changesets/action commits the version bump
+      pull-requests: write # opens / updates the "Version Packages" PR
+      id-token: write # OIDC trusted publishing for npm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # pnpm-native changesets: `pnpm version -r` consumes .changeset/*.md
+      # (written by `pnpm change`), bumps versions + writes CHANGELOGs, then
+      # changesets/action commits and opens / updates the "Version Packages" PR.
+      # Merging that PR triggers the publish step below. Only packages with a
+      # pending changeset are versioned and published — exact release scope.
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: pnpm version -r
+          publish: pnpm publish -r --provenance --access public
+          commit: "chore(release): version packages"
+          title: "chore(release): version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
