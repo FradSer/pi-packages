@@ -4,7 +4,7 @@ Feature: Background process monitoring
   CI runs, or file changes the moment something happens — no polling loops.
 
   Background:
-    Given the @fradser/monitor extension is loaded
+    Given the @fradser/pi-monitor extension is loaded
 
   Scenario: Starting a monitor streams stdout to the agent
     When monitor_start runs with a command and description

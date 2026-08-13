@@ -1,5 +1,5 @@
 /**
- * @fradser/monitor — Pi extension for background process monitoring.
+ * @fradser/pi-monitor — Pi extension for background process monitoring.
  *
  * Runs a shell command in the background and streams its stdout to the agent
  * as notifications, so the agent reacts to logs, deploys, CI runs, or file

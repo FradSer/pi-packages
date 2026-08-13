@@ -9,7 +9,7 @@ description: >
 
 # Monitor Extension — Usage Guide
 
-This skill documents the `@fradser/monitor` Pi extension: background process
+This skill documents the `@fradser/pi-monitor` Pi extension: background process
 monitoring that streams a command's stdout to the agent as notifications, so the
 agent reacts to events the moment they happen instead of polling.
 

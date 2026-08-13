@@ -8,7 +8,7 @@ deploys, CI runs, or file changes the moment something happens. No polling loops
 
 ## What This Package Does
 
-Like Claude Code's Monitor tool, `@fradser/monitor` turns the agent
+Like Claude Code's Monitor tool, `@fradser/pi-monitor` turns the agent
 event-driven: launch a watcher, go quiet, and wake up only when something
 interesting appears in the output stream.
 
@@ -50,7 +50,7 @@ The extension (`src/index.ts`) registers 3 tools and 1 command:
 ## Installation
 
 ```bash
-pi install npm:@fradser/monitor
+pi install npm:@fradser/pi-monitor
 # or from this repo:
 pi install /path/to/pi-packages/packages/monitor
 ```

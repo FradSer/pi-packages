@@ -1,5 +1,5 @@
 {
-  "name": "@fradser/monitor",
+  "name": "@fradser/pi-monitor",
   "version": "0.1.0",
   "description": "Background process monitoring for Pi — stream a command's stdout to the agent as notifications, no polling",
   "keywords": [
