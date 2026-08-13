@@ -10,6 +10,7 @@
     "publish:dry-run": "pnpm -r pack"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.0",
     "@earendil-works/pi-ai": "^0.84.1",
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "^0.84.1",

@@ -32,16 +32,14 @@ jobs:
         # (the same list as pnpm-workspace.yaml onlyBuiltDependencies).
         run: pnpm install --frozen-lockfile --allow-build=esbuild --allow-build=@google/genai --allow-build=protobufjs
 
-      # pnpm-native changesets: `pnpm version -r` consumes .changeset/*.md
-      # (written by `pnpm change`), bumps versions + writes CHANGELOGs, then
-      # changesets/action commits and opens / updates the "Version Packages" PR.
-      # Merging that PR triggers the publish step below. Only packages with a
-      # pending changeset are versioned and published — exact release scope.
+      # Standard changesets CLI (pnpm 11's native `pnpm version -r` has a bug:
+      # it reads change intents but does not apply the bump — verified locally,
+      # see memory). @changesets/cli applies bumps correctly in this workspace.
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
         with:
-          version: pnpm version -r
+          version: pnpm changeset version
           publish: pnpm publish -r --provenance --access public
           commit: "chore(release): version packages"
           title: "chore(release): version packages"
