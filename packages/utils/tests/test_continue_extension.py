@@ -25,9 +25,10 @@ class TestContinueExtension(unittest.TestCase):
     def test_continuation_prompt_logic(self) -> None:
         content = self.ext_source()
         self.assertIn("buildContinuationPrompt", content)
+        self.assertIn("getLastUserPrompt", content)
+        self.assertIn("stopReason === \"aborted\"", content)
         self.assertIn("toolResult", content)
         self.assertIn("isError", content)
-        self.assertIn("assistant", content)
 
     def test_package_json_registers_extensions(self) -> None:
         manifest = json.loads((UTILS_PKG_DIR / "package.json").read_text(encoding="utf-8"))
