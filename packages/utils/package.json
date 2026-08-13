@@ -1,7 +1,7 @@
 {
   "name": "@fradser/utils",
-  "version": "0.2.2",
-  "description": "Native /effort command for pi — set the session thinking level from a menu or inline",
+  "version": "0.3.0",
+  "description": "Native /effort and /继续 (/continue) commands for pi — set thinking levels, resume interrupted steps, and redirect git worktrees",
   "keywords": [
     "pi-package",
     "effort",

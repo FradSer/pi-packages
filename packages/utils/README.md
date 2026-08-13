@@ -1,7 +1,6 @@
 # Utils Pi Package
 
-A pi-native `/effort` command for setting the session thinking level, plus a
-git worktree path redirect for keeping linked worktrees inside the repo.
+A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks or continuing based on recommendations, plus a git worktree path redirect.
 
 ## Installation
 
@@ -12,6 +11,20 @@ pi install npm:@fradser/utils
 ```
 
 ## Commands
+
+### `continue` — resume or continue execution
+
+`/continue` (or simply typing "continue" in conversation):
+
+```
+/continue                           # resume from interrupted step or continue based on last suggestion
+/continue Please focus on performance  # optional custom follow-up prompt
+```
+
+Behavior:
+1. **Input Interception**: Intercepts plain text `continue` and transforms it into explicit instructions for the model to pick up where it left off.
+2. **Interrupted Step Recovery**: If a tool execution failed or was interrupted, prompts the model to inspect error details and retry from the interrupted step.
+3. **Suggestion Continuation**: If the previous assistant message ended with steps or recommendations, prompts the model to continue implementing them.
 
 ### `effort` — set the thinking level
 
