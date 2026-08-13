@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write # OIDC trusted publishing — no NPM_TOKEN needed
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,8 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
-          cache: pnpm
+          # No registry-url / NODE_AUTH_TOKEN: the OIDC flow needs npm's own
+          # auth, and setup-node's registry-url interferes with the trigger.
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -54,7 +55,5 @@ jobs:
         run: |
           for pkg in ${{ steps.detect.outputs.changed }}; do
             echo "==> pnpm publish --filter $pkg"
-            pnpm publish --filter "$pkg" --access public --no-git-checks
+            pnpm publish --filter "$pkg" --provenance --access public --no-git-checks
           done
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
