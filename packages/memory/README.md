@@ -2,7 +2,7 @@
 
 Native pi `/memory` command — no skill surface. Provides auto-memory guidance
 (injected like @fradser/teammate injects its guidance), an instructions editor
-menu, and manual consolidation.
+menu, manual consolidation, and a dedicated `/consolidate` command.
 
 Two locations must stay **identical** (idempotent):
 
@@ -23,7 +23,8 @@ pi install npm:@fradser/memory
 
 ## Usage
 
-Type `/memory` to open the management menu (native pi select dialog):
+Type `/memory` to open the management menu (native pi select dialog). Type
+`/consolidate` to skip the menu and start the same consolidation immediately.
 
 ```
 Auto-memory: on
@@ -68,7 +69,7 @@ Auto-memory: on
 - **Auto-write**: the injected guidance tells the agent to search existing theme
   files first, write harness, then mirror **safe** files to `.memory/`. Private
   content (preferences, credentials) is harness-only — never body or index line in `.memory/`.
-- **Consolidation** — menu item 1 or auto-trigger. Fail-closed pipeline:
+- **Consolidation** — menu item 1, `/consolidate`, or auto-trigger. Fail-closed pipeline:
   1. Read all files + inventory (mutation freeze until planning artifacts exist)
   2. Theme-cluster covering every non-index file (merge bias default)
   3. Staleness rubric (practical expiry, not calendar age alone)
@@ -85,13 +86,14 @@ Cosmetic-only runs (frontmatter + index rewrite while thematic duplicates remain
 
 ```
 memory/
-├── extensions/inject-memory.ts   # /memory command + auto-memory injection + auto-consolidation
+├── extensions/inject-memory.ts   # /memory + /consolidate commands, auto-memory injection, auto-consolidation
 ├── procedures/
 │   └── consolidate.md            # inline consolidation procedure (embedded in the follow-up message, not a skill)
 ├── scripts/validate-consolidate.py
 ├── features/validate-consolidate.feature
 ├── features/auto-consolidate.feature
 ├── tests/test_validate_consolidate.py
+├── tests/test_inject_memory_extension.py
 └── README.md
 .memory/                         # per-project canonical git-tracked memory data
 ```
