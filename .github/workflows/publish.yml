@@ -1,14 +1,9 @@
-name: Publish package to npm
+name: Publish changed packages to npm
 
 on:
   push:
-    tags:
-      - "*@*"
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      package:
-        description: "Package name to publish, e.g. @fradser/pi-memory"
-        required: true
 
 jobs:
   publish:
@@ -17,6 +12,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -31,42 +28,33 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Resolve package to publish
-        id: pkg
+      # Publish only packages whose local version differs from the latest
+      # published npm version. Idempotent: an already-published version is
+      # never re-published, and untouched packages are skipped. No tags needed.
+      - name: Detect packages with a version bump
+        id: detect
         run: |
-          if [ -n "${{ github.event.inputs.package }}" ]; then
-            PKG="${{ github.event.inputs.package }}"
-          else
-            # Tag is "<name>@<version>"; npm scoped names are the whole "@scope/name".
-            TAG="${GITHUB_REF#refs/tags/}"
-            if [[ "$TAG" == @* ]]; then
-              PKG="${TAG%@*}"
-            else
-              # Unscoped name has no dots in the version part to disambiguate, so
-              # split on the LAST "@" (versions are never empty).
-              PKG="${TAG%@*}"
+          CHANGED=""
+          for manifest in $(find packages -name package.json -not -path "*/node_modules/*"); do
+            PKG_NAME=$(node -p "require('./$manifest').name // ''")
+            PKG_VER=$(node -p "require('./$manifest').version // ''")
+            [ -n "$PKG_NAME" ] || continue
+            PKG_VER="${PKG_VER:-0.0.0}"
+            LATEST=$(npm view "$PKG_NAME" version 2>/dev/null || echo "0.0.0")
+            if [ "$PKG_VER" != "$LATEST" ]; then
+              echo "  $PKG_NAME@$PKG_VER (registry: $LATEST)"
+              CHANGED="$CHANGED $PKG_NAME"
             fi
-          fi
-          echo "pkg=$PKG" >> "$GITHUB_OUTPUT"
-          test -d "packages/${PKG#@*/}" || test -f "package.json" || { echo "package dir not found" >&2; exit 1; }
+          done
+          echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
+          [ -z "$CHANGED" ] && echo "No version changes — nothing to publish."
 
-      - name: Verify tag matches package version
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Publish changed packages
+        if: steps.detect.outputs.changed != ''
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          PKG="${{ steps.pkg.outputs.pkg }}"
-          # For scoped packages the tag is "@scope/name@x.y.z" — strip the final @version.
-          VER_TAG="${TAG##*@}"
-          # Find the manifest version for the package.
-          if [ "$PKG" = "$(node -p "require('./package.json').name")" ]; then
-            VER_PKG="$(node -p "require('./package.json').version")"
-          else
-            VER_PKG="$(node -p "require('./packages/${PKG#@*/}/package.json').version")"
-          fi
-          echo "tag=$VER_TAG pkg_version=$VER_PKG"
-          [ "$VER_TAG" = "$VER_PKG" ] || { echo "tag version $VER_TAG != package version $VER_PKG" >&2; exit 1; }
-
-      - name: Publish to npm
-        run: pnpm publish --filter "${{ steps.pkg.outputs.pkg }}" --access public --no-git-checks
+          for pkg in ${{ steps.detect.outputs.changed }}; do
+            echo "==> pnpm publish --filter $pkg"
+            pnpm publish --filter "$pkg" --access public --no-git-checks
+          done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
