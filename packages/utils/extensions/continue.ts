@@ -1,8 +1,7 @@
 /**
- * @fradser/utils — native pi /continue command and multilingual continuation input interception.
+ * @fradser/utils — native pi /continue command and continuation input interception.
  *
- * Intercepts continuation requests across multiple languages (English, Chinese, Japanese,
- * Korean, Spanish, French, German, Russian, Portuguese, Italian).
+ * Intercepts plain text continuation requests ("continue" / "继续" / "繼續").
  *
  * Behavior matrix:
  *   - Interrupted / Aborted turn -> Silent resume (display: false) to avoid chat transcript clutter.
@@ -10,7 +9,7 @@
  *
  * Usage:
  *   /continue [optional extra prompt]
- *   or simply reply "continue", "继续", "続行", "계속", "continuar", etc. in conversation.
+ *   or simply reply "continue" or "继续" in conversation.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -20,64 +19,10 @@ export interface ContinuationTarget {
   isInterrupted: boolean;
 }
 
-const MULTILINGUAL_CONTINUE_PATTERNS = [
-  // English
-  "continue",
-  "go on",
-  "proceed",
-  "keep going",
-  "resume",
-  "carry on",
-  // Chinese (Simplified & Traditional)
-  "继续",
-  "继续吧",
-  "继续执行",
-  "继续做",
-  "继续完成",
-  "继续往下",
-  "下一步",
-  "繼續",
-  "繼續吧",
-  "繼續執行",
-  // Japanese
-  "続行",
-  "続けて",
-  "つづけて",
-  "続行して",
-  "次へ",
-  "つぎへ",
-  // Korean
-  "계속",
-  "계속해",
-  "계속 진행",
-  "다음",
-  // Spanish
-  "continuar",
-  "sigue",
-  "adelante",
-  // French
-  "continuer",
-  "poursuivre",
-  // German
-  "weitermachen",
-  "fortfahren",
-  "weiter",
-  // Russian
-  "продолжай",
-  "продолжить",
-  "дальше",
-  // Portuguese
-  "continuar",
-  "prosseguir",
-  // Italian
-  "continua",
-  "prosegui",
-];
-
-const CONTINUE_SET = new Set(MULTILINGUAL_CONTINUE_PATTERNS.map((p) => p.toLowerCase()));
+const CONTINUE_SET = new Set(["continue", "继续", "繼續"]);
 
 /**
- * Check if the raw input matches a continuation keyword/phrase in any supported language.
+ * Check if the raw input matches the continuation keyword ("continue" / "继续").
  */
 export function isContinuationKeyword(rawInput: string): boolean {
   if (!rawInput) return false;
@@ -186,7 +131,7 @@ export function resolveContinuation(ctx: ExtensionContext, customArgs?: string):
 }
 
 export default function (pi: ExtensionAPI) {
-  // 1. Intercept plain user input matching multilingual continuation keywords
+  // 1. Intercept plain user input matching "continue" or "继续"
   pi.on("input", async (event, ctx) => {
     if (isContinuationKeyword(event.text)) {
       const { promptText, isInterrupted } = resolveContinuation(ctx);
