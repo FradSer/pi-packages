@@ -19,7 +19,7 @@ export default function (pi: ExtensionAPI) {
         return {
           block: true,
           reason:
-            "Use the /commit or /commit-and-push skill (or git-agent CLI) instead of raw git add/git commit. It creates atomic AI commits with validation.",
+            "Use the /git-agent menu's Commit workflow (or the git-agent CLI) instead of raw git commit. It creates atomic AI commits with validation.",
         };
       }
 
@@ -27,7 +27,7 @@ export default function (pi: ExtensionAPI) {
         return {
           block: true,
           reason:
-            "Use the /commit skill instead of raw git add. For folder-scoped staging, chain it with git-agent: git add <path> && git-agent commit --no-stage ...",
+            "Use the /git-agent menu's Commit workflow instead of raw git add. For folder-scoped staging, chain it with git-agent: git add <path> && git-agent commit --no-stage ...",
         };
       }
     }

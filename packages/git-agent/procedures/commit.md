@@ -1,7 +1,11 @@
----
-name: commit-and-push
-description: Creates atomic conventional git commits using git-agent and pushes changes to the remote repository.
----
+# git-agent — Commit procedure
+
+> **Inline procedure.** Embedded verbatim into the follow-up message by the
+> `/git-agent` menu ("Commit changes") via `pi.sendUserMessage` — it is not a
+> skill and the menu delivers it inline. `{{PKG_DIR}}` is substituted
+> with the package dir at send time.
+
+Create an atomic conventional commit with `git-agent`.
 
 CRITICAL:
 - Do NOT run `git status`, `git diff`, `git log`, or any other read commands before `git-agent commit`.
@@ -20,14 +24,13 @@ CRITICAL:
    ```bash
    git-agent commit --intent "<intent>"
    ```
-5. On auth error (401), retry with `--free`:
+5. If specific files are already staged, pass `--no-stage`:
+   ```bash
+   git-agent commit --no-stage --intent "<intent>"
+   ```
+6. On auth error (401), retry with `--free`:
    ```bash
    git-agent commit --free --intent "<intent>"
    ```
-6. Push to remote repository:
-   ```bash
-   git push
-   ```
-   (If upstream is not set, use `git push -u origin <branch>`).
 
-CLI Reference: `../../references/cli.md`
+CLI Reference: `{{PKG_DIR}}/references/cli.md`
