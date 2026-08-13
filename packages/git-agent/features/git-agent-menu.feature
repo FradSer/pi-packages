@@ -25,6 +25,11 @@ Feature: /git-agent command menu
     When the user asks to "commit this"
     Then the agent follows procedures/commit.md (session_context first, then git-agent commit)
 
+  Scenario: session_context excludes the menu's own injected procedure
+    Given the user opened the /git-agent menu and picked "Commit changes"
+    When the session_context tool builds the commit intent
+    Then the message starting with Run the "Commit changes" workflow. is not listed as a user request
+
   Scenario: No skill surface remains
     Given the package tree
     Then there is no skills/ directory

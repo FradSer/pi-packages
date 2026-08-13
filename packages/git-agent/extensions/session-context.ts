@@ -55,6 +55,16 @@ function extractText(content: unknown): string {
   return "";
 }
 
+/**
+ * True for procedure messages injected by the /git-agent (and /git, /github)
+ * menus via pi.sendUserMessage — they always start with `Run the "<label>"
+ * workflow.` and are the agent's own commands, not the user's requests, so
+ * they must not pollute the commit intent.
+ */
+function isInjectedProcedureMessage(text: string): boolean {
+  return /^Run the "[^"]+" workflow\./.test(text);
+}
+
 function isContextOrCommitEntry(entry: SessionEntry): boolean {
   if (!entry) return false;
 
@@ -143,7 +153,9 @@ export default function (pi: ExtensionAPI) {
         if (entry.type !== "message") continue;
         if (entry.message?.role !== "user") continue;
         const text = extractText(entry.message.content).trim();
-        if (text) allUserMessages.push({ index: i, text });
+        if (!text) continue;
+        if (isInjectedProcedureMessage(text)) continue;
+        allUserMessages.push({ index: i, text });
       }
 
       if (allUserMessages.length === 0) {

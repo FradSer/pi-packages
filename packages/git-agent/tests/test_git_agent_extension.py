@@ -139,10 +139,22 @@ class TestSessionContextExtension(unittest.TestCase):
         self.assertIn('"message"', content)
         self.assertIn("sinceLastCall", content)
         self.assertIn("isContextOrCommitEntry", content)
+        self.assertIn("isInjectedProcedureMessage", content)
+        self.assertIn("Run the \"", content)
         self.assertIn("promptSnippet", content)
         self.assertIn("promptGuidelines", content)
         self.assertIn("truncateTail", content)
         self.assertIn("DEFAULT_MAX_BYTES", content)
+
+    def test_session_context_excludes_injected_menu_procedures(self):
+        """session_context must skip menu-injected procedure messages (Run the "..." workflow.),
+        which are git-agent's own commands, not user requests."""
+        ext_path = os.path.join(GA_PKG_DIR, "extensions", "session-context.ts")
+        with open(ext_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("isInjectedProcedureMessage", content)
+        self.assertIn('Run the "', content)
+        self.assertIn("workflow", content)
 
     def test_commit_procedure_prioritizes_session_context(self):
         """commit procedure must instruct building the intent from session context, not a one-liner."""
