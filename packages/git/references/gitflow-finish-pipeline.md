@@ -27,7 +27,7 @@ See `invariants.md`.
 1. Get previous tag: `git tag --sort=-v:refname | head -1`.
 2. Collect commits per `changelog-generation.md`.
 3. Update `CHANGELOG.md` per `../examples/changelog.md`.
-4. Commit via the `/commit` skill with intent `docs: update changelog for $NAME`.
+4. Commit atomically with a Conventional Commit message: `docs: update changelog for $NAME` (use the `/git` menu's Commit item or `git commit -m "docs: update changelog for $NAME"`).
 
 ## Phase 4: Execute GitFlow Finish & Push
 

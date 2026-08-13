@@ -1,7 +1,7 @@
 {
   "name": "@fradser/git",
-  "version": "0.6.1",
-  "description": "GitFlow workflow automation for feature, hotfix, and release branches with post-finish cleanup",
+  "version": "0.6.2",
+  "description": "GitFlow workflow automation for feature, hotfix, and release branches with post-finish cleanup — native /git menu, no skill surface",
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",
   "keywords": [
@@ -21,17 +21,14 @@
     "access": "public"
   },
   "files": [
-    "skills",
+    "procedures",
     "extensions",
     "references",
     "examples",
-    "LICENSE",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "pi": {
-    "skills": [
-      "./skills"
-    ],
     "extensions": [
       "./extensions"
     ]

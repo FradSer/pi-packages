@@ -1,9 +1,8 @@
----
-name: commit-and-push
-description: Creates clean conventional git commits using standard git and pushes changes to the remote repository. Use when the user asks to "commit and push", "push changes", or complete a commit followed by git push.
----
+# Git — Commit and push procedure (standard git)
 
-# Commit and Push Skill (Standard Git)
+> **Inline procedure.** Embedded verbatim into the follow-up message by the
+> `/git` menu ("Commit and push") via `pi.sendUserMessage` — it is not a
+> skill. `{{PKG_DIR}}` is substituted with the package dir at send time.
 
 Create clean, atomic Conventional Commits using standard `git` commands and push them to origin.
 

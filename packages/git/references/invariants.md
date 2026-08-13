@@ -44,7 +44,7 @@ See `changelog-generation.md` for complete mapping rules.
 
 ## Committing
 
-All commits go through the `/commit` skill with a Conventional Commit intent (`feat`, `fix`, `chore`, `docs`, etc.). The working tree is verified clean before start/finish, so the skill stages and commits the intended files atomically.
+All commits use a Conventional Commit message (`feat`, `fix`, `chore`, `docs`, etc.), created atomically (standard `git commit` or the installed commit workflow). The working tree is verified clean before start/finish, so the commit stages only the intended files.
 
 ## Cleanup
 

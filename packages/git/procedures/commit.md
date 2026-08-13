@@ -1,9 +1,8 @@
----
-name: commit
-description: Creates clean, conventional git commits using standard git. Use when the user asks to "commit", "git commit", "create commit", or wants to commit staged or unstaged changes.
----
+# Git — Commit procedure (standard git)
 
-# Commit Skill (Standard Git)
+> **Inline procedure.** Embedded verbatim into the follow-up message by the
+> `/git` menu ("Commit changes") via `pi.sendUserMessage` — it is not a skill.
+> `{{PKG_DIR}}` is substituted with the package dir at send time.
 
 Create clean, atomic Conventional Commits using standard `git` commands.
 
@@ -28,4 +27,4 @@ Create clean, atomic Conventional Commits using standard `git` commands.
    ```bash
    git commit -m "<type>(<scope>): <summary>"
    ```
-   If a co-author trailer is required or requested, follow `../../references/coauthor-attribution.md`.
+   If a co-author trailer is required or requested, follow `{{PKG_DIR}}/references/coauthor-attribution.md`.
