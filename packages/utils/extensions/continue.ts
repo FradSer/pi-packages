@@ -4,6 +4,9 @@
  * Resume execution from interrupted steps, re-run aborted requests directly,
  * or prompt the LLM to continue based on suggestions/next steps from the previous response.
  *
+ * Messages are sent as non-displaying custom messages (display: false) to avoid
+ * cluttering the chat transcript with visible user continuation prompts.
+ *
  * Usage:
  *   /continue [optional extra prompt]
  *   or simply reply "continue" in conversation.
@@ -110,25 +113,45 @@ function buildContinuationPrompt(ctx: ExtensionContext): string {
 }
 
 export default function (pi: ExtensionAPI) {
-  // 1. Intercept plain user input "continue"
+  // 1. Intercept plain user input "continue" and trigger turn without displaying in UI
   pi.on("input", async (event, ctx) => {
     const text = event.text.trim().toLowerCase();
     if (text === "continue") {
-      return {
-        action: "transform",
-        text: buildContinuationPrompt(ctx),
-      };
+      const promptText = buildContinuationPrompt(ctx);
+      pi.sendMessage(
+        {
+          customType: "continue-extension",
+          content: promptText,
+          display: false,
+        },
+        {
+          triggerTurn: true,
+        },
+      );
+      return { action: "handled" };
     }
     return { action: "continue" };
   });
 
   // 2. Register /continue slash command
   pi.registerCommand("continue", {
-    description: "Resume from an interrupted step, re-run aborted requests, or continue execution based on previous response",
+    description: "Resume from an interrupted step or continue execution without adding a visible message to the chat",
     handler: async (args, ctx) => {
       await ctx.waitForIdle();
-      const promptText = args.trim() || buildContinuationPrompt(ctx);
-      pi.sendUserMessage(promptText);
+      const rawArgs = args.trim();
+      const promptText = rawArgs || buildContinuationPrompt(ctx);
+      const shouldDisplay = Boolean(rawArgs);
+
+      pi.sendMessage(
+        {
+          customType: "continue-extension",
+          content: promptText,
+          display: shouldDisplay,
+        },
+        {
+          triggerTurn: true,
+        },
+      );
     },
   });
 }

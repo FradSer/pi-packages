@@ -13,20 +13,21 @@ class TestContinueExtension(unittest.TestCase):
         content = self.ext_source()
         self.assertIn('registerCommand("continue"', content)
         self.assertNotIn('registerCommand("继续"', content)
-        self.assertIn('sendUserMessage', content)
+        self.assertIn('sendMessage', content)
+        self.assertIn('display: false', content)
 
     def test_input_interception_registered(self) -> None:
         content = self.ext_source()
         self.assertIn('pi.on("input"', content)
         self.assertIn('"continue"', content)
         self.assertNotIn('"继续"', content)
-        self.assertIn('"transform"', content)
+        self.assertIn('action: "handled"', content)
 
     def test_continuation_prompt_logic(self) -> None:
         content = self.ext_source()
         self.assertIn("buildContinuationPrompt", content)
         self.assertIn("getLastUserPrompt", content)
-        self.assertIn("stopReason === \"aborted\"", content)
+        self.assertIn('stopReason === "aborted"', content)
         self.assertIn("toolResult", content)
         self.assertIn("isError", content)
 
