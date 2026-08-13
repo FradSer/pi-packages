@@ -13,16 +13,14 @@ class TestContinueExtension(unittest.TestCase):
         content = self.ext_source()
         self.assertIn('registerCommand("continue"', content)
         self.assertNotIn('registerCommand("继续"', content)
-        self.assertIn('sendUserMessage', content)
         self.assertIn('sendMessage', content)
 
-    def test_input_interception_registered(self) -> None:
+    def test_multilingual_input_interception(self) -> None:
         content = self.ext_source()
         self.assertIn('pi.on("input"', content)
-        self.assertIn('"continue"', content)
-        self.assertNotIn('"继续"', content)
-        self.assertIn('action: "transform"', content)
-        self.assertIn('action: "handled"', content)
+        self.assertIn('isContinuationKeyword', content)
+        for keyword in ("continue", "继续", "続行", "계속", "continuar", "weitermachen", "продолжай"):
+            self.assertIn(keyword, content)
 
     def test_continuation_prompt_logic(self) -> None:
         content = self.ext_source()

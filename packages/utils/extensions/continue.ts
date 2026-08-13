@@ -1,8 +1,8 @@
 /**
- * @fradser/utils — native pi /continue command and "continue" input interception.
+ * @fradser/utils — native pi /continue command and multilingual continuation input interception.
  *
- * Resume execution from interrupted steps, re-run aborted requests directly (silently),
- * or prompt the LLM to continue based on suggestions/next steps (visibly).
+ * Intercepts continuation requests across multiple languages (English, Chinese, Japanese,
+ * Korean, Spanish, French, German, Russian, Portuguese, Italian).
  *
  * Behavior matrix:
  *   - Interrupted / Aborted turn -> Silent resume (display: false) to avoid chat transcript clutter.
@@ -10,7 +10,7 @@
  *
  * Usage:
  *   /continue [optional extra prompt]
- *   or simply reply "continue" in conversation.
+ *   or simply reply "continue", "继续", "続行", "계속", "continuar", etc. in conversation.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -18,6 +18,75 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 export interface ContinuationTarget {
   promptText: string;
   isInterrupted: boolean;
+}
+
+const MULTILINGUAL_CONTINUE_PATTERNS = [
+  // English
+  "continue",
+  "go on",
+  "proceed",
+  "keep going",
+  "resume",
+  "carry on",
+  // Chinese (Simplified & Traditional)
+  "继续",
+  "继续吧",
+  "继续执行",
+  "继续做",
+  "继续完成",
+  "继续往下",
+  "下一步",
+  "繼續",
+  "繼續吧",
+  "繼續執行",
+  // Japanese
+  "続行",
+  "続けて",
+  "つづけて",
+  "続行して",
+  "次へ",
+  "つぎへ",
+  // Korean
+  "계속",
+  "계속해",
+  "계속 진행",
+  "다음",
+  // Spanish
+  "continuar",
+  "sigue",
+  "adelante",
+  // French
+  "continuer",
+  "poursuivre",
+  // German
+  "weitermachen",
+  "fortfahren",
+  "weiter",
+  // Russian
+  "продолжай",
+  "продолжить",
+  "дальше",
+  // Portuguese
+  "continuar",
+  "prosseguir",
+  // Italian
+  "continua",
+  "prosegui",
+];
+
+const CONTINUE_SET = new Set(MULTILINGUAL_CONTINUE_PATTERNS.map((p) => p.toLowerCase()));
+
+/**
+ * Check if the raw input matches a continuation keyword/phrase in any supported language.
+ */
+export function isContinuationKeyword(rawInput: string): boolean {
+  if (!rawInput) return false;
+  // Normalize: strip leading & trailing punctuation, symbols, and whitespace
+  const normalized = rawInput
+    .trim()
+    .toLowerCase()
+    .replace(/^[\p{P}\p{S}\s]+|[\p{P}\p{S}\s]+$/gu, "");
+  return CONTINUE_SET.has(normalized);
 }
 
 /**
@@ -117,10 +186,9 @@ export function resolveContinuation(ctx: ExtensionContext, customArgs?: string):
 }
 
 export default function (pi: ExtensionAPI) {
-  // 1. Intercept plain user input "continue"
+  // 1. Intercept plain user input matching multilingual continuation keywords
   pi.on("input", async (event, ctx) => {
-    const text = event.text.trim().toLowerCase();
-    if (text === "continue") {
+    if (isContinuationKeyword(event.text)) {
       const { promptText, isInterrupted } = resolveContinuation(ctx);
 
       if (isInterrupted) {
@@ -138,7 +206,7 @@ export default function (pi: ExtensionAPI) {
         return { action: "handled" };
       }
 
-      // Completed task: user typed "continue" to proceed to next steps — transform and display visibly
+      // Completed task: user typed continuation keyword to proceed to next steps — transform and display visibly
       return {
         action: "transform",
         text: promptText,
