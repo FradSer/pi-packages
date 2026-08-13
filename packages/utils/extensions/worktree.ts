@@ -1,5 +1,5 @@
 /**
- * @fradser/utils — git worktree path redirect.
+ * @fradser/pi-utils — git worktree path redirect.
  *
  * Intercepts `git worktree add` bash tool calls and rewrites the target path
  * to live inside `.pi/worktrees/<name>` so linked worktrees stay inside the

@@ -6,7 +6,7 @@ A pi-native package offering `/effort` for setting model thinking levels, `/ç»§ç
 
 ```bash
 # published
-pi install npm:@fradser/utils
+pi install npm:@fradser/pi-utils
 # or from this repo: pi install /path/to/pi-packages/packages/utils
 ```
 

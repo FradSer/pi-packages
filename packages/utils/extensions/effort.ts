@@ -1,5 +1,5 @@
 /**
- * @fradser/utils — native pi /effort command.
+ * @fradser/pi-utils — native pi /effort command.
  *
  * Set the session thinking (reasoning effort) level without opening /model:
  *

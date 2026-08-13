@@ -1,5 +1,5 @@
 /**
- * @fradser/utils — native pi /continue command and continuation input interception.
+ * @fradser/pi-utils — native pi /continue command and continuation input interception.
  *
  * Intercepts plain text continuation requests ("continue" / "继续" / "繼續").
  *
