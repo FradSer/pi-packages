@@ -1,6 +1,6 @@
 Feature: Consolidate artifact validator
   Machine-check G2/G3/G4/G7 planning artifacts and privacy so
-  /skill:consolidate cannot claim done on cosmetic-only runs.
+  /memory "Consolidate memory now" cannot claim done on cosmetic-only runs.
 
   Background:
     Given a harness memory directory and a public .memory directory

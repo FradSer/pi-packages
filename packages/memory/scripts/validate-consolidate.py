@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate /skill:consolidate planning artifacts and privacy split.
+"""Validate the /memory consolidation planning artifacts and privacy split.
 
 Machine-checks what prompt gates cannot: cluster covers inventory, staleness
 covers inventory, report cites ground-truth paths, private files stay out of
@@ -11,7 +11,7 @@ Usage:
     --cluster cluster.txt \\
     --staleness staleness.txt \\
     --report report.md \\
-    --harness ~/.claude/projects/.../memory \\
+    --harness ~/.pi/agent/memory/<escaped-cwd>/ \\
     --public .memory \\
     [--check=cluster,staleness,report,privacy]
 

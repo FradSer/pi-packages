@@ -1,4 +1,4 @@
-# Frad's Pi Packages ![](https://img.shields.io/badge/packages-8-blue)
+# Frad's Pi Packages ![](https://img.shields.io/badge/packages-10-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -11,6 +11,20 @@ Native Pi packages for reusable agent skills, extensions, and project workflows.
 Invoke every skill with Pi's `/skill:<name>` command. Arguments are appended after the skill body. Pi does not expand `$ARGUMENTS` or run shell injections inside skill Markdown.
 
 ## Packages
+
+### [`btw`](packages/btw/)
+
+Side questions for Pi — `/btw <question>` answers in a full-width display above the input box without interrupting the current task and never enters the session history. Unlike Claude Code's `/btw`, it can actually call read-only tools (`read`, `grep`, `find`, `ls`) to verify facts in the codebase — and it is strictly read-only: `bash`, `edit`, and `write` are always excluded.
+
+**Commands:** `/btw <question>`
+
+**Installation:**
+```bash
+pi install npm:@fradser/btw
+# or from this repo: pi install /path/to/pi-packages/packages/btw
+```
+
+---
 
 ### [`code-context`](packages/code-context/)
 
@@ -30,7 +44,7 @@ pi install npm:@fradser/code-context
 
 Automates GitFlow feature, hotfix, and release branch lifecycles, including tests, changelog updates, tags, releases, and cleanup.
 
-**Skills:** `start-feature`, `finish-feature`, `start-hotfix`, `finish-hotfix`, `start-release`, `finish-release`, `commit`, `commit-and-push`
+**Commands:** `/git` menu — start/finish feature, hotfix, release; commit; commit and push
 
 **Installation:**
 ```bash
@@ -44,7 +58,7 @@ pi install npm:@fradser/git
 
 Provides AI-first atomic commits, co-change analysis, workspace initialization, and a pre-tool guard for raw Git commit operations.
 
-**Skills:** `commit`, `commit-and-push`, `related`, `init`
+**Commands:** `/git-agent` menu — commit, commit-and-push, related, init
 
 **Installation:**
 ```bash
@@ -58,7 +72,7 @@ pi install npm:@fradser/git-agent
 
 Handles GitHub issues and pull requests with TDD-oriented quality gates, validation, and a persistent CI and review-comment workflow.
 
-**Skills:** `github-create-issues`, `github-create-pr`, `resolve-issues`, `review-pr`
+**Commands:** `/github` menu — create-issues, create-pr, resolve-issues, review-pr
 
 **Requirements:** GitHub CLI (`gh`) must be installed and authenticated, and the repository must have a GitHub remote.
 
@@ -96,6 +110,20 @@ pi install npm:@fradser/mattpocock
 
 ---
 
+### [`monitor`](packages/monitor/)
+
+Runs a shell command in the background and streams its stdout to the agent as notifications, so it reacts to logs, deploys, CI runs, or file changes the moment something happens — no polling loops.
+
+**Tools:** `monitor_start`, `monitor_list`, `monitor_stop` · **Command:** `/monitor`
+
+**Installation:**
+```bash
+pi install npm:@fradser/monitor
+# or from this repo: pi install /path/to/pi-packages/packages/monitor
+```
+
+---
+
 ### [`memory`](packages/memory/)
 
 Maintains project memory in `.memory/` and provides manual consolidation with clustering, staleness checks, ground-truth verification, and privacy validation.
@@ -124,11 +152,11 @@ pi install npm:@fradser/utils
 
 ## Notes
 
-The `git` and `git-agent` packages both expose `commit` and `commit-and-push`. Install order determines which skill wins if both packages are enabled.
+The `git` and `git-agent` packages both offer `commit` / `commit-and-push` workflows: `/git` uses standard git, `/git-agent` uses AI atomic commits (git-agent CLI). Neither package ships skills — workflows are native pi command menus (`/git`, `/git-agent`, `/github`) with inline procedures.
 
 ## SDK Harness
 
-`examples/sdk-session.ts` shows a programmatic `createAgentSession()` consumer that wires package extensions and inspects discovered skills. Packages remain installable skill and extension bundles rather than embedded applications.
+`examples/sdk-session.ts` shows a programmatic `createAgentSession()` consumer that wires package extensions and inspects discovered skills. Packages remain installable command, extension, and procedure bundles rather than embedded applications.
 
 ```bash
 pnpm example:sdk

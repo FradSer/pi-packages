@@ -1,4 +1,4 @@
-# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-8-blue)
+# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-10-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -11,6 +11,20 @@
 所有 skill 都使用 Pi 的 `/skill:<name>` 命令调用。参数会追加在 skill 内容之后；Pi 不会展开 `$ARGUMENTS`，也不会执行 skill Markdown 中的 shell 注入。
 
 ## 包列表
+
+### [`btw`](packages/btw/)
+
+Pi 的旁路提问——`/btw <question>` 在输入框上方的全宽度显示区中回答问题，不打断当前任务，也绝不进入会话历史。与 Claude Code 的 `/btw` 不同，它可以真正调用只读工具（`read`、`grep`、`find`、`ls`）在代码库中验证事实——并且严格只读：`bash`、`edit`、`write` 始终被排除。
+
+**Commands：** `/btw <question>`
+
+**安装：**
+```bash
+pi install npm:@fradser/btw
+# 或本地安装：pi install /path/to/pi-packages/packages/btw
+```
+
+---
 
 ### [`code-context`](packages/code-context/)
 
@@ -92,6 +106,20 @@ pi install npm:@fradser/lark
 ```bash
 pi install npm:@fradser/mattpocock
 # 或本地安装：pi install /path/to/pi-packages/packages/mattpocock
+```
+
+---
+
+### [`monitor`](packages/monitor/)
+
+在后台运行 shell 命令，并将其 stdout 作为通知流式传给 agent，让它在日志、部署、CI 运行或文件变化发生的瞬间做出反应——无需轮询循环。
+
+**Tools：** `monitor_start`、`monitor_list`、`monitor_stop` · **Command：** `/monitor`
+
+**安装：**
+```bash
+pi install npm:@fradser/monitor
+# 或本地安装：pi install /path/to/pi-packages/packages/monitor
 ```
 
 ---

@@ -1,26 +1,23 @@
----
-name: consolidate
-description: >
-  Consolidates project memory across harness and .memory/ with theme clustering,
-  practical-expiry prune, ground-truth verify, and an adversarial second pass.
-  Use when the user runs /skill:consolidate, asks to tidy/dedupe/prune memory,
-  or reports redundant or stale memories. Also covers active writing during work.
----
+# Memory — Consolidate procedure
 
-# Memory — Active Write & Consolidate
+> **Inline procedure.** This document is embedded verbatim into the follow-up
+> message by the `/memory` command ("Consolidate memory now") via
+> `pi.sendUserMessage` — it is not a skill and is never invoked as
+> `/skill:consolidate`. `{{PKG_DIR}}` is substituted with the package dir at
+> send time.
 
 The project's memory lives in two locations that must stay **identical for safe (public) files** (idempotent):
 
-1. **`~/.pi/agent/memory/<escaped-cwd>/`** (or `~/.claude/projects/<escaped-cwd>/memory/`) — harness, loaded by pi/Claude Code, written first
+1. **`~/.pi/agent/memory/<escaped-cwd>/`** — harness, loaded by pi, written first
 2. **`.memory/`** — canonical, git-tracked, written second — **safe files only**
 
-Resolve the harness path: `~/.pi/agent/memory/<cwd-with-/→->/` or `~/.claude/projects/<cwd-with-/→->/memory/` (probe both space-handling forms: `/→-`+` →-` and `/→-`+space-kept).
+Resolve the harness path: `~/.pi/agent/memory/<cwd-with-/→->/` (probe both space-handling forms: `/→-`+` →-` and `/→-`+space-kept).
 
 Private files (user preferences, credentials, PII) live in **harness only**. They must never appear as files or index lines under `.memory/`.
 
 ## Active Write
 
-When you encounter a decision, preference, lesson, or anything worth remembering, write it **immediately** — do not wait for /skill:consolidate.
+When you encounter a decision, preference, lesson, or anything worth remembering, write it **immediately** — do not wait for the /memory consolidate command.
 
 ### Before writing
 
@@ -83,15 +80,57 @@ Bad:  `feedback_git_commit_hook_needed.md — git PreToolUse hook intercepts git
 
 ---
 
-## Consolidate (/skill:consolidate)
+## Consolidate (via /memory menu or auto-trigger)
 
-User-invoked only. No auto-consolidation. Default failure mode of a weak run is **cosmetic tidy while leaving thematic redundancy and factually dead notes**. This procedure is fail-closed against that.
+User-invoked via the /memory menu, or **auto-triggered** by the extension when
+the session context fill reaches `consolidateAtContextFraction` of the active
+model's context window (default 0.4 = 40%, based on research that long-context
+quality degrades from ~40-50% fill; 0 = off, persisted in
+`~/.pi/agent/memory/settings.json`). The auto-trigger runs the procedure in a
+**background child Pi process** (`--print --mode json --no-session`) so the
+session is never blocked — a "Memory: dreaming" widget shows above the input
+editor until the child exits. It fires once per fraction boundary (40%, 80%, …)
+after a real user turn (`input` source "interactive") in a TUI session, so the
+consolidation run itself never re-triggers. The child receives the current
+session file path for Step 0 session-context capture.
+Default failure mode of a weak run is **cosmetic tidy while leaving thematic
+redundancy and factually dead notes**. This procedure is fail-closed against that.
 
-Work order: harness first, then sync to `.memory/`.
+**Default behavior:** the run starts by capturing durable content from the current
+session context into memory (Step 0 below), then consolidates existing memory.
+If the session has no memorable content, capture is skipped and consolidation runs
+directly. To skip capture explicitly, invoke the /memory consolidate with "no-context".
+
+Work order: Step 0 session capture, then harness first, then sync to `.memory/`.
+
+### Step 0: Session context capture (default)
+
+Before touching existing memory, review the **current session context** — the
+active conversation in your context window, including compaction summaries and
+all messages that preceded this invocation. If relevant history was compacted or
+predates your window, read the tail of the current session file under
+`~/.pi/agent/sessions/--<cwd-with-/-→-->--/` (`/session` in interactive mode shows
+the exact path); it is JSONL — one JSON entry per line with `role`/`content` fields.
+
+1. Scan the conversation for **durable** content, applying the **Before writing**
+   checks from Active Write (search existing memories first; refuse ops-only logs;
+   one decision per file):
+   - **Decisions** — architecture/tech choices, naming, process or CI decisions made or confirmed this session
+   - **User preferences and corrections** — "always/prefer/never" statements, style or workflow preferences, feedback on approach
+   - **Lessons and gotchas** — root-cause findings, surprising tool/library behavior, mistakes to avoid
+   - **Repo/tooling facts** — reusable non-obvious facts about this project discovered this session
+2. For each candidate that passes the checks, write it **immediately** with the
+   **Active Write** procedure (harness first; safe → also `.memory/`; private → harness only).
+3. If nothing passes the checks (empty session, or purely operational exchanges
+   with no decisions/preferences/lessons), record that and continue directly to
+   the consolidation below — do not invent memories.
+4. Files written in Step 0 are ordinary memory files: they join the inventory,
+   cluster map, and staleness pass that follow, exactly like pre-existing files.
 
 ### CRITICAL: Mutation freeze until planning artifacts exist
 
-**Do not `write`, `edit`, or `rm` any memory file** until all three artifacts exist in this conversation:
+**Do not `write`, `edit`, or `rm` any memory file** until all three artifacts exist in this conversation
+(Step 0 session-context captures are exempt — they follow the Active Write procedure and are folded into the inventory):
 
 1. **Inventory** — complete name list of harness `*.md` and `.memory/*.md` (including both `MEMORY.md`)
 2. **Cluster map** — every non-index file appears in exactly one theme cluster
@@ -105,14 +144,14 @@ Write (via Pi `write`/temp files) inventory / cluster / staleness / report to te
 
 ```bash
 # Pre-mutation (lift freeze only if exit 0)
-python3 "../../scripts/validate-consolidate.py" \
+python3 "{{PKG_DIR}}/scripts/validate-consolidate.py" \
   --inventory /tmp/mem-inventory.txt \
   --cluster /tmp/mem-cluster.txt \
   --staleness /tmp/mem-staleness.txt \
   --check=cluster,staleness
 
 # Post-sync before claiming done (exit 0 required)
-python3 "../../scripts/validate-consolidate.py" \
+python3 "{{PKG_DIR}}/scripts/validate-consolidate.py" \
   --inventory /tmp/mem-inventory.txt \
   --cluster /tmp/mem-cluster.txt \
   --staleness /tmp/mem-staleness.txt \
@@ -135,7 +174,7 @@ Do **not** claim consolidate complete unless every gate below is true:
 | G4 Ground truth | Every `project_*` claim checked against the **current** tree with cited paths (or N/A with reason) |
 | G5 Merge bias | Every multi-file cluster either merged, or has an explicit one-line "keep separate because …" |
 | G6 Adversarial | Independent second pass ran when required (step 8); findings applied or rejected with reason |
-| G7 Report | Report includes inventory counts, cluster map, prune/merge table, ground-truth table, residual risks |
+| G7 Report | Report includes session-capture outcome, inventory counts, cluster map, prune/merge table, ground-truth table, residual risks |
 | G8 Validator | `validate-consolidate.py` exit 0 on pre-mutation (`cluster,staleness`) and post-sync (full checks) |
 
 If any gate fails mid-run, continue until it passes — do not stop at "normalized frontmatter + rebuilt index".
@@ -164,7 +203,7 @@ Output a cluster map (keep it for the report):
 cluster: <theme>
   - file-a.md
   - file-b.md
-  merge-default: yes|no — <one line>
+ merge-default: yes|no — <one line>
 ```
 
 **Default bias:** 2+ files in one theme → merge into one decision log, unless each holds a **distinct durable decision** that would become muddled if combined.
@@ -175,7 +214,30 @@ Score every non-index file. Calendar age is only one signal — a note can be da
 
 **Verdicts:** `CONTRADICTED` | `SUPERSEDED` | `SUBSUMED` | `OPS-ONLY` | `ONE-SHOT` | `DORMANT` | `KEEP`
 
-Use Pi `read` on `references/staleness-examples.md` for the full table, actions, and worked examples. Protect `feedback_*` preferences: incident dates do not make them OPS-ONLY.
+Full rubric table and worked examples (embedded):
+
+| Verdict | When | Action |
+|---------|------|--------|
+| CONTRADICTED | Claim false against current code, config, docs, or a newer memory | Fix to match truth, or delete if no remaining lesson |
+| SUPERSEDED | A newer memory or shipped code fully replaces the decision | Merge lesson into survivor; delete the rest |
+| SUBSUMED | Content is a strict subset of another file in the same cluster | Delete after absorbing any unique phrase into the survivor |
+| OPS-ONLY | Narrative of what happened (versions, incident timeline, one-off commands) with no reusable rule | Delete, or rewrite down to pure Why/How if a rule exists |
+| ONE-SHOT | True only for a finished episode (a specific outage, PR, migration) and does not transfer | Delete unless a portable rule can be extracted in ≤5 bullets |
+| DORMANT | 6+ months untouched **and** no durable lesson / no inbound `[[links]]` | Prune |
+| KEEP | Still true, still actionable, not redundant | Keep (possibly rewritten) |
+
+**Practical expiry:** a note can be days old and still SUPERSEDED or OPS-ONLY. Do not keep files merely because they are recent.
+
+**Protect `feedback_*` preferences:** do not score user-preference feedback as OPS-ONLY/ONE-SHOT just because it mentions an incident date — keep the durable rule.
+
+Worked examples:
+
+- **CONTRADICTED** — Memory: "review uses events-relay Worker"; Tree: Worker removed; direct review path only → prune or rewrite to current path; never leave the dead name
+- **SUPERSEDED** — Memory A (Mar): "billing v1 counts raw tokens"; Memory B (Jul): "billing redesign: pipeline display + adjusted accounting" → one billing file; durable rules from B; drop A's implementation detail unless still true
+- **SUBSUMED** — `project_deploy-all.md`, `project_deploy-before-check.md`, `project_deploy-needs-build.md` all restating the same deploy checklist with different incident openers → one `project_deploy.md` with the checklist; delete the three openers
+- **OPS-ONLY / ONE-SHOT** — "On 2026-06-12 migration 0020 partially applied; fixed with …" → keep only if it yields a portable rule ("partial unique index publish can leave DO stale — always …"); otherwise delete; git history holds the episode
+- **KEEP (distinct decisions in same theme)** — `feedback_stacked-pr-and-rebase-traps` (git workflow trap) vs `project_review-pipeline` (product review architecture): same "review" word, different decisions → keep separate with explicit justification
+- **Description collision** — if two `description` lines are interchangeable after removing proper nouns, treat as merge candidates even if bodies differ in length
 
 ### 5. CRITICAL: Ground-truth verify
 
@@ -239,6 +301,7 @@ After sync: public safe sets match; no private bodies or private index lines rem
 
 ```text
 ## Consolidate report
+- Session capture: captured N file(s) from session context | skipped (no durable content) | skipped (no-context flag)
 - Inventory: harness N, .memory/ M, drift: …
 - Clusters: (map covering every non-index file)
 - Staleness: verdict counts
@@ -258,7 +321,8 @@ Write the report body to a temp file and run the **post-sync** validator (full c
 
 ## Anti-patterns (do not do these)
 
-- "Normalized frontmatter and rebuilt MEMORY.md" as the whole job while thematic near-duplicates remain
+- Consolidating existing files while ignoring durable decisions/preferences/lessons sitting in the current session context
+- Inventing memories when the session had no durable content instead of recording "skipped"
 - Pruning only by "older than 3/6 months" while leaving last week's superseded architecture notes
 - Creating a new memory file without searching for an existing theme file to edit
 - Concatenating three incident writeups and calling it a merge (that is still an ops log)

@@ -1,7 +1,7 @@
 {
   "name": "@fradser/memory",
-  "version": "0.1.5",
-  "description": "Active memory writing and consolidated project memory management",
+  "version": "0.2.0",
+  "description": "Native /memory command for pi — auto-memory guidance, instructions menu, and consolidation (no skill surface)",
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",
   "keywords": [
@@ -17,15 +17,12 @@
     "access": "public"
   },
   "files": [
-    "skills",
+    "procedures",
     "extensions",
     "scripts",
     "README.md"
   ],
   "pi": {
-    "skills": [
-      "./skills"
-    ],
     "extensions": [
       "./extensions"
     ]
