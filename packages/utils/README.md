@@ -1,6 +1,6 @@
 # Utils Pi Package
 
-A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks or continuing based on recommendations, plus a git worktree path redirect.
+A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks or continuing based on recommendations, multi-session directory awareness (`/sessions`, `/recap`), plus a git worktree path redirect.
 
 ## Installation
 
@@ -11,6 +11,21 @@ pi install npm:@fradser/pi-utils
 ```
 
 ## Commands
+
+### `sessions` & `recap` — cross-session directory awareness
+
+`/sessions` (or `/recap`) lists active and recent Pi coding sessions in the current directory (`cwd`), including their PID, status, latest goal, and recent work.
+
+```
+/sessions                           # List active/recent sessions in cwd
+/recap                              # Show directory session recap
+```
+
+**Features**:
+1. **Cross-Session Awareness**: Multiple Pi sessions in the same project directory register their status, latest goal, and touched files in `~/.pi/agent/directory-sessions/`.
+2. **Automated Prompt Injection**: When multiple sessions run in the same directory, `before_agent_start` automatically injects a concise directory recap into the system prompt so each agent is aware of parallel work.
+3. **Dead PID Pruning**: Stale or dead process IDs are automatically detected (`process.kill(pid, 0)`) and cleaned up from the directory registry.
+4. **Agent Tool (`list_directory_sessions`)**: Exposes a tool for agents to inspect active sessions in the directory programmatically.
 
 ### `continue` — resume or continue execution
 
@@ -48,17 +63,24 @@ model actually supports (a reasoning-off model only gets `off`).
 
 ## Git worktree redirect
 
-Any `git worktree add` bash command is transparently rewritten so the linked
-worktree lives inside `.pi/worktrees/<name>` instead of a sibling directory:
+A standalone, simple `git worktree add` bash command is rewritten so the
+linked worktree lives inside `.pi/worktrees/<name>` instead of a sibling
+directory:
 
 ```
 git worktree add ../foo feature/foo
 # → mkdir -p .pi/worktrees && git worktree add .pi/worktrees/foo feature/foo
 ```
 
-Flags (`-b`, `-B`, `--reason`, `--lock`) and trailing positional arguments
-(branch, start commit) are preserved, and a path that is already inside
-`.pi/worktrees/` is left untouched.
+The redirect preserves Git's documented `worktree add` options, including
+`--lock` (a flag), `--reason <string>`, `--orphan <branch>`, `-b <branch>`,
+`-B <branch>`, and the optional `<commit-ish>`. It preserves quoted and escaped
+path arguments, and leaves an already redirected path untouched.
+
+For safety, it only rewrites the direct `git worktree add` form. Commands with
+shell operators, redirections, substitutions, expansions, malformed quoting,
+unknown options, or extra arguments are left unchanged rather than being
+partially rewritten.
 
 ## License
 
