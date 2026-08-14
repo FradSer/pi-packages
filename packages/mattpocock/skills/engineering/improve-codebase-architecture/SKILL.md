@@ -24,7 +24,7 @@ This command is _informed_ by the project's domain model and built on a shared d
 
 Read the project's domain glossary (`CONTEXT.md`) and any ADRs in the area you're touching first.
 
-Then spawn a isolated context to walk the codebase. Don't follow rigid heuristics — explore organically and note where you experience friction:
+If the teammate facility is available, delegate this codebase walk to a teammate; otherwise perform it in the current context. Don't follow rigid heuristics — explore organically and note where you experience friction:
 
 - Where does understanding one concept require bouncing between many small modules?
 - Where are modules **shallow** — interface nearly as complex as the implementation?
@@ -57,11 +57,11 @@ End the report with a **Top recommendation** section: which candidate you'd tack
 
 See [HTML-REPORT.md](HTML-REPORT.md) for the full HTML scaffold, diagram patterns, and styling guidance.
 
-Do NOT propose interfaces yet. After the file is written, use the ask the user to ask which candidate to explore, the candidates as options with your recommended one marked "(Recommended)".
+Do NOT propose interfaces yet. After the file is written, present the candidates in the conversation, mark your recommended one "(Recommended)", ask which candidate to explore, and wait for the reply.
 
 ## CRITICAL: Scope before you scan — and never propose interfaces
 
-Decide where to look before looking: follow the user's direction, or walk the commit history for hot spots — YAGNI. The report surfaces candidates only: **do NOT propose interfaces yet** — present the report and use the ask the user to ask which candidate to explore before any design work.
+Decide where to look before looking: follow the user's direction, or walk the commit history for hot spots — YAGNI. The report surfaces candidates only: **do NOT propose interfaces yet** — present the report, ask directly in the conversation which candidate to explore, and wait for the reply before any design work.
 
 ### 3. Grilling loop
 
@@ -72,4 +72,4 @@ Side effects happen inline as decisions crystallize — run the `/skill:domain-m
 - **Naming a deepened module after a concept not in `CONTEXT.md`?** Add the term to `CONTEXT.md`. Create the file lazily if it doesn't exist.
 - **Sharpening a fuzzy term during the conversation?** Update `CONTEXT.md` right there.
 - **User rejects the candidate with a load-bearing reason?** Offer an ADR, framed as: _"Want me to record this as an ADR so future architecture reviews don't re-suggest it?"_ Only offer when the reason would actually be needed by a future explorer to avoid re-suggesting the same thing — skip ephemeral reasons ("not worth it right now") and self-evident ones.
-- **Want to explore alternative interfaces for the deepened module?** Run the `/skill:codebase-design` skill and use its design-it-twice parallel isolated context pattern.
+- **Want to explore alternative interfaces for the deepened module?** Run the `/skill:codebase-design` skill and use its Design It Twice pattern with teammates when the teammate facility is available, or compare designs sequentially in the current context.

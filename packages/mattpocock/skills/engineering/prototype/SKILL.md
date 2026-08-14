@@ -9,7 +9,7 @@ A prototype is **throwaway code that answers a question**. The question decides 
 
 ## Pick a branch
 
-Identify which question is being answered — from the user's prompt, the surrounding code, or by using the ask the user to ask the user if they're around:
+Identify which question is being answered — from the user's prompt, the surrounding code, or by asking the user directly in the conversation if they are available:
 
 - **"Does this logic / state model feel right?"** → [LOGIC.md](LOGIC.md). Build a tiny interactive terminal app that pushes the state machine through cases that are hard to reason about on paper.
 - **"What should this look like?"** → [UI.md](UI.md). Generate several radically different UI variations on a single route, switchable via a URL search param and a floating bottom bar.
@@ -27,4 +27,4 @@ Identify the question being answered before building — "does this logic / stat
 3. **No persistence by default.** State lives in memory. Persistence is the thing the prototype is _checking_, not something it should depend on. If the question explicitly involves a database, hit a scratch DB or a local file with a clear "PROTOTYPE — wipe me" name.
 4. **Skip the polish.** No tests, no error handling beyond what makes the prototype _runnable_, no abstractions. The point is to learn something fast.
 5. **Surface the state.** After every action (logic) or on every variant switch (UI), print or render the full relevant state so the user can see what changed.
-6. **Capture it when done.** Fold any validated decision into the real code, then capture the prototype itself as a **primary source**: commit it to a throwaway branch, out of main, and leave a context pointer to that branch on the implementation issue. Capture the answer too — the verdict and the question it settled — in the issue or a commit. The main branch keeps only the validated decision.
+6. **Capture it when done.** Fold any validated decision into the real code, then preserve the prototype as a **primary source** on a throwaway branch, out of main, and leave a context pointer to that branch on the implementation issue. Record the verdict and the question it settled in the issue or commit message. When a commit is needed, follow the repository's git-agent workflow rather than staging or committing directly. The main branch keeps only the validated decision.

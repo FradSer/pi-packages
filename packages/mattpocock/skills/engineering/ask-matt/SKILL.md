@@ -15,25 +15,25 @@ A **flow** is a path through the skills. Most paths run along one **main flow**,
 The route most work travels. You have an idea and want it built.
 
 1. **`/skill:grill-with-docs`** — sharpen the idea by interview. Start here when you **have a codebase**: it's stateful, retaining what it learns in `CONTEXT.md` and ADRs. (No codebase? Use `/skill:grill-me` — see Standalone. Both run the same `/skill:grilling` primitive; `grill-with-docs` is the one that leaves a paper trail.)
-2. **Branch — can you settle every question in conversation?** If a question needs a runnable answer (state, business logic, a UI you have to see), detour through a prototype, bridged by **`/skill:handoff`** in both directions (see Crossing sessions):
-   - **`/skill:handoff`** out, then open a fresh session against that file,
+2. **Branch — can you settle every question in conversation?** If a question needs a runnable answer (state, business logic, a UI you have to see), detour through a prototype, writing a **`/skill:handoff`** document in each direction (see Crossing sessions):
+   - Write a **`/skill:handoff`** document; if needed, separately open a fresh session against that document,
    - **`/skill:prototype`** to answer the question with throwaway code,
-   - **`/skill:handoff`** back what you learned, and reference it from the original idea thread.
+   - Write another **`/skill:handoff`** document with what you learned, and reference it from the original idea thread.
 3. **Branch — is this a multi-session build?**
-   - **Yes** → **`/skill:to-spec`** (turn the thread into a spec), then **`/skill:to-tickets`** to split it into tracer-bullet tickets, each declaring its **blocking edges**. On a local tracker that's one file per ticket under `.scratch/<feature>/issues/`, worked blockers-first by hand; on a real tracker the edges become native blocking links, so any ticket whose blockers are done can be grabbed — kick off **`/skill:implement`** per ticket, **clearing context between each one**.
+   - **Yes** → **`/skill:to-spec`** (turn the thread into a spec), then **`/skill:to-tickets`** to split it into tracer-bullet tickets, each declaring its **blocking edges**. On a local tracker that's one file per ticket under `.scratch/<feature>/issues/`, worked blockers-first by hand; on a real tracker the edges become native blocking links, so any ticket whose blockers are done can be grabbed — start a fresh session with **`/new`** for each `/skill:implement` ticket.
    - **No** → **`/skill:implement`** right here, in the same context window.
 
-   Either way, **`/skill:implement`** builds each issue by driving **`/skill:bdd`** internally (Discovery → Formulation, then Automation delegated to `/skill:tdd`) — one vertical slice at a time — then closes out by running **`/skill:code-review`**, a two-axis review (Standards + Spec) of the diff, before committing. Reach for **`/skill:bdd`** on its own when you want to define Gherkin scenarios for a feature, and **`/skill:tdd`** on its own when you want to write tests within the BDD Automation phase. Reach for **`/skill:code-review`** on its own whenever you want to review a branch or PR against a fixed point.
+   Either way, **`/skill:implement`** builds each issue by driving **`/skill:bdd`** internally (Discovery → Formulation, then Automation delegated to `/skill:tdd`) — one vertical slice at a time — then closes out by running **`/skill:code-review`**, a two-axis review (Standards + Spec) of the diff, before using the repository's git-agent workflow when a commit is requested. Reach for **`/skill:bdd`** on its own when you want to define Gherkin scenarios for a feature, and **`/skill:tdd`** on its own when you want to write tests within the BDD Automation phase. Reach for **`/skill:code-review`** on its own whenever you want to review a branch or PR against a fixed point.
 
 ### Context hygiene
 
-Keep steps 1–3 in **one unbroken context window** — don't compact or clear until after `/skill:to-tickets` — so the grilling, spec, and tickets all build on the same thinking. Each `/skill:implement` then starts fresh, working from the ticket.
+Keep steps 1–3 in **one unbroken context window** — don't compact or start a new session until after `/skill:to-tickets` — so the grilling, spec, and tickets all build on the same thinking. Each `/skill:implement` then starts fresh, working from the ticket.
 
-The limit on this is the **[smart zone](https://www.aihero.dev/ai-coding-dictionary/smart-zone)**: the window (~120k tokens on state-of-the-art models) within which the model still reasons sharply. If a session approaches it before `/skill:to-tickets`, don't push on degraded — `/skill:handoff` and continue in a fresh thread.
+The limit on this is the **[smart zone](https://www.aihero.dev/ai-coding-dictionary/smart-zone)**: the window (~120k tokens on state-of-the-art models) within which the model still reasons sharply. If a session approaches it before `/skill:to-tickets`, don't push on degraded — write a `/skill:handoff` document and, if needed, separately continue in a fresh thread.
 
 ## CRITICAL: Route by scenario, not by habit
 
-Wayfinder is only for work too big for one session — never a well-scoped feature. Triage is only for issues the user didn't create — never for the tickets `/skill:to-tickets` produced. Keep steps 1–3 in one unbroken context window: no compact or clear until after `/skill:to-tickets`.
+Wayfinder is only for work too big for one session — never a well-scoped feature. Triage is only for issues the user didn't create — never for the tickets `/skill:to-tickets` produced. Keep steps 1–3 in one unbroken context window: no compact or new session until after `/skill:to-tickets`.
 
 ## On-ramps
 
@@ -67,22 +67,22 @@ Model-invoked references that run *beneath* the other skills — each the single
 A **phase** is a chunk of work inside a session — the grilling, the implementation, the QA. At the **boundary** between two of them you have five options, and picking between them is the fuzziest decision in this whole map:
 
 - **Continue** — stay put. Costs nothing, loses nothing.
-- **`/clear`** — empty the window, when nothing here matters to what's next.
-- **`/skill:handoff`** — write a portable markdown file. Narrow: only for a **new harness**, a **new directory**, a **colleague**, or forking a side task **mid-phase**. What it buys is portability. It's the bridge between context windows, in either direction.
-- **Subagent** — send a tightly-scoped task to its own window and get a report back.
+- **`/new`** — start a fresh session, when nothing here matters to what's next.
+- **`/skill:handoff`** — write a portable Markdown document. Narrow: only for a **new harness**, a **new directory**, a **colleague**, or recording a side task **mid-phase**. What it buys is portability. It only writes the document; it does not create, fork, or seed a session.
+- **Teammate** — when the teammate facility is available, send a tightly scoped task to a teammate and get a report back.
 - **`/compact`** (built-in) — compress this context and seed a fresh session with it. The **default**, at the bottom of the tree rather than the first reach.
 
-Read [PHASE-BOUNDARIES.md](PHASE-BOUNDARIES.md) for the ordered tree — the five questions, the reasoning behind each branch, and why the primary-source cost makes **Continue** the one to rule out first. Make the decision **at** a boundary; mid-phase, continue or split the rest into isolated contexts. `/skill:handoff` forks; `/compact` continues.
+Read [PHASE-BOUNDARIES.md](PHASE-BOUNDARIES.md) for the ordered tree — the five questions, the reasoning behind each branch, and why the primary-source cost makes **Continue** the one to rule out first. Make the decision **at** a boundary; mid-phase, continue or delegate the remaining work to a teammate when available. `/skill:handoff` only writes a portable document; `/compact` continues.
 
 ## Standalone
 
 Off the main flow entirely.
 
 - **`/skill:grill-me`** — the same relentless interview as `/skill:grill-with-docs`, but for when you have **no codebase**. Stateless: it saves nothing locally, builds no `CONTEXT.md`. Reach for it to sharpen any plan or design that doesn't live in a repo.
-- **`/skill:grilling`** — the interview primitive itself: one question at a time via the ask the user; facts are the agent's job and decisions are yours. `/skill:grill-me` and `/skill:grill-with-docs` are the two named ways in, and `/skill:triage`, `/skill:wayfinder` and `/skill:improve-codebase-architecture` all run it internally. Reach for it directly only when you want the interview with no wrapper around it.
+- **`/skill:grilling`** — the interview primitive itself: one question at a time directly in the conversation; facts are the agent's job and decisions are yours. `/skill:grill-me` and `/skill:grill-with-docs` are the two named ways in, and `/skill:triage`, `/skill:wayfinder` and `/skill:improve-codebase-architecture` all run it internally. Reach for it directly only when you want the interview with no wrapper around it.
 - **`/skill:resolving-merge-conflicts`** — work an in-progress merge or rebase conflict hunk by hunk, resolving by **intent** traced to each side's primary source rather than by picking lines, then finish the operation. It never runs `--abort`. Standalone and off every flow: reach for it when you are already mid-conflict.
 - **`/skill:prototype`** — a small, throwaway program that answers one design question: does this state model feel right, or what should this UI look like. It's the detour in step 2 of the main flow, but reach for it any time a design question is hard to settle on paper.
-- **`/skill:research`** — delegate reading legwork to an isolated context: it investigates a question against **primary sources**, then leaves a cited Markdown file in the repo. Keep working while it reads. The file it produces is something to take *into* the main flow at `/skill:grill-with-docs` — research feeds the thinking, it doesn't replace it.
+- **`/skill:research`** — delegate reading legwork to a teammate when the teammate facility is available, or conduct it sequentially otherwise. It investigates a question against **primary sources**, then leaves a cited Markdown file in the repo. The file it produces is something to take *into* the main flow at `/skill:grill-with-docs` — research feeds the thinking, it doesn't replace it.
 - **`/skill:to-questionnaire`** — when the thing blocking you isn't in your head or the codebase but in **someone else's**, this writes them a questionnaire to fill in. It's the inverse of `/skill:grill-me`: instead of interviewing you about the subject, it interviews you about the **send** — who it's going to, what you need back — and aims the questions at the gap. What comes back is material for `/skill:grill-with-docs` or `/skill:to-spec`.
 - **`/skill:wizard`** — for the steps only a **human** can take: provisioning infrastructure, setting up credentials or CI secrets, clicking through an unfamiliar third-party dashboard, running a one-off migration or cutover. It generates an interactive bash script that opens each URL, captures each value, and writes it into `.env` and GitHub secrets — so the procedure stops being something you re-explain to an agent every time. Model-invoked, so the agent reaches for it the moment it hits a wall only you can pass. If the agent could just do it itself, it should; this is for where a human is genuinely in the loop.
 - **`/skill:wait-what`** — the corrective for a message that didn't land. Use it mid-conversation, inside any other skill, and the agent re-pitches what it just said with the context you were missing, in plain English, using the `CONTEXT.md` vocabulary. It works after the fact; `/skill:grill-with-docs` is the upfront cure, because a shared language agreed early is what stops the jargon arriving at all.

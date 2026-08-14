@@ -4,158 +4,161 @@
 
 [English](README.md) | **简体中文**
 
-面向 Pi 的原生包,用于复用 Agent skills、extensions 和项目工作流。
+面向 Pi 的原生包，用于复用 skills、extensions 和工作流命令。
 
-## 调用方式
+## 使用包
 
-所有 skill 都使用 Pi 的 `/skill:<name>` 命令调用。参数会追加在 skill 内容之后;Pi 不会展开 `$ARGUMENTS`,也不会执行 skill Markdown 中的 shell 注入。工作流类包使用原生命令(`/memory`、`/btw`、`/teammate`)。
+Skill 使用 Pi 的 `/skill:<name>` 命令。命令后的参数会追加到 skill 文本。Pi 不会展开 `$ARGUMENTS`，也不会执行 skill Markdown 中嵌入的 shell 替换。
+
+管理交互式工作流的包使用 `/memory`、`/btw`、`/teammate` 等原生命令，而不是 skill。
+
+已发布的包可以使用带 `npm:` 前缀的命令安装：
+
+```bash
+pi install npm:@fradser/pi-memory
+```
+
+开发时，所有包都可以从当前 checkout 安装：
+
+```bash
+pi install /path/to/pi-packages/packages/<name>
+```
 
 ## 包列表
 
 ### [`vision`](packages/vision/)
 
-为不具备视觉能力的 Pi 模型提供透明的图片转文字桥接。使用 `/vision model provider/model` 配置视觉模型;图片提示会先交给视觉模型阅读,再将视觉上下文交给当前文本模型继续处理。
+当当前模型仅支持文本时，通过已配置的 Pi 视觉模型将图片转换为文字。它保留原始会话附件，只将视觉分析加入瞬态 provider context。
 
-**命令:** `/vision model provider/model`、`/vision on`、`/vision off`
+**命令：** `/vision`、`/vision model provider/model`、`/vision on`、`/vision off`
 
-**安装:**
-```bash
-pi install npm:@fradser/pi-vision
-# 或本地安装:pi install /path/to/pi-packages/packages/vision
-```
+**可用性：** 请从当前 checkout 安装。首个 npm 版本尚未发布。
 
 ---
 
 ### [`btw`](packages/btw/)
 
-`/btw <question>` 在输入框上方的只读浮层中回答旁路问题,不打断当前任务,也绝不进入会话历史。与 Claude Code 的 `/btw` 不同,它会调用只读工具(`read`、`grep`、`find`、`ls`)在代码库中验证事实,并且严格只读:`bash`、`edit`、`write` 始终被排除。
+在只读浮层中回答旁路问题，不会写入当前会话历史。子 Pi 进程可以使用 `read`、`grep`、`find` 和 `ls` 检查代码库，但不能使用 `bash`、`edit` 或 `write`。
 
-**命令:** `/btw <question>`
+**命令：** `/btw <question>`
 
-**安装:**
+**安装：**
+
 ```bash
 pi install npm:@fradser/pi-btw
-# 或本地安装:pi install /path/to/pi-packages/packages/btw
 ```
 
 ---
 
 ### [`code-context`](packages/code-context/)
 
-通过 DeepWiki、Context7、Exa、直接 git clone 和网页抓取获取代码上下文。检索方式是原生 pi 工具(`context_deepwiki`、`context_context7`、`context_exa`),直接调用公开 REST API;git clone 和 HTTP 抓取始终作为兜底可用。
+提供 DeepWiki、Context7 和 Exa 检索工具，并以 clone 与 HTTP 抓取工作流作为兜底。该包直接调用 REST API，不使用 MCP sidecar。
 
-**Skills:** `code-context`、`get-context`
+**Skills：** `/skill:get-context`、`/skill:code-context`
 
-**安装:**
-```bash
-pi install npm:@fradser/code-context
-# 或本地安装:pi install /path/to/pi-packages/packages/code-context
-```
+**工具：** `context_deepwiki`、`context_context7`、`context_exa`
+
+**可用性：** 请从当前 checkout 安装。该包目前尚未发布到 npm。
 
 ---
 
 ### [`mattpocock`](packages/mattpocock/)
 
-改编自 Matt Pocock skills 的 BDD 优先工程与效率 skills,涵盖 TDD、实现、调试、架构、调研、代码评审、规划、交接、教学和 skill 编写。
+一组适配 Pi 的 BDD、TDD、实现、评审、调试、架构、调研、规划、交接、教学和 skill 编写工作流。
 
-**Skills:** `engineering`、`productivity`(内含各主题子 skills)
+**Skills：** 共 27 个独立 skill，包括 `/skill:bdd`、`/skill:tdd`、`/skill:implement` 和 `/skill:code-review`
 
-**安装:**
-```bash
-pi install npm:@fradser/mattpocock
-# 或本地安装:pi install /path/to/pi-packages/packages/mattpocock
-```
+**可用性：** 请从当前 checkout 安装。该包目前尚未发布到 npm。
 
 ---
 
 ### [`memory`](packages/memory/)
 
-原生 `/memory` 命令:自动记忆引导、指令编辑菜单和记忆整合(聚类、时效检查、接地验证、隐私校验)。整合以内联流程在后台 worker 中运行。无 skill 面。
+通过 `/memory` 菜单、自动记忆引导和后台整合管理持久化项目记忆。整合流程在独立的子 Pi 进程中执行，其原始工作内容不会进入当前对话。
 
-**命令:** `/memory` 菜单(立即整合、编辑指令、打开自动记忆目录、开关自动记忆)和 `/consolidate` 一键整合
+**命令：** `/memory`、`/consolidate`
 
-**安装:**
+**安装：**
+
 ```bash
 pi install npm:@fradser/pi-memory
-# 或本地安装:pi install /path/to/pi-packages/packages/memory
 ```
 
 ---
 
 ### [`monitor`](packages/monitor/)
 
-在后台运行 shell 命令并把 stdout 流式推给 agent 作为通知,让它在日志、部署、CI 或文件变化发生的当下做出反应,无需轮询循环。
+在后台按明确的结果契约运行命令。普通输出保留在模型 context 之外，并且仅在成功、失败、超时或缺失结果时发送一条结构化终态结果。
 
-**工具:** `monitor_start`、`monitor_list`、`monitor_stop` · **Skill:** `using-monitor` · **命令:** `/monitor`
+**工具：** `monitor_start`、`monitor_read`、`monitor_list`、`monitor_stop`
 
-**安装:**
+**Skill：** `/skill:using-monitor`
+
+**命令：** `/monitor`
+
+**安装：**
+
 ```bash
 pi install npm:@fradser/pi-monitor
-# 或本地安装:pi install /path/to/pi-packages/packages/monitor
 ```
 
 ---
 
 ### [`agent-teams`](packages/agent-teams/)
 
-多 agent 团队系统:注册 teammate、分配任务、并行运行独立 worker、使用 `teammate_wait` 汇总结果,以及通过 `/teammate` 全屏控制台管理自治子 Pi worker。
+通过 leader 持有的任务板和邮箱协议协调自治的子 Pi worker。Team leader 可以注册 teammate、创建并启动就绪任务、等待结果、发送消息、取消运行，并打开全屏控制台。
 
-**工具:** `teammate_register` / `list` / `send` / `read_mailbox` / `assign_task` / `list_tasks` / `update_task` / `broadcast` / `spawn` / `wait` / `task_deps` / `remove` / `cleanup` / `reset` / `update_model` · **命令:** `/teammate`
+**工具：** `teammate_register`、`teammate_list`、`teammate_configure`、`teammate_remove`、`teammate_message`、`teammate_inbox`、`teammate_create_task`、`teammate_list_tasks`、`teammate_start_task`、`teammate_wait`、`teammate_cancel_task`、`teammate_cleanup`
 
-**安装:**
-```bash
-pi install npm:@fradser/pi-agent-teams
-# 或本地安装:pi install /path/to/pi-packages/packages/agent-teams
-```
+**命令：** `/teammate`
+
+**可用性：** 请从当前 checkout 安装。该包目前尚未发布到 npm。
 
 ---
 
 ### [`utils`](packages/utils/)
 
-pi 原生实用命令:`/effort` 设置会话的 thinking level(菜单或内联,例如 `/effort max`),`/continue`(或 `/继续`)从中断步骤恢复或继续上一段回复,并把 `git worktree add` 的路径重定向到 `.pi/worktrees/`。
+增加选择模型 thinking level 和恢复中断工作的命令，也会将安全的 `git worktree add` 调用定向到 `.pi/worktrees/`。
 
-**命令:** `/effort`、`/continue` · `/继续`
+**命令：** `/effort`、`/continue`
 
-**安装:**
+**安装：**
+
 ```bash
 pi install npm:@fradser/pi-utils
-# 或本地安装:pi install /path/to/pi-packages/packages/utils
 ```
 
-## 说明
-
-`git-agent` 的 pi 包已移到 git-agent 仓库(`git-agent/git-agent-pi-package`),以 `/git-agent` 暴露 `commit` / `commit-and-push` 工作流(AI 原子提交,git-agent CLI),无 skill 面。`memory` 包采用同样的菜单模式(`/memory`,无 skill 面)。
-
-## SDK Harness
-
-`examples/sdk-session.ts` 演示了 `createAgentSession()` 的编程式用法,接线包扩展并检查发现的 skills。
+## 开发
 
 ```bash
-pnpm example:sdk
-# 或直接运行:
-npx tsx examples/sdk-session.ts
-# 可选:真实模型回合
-PI_SDK_LIVE=1 npx tsx examples/sdk-session.ts
+pnpm install
+python3 -m pytest packages
 ```
 
-## 添加新包
+每个包将行为场景放在 `features/`，测试放在 `tests/`。修改 extension 后，运行对应的严格 TypeScript 检查：
 
-1. 在 `packages/` 下创建包目录。
-2. 添加带 `pi-package` 关键字和 `pi` 资源清单的 `package.json`。
-3. 在 `package.json` 声明的路径下添加 skills、extensions、prompts 或 themes。
-4. 用 `pi install /path/to/pi-packages/packages/<name>` 安装本地包并运行其测试。
-5. 运行 `/skill:update-readme` 同步两个 README 文件。
+```bash
+npx tsc --noEmit --strict --skipLibCheck --target ES2022 \
+  --module ESNext --moduleResolution bundler --types "" \
+  packages/<name>/{src,extensions}/*.ts
+```
+
+在单个 package 目录执行 `pnpm pack --dry-run` 可以检查将要发布的文件。
+
+## 添加包
+
+1. 创建 `packages/<name>/`。
+2. 添加带有 `pi-package` 关键字和明确 `pi` 资源清单的 `package.json`。
+3. 将所有运行时资源加入 `files`，并把每个导入的 Pi 核心包声明为 peer dependencies。
+4. 先在 `features/` 中写 BDD 场景，再实现代码和可执行测试。
+5. 使用 `pi install /path/to/pi-packages/packages/<name>` 本地安装，并验证 package 内容。
 
 ## 发布
 
-包以 `@fradser` scope 发布到 npm,并通过 `pi-package` 关键字出现在 [pi.dev/packages](https://pi.dev/packages) 画廊。
+本仓库通过 Changesets 和 GitHub Actions release workflow 发布。不要在仓库根目录执行递归 `pnpm publish`。
 
-```bash
-pnpm install          # 安装工作区开发依赖
-pnpm publish          # 发布所有包(pnpm -r publish --access public)
-pnpm publish:dry-run  # 打 tarball 检查包内容
-```
+对于已发布包的改动，创建 Changeset、推送到 `main`，然后合并生成的 version PR。release workflow 仅使用 npm trusted publishing 发布明确的 package allowlist。新包在 workflow 可发布后续版本前，需要先完成首次 npm 发布和 trusted publishing 设置。
 
 ## 许可证
 
-每个包在自己的清单中声明 MIT 许可证。仓库根目录没有单独的许可证文件。
+每个包在自己的 manifest 中声明 MIT 许可证。仓库根目录没有单独的许可证文件。

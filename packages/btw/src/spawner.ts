@@ -209,14 +209,36 @@ export function runBtw(options: RunBtwOptions): Promise<BtwResult> {
     ];
     if (options.model) args.push("--model", options.model);
 
-    const prompt = buildBtwPrompt(options.question, options.context);
-    if (prompt.length > PROMPT_ARG_LIMIT) {
-      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "btw-"));
-      const promptFile = path.join(tempDir, "question.md");
-      fs.writeFileSync(promptFile, prompt, { mode: 0o600 });
-      args.push(`@${promptFile}`);
-    } else {
-      args.push(prompt);
+    let promptDirectory: string | undefined;
+    const cleanupPrompt = () => {
+      if (!promptDirectory) return;
+      try {
+        fs.rmSync(promptDirectory, { recursive: true, force: true });
+      } catch {
+        // Cleanup must not hide the child process result.
+      }
+      promptDirectory = undefined;
+    };
+
+    try {
+      const prompt = buildBtwPrompt(options.question, options.context);
+      if (prompt.length > PROMPT_ARG_LIMIT) {
+        promptDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "btw-"));
+        const promptFile = path.join(promptDirectory, "question.md");
+        fs.writeFileSync(promptFile, prompt, { mode: 0o600 });
+        args.push(`@${promptFile}`);
+      } else {
+        args.push(prompt);
+      }
+    } catch (error) {
+      cleanupPrompt();
+      resolve({
+        text: "",
+        timedOut: false,
+        exitCode: 1,
+        stderr: error instanceof Error ? error.message : String(error),
+      });
+      return;
     }
 
     let child;
@@ -227,6 +249,7 @@ export function runBtw(options: RunBtwOptions): Promise<BtwResult> {
         stdio: ["ignore", "pipe", "pipe"],
       });
     } catch (error) {
+      cleanupPrompt();
       resolve({
         text: "",
         timedOut: false,
@@ -239,22 +262,29 @@ export function runBtw(options: RunBtwOptions): Promise<BtwResult> {
     const stdoutChunks: string[] = [];
     const stderrChunks: string[] = [];
     let timedOut = false;
-    child.stdout.on("data", (chunk: Buffer) => stdoutChunks.push(chunk.toString()));
-    child.stderr.on("data", (chunk: Buffer) => stderrChunks.push(chunk.toString()));
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const settle = (result: BtwResult) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      cleanupPrompt();
+      resolve(result);
+    };
 
-    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill("SIGKILL");
-    }, timeoutMs);
-    timer.unref?.();
-
-    const cleanup = () => clearTimeout(timer);
-    child.on("error", () => cleanup());
+    child.stdout?.on("data", (chunk: Buffer) => stdoutChunks.push(chunk.toString()));
+    child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk.toString()));
+    child.on("error", (error) => {
+      settle({
+        text: "",
+        timedOut,
+        exitCode: 1,
+        stderr: error instanceof Error ? error.message : String(error),
+      });
+    });
     child.on("close", (code) => {
-      cleanup();
       const parsed = parseBtwOutput(stdoutChunks.join(""));
-      resolve({
+      settle({
         text: truncate(parsed.text, OUTPUT_CAP),
         usage: parsed.usage,
         timedOut,
@@ -262,6 +292,13 @@ export function runBtw(options: RunBtwOptions): Promise<BtwResult> {
         stderr: truncate(stderrChunks.join("").trim(), OUTPUT_CAP),
       });
     });
+
+    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, timeoutMs);
+    timer.unref?.();
 
     if (options.signal) {
       if (options.signal.aborted) child.kill("SIGTERM");

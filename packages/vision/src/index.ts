@@ -21,7 +21,7 @@ let config: VisionConfig = readVisionConfig();
 
 type ContextTransform = { messages: ContextEvent["messages"] };
 
-interface PendingVisionAnalysis {
+interface VisionAnalysis {
   analysisPrompt: string;
   analysis: string;
 }
@@ -219,43 +219,68 @@ async function openVisionMenu(ctx: ExtensionCommandContext): Promise<void> {
 }
 
 export default function visionExtension(pi: ExtensionAPI): void {
-  const pendingAnalyses = new Map<string, PendingVisionAnalysis>();
+  let activePromptKey: string | undefined;
+  let activeAnalysis:
+    | {
+        key: string;
+        completed?: boolean;
+        result?: VisionAnalysis;
+        pending?: Promise<VisionAnalysis | undefined>;
+      }
+    | undefined;
 
   async function analysisFor(
     prompt: string,
     nativeImages: ImageContent[],
     ctx: ExtensionContext,
-  ): Promise<PendingVisionAnalysis | undefined> {
+  ): Promise<VisionAnalysis | undefined> {
     const key = analysisKey(prompt, nativeImages);
-    let pending = pendingAnalyses.get(key);
-    if (pending?.analysis) return pending;
-
-    const extracted = await extractInputImages(prompt);
-    const images = nativeImages.length > 0 ? nativeImages : extracted.images;
-    if (images.length === 0) return undefined;
-
-    if (!pending) {
-      pending = { analysisPrompt: extracted.text, analysis: "" };
-      pendingAnalyses.set(key, pending);
+    if (key !== activePromptKey) return undefined;
+    if (activeAnalysis?.key === key) {
+      if (activeAnalysis.result) return activeAnalysis.result;
+      if (activeAnalysis.pending) return activeAnalysis.pending;
+      if (activeAnalysis.completed) return undefined;
     }
 
-    if (!config.enabled || !config.provider || !config.model) return pending;
-    const visionModel = ctx.modelRegistry.find(config.provider, config.model);
-    if (!visionModel?.input.includes("image")) return pending;
+    const request = (async (): Promise<VisionAnalysis | undefined> => {
+      const extracted = await extractInputImages(prompt);
+      const images = nativeImages.length > 0 ? nativeImages : extracted.images;
+      if (images.length === 0) return undefined;
+      if (!config.enabled || !config.provider || !config.model) return undefined;
 
+      const visionModel = ctx.modelRegistry.find(config.provider, config.model);
+      if (!visionModel?.input.includes("image")) return undefined;
+
+      try {
+        ctx.ui.setStatus("vision", `reading ${images.length} image${images.length === 1 ? "" : "s"} · ${config.provider}/${config.model}`);
+        ctx.ui.setWorkingIndicator({ frames: ["◐", "◓", "◑", "◒"], intervalMs: 200 });
+        const result = await describeImages(ctx.modelRegistry, visionModel, extracted.text, images, ctx.signal);
+        const analysis = { analysisPrompt: extracted.text, analysis: result.text };
+        if (activeAnalysis?.key === key) activeAnalysis.result = analysis;
+        return analysis;
+      } catch {
+        // Preserve the provider-bound context unchanged when visual analysis is unavailable.
+        return undefined;
+      } finally {
+        ctx.ui.setWorkingIndicator();
+        updateStatus(ctx);
+      }
+    })();
+    activeAnalysis = { key, pending: request };
     try {
-      ctx.ui.setStatus("vision", `reading ${images.length} image${images.length === 1 ? "" : "s"} · ${config.provider}/${config.model}`);
-      ctx.ui.setWorkingIndicator({ frames: ["◐", "◓", "◑", "◒"], intervalMs: 200 });
-      const result = await describeImages(ctx.modelRegistry, visionModel, pending.analysisPrompt, images, ctx.signal);
-      pending.analysis = result.text;
-    } catch (error) {
-      pending.analysis = `[Image analysis unavailable: ${error instanceof Error ? error.message : String(error)}]`;
+      return await request;
     } finally {
-      ctx.ui.setWorkingIndicator();
-      updateStatus(ctx);
+      if (activeAnalysis?.key === key) {
+        delete activeAnalysis.pending;
+        activeAnalysis.completed = true;
+      }
     }
-    return pending;
   }
+
+  pi.on("before_agent_start", (event) => {
+    activePromptKey = analysisKey(event.prompt, event.images ?? []);
+    activeAnalysis = undefined;
+  });
 
   pi.on("context", async (event, ctx): Promise<ContextTransform | undefined> => {
     if (!ctx.model || (ctx.model.input ?? ["text"]).includes("image")) return;
@@ -283,7 +308,14 @@ export default function visionExtension(pi: ExtensionAPI): void {
     return changed ? { messages } : undefined;
   });
 
+  pi.on("agent_settled", () => {
+    activePromptKey = undefined;
+    activeAnalysis = undefined;
+  });
+
   pi.on("session_start", (_event, ctx) => {
+    activePromptKey = undefined;
+    activeAnalysis = undefined;
     config = readVisionConfig();
     updateStatus(ctx);
   });

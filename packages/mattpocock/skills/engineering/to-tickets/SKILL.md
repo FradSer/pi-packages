@@ -51,10 +51,10 @@ Present the proposed breakdown as a numbered list. For each ticket, show:
 - **Blocked by**: which other tickets (if any) must complete first
 - **What it delivers**: the end-to-end behaviour this ticket makes work
 
-Use the ask the user to quiz the user, one call with three questions:
-- "Does the granularity feel right?" — options: just right / too coarse / too fine
-- "Are the blocking edges correct?" — options: yes, they're genuine / no, adjust them
-- "Should any tickets be merged or split further?" — options: no, proceed / yes — name them via "Other"
+Ask the user directly in the conversation, then wait for the reply:
+- "Does the granularity feel right?" — just right / too coarse / too fine
+- "Are the blocking edges correct?" — yes, they're genuine / no, adjust them
+- "Should any tickets be merged or split further?" — no, proceed / yes — describe the changes
 
 Iterate until the user approves the breakdown.
 

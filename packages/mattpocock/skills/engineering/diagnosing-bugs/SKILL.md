@@ -52,7 +52,7 @@ The goal is not a clean repro but a **higher reproduction rate**. Loop the trigg
 
 ### When you genuinely cannot build a loop
 
-Stop and say so explicitly. List what you tried. Use the ask the user to ask the user for: (a) access to whatever environment reproduces it, (b) a redacted captured artifact (HAR file, log dump, core dump, screen recording with timestamps), or (c) permission to add temporary production instrumentation. Do **not** proceed to hypothesise without a loop.
+Stop and say so explicitly. List what you tried. Ask the user directly in the conversation for (a) access to whatever environment reproduces it, (b) a redacted captured artifact (HAR file, log dump, core dump, screen recording with timestamps), or (c) permission to add temporary production instrumentation, then wait for the reply. Do **not** proceed to hypothesise without a loop.
 
 ### Completion criterion — a tight loop that goes red
 
@@ -141,6 +141,6 @@ Required before declaring done:
 - [ ] Throwaway prototypes deleted (or moved to a clearly-marked debug location)
 - [ ] The hypothesis that turned out correct is stated in the commit / PR message — so the next debugger learns
 
-**Then use the ask the user what would have prevented this bug** — options: no good test seam / tangled callers / hidden coupling / nothing worth changing, plus "Other" for anything else. If the answer involves architectural change (no good test seam, tangled callers, hidden coupling) hand off to the `/skill:improve-codebase-architecture` skill with the specifics. Make the recommendation **after** the fix is in, not before — you have more information now than when you started.
+**Then ask the user directly in the conversation what would have prevented this bug** — no good test seam / tangled callers / hidden coupling / nothing worth changing / another cause. Wait for the reply. If the answer involves architectural change (no good test seam, tangled callers, hidden coupling) hand off to the `/skill:improve-codebase-architecture` skill with the specifics. Make the recommendation **after** the fix is in, not before — you have more information now than when you started.
 
 After the post-mortem, run `/skill:code-review` over the fix — a bug fix without a two-axis review is not finished work.

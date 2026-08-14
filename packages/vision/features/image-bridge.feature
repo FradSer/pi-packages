@@ -35,6 +35,21 @@ Feature: Transparent image reading for text-only models
     Then the extension preserves the original user message
     And tells the user how to configure a vision model
 
+  Scenario: Preserve the provider context when image analysis fails
+    Given the active model does not support image input
+    And the configured vision model fails to analyze an image
+    When the user submits a prompt with an image attachment
+    Then the text-only model receives the original prompt and image unchanged
+    And no image-analysis block or internal provider error is injected into its context
+
+  Scenario: Bound cached analysis across context callbacks
+    Given the active model does not support image input
+    And the configured vision model can analyze an image
+    When duplicate context callbacks transform the same submitted image prompt
+    Then the vision model is called once for that prompt
+    And completed analysis is retained only for the active prompt
+    And pending analyses are cleared when the agent settles
+
   Scenario: Select the vision model from the command
     When the user runs "/vision model provider/model"
     Then the provider and model are persisted in the vision configuration

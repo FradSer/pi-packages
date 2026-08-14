@@ -1,10 +1,10 @@
 ---
 name: handoff
-description: "Compacts the current conversation into a handoff document for another agent to pick up. Use when the user says \"hand this off\" or wants the work continued by a fresh session."
+description: "Writes a portable handoff document for another agent to use. Use when the user says \"hand this off\" or needs to transfer work to a fresh session."
 disable-model-invocation: true
 ---
 
-Write a handoff document summarising the current conversation so a fresh agent can continue the work. Save to the temporary directory of the user's OS - not the current workspace.
+Write a portable handoff document summarising the current conversation. This skill only writes the document: it does not create, fork, or seed a session. Save it to the temporary directory of the user's OS — not the current workspace. The user or a receiving agent may use the document in a later session.
 
 Include a "suggested skills" section in the document, which suggests skills that the agent should invoke.
 

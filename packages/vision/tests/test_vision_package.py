@@ -35,12 +35,14 @@ def run_input_harness(
     text: str,
     image_data: str | None = None,
     main_model: str = "text-only",
+    scenario: str = "success",
 ) -> dict[str, object]:
     agent_dir = tmp_path / "agent"
     env = {
         **os.environ,
         "PI_CODING_AGENT_DIR": str(agent_dir),
         "VISION_TEST_MAIN_MODEL": main_model,
+        "VISION_TEST_SCENARIO": scenario,
     }
     args = [
         "npx",
@@ -85,6 +87,36 @@ def test_native_image_attachment_is_intercepted_end_to_end(tmp_path: Path) -> No
     assert "<file" not in str(result["visionPrompt"])
 
 
+def test_failed_analysis_preserves_original_provider_context(tmp_path: Path) -> None:
+    original = "Explain the image"
+    result = run_input_harness(tmp_path, original, "iVBORw0KGgo=", scenario="failure")
+    assert result["visionCallCount"] == 1
+    assert result["sessionUserImageCount"] == 1
+    assert result["sessionUserPrompt"] == original
+    assert result["mainImageCount"] == 1
+    assert result["mainPrompt"] == original
+    assert "<image-analysis>" not in str(result["mainPrompt"])
+    assert "TEST_PROVIDER_FAILURE" not in str(result["mainPrompt"])
+    assert "custom_message" not in result["sessionEntryTypes"]
+
+
+def test_analysis_is_retained_only_for_the_active_prompt_across_duplicate_context_callbacks(tmp_path: Path) -> None:
+    result = run_input_harness(
+        tmp_path,
+        "First image",
+        "iVBORw0KGgo=",
+        scenario="cache",
+    )
+    assert result["visionCallCount"] == 2  # one analysis per submitted prompt; the first prompt's tool turn reuses its analysis
+    main_contexts = result["mainContexts"]
+    assert isinstance(main_contexts, list)
+    assert len(main_contexts) == 3
+    assert str(main_contexts[0]).count("FIRST_VISION") == 1
+    assert str(main_contexts[1]).count("FIRST_VISION") == 1
+    assert "FIRST_VISION" not in str(main_contexts[2])
+    assert str(main_contexts[2]).count("SECOND_VISION") == 2
+
+
 def test_multimodal_main_model_receives_native_attachment_unchanged(tmp_path: Path) -> None:
     result = run_input_harness(
         tmp_path,
@@ -123,6 +155,8 @@ def test_feature_file_exists() -> None:
     assert "does not replace, remove, rewrite, or add an internal message" in content
     assert "transient provider context" in content
     assert "multimodal main model" in content
+    assert "Preserve the provider context when image analysis fails" in content
+    assert "completed analysis is retained only for the active prompt" in content
 
 
 def test_extension_registers_image_bridge_and_configuration_command() -> None:

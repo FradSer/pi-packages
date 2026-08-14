@@ -39,32 +39,32 @@ Lead each section with the recommended answer so the user can accept it in a wor
 
 > Explainer: The "issue tracker" is where issues live for this repo. Skills like `to-tickets`, `triage`, `to-spec`, and `qa` read from and write to it — they need to know whether to call `gh issue create`, write a markdown file under `.scratch/`, or follow some other workflow you describe. Pick the place you actually track work for this repo.
 
-Default posture: these skills were designed for GitHub. If a `git remote` points at GitHub, propose that. If a `git remote` points at GitLab (`gitlab.com` or a self-hosted host), propose GitLab. Otherwise (or if the user prefers), use the ask the user to offer:
+Default posture: these skills were designed for GitHub. If a `git remote` points at GitHub, propose that. If a `git remote` points at GitLab (`gitlab.com` or a self-hosted host), propose GitLab. Otherwise (or if the user prefers), ask directly in the conversation and wait for the reply. Offer:
 
 - **GitHub** — issues live in the repo's GitHub Issues (uses the `gh` CLI)
 - **GitLab** — issues live in the repo's GitLab Issues (uses the [`glab`](https://gitlab.com/gitlab-org/cli) CLI)
 - **Local markdown** — issues live as files under `.scratch/<feature>/` in this repo (good for solo projects or repos without a remote)
-- **Other** (Jira, Linear, etc.) — the user describes the workflow in one paragraph via the tool's "Other" field; the skill will record it as freeform prose
+- **Another tracker** (Jira, Linear, etc.) — the user describes the workflow in one paragraph; record it as freeform prose
 
 Record the choice in `docs/agents/issue-tracker.md`. The GitHub and GitLab templates carry a "PRs as a request surface" flag, defaulted **off** — leave it off and don't raise it; a user who wants external PRs in the triage queue can flip the flag in the file later.
 
 **Section B — Triage label vocabulary.** Skip this section entirely if the `triage` skill isn't installed (exploration told you) — an uninstalled skill needs no labels.
 
-If it is installed, ask exactly one question via the ask the user:
+If it is installed, ask exactly one question directly in the conversation and wait for the reply:
 
-> "Do you want to keep the default triage labels?" — options: keep the defaults (Recommended) / use my own label names
+> "Do you want to keep the default triage labels?" — keep the defaults (Recommended) / use my own label names
 
 The defaults are the five canonical roles, each label string equal to its name: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. On **yes**, write them as-is. Only if the user says no — usually because their tracker already uses other names (e.g. `bug:triage` for `needs-triage`) — collect the overrides so `triage` applies existing labels instead of creating duplicates.
 
 **Section C — Domain docs.** Default to **single-context** — one `CONTEXT.md` + `docs/adr/` at the repo root. This fits almost every repo; write it without asking.
 
-Offer **multi-context** — a root `CONTEXT-MAP.md` pointing to per-context `CONTEXT.md` files — only when exploration found monorepo signals. Then use the ask the user to confirm which layout they want.
+Offer **multi-context** — a root `CONTEXT-MAP.md` pointing to per-context `CONTEXT.md` files — only when exploration found monorepo signals. Then ask directly in the conversation which layout they want and wait for the reply.
 
 ### 3. Confirm and edit
 
 Show the user a draft of:
 
-- The `## Agent skills` block to add to whichever of `CLAUDE.md` / `AGENTS.md` is being edited (see step 4 for selection rules)
+- The `## Agent skills` block to add to whichever of `AGENTS.md` / `CLAUDE.md` is being edited (see step 4 for selection rules)
 - The contents of `docs/agents/issue-tracker.md`, `docs/agents/domain.md`, and `docs/agents/triage-labels.md` (the last only when `triage` is installed)
 
 Let them edit before writing.
@@ -73,11 +73,11 @@ Let them edit before writing.
 
 **Pick the file to edit:**
 
-- If `CLAUDE.md` exists, edit it.
-- Else if `AGENTS.md` exists, edit it.
-- If neither exists, use the ask the user to ask which one to create — don't pick for them.
+- If `AGENTS.md` exists, edit it.
+- Else if `CLAUDE.md` exists, edit it.
+- If neither exists, ask directly in the conversation whether to create `AGENTS.md` or `CLAUDE.md`, and wait for the reply.
 
-Never create `AGENTS.md` when `CLAUDE.md` already exists (or vice versa) — always edit the one that's already there.
+Prefer `AGENTS.md` when both exist. Never create a second instruction file when one already exists — always edit the existing file.
 
 If an `## Agent skills` block already exists in the chosen file, update its contents in-place rather than appending a duplicate. Don't overwrite user edits to the surrounding sections.
 
@@ -113,7 +113,7 @@ For "other" issue trackers, write `docs/agents/issue-tracker.md` from scratch us
 
 ## CRITICAL: Confirm before writing, never duplicate
 
-This is prompt-driven: present findings, ask section by section, show the draft, and let the user edit before anything is written. Never create `AGENTS.md` when `CLAUDE.md` exists (or vice versa); update an existing `## Agent skills` block in place rather than appending a duplicate.
+This is prompt-driven: present findings, ask directly in the conversation section by section, show the draft, and wait for the user's approval before anything is written. Prefer `AGENTS.md` when both instruction files exist; update an existing `## Agent skills` block in place rather than appending a duplicate.
 
 ### 5. Done
 

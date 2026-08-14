@@ -1,9 +1,9 @@
 ---
 name: research
-description: Investigate a question against high-trust primary sources and capture the findings as a Markdown file in the repo. Use when the user wants a topic researched, docs or API facts gathered, or reading legwork delegated to an isolated context.
+description: Investigate a question against high-trust primary sources and capture the findings as a Markdown file in the repo. Use when the user wants a topic researched, docs or API facts gathered, or reading legwork delegated to a teammate when that facility is available.
 ---
 
-Use an **isolated context when available** to do the research, so the main conversation stays focused while it reads.
+Use a **teammate when the teammate facility is available** to do the research, so the main conversation stays focused while it reads. Otherwise do the research in the current context.
 
 Its job:
 

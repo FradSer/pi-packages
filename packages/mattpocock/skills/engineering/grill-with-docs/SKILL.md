@@ -8,4 +8,4 @@ Run a `/skill:grilling` session, using the `/skill:domain-modeling` skill.
 
 ## CRITICAL: Grill with the docs skills loaded
 
-Run the `/skill:grilling` session with the `/skill:domain-modeling` skill active. Every sharpened term and locked decision lands in `CONTEXT.md` or an ADR as it crystallises — the paper trail is what distinguishes this skill from `/skill:grill-me`. Interview questions go through the ask the user, one per call, as `/skill:grilling` dictates.
+Run the `/skill:grilling` session with the `/skill:domain-modeling` skill active. Every sharpened term and locked decision lands in `CONTEXT.md` or an ADR as it crystallises — the paper trail is what distinguishes this skill from `/skill:grill-me`. Ask interview questions directly in the conversation, one at a time, and wait for each reply as `/skill:grilling` dictates.

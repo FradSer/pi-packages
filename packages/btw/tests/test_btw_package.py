@@ -1,10 +1,159 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import textwrap
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1]
+REPO = PACKAGE.parents[1]
 SRC = PACKAGE / "src"
+
+
+def run_typescript(script: str) -> dict[str, object]:
+    result = subprocess.run(
+        ["node", "--import", "tsx", "--input-type=module"],
+        cwd=REPO,
+        input=textwrap.dedent(script),
+        text=True,
+        capture_output=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 0, f"TypeScript runtime check failed:\n{result.stderr}\n{result.stdout}"
+    return json.loads(result.stdout.strip().splitlines()[-1])
+
+
+def test_feature_covers_isolation_and_temp_prompt_lifecycle() -> None:
+    feature = (PACKAGE / "features" / "btw.feature").read_text(encoding="utf-8")
+    assert "Feature: Read-only side questions" in feature
+    assert "Scenario: A child Pi run is configured read-only" in feature
+    assert "Scenario: A long side prompt exists only for the child lifetime" in feature
+    assert "Scenario: A long side prompt is cleaned up when the child cannot launch" in feature
+
+
+def test_long_prompt_temp_file_is_available_to_read_only_child_then_removed() -> None:
+    result = run_typescript(
+        f"""
+        import {{ existsSync, readFileSync }} from "node:fs";
+        import {{ mkdtemp, mkdir, readdir, rm, writeFile }} from "node:fs/promises";
+        import {{ tmpdir }} from "node:os";
+        import {{ join }} from "node:path";
+        import {{ runBtw }} from {json.dumps((SRC / "spawner.ts").as_uri())};
+
+        const sandbox = await mkdtemp(join(tmpdir(), "btw-spawner-success-"));
+        const fakePi = join(sandbox, "fake-pi");
+        const recordFile = join(sandbox, "child-record.json");
+        await mkdir(join(fakePi, "bin"), {{ recursive: true }});
+        await writeFile(join(fakePi, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const childScript = join(fakePi, "bin", "cli.mjs");
+        await writeFile(childScript, `
+          import {{ existsSync, writeFileSync }} from "node:fs";
+          const args = process.argv.slice(1);
+          const promptArg = args.find((arg) => arg.startsWith("@/"));
+          writeFileSync(process.env.BTW_TEST_RECORD_FILE, JSON.stringify({{
+            args,
+            promptArg,
+            promptExists: Boolean(promptArg && existsSync(promptArg.slice(1))),
+          }}));
+          process.stdout.write(JSON.stringify({{
+            type: "message_end",
+            message: {{ role: "assistant", content: [{{ type: "text", text: "verified" }}] }},
+          }}) + "\\\\n");
+        `);
+
+        const originalArgv1 = process.argv[1];
+        const originalTmpdir = process.env.TMPDIR;
+        process.argv[1] = childScript;
+        process.env.TMPDIR = sandbox;
+        process.env.BTW_TEST_RECORD_FILE = recordFile;
+        try {{
+          const sideRun = await runBtw({{
+            question: "Where is the implementation?",
+            context: "x".repeat(8_001),
+            cwd: sandbox,
+            timeoutMs: 5_000,
+          }});
+          const record = JSON.parse(readFileSync(recordFile, "utf8"));
+          const promptFile = record.promptArg.slice(1);
+          console.log(JSON.stringify({{
+            sideRun,
+            record,
+            promptStillExists: existsSync(promptFile),
+            leftoverPromptDirectories: (await readdir(sandbox)).filter((name) => name.startsWith("btw-")),
+          }}));
+        }} finally {{
+          process.argv[1] = originalArgv1;
+          if (originalTmpdir === undefined) delete process.env.TMPDIR;
+          else process.env.TMPDIR = originalTmpdir;
+          delete process.env.BTW_TEST_RECORD_FILE;
+          await rm(sandbox, {{ recursive: true, force: true }});
+        }}
+        """
+    )
+
+    record = result["record"]
+    assert result["sideRun"]["text"] == "verified"
+    assert record["promptExists"] is True
+    assert record["args"][1:9] == [
+        "--print",
+        "--mode",
+        "json",
+        "--no-session",
+        "--tools",
+        "read,grep,find,ls",
+        "--exclude-tools",
+        "bash,edit,write",
+    ]
+    assert result["promptStillExists"] is False
+    assert result["leftoverPromptDirectories"] == []
+
+
+def test_long_prompt_temp_file_is_removed_when_child_launch_errors() -> None:
+    result = run_typescript(
+        f"""
+        import {{ mkdtemp, mkdir, readdir, rm, writeFile }} from "node:fs/promises";
+        import {{ tmpdir }} from "node:os";
+        import {{ join }} from "node:path";
+        import {{ runBtw }} from {json.dumps((SRC / "spawner.ts").as_uri())};
+
+        const sandbox = await mkdtemp(join(tmpdir(), "btw-spawner-error-"));
+        const fakePi = join(sandbox, "fake-pi");
+        await mkdir(join(fakePi, "bin"), {{ recursive: true }});
+        await writeFile(join(fakePi, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const childScript = join(fakePi, "bin", "cli.mjs");
+        await writeFile(childScript, "");
+
+        const originalArgv1 = process.argv[1];
+        const originalExecPath = process.execPath;
+        const originalTmpdir = process.env.TMPDIR;
+        process.argv[1] = childScript;
+        process.execPath = join(sandbox, "missing-node");
+        process.env.TMPDIR = sandbox;
+        try {{
+          const sideRun = await runBtw({{
+            question: "What failed?",
+            context: "x".repeat(8_001),
+            cwd: sandbox,
+            timeoutMs: 5_000,
+          }});
+          console.log(JSON.stringify({{
+            sideRun,
+            leftoverPromptDirectories: (await readdir(sandbox)).filter((name) => name.startsWith("btw-")),
+          }}));
+        }} finally {{
+          process.argv[1] = originalArgv1;
+          process.execPath = originalExecPath;
+          if (originalTmpdir === undefined) delete process.env.TMPDIR;
+          else process.env.TMPDIR = originalTmpdir;
+          await rm(sandbox, {{ recursive: true, force: true }});
+        }}
+        """
+    )
+
+    assert result["sideRun"]["exitCode"] != 0
+    assert result["leftoverPromptDirectories"] == []
 
 
 def test_manifest_declares_native_pi_package() -> None:

@@ -21,7 +21,7 @@ fixes that:
 ## Install
 
 ```bash
-pi install @fradser/pi-btw
+pi install npm:@fradser/pi-btw
 ```
 
 Restart pi, then use `/btw <question>` in interactive mode.

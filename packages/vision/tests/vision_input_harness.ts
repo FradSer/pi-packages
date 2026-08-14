@@ -1,15 +1,18 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
+import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import {
   createAgentSession,
   DefaultResourceLoader,
   ModelRuntime,
   SessionManager,
+  defineTool,
 } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 
 const packageDir = join(process.cwd(), "packages", "vision");
 const agentDir = process.env.PI_CODING_AGENT_DIR ?? join(process.cwd(), ".vision-test-agent");
+const scenario = process.env.VISION_TEST_SCENARIO ?? "success";
 mkdirSync(agentDir, { recursive: true });
 writeFileSync(
   join(agentDir, "vision.json"),
@@ -34,31 +37,73 @@ let visionImageCount = -1;
 let visionPrompt = "";
 let mainImageCount = -1;
 let mainPrompt = "";
-vision.setResponses([
-  (context) => {
-    visionCallCount++;
-    const content = context.messages.at(-1)?.content;
-    visionImageCount = Array.isArray(content)
-      ? content.filter((part) => part.type === "image").length
-      : 0;
-    visionPrompt = Array.isArray(content)
-      ? content.filter((part) => part.type === "text").map((part) => part.text).join("\n")
-      : String(content ?? "");
-    return fauxAssistantMessage("VISION_RESULT");
-  },
-]);
-main.setResponses([
-  (context) => {
-    const content = context.messages.at(-1)?.content;
-    mainImageCount = Array.isArray(content)
-      ? content.filter((part) => part.type === "image").length
-      : 0;
-    mainPrompt = Array.isArray(content)
-      ? content.filter((part) => part.type === "text").map((part) => part.text).join("\n")
-      : String(content ?? "");
-    return fauxAssistantMessage("MAIN_RESULT");
-  },
-]);
+const mainContexts: string[] = [];
+const contentText = (content: unknown): string =>
+  Array.isArray(content)
+    ? content.filter((part) => part.type === "text").map((part) => part.text).join("\n")
+    : String(content ?? "");
+
+const captureMainContext = (context: { messages: Array<{ content?: unknown }> }) => {
+  const content = context.messages.at(-1)?.content;
+  mainImageCount = Array.isArray(content)
+    ? content.filter((part) => part.type === "image").length
+    : 0;
+  mainPrompt = contentText(content);
+  mainContexts.push(context.messages.map((message) => contentText(message.content)).join("\n"));
+};
+const visionResponses = scenario === "failure"
+  ? [() => {
+      visionCallCount++;
+      throw new Error("TEST_PROVIDER_FAILURE");
+    }]
+  : scenario === "cache"
+    ? [
+        (context: { messages: Array<{ content?: unknown }> }) => {
+          visionCallCount++;
+          return fauxAssistantMessage("FIRST_VISION");
+        },
+        (context: { messages: Array<{ content?: unknown }> }) => {
+          visionCallCount++;
+          return fauxAssistantMessage("SECOND_VISION");
+        },
+      ]
+    : [
+        (context: { messages: Array<{ content?: unknown }> }) => {
+          visionCallCount++;
+          const content = context.messages.at(-1)?.content;
+          visionImageCount = Array.isArray(content)
+            ? content.filter((part) => part.type === "image").length
+            : 0;
+          visionPrompt = Array.isArray(content)
+            ? content.filter((part) => part.type === "text").map((part) => part.text).join("\n")
+            : String(content ?? "");
+          return fauxAssistantMessage("VISION_RESULT");
+        },
+      ];
+vision.setResponses(visionResponses);
+main.setResponses(
+  scenario === "cache"
+    ? [
+        (context) => {
+          captureMainContext(context);
+          return fauxAssistantMessage(fauxToolCall("repeat_context", {}));
+        },
+        (context) => {
+          captureMainContext(context);
+          return fauxAssistantMessage("FIRST_MAIN_RESULT");
+        },
+        (context) => {
+          captureMainContext(context);
+          return fauxAssistantMessage("SECOND_MAIN_RESULT");
+        },
+      ]
+    : [
+        (context) => {
+          captureMainContext(context);
+          return fauxAssistantMessage("MAIN_RESULT");
+        },
+      ],
+);
 
 const runtime = await ModelRuntime.create({ modelsPath: null, refreshOnCreate: false });
 runtime.registerNativeProvider(main.provider);
@@ -73,6 +118,13 @@ await loader.reload();
 
 const sessionManager = SessionManager.inMemory();
 let visionCallsAtUserMessageEnd = -1;
+const repeatContext = defineTool({
+  name: "repeat_context",
+  label: "Repeat context",
+  description: "Test-only tool that forces a second provider context callback.",
+  parameters: Type.Object({}),
+  execute: async () => ({ content: [{ type: "text", text: "done" }], details: {} }),
+});
 const { session } = await createAgentSession({
   cwd: process.cwd(),
   agentDir,
@@ -80,7 +132,8 @@ const { session } = await createAgentSession({
   model: main.getModel(mainModelId),
   resourceLoader: loader,
   sessionManager,
-  noTools: "all",
+  customTools: scenario === "cache" ? [repeatContext] : undefined,
+  noTools: scenario === "cache" ? "builtin" : "all",
 });
 
 session.subscribe((event) => {
@@ -89,11 +142,14 @@ session.subscribe((event) => {
   }
 });
 
-await session.prompt(process.argv[2] ?? "Describe this image", {
-  images: process.argv[3]
-    ? [{ type: "image", mimeType: "image/png", data: process.argv[3] }]
-    : undefined,
-});
+const input = process.argv[2] ?? "Describe this image";
+const images = process.argv[3]
+  ? [{ type: "image" as const, mimeType: "image/png", data: process.argv[3] }]
+  : undefined;
+await session.prompt(input, { images });
+if (scenario === "cache") {
+  await session.prompt(input, { images });
+}
 const sessionEntryTypes = sessionManager.getBranch().map((entry) => entry.type);
 const sessionUserMessage = [...sessionManager.buildSessionContext().messages]
   .reverse()
@@ -115,6 +171,7 @@ console.log(JSON.stringify({
   visionPrompt,
   mainImageCount,
   mainPrompt,
+  mainContexts,
   sessionUserImageCount,
   sessionUserPrompt,
   sessionEntryTypes,

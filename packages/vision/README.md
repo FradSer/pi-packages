@@ -40,15 +40,19 @@ Multimodal active models are never intercepted.
 
 ## Install
 
-```bash
-pi install npm:@fradser/pi-vision
-```
-
-For local development:
+Install from a local checkout:
 
 ```bash
 pi install /path/to/pi-packages/packages/vision
 ```
+
+When a version is available on npm, it can be installed with:
+
+```bash
+pi install npm:@fradser/pi-vision
+```
+
+Check availability with `npm view @fradser/pi-vision version` before relying on the npm command.
 
 ## Configure a vision model
 
@@ -121,7 +125,8 @@ The persisted configuration takes precedence over these variables.
 - Quoted paths, shell-escaped paths, and absolute image paths on their own line are supported.
 - The vision model must declare `input: ["text", "image"]`.
 - Authentication and provider requests use Pi's model registry, so any provider supported by Pi can be used.
-- If the bridge is disabled, not configured, misconfigured, or fails, the image is not forwarded to the text-only model.
+- If the bridge is disabled, not configured, misconfigured, or image analysis fails, the provider-bound context is left unchanged. No image-analysis block or internal provider error is injected.
+- Successful analysis is retained only while the submitted prompt is active. Repeated context callbacks for that prompt reuse one analysis; prompt completion and pending work are cleared when the agent settles.
 - The vision prompt asks the model to stay factual, preserve visible text when requested, and state uncertainty instead of inventing details.
 
 ## Development

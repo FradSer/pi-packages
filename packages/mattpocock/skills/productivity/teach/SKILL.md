@@ -75,7 +75,7 @@ Ground every lesson in high-quality resources tracked in `RESOURCES.md`, with ci
 
 Every lesson should be tied into the mission - the reason that the user is interested in learning about the topic.
 
-If the user is unclear about the mission, or the `MISSION.md` is not populated, your first job should be to use the ask the user to ask why they want to learn this (common motivations as options, "Other" for anything else).
+If the user is unclear about the mission, or the `MISSION.md` is not populated, first ask directly in the conversation why they want to learn this. Offer common motivations with a recommendation where useful, and wait for their reply before planning lessons.
 
 Failing to understand the mission will mean knowledge acquisition is not grounded in real-world goals. Lessons will feel too abstract. You will have no way of judging what the user should do next.
 

@@ -1,18 +1,16 @@
 # Code Context Pi Package
 
-**Version:** 0.4.0
+**Version:** 0.4.1
 
 Retrieve code context for any repo, library, or natural-language query via 5 methods: DeepWiki, Context7, Exa, git clone, and web search+fetch.
 
 ## Installation
 
 ```bash
-# published
-pi install npm:@fradser/code-context
-# or from this repo: pi install /path/to/pi-packages/packages/code-context
+pi install /path/to/pi-packages/packages/code-context
 ```
 
-Invoke with `/skill:get-context <query…>` or `/skill:code-context` (model-invocation disabled; user/skill load).
+Run `/skill:get-context <query…>` for the executable Pi workflow.
 
 ## Runtime requirements
 
@@ -119,45 +117,23 @@ Best for: Enriching clone findings with changelogs, issue discussions, migration
 
 ## Usage
 
-### Command: /get-context
+### Pi skill: get-context
 
-User-invoked command accepting arbitrary input — a natural-language question, a repo slug, a library name, or several targets at once.
+Run `/skill:get-context` followed by a natural-language question, repository slug, library name, or several targets. For example:
 
-```bash
-# Natural-language question (single quoted target)
-/get-context "对比 zustand vs jotai 状态管理"
-/get-context "React 19 server actions 错误处理"
-
-# Library or repo
-/get-context react
-/get-context facebook/react
-
-# Multiple targets at once
-/get-context facebook/react zustand
-
-# Restrict methods (comma-separated; default: all)
-/get-context "React 19 server actions 错误处理" --method=context7,exa
-/get-context facebook/react --method=deepwiki
-
-# Auto-detect from local dependencies
-/get-context
+```text
+/skill:get-context React 19 server actions error handling
+/skill:get-context facebook/react
+/skill:get-context facebook/react zustand --method=deepwiki,context7
 ```
 
-`--method=` accepts `deepwiki,context7,exa,clone,web,all` (comma-separated). The agent classifies each target (repo / library / natural-language) and routes it through the allowed methods, noting any gap when the allowed set can't cover a target.
+`--method=` accepts `deepwiki,context7,exa,clone,web,all` (comma-separated). With no target, the skill reads dependency manifests in the current directory. It classifies each target and routes it through the allowed methods, noting gaps when a permitted method cannot cover it.
 
-### Agent: @context-researcher
+### Optional manual brief
 
-Spawns isolated lookup agent that executes the full workflow.
+`agents/context-researcher.md` is an optional manual prompt brief for an isolated research pass. Pi does not load it as an invocable agent; use the `get-context` skill for the executable workflow.
 
-```bash
-@context-researcher How does Zustand manage state under the hood?
-```
-
-The agent explores local context first, selects methods based on gaps, executes lookups, and returns a synthesized summary.
-
-### Skill: code-context
-
-Internal knowledge skill loaded by the context-researcher agent. Provides method selection guidance and query standards.
+The package's internal method-selection guidance is loaded by the `get-context` workflow.
 
 ## Method Selection Guide
 

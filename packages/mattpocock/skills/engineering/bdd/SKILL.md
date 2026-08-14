@@ -51,9 +51,9 @@ The Automation phase (red-green loop) is governed by the `/skill:tdd` skill (BDD
 
 Seams are the public boundaries you test at. See `/skill:tdd` for the full seam guidance.
 
-**Test only at pre-agreed seams.** Before writing any test, write down the seams under test and confirm them with the user via the ask the user. No test is written at an unconfirmed seam. Testing everything isn't possible — agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
+**Test only at pre-agreed seams.** Before writing any test, write down the seams under test, ask the user directly in the conversation to confirm them, and wait for the reply. No test is written at an unconfirmed seam. Testing everything isn't possible — agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
 
-Use the ask the user to ask which seams to test, proposing the candidate seams as options (the user can adjust via "Other").
+Propose the candidate seams as concise alternatives, mark a recommendation where useful, and ask the user directly in the conversation which seams to test before proceeding.
 
 ## What a good test is
 

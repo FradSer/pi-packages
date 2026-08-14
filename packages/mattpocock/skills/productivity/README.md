@@ -7,7 +7,7 @@ General workflow tools, not code-specific.
 Reachable only when you type the skill name (Pi: `disable-model-invocation: true` — the model will not auto-invoke them; another skill cannot reach them either).
 
 - **[grill-me](./grill-me/SKILL.md)** — Get relentlessly interviewed about a plan or design until every branch of the decision tree is resolved.
-- **[handoff](./handoff/SKILL.md)** — Compact the current conversation into a handoff document so another agent can continue the work.
+- **[handoff](./handoff/SKILL.md)** — Write a portable handoff document for a receiving agent or later session to use; the skill does not create the session.
 - **[teach](./teach/SKILL.md)** — Teach the user a new skill or concept over multiple sessions, using the current directory as a stateful teaching workspace.
 - **[to-questionnaire](./to-questionnaire/SKILL.md)** — Turn a decision you can't fully answer into a Markdown questionnaire for the one person who can — filled in async, or together over a meeting.
 - **[wait-what](./wait-what/SKILL.md)** — Fire this the moment a message doesn't land. The agent re-pitches it with the context you're missing, in plain English, using your `CONTEXT.md` vocabulary.

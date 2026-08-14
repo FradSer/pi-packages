@@ -14,6 +14,6 @@ Once done, use /skill:code-review to review the work.
 
 ## CRITICAL: BDD at pre-agreed seams, review before commit
 
-Use `/skill:bdd` where possible, one red-green slice at a time at pre-agreed seams. Load `/skill:tdd` (BDD-driven) during the Automation phase for test quality, seams, and mocking guidance. When the work is done, run `/skill:code-review` over it — a commit without the two-axis review is not finished work.
+Use `/skill:bdd` where possible, one red-green slice at a time at pre-agreed seams. Load `/skill:tdd` (BDD-driven) during the Automation phase for test quality, seams, and mocking guidance. When the work is done, run `/skill:code-review` over it — a change without the two-axis review is not finished work.
 
-Commit your work to the current branch.
+When the user asks to commit, follow the repository's git-agent workflow rather than staging or committing directly.

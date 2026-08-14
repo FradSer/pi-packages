@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes — Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/PRD asked for?). Runs both reviews in parallel isolated contexts and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to "review since X".
+description: Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes — Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/PRD asked for?). Delegates independent reviews to teammates when available, otherwise performs them sequentially, then reports the axes side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to "review since X".
 ---
 
 Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
@@ -8,7 +8,7 @@ Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
 - **Standards** — does the code conform to this repo's documented coding standards?
 - **Spec** — does the code faithfully implement the originating issue / PRD / spec? If the spec contains Gherkin scenarios (from `/skill:bdd`), those are the authoritative acceptance criteria.
 
-Both axes run as **parallel isolated contexts** so they don't pollute each other's context, then this skill aggregates their findings.
+When the teammate facility is available, delegate the two independent axes to separate teammates and aggregate their findings. Otherwise, perform the Standards review first, preserve its report, then perform the Spec review in the current context so the axes remain separate.
 
 The issue tracker should have been provided to you — run `/skill:setup-matt-pocock-skills` if `docs/agents/issue-tracker.md` is missing.
 
@@ -20,7 +20,7 @@ Whatever the user said is the fixed point — a commit SHA, branch name, tag, `m
 
 Capture the diff command once: `git diff <fixed-point>...HEAD` (three-dot, so the comparison is against the merge-base). Also note the list of commits via `git log <fixed-point>..HEAD --oneline`.
 
-Before going further, confirm the fixed point resolves (`git rev-parse <fixed-point>`) and the diff is non-empty. A bad ref or empty diff should fail here — not inside two parallel isolated contexts.
+Before going further, confirm the fixed point resolves (`git rev-parse <fixed-point>`) and the diff is non-empty. A bad ref or empty diff should fail here — not during either review.
 
 ### 2. Identify the spec source
 
@@ -29,7 +29,7 @@ Look for the originating spec, in this order:
 1. Issue references in the commit messages (`#123`, `Closes #45`, GitLab `!67`, etc.) — fetch via the workflow in `docs/agents/issue-tracker.md`.
 2. A path the user passed as an argument.
 3. A PRD/spec file under `docs/`, `specs/`, or `.scratch/` matching the branch name or feature.
-4. If nothing is found, use the ask the user where the spec is (options: in the repo / linked from the issue or PR / external document / no spec exists). If there isn't one, the **Spec** isolated context will skip and report "no spec available".
+4. If nothing is found, ask the user directly in the conversation where the spec is (in the repo / linked from the issue or PR / external document / no spec exists) and wait for the reply. If there isn't one, skip the **Spec** review and report "no spec available".
 
 ### 3. Identify the standards sources
 
@@ -55,23 +55,23 @@ Each smell reads *what it is* → *how to fix*; match it against the diff:
 - **Middle Man** — a class or function that mostly just delegates onward. → cut it, call the real target direct.
 - **Refused Bequest** — a subclass or implementer that ignores or overrides most of what it inherits. → drop the inheritance, use composition.
 
-### 4. Spawn both isolated contexts in parallel
+### 4. Run the two independent reviews
 
-Send a single message with two `Agent` tool calls.
+If the teammate facility is available, give each teammate one brief below and wait for both reports. Otherwise, run the Standards brief and then the Spec brief sequentially in the current context. Keep their notes separate until aggregation.
 
-**Standards isolated context prompt** — include:
+**Standards review brief** — include:
 
 - The full diff command and commit list.
-- The list of standards-source files you found in step 3, **plus the smell baseline from step 3** pasted in full — the isolated context has no other access to it.
+- The list of standards-source files you found in step 3, **plus the smell baseline from step 3** pasted in full — the reviewer needs this material to evaluate the diff.
 - The brief: "Report — per file/hunk where relevant — (a) every place the diff violates a documented standard: cite the standard (file + the rule); and (b) any baseline smell you spot: name it and quote the hunk. Distinguish hard violations from judgement calls — documented-standard breaches can be hard, but baseline smells are always judgement calls, and a documented repo standard overrides the baseline. Skip anything tooling enforces. Under 400 words."
 
-**Spec isolated context prompt** — include:
+**Spec review brief** — include:
 
 - The diff command and commit list.
 - The path or fetched contents of the spec.
 - The brief: "Report: (a) Gherkin scenarios (Given/When/Then) in the spec that are missing or partial; (b) behaviour in the diff that wasn't asked for (scope creep); (c) requirements that look implemented but where the implementation looks wrong. If the spec contains Gherkin scenarios, those are the authoritative acceptance criteria. Quote the spec line for each finding. Under 400 words."
 
-If the spec is missing, skip the Spec isolated context and note this in the final report.
+If the spec is missing, skip the Spec review and note this in the final report.
 
 ### 5. Aggregate
 

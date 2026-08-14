@@ -34,8 +34,17 @@ function truncate(text: string): string {
 	return `${result.content}\n\n…[truncated ${text.length - MAX_CHARS} chars]`;
 }
 
-async function httpJson(url: string, init: RequestInit = {}): Promise<{ ok: boolean; status: number; body: string }> {
-	const res = await fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
+function requestSignal(signal: AbortSignal | undefined): AbortSignal {
+	const timeout = AbortSignal.timeout(TIMEOUT_MS);
+	return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
+async function httpJson(
+	url: string,
+	init: RequestInit = {},
+	signal: AbortSignal | undefined,
+): Promise<{ ok: boolean; status: number; body: string }> {
+	const res = await fetch(url, { ...init, signal: requestSignal(signal) });
 	const body = await res.text();
 	return { ok: res.ok, status: res.status, body };
 }
@@ -44,7 +53,11 @@ async function httpJson(url: string, init: RequestInit = {}): Promise<{ ok: bool
  * DeepWiki's public API is a JSON-RPC-over-HTTP/SSE endpoint (mcp.deepwiki.com).
  * Call a tool directly — no MCP client or sidecar process needed.
  */
-async function deepwikiCall(tool: string, args: Record<string, unknown>): Promise<string> {
+async function deepwikiCall(
+	tool: string,
+	args: Record<string, unknown>,
+	signal: AbortSignal | undefined,
+): Promise<string> {
 	const res = await fetch(DEEPWIKI_MCP, {
 		method: "POST",
 		headers: {
@@ -52,7 +65,7 @@ async function deepwikiCall(tool: string, args: Record<string, unknown>): Promis
 			Accept: "application/json, text/event-stream",
 		},
 		body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: tool, arguments: args } }),
-		signal: AbortSignal.timeout(TIMEOUT_MS),
+		signal: requestSignal(signal),
 	});
 	const body = await res.text();
 	if (!res.ok) throw new Error(`DeepWiki HTTP ${res.status}: ${body.slice(0, 200)}`);
@@ -124,22 +137,18 @@ export default function (pi: ExtensionAPI) {
 		parameters: DeepWikiParams,
 		executionMode: "sequential",
 
-		async execute(_toolCallId, params) {
+		async execute(_toolCallId, params, signal) {
 			const repo = `${params.owner}/${params.repo}`;
-			try {
-				if (params.mode === "ask") {
-					if (!params.question) {
-						return textResult("context_deepwiki: mode 'ask' requires a question");
-					}
-					const answer = await deepwikiCall("ask_question", { repoName: repo, question: params.question });
-					return textResult(truncate(answer));
+			if (params.mode === "ask") {
+				if (!params.question) {
+					return textResult("context_deepwiki: mode 'ask' requires a question");
 				}
-				const tool = params.mode === "structure" ? "read_wiki_structure" : "read_wiki_contents";
-				const out = await deepwikiCall(tool, { repoName: repo });
-				return textResult(truncate(out));
-			} catch (err) {
-				return textResult(`context_deepwiki: ${err instanceof Error ? err.message : String(err)}`);
+				const answer = await deepwikiCall("ask_question", { repoName: repo, question: params.question }, signal);
+				return textResult(truncate(answer));
 			}
+			const tool = params.mode === "structure" ? "read_wiki_structure" : "read_wiki_contents";
+			const out = await deepwikiCall(tool, { repoName: repo }, signal);
+			return textResult(truncate(out));
 		},
 	});
 
@@ -157,16 +166,16 @@ export default function (pi: ExtensionAPI) {
 		parameters: Context7Params,
 		executionMode: "sequential",
 
-		async execute(_toolCallId, params) {
-			try {
-				const headers: Record<string, string> = {};
-				if (process.env.CONTEXT7_API_KEY) {
-					headers.Authorization = `Bearer ${process.env.CONTEXT7_API_KEY}`;
-				}
+		async execute(_toolCallId, params, signal) {
+			const headers: Record<string, string> = {};
+			if (process.env.CONTEXT7_API_KEY) {
+				headers.Authorization = `Bearer ${process.env.CONTEXT7_API_KEY}`;
+			}
 
 			const { ok, status, body } = await httpJson(
 				`https://context7.com/api/v1/search?query=${encodeURIComponent(params.query)}`,
 				{ headers },
+				signal,
 			);
 			if (!ok) {
 				if (status === 401 || status === 403) {
@@ -175,21 +184,20 @@ export default function (pi: ExtensionAPI) {
 							`(Authorization: Bearer) or fall back to web/clone methods.`,
 					);
 				}
-				return textResult(`Context7 search failed (HTTP ${status}): ${body.slice(0, 400)}`);
+				throw new Error(`Context7 search failed (HTTP ${status}): ${body.slice(0, 400)}`);
 			}
 
-			let libraryId = "";
+			let data: { results?: Array<{ id?: unknown }> };
 			try {
-				const data = JSON.parse(body);
-				const results = Array.isArray(data.results) ? data.results : [];
-				if (results.length === 0) {
-					return textResult(`Context7: no library found for "${params.query}"`);
-				}
-				libraryId = typeof results[0]?.id === "string" ? results[0].id : "";
+				data = JSON.parse(body);
 			} catch {
-				return textResult(`Context7 search: unexpected response: ${body.slice(0, 400)}`);
+				throw new Error(`Context7 search: unexpected response: ${body.slice(0, 400)}`);
 			}
-
+			const results = Array.isArray(data.results) ? data.results : [];
+			if (results.length === 0) {
+				return textResult(`Context7: no library found for "${params.query}"`);
+			}
+			const libraryId = typeof results[0]?.id === "string" ? results[0].id : "";
 			if (!libraryId) {
 				return textResult(`Context7: search returned no usable library id for "${params.query}"`);
 			}
@@ -198,16 +206,13 @@ export default function (pi: ExtensionAPI) {
 			const path = libraryId.startsWith("/") ? libraryId.slice(1) : libraryId;
 			const topic = params.topic ? `&topic=${encodeURIComponent(params.topic)}` : "";
 			const docUrl = `https://context7.com/api/v1/${path}?type=txt${topic}`;
-			const doc = await httpJson(docUrl, { headers });
+			const doc = await httpJson(docUrl, { headers }, signal);
 			if (!doc.ok) {
-				return textResult(`Context7 docs failed (HTTP ${doc.status}): ${doc.body.slice(0, 400)}`);
+				throw new Error(`Context7 docs failed (HTTP ${doc.status}): ${doc.body.slice(0, 400)}`);
 			}
 			return textResult(
 				`Context7 docs for "${params.query}" (${libraryId})${params.topic ? `, topic ${params.topic}` : ""}:\n\n${truncate(doc.body)}`,
 			);
-			} catch (err) {
-				return textResult(`context_context7: ${err instanceof Error ? err.message : String(err)}`);
-			}
 		},
 	});
 
@@ -224,46 +229,47 @@ export default function (pi: ExtensionAPI) {
 		parameters: ExaParams,
 		executionMode: "sequential",
 
-		async execute(_toolCallId, params) {
-			try {
-				const apiKey = process.env.EXA_API_KEY;
-				if (!apiKey) {
-					return textResult(
-						"context_exa: EXA_API_KEY is not set. Set EXA_API_KEY to enable Exa search, " +
-							"or fall back to web search via curl / GitHub search.",
-					);
-				}
+		async execute(_toolCallId, params, signal) {
+			const apiKey = process.env.EXA_API_KEY;
+			if (!apiKey) {
+				return textResult(
+					"context_exa: EXA_API_KEY is not set. Set EXA_API_KEY to enable Exa search, " +
+						"or fall back to web search via curl / GitHub search.",
+				);
+			}
 
 			const numResults = Math.max(1, Math.min(10, Math.floor(params.numResults ?? 5)));
-			const { ok, status, body } = await httpJson("https://api.exa.ai/search", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"x-api-key": apiKey,
+			const { ok, status, body } = await httpJson(
+				"https://api.exa.ai/search",
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						"x-api-key": apiKey,
+					},
+					body: JSON.stringify({ query: params.query, numResults, contents: { text: true } }),
 				},
-				body: JSON.stringify({ query: params.query, numResults, contents: { text: true } }),
-			});
-			if (!ok) return textResult(`Exa search failed (HTTP ${status}): ${body.slice(0, 400)}`);
+				signal,
+			);
+			if (!ok) throw new Error(`Exa search failed (HTTP ${status}): ${body.slice(0, 400)}`);
 
+			let data: { results?: Array<{ title?: string; url?: string; text?: string }> };
 			try {
-				const data = JSON.parse(body);
-				const results = Array.isArray(data.results) ? data.results : [];
-				if (results.length === 0) {
-					return textResult(`Exa: no results for "${params.query}"`);
-				}
-				const lines = results.map((r: { title?: string; url?: string; text?: string }, i: number) => {
-					const title = r.title || r.url || "(untitled)";
-					const url = r.url || "";
-					const text = typeof r.text === "string" ? r.text.slice(0, 1200) : "";
-					return `${i + 1}. ${title}\n   ${url}\n${text ? `   ${text}` : ""}`;
-				});
-				return textResult(truncate(lines.join("\n\n")));
+				data = JSON.parse(body);
 			} catch {
-				return textResult(`Exa search: unexpected response: ${body.slice(0, 400)}`);
+				throw new Error(`Exa search: unexpected response: ${body.slice(0, 400)}`);
 			}
-			} catch (err) {
-				return textResult(`context_exa: ${err instanceof Error ? err.message : String(err)}`);
+			const results = Array.isArray(data.results) ? data.results : [];
+			if (results.length === 0) {
+				return textResult(`Exa: no results for "${params.query}"`);
 			}
+			const lines = results.map((r, i) => {
+				const title = r.title || r.url || "(untitled)";
+				const url = r.url || "";
+				const text = typeof r.text === "string" ? r.text.slice(0, 1200) : "";
+				return `${i + 1}. ${title}\n   ${url}\n${text ? `   ${text}` : ""}`;
+			});
+			return textResult(truncate(lines.join("\n\n")));
 		},
 	});
 }
