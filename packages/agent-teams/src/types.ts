@@ -99,6 +99,10 @@ export interface Task {
   id: string;
   title: string;
   description: string;
+  /** Repository-relative paths used to coordinate this task. */
+  paths: string[];
+  /** Read tasks may overlap; write tasks need shared-workspace conflict protection. */
+  access: "read" | "write";
   assignee: string;
   assignedBy: string;
   status: TaskStatus;
@@ -150,6 +154,8 @@ export interface SpawnInfo {
   usage?: WorkerUsage;
   /** True when the worker was killed by the spawn timeout. */
   timedOut?: boolean;
+  /** Whether this run owns a dedicated Git worktree. */
+  isolation?: "worktree" | "none";
 }
 
 // ── Tool parameter schemas (typebox) ──────────────────────────────
@@ -201,13 +207,21 @@ export const TeammateCreateTaskParams = Type.Object({
   assignee: Type.String({ description: "Teammate name to assign the task to" }),
   title: Type.String({ description: "Task title" }),
   description: Type.String({ description: "Detailed task description" }),
+  paths: Type.Array(Type.String({ description: "Repository-relative path this task may inspect or modify" }), {
+    minItems: 1,
+    description: "Repository-relative paths used to coordinate this task",
+  }),
+  access: Type.Optional(Type.Union([Type.Literal("read"), Type.Literal("write")], {
+    default: "write",
+    description: "read permits overlapping analysis; write protects overlapping shared-workspace changes. Default: write.",
+  })),
   blockedBy: Type.Optional(Type.Array(Type.String(), { description: "Task IDs that block this task" })),
 });
 
 export const TeammateStartTaskParams = Type.Object({
   taskId: Type.String({ description: "Task ID to start" }),
   retry: Type.Optional(
-    Type.Boolean({ description: "Explicitly retry a failed task. Default: false.", default: false }),
+    Type.Boolean({ description: "Explicitly retry a failed task with the same idle teammate. Default: false.", default: false }),
   ),
   isolation: Type.Optional(
     Type.Union(

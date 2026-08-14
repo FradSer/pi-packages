@@ -1,13 +1,13 @@
 # Agent Teams Pi Package
 
-Multi-agent team system for Pi — mailbox-based communication, task management, and team-leader orchestration.
+Multi-agent team system for Pi — reusable current-session teammates, bounded task runs, and team-leader orchestration.
 
 **Version**: 0.2.0
 **Display Name**: Agent Teams
 
 ## What This Package Does
 
-Transforms Pi into a multi-agent team platform. Register teammates with different roles, communicate via mailboxes, assign and track tasks, and let a team-leader orchestrate the work.
+Transforms Pi into a current-session multi-agent task system. Reuse compatible idle teammates, run each task in a bounded child process, communicate proactively with the leader, retain terminal task results for synthesis, and let the team leader orchestrate the work.
 
 ### Extension
 
@@ -15,13 +15,13 @@ The extension (`src/index.ts`) registers the orchestration tools and the `/teamm
 
 | Tool / Command | Description |
 |---|---|
-| `teammate_register` | Register a teammate with a worker, reviewer, specialist, or observer role |
+| `teammate_register` | Reuse a compatible idle teammate when available, otherwise register one with a worker, reviewer, specialist, or observer role |
 | `teammate_configure` | Update an existing teammate's description, prompt, model, or tools |
 | `teammate_list` | List all registered teammates |
 | `teammate_remove` | Remove an idle teammate and its mailbox |
 | `teammate_message` | Send a message; workers address a peer or `agent`, leaders may use `to="all"` with a role filter |
 | `teammate_inbox` | Read the caller's inbox; main-session results enter the current conversation |
-| `teammate_create_task` | Create and assign a task with optional blockedBy dependency IDs |
+| `teammate_create_task` | Create and assign a task with repo-relative paths, read/write access, and optional blockedBy dependency IDs |
 | `teammate_list_tasks` | List tasks filtered by status or assignee |
 | `teammate_start_task` | Start a ready assigned task as an autonomous child Pi process; returns immediately |
 | `teammate_wait` | Explicitly wait for task runs and collect their results |
@@ -70,7 +70,7 @@ agent-teams/
 │   ├── index.ts              — Extension entry point (orchestration tools + /teammate + guidance injection)
 │   ├── state.ts              — State management (mailbox, tasks, registry, dependencies, liveness)
 │   ├── types.ts              — TypeScript types and typebox schemas
-│   ├── spawner.ts            — Child Pi process spawner (autonomous guardian-loop workers) 
+│   ├── spawner.ts            — Child Pi process spawner (one-task workers)
 │   ├── statefile.ts          — Shared state file (parent ↔ worker mailbox/task board sync)
 │   └── worktree.ts           — Git worktree isolation for parallel workers
 ├── .memory/
@@ -94,7 +94,7 @@ Run `/reload` in Pi to activate the extension. The teammate guidance is automati
 
 ### 2. Define teammates
 
-The current Pi session is always the team leader; do not register a `team-leader` teammate. Create a small, stable worker team. Each teammate needs:
+The current Pi session is always the team leader; do not register a `team-leader` teammate. Before registering, inspect the idle team and reuse a compatible role/model/tool configuration whenever possible. Register a new teammate only when its capability or role prompt materially differs. Each teammate needs:
 
 - a concise name;
 - one focused role (`worker`, `reviewer`, `specialist`, or `observer`);
@@ -108,21 +108,22 @@ Example prompt for a reviewer:
 
 ### 3. Decompose and create tasks
 
-Create one task per observable outcome with `teammate_create_task`. Put the complete handoff in the task description:
+Create one task per observable outcome with `teammate_create_task`. Each task declares one or more repository-relative paths plus an access mode: `read` or `write` (default). Paths are coordination context, not permanent exclusive locks. Do not use globs, absolute paths, parent traversal, or duplicate paths.
+
+Put the complete handoff in the task description:
 
 - goal and relevant context;
-- paths, inputs, and constraints;
 - ordered procedure;
-- files the worker may and may not change;
+- inputs and constraints;
 - exact deliverable and location;
 - verification command or acceptance criteria;
 - what to do when blocked.
 
-Declare artifact dependencies at creation time with `blockedBy` (a list of task IDs that must complete first). Dependencies are immutable after creation; there is no public mutation tool. Keep titles short (`Audit auth refresh`, `Implement login form`, `Review API diff`) and put detail in descriptions.
+Declare artifact dependencies at creation time with `blockedBy` (a list of task IDs that must complete first). Use it whenever a later task needs a concrete earlier artifact or decision. Dependencies are immutable after creation; there is no public mutation tool. Keep titles short (`Audit auth refresh`, `Implement login form`, `Review API diff`) and put detail in descriptions.
 
 ### 4. Run independent work in parallel
 
-Start independent tasks in the same turn. Every `teammate_start_task` returns immediately:
+Start independent tasks in the same turn. Every `teammate_start_task` returns immediately. Read-only tasks may overlap. The extension blocks overlapping `write` tasks only when they would run concurrently in the shared workspace:
 
 ```text
 teammate_start_task taskId="task_1"
@@ -134,21 +135,21 @@ Continue coordinating while workers run. Call `teammate_wait taskIds=["task_1", 
 
 ### 5. Communicate and synthesize
 
-Use `teammate_message` for every handoff, blocker, decision, or broadcast. In the main session, target a registered teammate, or use `to="all"` with an optional role filter. In a worker, target one peer or `agent` to message the main session. Call `teammate_inbox` to read your messages; in the main session its result enters the current conversation. Worker messages remain leader-validated append-only outbox events; the TUI intentionally shows only team/task status.
+Use `teammate_message` for every handoff, blocker, decision, or broadcast. A worker proactively records its plan, material progress, blockers, and changed assumptions in the `agent` mailbox. These intermediate messages do **not** interrupt the main session; the leader reads them with `teammate_inbox` only when needed and may send targeted replies with `teammate_message`. The worker's terminal `teammate_report` carries its final summary. After the child closes, the harness—not the prompt—builds one canonical terminal result from task state and captured stdout/stderr, records it in the agent mailbox, and injects it into the main session as the single follow-up update. This keeps the leader focused on dispatch and final synthesis. Worker messages remain leader-validated append-only outbox events; the TUI intentionally shows only team/task status.
 
 After `teammate_wait`, inspect the files and evidence, reconcile conflicting results, run verification yourself, and provide one synthesized answer. A worker's claim is not proof until its deliverable and tests are checked.
 
 ### 6. Isolation, failures, and cleanup
 
-Use `isolation="worktree"` when parallel workers might edit overlapping files. Treat failed, timed-out, cancelled, or missing tasks explicitly. Retry failed tasks with `teammate_start_task retry=true`. Cancel a running task with `teammate_cancel_task`. Keep finished tasks until their results are synthesized, then use `teammate_cleanup`.
+Shared-workspace overlapping writes are blocked at task start. To deliberately explore overlapping write approaches, start the second task with `isolation="worktree"`, then review and integrate its captured diff. Treat failed, timed-out, cancelled, or missing tasks explicitly; retry a settled failed task with `teammate_start_task retry=true`, which gives the same idle teammate a fresh run identity. Cancel a running task with `teammate_cancel_task`. An idle teammate stays available for five minutes by default and is retired only when it has no assigned/running work and no unread messages. Terminal task results remain available until the leader synthesizes them; then use `teammate_cleanup` to prune those task records.
 
-## State Persistence and Concurrency
+## Current-Session State and Concurrency
 
-The team leader is the only writer of the session state snapshot. Every spawned worker receives a fresh `runId`, reads that snapshot, and emits append-only events through the unified `teammate_message`, `teammate_inbox`, and `teammate_report` worker capabilities. The leader validates the sender, run identity, recipient, task ownership, and event shape before applying an event, so an old worker run cannot update a later run, and one worker cannot overwrite another worker's message, revert a read receipt, or update another teammate's task. Completed runs publish their final state before their per-run outbox and replay metadata are compacted.
+The team leader is the only writer of the transient shared state file for the current session. Every spawned worker receives a fresh `runId`, reads that file, and emits append-only events through the unified `teammate_message`, `teammate_inbox`, and `teammate_report` worker capabilities. The leader validates the sender, run identity, recipient, task ownership, and event shape before applying an event, so an old worker run cannot update a later run, and one worker cannot overwrite another worker's message, revert a read receipt, or update another teammate's task. Completed runs write their final board before their per-run outbox and replay metadata are compacted.
 
-A child running in worker mode registers only three identity-bound capabilities (`teammate_message`, `teammate_inbox`, and status reporting); it never registers team lifecycle, UI, task-board, or spawn tools. This is a reliable collaboration protocol, not an OS security sandbox: workers still run with the user's local permissions. A normal exit code of `0` is the only successful process outcome; signal termination, timeout, and non-zero exit fail the task.
+A child running in worker mode registers only three identity-bound capabilities (`teammate_message`, `teammate_inbox`, and status reporting); it never registers team lifecycle, UI, task-board, or spawn tools. It executes one bounded task run within its recorded paths, messages the leader at plan/progress/blocker milestones, reports its final outcome, and exits. Its idle teammate identity can be reused for later current-session work. The parent harness owns final delivery to the main session, including workers that exit, fail, time out, or never report a terminal result. This is a reliable collaboration protocol, not an OS security sandbox: workers still run with the user's local permissions. A normal exit code of `0` is the only successful process outcome; signal termination, timeout, and non-zero exit fail the task.
 
-The teammate system state (teammates, mailboxes, tasks) is persisted as session entries, so it survives session restarts and `/resume` operations. Pending-task self-claim is intentionally not available until a cross-process claim lock exists; atomic snapshot writes alone are not a safe claim protocol. Plan approval and task-completion hooks likewise remain future work until their state transitions and quality-gate semantics are designed end to end.
+Teams do not persist across session starts or `/resume`: every session begins with an empty team. On shutdown, live workers are terminated and observed before the shared state directory is deleted, then the in-memory board is cleared. Pending-task self-claim is intentionally not available until a cross-process claim lock exists; atomic snapshot writes alone are not a safe claim protocol. Plan approval and task-completion hooks likewise remain future work until their state transitions and quality-gate semantics are designed end to end.
 
 ## License
 

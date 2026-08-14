@@ -66,15 +66,40 @@ def test_manifest_declares_native_extension_package() -> None:
 def test_bdd_contract_covers_target_resources() -> None:
     feature = (PACKAGE / "features" / "teammate-status.feature").read_text(encoding="utf-8")
     for phrase in (
-        "Teammate configuration is a persistent resource",
-        "Tasks are immutable definitions until their run starts",
+        "Teammates are reusable current-session executors",
+        "Reuse a compatible idle teammate",
+        "Do not silently reuse a materially different teammate",
+        "Retire only a truly expired teammate",
+        "Tasks declare scopes and access before they run",
+        "Partition a parallel team before it starts",
+        "Allow overlapping read scopes",
+        "Block unsafe overlapping writes in a shared workspace",
+        "Allow isolated overlapping write experiments",
+        "Reject ambiguous path ownership",
+        "Queue follow-up work for the same teammate",
         "A task run is explicit and never blocks the leader",
-        "Messaging is symmetric and capability-bound",
+        "Retry failed work with a fresh run",
+        "Messaging is symmetric, proactive, and capability-bound",
+        "Intermediate worker communication stays in the mailbox",
+        "The harness delivers every terminal result to the main session",
+        "A worker terminal report is not treated as final delivery",
         "Worker process outcomes are authoritative",
+        "A worker process exits after its assigned task",
         "teammate_create_task",
         "teammate_start_task",
         "teammate_cancel_task",
+        "Cancel a task run only after its worker closes",
+        "leader records cancellation intent for that run before awaiting its close event",
+        "SIGTERM-cooperative worker that exits 0 is not recorded completed or failed before cancellation",
+        "SIGTERM-resistant worker receives SIGKILL after a bounded grace period",
+        "cancellation intent is cleared after the cancellation attempt finishes",
         "teammate_report",
+        "Keep an idle teammate with pending communication",
+        "Retain a reported terminal task until its worker closes",
+        "Do not restore a prior session's team",
+        "Invalid tool operations surface as Pi failures",
+        "Cancelled or timed-out waits surface as tool failures",
+        "Legitimate empty and terminal data remains a normal result",
     ):
         assert phrase in feature
 
@@ -129,27 +154,35 @@ def test_types_express_target_surface_without_invalid_role() -> None:
         assert old_schema not in types
 
 
-def test_create_task_owns_assignment_and_dependency_direction() -> None:
+def test_create_task_declares_access_and_defers_shared_write_conflicts_to_start() -> None:
     ext = source("index.ts")
     state = source("state.ts")
+    types = source("types.ts")
     create_start = ext.index('name: "teammate_create_task"')
     create_end = ext.index('name: "teammate_list_tasks"', create_start)
     create_body = ext[create_start:create_end]
-    assert "createTask(params.title, params.description, params.assignee, \"agent\", params.blockedBy ?? [])" in create_body
-    assert "New task:" in create_body
+    assert 'createTask(params.title, params.description, params.paths, params.access ?? "write", params.assignee, "agent", params.blockedBy ?? [])' in create_body
+    assert "Access:" in create_body
+    assert "access:" in types
+    assert "normalizeTaskPaths" in state
+    assert "findSharedWorkspaceWriteConflict" in state
     assert "uniqueBlockedBy" in state
     assert "for (const dep of uniqueBlockedBy)" in state
     assert "setTaskDeps" not in state
 
 
-def test_start_task_uses_assignee_and_requires_explicit_retry() -> None:
+def test_start_task_reuses_assignee_and_allows_explicit_retry() -> None:
     ext = source("index.ts")
+    state = source("state.ts")
+    types = source("types.ts")
     start = ext.index('name: "teammate_start_task"')
     end = ext.index('name: "teammate_cancel_task"', start)
     body = ext[start:end]
     assert "getTeammate(task.assignee)" in body
     assert "params.retry === true" in body
-    assert "use retry=true" in body
+    assert "retryFailedTask" in state
+    assert "retry:" in types
+    assert "findSharedWorkspaceWriteConflict" in body
     assert "markTeammateRunning(teammate.name, params.taskId, runId)" in body
     assert "spawnPiWorker({" in body
     assert "The main session is free to continue" in body
@@ -173,20 +206,124 @@ def test_start_task_is_nonblocking_and_wait_is_only_join_barrier() -> None:
 def test_cancel_task_is_the_only_leader_run_interruption() -> None:
     ext = source("index.ts")
     state = source("state.ts")
+    spawner = source("spawner.ts")
     cancel_start = ext.index('name: "teammate_cancel_task"')
     cancel_end = ext.index('name: "teammate_remove"', cancel_start)
     cancel_body = ext[cancel_start:cancel_end]
-    assert "cancelTask(params.taskId)" in cancel_body
-    assert 'killWorker(task.assignee, "SIGTERM")' in cancel_body
+    assert "await terminateWorker(task.assignee" in cancel_body
+    assert "const result = cancelTask(params.taskId);" in cancel_body
+    assert "throw new Error" in cancel_body
     assert "export function cancelTask" in state
-    assert 'task.status === "completed" || task.status === "cancelled"' in state
+    assert "still has a running worker" in state
+    assert "export async function terminateWorker" in spawner
+    assert "SIGKILL" in spawner
     assert "force" not in source("types.ts")
 
 
-def test_remove_is_idle_only_and_cleanup_is_terminal_only() -> None:
+def test_cancel_task_stays_nonterminal_until_its_worker_close_is_recorded() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ cancelTask, createTask, registerTeammate, setSpawnInfo, updateTaskStatus }} from "{module}";
+        registerTeammate({{ name: "worker", role: "worker", description: "", prompt: "", registeredAt: 1 }});
+        const task = createTask("resistant", "", ["packages/worker"], "write", "worker", "agent").task;
+        setSpawnInfo(task.id, {{ runId: "run-1", pid: 1, status: "running", startedAt: 1 }});
+        updateTaskStatus(task.id, "in_progress");
+        const beforeClose = cancelTask(task.id);
+        const statusBeforeClose = task.status;
+        setSpawnInfo(task.id, {{ runId: "run-1", pid: 1, status: "failed", startedAt: 1, finishedAt: 2 }});
+        const afterClose = cancelTask(task.id);
+        console.log(JSON.stringify({{
+          beforeClose: beforeClose.ok,
+          beforeCloseError: beforeClose.error,
+          statusBeforeClose,
+          afterClose: afterClose.ok,
+          finalStatus: task.status,
+        }}));
+        '''
+    )
+    assert payload == {
+        "beforeClose": False,
+        "beforeCloseError": 'Task "task_1" still has a running worker and cannot be cancelled until it closes.',
+        "statusBeforeClose": "in_progress",
+        "afterClose": True,
+        "finalStatus": "cancelled",
+    }
+
+
+def test_cancellation_intent_defers_close_finalization_until_the_cancel_outcome_is_known() -> None:
+    module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ CancellationIntents }} from "{module}";
+        const intents = new CancellationIntents();
+        const outcomes = [];
+        intents.begin("run-1");
+        const deferred = intents.defer("run-1", (cancelled) => outcomes.push(cancelled ? "cancelled" : "normal"));
+        const beforeResolve = outcomes.length;
+        const resolved = intents.resolve("run-1", true);
+        console.log(JSON.stringify({{ deferred, beforeResolve, resolved, outcomes, pending: intents.has("run-1") }}));
+        '''
+    )
+    assert payload == {
+        "deferred": True,
+        "beforeResolve": 0,
+        "resolved": True,
+        "outcomes": ["cancelled"],
+        "pending": False,
+    }
+
+
+def test_sigterm_cooperative_worker_closes_with_exit_zero_before_termination_resolves() -> None:
+    module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ spawn }} from "node:child_process";
+        import {{ terminateChildProcess }} from "{module}";
+        const child = spawn(process.execPath, ["--eval", `
+          process.on("SIGTERM", () => process.exit(0));
+          setInterval(() => {{}}, 1_000);
+        `], {{ stdio: "ignore" }});
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        let closed = false;
+        child.once("close", () => {{ closed = true; }});
+        const completion = terminateChildProcess(child, 100);
+        const beforeClose = !closed && child.exitCode === null;
+        const terminated = await completion;
+        console.log(JSON.stringify({{ beforeClose, closed, terminated, exitCode: child.exitCode, signal: child.signalCode }}));
+        '''
+    )
+    assert payload == {"beforeClose": True, "closed": True, "terminated": True, "exitCode": 0, "signal": None}
+
+
+def test_sigterm_resistant_worker_is_escalated_and_close_is_observed_before_termination_resolves() -> None:
+    module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ spawn }} from "node:child_process";
+        import {{ terminateChildProcess }} from "{module}";
+        const child = spawn(process.execPath, ["--eval", `
+          process.on("SIGTERM", () => {{}});
+          setInterval(() => {{}}, 1_000);
+        `], {{ stdio: "ignore" }});
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        let closed = false;
+        child.once("close", () => {{ closed = true; }});
+        const completion = terminateChildProcess(child, 25);
+        const beforeClose = !closed && child.exitCode === null;
+        const terminated = await completion;
+        console.log(JSON.stringify({{ beforeClose, closed, terminated, signal: child.signalCode }}));
+        '''
+    )
+    assert payload == {"beforeClose": True, "closed": True, "terminated": True, "signal": "SIGKILL"}
+
+
+def test_teammates_expire_only_after_idle_ttl_and_cleanup_is_terminal_only() -> None:
     ext = source("index.ts")
     state = source("state.ts")
     assert "activeTask" in state
+    assert "retireExpiredTeammates" in state
+    assert "DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000" in ext
     assert "cancel or complete it before removing" in state
     remove_start = ext.index('name: "teammate_remove"')
     remove_end = ext.index('name: "teammate_cleanup"', remove_start)
@@ -209,7 +346,7 @@ def test_configure_requires_a_real_change() -> None:
     assert "configureTeammate(params.name" in ext[configure_start:configure_end]
 
 
-def test_unified_message_and_inbox_authorization() -> None:
+def test_unified_message_inbox_and_main_session_delivery() -> None:
     ext = source("index.ts")
     worker_section = ext[ext.index("function registerWorkerCapabilities"):ext.index("function notifyUnblockedTasks")]
     assert 'params.to === "all" || params.role' in worker_section
@@ -219,6 +356,16 @@ def test_unified_message_and_inbox_authorization() -> None:
     assert 'params.to === "all"' in leader_message
     assert "params.role" in leader_message
     assert "if (liveStateFile) applyWorkerEvents(liveStateFile);" in ext
+    assert "Intermediate worker communication stays in the mailbox" in (PACKAGE / "features" / "teammate-status.feature").read_text(encoding="utf-8")
+    assert "sendMainSessionUpdate(event.subject, event.body, taskId);" not in ext
+    assert "Task progress" not in ext
+    assert "Task started" not in ext
+    assert "buildTerminalResult" in ext
+    assert "sendMainSessionUpdate(terminalSubject, terminalBody, params.taskId);" in ext
+    assert 'deliverAs: "followUp"' in ext
+    assert 'triggerTurn: true' in ext
+    assert "Before substantive work, call teammate_message" in source("spawner.ts")
+    assert "does not interrupt the leader" in source("spawner.ts")
 
 
 def test_role_defaults_and_explicit_tools_are_least_privilege() -> None:
@@ -257,6 +404,41 @@ def test_worker_event_validation_checks_optional_fields() -> None:
     assert 'event.errorMessage === undefined || typeof event.errorMessage === "string"' in ext
 
 
+def test_terminal_result_builder_is_harness_owned_and_fallback_backed() -> None:
+    module = (SRC / "terminal.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ buildTerminalResult }} from "{module}";
+        const base = {{ taskId: "task_1", teammate: "worker", patchText: "" }};
+        const silent = buildTerminalResult({{ ...base, result: {{ stdout: "", stderr: "", signal: null, timedOut: false }}, cancelled: false }});
+        const timeout = buildTerminalResult({{ ...base, result: {{ stdout: "", stderr: "", signal: "SIGKILL", timedOut: true }}, cancelled: false }});
+        const cancelled = buildTerminalResult({{ ...base, result: {{ stdout: "", stderr: "", signal: "SIGTERM", timedOut: false }}, cancelled: true }});
+        console.log(JSON.stringify({{ silent, timeout, cancelled }}));
+        '''
+    )
+    assert payload == {
+        "silent": "Task [task_1] completed — teammate worker.\nNo worker summary was produced.",
+        "timeout": "Task [task_1] timed out — teammate worker.\nNo worker summary was produced.",
+        "cancelled": "Task [task_1] cancelled — teammate worker.\nNo worker summary was produced.",
+    }
+    assert "sendMainSessionUpdate(terminalSubject, terminalBody, params.taskId);" in source("index.ts")
+
+
+def test_terminal_delivery_contract_uses_child_close_as_authoritative_boundary() -> None:
+    ext = source("index.ts")
+    report_start = ext.index('name: "teammate_report"')
+    report_end = ext.index("function notifyUnblockedTasks", report_start)
+    report = ext[report_start:report_end]
+    assert "sendMainSessionUpdate" not in report
+    finalize_start = ext.index("const finalizeWorker")
+    finalize_end = ext.index("const finish", finalize_start)
+    finalize = ext[finalize_start:finalize_end]
+    assert "applyWorkerEvents(stateFile);" in finalize
+    assert "buildTerminalResult" in finalize
+    assert "sendMessage({" in finalize
+    assert "sendMainSessionUpdate(terminalSubject, terminalBody, params.taskId);" in finalize
+
+
 def test_normal_exit_is_required_for_success() -> None:
     module = (SRC / "spawner.ts").as_uri()
     payload = run_node(
@@ -274,38 +456,80 @@ def test_normal_exit_is_required_for_success() -> None:
     assert payload == {"normal": True, "nonZero": False, "signal": False, "timeout": False}
 
 
-def test_state_runtime_enforces_configuration_and_terminal_cleanup() -> None:
+def test_state_runtime_reuses_teammates_tracks_access_and_expires_only_after_ttl() -> None:
     module = (SRC / "state.ts").as_uri()
     payload = run_node(
         f'''\
-        import {{ cancelTask, configureTeammate, createTask, listTasks, pruneFinishedTasks, registerTeammate, updateTaskStatus }} from "{module}";
-        registerTeammate({{ name: "worker", role: "worker", description: "old", prompt: "old", registeredAt: 1 }});
+        import {{ configureTeammate, createTask, findReusableTeammate, findSharedWorkspaceWriteConflict, getState, listTasks, pruneFinishedTasks, registerTeammate, retireExpiredTeammates, retryFailedTask, sendMessage, setSpawnInfo, updateTaskStatus }} from "{module}";
+        registerTeammate({{ name: "worker", role: "worker", description: "old", prompt: "shared", registeredAt: 1, lastActiveAt: 1 }});
+        registerTeammate({{ name: "reader", role: "reviewer", description: "", prompt: "review", registeredAt: 1, lastActiveAt: 1 }});
+        registerTeammate({{ name: "writer", role: "worker", description: "", prompt: "write", registeredAt: 1, lastActiveAt: 1 }});
+        registerTeammate({{ name: "stale", role: "observer", description: "", prompt: "observe", registeredAt: 1, lastActiveAt: 1 }});
         const empty = configureTeammate("worker", {{}});
         const configured = configureTeammate("worker", {{ description: "new" }});
-        const first = createTask("first", "", "worker", "agent").task;
-        const second = createTask("second", "", "worker", "agent", [first.id, first.id]).task;
-        const deduped = second.blockedBy.length;
-        updateTaskStatus(first.id, "completed");
-        const cancelled = cancelTask(second.id);
-        const removed = pruneFinishedTasks();
+        const reusable = findReusableTeammate({{ role: "worker", prompt: "shared", model: undefined, tools: undefined }})?.name;
+        const differentPrompt = findReusableTeammate({{ role: "worker", prompt: "different", model: undefined, tools: undefined }})?.name;
+        const first = createTask("first", "", ["packages/api"], "write", "worker", "agent").task;
+        const read = createTask("read", "", ["packages/api/src"], "read", "reader", "agent").task;
+        const write = createTask("write", "", ["packages/api/src"], "write", "writer", "agent").task;
+        const invalid = createTask("invalid", "", ["../secrets"], "write", "worker", "agent");
+        setSpawnInfo(first.id, {{ runId: "run-1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
+        updateTaskStatus(first.id, "in_progress");
+        const writeConflict = findSharedWorkspaceWriteConflict(write.id)?.id;
+        const readConflict = findSharedWorkspaceWriteConflict(read.id);
+        updateTaskStatus(first.id, "completed", "kept result");
+        const prunedWhileRunning = pruneFinishedTasks();
+        const retainedWhileRunning = listTasks().some((task) => task.id === first.id);
+        setSpawnInfo(first.id, {{ runId: "run-1", pid: 1, status: "failed", startedAt: 1, finishedAt: 2, isolation: "none" }});
+        const retry = retryFailedTask(first.id);
+        sendMessage({{ from: "agent", to: "stale", subject: "pending", body: "reply" }});
+        const expiredWithUnread = retireExpiredTeammates(100, 200);
+        getState().mailboxes.stale[0].read = true;
+        const expiredAfterRead = retireExpiredTeammates(100, 200);
         console.log(JSON.stringify({{
           empty: empty.ok,
           configured: configured.ok,
-          deduped,
-          cancelled: cancelled.task.status,
-          removed,
-          remaining: listTasks().length,
+          reusable,
+          differentPrompt: differentPrompt ?? null,
+          read: read?.id,
+          write: write?.id,
+          invalid: invalid.error,
+          prunedWhileRunning,
+          retainedWhileRunning,
+          retry: retry.ok,
+          writeConflict: writeConflict ?? null,
+          readConflict: readConflict?.id ?? null,
+          expiredWithUnread,
+          expiredAfterRead,
         }}));
         '''
     )
     assert payload == {
         "empty": False,
         "configured": True,
-        "deduped": 1,
-        "cancelled": "cancelled",
-        "removed": 2,
-        "remaining": 0,
+        "reusable": "worker",
+        "differentPrompt": None,
+        "read": "task_2",
+        "write": "task_3",
+        "invalid": 'Invalid task path: "../secrets".',
+        "prunedWhileRunning": 0,
+        "retainedWhileRunning": True,
+        "retry": True,
+        "writeConflict": "task_1",
+        "readConflict": None,
+        "expiredWithUnread": 0,
+        "expiredAfterRead": 1,
     }
+
+
+def test_session_start_does_not_restore_a_previous_team_and_shutdown_stops_workers() -> None:
+    ext = source("index.ts")
+    session_start = ext[ext.index('pi.on("session_start"'):ext.index('pi.on("session_shutdown"')]
+    session_shutdown = ext[ext.index('pi.on("session_shutdown"'):ext.index('pi.on("turn_end"')]
+    assert "resetState()" in session_start
+    assert "tryRestoreState" not in session_start
+    assert "await terminateAllWorkers()" in session_shutdown
+    assert "persistState(pi)" not in session_shutdown
 
 
 def test_statefile_outbox_reads_complete_records_only(tmp_path: Path) -> None:
@@ -339,6 +563,45 @@ def test_console_is_fullscreen_display_only_and_uses_working_text() -> None:
     assert "setWidget" in ext
 
 
+def test_tool_failures_throw_and_guidance_lists_the_full_surface() -> None:
+    ext = source("index.ts")
+    spawner = source("spawner.ts")
+
+    assert "isError" not in ext
+    for message in (
+        "This capability is available only inside a spawned teammate.",
+        "Workers may message one teammate or agent, not broadcast.",
+        "The role filter is only valid when to is all.",
+        "Waiting for parallel tasks was cancelled.",
+        "Timed out waiting for:",
+        "Failed to start worker:",
+    ):
+        assert f'throw new Error(`{message}' in ext or f'throw new Error("{message}' in ext
+
+    guidance = ext[ext.index("const TEAMMATE_GUIDANCE"):ext.index("export default function")]
+    for tool in LEADER_TOOLS:
+        assert tool in guidance
+    assert "reuse a compatible role/model/tool/prompt configuration" in guidance
+    assert "Only the harness-delivered terminal result triggers a main-session follow-up" in guidance
+    assert "Use Pi's read tool to inspect the snapshot" in spawner
+    assert "`cat ${opts.stateFile}`" not in spawner
+
+
+def test_empty_lists_and_terminal_waits_remain_normal_results() -> None:
+    ext = source("index.ts")
+    leader = ext[ext.index("// ── Leader tools"):]
+    teammate_list = leader[leader.index('name: "teammate_list"'):leader.index('name: "teammate_message"')]
+    task_list = leader[leader.index('name: "teammate_list_tasks"'):leader.index('name: "teammate_wait"')]
+    wait = leader[leader.index('name: "teammate_wait"'):leader.index('name: "teammate_configure"')]
+
+    assert "No teammates registered yet." in teammate_list
+    assert "return {" in teammate_list
+    assert "No tasks found." in task_list
+    assert "return {" in task_list
+    assert 'new Set(["completed", "failed", "cancelled"])' in wait
+    assert "if (tasks.every(isSettled)) break;" in wait
+
+
 def test_readme_documents_the_target_surface() -> None:
     readme = (PACKAGE / "README.md").read_text(encoding="utf-8")
     for tool in LEADER_TOOLS | {"teammate_report"}:
@@ -346,5 +609,7 @@ def test_readme_documents_the_target_surface() -> None:
     for tool in LEGACY_TOOLS:
         assert f"`{tool}`" not in readme
     assert "not a registerable role" in readme
+    assert "reuse a compatible role/model/tool configuration" in readme
+    assert "read" in readme and "write" in readme
     assert "retry=true" in readme
     assert "blockedBy" in readme

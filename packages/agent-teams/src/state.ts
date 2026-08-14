@@ -1,30 +1,22 @@
 /**
- * Teammate state management — in-memory state with session persistence.
- *
- * State is persisted as a pi session entry tagged with type "teammate_state_snapshot"
- * so it survives restarts and session switches.
+ * Teammate state management for the current session only.
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { MailboxMessage, SpawnInfo, Task, Teammate, TeammateState, WorkerMessageEvent } from "./types";
 
-// Minimal interface for session entries we read — avoids deep type dependency
-interface SessionEntry {
-  customType?: string;
-  data?: unknown;
+function emptyState(): TeammateState {
+  return {
+    teammates: {},
+    mailboxes: {},
+    tasks: {},
+    messageCounter: 0,
+    taskCounter: 0,
+    workerEventOffsets: {},
+    workerEventIds: {},
+  };
 }
 
-let state: TeammateState = {
-  teammates: {},
-  mailboxes: {},
-  tasks: {},
-  messageCounter: 0,
-  taskCounter: 0,
-  workerEventOffsets: {},
-  workerEventIds: {},
-};
-
-const SNAPSHOT_TYPE = "teammate_state_snapshot" as const;
+let state = emptyState();
 
 function nextMessageId(): string {
   return `msg_${++state.messageCounter}`;
@@ -34,32 +26,8 @@ function nextTaskId(): string {
   return `task_${++state.taskCounter}`;
 }
 
-// ── Persistence ───────────────────────────────────────────────────
-
-export function persistState(pi: ExtensionAPI): void {
-  pi.appendEntry(SNAPSHOT_TYPE, JSON.stringify(state));
-}
-
-export function tryRestoreState(sessionManager: { getEntries(): unknown[] }): boolean {
-  const entries = sessionManager.getEntries() as SessionEntry[];
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const entry = entries[i];
-    if (entry.customType === SNAPSHOT_TYPE && typeof entry.data === "string") {
-      try {
-        const parsed = JSON.parse(entry.data) as TeammateState;
-        for (const teammate of Object.values(parsed.teammates ?? {})) {
-          teammate.prompt = teammate.prompt || `${teammate.description}\nExecute assigned tasks within the stated scope, verify your work, and report the outcome, changed files, and remaining risks.`;
-        }
-        parsed.workerEventOffsets ??= {};
-        parsed.workerEventIds ??= {};
-        state = parsed;
-        return true;
-      } catch {
-        // skip corrupt snapshot
-      }
-    }
-  }
-  return false;
+export function resetState(): void {
+  state = emptyState();
 }
 
 // ── Teammate registry ─────────────────────────────────────────────
@@ -168,6 +136,21 @@ export function listTeammates(): Teammate[] {
   return Object.values(state.teammates);
 }
 
+function sameTools(left?: string[], right?: string[]): boolean {
+  return JSON.stringify(left ?? []) === JSON.stringify(right ?? []);
+}
+
+/** Find an idle teammate with a compatible role and execution configuration. */
+export function findReusableTeammate(criteria: Pick<Teammate, "role" | "prompt" | "model" | "tools">): Teammate | undefined {
+  return Object.values(state.teammates).find((teammate) =>
+    teammate.status === "idle"
+    && teammate.role === criteria.role
+    && teammate.prompt === criteria.prompt
+    && teammate.model === criteria.model
+    && sameTools(teammate.tools, criteria.tools),
+  );
+}
+
 // ── Mailbox ───────────────────────────────────────────────────────
 
 export function sendMessage(msg: Omit<MailboxMessage, "id" | "timestamp" | "read">): MailboxMessage {
@@ -257,13 +240,43 @@ export function markLeaderMessagesReadForTask(taskId: string, from?: string): nu
 
 // ── Task management ───────────────────────────────────────────────
 
+function normalizeTaskPaths(paths: string[]): { ok: true; paths: string[] } | { ok: false; error: string } {
+  if (paths.length === 0) return { ok: false, error: "Provide at least one task path." };
+  const normalized: string[] = [];
+  for (const rawPath of paths) {
+    const candidate = rawPath.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "");
+    const valid = candidate === "." || (
+      candidate
+      && !/^[A-Za-z]:\//.test(candidate)
+      && !candidate.startsWith("/")
+      && !/[*?[\]{}]/.test(candidate)
+      && candidate.split("/").every((part) => part !== "" && part !== "." && part !== "..")
+    );
+    if (!valid) return { ok: false, error: `Invalid task path: "${rawPath}".` };
+    if (normalized.includes(candidate)) return { ok: false, error: `Duplicate task path: "${rawPath}".` };
+    if (normalized.some((path) => pathsOverlap(path, candidate))) {
+      return { ok: false, error: `Overlapping task paths: "${rawPath}".` };
+    }
+    normalized.push(candidate);
+  }
+  return { ok: true, paths: normalized };
+}
+
+function pathsOverlap(left: string, right: string): boolean {
+  return left === "." || right === "." || left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
+}
+
 export function createTask(
   title: string,
   description: string,
+  paths: string[],
+  access: Task["access"],
   assignee: string,
   assignedBy: string,
   blockedBy: string[] = [],
 ): { ok: boolean; task?: Task; error?: string } {
+  const normalizedPaths = normalizeTaskPaths(paths);
+  if (!normalizedPaths.ok) return normalizedPaths;
   const uniqueBlockedBy = [...new Set(blockedBy)];
   for (const dep of uniqueBlockedBy) {
     if (!state.tasks[dep]) {
@@ -274,6 +287,8 @@ export function createTask(
     id: nextTaskId(),
     title,
     description,
+    paths: normalizedPaths.paths,
+    access,
     assignee,
     assignedBy,
     status: "assigned",
@@ -300,6 +315,12 @@ export function cancelTask(taskId: string): { ok: boolean; task?: Task; error?: 
   if (task.status === "completed" || task.status === "cancelled") {
     return { ok: false, error: `Task "${taskId}" is already ${task.status}.` };
   }
+  if (task.spawn?.status === "running") {
+    return {
+      ok: false,
+      error: `Task "${taskId}" still has a running worker and cannot be cancelled until it closes.`,
+    };
+  }
   task.status = "cancelled";
   task.completedAt = Date.now();
   task.updatedAt = Date.now();
@@ -311,6 +332,19 @@ export function cancelTask(taskId: string): { ok: boolean; task?: Task; error?: 
  * completed (or cancelled — a cancelled blocker no longer holds work back).
  * Returns the list of unmet blocking task IDs.
  */
+export function findSharedWorkspaceWriteConflict(taskId: string): Task | undefined {
+  const task = state.tasks[taskId];
+  if (!task || task.access !== "write") return undefined;
+  return Object.values(state.tasks).find((other) =>
+    other.id !== task.id
+    && other.status === "in_progress"
+    && other.spawn?.status === "running"
+    && other.spawn.isolation !== "worktree"
+    && other.access === "write"
+    && task.paths.some((path) => other.paths.some((otherPath) => pathsOverlap(path, otherPath))),
+  );
+}
+
 export function isTaskReady(taskId: string): { ready: boolean; unmet: string[] } {
   const task = state.tasks[taskId];
   if (!task) return { ready: false, unmet: [] };
@@ -345,20 +379,6 @@ export function setSpawnInfo(taskId: string, info: SpawnInfo): { ok: boolean; ta
     task.completedAt = Date.now();
     task.errorMessage = info.error ?? info.stderr ?? `Child process exited with code ${info.exitCode ?? "unknown"}.`;
   }
-  return { ok: true, task };
-}
-
-/** Prepare only a failed task for a fresh leader-authorized worker run. */
-export function retryFailedTask(taskId: string): { ok: boolean; task?: Task; error?: string } {
-  const task = state.tasks[taskId];
-  if (!task) return { ok: false, error: `Task "${taskId}" not found.` };
-  if (task.status !== "failed") return { ok: false, error: `Task "${taskId}" is ${task.status}, not failed.` };
-  task.status = "assigned";
-  task.result = undefined;
-  task.errorMessage = undefined;
-  task.completedAt = undefined;
-  task.spawn = undefined;
-  task.updatedAt = Date.now();
   return { ok: true, task };
 }
 
@@ -403,11 +423,49 @@ export function getTask(taskId: string): Task | undefined {
 }
 
 /** Remove terminal tasks after the leader has synthesized their outcomes. */
+/** Retire idle teammates only after their mailbox is clear and their idle TTL has elapsed. */
+export function retireExpiredTeammates(idleTtlMs: number, now = Date.now()): number {
+  if (idleTtlMs <= 0) return 0;
+  let retired = 0;
+  for (const teammate of Object.values(state.teammates)) {
+    const hasActiveTask = Object.values(state.tasks).some(
+      (task) => task.assignee === teammate.name && (task.status === "assigned" || task.status === "in_progress"),
+    );
+    const hasUnreadMessages = (state.mailboxes[teammate.name] ?? []).some((message) => !message.read);
+    const idleSince = teammate.lastActiveAt ?? teammate.registeredAt;
+    if (teammate.status !== "idle" || hasActiveTask || hasUnreadMessages || now - idleSince < idleTtlMs) continue;
+    delete state.teammates[teammate.name];
+    delete state.mailboxes[teammate.name];
+    retired++;
+  }
+  return retired;
+}
+
+/** Prepare a failed task for an explicitly requested fresh run by its idle teammate. */
+export function retryFailedTask(taskId: string): { ok: boolean; task?: Task; error?: string } {
+  const task = state.tasks[taskId];
+  if (!task) return { ok: false, error: `Task "${taskId}" not found.` };
+  if (task.status !== "failed" || task.spawn?.status === "running") {
+    return { ok: false, error: `Task "${taskId}" is ${task.status}, not a settled failed task.` };
+  }
+  const teammate = state.teammates[task.assignee];
+  if (!teammate || teammate.status !== "idle") {
+    return { ok: false, error: `Teammate "${task.assignee}" is unavailable for retry.` };
+  }
+  task.status = "assigned";
+  task.result = undefined;
+  task.errorMessage = undefined;
+  task.completedAt = undefined;
+  task.spawn = undefined;
+  task.updatedAt = Date.now();
+  return { ok: true, task };
+}
+
 export function pruneFinishedTasks(): number {
   const terminal = new Set<Task["status"]>(["completed", "failed", "cancelled"]);
   let removed = 0;
   for (const [id, task] of Object.entries(state.tasks)) {
-    if (!terminal.has(task.status)) continue;
+    if (!terminal.has(task.status) || task.spawn?.status === "running") continue;
     for (const dependency of Object.values(state.tasks)) {
       dependency.blocks = dependency.blocks.filter((blockedId) => blockedId !== id);
       dependency.blockedBy = dependency.blockedBy.filter((blockerId) => blockerId !== id);
@@ -419,7 +477,7 @@ export function pruneFinishedTasks(): number {
   return removed;
 }
 
-// ── State inspection (for persistence) ────────────────────────────
+// ── State inspection ──────────────────────────────────────────────
 
 export function getState(): TeammateState {
   return state;

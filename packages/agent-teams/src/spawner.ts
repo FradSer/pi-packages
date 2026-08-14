@@ -15,12 +15,11 @@ import { fileURLToPath } from "node:url";
 import type { WorkerUsage } from "./types";
 
 /**
- * Build the autonomous guardian-loop prompt for a spawned worker.
+ * Build the one-task execution prompt for a spawned worker.
  *
- * The worker is NOT a one-shot task runner: it processes its assigned task,
- * then keeps watching its mailbox (via the shared state file) and processing
- * new messages until IT decides to close (idle window, explicit stop, or work
- * complete). The parent never polls — it awaits the worker's own exit.
+ * A worker executes one bounded task run. It reports to the leader throughout
+ * the run and then exits; its idle teammate identity may be reused for later
+ * current-session work. The parent independently drains the worker outbox.
  */
 export function buildAutonomousPrompt(opts: {
   name: string;
@@ -43,19 +42,15 @@ ${opts.prompt}
 
 Shared state snapshot (READ ONLY — leader-owned): ${opts.stateFile}
 Your append-only outbox (WRITE ONLY): ${opts.outboxFile}
-Snapshot shape: { "teammates": {...}, "mailboxes": { "${opts.name}": [...] }, "tasks": { "<id>": {id, title, assignee, status, result, ...} } }${taskLine}
+Snapshot shape: { "teammates": {...}, "mailboxes": { "${opts.name}": [...] }, "tasks": { "<id>": {id, title, access, paths, assignee, status, result, ...} } }${taskLine}
 
-YOUR AUTONOMOUS LOOP:
-1. Read the state snapshot for teammates, task state, your mailbox, and leader read receipts. MUST NOT write state.json or modify its in-memory shape.
-2. Work on the assigned task first. Call teammate_report for concise progress, completion, or failure reports; the leader validates events and updates the snapshot.
-3. Check your inbox every ~30 seconds with teammate_inbox. It marks returned messages read through your bound outbox. Do the requested work and use teammate_message to reply. The leader applies the receipt and delivers the reply without leader mediation.
-4. **Direct messaging**: use teammate_message with to:"agent" to reach the main session. Use to:"<other_teammate_name>" to hand off, ask for help, or debate directly with another teammate. Read snapshot.teammates to discover valid names.
-5. YOU decide when to close. Close when ANY holds:
-   - The assigned task is done AND no new messages arrived for ~2-3 minutes of watching.
-   - You receive an explicit stop/shutdown message.
-   - You processed everything and further waiting is pointless.
-   When closing, emit a task_update event with the final result and exit with a concise final summary.
-6. NEVER run indefinitely: no task + no messages → close after a short idle window (~1-2 minutes). The hard wall-clock cap is ${opts.timeoutSec}s — close well before it.
+YOUR ONE-TASK RUN:
+1. Read the state snapshot for your assigned task and relevant leader messages. MUST NOT write state.json or modify its in-memory shape.
+2. Before substantive work, call teammate_message to:"agent" with a concise plan: approach, Paths, likely verification, and any dependency risk. The plan is recorded in the mailbox; it does not interrupt the leader.
+3. Work only on the assigned task and recorded Paths. Call teammate_report with a concise in_progress update after material progress. Message agent for a blocker, changed material assumption, scope risk, or need for a decision; these messages remain in the mailbox until the leader reads them.
+4. **Direct messaging**: use teammate_message with to:"agent" for plan, blocker, and decision request. Use to:"<other_teammate_name>" only for a necessary handoff inside your assigned paths.
+5. Call teammate_report exactly once with completed or failed. Its result must be the final summary: outcome, changed paths, verification, and risks. After the child closes, the parent harness delivers one authoritative terminal result to the main session. Do not wait for future work or claim tasks; your teammate identity may be reused by a new task run.
+6. The hard wall-clock cap is ${opts.timeoutSec}s — notify agent of a blocker and report failure before it when blocked.
 
 BOUND CAPABILITIES:
 - teammate_message sends a leader-validated direct message.
@@ -63,7 +58,7 @@ BOUND CAPABILITIES:
 - teammate_report updates only the task bound to this worker process.
 
 Technical notes:
-- Read the snapshot: \`cat ${opts.stateFile}\` or a python one-liner.
+- Use Pi's read tool to inspect the snapshot at ${opts.stateFile}; use a Python one-liner only if the read tool is unavailable.
 - Your outbox path is ${opts.outboxFile}; use the bound teammate tools instead of writing it with bash.
 - MUST NOT write state.json, rewrite/truncate the outbox, claim tasks, or update another teammate's task.
 - The leader rejects malformed events, events claiming another worker identity, and task updates for tasks other than your own assigned task.`;
@@ -111,8 +106,104 @@ export interface SpawnedWorker {
   pid: number;
 }
 
+/** Bounded grace period before a cancellation escalates from SIGTERM to SIGKILL. */
+const CANCEL_GRACE_MS = 5_000;
+
+/**
+ * Defers a close finalizer while the leader confirms a cancellation request.
+ * A run ID is unique to one child process, so an old close event cannot affect
+ * a later task run.
+ */
+export class CancellationIntents {
+  private readonly finalizers = new Map<string, Array<(cancelled: boolean) => void>>();
+
+  begin(runId: string): boolean {
+    if (this.finalizers.has(runId)) return false;
+    this.finalizers.set(runId, []);
+    return true;
+  }
+
+  has(runId: string): boolean {
+    return this.finalizers.has(runId);
+  }
+
+  defer(runId: string, finalize: (cancelled: boolean) => void): boolean {
+    const pending = this.finalizers.get(runId);
+    if (!pending) return false;
+    pending.push(finalize);
+    return true;
+  }
+
+  resolve(runId: string, cancelled: boolean): boolean {
+    const pending = this.finalizers.get(runId);
+    if (!pending) return false;
+    try {
+      for (const finalize of pending) finalize(cancelled);
+    } finally {
+      this.finalizers.delete(runId);
+    }
+    return true;
+  }
+}
+
 /** Live workers by teammate name — lets the panel interrupt/stop a running worker. */
 const workers = new Map<string, ReturnType<typeof spawn>>();
+
+function isChildRunning(child: ReturnType<typeof spawn>): boolean {
+  return child.exitCode === null && child.signalCode === null;
+}
+
+function waitForClose(child: ReturnType<typeof spawn>, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const onClose = () => finish(true);
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    timer.unref?.();
+
+    function finish(closed: boolean): void {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.off("close", onClose);
+      resolve(closed);
+    }
+
+    child.once("close", onClose);
+  });
+}
+
+/**
+ * Request a graceful child shutdown, escalate to SIGKILL when it resists, and
+ * resolve only after a bounded wait observes the child `close` event.
+ */
+export async function terminateChildProcess(child: ReturnType<typeof spawn>, graceMs = CANCEL_GRACE_MS): Promise<boolean> {
+  if (!isChildRunning(child)) return false;
+
+  const closedAfterTerm = waitForClose(child, graceMs);
+  try {
+    if (!child.kill("SIGTERM")) {
+      void closedAfterTerm;
+      return false;
+    }
+  } catch {
+    void closedAfterTerm;
+    return false;
+  }
+  if (await closedAfterTerm) return true;
+  if (!isChildRunning(child)) return false;
+
+  const closedAfterKill = waitForClose(child, graceMs);
+  try {
+    if (!child.kill("SIGKILL")) {
+      void closedAfterKill;
+      return false;
+    }
+  } catch {
+    void closedAfterKill;
+    return false;
+  }
+  return closedAfterKill;
+}
 
 /**
  * Interrupt (SIGTERM) or stop (SIGKILL) the worker currently running as the
@@ -120,12 +211,26 @@ const workers = new Map<string, ReturnType<typeof spawn>>();
  */
 export function killWorker(name: string, signal: "SIGTERM" | "SIGKILL" = "SIGTERM"): boolean {
   const child = workers.get(name);
-  if (!child || child.exitCode !== null) return false;
+  if (!child || !isChildRunning(child)) return false;
   try {
     return child.kill(signal);
   } catch {
     return false;
   }
+}
+
+/** Terminate a live worker and wait until its child process has closed. */
+export async function terminateWorker(name: string, graceMs = CANCEL_GRACE_MS): Promise<boolean> {
+  const child = workers.get(name);
+  if (!child) return false;
+  return terminateChildProcess(child, graceMs);
+}
+
+/** Stop every live child before the leader discards the current session board. */
+export async function terminateAllWorkers(graceMs = CANCEL_GRACE_MS): Promise<void> {
+  const children = [...workers.values()];
+  await Promise.all(children.map((child) => (isChildRunning(child) ? terminateChildProcess(child, graceMs) : undefined)));
+  workers.clear();
 }
 
 const TASK_ARG_LIMIT = 8000;
@@ -305,7 +410,7 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
   child.on("error", (error) => {
     if (timer) clearTimeout(timer);
     settled = true;
-    if (options.workerName) workers.delete(options.workerName);
+    if (options.workerName && workers.get(options.workerName) === child) workers.delete(options.workerName);
     options.onError?.(error);
   });
 
@@ -315,7 +420,7 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
     // close) — do not double-report through onExit, which would let a failed
     // spawn look like a successful 0-exit run.
     if (settled) return;
-    if (options.workerName) workers.delete(options.workerName);
+    if (options.workerName && workers.get(options.workerName) === child) workers.delete(options.workerName);
     const rawStdout = stdoutChunks.join("");
     const parsed = (options.mode ?? "json") === "json"
       ? parseWorkerOutput(rawStdout)

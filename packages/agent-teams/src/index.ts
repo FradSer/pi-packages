@@ -44,6 +44,8 @@ import {
   getSummary,
   getTeammate,
   getUnreadCount,
+  findReusableTeammate,
+  findSharedWorkspaceWriteConflict,
   isTaskReady,
   listAllMessages,
   listTasks,
@@ -52,19 +54,20 @@ import {
   markTeammateIdle,
   markTeammateRunning,
   markTaskNotificationsRead,
-  persistState,
   pruneFinishedTasks,
+  resetState,
+  retireExpiredTeammates,
+  retryFailedTask,
   readMailbox,
   receiveWorkerMessage,
   registerTeammate,
   removeTeammate,
-  retryFailedTask,
   sendMessage,
   setSpawnInfo,
-  tryRestoreState,
   updateTaskStatus,
 } from "./state";
-import { buildAutonomousPrompt, isSuccessfulWorkerExit, killWorker, spawnPiWorker } from "./spawner";
+import { buildAutonomousPrompt, CancellationIntents, isSuccessfulWorkerExit, killWorker, spawnPiWorker, terminateAllWorkers, terminateWorker } from "./spawner";
+import { buildTerminalResult } from "./terminal";
 import { captureWorktreeDiff, cleanupWorktree, createWorktree, discardWorktree } from "./worktree";
 import {
   appendWorkerEvent,
@@ -81,6 +84,11 @@ import type { WorkerEvent, WorkerUsage } from "./types";
 
 /** Keep shared state dirs for at most 7 days after their last write. */
 const STATE_DIR_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000;
+const TEAMMATE_EXPIRY_POLL_MS = 30_000;
+const cancellationIntents = new CancellationIntents();
+let idleTtlMs = DEFAULT_IDLE_TTL_MS;
+let teammateExpiryTimer: ReturnType<typeof setInterval> | undefined;
 
 /** Truncate worker/task output to the built-in tool-output limits (50KB / 2000 lines). */
 function cap(text: string | undefined, maxBytes = DEFAULT_MAX_BYTES): string {
@@ -136,7 +144,8 @@ function applyWorkerEvents(stateFile: string): void {
       if (event.type === "message") {
         if (event.to !== "agent" && !getTeammate(event.to)) continue;
         state.workerEventIds[`${runId}:${event.id}`] = runId;
-        receiveWorkerMessage({
+        const taskId = event.taskId === teammate.currentTaskId ? event.taskId : undefined;
+        if (receiveWorkerMessage({
           id: event.id,
           worker: workerName,
           runId,
@@ -144,8 +153,11 @@ function applyWorkerEvents(stateFile: string): void {
           to: event.to,
           subject: event.subject,
           body: event.body,
-          taskId: event.taskId === teammate.currentTaskId ? event.taskId : undefined,
-        });
+          taskId,
+        }) && event.to === "agent") {
+          // Intermediate communication stays in the mailbox. The main session
+          // is woken only once the child close produces its canonical result.
+        }
         continue;
       }
       if (event.type === "message_read") {
@@ -160,6 +172,9 @@ function applyWorkerEvents(stateFile: string): void {
       if (!task || ["completed", "failed", "cancelled"].includes(task.status)) continue;
       state.workerEventIds[`${runId}:${event.id}`] = runId;
       updateTaskStatus(event.taskId, event.status, event.result, event.errorMessage);
+      // A worker's terminal report updates task state, but process close is the
+      // authoritative completion boundary. finalizeWorker delivers one canonical
+      // terminal result to the mailbox and main session after that boundary.
     }
   }
 }
@@ -195,6 +210,21 @@ function acknowledgedWorkerMessageIds(outbox: string, worker: string, runId: str
   return ids;
 }
 
+let leaderPi: ExtensionAPI | undefined;
+
+function sendMainSessionUpdate(subject: string, body: string, taskId?: string): void {
+  try {
+    leaderPi?.sendMessage({
+      customType: "teammate-update",
+      content: `Teammate update — ${subject}${taskId ? ` [${taskId}]` : ""}\n${body}`,
+      display: true,
+      details: { taskId },
+    }, { triggerTurn: true, deliverAs: "followUp" });
+  } catch {
+    // A late worker event must not prevent final task cleanup during shutdown.
+  }
+}
+
 function renderInbox(name: string, messages: Array<{ id: string; from: string; subject: string; body: string; taskId?: string; timestamp: number }>): string {
   if (messages.length === 0) return `No messages in ${name}'s inbox.`;
   const lines = [`## Inbox: ${name} (${messages.length} message${messages.length > 1 ? "s" : ""})\n`];
@@ -217,13 +247,13 @@ function registerWorkerCapabilities(pi: ExtensionAPI): void {
     parameters: TeammateMessageParams,
     async execute(_toolCallId, params) {
       const binding = workerOutboxBinding();
-      if (!binding) return { content: [{ type: "text", text: "This capability is available only inside a spawned teammate." }], details: {}, isError: true };
+      if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
       const snapshot = readStateFile(binding.stateFile);
       if (params.to === "all" || params.role) {
-        return { content: [{ type: "text", text: "Workers may message one teammate or agent, not broadcast." }], details: {}, isError: true };
+        throw new Error("Workers may message one teammate or agent, not broadcast.");
       }
       if (params.to !== "agent" && !snapshot?.teammates[params.to]) {
-        return { content: [{ type: "text", text: `Unknown teammate recipient: ${params.to}.` }], details: {}, isError: true };
+        throw new Error(`Unknown teammate recipient: ${params.to}.`);
       }
       appendWorkerEvent(binding.outbox, {
         id: randomUUID(),
@@ -247,7 +277,7 @@ function registerWorkerCapabilities(pi: ExtensionAPI): void {
     parameters: TeammateInboxParams,
     async execute(_toolCallId, params) {
       const binding = workerOutboxBinding();
-      if (!binding) return { content: [{ type: "text", text: "This capability is available only inside a spawned teammate." }], details: {}, isError: true };
+      if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
       const snapshot = readStateFile(binding.stateFile);
       const unreadOnly = params.unreadOnly ?? true;
       const markRead = params.markRead ?? true;
@@ -272,7 +302,7 @@ function registerWorkerCapabilities(pi: ExtensionAPI): void {
     parameters: TeammateReportParams,
     async execute(_toolCallId, params) {
       const binding = workerOutboxBinding();
-      if (!binding) return { content: [{ type: "text", text: "This capability is available only inside a spawned teammate." }], details: {}, isError: true };
+      if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
       appendWorkerEvent(binding.outbox, {
         id: randomUUID(),
         type: "task_update",
@@ -416,6 +446,10 @@ function scheduleIdleCollapse(): void {
 
 /** Refresh the passive widget after any state change. */
 function stopUiTimers(): void {
+  if (teammateExpiryTimer) {
+    clearInterval(teammateExpiryTimer);
+    teammateExpiryTimer = undefined;
+  }
   if (spinnerTimer) {
     clearInterval(spinnerTimer);
     spinnerTimer = undefined;
@@ -430,6 +464,7 @@ function refreshTeamUI(_ctx: { ui: ExtensionUIContext }): void {
   panelLastActivity = Date.now();
   scheduleIdleCollapse();
   ensureLivePoll();
+  ensureTeammateExpiryPoll();
   ensureSpinner();
   panelRequestRender?.();
 }
@@ -440,6 +475,14 @@ function refreshTeamUI(_ctx: { ui: ExtensionUIContext }): void {
 let liveStateFile: string | undefined;
 let livePollTimer: ReturnType<typeof setInterval> | undefined;
 const LIVE_POLL_MS = 5000;
+
+function ensureTeammateExpiryPoll(): void {
+  if (teammateExpiryTimer || idleTtlMs <= 0) return;
+  teammateExpiryTimer = setInterval(() => {
+    if (retireExpiredTeammates(idleTtlMs) > 0) panelRequestRender?.();
+  }, TEAMMATE_EXPIRY_POLL_MS);
+  teammateExpiryTimer.unref?.();
+}
 
 function ensureLivePoll(): void {
   const running = listTeammates().some((t) => t.status === "running");
@@ -494,13 +537,14 @@ function panelRows(theme: Theme, width?: number): string[] {
 function buildTaskSection(t: Task): string[] {
   const lines: string[] = [`- [${t.id}] ${t.status}: ${t.title}`];
   if (t.description) lines.push(`  ${t.description}`);
+  lines.push(`  Access: ${t.access} | Paths: ${t.paths.join(", ")}`);
   if (t.blockedBy.length > 0) lines.push(`  Blocked by: ${t.blockedBy.join(", ")}`);
   if (t.blocks.length > 0) lines.push(`  Blocks: ${t.blocks.join(", ")}`);
 
   const spawn = t.spawn;
   if (spawn) {
     const stateLabel = spawn.status === "running" ? `running (pid ${spawn.pid})` : spawn.status;
-    lines.push(`  Spawn: ${stateLabel}`);
+    lines.push(`  Spawn: ${stateLabel} | Isolation: ${spawn.isolation ?? "none"}`);
     if (spawn.startedAt) lines.push(`  Started: ${new Date(spawn.startedAt).toLocaleString()}`);
     if (spawn.finishedAt) lines.push(`  Finished: ${new Date(spawn.finishedAt).toLocaleString()}`);
     if (spawn.exitCode !== undefined) lines.push(`  Exit code: ${spawn.exitCode}`);
@@ -794,7 +838,7 @@ function setupTeamWidget(ctx: { ui: ExtensionUIContext; mode: string }): void {
 const WORKER_GUIDANCE = `
 ## Spawned Teammate Protocol
 
-You are a worker, not the team leader. Work only on the task bound to this process. Read the leader-owned snapshot through teammate_inbox; do not mutate it. Use teammate_message for leader or peer handoffs, teammate_inbox to consume messages, and teammate_report for progress/final status. Do not use leader coordination tools, claim new tasks, change another teammate's task, or overwrite shared files outside your assigned scope.
+You are a worker, not the team leader. Work only on the task bound to this process and its declared access/paths. Before substantive work, message agent with your plan; message agent again for material progress, blockers, changed assumptions, and decision requests. These intermediate messages remain in the mailbox without interrupting the main session. Use teammate_inbox only for relevant leader messages and teammate_report for progress/final status. The harness delivers the final result after your child process closes. Do not use leader coordination tools, claim new tasks, change another teammate's task, or overwrite shared files outside your assigned scope.
 `;
 
 const TEAMMATE_GUIDANCE = `
@@ -804,7 +848,7 @@ You are the team leader: the current Pi session owns decomposition, delegation, 
 
 ### When to use a team
 
-Use teammates when the work has genuinely independent streams, specialist boundaries, large context, or a latency benefit from parallel execution. Do not delegate tiny edits or a task that requires constant shared decisions. Prefer one task per clear outcome and avoid overlapping file ownership.
+Use teammates when the work has genuinely independent streams, specialist boundaries, large context, or a latency benefit from parallel execution. Do not delegate tiny edits or a task that requires constant shared decisions. Before registering, inspect idle teammates and reuse a compatible role/model/tool/prompt configuration rather than creating a duplicate. Prefer one task per clear outcome.
 
 ### Design a teammate
 
@@ -823,7 +867,7 @@ Example task description:
 ### Assign and run work
 
 1. Decompose the user goal into independent outcomes; create tasks with concise titles and complete descriptions.
-2. Assign each task to the teammate whose role matches it. Add blockedBy dependencies only when a real artifact or decision is required first.
+2. Before parallel work, record each task's repo-relative paths and read/write access. Read tasks may overlap. Concurrent overlapping writes in the shared workspace are unsafe; sequence them with blockedBy or use worktree isolation with integration review.
 3. Spawn independent ready tasks in the same turn so workers run concurrently. Each spawn returns immediately.
 4. Call teammate_wait with task IDs only when their final outcomes are needed; do not serialize independent work.
 5. Give reviewers the artifact, diff, or task ID to review and ask for evidence rather than general opinions.
@@ -831,13 +875,13 @@ Example task description:
 
 ### Communication and session delivery
 
-Use teammate_message for every handoff, decision, blocker, and update. Workers may target one teammate or agent (the main session); the leader may target one teammate, or to=all with an optional role filter to broadcast. Use teammate_inbox to bring worker messages into this session conversation; the TUI is intentionally limited to teammate/task status and does not duplicate mailbox alerts.
+Use teammate_message for every handoff, decision, blocker, and update. Workers record plans, material progress, blockers, and changed assumptions in the agent mailbox. The leader may target one teammate, or to=all with an optional role filter to broadcast; it reads intermediate messages with teammate_inbox when needed. Only the harness-delivered terminal result triggers a main-session follow-up, keeping the leader focused on dispatch and final synthesis.
 
 ### Failure and cleanup
 
-Treat failed, timed-out, cancelled, and missing results explicitly. Do not silently accept a worker's claim: inspect its deliverable and run the relevant tests. Keep task titles short, use task descriptions for detail, and clean finished tasks only after their results have been synthesized or recorded.
+Treat failed, timed-out, cancelled, and missing results explicitly. Do not silently accept a worker's claim: inspect its deliverable and run the relevant tests. A child worker exits after one task run, but its idle teammate identity remains reusable for five minutes by default while it has no unread messages or active task. Use retry=true for a fresh run of a settled failed task. Keep task titles short, use task descriptions for detail, and clean finished tasks only after their results have been synthesized or recorded.
 
-Available orchestration tools include teammate_register, teammate_configure, teammate_create_task, teammate_start_task, teammate_cancel_task, teammate_wait, teammate_message, teammate_inbox, teammate_list_tasks, and teammate_cleanup.
+Available orchestration tools: teammate_register, teammate_list, teammate_configure, teammate_remove, teammate_message, teammate_inbox, teammate_create_task, teammate_list_tasks, teammate_start_task, teammate_wait, teammate_cancel_task, and teammate_cleanup.
 `;
 
 export default function (pi: ExtensionAPI) {
@@ -850,15 +894,14 @@ export default function (pi: ExtensionAPI) {
     registerWorkerCapabilities(pi);
     return;
   }
+  leaderPi = pi;
 
   // ── Session lifecycle ───────────────────────────────────────────
 
   pi.on("session_start", async (_event, ctx) => {
     spinnerFrame = 0;
-    // Restore persisted state, then ALWAYS surface the footer status — including
-    // the empty state. Gating it on a restored snapshot left fresh sessions with
-    // no status until a teammate was registered (or state was restored).
-    tryRestoreState(ctx.sessionManager);
+    idleTtlMs = DEFAULT_IDLE_TTL_MS;
+    resetState();
     setupTeamWidget(ctx);
     liveStateFile = stateFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd || process.cwd());
     // No footer status for the team — the panel widget owns the display.
@@ -874,14 +917,15 @@ export default function (pi: ExtensionAPI) {
       clearInterval(livePollTimer);
       livePollTimer = undefined;
     }
-    persistState(pi);
-    // The shared state file is a working medium for spawns; drop it when the
-    // session ends so ~/.pi/agent/teammate/ never accumulates one dir per run.
-    removeSessionStateDir(ctx.sessionManager.getSessionFile(), process.cwd());
+    await terminateAllWorkers();
+    removeSessionStateDir(ctx.sessionManager.getSessionFile(), ctx.cwd || process.cwd());
+    liveStateFile = undefined;
+    leaderPi = undefined;
+    resetState();
   });
 
   pi.on("turn_end", async () => {
-    persistState(pi);
+    retireExpiredTeammates(idleTtlMs);
   });
 
   // ── Inject teammate guidance into system prompt ─────────────────
@@ -906,6 +950,23 @@ export default function (pi: ExtensionAPI) {
     parameters: TeammateRegisterParams,
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const compatible = findReusableTeammate({
+        role: params.role as TeammateRole,
+        prompt: params.prompt,
+        model: params.model,
+        tools: params.tools,
+      });
+      if (compatible) {
+        refreshTeamUI(ctx);
+        return {
+          content: [{
+            type: "text",
+            text: `Reused idle teammate "${compatible.name}" (${displayRole(compatible.role)}) instead of registering duplicate "${params.name}". Use teammate_configure if its prompt or description needs updating before the next run.`,
+          }],
+          details: {},
+        };
+      }
+
       const result = registerTeammate({
         name: params.name,
         role: params.role as TeammateRole,
@@ -915,28 +976,17 @@ export default function (pi: ExtensionAPI) {
         tools: params.tools,
         registeredAt: Date.now(),
       });
+      if (!result.ok) throw new Error(result.error ?? "Failed to register teammate.");
 
-      if (!result.ok) {
-        return {
-          content: [{ type: "text", text: result.error ?? "Failed to register teammate." }],
-          details: {},
-          isError: true,
-        };
-      }
-
-      persistState(pi);
       refreshTeamUI(ctx);
-
       return {
-        content: [
-          {
-            type: "text",
-            text: [
-              `Registered teammate "${params.name}" (${displayRole(params.role)}).`,
-              `Registered teammates: ${listTeammates().map((t) => `${t.name} (${displayRole(t.role)})`).join(", ")}`,
-            ].join("\n"),
-          },
-        ],
+        content: [{
+          type: "text",
+          text: [
+            `Registered teammate "${params.name}" (${displayRole(params.role)}).`,
+            `Registered teammates: ${listTeammates().map((t) => `${t.name} (${displayRole(t.role)})`).join(", ")}`,
+          ].join("\n"),
+        }],
         details: {},
       };
     },
@@ -988,14 +1038,14 @@ export default function (pi: ExtensionAPI) {
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (params.to !== "all" && params.role) {
-        return { content: [{ type: "text", text: "The role filter is only valid when to is all." }], details: {}, isError: true };
+        throw new Error("The role filter is only valid when to is all.");
       }
       const recipients = params.to === "all"
         ? listTeammates().filter((teammate) => !params.role || teammate.role === params.role)
         : [getTeammate(params.to)].filter((teammate): teammate is Teammate => Boolean(teammate));
       if (recipients.length === 0) {
         const target = params.to === "all" && params.role ? `role "${params.role}"` : `teammate "${params.to}"`;
-        return { content: [{ type: "text", text: `No recipient found for ${target}.` }], details: {}, isError: true };
+        throw new Error(`No recipient found for ${target}.`);
       }
       const messages = recipients.map((recipient) => sendMessage({
         from: "agent",
@@ -1004,7 +1054,6 @@ export default function (pi: ExtensionAPI) {
         body: params.body,
         taskId: params.taskId,
       }));
-      persistState(pi);
       publishToStateFile();
       refreshTeamUI(ctx);
       const target = params.to === "all" ? `${messages.length} teammate(s)` : `"${params.to}"`;
@@ -1031,7 +1080,6 @@ export default function (pi: ExtensionAPI) {
         markRead: params.markRead ?? true,
       });
       if (params.markRead !== false) syncReadFlagsToFile();
-      persistState(pi);
       refreshTeamUI(ctx);
       return { content: [{ type: "text", text: renderInbox("agent", messages) }], details: {} };
     },
@@ -1046,6 +1094,7 @@ export default function (pi: ExtensionAPI) {
     description: [
       "Create one focused outcome and assign it to a teammate. The team leader is the current main session,",
       "so this is always available. Put paths, constraints, procedure, deliverable, and verification in the description.",
+      "Declare repo-relative paths and access mode. Read scopes may overlap; concurrent overlapping writes in a shared workspace are blocked when starting the worker.",
       "Optionally specify blockedBy task IDs — inverse dependency edges are derived internally.",
       "The assignee will see the task in their task list and receive a mailbox notification.",
     ].join(" "),
@@ -1054,25 +1103,12 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const assignee = getTeammate(params.assignee);
       if (!assignee) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Teammate "${params.assignee}" not found. Register them first with teammate_register.`,
-            },
-          ],
-          details: {},
-          isError: true,
-        };
+        throw new Error(`Teammate "${params.assignee}" not found. Register them first with teammate_register.`);
       }
 
-      const created = createTask(params.title, params.description, params.assignee, "agent", params.blockedBy ?? []);
+      const created = createTask(params.title, params.description, params.paths, params.access ?? "write", params.assignee, "agent", params.blockedBy ?? []);
       if (!created.ok || !created.task) {
-        return {
-          content: [{ type: "text", text: created.error ?? "Failed to create task." }],
-          details: {},
-          isError: true,
-        };
+        throw new Error(created.error ?? "Failed to create task.");
       }
       const task = created.task;
 
@@ -1080,15 +1116,15 @@ export default function (pi: ExtensionAPI) {
         from: "agent",
         to: params.assignee,
         subject: `New task: ${params.title}`,
-        body: `You have been assigned a new task.\n\nTitle: ${params.title}\nDescription: ${params.description}\n\nTask ID: ${task.id}`,
+        body: `You have been assigned a new task.\n\nTitle: ${params.title}\nAccess: ${task.access}\nPaths: ${task.paths.join(", ")}\nDescription: ${params.description}\n\nTask ID: ${task.id}`,
         taskId: task.id,
       });
 
-      persistState(pi);
       publishToStateFile();
       refreshTeamUI(ctx);
 
       const depNote = task.blockedBy.length > 0 ? `\nBlocked by: ${task.blockedBy.join(", ")}` : "";
+      const pathNote = `\nAccess: ${task.access}\nPaths: ${task.paths.join(", ")}`;
       return {
         content: [
           {
@@ -1098,6 +1134,7 @@ export default function (pi: ExtensionAPI) {
               `Task ID: ${task.id}`,
               `Title: ${params.title}`,
               `Status: assigned`,
+              pathNote,
               depNote,
               "",
               `${params.assignee} has been notified via mailbox.`,
@@ -1144,7 +1181,7 @@ export default function (pi: ExtensionAPI) {
                   ? "\u2212"
                   : "\u25CB";
         lines.push(`### ${statusIcon} [${task.id}] ${task.title}`);
-        lines.push(`Assignee: ${task.assignee} | Status: ${task.status}`);
+        lines.push(`Assignee: ${task.assignee} | Status: ${task.status} | Access: ${task.access}`);
         if (task.spawn) {
           const spawn = task.spawn;
           const stateLabel = spawn.status === "running" ? "running (pid " + spawn.pid + ")" : spawn.status;
@@ -1155,6 +1192,7 @@ export default function (pi: ExtensionAPI) {
             lines.push(`Usage: ${u.totalTokens} tokens (in ${u.input} / out ${u.output}) | cost $${u.cost}`);
           }
         }
+        lines.push(`Access: ${task.access} | Paths: ${task.paths.join(", ")}`);
         if (task.blockedBy.length > 0) lines.push(`Blocked by: ${task.blockedBy.join(", ")}`);
         if (task.blocks.length > 0) lines.push(`Blocks: ${task.blocks.join(", ")}`);
         lines.push(cap(task.description));
@@ -1187,11 +1225,7 @@ export default function (pi: ExtensionAPI) {
       const timeoutMs = params.timeoutMs ?? 5 * 60 * 1000;
       const missing = taskIds.filter((id) => !listTasks().some((task) => task.id === id));
       if (missing.length > 0) {
-        return {
-          content: [{ type: "text", text: `Task(s) not found: ${missing.join(", ")}.` }],
-          details: {},
-          isError: true,
-        };
+        throw new Error(`Task(s) not found: ${missing.join(", ")}.`);
       }
 
       const terminal = new Set(["completed", "failed", "cancelled"]);
@@ -1203,19 +1237,11 @@ export default function (pi: ExtensionAPI) {
         const tasks = taskIds.map((id) => listTasks().find((task) => task.id === id)!);
         if (tasks.every(isSettled)) break;
         if (signal?.aborted) {
-          return {
-            content: [{ type: "text", text: "Waiting for parallel tasks was cancelled." }],
-            details: {},
-            isError: true,
-          };
+          throw new Error("Waiting for parallel tasks was cancelled.");
         }
         if (Date.now() >= deadline) {
           const pending = tasks.filter((task) => !isSettled(task)).map((task) => `${task.id} (${task.status})`);
-          return {
-            content: [{ type: "text", text: `Timed out waiting for: ${pending.join(", ")}.` }],
-            details: {},
-            isError: true,
-          };
+          throw new Error(`Timed out waiting for: ${pending.join(", ")}.`);
         }
         await new Promise<void>((resolve) => setTimeout(resolve, 1000));
       }
@@ -1223,7 +1249,7 @@ export default function (pi: ExtensionAPI) {
       const tasks = taskIds.map((id) => listTasks().find((task) => task.id === id)!);
       for (const task of tasks) markLeaderMessagesReadForTask(task.id, task.assignee);
       syncReadFlagsToFile();
-      persistState(pi);
+      retireExpiredTeammates(idleTtlMs);
       refreshTeamUI(ctx);
 
       const lines = ["## Parallel tasks completed\n"];
@@ -1257,13 +1283,8 @@ export default function (pi: ExtensionAPI) {
         tools: params.tools,
       });
       if (!result.ok) {
-        return {
-          content: [{ type: "text", text: result.error ?? "Failed to configure teammate." }],
-          details: {},
-          isError: true,
-        };
+        throw new Error(result.error ?? "Failed to configure teammate.");
       }
-      persistState(pi);
       refreshTeamUI(ctx);
       const changed = [
         params.description !== undefined ? "description" : "",
@@ -1292,82 +1313,49 @@ export default function (pi: ExtensionAPI) {
     description: [
       "Start a real child Pi process as a fully autonomous teammate and return immediately.",
       "For independent work, start every ready task in the same turn, then call teammate_wait with all task IDs when results are needed.",
-      "The worker watches its inbox through the leader-owned state snapshot and decides when to close.",
+      "The worker executes its one assigned task, reports its final outcome, and exits.",
       "The task must be ready: every blockedBy task must be completed or cancelled.",
-      "Set retry=true to explicitly restart a failed task with a fresh run identity.",
+      "Set retry=true to restart a settled failed task with the same idle teammate and a fresh run identity.",
+      "Overlapping write tasks in the shared workspace are blocked at start; use worktree isolation for deliberate parallel experiments and review integration.",
     ].join(" "),
     parameters: TeammateStartTaskParams,
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const task = listTasks().find((t) => t.id === params.taskId);
       if (!task) {
-        return {
-          content: [{ type: "text", text: `Task "${params.taskId}" not found.` }],
-          details: {},
-          isError: true,
-        };
+        throw new Error(`Task "${params.taskId}" not found.`);
       }
 
       // Resolve the teammate from the task's assignee.
       const teammate = getTeammate(task.assignee);
       if (!teammate) {
-        return {
-          content: [{ type: "text", text: `Teammate "${task.assignee}" (assignee of task "${params.taskId}") not found.` }],
-          details: {},
-          isError: true,
-        };
+        throw new Error(`Teammate "${task.assignee}" (assignee of task "${params.taskId}") not found.`);
       }
 
       if (teammate.status === "running") {
-        return {
-          content: [{ type: "text", text: `Teammate "${teammate.name}" is already running task "${teammate.currentTaskId ?? "unknown"}".` }],
-          details: {},
-          isError: true,
-        };
+        throw new Error(`Teammate "${teammate.name}" is already running task "${teammate.currentTaskId ?? "unknown"}".`);
       }
 
-      // Handle retry: only when explicitly requested and the task is failed.
       if (params.retry === true) {
-        if (task.status !== "failed") {
-          return {
-            content: [{ type: "text", text: `Task "${params.taskId}" is ${task.status}, not failed — retry is only for failed tasks.` }],
-            details: {},
-            isError: true,
-          };
-        }
         const retry = retryFailedTask(params.taskId);
-        if (!retry.ok) {
-          return { content: [{ type: "text", text: retry.error ?? "Could not retry failed task." }], details: {}, isError: true };
-        }
+        if (!retry.ok) throw new Error(retry.error ?? "Could not retry failed task.");
       } else if (task.status === "failed") {
-        return {
-          content: [{ type: "text", text: `Task "${params.taskId}" is failed — use retry=true to restart it.` }],
-          details: {},
-          isError: true,
-        };
+        throw new Error(`Task "${params.taskId}" is failed — use retry=true to restart it.`);
       } else if (task.status !== "assigned") {
-        return {
-          content: [{ type: "text", text: `Task "${params.taskId}" cannot start from status "${task.status}".` }],
-          details: {},
-          isError: true,
-        };
+        throw new Error(`Task "${params.taskId}" cannot start from status "${task.status}".`);
       }
 
       const readiness = isTaskReady(params.taskId);
       if (!readiness.ready) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: [
-                `Task "${params.taskId}" is not ready: blocked by ${readiness.unmet.join(", ")}.`,
-                "Complete or cancel those tasks first.",
-              ].join(" "),
-            },
-          ],
-          details: {},
-          isError: true,
-        };
+        throw new Error([
+          `Task "${params.taskId}" is not ready: blocked by ${readiness.unmet.join(", ")}.`,
+          "Complete or cancel those tasks first.",
+        ].join(" "));
+      }
+
+      const sharedWriteConflict = params.isolation === "worktree" ? undefined : findSharedWorkspaceWriteConflict(params.taskId);
+      if (sharedWriteConflict) {
+        throw new Error(`Task "${params.taskId}" overlaps write scope of running task "${sharedWriteConflict.id}" in the shared workspace. Wait for it or use isolation="worktree" and review integration.`);
       }
 
       const sessionFile = ctx.sessionManager.getSessionFile();
@@ -1378,11 +1366,7 @@ export default function (pi: ExtensionAPI) {
       if (params.isolation === "worktree") {
         worktree = createWorktree(cwd, params.taskId);
         if ("error" in worktree) {
-          return {
-            content: [{ type: "text", text: `Cannot isolate worker: ${worktree.error}` }],
-            details: {},
-            isError: true,
-          };
+          throw new Error(`Cannot isolate worker: ${worktree.error}`);
         }
       }
 
@@ -1422,10 +1406,12 @@ export default function (pi: ExtensionAPI) {
         }),
         "",
         "=== TASK ===",
+        `Access: ${task.access}`,
+        `Paths: ${task.paths.join(", ")}`,
         task.description,
       ].join("\n");
 
-      const finish = (result: {
+      const finalizeWorker = (result: {
         pid: number;
         exitCode: number | null;
         signal: NodeJS.Signals | null;
@@ -1433,7 +1419,7 @@ export default function (pi: ExtensionAPI) {
         stderr: string;
         usage?: WorkerUsage;
         timedOut: boolean;
-      }) => {
+      }, cancelled = false) => {
         // A forced removal/re-registration can leave an older process alive.
         // Its completion may never mutate a newer worker run.
         if (getTeammate(teammate.name)?.currentRunId !== runId) {
@@ -1451,9 +1437,8 @@ export default function (pi: ExtensionAPI) {
           cleanupWorktree(worktree);
         }
         const reportedTask = listTasks().find((candidate) => candidate.id === params.taskId);
-        const wasCancelled = reportedTask?.status === "cancelled";
         const workerReportedFailure = reportedTask?.status === "failed";
-        const ok = isSuccessfulWorkerExit(result) && !workerReportedFailure && !wasCancelled;
+        const ok = isSuccessfulWorkerExit(result) && !workerReportedFailure && !cancelled;
         setSpawnInfo(params.taskId, {
           runId,
           pid: result.pid,
@@ -1465,6 +1450,7 @@ export default function (pi: ExtensionAPI) {
           stderr: ok ? undefined : result.stderr,
           usage: result.usage,
           timedOut: result.timedOut,
+          isolation: params.isolation ?? "none",
           error: ok
             ? undefined
             : result.timedOut
@@ -1476,10 +1462,45 @@ export default function (pi: ExtensionAPI) {
                   : `Worker exited with code ${result.exitCode ?? "unknown"}.`,
         });
         markTeammateIdle(teammate.name, runId);
-        if (ok) notifyUnblockedTasks(params.taskId);
+        const terminalSubject = cancelled ? "Task cancelled" : ok ? "Task completed" : "Task failed";
+        const terminalBody = buildTerminalResult({
+          taskId: params.taskId,
+          teammate: teammate.name,
+          result,
+          taskResult: reportedTask?.result,
+          taskError: reportedTask?.errorMessage,
+          cancelled,
+          patchText,
+        });
+        sendMessage({
+          from: teammate.name,
+          to: "agent",
+          subject: terminalSubject,
+          body: terminalBody,
+          taskId: params.taskId,
+        });
+        sendMainSessionUpdate(terminalSubject, terminalBody, params.taskId);
+        if (cancelled) {
+          const cancellation = cancelTask(params.taskId);
+          if (!cancellation.ok) {
+            updateTaskStatus(params.taskId, "failed", undefined, cancellation.error);
+          }
+        } else if (ok) notifyUnblockedTasks(params.taskId);
         compactFinishedWorkerRun(stateFile, teammate.name, runId);
-        persistState(pi);
         refreshTeamUI(ctx);
+      };
+
+      const finish = (result: {
+        pid: number;
+        exitCode: number | null;
+        signal: NodeJS.Signals | null;
+        stdout: string;
+        stderr: string;
+        usage?: WorkerUsage;
+        timedOut: boolean;
+      }) => {
+        if (cancellationIntents.defer(runId, (cancelled) => finalizeWorker(result, cancelled))) return;
+        finalizeWorker(result);
       };
 
       const spawnFailure = (error: Error | string) => {
@@ -1490,12 +1511,21 @@ export default function (pi: ExtensionAPI) {
           status: "failed",
           startedAt: task.spawn?.startedAt ?? Date.now(),
           finishedAt: Date.now(),
+          isolation: params.isolation ?? "none",
           error: typeof error === "string" ? error : error.message,
         });
         markTeammateIdle(teammate.name, runId);
+        const terminalBody = `Task [${params.taskId}] could not start.\nError: ${typeof error === "string" ? error : error.message}`;
+        sendMessage({
+          from: teammate.name,
+          to: "agent",
+          subject: "Task failed",
+          body: terminalBody,
+          taskId: params.taskId,
+        });
+        sendMainSessionUpdate("Task failed", terminalBody, params.taskId);
         if (worktree && !("error" in worktree)) discardWorktree(worktree);
         compactFinishedWorkerRun(stateFile, teammate.name, runId);
-        persistState(pi);
         refreshTeamUI(ctx);
       };
 
@@ -1514,11 +1544,7 @@ export default function (pi: ExtensionAPI) {
 
       if ("error" in started) {
         spawnFailure(started.error);
-        return {
-          content: [{ type: "text", text: `Failed to start worker: ${started.error}` }],
-          details: {},
-          isError: true,
-        };
+        throw new Error(`Failed to start worker: ${started.error}`);
       }
 
       setSpawnInfo(params.taskId, {
@@ -1526,13 +1552,13 @@ export default function (pi: ExtensionAPI) {
         pid: started.pid,
         status: "running",
         startedAt: Date.now(),
+        isolation: params.isolation ?? "none",
       });
-      persistState(pi);
       refreshTeamUI(ctx);
 
       const isolationNote =
         params.isolation === "worktree" && worktree && !("error" in worktree)
-          ? `Isolation: worktree ${worktree.path} (branch ${worktree.branch})`
+          ? `Isolation: worktree ${worktree.path} (branch ${worktree.branch}) — review integration before applying the captured diff.`
           : "Isolation: none";
       return {
         content: [
@@ -1540,7 +1566,7 @@ export default function (pi: ExtensionAPI) {
             type: "text",
             text: [
               `Started "${teammate.name}" for task [${params.taskId}] "${task.title}".`,
-              `PID: ${started.pid} | Model: ${teammate.model ?? "default"} | Status: working (autonomous — watches its inbox until it decides to close)`,
+              `PID: ${started.pid} | Model: ${teammate.model ?? "default"} | Status: working (one task — reports and exits)`,
               isolationNote,
               "The main session is free to continue. Call teammate_wait when you need this task's final outcome.",
             ].join("\n"),
@@ -1558,8 +1584,8 @@ export default function (pi: ExtensionAPI) {
     promptSnippet: "Cancel a task and stop its worker if running",
     label: "Cancel Task",
     description: [
-      "Cancel a task, marking it terminal. If the task has a running worker,",
-      "the worker receives SIGTERM and the run lifecycle eventually leaves working.",
+      "Cancel a task only after its running worker closes. Cancellation first sends SIGTERM",
+      "then escalates to SIGKILL after a bounded grace period; an unavailable or unconfirmed child leaves the task unchanged and fails the tool call.",
       "Already-completed or already-cancelled tasks are rejected.",
     ].join(" "),
     parameters: TeammateCancelTaskParams,
@@ -1567,25 +1593,35 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const task = listTasks().find((t) => t.id === params.taskId);
       if (!task) {
+        throw new Error(`Task "${params.taskId}" not found.`);
+      }
+      const runId = task.spawn?.runId;
+      if (task.spawn?.status === "running") {
+        if (!runId || getTeammate(task.assignee)?.currentRunId !== runId) {
+          throw new Error(`Worker lifecycle changed before cancellation of task "${params.taskId}" could begin.`);
+        }
+        if (!cancellationIntents.begin(runId)) {
+          throw new Error(`Cancellation is already in progress for task "${params.taskId}".`);
+        }
+        const terminated = await terminateWorker(task.assignee);
+        if (!terminated) {
+          cancellationIntents.resolve(runId, false);
+          throw new Error(`Unable to confirm termination of the worker for task "${params.taskId}"; the task remains ${task.status}.`);
+        }
+        if (!cancellationIntents.resolve(runId, true)) {
+          throw new Error(`Worker lifecycle changed before cancellation of task "${params.taskId}" could be confirmed.`);
+        }
+        publishToStateFile();
+        refreshTeamUI(ctx);
         return {
-          content: [{ type: "text", text: `Task "${params.taskId}" not found.` }],
+          content: [{ type: "text", text: `Task [${params.taskId}] "${task.title}" cancelled.` }],
           details: {},
-          isError: true,
         };
       }
       const result = cancelTask(params.taskId);
       if (!result.ok) {
-        return {
-          content: [{ type: "text", text: result.error ?? "Failed to cancel task." }],
-          details: {},
-          isError: true,
-        };
+        throw new Error(result.error ?? "Failed to cancel task.");
       }
-      // If the task has a running worker, send SIGTERM.
-      if (task.spawn?.status === "running") {
-        killWorker(task.assignee, "SIGTERM");
-      }
-      persistState(pi);
       publishToStateFile();
       refreshTeamUI(ctx);
 
@@ -1614,13 +1650,8 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = removeTeammate(params.name);
       if (!result.ok) {
-        return {
-          content: [{ type: "text", text: result.error ?? "Failed to remove teammate." }],
-          details: {},
-          isError: true,
-        };
+        throw new Error(result.error ?? "Failed to remove teammate.");
       }
-      persistState(pi);
       refreshTeamUI(ctx);
       return {
         content: [
@@ -1645,7 +1676,6 @@ export default function (pi: ExtensionAPI) {
 
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
       const removed = pruneFinishedTasks();
-      persistState(pi);
       refreshTeamUI(ctx);
       return {
         content: [{ type: "text", text: `Pruned ${removed} terminal task(s).\nTasks remaining: ${Object.keys(getState().tasks).length}` }],
