@@ -53,6 +53,23 @@ Feature: Auto-consolidation at context fill threshold (async dreaming)
     Then the task includes the current session file path
     And the project cwd and harness memory dir
 
+  Scenario: Finds its installed procedure relative to the extension module
+    Given @fradser/pi-memory is installed from npm, git, or a local path
+    When the extension starts a consolidation
+    Then it resolves procedures/consolidate.md from its own extension directory
+    And it does not infer the package root from Pi settings package strings or the project cwd
+
+  Scenario: Reports success only after verified consolidation evidence
+    Given a child exits with code 0
+    And its JSONL has a successful tool execution, a passing full validator, and a G1 through G8 report
+    Then the extension notifies that memory was consolidated
+
+  Scenario: Diagnoses a zero-exit child with no verified consolidation
+    Given a child exits with code 0
+    And its JSONL has no completed tool work, passing full validator, or G1 through G8 report
+    Then the extension does not claim that memory was consolidated
+    And it reports which verification evidence is missing
+
   Scenario: Disabled when auto-memory is off
     Given auto-memory is off
     Then no auto-consolidation fires regardless of context fill

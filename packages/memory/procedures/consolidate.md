@@ -1,10 +1,15 @@
 # Memory — Consolidate procedure
 
-> **Inline procedure.** This document is embedded verbatim into the follow-up
-> message by the `/memory` command ("Consolidate memory now") via
-> `pi.sendUserMessage` — it is not a skill and is never invoked as
-> `/skill:consolidate`. `{{PKG_DIR}}` is substituted with the package dir at
-> send time.
+> **Inline procedure.** The `/memory` command, `/consolidate`, and the
+> auto-trigger write this document into a temporary task file and start a fresh
+> background Pi child with `--print --mode json --no-session @<task-file>`. It
+> is not a skill and is never invoked as `/skill:consolidate`. `{{PKG_DIR}}` is
+> substituted with the installed package directory before the child starts.
+>
+> A zero child exit alone does not prove consolidation. The parent reports
+> success only when the JSONL stream records completed tool work, a passing full
+> validator, and a G1–G8 passed gate report; otherwise it shows a diagnostic
+> status without claiming memory was consolidated.
 
 The project's memory lives in two locations that must stay **identical for safe (public) files** (idempotent):
 
@@ -310,7 +315,7 @@ After sync: public safe sets match; no private bodies or private index lines rem
 - Index rebuilt: harness yes|no; .memory yes|no (safe-only)
 - Validator: pre exit=…; post exit=… (paste PASSED/FAILED summary)
 - Residual risks: anything still fuzzy
-- Gates: G1–G8 checklist
+- Gates: `G1 passed`; `G2 passed`; …; `G8 passed` (state every gate individually; this is the child JSONL evidence required for the parent success notice)
 ```
 
 Write the report body to a temp file and run the **post-sync** validator (full checks). Exit non-zero → do not claim done. If nothing changed after a full gated run, still show inventory, cluster map, ground-truth, and validator output.

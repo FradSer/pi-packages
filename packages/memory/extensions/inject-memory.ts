@@ -186,34 +186,13 @@ async function resolveProjectInstructionsFile(
 }
 
 /**
- * Resolve the @fradser/pi-memory package dir. Covers npm/git installs under
- * ~/.pi/agent (via settings.json packages, including relative-path dev
- * checkouts) and the monorepo layout relative to cwd.
+ * Resolve the shipped package root from this extension module. This works for
+ * npm, git, and local installs without depending on Pi's settings format or
+ * the active project's directory.
  */
-async function resolvePackageDir(): Promise<string> {
-  try {
-    const settingsRaw = await fs.readFile(
-      path.join(os.homedir(), CONFIG_DIR_NAME, "agent", "settings.json"),
-      "utf-8",
-    );
-    const settings = JSON.parse(settingsRaw) as { packages?: string[] };
-    const base = path.join(os.homedir(), CONFIG_DIR_NAME, "agent");
-    for (const p of settings.packages ?? []) {
-      if (typeof p !== "string" || !p.includes("memory")) continue;
-      const dir = path.normalize(path.join(base, p));
-      if (await pathExists(path.join(dir, "procedures", "consolidate.md"))) {
-        return dir;
-      }
-    }
-  } catch {
-    // settings.json missing/unreadable — fall through
-  }
-
-  const fromCwd = path.join(process.cwd(), "packages", "memory");
-  if (await pathExists(path.join(fromCwd, "procedures", "consolidate.md"))) {
-    return fromCwd;
-  }
-  return process.cwd();
+function resolvePackageDir(): string {
+  const extensionDir = path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(extensionDir, "..");
 }
 
 // ── child Pi process for async consolidation ("dreaming") ──────────
@@ -262,6 +241,94 @@ function resolvePiCli(): { command: string; args: string[] } | undefined {
 
 interface DreamState {
   active: boolean;
+}
+
+interface ChildJsonEvent {
+  type?: string;
+  toolCallId?: string;
+  toolName?: string;
+  args?: Record<string, unknown>;
+  result?: unknown;
+  isError?: boolean;
+  error?: unknown;
+  message?: {
+    role?: string;
+    content?: unknown;
+  };
+}
+
+export interface ConsolidationEvidence {
+  completedToolWork: boolean;
+  fullValidatorPassed: boolean;
+  gatesReported: boolean;
+  lastJsonError: string;
+  toolArgsByCallId: Map<string, Record<string, unknown>>;
+}
+
+export function createConsolidationEvidence(): ConsolidationEvidence {
+  return {
+    completedToolWork: false,
+    fullValidatorPassed: false,
+    gatesReported: false,
+    lastJsonError: "",
+    toolArgsByCallId: new Map(),
+  };
+}
+
+function textFromJson(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(textFromJson).join("\n");
+  if (value && typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).map(textFromJson).join("\n");
+  }
+  return "";
+}
+
+function isFullValidatorPass(event: ChildJsonEvent): boolean {
+  const command = typeof event.args?.command === "string" ? event.args.command : "";
+  if (!command.includes("validate-consolidate.py") || event.isError) return false;
+
+  const match = /PASSED\s+checks=([a-z,]+)/i.exec(textFromJson(event.result));
+  if (!match) return false;
+  const checks = new Set(match[1].split(","));
+  return ["cluster", "staleness", "report", "privacy"].every((check) => checks.has(check));
+}
+
+function hasCompletedGateReport(text: string): boolean {
+  return Array.from({ length: 8 }, (_, index) => index + 1).every((gate) =>
+    new RegExp(`\\bG${gate}\\b[^\\n]{0,120}\\b(?:pass|passed|complete|completed)\\b`, "i").test(text),
+  );
+}
+
+export function recordConsolidationEvent(
+  evidence: ConsolidationEvidence,
+  event: ChildJsonEvent,
+): void {
+  if (typeof event.error === "string") evidence.lastJsonError = event.error;
+
+  if (event.type === "tool_execution_start" && event.toolCallId && event.args) {
+    evidence.toolArgsByCallId.set(event.toolCallId, event.args);
+  }
+
+  if (event.type === "tool_execution_end" && !event.isError) {
+    evidence.completedToolWork = true;
+    const args = event.toolCallId ? evidence.toolArgsByCallId.get(event.toolCallId) : undefined;
+    if (isFullValidatorPass({ ...event, args })) evidence.fullValidatorPassed = true;
+  }
+
+  if (event.type === "message_end" && event.message?.role === "assistant") {
+    if (hasCompletedGateReport(textFromJson(event.message.content))) {
+      evidence.gatesReported = true;
+    }
+  }
+}
+
+export function missingConsolidationEvidence(evidence: ConsolidationEvidence): string[] {
+  const missing: string[] = [];
+  if (!evidence.completedToolWork) missing.push("completed tool work");
+  if (!evidence.fullValidatorPassed) missing.push("a passing full validator");
+  if (!evidence.gatesReported) missing.push("a G1–G8 passed gate report");
+  return missing;
 }
 
 const DREAM_TIMEOUT_MS = 20 * 60 * 1000;
@@ -375,47 +442,39 @@ async function spawnAsyncConsolidation(
   setDreamingWidget(ctx);
 
   let stdoutBuffer = "";
-  let lastJsonError = "";
+  const evidence = createConsolidationEvidence();
+  const handleJsonLine = (line: string): void => {
+    if (!line.trim()) return;
+    try {
+      const event = JSON.parse(line) as ChildJsonEvent;
+      recordConsolidationEvent(evidence, event);
+      if (event.type !== "tool_execution_start" || !event.toolName) return;
+
+      const name = event.toolName;
+      let detail = "";
+      if (event.args) {
+        if (typeof event.args.path === "string") {
+          detail = path.basename(event.args.path);
+        } else if (typeof event.args.command === "string") {
+          const cmd = event.args.command.trim();
+          if (cmd.includes("validate-consolidate")) {
+            detail = "validate-consolidate.py";
+          } else {
+            const compact = cmd.replace(/\s+/g, " ");
+            detail = compact.length > 32 ? `${compact.slice(0, 32)}…` : compact;
+          }
+        }
+      }
+      dreamingActivity = name === "bash" ? detail : detail ? `${name} ${detail}` : name;
+    } catch {
+      // ignore non-JSON output
+    }
+  };
   child.stdout?.on("data", (chunk: Buffer) => {
     stdoutBuffer += chunk.toString();
     const lines = stdoutBuffer.split("\n");
     stdoutBuffer = lines.pop() || "";
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const event = JSON.parse(line) as {
-          type?: string;
-          toolName?: string;
-          args?: Record<string, unknown>;
-          error?: string;
-        };
-        if (event.error) {
-          lastJsonError = typeof event.error === "string" ? event.error : JSON.stringify(event.error);
-        }
-        if (event.type === "tool_execution_start" && event.toolName) {
-          const name = event.toolName;
-          let detail = "";
-          if (event.args) {
-            if (typeof event.args.path === "string") {
-              detail = path.basename(event.args.path);
-            } else if (typeof event.args.command === "string") {
-              const cmd = event.args.command.trim();
-              if (cmd.includes("validate-consolidate")) {
-                detail = "validate-consolidate.py";
-              } else {
-                // Collapse whitespace and cap length so the row stays short.
-                const compact = cmd.replace(/\s+/g, " ");
-                detail = compact.length > 32 ? `${compact.slice(0, 32)}…` : compact;
-              }
-            }
-          }
-          // bash <cmd> reads oddly — show the command itself; other tools show "tool path".
-          dreamingActivity = name === "bash" ? detail : detail ? `${name} ${detail}` : name;
-        }
-      } catch {
-        // ignore non-json
-      }
-    }
+    for (const line of lines) handleJsonLine(line);
   });
 
   let stderr = "";
@@ -426,7 +485,11 @@ async function spawnAsyncConsolidation(
   const timer = setTimeout(() => child.kill("SIGKILL"), DREAM_TIMEOUT_MS);
   timer.unref?.();
 
+  let finished = false;
   const finish = (code: number | null, error?: Error): void => {
+    if (finished) return;
+    finished = true;
+    if (stdoutBuffer) handleJsonLine(stdoutBuffer);
     clearTimeout(timer);
     state.active = false;
     clearDreamingWidget(ctx);
@@ -438,9 +501,18 @@ async function spawnAsyncConsolidation(
     if (error) {
       ctx.ui.notify(`Memory dreaming failed to start: ${error.message}`, "error");
     } else if (code === 0) {
-      ctx.ui.notify("Memory dreaming complete — memory consolidated.", "info");
+      const missing = missingConsolidationEvidence(evidence);
+      if (missing.length === 0) {
+        ctx.ui.notify("Memory dreaming complete — memory consolidated.", "info");
+      } else {
+        const detail = stderr.trim() || evidence.lastJsonError;
+        ctx.ui.notify(
+          `Memory dreaming finished without verified consolidation: missing ${missing.join(", ")}${detail ? ` (${detail.slice(-300)})` : ""}`,
+          "warning",
+        );
+      }
     } else {
-      const errReason = stderr.trim() || lastJsonError || `exit code ${code}`;
+      const errReason = stderr.trim() || evidence.lastJsonError || `exit code ${code}`;
       ctx.ui.notify(
         `Memory dreaming failed: ${errReason.slice(-300)}`,
         "error",

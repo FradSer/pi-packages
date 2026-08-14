@@ -11,7 +11,7 @@ Two locations must stay **identical** (idempotent):
 
 **Privacy:** `.memory/` is part of a public GitHub repo. Technical content only; user preferences, credentials, and personal information stay in harness memory only.
 
-**Version**: 0.2.0
+**Version**: 0.2.1
 
 ## Installation
 
@@ -43,8 +43,14 @@ Auto-memory: on
 - **Consolidate memory now**: spawns an **independent background child Pi
   process** (`spawnAsyncConsolidation`, `--print --mode json --no-session`) to
   run the full fail-closed consolidation procedure (`procedures/consolidate.md`)
-  without blocking or cluttering the active session context. A "Memory: dreaming"
-  widget shows above the input editor until the worker exits.
+  without blocking or cluttering the active session context. The extension writes
+  the procedure to a temporary task file and launches the child with
+  `--print --mode json --no-session @<task-file>`. A "Memory: dreaming" widget
+  shows above the input editor until the worker exits. The completion notice says
+  memory was consolidated only after JSONL shows completed tool work, a passing
+  full validator, and an individually marked `G1 passed` through `G8 passed`
+  gate report; a zero-exit worker without that evidence gets a diagnostic
+  warning instead.
 - **`/consolidate`**: a dedicated one-shot trigger for the same consolidation,
   sitting as a sibling of `/memory` — no menu, starts it immediately
   (single-flight: a running consolidation blocks a second one). It already runs
@@ -88,12 +94,13 @@ Cosmetic-only runs (frontmatter + index rewrite while thematic duplicates remain
 memory/
 ├── extensions/inject-memory.ts   # /memory + /consolidate commands, auto-memory injection, auto-consolidation
 ├── procedures/
-│   └── consolidate.md            # inline consolidation procedure (embedded in the follow-up message, not a skill)
+│   └── consolidate.md            # inline procedure written to a child Pi task file, not a skill
 ├── scripts/validate-consolidate.py
 ├── features/validate-consolidate.feature
 ├── features/auto-consolidate.feature
 ├── tests/test_validate_consolidate.py
 ├── tests/test_inject_memory_extension.py
+├── tests/consolidation_evidence_harness.ts
 └── README.md
 .memory/                         # per-project canonical git-tracked memory data
 ```

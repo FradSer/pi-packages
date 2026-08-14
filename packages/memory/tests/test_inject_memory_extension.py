@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import unittest
 
 MEMORY_PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -101,13 +102,69 @@ class TestAutoConsolidation(unittest.TestCase):
         self.assertIn('"memory-dreaming"', content)
 
     def test_result_never_returned_to_session(self):
-        """The dreaming child's stdout is parsed for live progress events (tool_execution_start)
-        and never read back into the session conversation. Only a transient status notify fires
-        on completion."""
+        """The dreaming child's stdout is parsed for live progress events and never
+        returned to the main session conversation."""
         content = self.ext_source()
         self.assertIn('stdio: ["ignore", "pipe", "pipe"]', content)
-        self.assertIn('"Memory dreaming complete', content)
         self.assertIn("child.stdout", content)
+        self.assertIn("tool_execution_start", content)
+
+    def test_resolves_procedure_relative_to_extension_module(self):
+        """An npm, git, or local install finds its shipped procedure from the
+        extension module rather than Pi settings strings or the project cwd."""
+        content = self.ext_source()
+        self.assertIn('fileURLToPath(import.meta.url)', content)
+        self.assertIn('path.resolve(extensionDir, "..")', content)
+        self.assertNotIn('"settings.json"', content[content.index("function resolvePackageDir"):content.index("// ── child Pi")])
+        self.assertNotIn('process.cwd()', content[content.index("function resolvePackageDir"):content.index("// ── child Pi")])
+
+    def test_success_requires_tool_validator_and_gate_report_evidence(self):
+        """A zero exit is not consolidation proof. Success requires completed tool
+        work, a passing full validator, and the child report's G1–G8 evidence."""
+        content = self.ext_source()
+        self.assertIn("tool_execution_start", content)
+        self.assertIn("tool_execution_end", content)
+        self.assertIn("toolArgsByCallId", content)
+        self.assertIn("validate-consolidate.py", content)
+        self.assertIn("G1", content)
+        self.assertIn("G8", content)
+        self.assertIn('"cluster", "staleness", "report", "privacy"', content)
+        self.assertIn("Memory dreaming complete — memory consolidated.", content)
+
+    def test_zero_exit_without_evidence_is_diagnostic_not_success(self):
+        """A provider failure can exit zero with no work. The completion branch
+        must report missing proof and avoid the success wording."""
+        content = self.ext_source()
+        self.assertIn("Memory dreaming finished without verified consolidation", content)
+        self.assertIn("missing", content)
+        self.assertIn('`Memory dreaming finished without verified consolidation: missing ${missing.join(", ")}', content)
+
+    def test_verified_jsonl_evidence_allows_success(self):
+        """A real TypeScript harness verifies the JSONL correlation: validator
+        args are recorded at start and recognized at tool completion."""
+        harness = os.path.join(MEMORY_PKG_DIR, "tests", "consolidation_evidence_harness.ts")
+        result = subprocess.run(
+            ["bun", harness, "verified"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(json.loads(result.stdout), [])
+
+    def test_empty_jsonl_evidence_is_diagnostic(self):
+        """A zero-exit child with no JSONL work yields every missing proof rather
+        than allowing the success notification."""
+        harness = os.path.join(MEMORY_PKG_DIR, "tests", "consolidation_evidence_harness.ts")
+        result = subprocess.run(
+            ["bun", harness, "empty"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(
+            json.loads(result.stdout),
+            ["completed tool work", "a passing full validator", "a G1–G8 passed gate report"],
+        )
 
     def test_single_flight(self):
         """Only one dreaming consolidation runs at a time — a running child blocks
