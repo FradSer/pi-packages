@@ -13,7 +13,7 @@
  *
  * Auto-memory on → `before_agent_start` injects a guidance block that tells the
  * agent to actively capture durable decisions/preferences into memory (same
- * pattern as @fradser/teammate injecting its guidance). Existing memories are
+ * pattern as @fradser/pi-agent-teams injecting its guidance). Existing memories are
  * always injected into the system prompt; the toggle only controls the
  * auto-write guidance.
  */

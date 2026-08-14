@@ -1,7 +1,7 @@
 # Memory Plugin
 
 Native pi `/memory` command — no skill surface. Provides auto-memory guidance
-(injected like @fradser/teammate injects its guidance), an instructions editor
+(injected like @fradser/pi-agent-teams injects its guidance), an instructions editor
 menu, manual consolidation, and a dedicated `/consolidate` command.
 
 Two locations must stay **identical** (idempotent):
