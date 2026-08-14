@@ -76,8 +76,9 @@ def test_no_emojis_in_shipped_documentation() -> None:
 
 def test_extension_registers_result_contract_tools() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
-    for tool in ("monitor_start", "monitor_read", "monitor_list", "monitor_stop"):
+    for tool in ("monitor_start", "monitor_read", "monitor_stop"):
         assert f'name: "{tool}"' in extension
+    assert 'name: "monitor_list"' not in extension
     assert 'registerCommand("monitor"' in extension
 
 

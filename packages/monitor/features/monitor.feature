@@ -76,10 +76,10 @@ Feature: Result-contract background monitoring
     And a SIGTERM-resistant descendant still receives SIGKILL escalation after the shell child closes
     And no terminal result notification is sent
 
-  Scenario: Listing active monitors
-    Given several monitors are running
-    When monitor_list runs
-    Then it returns each active monitor's id, description, command, expected result, status, and age
+  Scenario: Monitor tool surface excludes polling tools
+    Given the extension tools are registered
+    Then monitor_start, monitor_read, and monitor_stop tools are available
+    And monitor_list tool is not registered to prevent sleep-polling loops
 
   Scenario: Session shutdown cleans up all monitors
     Given monitors are running

@@ -27,7 +27,6 @@ one terminal result when:
 |---|---|
 | `monitor_start` | Run a command and wait for a declared success or failure result |
 | `monitor_read` | Read a bounded tail of raw output on demand |
-| `monitor_list` | List active result monitors and their contracts |
 | `monitor_stop` | Stop one or all active monitors without emitting a result |
 | `/monitor` | Inspect active and recent monitors and their retained output |
 

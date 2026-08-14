@@ -6,7 +6,6 @@ import {
   type MonitorTerminalResult,
 } from "./monitor";
 import {
-  EmptyParams,
   MonitorReadParams,
   MonitorStartParams,
   MonitorStopParams,
@@ -21,7 +20,7 @@ Use monitor_start to run a non-interactive command in the background and wait fo
 - Add failure_pattern when the command has a recognizable terminal failure line.
 - Named regex captures are returned as structured fields. A named capture called json is parsed and exposed as structured JSON.
 - Progress logs never trigger turns. Use monitor_read only when the terminal result indicates failure, timeout, or result_missing and diagnostics are needed.
-- Use monitor_list for active monitors and monitor_stop to stop one or all. Do not use shell sleep-polling loops.
+- Do not poll for status; wait for the terminal notification. Use monitor_stop to stop an active monitor if needed.
 `;
 
 function isEscapeKey(data: string): boolean {
@@ -231,32 +230,6 @@ export default function (pi: ExtensionAPI) {
       return {
         content: [{ type: "text", text: `${header}\n\n${result.lines.join("\n") || "(no output captured)"}` }],
         details: { monitorId: result.monitor.id, truncated: result.truncated },
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: "monitor_list",
-    label: "List Monitors",
-    description: "List active result monitors and the terminal contracts they are waiting for.",
-    promptSnippet: "List active result monitors",
-    parameters: EmptyParams,
-
-    async execute() {
-      const monitors = manager.list();
-      if (monitors.length === 0) {
-        return { content: [{ type: "text", text: "No active result monitors." }], details: {} };
-      }
-      const lines = monitors.map((monitor) => [
-        `- ${monitor.id}: ${monitor.description}`,
-        `  command: ${monitor.command}`,
-        `  success: ${monitor.resultPattern}`,
-        monitor.failurePattern ? `  failure: ${monitor.failurePattern}` : "",
-        `  age: ${Math.round((Date.now() - monitor.startedAt) / 1000)}s | retained logs: ${monitor.retainedLogLines}`,
-      ].filter(Boolean).join("\n"));
-      return {
-        content: [{ type: "text", text: `## Active Result Monitors (${monitors.length})\n\n${lines.join("\n")}` }],
-        details: {},
       };
     },
   });

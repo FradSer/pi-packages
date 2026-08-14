@@ -18,7 +18,6 @@ Progress output is captured silently; it does not wake the model.
 |---|---|
 | `monitor_start` | Start a command and wait for a declared terminal result |
 | `monitor_read` | Read bounded raw output when diagnostics are necessary |
-| `monitor_list` | List active monitors and their result contracts |
 | `monitor_stop` | Stop one or all active monitors without a result notification |
 
 ## Start with a result contract

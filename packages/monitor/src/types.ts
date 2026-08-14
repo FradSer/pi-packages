@@ -57,6 +57,3 @@ export const MonitorStopParams = Type.Object({
     }),
   ),
 });
-
-/** Empty parameters for monitor_list. */
-export const EmptyParams = Type.Object({});
