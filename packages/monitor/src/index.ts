@@ -158,7 +158,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_shutdown", async () => {
-    manager.stopAllOnShutdown();
+    await manager.stopAllOnShutdown();
   });
 
   pi.on("before_agent_start", async (event) => {
@@ -322,24 +322,37 @@ export default function (pi: ExtensionAPI) {
 }
 
 function formatTerminalMessage(monitor: Monitor, result: MonitorTerminalResult): string {
-  return [
+  const lines = [
     `[monitor ${monitor.id}] ${monitor.description}`,
-    JSON.stringify({
-      status: result.status,
-      elapsedMs: result.elapsedMs,
-      matched: result.matched,
-      captures: result.captures,
-      result: result.result,
-      resultParseError: result.resultParseError,
-      expected: result.expected,
-      exitCode: result.exitCode,
-      signal: result.signal,
-      reason: result.reason,
-    }, null, 2),
-    result.status === "success"
-      ? "Contract satisfied."
-      : `Use monitor_read monitor_id="${monitor.id}" only if raw diagnostics are needed.`,
-  ].join("\n");
+    `status=${result.status}`,
+    `elapsed=${formatElapsed(result.elapsedMs)}`,
+  ];
+
+  if (result.result !== undefined) lines.push(`result=${JSON.stringify(result.result)}`);
+  if (result.captures) {
+    for (const [name, value] of Object.entries(result.captures)) {
+      if (name === "json" || value === undefined) continue;
+      lines.push(`capture.${name}=${compactValue(value)}`);
+    }
+  }
+  if (result.resultParseError) lines.push(`result_parse_error=${compactValue(result.resultParseError)}`);
+  if (result.expected) lines.push(`expected=${compactValue(result.expected)}`);
+  if (result.exitCode !== undefined && result.exitCode !== null) lines.push(`exit_code=${result.exitCode}`);
+  if (result.signal) lines.push(`signal=${result.signal}`);
+  if (result.reason) lines.push(`reason=${compactValue(result.reason)}`);
+  if (result.status !== "success") {
+    lines.push(`diagnostics=monitor_read monitor_id="${monitor.id}"`);
+  }
+  return lines.join("\n");
+}
+
+function formatElapsed(milliseconds: number): string {
+  if (milliseconds < 1000) return `${milliseconds}ms`;
+  return `${(milliseconds / 1000).toFixed(1)}s`;
+}
+
+function compactValue(value: string): string {
+  return value.replace(/[\r\n]+/g, "\\n");
 }
 
 function statusColor(status: Monitor["status"]): "warning" | "success" | "error" | "dim" {

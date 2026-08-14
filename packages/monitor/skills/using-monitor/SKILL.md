@@ -73,8 +73,9 @@ contracts.
 - `result_missing`: the process exited successfully without satisfying the
   declared result contract.
 
-The monitor sends one terminal message with `triggerTurn: true`. Ordinary stdout
-and stderr never create messages or turns.
+The monitor sends one compact plain-text terminal message with `triggerTurn:
+true`. It uses stable `key=value` fields and emits complex `result` data as one
+compact JSON value. Ordinary stdout and stderr never create messages or turns.
 
 ## Diagnose only when needed
 
@@ -93,7 +94,10 @@ insufficient.
 
 - Default timeout: five minutes; maximum: one hour.
 - `persistent=true`: wait until matched, stopped, or session shutdown.
-- `monitor_stop` sends no terminal result notification.
+- `monitor_stop` sends no terminal result notification. It sends the detached
+  process group `SIGTERM`, then `SIGKILL` after a one-second grace period even
+  if the shell child closed first. The grace timer keeps Pi alive through the
+  escalation during session shutdown, so surviving descendants are cleaned up.
 - `/monitor` shows active and recently finished monitors plus their bounded
   output without a global terminal-input listener.
 - All active process groups are stopped when the Pi session shuts down.

@@ -12,13 +12,14 @@ Feature: Result-contract background monitoring
     And the tool returns a monitor id immediately without blocking
     And ordinary stdout and stderr do not wake the agent
 
-  Scenario: A success pattern exposes one structured result
+  Scenario: A success pattern exposes one compact text result
     Given a monitor is running with a result pattern
     When a line from stdout or stderr matches the result pattern
     Then the matched line and named captures are recorded
     And a named json capture is parsed as structured data when valid
     And the process is stopped
     And the agent is woken exactly once with status "success"
+    And the model-facing result uses compact key-value text instead of pretty JSON
 
   Scenario: A failure pattern exposes one structured failure
     Given a monitor is running with a failure pattern
@@ -56,6 +57,12 @@ Feature: Result-contract background monitoring
     Then it returns a bounded tail of source-labelled raw output
     And reading the output does not create background model notifications
 
+  Scenario: Structured details remain available to extensions
+    Given a monitor reaches a terminal result
+    When the terminal message is sent to the model
+    Then the visible content is compact plain text
+    And the message details retain the full structured result object
+
   Scenario: Captured output is bounded
     Given a monitor is running
     When the command writes oversized lines or a large output burst
@@ -65,7 +72,8 @@ Feature: Result-contract background monitoring
   Scenario: Stopping a monitor manually
     Given a monitor is running
     When monitor_stop runs with its monitor id
-    Then the process is killed
+    Then the process group receives SIGTERM followed by SIGKILL after the grace period
+    And a SIGTERM-resistant descendant still receives SIGKILL escalation after the shell child closes
     And no terminal result notification is sent
 
   Scenario: Listing active monitors
@@ -77,6 +85,12 @@ Feature: Result-contract background monitoring
     Given monitors are running
     When the session shuts down
     Then every background process is killed
+
+  Scenario: Session shutdown completes SIGKILL escalation after the parent exits
+    Given a monitor process group contains a SIGTERM-resistant descendant
+    When session shutdown sends SIGTERM and the Pi parent is otherwise ready to exit
+    Then the parent remains alive through the grace period to send SIGKILL
+    And the descendant is no longer alive after the parent exits
 
   Scenario: Monitor output is surfaced in the UI without entering model context
     Given active or recently finished monitors exist

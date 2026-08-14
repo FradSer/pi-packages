@@ -116,7 +116,7 @@ def test_monitor_uses_close_event_and_kills_detached_process_group() -> None:
     assert "process.kill(-pid, signal)" in manager
     assert 'signalGroup("SIGTERM")' in manager
     assert 'signalGroup("SIGKILL")' in manager
-    assert "killTimer.unref()" in manager
+    assert "monitor.killTimer.unref()" in manager
 
 
 def test_monitor_bounds_raw_logs_and_read_results() -> None:
@@ -133,6 +133,17 @@ def test_monitor_bounds_raw_logs_and_read_results() -> None:
         assert f"export const {constant}" in manager
     assert "trimLogs" in manager
     assert "boundedTail" in manager
+
+
+def test_terminal_message_is_compact_plain_text() -> None:
+    extension = (SRC / "index.ts").read_text(encoding="utf-8")
+    assert "formatTerminalMessage" in extension
+    assert "status=${result.status}" in extension
+    assert "elapsed=${formatElapsed(result.elapsedMs)}" in extension
+    assert "result=${JSON.stringify(result.result)}" in extension
+    assert "JSON.stringify({" not in extension
+    assert "null, 2" not in extension
+    assert "diagnostics=monitor_read" in extension
 
 
 def test_widget_is_display_only_and_console_owns_input() -> None:
@@ -328,6 +339,143 @@ def test_nonzero_exit_and_timeout_report_one_failure_each() -> None:
         const timeout = terminals.find((entry) => entry.result.status === "timeout");
         if (!failure || failure.result.exitCode !== 7 || !timeout) {
           throw new Error(JSON.stringify(terminals));
+        }
+        ''',
+    )
+
+
+def test_sigkill_escalates_to_term_resistant_descendant_after_shell_closes() -> None:
+    run_typescript(
+        r'''
+        import { existsSync, readFileSync } from "node:fs";
+        import { mkdtemp, rm, writeFile } from "node:fs/promises";
+        import { tmpdir } from "node:os";
+        import { join } from "node:path";
+        import { KILL_GRACE_MS, MonitorManager } from "./packages/monitor/src/monitor.ts";
+
+        const fixtureDirectory = await mkdtemp(join(tmpdir(), "pi-monitor-kill-tree-"));
+        const fixture = join(fixtureDirectory, "ignore-term.mjs");
+        const pidFile = join(fixtureDirectory, "pids.json");
+        await writeFile(fixture, [
+          'import { writeFileSync } from "node:fs";',
+          'process.on("SIGTERM", () => {});',
+          'writeFileSync(process.env.PID_FILE, JSON.stringify({ childPid: process.pid, shellPid: process.ppid }));',
+          'setInterval(() => {}, 1000);',
+        ].join("\n"));
+
+        const terminals = [];
+        let childPid;
+        let shellPid;
+        const isAlive = (pid) => {
+          try {
+            process.kill(pid, 0);
+            return true;
+          } catch (error) {
+            return error?.code === "EPERM";
+          }
+        };
+        const waitForPidFile = async () => {
+          for (let attempt = 0; attempt < 40; attempt += 1) {
+            if (existsSync(pidFile)) return JSON.parse(readFileSync(pidFile, "utf8"));
+            await new Promise((resolve) => setTimeout(resolve, 25));
+          }
+          throw new Error("descendant did not publish its pids");
+        };
+        const manager = new MonitorManager({
+          onTerminal: (_monitor, result) => terminals.push(result),
+        });
+        try {
+          const started = manager.start({
+            command: `PID_FILE=${JSON.stringify(pidFile)} ${JSON.stringify(process.execPath)} ${JSON.stringify(fixture)} & wait`,
+            description: "term-resistant descendant",
+            resultPattern: "NEVER_MATCHES",
+          });
+          ({ childPid, shellPid } = await waitForPidFile());
+          manager.stop(started.id);
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          if (terminals.length !== 0 || isAlive(shellPid) || !isAlive(childPid)) {
+            throw new Error(`expected closed shell, live descendant, no result: ${JSON.stringify({ terminals, shellPid, childPid })}`);
+          }
+          await new Promise((resolve) => setTimeout(resolve, KILL_GRACE_MS + 500));
+          if (isAlive(childPid)) throw new Error(`descendant ${childPid} survived SIGKILL escalation`);
+        } finally {
+          if (childPid && isAlive(childPid)) process.kill(childPid, "SIGKILL");
+          if (shellPid && isAlive(shellPid)) process.kill(shellPid, "SIGKILL");
+          await rm(fixtureDirectory, { recursive: true, force: true });
+        }
+        ''',
+    )
+
+
+def test_session_shutdown_waits_for_sigkill_escalation_before_parent_exit() -> None:
+    run_typescript(
+        r'''
+        import { existsSync } from "node:fs";
+        import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+        import { spawn } from "node:child_process";
+        import { tmpdir } from "node:os";
+        import { join } from "node:path";
+        import { pathToFileURL } from "node:url";
+
+        const fixtureDirectory = await mkdtemp(join(tmpdir(), "pi-monitor-shutdown-"));
+        const descendant = join(fixtureDirectory, "ignore-term.mjs");
+        const parent = join(fixtureDirectory, "shutdown-parent.mjs");
+        const pidFile = join(fixtureDirectory, "pids.json");
+        let childPid;
+        let shellPid;
+        const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+        const isRunning = (pid) => {
+          try {
+            process.kill(pid, 0);
+            return true;
+          } catch (error) {
+            return error?.code === "EPERM";
+          }
+        };
+        const waitForExit = (child) => new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error("shutdown parent did not exit")), 5000);
+          child.on("error", reject);
+          child.on("close", (code) => {
+            clearTimeout(timeout);
+            code === 0 ? resolve(undefined) : reject(new Error(`shutdown parent exited ${code}`));
+          });
+        });
+
+        await writeFile(descendant, [
+          'import { writeFileSync } from "node:fs";',
+          'process.on("SIGTERM", () => {});',
+          'writeFileSync(process.env.PID_FILE, JSON.stringify({ childPid: process.pid, shellPid: process.ppid }));',
+          'setInterval(() => {}, 1000);',
+        ].join("\n"));
+        const monitorModule = pathToFileURL(join(process.cwd(), "packages/monitor/src/monitor.ts")).href;
+        const command = `PID_FILE=${JSON.stringify(pidFile)} ${JSON.stringify(process.execPath)} ${JSON.stringify(descendant)} & wait`;
+        await writeFile(parent, [
+          `import { existsSync, readFileSync } from "node:fs";`,
+          `import { MonitorManager } from ${JSON.stringify(monitorModule)};`,
+          `const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));`,
+          `const manager = new MonitorManager({ onTerminal: () => {} });`,
+          `manager.start({ command: ${JSON.stringify(command)}, description: "shutdown", resultPattern: "NEVER_MATCHES" });`,
+          `for (let attempt = 0; attempt < 80 && !existsSync(${JSON.stringify(pidFile)}); attempt += 1) await delay(25);`,
+          `if (!existsSync(${JSON.stringify(pidFile)})) throw new Error("descendant did not publish its pid");`,
+          `await manager.stopAllOnShutdown();`,
+          `JSON.parse(readFileSync(${JSON.stringify(pidFile)}, "utf8"));`,
+        ].join("\n"));
+
+        try {
+          const shutdownParent = spawn(process.execPath, ["--import", "tsx", parent], {
+            cwd: process.cwd(),
+            stdio: "ignore",
+          });
+          await waitForExit(shutdownParent);
+          ({ childPid, shellPid } = JSON.parse(await readFile(pidFile, "utf8")));
+          await delay(100);
+          if (isRunning(childPid)) {
+            throw new Error(`SIGTERM-resistant descendant ${childPid} survived parent shutdown`);
+          }
+        } finally {
+          if (childPid && isRunning(childPid)) process.kill(childPid, "SIGKILL");
+          if (shellPid && isRunning(shellPid)) process.kill(shellPid, "SIGKILL");
+          await rm(fixtureDirectory, { recursive: true, force: true });
         }
         ''',
     )

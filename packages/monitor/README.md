@@ -65,19 +65,13 @@ monitor_start
   failure_pattern="__PI_MONITOR_FAILURE__ (?<json>\\{.*\\})"
 ```
 
-A successful result wakes the agent once:
+A successful result wakes the agent once with compact text:
 
-```json
-{
-  "status": "success",
-  "matched": "__PI_MONITOR_RESULT__ {\"status\":\"success\"}",
-  "captures": {
-    "json": "{\"status\":\"success\"}"
-  },
-  "result": {
-    "status": "success"
-  }
-}
+```text
+[monitor monitor_1] test suite result
+status=success
+elapsed=8.4s
+result={"status":"success"}
 ```
 
 ## Matching existing command output
@@ -126,10 +120,16 @@ The retained history and every read are bounded:
 - Both stdout and stderr are scanned for `result_pattern` and `failure_pattern`.
 - The first terminal match wins and stops the process group.
 - Named regex captures are returned in `captures`.
-- A named capture called `json` is parsed into `result` when it contains valid
-  JSON no larger than 32 KiB.
+- The model-facing terminal message uses compact `key=value` text. A named
+  capture called `json` is parsed into `result` and emitted as compact JSON;
+  complete structured data remains in message `details` for extensions/UI.
+- A `json` capture is parsed when it contains valid JSON no larger than 32 KiB.
 - Completion waits for the child process `close` event so unterminated final
   output can still satisfy the contract.
+- Stopping a process group sends `SIGTERM`, then sends `SIGKILL` after a
+  one-second grace period even if the shell child has already closed. The
+  escalation timer keeps the session alive through that grace period, so
+  descendants that ignore `SIGTERM` cannot outlive the monitor during shutdown.
 - Non-persistent monitors time out after five minutes by default, with a maximum
   of one hour. `persistent=true` disables the timeout.
 - All active monitors are stopped on session shutdown.

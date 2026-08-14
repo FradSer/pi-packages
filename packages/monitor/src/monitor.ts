@@ -69,6 +69,8 @@ interface InternalMonitor extends Monitor {
   child?: ChildProcess;
   timeoutTimer?: ReturnType<typeof setTimeout>;
   killTimer?: ReturnType<typeof setTimeout>;
+  killPromise?: Promise<void>;
+  killResolver?: () => void;
   resultMatcher: RegExp;
   failureMatcher?: RegExp;
   buffers: Record<MonitorLogSource, string>;
@@ -166,8 +168,18 @@ export class MonitorManager {
     };
   }
 
-  stopAllOnShutdown(): void {
-    this.stop();
+  async stopAllOnShutdown(): Promise<void> {
+    const waits = [...this.active.values()].map((monitor) => {
+      this.complete(
+        monitor,
+        { status: "stopped", elapsedMs: this.elapsed(monitor), reason: "session_shutdown" },
+        true,
+        false,
+        true,
+      );
+      return monitor.killPromise;
+    });
+    await Promise.all(waits);
   }
 
   private createMonitor(
@@ -317,10 +329,6 @@ export class MonitorManager {
     code: number | null,
     signal: NodeJS.Signals | null,
   ): void {
-    if (monitor.killTimer) {
-      clearTimeout(monitor.killTimer);
-      monitor.killTimer = undefined;
-    }
     if (monitor.status !== "running") return;
     this.drainFinalBuffers(monitor, true);
     if (monitor.status !== "running") return;
@@ -360,9 +368,10 @@ export class MonitorManager {
     terminal: MonitorTerminalResult,
     killProcess = false,
     notify = true,
+    keepKillTimerAlive = false,
   ): void {
     if (monitor.status !== "running") return;
-    if (killProcess) this.killTree(monitor);
+    if (killProcess) this.killTree(monitor, keepKillTimerAlive);
     monitor.status = terminal.status;
     monitor.completedAt = Date.now();
     monitor.terminal = terminal;
@@ -387,7 +396,7 @@ export class MonitorManager {
     if (this.history.length > MAX_HISTORY) this.history.length = MAX_HISTORY;
   }
 
-  private killTree(monitor: InternalMonitor): void {
+  private killTree(monitor: InternalMonitor, keepTimerAlive = false): void {
     const child = monitor.child;
     if (!child?.pid || monitor.killTimer) return;
     const pid = child.pid;
@@ -403,8 +412,16 @@ export class MonitorManager {
       }
     };
     signalGroup("SIGTERM");
-    monitor.killTimer = setTimeout(() => signalGroup("SIGKILL"), KILL_GRACE_MS);
-    monitor.killTimer.unref();
+    monitor.killPromise = new Promise<void>((resolve) => {
+      monitor.killResolver = resolve;
+      monitor.killTimer = setTimeout(() => {
+        monitor.killTimer = undefined;
+        signalGroup("SIGKILL");
+        monitor.killResolver = undefined;
+        resolve();
+      }, KILL_GRACE_MS);
+      if (!keepTimerAlive) monitor.killTimer.unref();
+    });
   }
 
   private elapsed(monitor: Monitor): number {
