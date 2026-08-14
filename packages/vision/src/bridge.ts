@@ -1,4 +1,4 @@
-import type { Api, ImageContent, Model, UserMessage } from "@earendil-works/pi-ai";
+import type { Api, AssistantMessage, ImageContent, Model, TextContent, ThinkingContent, UserMessage } from "@earendil-works/pi-ai";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 
 const VISION_SYSTEM_PROMPT = [
@@ -13,12 +13,22 @@ export interface VisionBridgeResult {
   model: string;
 }
 
-function textFromResponse(content: Array<{ type: string; text?: string }>): string {
-  return content
-    .filter((part) => part.type === "text" && typeof part.text === "string")
-    .map((part) => part.text as string)
+function textFromResponse(message: AssistantMessage): string {
+  const text = message.content
+    .filter((part): part is TextContent => part.type === "text" && typeof part.text === "string")
+    .map((part) => part.text)
     .join("\n")
     .trim();
+  if (text) return text;
+
+  const thinking = message.content
+    .filter((part): part is ThinkingContent => part.type === "thinking" && typeof part.thinking === "string")
+    .map((part) => part.thinking)
+    .join("\n")
+    .trim();
+  if (thinking) return thinking;
+
+  return "";
 }
 
 export async function describeImages(
@@ -49,21 +59,11 @@ export async function describeImages(
     },
   );
 
-  const text = textFromResponse(response.content);
+  const text = textFromResponse(response);
   if (!text) throw new Error("Vision model returned no text");
   return { text, model: `${model.provider}/${model.id}` };
 }
 
-export function buildTransformedPrompt(prompt: string, visualContext: string): string {
-  return [
-    "The following visual context was extracted from the image attachment by a vision model.",
-    "Use it as evidence for the user's request; do not claim to see the original image directly.",
-    "",
-    "<visual-context>",
-    visualContext,
-    "</visual-context>",
-    "",
-    "User request:",
-    prompt || "Analyze the attached image and explain what matters for this task.",
-  ].join("\n");
+export function buildImageAnalysisContext(visualAnalysis: string): string {
+  return `<image-analysis>\n${visualAnalysis}\n</image-analysis>`;
 }

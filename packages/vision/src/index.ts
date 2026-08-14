@@ -1,6 +1,13 @@
-import type { Api, Model } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { buildTransformedPrompt, describeImages } from "./bridge";
+import { createHash } from "node:crypto";
+import type { Api, ImageContent, Model, UserMessage } from "@earendil-works/pi-ai";
+import type {
+  ContextEvent,
+  ExtensionAPI,
+  ExtensionCommandContext,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import { buildImageAnalysisContext, describeImages } from "./bridge";
+import { extractInputImages, mayContainInputImage } from "./input-images";
 import {
   modelRef,
   parseModelRef,
@@ -12,12 +19,53 @@ import {
 
 let config: VisionConfig = readVisionConfig();
 
-function updateStatus(ctx: ExtensionContext): void {
-  if (config.provider && config.model) {
-    ctx.ui.setStatus("vision", `${config.enabled ? "vision" : "vision off"} ${configuredModelLabel()}`);
-  } else {
-    ctx.ui.setStatus("vision", "vision off");
+type ContextTransform = { messages: ContextEvent["messages"] };
+
+interface PendingVisionAnalysis {
+  analysisPrompt: string;
+  analysis: string;
+}
+
+function analysisKey(prompt: string, images: ImageContent[]): string {
+  const hash = createHash("sha256");
+  hash.update(prompt);
+  hash.update("\0");
+  for (const image of images) {
+    hash.update(image.mimeType);
+    hash.update("\0");
+    hash.update(image.data);
+    hash.update("\0");
   }
+  return hash.digest("hex");
+}
+
+function isUserMessage(message: { role: string; content?: unknown }): message is UserMessage & {
+  content: Array<{ type: "text"; text: string } | ImageContent>;
+} {
+  return message.role === "user" && Array.isArray(message.content);
+}
+
+function userMessageImages(message: { role: string; content?: unknown }): ImageContent[] {
+  if (!isUserMessage(message)) return [];
+  return message.content.filter(
+    (part): part is ImageContent =>
+      typeof part === "object" && part !== null && (part as ImageContent).type === "image",
+  );
+}
+
+function userMessageText(message: { role: string; content?: unknown }): string | undefined {
+  if (!isUserMessage(message)) return undefined;
+  return message.content
+    .filter(
+      (part): part is { type: "text"; text: string } =>
+        typeof part === "object" && part !== null && (part as { type?: string }).type === "text",
+    )
+    .map((part) => part.text)
+    .join("\n");
+}
+
+function updateStatus(ctx: ExtensionContext): void {
+  ctx.ui.setStatus("vision", undefined);
 }
 
 function configuredModelLabel(): string {
@@ -47,7 +95,7 @@ function imageModels(ctx: ExtensionContext): Model<Api>[] {
 function configSummary(ctx?: ExtensionContext): string {
   const activeModel = ctx?.model ? modelLabel(ctx.model) : "(none)";
   const activeInput = ctx?.model
-    ? ctx.model.input.includes("image")
+    ? (ctx.model.input ?? ["text"]).includes("image")
       ? "multimodal"
       : "text-only"
     : "unknown";
@@ -65,7 +113,7 @@ function configSummary(ctx?: ExtensionContext): string {
 }
 
 function menuTitle(ctx: ExtensionContext): string {
-  const active = ctx.model ? `${modelLabel(ctx.model)} · ${ctx.model.input.includes("image") ? "multimodal" : "text-only"}` : "no active model";
+  const active = ctx.model ? `${modelLabel(ctx.model)} · ${(ctx.model.input ?? ["text"]).includes("image") ? "multimodal" : "text-only"}` : "no active model";
   return [
     `Vision bridge: ${config.enabled ? "on" : "off"}`,
     `Reader: ${configuredModelLabel()}`,
@@ -170,21 +218,71 @@ async function openVisionMenu(ctx: ExtensionCommandContext): Promise<void> {
   }
 }
 
-function notifyConfigurationError(ctx: ExtensionContext): void {
-  ctx.ui.notify(
-    [
-      "Vision bridge is not configured, so the image was not sent to the text-only model.",
-      "",
-      "Configure a vision model with:",
-      "  /vision model provider/model",
-      "",
-      `Config file: ${visionConfigPath()}`,
-    ].join("\n"),
-    "error",
-  );
-}
-
 export default function visionExtension(pi: ExtensionAPI): void {
+  const pendingAnalyses = new Map<string, PendingVisionAnalysis>();
+
+  async function analysisFor(
+    prompt: string,
+    nativeImages: ImageContent[],
+    ctx: ExtensionContext,
+  ): Promise<PendingVisionAnalysis | undefined> {
+    const key = analysisKey(prompt, nativeImages);
+    let pending = pendingAnalyses.get(key);
+    if (pending?.analysis) return pending;
+
+    const extracted = await extractInputImages(prompt);
+    const images = nativeImages.length > 0 ? nativeImages : extracted.images;
+    if (images.length === 0) return undefined;
+
+    if (!pending) {
+      pending = { analysisPrompt: extracted.text, analysis: "" };
+      pendingAnalyses.set(key, pending);
+    }
+
+    if (!config.enabled || !config.provider || !config.model) return pending;
+    const visionModel = ctx.modelRegistry.find(config.provider, config.model);
+    if (!visionModel?.input.includes("image")) return pending;
+
+    try {
+      ctx.ui.setStatus("vision", `reading ${images.length} image${images.length === 1 ? "" : "s"} · ${config.provider}/${config.model}`);
+      ctx.ui.setWorkingIndicator({ frames: ["◐", "◓", "◑", "◒"], intervalMs: 200 });
+      const result = await describeImages(ctx.modelRegistry, visionModel, pending.analysisPrompt, images, ctx.signal);
+      pending.analysis = result.text;
+    } catch (error) {
+      pending.analysis = `[Image analysis unavailable: ${error instanceof Error ? error.message : String(error)}]`;
+    } finally {
+      ctx.ui.setWorkingIndicator();
+      updateStatus(ctx);
+    }
+    return pending;
+  }
+
+  pi.on("context", async (event, ctx): Promise<ContextTransform | undefined> => {
+    if (!ctx.model || (ctx.model.input ?? ["text"]).includes("image")) return;
+
+    let changed = false;
+    const messages: ContextEvent["messages"] = [];
+    for (const message of event.messages) {
+      if (!isUserMessage(message)) {
+        messages.push(message);
+        continue;
+      }
+      const prompt = userMessageText(message);
+      const pending = prompt === undefined ? undefined : await analysisFor(prompt, userMessageImages(message), ctx);
+      if (!pending?.analysis) {
+        messages.push(message);
+        continue;
+      }
+
+      changed = true;
+      messages.push({
+        ...message,
+        content: [{ type: "text", text: `${prompt}\n\n${buildImageAnalysisContext(pending.analysis)}` }],
+      });
+    }
+    return changed ? { messages } : undefined;
+  });
+
   pi.on("session_start", (_event, ctx) => {
     config = readVisionConfig();
     updateStatus(ctx);
@@ -251,55 +349,16 @@ export default function visionExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("input", async (event, ctx) => {
-    // Step 1: check the active model — only intercept for text-only models
-    if (!ctx.model || ctx.model.input.includes("image")) {
-      return; // multimodal model, no interception needed
-    }
+    // Step 1: multimodal models receive the original input unchanged.
+    if (!ctx.model || (ctx.model.input ?? ["text"]).includes("image")) return;
 
-    // Step 2: check if there are images to intercept
-    if (!event.images?.length) {
-      return; // no images, nothing to do
-    }
+    // Step 2: attach TUI image paths while leaving the user's original text intact.
+    if (!event.images?.length && !mayContainInputImage(event.text)) return;
+    const extracted = await extractInputImages(event.text);
+    const images = [...(event.images ?? []), ...extracted.images];
+    if (images.length === 0) return;
 
-    // Step 3: check configuration
-    if (!config.enabled || !config.provider || !config.model) {
-      notifyConfigurationError(ctx);
-      return { action: "handled" };
-    }
-
-    const visionModel = ctx.modelRegistry.find(config.provider, config.model);
-    if (!visionModel) {
-      ctx.ui.notify(
-        `Vision model ${config.provider}/${config.model} was not found in the model registry; the image was not sent to the text-only model.`,
-        "error",
-      );
-      return { action: "handled" };
-    }
-
-    if (!visionModel.input.includes("image")) {
-      ctx.ui.notify(
-        `Configured vision model ${config.provider}/${config.model} does not declare image input support; the image was not sent to the text-only model.`,
-        "error",
-      );
-      return { action: "handled" };
-    }
-
-    try {
-      ctx.ui.setStatus("vision", `reading ${event.images.length} image${event.images.length === 1 ? "" : "s"} · ${config.provider}/${config.model}`);
-      const result = await describeImages(ctx.modelRegistry, visionModel, event.text, event.images, ctx.signal);
-      return {
-        action: "transform",
-        text: buildTransformedPrompt(event.text, result.text),
-        images: [],
-      };
-    } catch (error) {
-      ctx.ui.notify(
-        `Vision bridge failed; the image was not sent to the text-only model: ${error instanceof Error ? error.message : String(error)}`,
-        "error",
-      );
-      return { action: "handled" };
-    } finally {
-      updateStatus(ctx);
-    }
+    // Step 3: preserve the visible message exactly, with paths materialized as attachments.
+    return { action: "transform", text: event.text, images };
   });
 }

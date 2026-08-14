@@ -5,10 +5,22 @@ Feature: Transparent image reading for text-only models
   Scenario: Read attached images before a text-only model runs
     Given the active model does not support image input
     And a vision provider and model are configured
-    When the user submits a prompt with one or more images
-    Then the extension sends the images and prompt to the configured vision model
-    And transforms the prompt with the returned visual context
-    And removes the original images before the main model receives the prompt
+    When the user submits a prompt with one or more image attachments
+    Then the extension sends the images and a cleaned analysis request to the configured vision model
+    And preserves the complete original prompt and image attachment as the user message
+    And adds the returned visual analysis only to a transient provider context after the original input
+    And does not replace, remove, rewrite, or add an internal message to the user's session history
+
+  Scenario: Intercept an image pasted into the Pi TUI
+    Given Pi saved a pasted clipboard image to a temporary image file
+    And inserted the image file path into the input editor
+    And the active model does not support image input
+    When the user submits surrounding text and the pasted image path
+    Then the extension reads the image file before the main model runs
+    And sends the image and surrounding text to the configured vision model
+    And removes the image path from the vision analysis request
+    And the user message preserves the original image path
+    And the visual analysis is added only to the transient provider context
 
   Scenario: Leave images untouched for a multimodal main model
     Given the active model supports image input
@@ -20,7 +32,7 @@ Feature: Transparent image reading for text-only models
     Given the active model does not support image input
     And no vision model is configured
     When the user submits a prompt with images
-    Then the extension does not send the image to the text-only model
+    Then the extension preserves the original user message
     And tells the user how to configure a vision model
 
   Scenario: Select the vision model from the command
@@ -45,7 +57,8 @@ Feature: Transparent image reading for text-only models
     When the user chooses model selection from the vision menu
     Then the menu uses Pi's currently available model list
 
-  Scenario: Hide the unconfigured status entry
-    Given the vision bridge is enabled without a configured reader model
+  Scenario: Hide the idle vision status entry
+    Given the vision bridge is idle
     When the status bar is updated
-    Then the vision status entry is hidden
+    Then the configured vision model is not shown
+    And the vision status entry is hidden
