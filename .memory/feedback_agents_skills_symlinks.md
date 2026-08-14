@@ -13,6 +13,6 @@ During the git/git-agent/github skills→menu conversion cleanup, `~/.agents/ski
 1. Before deleting anything under `~/.agents/skills/` (or `~/.pi/agent/skills/`), check `ls -la`: symlink entries pointing at `~/Developer/FradSer/...` repos are user-managed — keep them.
 2. `~/.agents/.skill-lock.json` only tracks github-source installs (impeccable, shadcn, cloudflare, etc.) — absence from the lock does NOT mean the skill is stale.
 3. To restore a deleted symlink: `ln -s <repo>/skills/<name> ~/.agents/skills/<name>`.
-4. The @fradser/git-agent package itself is extension-only (no skills) — its menu guidance coexists with the CLI's own `using-git-agent` skill, which covers the raw CLI.
+4. The `pi-git-agent` package (`~/Developer/FradSer/git-agent/pi-git-agent`) is extension-only (no skills) — its menu guidance coexists with the CLI's own `using-git-agent` skill, which covers the raw CLI.
 
 **Related:** [[pi-package-conventions]] [[stale-session-skill-paths]]

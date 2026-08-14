@@ -16,7 +16,7 @@ Pi packages publish to npm through a Changesets-driven GitHub Actions workflow i
 **The workflow (pi-packages `.github/workflows/release.yml`):**
 - Trigger: push to `main` + `workflow_dispatch`. `permissions: { contents: write, pull-requests: write, id-token: write }` (contents+pull-requests for changesets/action to commit + open the PR; id-token for OIDC).
 - `changesets/action@v1` with `version: pnpm changeset version`, `publish: pnpm publish -r --provenance --access public --filter <whitelist>`.
-- **Whitelist is mandatory**: `pnpm publish -r` AND `changeset publish` both sweep every never-published workspace package ("No changesets found. Attempting to publish any unpublished packages"). Only the `--filter` list is ever published. **Current whitelist: `@fradser/pi-memory --filter @fradser/pi-btw --filter @fradser/pi-monitor --filter @fradser/pi-utils`.**
+- **Whitelist is mandatory**: `pnpm publish -r` AND `changeset publish` both sweep every never-published workspace package ("No changesets found. Attempting to publish any unpublished packages"). Only the `--filter` list is ever published. **Current whitelist: `@fradser/pi-memory --filter @fradser/pi-btw --filter @fradser/pi-monitor --filter @fradser/pi-utils --filter @fradser/pi-vision`.**
 - GitHub repo needs `Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests` (API: `PUT /repos/{owner}/{repo}/actions/permissions/workflow` with `can_approve_pull_request_reviews: true`) — otherwise changesets/action fails with "GitHub Actions is not permitted to create or approve pull requests".
 - pnpm 11 details: `packageManager` pinned in root package.json (`corepack use pnpm@latest`); `allowBuilds`/`onlyBuiltDependencies` live in `pnpm-workspace.yaml` (not package.json); do NOT pass `version:` to `pnpm/action-setup` when `packageManager` is set (double-specification error); `--allow-build` install flag does NOT exist in pnpm 11.
 
@@ -33,6 +33,6 @@ OIDC trusted publishing CANNOT publish a package's first version (npm/cli #8544)
 - New feature → `pnpm change` with minor → `0.x+1.0`.
 - Idempotent: an already-published version is never re-published; re-triggering the workflow 100 times publishes nothing. Version bumps happen ONLY in the "Version Packages" PR, merged deliberately.
 
-**Published packages (as of 2026-08-13):** `@fradser/pi-memory` (0.2.0, 0.2.1), `@fradser/pi-btw` (0.1.0, 0.1.1), `@fradser/pi-monitor` (0.1.0, 0.1.1), `@fradser/pi-utils` (0.3.0, 0.3.1). Never published (deliberately out of whitelist): code-context, lark, mattpocock, teammate. Single-package repo `GitAgentHQ/pi-git-agent` (unscoped `pi-git-agent`) has its own simpler publish workflow.
+**Published packages (verified 2026-08-14):** `@fradser/pi-memory` (0.2.1), `@fradser/pi-btw` (0.1.1), `@fradser/pi-monitor` (0.1.1), `@fradser/pi-utils` (0.3.1). `@fradser/pi-vision` is whitelisted but still 404 on the registry — its first version needs the manual publish + `npm trust` sequence above (changeset `vision-bridge.md` pending). Never published and still in the monorepo: code-context, mattpocock, agent-teams (`@fradser/pi-agent-teams`); the former lark and teammate packages were removed from the repo. Single-package repo `GitAgentHQ/pi-git-agent` (unscoped `pi-git-agent`) has its own simpler publish workflow.
 
 **Related:** [[pi-package-npm-naming]]

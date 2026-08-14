@@ -4,7 +4,7 @@ Monorepo of native **Pi** packages (`pi-packages/`). Each package under `package
 
 ## Layout & Tooling
 
-- `packages/<name>/` — one pi package each (`btw`, `code-context`, `lark`, `mattpocock`, `memory`, `monitor`, `teammate`, `utils`). (The former `git-agent` package now lives at `~/Developer/FradSer/git-agent/git-agent-pi-package`; the former `git`/`github` packages became pure skills in `~/Developer/FradSer/skills`.)
+- `packages/<name>/` — one pi package each (`btw`, `code-context`, `lark`, `mattpocock`, `memory`, `monitor`, `agent-teams`, `utils`). (The former `git-agent` package now lives at `~/Developer/FradSer/git-agent/git-agent-pi-package`; the former `git`/`github` packages became pure skills in `~/Developer/FradSer/skills`.)
 - pnpm workspace at the root (`pnpm-workspace.yaml`); per-package deps live in `packages/<name>/node_modules`.
 - **Tests**: `python3 -m pytest packages/<name>/tests/`. BDD: write/update `.feature` files under `packages/<name>/features/` before behavior changes.
 - **Typecheck**: `npx tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution bundler --types "" packages/<name>/src/*.ts` (or `extensions/*.ts`).
@@ -30,7 +30,7 @@ Interactive extension UI mirrors `packages/btw/src/overlay.ts`:
 - **Adaptive height**: `render()` returns content-sized lines; short answers shrink the panel, long bodies cap at ~40% of terminal rows (`maxAnswerBody`) and scroll with `↑/↓`, `pgup`/`pgdn`, `home`/`end`. **Mouse wheel is not available** in pi's fullscreen TUI (the wheel belongs to the chat viewport) — keyboard scrolling only.
 - **Style language** (`BtwOverlayStyle`): `accent`/`muted`/`dim`/`border`/`success`/`error` callbacks mapped from `theme.fg` and passed into the component (don't depend on pi's internal Theme type). Layout: top + bottom border (`─`.repeat(width)), accent header line (e.g. `btw  <title>`), 2-space-padded body, dim footer hint line ("esc close · ↑↓ scroll · pgup/pgdn page · home/end jump"). Markdown bodies use the `Markdown` component with a theme built from these callbacks.
 - **Loading**: `CancellableLoader` spinner with a model label; escape closes or cancels.
-- Full-screen (non-popup) extension views use `ctx.ui.custom` WITHOUT `{ overlay: true }` and the same border/header/footer style language — see the teammate `/teammate` console.
+- Full-screen (non-popup) extension views use `ctx.ui.custom` WITHOUT `{ overlay: true }` and the same border/header/footer style language — see the `agent-teams` package's `/teammate` console.
 
 ## Extension gotchas (hard-won)
 
