@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-monitor",
   "version": "0.1.1",
-  "description": "Background process monitoring for Pi — stream a command's stdout to the agent as notifications, no polling",
+  "description": "Result-contract background monitoring for Pi — capture noisy command output outside model context and expose one structured terminal result",
   "keywords": [
     "pi-package",
     "monitor",

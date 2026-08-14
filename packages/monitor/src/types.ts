@@ -1,14 +1,26 @@
 import { Type } from "typebox";
 
-/** Parameters for monitor_start: run a command in the background and stream its stdout. */
+/** Parameters for monitor_start: run a command and wait for a contracted terminal result. */
 export const MonitorStartParams = Type.Object({
   command: Type.String({
     description:
-      "Shell command to run in the background. Its stdout is the event stream — each batch of lines wakes the agent as a notification. Must not require interactive input.",
+      "Shell command to run in the background. The command must not require interactive input. Wrap controllable commands with a unique result sentinel when possible.",
   }),
   description: Type.String({
-    description: "Short label describing what is being watched, shown in every notification.",
+    description: "Short label describing the result being awaited.",
   }),
+  result_pattern: Type.String({
+    minLength: 1,
+    description:
+      "Required regular expression that identifies successful completion in either stdout or stderr. Named capture groups are returned as fields. A named group called 'json' is parsed as JSON when valid.",
+  }),
+  failure_pattern: Type.Optional(
+    Type.String({
+      minLength: 1,
+      description:
+        "Optional regular expression that identifies terminal failure in either stdout or stderr. Named capture groups are returned as fields.",
+    }),
+  ),
   timeout_ms: Type.Optional(
     Type.Integer({
       minimum: 1,
@@ -18,22 +30,30 @@ export const MonitorStartParams = Type.Object({
   ),
   persistent: Type.Optional(
     Type.Boolean({
-      description: "Run for the full session (no timeout). Stop manually with monitor_stop.",
-    }),
-  ),
-  match: Type.Optional(
-    Type.String({
-      description:
-        "Only stdout lines matching this regex (case-insensitive) wake the agent. Non-matching lines are suppressed and counted, then reported when the monitor ends. Use this to avoid noise when watching for one specific thing (e.g. \"error|fail|ready\").",
+      description: "Run for the full session until a result matches or monitor_stop is called.",
     }),
   ),
 });
 
-/** Parameters for monitor_stop: end a monitor by id, or all of them. */
+/** Parameters for monitor_read: inspect bounded raw output on demand. */
+export const MonitorReadParams = Type.Object({
+  monitor_id: Type.String({
+    description: "ID of an active or recently finished monitor.",
+  }),
+  tail_lines: Type.Optional(
+    Type.Integer({
+      minimum: 1,
+      maximum: 500,
+      description: "Maximum number of recent source-labelled log lines to return. Default 100, max 500.",
+    }),
+  ),
+});
+
+/** Parameters for monitor_stop: end a monitor by id, or all active monitors. */
 export const MonitorStopParams = Type.Object({
   monitor_id: Type.Optional(
     Type.String({
-      description: "ID of the monitor to stop. Omit to stop all active monitors.",
+      description: "ID of the active monitor to stop. Omit to stop all active monitors.",
     }),
   ),
 });

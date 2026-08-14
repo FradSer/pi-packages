@@ -1,86 +1,99 @@
 ---
 name: using-monitor
 description: >
-  Use when working with the monitor extension — running background commands and
-  streaming their stdout to the agent as notifications. Load this skill when the
-  user asks to watch logs, deploys, CI runs, file changes, or test output, or
-  asks to set up a monitor/background watcher.
+  Use when waiting for a background command, deploy, CI run, server startup,
+  file watcher, or test result. The monitor requires a terminal result contract,
+  keeps progress logs outside model context, and exposes one structured result.
 ---
 
-# Monitor Extension — Usage Guide
+# Monitor Extension Usage
 
-This skill documents the `@fradser/pi-monitor` Pi extension: background process
-monitoring that streams a command's stdout to the agent as notifications, so the
-agent reacts to events the moment they happen instead of polling.
-
-## When to use it
-
-Use `monitor_start` instead of `bash sleep`-polling loops whenever you need to
-wait on something of unknown duration and react to its output:
-
-- watching a deploy or CI run for errors
-- tailing a log file for a specific message
-- watching a file or directory for changes
-- waiting for a server to print "ready" or an error
+Use `monitor_start` instead of shell sleep-polling loops when a command takes an
+unknown amount of time. Define the terminal result before starting the monitor.
+Progress output is captured silently; it does not wake the model.
 
 ## Tools
 
 | Tool | Purpose |
 |---|---|
-| `monitor_start` | Run a shell command in the background; stream its stdout to the agent |
-| `monitor_list` | List active monitors with status and notification counts |
-| `monitor_stop` | Stop a monitor by id, or all of them |
+| `monitor_start` | Start a command and wait for a declared terminal result |
+| `monitor_read` | Read bounded raw output when diagnostics are necessary |
+| `monitor_list` | List active monitors and their result contracts |
+| `monitor_stop` | Stop one or all active monitors without a result notification |
 
-## Quick Start
+## Start with a result contract
 
-```
-1. Start watching a log:
-   monitor_start command="tail -f /var/log/app.log" description="errors in app.log"
+`result_pattern` is required. `failure_pattern` is optional. Both scan stdout
+and stderr.
 
-2. Watch a deploy, waking only on failures (noise-free):
-   monitor_start command="pnpm test 2>&1" description="test failures" match="fail|error|TypeError"
-
-3. Start a deploy watcher with a longer timeout:
-   monitor_start command="gh run watch --exit-status" description="CI run status" timeout_ms=900000
-
-4. List what is running:
-   monitor_list
-
-5. Stop one (or all):
-   monitor_stop monitor_id="monitor_1"
-   monitor_stop
+```text
+monitor_start
+  command="pnpm dev"
+  description="development server startup"
+  result_pattern="Ready on (?<url>https?://\\S+)"
+  failure_pattern="(?:FATAL|EADDRINUSE|Failed to start):? (?<reason>.*)"
 ```
 
-## The noise problem — always prefer `match`
+The first terminal match stops the process and produces exactly one model
+notification. Named regex groups become structured `captures`.
 
-A monitor is event-driven, but a noisy command (a build, `npm install`, a
-verbose deploy) prints hundreds of progress lines. Without a filter, every one
-of those becomes a notification that wakes the agent — noise. When you are
-waiting for ONE specific thing, pass `match` so the monitor stays quiet until
-that thing happens:
+## Prefer a JSON sentinel
 
-- Only stdout lines matching `match` (a case-insensitive regex) wake the agent.
-- Non-matching lines are suppressed and counted, then reported when the monitor
-  ends as `[suppressed N non-matching stdout line(s)]`.
-- Example: `match="error|fail|ready|TypeError"` watches for the interesting
-  events and ignores the 1000 lines of progress in between.
+When the command can be wrapped, make the terminal result unambiguous:
 
-## Semantics
+```bash
+sh -c '
+  if pnpm test; then
+    printf '\''__PI_MONITOR_RESULT__ {"status":"success"}\n'\''
+  else
+    code=$?
+    printf '\''__PI_MONITOR_FAILURE__ {"status":"failure","exitCode":%s}\n'\'' "$code"
+    exit "$code"
+  fi
+'
+```
 
-- **stdout only** drives notifications. Each batch of matching stdout lines
-  (arriving within 200ms) becomes one `[monitor ...]` message that wakes the agent.
-- **stderr** is captured but does not trigger notifications; it is reported in
-  the final message when the monitor ends.
-- **Timeout**: non-persistent monitors auto-stop after `timeout_ms`
-  (default 300000 / 5 min, max 3600000 / 1 hr). Set `persistent=true` to run
-  for the whole session.
-- **Event cap**: a monitor auto-stops after 40 notifications to protect context.
-- **Session-scoped**: all monitors are killed on session shutdown.
-- The command must not require interactive input.
+Wait for it with a named `json` capture:
 
-## User-facing UI
+```text
+result_pattern="__PI_MONITOR_RESULT__ (?<json>\\{.*\\})"
+failure_pattern="__PI_MONITOR_FAILURE__ (?<json>\\{.*\\})"
+```
 
-- A widget below the input box shows `N monitor(s) running — /monitor to inspect`
-  whenever monitors are active (display only, never intercepts keys).
-- `/monitor` opens a full-screen console: `↑`/`↓` select, `x` stop the selected
-  monitor, `a` stop all, `q`/`Esc` close.
+The `json` capture is parsed into the terminal result. Do not use broad patterns
+such as `success|error|ready`; those are log filters, not reliable completion
+contracts.
+
+## Terminal statuses
+
+- `success`: `result_pattern` matched.
+- `failure`: `failure_pattern` matched, the process failed to spawn, or it exited
+  with a non-zero code.
+- `timeout`: the timeout expired before either pattern matched.
+- `result_missing`: the process exited successfully without satisfying the
+  declared result contract.
+
+The monitor sends one terminal message with `triggerTurn: true`. Ordinary stdout
+and stderr never create messages or turns.
+
+## Diagnose only when needed
+
+After `failure`, `timeout`, or `result_missing`, inspect retained output:
+
+```text
+monitor_read monitor_id="monitor_1" tail_lines=100
+```
+
+Logs are source-labelled as `[stdout]` and `[stderr]`. Reads and retained history
+are bounded, so diagnostic output cannot grow without limit. Do not call
+`monitor_read` after a successful structured result unless the result is
+insufficient.
+
+## Lifecycle
+
+- Default timeout: five minutes; maximum: one hour.
+- `persistent=true`: wait until matched, stopped, or session shutdown.
+- `monitor_stop` sends no terminal result notification.
+- `/monitor` shows active and recently finished monitors plus their bounded
+  output without a global terminal-input listener.
+- All active process groups are stopped when the Pi session shuts down.

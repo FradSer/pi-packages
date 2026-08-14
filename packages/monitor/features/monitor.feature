@@ -1,71 +1,86 @@
-Feature: Background process monitoring
-  The monitor extension runs a shell command in the background and streams its
-  stdout to the agent as notifications, so the agent reacts to logs, deploys,
-  CI runs, or file changes the moment something happens — no polling loops.
+Feature: Result-contract background monitoring
+  The monitor extension runs a shell command in the background, captures its
+  output outside the model context, and exposes one machine-verifiable terminal
+  result instead of streaming raw progress logs to the agent.
 
   Background:
     Given the @fradser/pi-monitor extension is loaded
 
-  Scenario: Starting a monitor streams stdout to the agent
-    When monitor_start runs with a command and description
+  Scenario: Starting a monitor requires a success result contract
+    When monitor_start runs with a command, description, and result pattern
     Then a background process is spawned for the command
     And the tool returns a monitor id immediately without blocking
-    And each batch of stdout lines wakes the agent as a "[monitor ...]" notification
+    And ordinary stdout and stderr do not wake the agent
 
-  Scenario: Output lines are batched within a window
-    Given a monitor is running
-    When multiple stdout lines arrive within 200ms
-    Then they are combined into a single notification
+  Scenario: A success pattern exposes one structured result
+    Given a monitor is running with a result pattern
+    When a line from stdout or stderr matches the result pattern
+    Then the matched line and named captures are recorded
+    And a named json capture is parsed as structured data when valid
+    And the process is stopped
+    And the agent is woken exactly once with status "success"
 
-  Scenario: stderr does not trigger notifications
-    Given a monitor is running
-    When the command writes to stderr
-    Then no notification is sent
-    And stderr is captured and reported when the monitor ends
+  Scenario: A failure pattern exposes one structured failure
+    Given a monitor is running with a failure pattern
+    When a line from stdout or stderr matches the failure pattern
+    Then the matched line and named captures are recorded
+    And the process is stopped
+    And the agent is woken exactly once with status "failure"
 
-  Scenario: A non-persistent monitor auto-stops after its timeout
+  Scenario: A command exits successfully without the contracted result
+    Given a monitor is running with a result pattern
+    When the command exits with code 0 before the result pattern matches
+    Then the agent is woken once with status "result_missing"
+    And the expected result pattern is included
+
+  Scenario: A command exits unsuccessfully without a failure match
+    Given a monitor is running with a result pattern
+    When the command exits with a non-zero code
+    Then the agent is woken once with status "failure"
+    And the exit code is included
+
+  Scenario: A monitor times out
     Given a non-persistent monitor with a timeout
-    When the timeout elapses
+    When the timeout elapses before a terminal result
     Then the process is killed
-    And the agent is notified that the monitor timed out
+    And the agent is woken once with status "timeout"
 
-  Scenario: A persistent monitor runs until stopped or the session ends
+  Scenario: A persistent monitor waits until stopped or matched
     Given a monitor is started with persistent=true
     Then it is not subject to a timeout
-    And it keeps running across turns until monitor_stop or session shutdown
+    And it keeps running across turns until a result matches, monitor_stop runs, or the session shuts down
 
-  Scenario: A monitor auto-stops after too many notifications
+  Scenario: Raw output is available only on demand
+    Given a monitor has captured stdout and stderr
+    When monitor_read runs with its monitor id
+    Then it returns a bounded tail of source-labelled raw output
+    And reading the output does not create background model notifications
+
+  Scenario: Captured output is bounded
     Given a monitor is running
-    When it emits more than the notification cap
+    When the command writes oversized lines or a large output burst
+    Then individual lines and the retained raw log are truncated to bounded sizes
+    And truncation is surfaced in monitor_read
+
+  Scenario: Stopping a monitor manually
+    Given a monitor is running
+    When monitor_stop runs with its monitor id
     Then the process is killed
-    And the agent is notified that the monitor hit the event limit
-
-  Scenario: Stopping a monitor
-    Given a monitor is running
-    When monitor_stop runs with its monitor_id
-    Then the process is killed and no completion notification is sent
+    And no terminal result notification is sent
 
   Scenario: Listing active monitors
     Given several monitors are running
     When monitor_list runs
-    Then it returns each monitor's id, description, command, status, and notification count
+    Then it returns each active monitor's id, description, command, expected result, status, and age
 
   Scenario: Session shutdown cleans up all monitors
     Given monitors are running
     When the session shuts down
     Then every background process is killed
 
-  Scenario: A match filter suppresses noisy lines
-    Given a monitor is started with a match pattern
-    When the command prints matching and non-matching lines
-    Then only matching lines wake the agent
-    And non-matching lines are counted as suppressed
-    And the suppressed count is reported when the monitor ends
-
-  Scenario: A running monitor is surfaced in the UI
-    Given monitors are running
-    Then a widget below the input box shows "N monitor(s) running"
-    And no global input listener is registered
+  Scenario: Monitor output is surfaced in the UI without entering model context
+    Given active or recently finished monitors exist
     When the user opens /monitor
-    Then a full-screen console lists the monitors with ↑/↓ selection
-    And x stops the selected monitor and a stops all
+    Then a full-screen console lists the monitors and their bounded recent output
+    And x stops the selected active monitor and a stops all active monitors
+    And no global input listener is registered
