@@ -2,15 +2,16 @@
 
 BDD-first engineering and productivity skills adapted from the `mattpocock/skills` fork in `dotclaude`.
 
-**Package version:** 0.1.1  
+**Package version:** 0.1.2
+
 **Upstream checked:** `mattpocock/skills` `84fdeffd` (`v1.2.3` plus the latest main documentation change)
 
 ## Installation
 
+This package has not yet been released to npm. Install it from a local checkout:
+
 ```bash
-# published
-pi install npm:@fradser/mattpocock
-# or from this repo: pi install /path/to/pi-packages/packages/mattpocock
+pi install /path/to/pi-packages/packages/mattpocock
 ```
 
 ## Skills

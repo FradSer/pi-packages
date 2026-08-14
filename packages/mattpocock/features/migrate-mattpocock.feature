@@ -33,4 +33,36 @@ Feature: Native Pi Matt Pocock package
     Given one Matt Pocock skill refers to another Matt Pocock skill
     When the package is inspected
     Then the reference uses /skill:<name>
+    And it does not use a bare /handoff command
     And it does not use the Claude /mattpocock:<name> namespace
+
+  Scenario: Installation documentation reflects package availability
+    Given the package has not had its first npm release
+    When its README is inspected
+    Then it does not claim that npm installation is published
+    And it directs users to install from a local checkout until the first release
+
+  Scenario: Skills collect decisions through the Pi conversation
+    Given a skill needs a decision from the user
+    When it presents a recommendation or alternatives
+    Then it asks directly in the conversation and waits for the reply
+    And it does not depend on an ask-the-user tool or a built-in Other option
+
+  Scenario: Skills use only available Pi collaboration and session controls
+    Given a skill needs an independent review context or a fresh session
+    When the Pi package is inspected
+    Then it conditionally uses the teammate facility or performs reviews sequentially
+    And it does not instruct the Agent tool or the unsupported /clear command
+
+  Scenario: Skills follow repository instruction and commit conventions
+    Given setup must select an instruction file or a skill finishes a change
+    When the Pi package is inspected
+    Then AGENTS.md is preferred before CLAUDE.md
+    And it directs commits through the git-agent workflow instead of raw staging or commit commands
+
+  Scenario: Handoff writes a document without controlling sessions
+    Given a user needs a portable handoff
+    When they invoke /skill:handoff
+    Then the skill writes only a portable Markdown document
+    And it never creates, forks, or seeds a session
+    And guidance that refers to /skill:handoff preserves that document-only behavior
