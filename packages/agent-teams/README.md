@@ -51,21 +51,21 @@ teammate_run({
 - `access` defaults to `read`; declare `write` explicitly.
 - `dependsOn` edges must form a DAG (duplicate ids, unknown references, and cycles are rejected before any worker starts).
 - `worktree: true` runs every node in its own git worktree and captures each diff for integration review.
-- `background: false` (default) gathers node results in the tool call; `foregroundTimeoutMs` (default 5 min) detaches a still-running run to background so the model turn is never hung. `background: true` returns the run id immediately and delivers one run-completion follow-up.
+- `background: false` (default) gathers node results in the tool call and detaches after 5 minutes so the model turn is never hung. `background: true` returns the run id immediately and delivers one run-completion follow-up.
 - `timeoutMs` is a run-level hard cap: when exceeded, the run fails and live workers are terminated.
-- `summarize: true` appends a `__summary` node after every leaf node that reads all results and synthesizes one final run summary (use for multi-node runs); tool returns show it instead of per-node output. Without it, returns list node statuses only — detail lives in `teammate_status runId` and `teammate_inbox`.
+- Multi-node runs append a `__summary` node by default (`summarize=false` to skip). Single-task runs stay compact unless `summarize=true`.
+- Completing a node hands its result to pending dependents (inbox + worker prompt). Workers may also message same-run peers.
 
 ## Tools
 
 | Tool | Description |
 |---|---|
-| `teammate_run` | Dispatch a dependency-aware task graph in one call (`timeoutMs` run cap, `foregroundTimeoutMs` detach cap) |
+| `teammate_run` | Dispatch a dependency-aware task graph in one call |
 | `teammate_status` | List agents + run overview, or one run's node detail |
 | `teammate_wait` | Explicit gather barrier for background runs |
 | `teammate_cancel` | Cancel a run, or one node (`nodeId`) while the rest continues |
 | `teammate_retry` | Re-run only the failed/cancelled nodes of a settled run |
-| `teammate_cleanup` | Prune terminal runs after their results are synthesized |
-| `teammate_message` | Message a node (`runId:nodeId`) or broadcast to a run (`to="all"`) |
+| `teammate_message` | Message a node or broadcast to a run (`to="all"`) |
 | `teammate_inbox` | Read the main session's mailbox (`unreadOnly`) |
 | `/teammate` | Full-screen console: run/node status, node detail, live worker text, stop |
 

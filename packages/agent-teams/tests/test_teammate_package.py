@@ -14,7 +14,6 @@ LEADER_TOOLS = {
     "teammate_wait",
     "teammate_cancel",
     "teammate_retry",
-    "teammate_cleanup",
     "teammate_message",
     "teammate_inbox",
 }
@@ -28,6 +27,7 @@ REMOVED_TOOLS = {
     "teammate_list_tasks",
     "teammate_start_task",
     "teammate_cancel_task",
+    "teammate_cleanup",
 }
 LEGACY_TOOLS = {
     "teammate_assign_task",
@@ -90,7 +90,9 @@ def test_bdd_contract_covers_target_resources() -> None:
         "A run-level timeout fails the whole run",
         "Cancel one node while the rest of the run continues",
         "Retry failed and cancelled nodes without re-running completed ones",
-        "A worker messages the main session only",
+        "A worker messages the main session or a peer in the same run",
+        "Completing a node hands its result to downstream peers",
+        "Multi-node runs synthesize a final summary by default",
         "Read nodes with overlapping paths may run concurrently",
         "Write nodes with overlapping paths are blocked without worktree isolation",
         "Worktree isolation allows parallel write experiments",
@@ -101,10 +103,8 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Status lists agents, runs, and node detail",
         "Wait is the explicit gather barrier for runs",
         "Cancel a run stops its running nodes",
-        "Cleanup prunes terminal runs",
         "Runs do not survive session restarts",
         "Messaging is capability-bound",
-        "A worker messages the main session only",
         "Inbox reads are scoped to the caller",
         "A worker reports only its bound node",
         "Intermediate worker communication stays in the mailbox",
@@ -118,7 +118,8 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Cancelled or timed-out waits surface as tool failures",
         "Legitimate empty and terminal data remains a normal result",
         "Console is a user interface, not an agent tool substitute",
-        "Console shows live node activity without intercepting global input",
+        "Console shows live teammate activity without intercepting global input",
+        "the idle widget stays hidden until a teammate is running",
         "Detail scrolling preserves every wrapped display line",
     ):
         assert phrase in feature
@@ -144,6 +145,14 @@ def test_worker_surface_is_capability_bound() -> None:
     assert "return;" in ext[ext.index("if (workerOutboxBinding())"):ext.index("// ── Session lifecycle")]
 
 
+def test_idle_widget_stays_hidden_until_a_teammate_is_running() -> None:
+    ext = source("index.ts")
+    assert "if (running.length === 0) return [];" in ext
+    assert "Team idle" not in ext
+    assert "runningTeammateLabel" in ext
+    assert "runningNodeLabel" not in ext
+
+
 def test_types_express_run_centric_surface() -> None:
     types = source("types.ts")
     for schema in (
@@ -152,14 +161,13 @@ def test_types_express_run_centric_surface() -> None:
         "TeammateWaitParams",
         "TeammateCancelParams",
         "TeammateRetryParams",
-        "EmptyParams",
         "TeammateMessageParams",
         "TeammateInboxParams",
         "TeammateReportParams",
         "RunTaskSpec",
     ):
         assert f"export const {schema}" in types
-    assert "foregroundTimeoutMs" in types
+    assert "foregroundTimeoutMs" not in types
     assert "timeoutMs" in types
     assert "nodeId: Type.Optional" in types
     assert "markRead" not in types
@@ -189,12 +197,13 @@ def test_read_receipt_protocol_is_removed() -> None:
     assert "emits read receipts" not in ext
 
 
-def test_workers_cannot_message_peers() -> None:
+def test_workers_can_message_same_run_peers() -> None:
     ext = source("index.ts")
     state = source("state.ts")
-    assert "Workers may only message agent (the main session), not peers." in ext
-    assert "mailboxExists" not in state
-    assert "mailboxExists" not in ext
+    assert "resolveWorkerRecipientFromRuns" in state
+    assert "handoffNodeResult" in state
+    assert "=== UPSTREAM HANDOFF ===" in ext
+    assert "Workers may only message agent" not in ext
 
 
 def test_run_timeout_and_retry_state_machine() -> None:
@@ -203,7 +212,7 @@ def test_run_timeout_and_retry_state_machine() -> None:
         f'''\
         import {{ createRun, resetState, failRunTimeout, retryRun, setNodeSpawnInfo, getRun }} from "{module}";
         resetState();
-        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false, timeoutMs: 5000,
+        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false, summarize: false, timeoutMs: 5000,
           nodes: [
             {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
             {{ id: "b", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: ["a"] }},
@@ -229,7 +238,7 @@ def test_retry_rearms_deadline_propagates_and_validates() -> None:
         f'''\
         import {{ createRun, resetState, retryRun, updateNodeStatus, cancelBlockedDependents, settleRun }} from "{module}";
         resetState();
-        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false, timeoutMs: 60000,
+        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false, summarize: false, timeoutMs: 60000,
           nodes: [
             {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
             {{ id: "b", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: ["a"] }},
@@ -401,7 +410,7 @@ def test_summary_node_appends_after_leaves_and_reserves_its_id() -> None:
         f'''\
         import {{ createRun, resetState, SUMMARY_NODE_ID }} from "{module}";
         resetState();
-        const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false, summarize: true,
+        const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
           nodes: [
             {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
             {{ id: "b", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: [] }},
@@ -430,6 +439,60 @@ def test_summary_node_appends_after_leaves_and_reserves_its_id() -> None:
     assert payload["conflictOk"] is False
 
 
+def test_single_task_run_skips_summary_unless_requested() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, SUMMARY_NODE_ID }} from "{module}";
+        resetState();
+        const implicit = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false,
+          nodes: [{{ id: "only", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }}] }});
+        const explicit = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false, summarize: true,
+          nodes: [{{ id: "only", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }}] }});
+        const off = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false, summarize: false,
+          nodes: [
+            {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
+            {{ id: "b", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: [] }},
+          ] }});
+        console.log(JSON.stringify({{
+          implicit: Boolean(implicit.run.nodes[SUMMARY_NODE_ID]),
+          explicit: Boolean(explicit.run.nodes[SUMMARY_NODE_ID]),
+          off: Boolean(off.run.nodes[SUMMARY_NODE_ID]),
+        }}));
+        '''
+    )
+    assert payload == {"implicit": False, "explicit": True, "off": False}
+
+
+def test_completing_a_node_hands_result_to_dependents() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, updateNodeStatus, handoffNodeResult, readMailbox }} from "{module}";
+        resetState();
+        const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false, summarize: false,
+          nodes: [
+            {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
+            {{ id: "b", agent: "reviewer", prompt: "", paths: ["y"], access: "read", dependsOn: ["a"] }},
+          ] }});
+        const run = created.run;
+        updateNodeStatus(run.id, "a", "completed", "fixed auth.ts");
+        const sent = handoffNodeResult(run.id, "a");
+        const inbox = readMailbox(run.nodes.b.workerKey, {{ unreadOnly: true, markRead: false }});
+        console.log(JSON.stringify({{
+          sent,
+          subject: inbox[0]?.subject ?? "",
+          body: inbox[0]?.body ?? "",
+          from: inbox[0]?.from ?? "",
+        }}));
+        '''
+    )
+    assert payload["sent"] == 1
+    assert payload["subject"] == "Handoff from a"
+    assert payload["from"] == "run_1:a"
+    assert "fixed auth.ts" in payload["body"]
+
+
 def test_run_creation_rejects_malformed_graphs() -> None:
     module = (SRC / "state.ts").as_uri()
     payload = run_node(
@@ -439,15 +502,15 @@ def test_run_creation_rejects_malformed_graphs() -> None:
         const node = (id, dependsOn = []) => ({{
           id, agent: "worker", prompt: "do it", paths: ["packages/a"], access: "read", dependsOn,
         }});
-        const dup = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+        const dup = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false, summarize: false,
           nodes: [node("a"), node("a")] }});
-        const unknownDep = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+        const unknownDep = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false, summarize: false,
           nodes: [node("a", ["ghost"])] }});
-        const cycle = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+        const cycle = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false, summarize: false,
           nodes: [node("a", ["b"]), node("b", ["a"])] }});
-        const badPath = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+        const badPath = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false, summarize: false,
           nodes: [{{ ...node("a"), paths: ["/etc/passwd"] }}] }});
-        const ok = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+        const ok = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false, summarize: false,
           nodes: [node("a"), node("b", ["a"])] }});
         console.log(JSON.stringify({{
           dupOk: dup.ok, dupError: dup.ok ? "" : dup.error,
@@ -481,7 +544,7 @@ def test_dependency_readiness_and_settlement() -> None:
         import {{ createRun, resetState, nodeIsReady, settleRun, cancelBlockedDependents,
                  updateNodeStatus, runningNodeCount, listRuns }} from "{module}";
         resetState();
-        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false,
+        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false, summarize: false,
           nodes: [
             {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
             {{ id: "b", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: ["a"] }},

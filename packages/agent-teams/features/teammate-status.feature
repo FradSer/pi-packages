@@ -75,13 +75,13 @@ Feature: Agent Teams run-centric public API
       And the run continues executing in the background
       And it delivers one run-completion follow-up when it settles
 
-    Scenario: An optional summary node synthesizes the run instead of truncating node output
-      Given a run is dispatched with summarize=true
-      Then a summary node is appended after every leaf node
+    Scenario: Multi-node runs synthesize a final summary by default
+      Given a run is dispatched with more than one user task
+      Then a summary node is appended after every leaf node unless summarize=false
       And it reads all node results and produces one synthesized final summary
-      And the tool return shows that summary rather than truncated per-node output
-      When summarize is not set
-      Then the tool return lists node statuses only and points to teammate_status/teammate_inbox for detail
+      And the tool return shows that summary rather than per-node process text
+      When a run has exactly one user task
+      Then no summary node is added unless summarize=true
 
     Scenario: A run-level timeout fails the whole run
       Given a run declares a timeoutMs hard cap
@@ -163,12 +163,6 @@ Feature: Agent Teams run-centric public API
       When the leader calls teammate_retry on a running run or with no failed nodes
       Then the operation is rejected
 
-    Scenario: Cleanup prunes terminal runs
-      Given terminal runs exist
-      When the leader calls teammate_cleanup
-      Then terminal runs and their node mailboxes are removed
-      And running and pending runs are retained
-
     Scenario: Runs do not survive session restarts
       Given a previous session recorded runs, nodes, and messages
       When a new or resumed session starts
@@ -177,13 +171,19 @@ Feature: Agent Teams run-centric public API
 
   Rule: Messaging is capability-bound
 
-    Scenario: A worker messages the main session only
+    Scenario: A worker messages the main session or a peer in the same run
       Given a node is working
-      When it calls teammate_message with to="agent"
-      Then the leader validates the worker identity and spawn identity
-      And the message reaches the agent inbox
-      When it tries to message a peer node key
-      Then the request is rejected and no peer message is queued
+      When it calls teammate_message with to="agent" or a peer node key in the same run
+      Then the leader validates the worker identity, spawn identity, and recipient
+      And the message reaches the selected inbox
+      When it tries to message a node in another run or an unknown key
+      Then the request is rejected and no message is queued
+
+    Scenario: Completing a node hands its result to downstream peers
+      Given a run has a node that other nodes depend on
+      When that node completes
+      Then each pending dependent receives a handoff message with the result
+      And the downstream worker prompt includes the upstream result
 
     Scenario: Inbox reads are scoped to the caller
       Given messages are present
@@ -261,11 +261,12 @@ Feature: Agent Teams run-centric public API
 
   Rule: Console is a user interface, not an agent tool substitute
 
-    Scenario: Console shows live node activity without intercepting global input
-      Given a run node is working
+    Scenario: Console shows live teammate activity without intercepting global input
+      Given a teammate is working
       When the user opens /teammate
-      Then the full-screen console shows the node's live model text and current tool activity
+      Then the full-screen console shows the teammate's live model text and current tool activity
       And working rows display a spinner and working...
+      And the idle widget stays hidden until a teammate is running
       And it does not intercept global terminal input
 
     Scenario: Detail scrolling preserves every wrapped display line

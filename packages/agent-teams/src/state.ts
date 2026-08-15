@@ -107,7 +107,8 @@ export function createRun(
   },
 ): { ok: true; run: Run } | { ok: false; error: string } {
   if (input.nodes.length === 0) return { ok: false, error: "Provide at least one task." };
-  if (input.summarize && input.nodes.some((node) => node.id === SUMMARY_NODE_ID)) {
+  const summarize = input.summarize ?? input.nodes.length > 1;
+  if (summarize && input.nodes.some((node) => node.id === SUMMARY_NODE_ID)) {
     return { ok: false, error: `Node id "${SUMMARY_NODE_ID}" is reserved for the run summary.` };
   }
 
@@ -158,8 +159,8 @@ export function createRun(
     if (visit(node.id)) return { ok: false, error: "The task graph contains a dependency cycle." };
   }
 
-  // Optional synthesized summary: depends on every leaf node so it runs last.
-  if (input.summarize) {
+  // Synthesized summary: default on for multi-node runs. Depends on every leaf.
+  if (summarize) {
     const leaves = normalized.filter((node) => !normalized.some((other) => other.dependsOn.includes(node.id)));
     if (leaves.length > 0) {
       normalized.push({
@@ -658,6 +659,71 @@ export function readMailbox(
 
 export function getUnreadCount(name: string): number {
   return (state.mailboxes[name] ?? []).filter((m) => !m.read).length;
+}
+
+/** A mailbox exists for the main session or a known node worker key. */
+export function mailboxExists(name: string): boolean {
+  return name === "agent" || getNodeByWorkerKey(name) !== undefined;
+}
+
+/** Resolve a worker-facing recipient: agent, same-run node id, or runId:nodeId. */
+export function resolveWorkerRecipientFromRuns(
+  runs: Record<string, Run>,
+  fromWorkerKey: string,
+  to: string,
+): { ok: true; to: string } | { ok: false; error: string } {
+  if (to === "agent") return { ok: true, to: "agent" };
+  const senderRun = Object.values(runs).find((run) => Object.values(run.nodes).some((node) => node.workerKey === fromWorkerKey));
+  if (!senderRun) return { ok: false, error: `Unknown sender "${fromWorkerKey}".` };
+  const peer = senderRun.nodes[to] ?? (to.startsWith(`${senderRun.id}:`) ? senderRun.nodes[to.slice(senderRun.id.length + 1)] : undefined);
+  if (!peer) return { ok: false, error: `Unknown peer "${to}" in run "${senderRun.id}".` };
+  if (peer.workerKey === fromWorkerKey) return { ok: false, error: "A worker cannot message itself." };
+  return { ok: true, to: peer.workerKey };
+}
+
+export function resolveWorkerRecipient(fromWorkerKey: string, to: string): { ok: true; to: string } | { ok: false; error: string } {
+  return resolveWorkerRecipientFromRuns(getState().runs, fromWorkerKey, to);
+}
+
+/** Resolve a leader-facing recipient: worker key, unique node id, or runId:nodeId. */
+export function resolveLeaderRecipient(to: string, runId?: string): { ok: true; to: string; runId: string } | { ok: false; error: string } {
+  const byKey = getNodeByWorkerKey(to);
+  if (byKey) return { ok: true, to: byKey.node.workerKey, runId: byKey.run.id };
+  if (runId) {
+    const node = getNode(runId, to);
+    if (node) return { ok: true, to: node.workerKey, runId };
+  }
+  const matches = listRuns().flatMap((run) => (run.nodes[to] ? [{ run, node: run.nodes[to] }] : []));
+  if (matches.length === 1) return { ok: true, to: matches[0].node.workerKey, runId: matches[0].run.id };
+  if (matches.length > 1) return { ok: false, error: `Node id "${to}" is ambiguous across runs; use runId:nodeId.` };
+  return { ok: false, error: `Unknown node "${to}". Use a node id, runId:nodeId, or to="all" with runId.` };
+}
+
+/** Pending/running dependents of a node (direct dependsOn edges). */
+export function dependentNodes(runId: string, nodeId: string): Node[] {
+  const run = state.runs[runId];
+  if (!run) return [];
+  return Object.values(run.nodes).filter((node) => node.dependsOn.includes(nodeId));
+}
+
+/** Push a completed node's result into each dependent's inbox. */
+export function handoffNodeResult(runId: string, nodeId: string): number {
+  const run = state.runs[runId];
+  const node = run?.nodes[nodeId];
+  if (!run || !node) return 0;
+  const body = node.result?.trim() || node.errorMessage?.trim() || `${node.status} with no written result.`;
+  let sent = 0;
+  for (const dependent of dependentNodes(runId, nodeId)) {
+    sendMessage({
+      from: node.workerKey,
+      to: dependent.workerKey,
+      subject: `Handoff from ${node.id}`,
+      body: `Upstream node [${node.id}] (${node.agent}) is ${node.status}.\n\n${body}`,
+      taskId: runId,
+    });
+    sent++;
+  }
+  return sent;
 }
 
 /** Every message across every mailbox (for building full conversation transcripts). */

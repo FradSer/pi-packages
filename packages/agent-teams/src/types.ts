@@ -202,9 +202,8 @@ export const TeammateRunParams = Type.Object({
   worktree: Type.Optional(Type.Boolean({ description: "Run every node in its own git worktree (default: false)" })),
   background: Type.Optional(Type.Boolean({ description: "Return immediately and deliver one completion follow-up (default: false = foreground gather)" })),
   timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Run-level hard wall-clock cap; the run fails when exceeded (default: none, nodes have their own caps)" })),
-  foregroundTimeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Foreground gather cap; the run detaches to background when exceeded (default: 300000 = 5 min)" })),
-  summarize: Type.Optional(Type.Boolean({ description: "Append a __summary node after all leaf nodes that synthesizes one final summary (default: false)" })),
-  summaryAgent: Type.Optional(Type.String({ description: "Agent used for the summary node when summarize=true (default: observer)" })),
+  summarize: Type.Optional(Type.Boolean({ description: "Append a __summary node after all leaf nodes. Default: true when the run has more than one user task, false for a single task." })),
+  summaryAgent: Type.Optional(Type.String({ description: "Agent used for the summary node when summarize is on (default: observer)" })),
   cwd: Type.Optional(Type.String({ description: "Working directory for this run (default: the session cwd)" })),
 });
 
@@ -233,9 +232,9 @@ export const TeammateRetryParams = Type.Object({
   nodeIds: Type.Optional(Type.Array(Type.String(), { description: "Node ids to reset and re-run; defaults to all failed and cancelled nodes" })),
 });
 
-/** Send a direct message. Leaders address a node key or broadcast to a run; workers may only message agent. */
+/** Send a direct message. Leaders address a node key or broadcast to a run; workers address agent or a same-run peer. */
 export const TeammateMessageParams = Type.Object({
-  to: Type.String({ description: "Recipient node key (runId:nodeId) or all (leader only); workers may only use agent" }),
+  to: Type.String({ description: "Recipient: agent, a same-run node id, or runId:nodeId. Leaders may also use all with runId." }),
   subject: Type.String({ description: "Concise message subject" }),
   body: Type.String({ description: "Message body" }),
   runId: Type.Optional(Type.String({ description: "Run id required when to is all (leader only)" })),

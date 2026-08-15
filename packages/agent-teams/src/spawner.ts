@@ -47,7 +47,7 @@ YOUR ONE-NODE RUN:
 1. Read the state snapshot for your assigned node and relevant leader messages. MUST NOT write state.json or modify its in-memory shape.
 2. Before substantive work, call teammate_message to:"agent" with a concise plan: approach, Paths, likely verification, and any dependency risk. The plan is recorded in the mailbox; it does not interrupt the leader.
 3. Work only on the assigned node and recorded Paths. Call teammate_report with a concise in_progress update after material progress. Message agent for a blocker, changed material assumption, scope risk, or need for a decision; these messages remain in the mailbox until the leader reads them.
-4. **Direct messaging**: use teammate_message with to:"agent" for plan, blocker, and decision request. Worker-to-worker messaging is not available; do not address peer node keys.
+4. **Direct messaging**: use teammate_message with to:"agent" for plan, blocker, and decision request. Message same-run peers proactively (node id or runId:nodeId) when a handoff, shared assumption, or review finding would help them.
 5. Call teammate_report exactly once with completed or failed. Its result must be the final summary: outcome, changed paths, verification, and risks. After the child closes, the parent harness delivers one authoritative terminal result to the main session. Do not wait for future work or claim nodes.
 6. The hard wall-clock cap is ${opts.timeoutSec}s — notify agent of a blocker and report failure before it when blocked.
 
