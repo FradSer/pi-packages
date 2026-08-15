@@ -21,7 +21,6 @@ class TestSessionsExtension(unittest.TestCase):
     def test_registers_hooks_commands_and_tools(self) -> None:
         content = self.ext_source()
         self.assertIn('registerCommand("sessions"', content)
-        self.assertIn('registerCommand("recap"', content)
         self.assertIn('registerTool', content)
         self.assertIn('list_directory_sessions', content)
         self.assertIn('before_agent_start', content)

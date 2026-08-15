@@ -1,6 +1,6 @@
 # Utils Pi Package
 
-A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks or continuing based on recommendations, multi-session directory awareness (`/sessions`, `/recap`), plus a git worktree path redirect.
+A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks or continuing based on recommendations, multi-session directory awareness (`/sessions`), plus a git worktree path redirect.
 
 ## Installation
 
@@ -12,13 +12,12 @@ pi install npm:@fradser/pi-utils
 
 ## Commands
 
-### `sessions` & `recap` — cross-session directory awareness
+### `sessions` — cross-session directory awareness
 
-`/sessions` (or `/recap`) lists active and recent Pi coding sessions in the current directory (`cwd`), including their PID, status, latest goal, and recent work.
+`/sessions` lists active and recent Pi coding sessions in the current directory (`cwd`), including their PID, status, latest goal, and recent work.
 
 ```
 /sessions                           # List active/recent sessions in cwd
-/recap                              # Show directory session recap
 ```
 
 **Features**:

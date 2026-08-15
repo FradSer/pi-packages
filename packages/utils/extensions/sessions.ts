@@ -326,11 +326,6 @@ export default function (pi: ExtensionAPI) {
     handler: commandHandler,
   });
 
-  pi.registerCommand("recap", {
-    description: "Show cross-session recap of work in the current directory",
-    handler: commandHandler,
-  });
-
   pi.registerTool({
     name: "list_directory_sessions",
     label: "List Directory Sessions",
