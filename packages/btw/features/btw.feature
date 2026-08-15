@@ -24,3 +24,17 @@ Feature: Read-only side questions
     When the child process emits a launch error
     Then the side question returns a failed result
     And the temporary prompt file and its containing directory are removed
+
+  Scenario: Multi-turn side questions include conversation history in the prompt
+    Given an initial side question has been answered
+    When a follow-up side question is asked
+    Then the prompt includes the side conversation history
+    And the prompt includes the new side question
+    And the child process executes without persisting a session
+
+  Scenario: Multi-turn overlay maintains turns and aggregates token usage
+    Given an interactive side question overlay
+    When an initial question and a follow-up question are answered
+    Then the overlay displays all conversation turns
+    And the footer aggregates token usage and cost across turns
+

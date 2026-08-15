@@ -16,16 +16,17 @@
 
 import {
   CancellableLoader,
+  type Component,
+  Input,
   Key,
   Markdown,
   type MarkdownTheme,
   matchesKey,
+  type TUI,
   truncateToWidth,
   visibleWidth,
-  type Component,
-  type TUI,
 } from "@earendil-works/pi-tui";
-import type { BtwUsage } from "./spawner";
+import type { BtwResult, BtwTurn, BtwUsage } from "./spawner";
 
 export interface BtwOverlayStyle {
   accent: (s: string) => string;
@@ -38,17 +39,35 @@ export interface BtwOverlayStyle {
 }
 
 export interface BtwOverlayOptions {
-  /** The side question as asked. */
+  /** The initial side question as asked. */
   question: string;
   /** Model label shown in the loading line (optional). */
   modelLabel?: string;
-  /** Called when the overlay should close (escape, or cancel while loading). */
+  /** Called when the overlay should close (escape, or cancel while loading initial question). */
   onCancel: () => void;
-  /** Called once with the abort signal that kills the child process. */
-  onSpawn: (signal: AbortSignal) => void;
+  /**
+   * Called to run a turn (initial or follow-up).
+   * Receives question, history of completed turns, and an AbortSignal.
+   * Returns Promise with the result.
+   */
+  onAsk?: (
+    question: string,
+    history: BtwTurn[],
+    signal: AbortSignal,
+  ) => Promise<BtwResult>;
+  /** Optional legacy callback for single-turn caller. */
+  onSpawn?: (signal: AbortSignal) => void;
 }
 
 export interface BtwAnswerMeta {
+  usage?: BtwUsage;
+  elapsedMs?: number;
+}
+
+export interface BtwTurnState {
+  question: string;
+  answer?: string;
+  error?: string;
   usage?: BtwUsage;
   elapsedMs?: number;
 }
@@ -59,7 +78,7 @@ export interface BtwOverlay extends Component {
   showError(text: string): void;
 }
 
-type OverlayState = "loading" | "answer" | "error";
+type OverlayState = "loading" | "idle" | "error";
 
 /** Cap the answer body at ~40% of the terminal height (adaptive, scrollable). */
 export function maxAnswerBody(rows: number): number {
@@ -91,41 +110,63 @@ export function createBtwOverlay(
   style: BtwOverlayStyle,
   options: BtwOverlayOptions,
 ): BtwOverlay {
+  const input = new Input();
+  input.focused = true;
+
   const loader = new CancellableLoader(
     tui,
     style.accent,
     style.muted,
     options.modelLabel ? `Answering (read-only, ${options.modelLabel})…` : "Answering (read-only)…",
   );
-  loader.onAbort = () => {
-    if (!closed) options.onCancel();
-  };
-
-  // Kick off the read-only child immediately, wired to the loader's abort signal.
-  options.onSpawn(loader.signal);
 
   const mdTheme = buildMarkdownTheme(style);
 
+  const turns: BtwTurnState[] = [];
   let state: OverlayState = "loading";
-  let meta: BtwAnswerMeta | undefined;
   let closed = false;
-
   let scroll = 0;
   let markdown: Markdown | undefined;
+  let currentAbortController: AbortController | undefined;
 
-  const setBody = (next: OverlayState, text: string, m?: BtwAnswerMeta) => {
-    if (closed) return;
-    state = next;
-    meta = m;
-    scroll = 0;
+  const buildConversationMarkdown = (): string => {
+    if (turns.length === 0) return "";
+    if (turns.length === 1) {
+      const turn = turns[0];
+      if (turn.error) return `*Error: ${turn.error}*`;
+      return turn.answer ?? "";
+    }
+    const parts: string[] = [];
+    for (let i = 0; i < turns.length; i++) {
+      const turn = turns[i];
+      const turnParts: string[] = [`**Q: ${turn.question}**`];
+      if (turn.error) {
+        turnParts.push(`*Error: ${turn.error}*`);
+      } else if (turn.answer !== undefined) {
+        turnParts.push(turn.answer);
+      }
+      parts.push(turnParts.join("\n\n"));
+    }
+    return parts.join("\n\n---\n\n");
+  };
+
+  const updateMarkdown = () => {
+    const text = buildConversationMarkdown();
     if (markdown) {
       markdown.setText(text);
       markdown.invalidate();
-    } else {
+    } else if (text) {
       markdown = new Markdown(text, 0, 0, mdTheme, undefined, { renderLatex: true });
     }
-    loader.stop();
-    tui.requestRender();
+  };
+
+  const scrollToBottom = () => {
+    scroll = Number.MAX_SAFE_INTEGER;
+    const contentWidth = Math.max(20, tui.terminal.columns - 4);
+    const maxBody = maxAnswerBody(tui.terminal.rows);
+    const lines = markdown?.render(contentWidth) ?? [];
+    const max = Math.max(0, lines.length - maxBody);
+    scroll = Math.min(scroll, max);
   };
 
   const scrollBy = (delta: number, maxBody: number) => {
@@ -144,27 +185,201 @@ export function createBtwOverlay(
     return visible >= width ? line : line + " ".repeat(width - visible);
   };
 
+  const askQuestion = (question: string) => {
+    if (closed) return;
+    const abortController = new AbortController();
+    currentAbortController = abortController;
+
+    turns.push({ question });
+    state = "loading";
+    updateMarkdown();
+    scrollToBottom();
+    loader.start();
+    tui.requestRender();
+
+    const startedAt = Date.now();
+
+    if (options.onAsk) {
+      const history: BtwTurn[] = turns
+        .slice(0, -1)
+        .filter((t) => t.answer !== undefined)
+        .map((t) => ({ question: t.question, answer: t.answer ?? "" }));
+
+      options
+        .onAsk(question, history, abortController.signal)
+        .then((result) => {
+          if (closed || abortController.signal.aborted) return;
+          const currentTurn = turns[turns.length - 1];
+          if (!currentTurn) return;
+
+          if (result.timedOut) {
+            currentTurn.error = "The side question timed out. Try again or make the question more specific.";
+            state = "error";
+          } else if (result.exitCode !== 0 && !result.text) {
+            currentTurn.error = result.stderr.trim()
+              ? `The side question failed:\n${result.stderr.trim()}`
+              : `The side question failed with exit code ${result.exitCode}.`;
+            state = "error";
+          } else {
+            currentTurn.answer = result.text || "(no answer)";
+            currentTurn.usage = result.usage;
+            currentTurn.elapsedMs = Date.now() - startedAt;
+            state = "idle";
+          }
+          loader.stop();
+          updateMarkdown();
+          scrollToBottom();
+          input.focused = true;
+          tui.requestRender();
+        })
+        .catch((error: unknown) => {
+          if (closed || abortController.signal.aborted) return;
+          const currentTurn = turns[turns.length - 1];
+          if (currentTurn) {
+            currentTurn.error = error instanceof Error ? error.message : String(error);
+          }
+          state = "error";
+          loader.stop();
+          updateMarkdown();
+          scrollToBottom();
+          input.focused = true;
+          tui.requestRender();
+        });
+    } else if (options.onSpawn) {
+      options.onSpawn(abortController.signal);
+    }
+  };
+
+  loader.onAbort = () => {
+    if (closed) return;
+    currentAbortController?.abort();
+    if (turns.length <= 1) {
+      closed = true;
+      options.onCancel();
+    } else {
+      turns.pop();
+      state = "idle";
+      updateMarkdown();
+      scrollToBottom();
+      input.focused = true;
+      tui.requestRender();
+    }
+  };
+
+  input.onSubmit = (value: string) => {
+    if (state === "loading") return;
+    const nextQuestion = value.trim();
+    if (!nextQuestion) return;
+    input.setValue("");
+    askQuestion(nextQuestion);
+  };
+
+  input.onEscape = () => {
+    if (!closed) {
+      closed = true;
+      loader.stop();
+      currentAbortController?.abort();
+      options.onCancel();
+    }
+  };
+
+  askQuestion(options.question);
+
   return {
     showAnswer(text: string, m?: BtwAnswerMeta) {
-      setBody("answer", text, m);
+      if (closed) return;
+      let currentTurn = turns[turns.length - 1];
+      if (!currentTurn) {
+        currentTurn = { question: options.question };
+        turns.push(currentTurn);
+      }
+      currentTurn.answer = text;
+      currentTurn.usage = m?.usage;
+      currentTurn.elapsedMs = m?.elapsedMs;
+      state = "idle";
+      loader.stop();
+      updateMarkdown();
+      scrollToBottom();
+      input.focused = true;
+      tui.requestRender();
     },
     showError(text: string) {
-      setBody("error", text);
+      if (closed) return;
+      let currentTurn = turns[turns.length - 1];
+      if (!currentTurn) {
+        currentTurn = { question: options.question };
+        turns.push(currentTurn);
+      }
+      currentTurn.error = text;
+      state = "error";
+      loader.stop();
+      updateMarkdown();
+      scrollToBottom();
+      input.focused = true;
+      tui.requestRender();
     },
 
     handleInput(data: string) {
       if (state === "loading") {
-        // Escape → loader.onAbort → options.onCancel
-        loader.handleInput(data);
+        if (matchesKey(data, Key.escape)) {
+          currentAbortController?.abort();
+          loader.stop();
+          if (turns.length <= 1) {
+            if (!closed) {
+              closed = true;
+              options.onCancel();
+            }
+          } else {
+            turns.pop();
+            state = "idle";
+            updateMarkdown();
+            scrollToBottom();
+            input.focused = true;
+            tui.requestRender();
+          }
+          return;
+        }
+
+        const sgrWheel = /^\x1b\[<(\d+);(\d+);(\d+)[Mm]$/.exec(data);
+        if (sgrWheel) {
+          const button = Number.parseInt(sgrWheel[1], 10);
+          if ((button & 64) !== 0) {
+            const direction = button & 3;
+            const maxBody = maxAnswerBody(tui.terminal.rows);
+            if (direction === 0) scrollBy(-3, maxBody);
+            else if (direction === 1) scrollBy(3, maxBody);
+          }
+          return;
+        }
+        const maxBody = maxAnswerBody(tui.terminal.rows);
+        if (matchesKey(data, Key.up)) scrollBy(-1, maxBody);
+        else if (matchesKey(data, Key.down)) scrollBy(1, maxBody);
+        else if (matchesKey(data, Key.pageUp)) scrollBy(-Math.max(1, maxBody - 1), maxBody);
+        else if (matchesKey(data, Key.pageDown)) scrollBy(Math.max(1, maxBody - 1), maxBody);
+        else if (matchesKey(data, Key.home)) {
+          scroll = 0;
+          tui.requestRender();
+        } else if (matchesKey(data, Key.end)) {
+          scroll = Number.MAX_SAFE_INTEGER;
+          const contentWidth = Math.max(20, tui.terminal.columns - 4);
+          const lines = markdown?.render(contentWidth) ?? [];
+          const max = Math.max(0, lines.length - maxBody);
+          scroll = Math.min(scroll, max);
+          tui.requestRender();
+        }
         return;
       }
+
       if (matchesKey(data, Key.escape)) {
-        if (!closed) options.onCancel();
+        if (!closed) {
+          closed = true;
+          loader.stop();
+          currentAbortController?.abort();
+          options.onCancel();
+        }
         return;
       }
-      // SGR mouse wheel (\x1b[<64;col;rowM up / \x1b[<65;col;rowM down).
-      // The fullscreen TUI delivers wheel events to a focused overlay's
-      // handleInput when it defers viewport scrolling to the overlay.
+
       const sgrWheel = /^\x1b\[<(\d+);(\d+);(\d+)[Mm]$/.exec(data);
       if (sgrWheel) {
         const button = Number.parseInt(sgrWheel[1], 10);
@@ -191,6 +406,9 @@ export function createBtwOverlay(
         const max = Math.max(0, lines.length - maxBody);
         scroll = Math.min(scroll, max);
         tui.requestRender();
+      } else {
+        input.handleInput(data);
+        tui.requestRender();
       }
     },
 
@@ -205,7 +423,7 @@ export function createBtwOverlay(
       lines.push(border);
       lines.push(style.accent(truncateToWidth(`btw  ${options.question}`, width)));
 
-      if (state === "loading") {
+      if (state === "loading" && turns.length <= 1) {
         lines.push("");
         for (const line of loader.render(contentWidth)) lines.push(pad(line, contentWidth));
         while (lines.length < 2 + 2) lines.push("");
@@ -217,26 +435,61 @@ export function createBtwOverlay(
         if (scroll > max) scroll = max;
         const windowLines = mdLines.slice(scroll, scroll + viewport);
         lines.push("");
-        for (const line of windowLines) lines.push(pad("  " + line, contentWidth));
+        for (const line of windowLines) lines.push(pad(`  ${line}`, contentWidth));
         if (mdLines.length > maxBody) {
           lines.push(style.dim(`  … ${mdLines.length - maxBody} more lines`));
         }
         lines.push("");
       }
 
+      if (state === "loading" && turns.length > 1) {
+        for (const line of loader.render(contentWidth)) lines.push(pad(line, contentWidth));
+        lines.push("");
+      }
+
+      if (state !== "loading") {
+        const inputLines = input.render(contentWidth - 2);
+        for (const line of inputLines) {
+          lines.push(pad(`  ${line}`, contentWidth));
+        }
+      }
+
       // Footer
       let footer: string;
-      if (state === "loading") {
+      if (state === "loading" && turns.length <= 1) {
         footer = "esc cancel";
       } else {
         const parts: string[] = [];
         if (state === "error") parts.push(style.error("error"));
-        if (meta?.usage) {
-          const u = meta.usage;
-          parts.push(`${u.totalTokens} tokens · $${u.cost.toFixed(4)}`);
+
+        let totalTokens = 0;
+        let totalCost = 0;
+        let totalElapsedMs = 0;
+        for (const turn of turns) {
+          if (turn.usage) {
+            totalTokens += turn.usage.totalTokens;
+            totalCost += turn.usage.cost;
+          }
+          if (turn.elapsedMs !== undefined) {
+            totalElapsedMs += turn.elapsedMs;
+          }
         }
-        if (meta?.elapsedMs !== undefined) parts.push(`${Math.round(meta.elapsedMs / 1000)}s`);
-        parts.push("esc close · ↑↓ scroll · pgup/pgdn page · home/end jump");
+
+        if (totalTokens > 0) {
+          parts.push(`${totalTokens} tokens · $${totalCost.toFixed(4)}`);
+        }
+        if (totalElapsedMs > 0) {
+          parts.push(`${Math.round(totalElapsedMs / 1000)}s`);
+        }
+        if (turns.length > 1) {
+          parts.push(`${turns.length} turns`);
+        }
+
+        if (state === "loading") {
+          parts.push("esc cancel · ↑↓ scroll");
+        } else {
+          parts.push("esc close · enter send · ↑↓ scroll · pgup/pgdn page · home/end jump");
+        }
         footer = parts.join("   ");
       }
       lines.push(style.dim(footer));
@@ -253,6 +506,7 @@ export function createBtwOverlay(
     dispose() {
       closed = true;
       loader.stop();
+      currentAbortController?.abort();
       markdown = undefined;
     },
   };

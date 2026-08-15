@@ -33,6 +33,11 @@ export interface BtwUsage {
   cost: number;
 }
 
+export interface BtwTurn {
+  question: string;
+  answer: string;
+}
+
 export interface BtwResult {
   text: string;
   usage?: BtwUsage;
@@ -54,6 +59,8 @@ export interface RunBtwOptions {
   signal?: AbortSignal;
   /** Kill the child after this many milliseconds (default: 180s). */
   timeoutMs?: number;
+  /** Completed conversation history from prior side-question turns. */
+  history?: BtwTurn[];
 }
 
 type JsonEvent = {
@@ -162,8 +169,12 @@ export function resolvePiCli(): { command: string; args: string[] } | undefined 
   return { command: "pi", args: [] };
 }
 
-/** Compose the prompt for the side-question child: instructions + context + question. */
-export function buildBtwPrompt(question: string, context: string): string {
+/** Compose the prompt for the side-question child: instructions + context + history + question. */
+export function buildBtwPrompt(
+  question: string,
+  context: string,
+  history?: BtwTurn[],
+): string {
   const lines = [
     'You are answering a quick side question ("btw") about the current coding session.',
     "You have read-only tools (read, grep, find, ls). Use them to verify facts in the codebase when helpful.",
@@ -173,7 +184,17 @@ export function buildBtwPrompt(question: string, context: string): string {
   if (context.trim()) {
     lines.push("", "=== Recent session context (read-only excerpt) ===", context);
   }
-  lines.push("", "=== Side question ===", question);
+  if (history && history.length > 0) {
+    lines.push("", "=== Side conversation history ===");
+    for (const turn of history) {
+      lines.push(`[User]: ${turn.question}`);
+      if (turn.answer.trim()) {
+        lines.push(`[Assistant]: ${turn.answer}`);
+      }
+      lines.push("");
+    }
+  }
+  lines.push("=== Side question ===", question);
   return lines.join("\n");
 }
 
@@ -221,7 +242,7 @@ export function runBtw(options: RunBtwOptions): Promise<BtwResult> {
     };
 
     try {
-      const prompt = buildBtwPrompt(options.question, options.context);
+      const prompt = buildBtwPrompt(options.question, options.context, options.history);
       if (prompt.length > PROMPT_ARG_LIMIT) {
         promptDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "btw-"));
         const promptFile = path.join(promptDirectory, "question.md");
@@ -241,7 +262,7 @@ export function runBtw(options: RunBtwOptions): Promise<BtwResult> {
       return;
     }
 
-    let child;
+    let child: ReturnType<typeof spawn> | undefined;
     try {
       child = spawn(cli.command, args, {
         cwd: options.cwd,

@@ -50,6 +50,14 @@ to focused overlays/widgets).
 because a modal overlay captures focus and was the wrong shape. The scrolling/padding
 lessons are preserved below.
 
+## Multi-turn side conversation
+
+- The overlay supports multi-turn replies without leaving the popup.
+- When an answer is ready, an embedded `Input` component renders below the Markdown viewport.
+- Submitting a follow-up question starts a new child turn with the accumulated side history passed in `buildBtwPrompt`.
+- Token usage and cost aggregate across turns in the footer.
+- Cancelling an in-flight follow-up with `esc` drops the pending turn and restores the previous completed conversation without closing the overlay.
+
 ## Spawner
 
 `resolvePiCli` (verified against the pi package manifest, same approach as teammate's

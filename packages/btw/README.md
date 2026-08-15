@@ -39,11 +39,12 @@ The answer appears in a **full-width popup anchored to the bottom of the termina
 
 - Spinner while the read-only child answers (same model as your session; override with
   the `BTW_MODEL` env var, e.g. `BTW_MODEL=anthropic/claude-sonnet-4-5`).
+- **Multi-turn conversation.** Type follow-up questions directly in the overlay input prompt and press **`enter`** to continue the side thread.
 - **`esc`** closes (or cancels while loading).
 - **`↑`/`↓`** scroll, **`pgup`/`pgdn`** page, **`home`/`end`** jump.
 - Short answers shrink the panel; long answers cap at ~40% of the terminal height with
   a "… N more lines" trailer.
-- The footer shows token usage and cost for the side run.
+- The footer shows aggregated token usage and cost for the side conversation.
 
 Mouse-wheel scrolling is **not** available: in pi's fullscreen TUI the wheel is owned by
 the chat viewport (pi consumes all mouse events before extensions can see them). If you

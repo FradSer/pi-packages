@@ -20,7 +20,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { buildConversationContext } from "./context";
-import { createBtwOverlay, type BtwOverlayStyle } from "./overlay";
+import { type BtwOverlayStyle, createBtwOverlay } from "./overlay";
 import { runBtw } from "./spawner";
 
 const DEFAULT_MODEL_ENV = "BTW_MODEL";
@@ -70,28 +70,15 @@ export default function (pi: ExtensionAPI) {
             question,
             modelLabel: model,
             onCancel: () => done(undefined),
-            onSpawn: (signal) => {
-              const startedAt = Date.now();
-              runBtw({ question, context, cwd: ctx.cwd, model, signal })
-                .then((result) => {
-                  if (result.timedOut) {
-                    overlay.showError("The side question timed out. Try again or make the question more specific.");
-                  } else if (result.exitCode !== 0 && !result.text) {
-                    overlay.showError(
-                      result.stderr.trim()
-                        ? `The side question failed:\n${result.stderr.trim()}`
-                        : `The side question failed with exit code ${result.exitCode}.`,
-                    );
-                  } else {
-                    overlay.showAnswer(result.text || "(no answer)", {
-                      usage: result.usage,
-                      elapsedMs: Date.now() - startedAt,
-                    });
-                  }
-                })
-                .catch((error: unknown) => {
-                  overlay.showError(error instanceof Error ? error.message : String(error));
-                });
+            onAsk: (q, history, signal) => {
+              return runBtw({
+                question: q,
+                context,
+                cwd: ctx.cwd,
+                model,
+                signal,
+                history,
+              });
             },
           });
 

@@ -31,6 +31,9 @@ def test_feature_covers_isolation_and_temp_prompt_lifecycle() -> None:
     assert "Scenario: A child Pi run is configured read-only" in feature
     assert "Scenario: A long side prompt exists only for the child lifetime" in feature
     assert "Scenario: A long side prompt is cleaned up when the child cannot launch" in feature
+    assert "Scenario: Multi-turn side questions include conversation history in the prompt" in feature
+    assert "Scenario: Multi-turn overlay maintains turns and aggregates token usage" in feature
+
 
 
 def test_long_prompt_temp_file_is_available_to_read_only_child_then_removed() -> None:
@@ -271,6 +274,275 @@ def test_index_registers_btw_command_and_uses_overlay() -> None:
     assert "ctx.ui.custom" in index
     assert "overlay: true" in index
     assert "runBtw" in index
+
+
+def test_prompt_builds_multi_turn_history() -> None:
+    result = run_typescript(
+        f"""
+        import {{ buildBtwPrompt }} from {json.dumps((SRC / "spawner.ts").as_uri())};
+
+        const promptWithoutHistory = buildBtwPrompt("Where is auth?", "some session context");
+        const promptWithHistory = buildBtwPrompt(
+          "Does it support JWT?",
+          "some session context",
+          [
+            {{ question: "Where is auth?", answer: "Auth is in src/auth.ts" }},
+          ]
+        );
+
+        console.log(JSON.stringify({{
+          promptWithoutHistory,
+          promptWithHistory,
+          hasHistorySection: promptWithHistory.includes("=== Side conversation history ==="),
+          hasFirstQuestion: promptWithHistory.includes("[User]: Where is auth?"),
+          hasFirstAnswer: promptWithHistory.includes("[Assistant]: Auth is in src/auth.ts"),
+          hasNewQuestion: promptWithHistory.includes("=== Side question ===\\nDoes it support JWT?"),
+        }}));
+        """
+    )
+    assert result["hasHistorySection"] is True
+    assert result["hasFirstQuestion"] is True
+    assert result["hasFirstAnswer"] is True
+    assert result["hasNewQuestion"] is True
+
+
+def test_overlay_handles_multi_turn_flow() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createBtwOverlay }} from {json.dumps((SRC / "overlay.ts").as_uri())};
+
+        const askedTurns = [];
+        let cancelled = false;
+
+        const fakeTui = {{
+          terminal: {{ rows: 30, columns: 80 }},
+          requestRender: () => {{}},
+        }};
+
+        const style = {{
+          accent: (s) => `[acc]${{s}}[/acc]`,
+          muted: (s) => `[mut]${{s}}[/mut]`,
+          dim: (s) => `[dim]${{s}}[/dim]`,
+          border: (s) => `[bor]${{s}}[/bor]`,
+          success: (s) => `[suc]${{s}}[/suc]`,
+          error: (s) => `[err]${{s}}[/err]`,
+          fg: (_c, s) => s,
+        }};
+
+        let resolveFirstTurn;
+        const firstTurnPromise = new Promise((resolve) => {{ resolveFirstTurn = resolve; }});
+
+        let resolveSecondTurn;
+        const secondTurnPromise = new Promise((resolve) => {{ resolveSecondTurn = resolve; }});
+
+        const overlay = createBtwOverlay(fakeTui, style, {{
+          question: "Where is auth?",
+          onCancel: () => {{ cancelled = true; }},
+          onAsk: async (question, history, _signal) => {{
+            askedTurns.push({{ question, history: [...history] }});
+            if (askedTurns.length === 1) {{
+              return firstTurnPromise;
+            }}
+            return secondTurnPromise;
+          }},
+        }});
+
+        const initialLines = overlay.render(80);
+
+        // Complete first turn
+        resolveFirstTurn({{
+          text: "Auth is in src/auth.ts.",
+          usage: {{ input: 100, output: 50, cacheRead: 0, cacheWrite: 0, totalTokens: 150, cost: 0.001 }},
+          timedOut: false,
+          exitCode: 0,
+          stderr: "",
+        }});
+
+        await new Promise((r) => setTimeout(r, 10));
+        const turn1Lines = overlay.render(80);
+
+        // Ask follow-up turn by simulating user typing and hitting Enter
+        for (const char of "Does it use JWT?\\r") {{
+          overlay.handleInput(char);
+        }}
+
+        await new Promise((r) => setTimeout(r, 10));
+        const turn2LoadingLines = overlay.render(80);
+
+        // Complete second turn
+        resolveSecondTurn({{
+          text: "Yes, it uses jsonwebtoken.",
+          usage: {{ input: 150, output: 60, cacheRead: 0, cacheWrite: 0, totalTokens: 210, cost: 0.0015 }},
+          timedOut: false,
+          exitCode: 0,
+          stderr: "",
+        }});
+
+        await new Promise((r) => setTimeout(r, 10));
+        const turn2AnsweredLines = overlay.render(80);
+
+        overlay.dispose();
+
+        console.log(JSON.stringify({{
+          askedTurns,
+          initialLinesCount: initialLines.length,
+          turn1Rendered: turn1Lines.join("\\n"),
+          turn2LoadingRendered: turn2LoadingLines.join("\\n"),
+          turn2AnsweredRendered: turn2AnsweredLines.join("\\n"),
+        }}));
+        """
+    )
+
+    asked_turns = result["askedTurns"]
+    assert len(asked_turns) == 2
+    assert asked_turns[0]["question"] == "Where is auth?"
+    assert asked_turns[0]["history"] == []
+    assert asked_turns[1]["question"] == "Does it use JWT?"
+    assert asked_turns[1]["history"] == [{"question": "Where is auth?", "answer": "Auth is in src/auth.ts."}]
+
+    turn2_rendered = result["turn2AnsweredRendered"]
+    assert "Where is auth?" in turn2_rendered
+    assert "Auth is in src/auth.ts." in turn2_rendered
+    assert "Does it use JWT?" in turn2_rendered
+    assert "Yes, it uses jsonwebtoken." in turn2_rendered
+    assert "360 tokens" in turn2_rendered
+    assert "2 turns" in turn2_rendered
+
+
+def test_overlay_cancelling_followup_turn_preserves_previous_turns() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createBtwOverlay }} from {json.dumps((SRC / "overlay.ts").as_uri())};
+
+        let cancelled = false;
+        let turn2Aborted = false;
+
+        const fakeTui = {{
+          terminal: {{ rows: 30, columns: 80 }},
+          requestRender: () => {{}},
+        }};
+
+        const style = {{
+          accent: (s) => `[acc]${{s}}[/acc]`,
+          muted: (s) => `[mut]${{s}}[/mut]`,
+          dim: (s) => `[dim]${{s}}[/dim]`,
+          border: (s) => `[bor]${{s}}[/bor]`,
+          success: (s) => `[suc]${{s}}[/suc]`,
+          error: (s) => `[err]${{s}}[/err]`,
+          fg: (_c, s) => s,
+        }};
+
+        let resolveFirstTurn;
+        const firstTurnPromise = new Promise((resolve) => {{ resolveFirstTurn = resolve; }});
+
+        const overlay = createBtwOverlay(fakeTui, style, {{
+          question: "First question",
+          onCancel: () => {{ cancelled = true; }},
+          onAsk: async (question, _history, signal) => {{
+            if (question === "First question") return firstTurnPromise;
+            signal.addEventListener("abort", () => {{ turn2Aborted = true; }});
+            return new Promise(() => {{}}); // never resolves
+          }},
+        }});
+
+        resolveFirstTurn({{
+          text: "First answer",
+          timedOut: false,
+          exitCode: 0,
+          stderr: "",
+        }});
+        await new Promise((r) => setTimeout(r, 10));
+
+        // Submit follow-up question
+        for (const char of "Second question\\r") {{
+          overlay.handleInput(char);
+        }}
+        await new Promise((r) => setTimeout(r, 10));
+
+        // Press Escape to cancel follow-up turn
+        overlay.handleInput("\\x1b");
+        await new Promise((r) => setTimeout(r, 10));
+
+        const restoredLines = overlay.render(80);
+
+        console.log(JSON.stringify({{
+          cancelled,
+          turn2Aborted,
+          restoredText: restoredLines.join("\\n"),
+        }}));
+        """
+    )
+
+    assert result["cancelled"] is False
+    assert result["turn2Aborted"] is True
+    assert "First answer" in result["restoredText"]
+    assert "Second question" not in result["restoredText"]
+
+
+def test_overlay_handles_followup_turn_error_gracefully() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createBtwOverlay }} from {json.dumps((SRC / "overlay.ts").as_uri())};
+
+        const fakeTui = {{
+          terminal: {{ rows: 30, columns: 80 }},
+          requestRender: () => {{}},
+        }};
+
+        const style = {{
+          accent: (s) => `[acc]${{s}}[/acc]`,
+          muted: (s) => `[mut]${{s}}[/mut]`,
+          dim: (s) => `[dim]${{s}}[/dim]`,
+          border: (s) => `[bor]${{s}}[/bor]`,
+          success: (s) => `[suc]${{s}}[/suc]`,
+          error: (s) => `[err]${{s}}[/err]`,
+          fg: (_c, s) => s,
+        }};
+
+        let resolveFirstTurn;
+        const firstTurnPromise = new Promise((resolve) => {{ resolveFirstTurn = resolve; }});
+
+        const overlay = createBtwOverlay(fakeTui, style, {{
+          question: "Q1",
+          onCancel: () => {{}},
+          onAsk: async (question) => {{
+            if (question === "Q1") return firstTurnPromise;
+            return {{
+              text: "",
+              timedOut: true,
+              exitCode: 1,
+              stderr: "",
+            }};
+          }},
+        }});
+
+        resolveFirstTurn({{
+          text: "Answer 1",
+          timedOut: false,
+          exitCode: 0,
+          stderr: "",
+        }});
+        await new Promise((r) => setTimeout(r, 10));
+
+        // Submit follow-up question
+        for (const char of "Q2\\r") {{
+          overlay.handleInput(char);
+        }}
+        await new Promise((r) => setTimeout(r, 10));
+
+        const rendered = overlay.render(80).join("\\n");
+        overlay.dispose();
+
+        console.log(JSON.stringify({{
+          rendered,
+          hasAnswer1: rendered.includes("Answer 1"),
+          hasTimeoutError: rendered.includes("timed out"),
+        }}));
+        """
+    )
+
+    assert result["hasAnswer1"] is True
+    assert result["hasTimeoutError"] is True
 
 
 def test_readme_documents_read_only_guarantee() -> None:
