@@ -9,20 +9,26 @@ PACKAGE = Path(__file__).resolve().parents[1]
 SRC = PACKAGE / "src"
 
 LEADER_TOOLS = {
+    "teammate_run",
+    "teammate_status",
+    "teammate_wait",
+    "teammate_cancel",
+    "teammate_retry",
+    "teammate_cleanup",
+    "teammate_message",
+    "teammate_inbox",
+}
+WORKER_TOOLS = {"teammate_message", "teammate_inbox", "teammate_report"}
+REMOVED_TOOLS = {
     "teammate_register",
     "teammate_list",
     "teammate_configure",
     "teammate_remove",
-    "teammate_message",
-    "teammate_inbox",
     "teammate_create_task",
     "teammate_list_tasks",
     "teammate_start_task",
-    "teammate_wait",
     "teammate_cancel_task",
-    "teammate_cleanup",
 }
-WORKER_TOOLS = {"teammate_message", "teammate_inbox", "teammate_report"}
 LEGACY_TOOLS = {
     "teammate_assign_task",
     "teammate_update_task",
@@ -61,45 +67,59 @@ def test_manifest_declares_native_extension_package() -> None:
     assert manifest["pi"] == {"extensions": ["./src/index.ts"]}
     assert "skills" not in manifest["files"]
     assert not (PACKAGE / "skills").exists()
+    # Declarative agent files ship with the package.
+    assert "agents" in manifest["files"] or (PACKAGE / "agents").exists()
 
 
 def test_bdd_contract_covers_target_resources() -> None:
     feature = (PACKAGE / "features" / "teammate-status.feature").read_text(encoding="utf-8")
     for phrase in (
-        "Teammates are reusable current-session executors",
-        "Reuse a compatible idle teammate",
-        "Do not silently reuse a materially different teammate",
-        "Retire only a truly expired teammate",
-        "Tasks declare scopes and access before they run",
-        "Partition a parallel team before it starts",
-        "Allow overlapping read scopes",
-        "Block unsafe overlapping writes in a shared workspace",
-        "Allow isolated overlapping write experiments",
+        "Agents are declarative Markdown files",
+        "Discover agents from bundled, user, and project scopes",
+        "Project agents override user and bundled agents with the same name",
+        "Agent frontmatter declares tools and model; the body is the role prompt",
+        "Agent descriptions are the routing contract",
+        "An unknown agent name fails the dispatch",
+        "A run is a single-call DAG dispatch",
+        "Dispatch a single task in one call",
+        "Dispatch a dependency graph in one call",
+        "Downstream nodes auto-start after their dependencies complete",
+        "Concurrency bounds simultaneous workers",
+        "Foreground dispatch gathers results; background dispatch returns immediately",
+        "A long foreground run detaches to background after the foreground cap",
+        "A run-level timeout fails the whole run",
+        "Cancel one node while the rest of the run continues",
+        "Retry failed and cancelled nodes without re-running completed ones",
+        "A worker messages the main session only",
+        "Read nodes with overlapping paths may run concurrently",
+        "Write nodes with overlapping paths are blocked without worktree isolation",
+        "Worktree isolation allows parallel write experiments",
+        "A failed node fails the run and downstream nodes are not started",
+        "Reject malformed task graphs",
         "Reject ambiguous path ownership",
-        "Queue follow-up work for the same teammate",
-        "A task run is explicit and never blocks the leader",
-        "Retry failed work with a fresh run",
-        "Messaging is symmetric, proactive, and capability-bound",
+        "Run lifecycle is explicit",
+        "Status lists agents, runs, and node detail",
+        "Wait is the explicit gather barrier for runs",
+        "Cancel a run stops its running nodes",
+        "Cleanup prunes terminal runs",
+        "Runs do not survive session restarts",
+        "Messaging is capability-bound",
+        "A worker messages the main session only",
+        "Inbox reads are scoped to the caller",
+        "A worker reports only its bound node",
         "Intermediate worker communication stays in the mailbox",
-        "The harness delivers every terminal result to the main session",
-        "A worker terminal report is not treated as final delivery",
+        "The harness delivers one canonical terminal result per node",
+        "Workers cannot access leader tools",
         "Worker process outcomes are authoritative",
-        "A worker process exits after its assigned task",
-        "teammate_create_task",
-        "teammate_start_task",
-        "teammate_cancel_task",
-        "Cancel a task run only after its worker closes",
-        "leader records cancellation intent for that run before awaiting its close event",
-        "SIGTERM-cooperative worker that exits 0 is not recorded completed or failed before cancellation",
-        "SIGTERM-resistant worker receives SIGKILL after a bounded grace period",
-        "cancellation intent is cleared after the cancellation attempt finishes",
-        "teammate_report",
-        "Keep an idle teammate with pending communication",
-        "Retain a reported terminal task until its worker closes",
-        "Do not restore a prior session's team",
+        "A normal worker exit completes its node",
+        "An abnormal worker exit fails its node",
+        "Completed run metadata is compacted safely",
         "Invalid tool operations surface as Pi failures",
         "Cancelled or timed-out waits surface as tool failures",
         "Legitimate empty and terminal data remains a normal result",
+        "Console is a user interface, not an agent tool substitute",
+        "Console shows live node activity without intercepting global input",
+        "Detail scrolling preserves every wrapped display line",
     ):
         assert phrase in feature
 
@@ -108,13 +128,13 @@ def test_leader_tool_surface_is_exact() -> None:
     ext = source("index.ts")
     for tool in LEADER_TOOLS:
         assert f'name: "{tool}"' in ext
-    for tool in LEGACY_TOOLS:
+    for tool in REMOVED_TOOLS | LEGACY_TOOLS:
         assert f'name: "{tool}"' not in ext
 
 
 def test_worker_surface_is_capability_bound() -> None:
     ext = source("index.ts")
-    worker_section = ext[ext.index("function registerWorkerCapabilities"):ext.index("function notifyUnblockedTasks")]
+    worker_section = ext[ext.index("function registerWorkerCapabilities"):ext.index("// ── Team UI")]
     for tool in WORKER_TOOLS:
         assert f'name: "{tool}"' in worker_section
     for tool in LEADER_TOOLS - {"teammate_message", "teammate_inbox"}:
@@ -124,131 +144,542 @@ def test_worker_surface_is_capability_bound() -> None:
     assert "return;" in ext[ext.index("if (workerOutboxBinding())"):ext.index("// ── Session lifecycle")]
 
 
-def test_types_express_target_surface_without_invalid_role() -> None:
+def test_types_express_run_centric_surface() -> None:
     types = source("types.ts")
     for schema in (
-        "TeammateRegisterParams",
-        "TeammateConfigureParams",
+        "TeammateRunParams",
+        "TeammateStatusParams",
+        "TeammateWaitParams",
+        "TeammateCancelParams",
+        "TeammateRetryParams",
+        "EmptyParams",
         "TeammateMessageParams",
         "TeammateInboxParams",
+        "TeammateReportParams",
+        "RunTaskSpec",
+    ):
+        assert f"export const {schema}" in types
+    assert "foregroundTimeoutMs" in types
+    assert "timeoutMs" in types
+    assert "nodeId: Type.Optional" in types
+    assert "markRead" not in types
+    assert "workerKey" in types
+    assert "deadlineAt" in types
+    for old_schema in (
+        "TeammateRegisterParams",
+        "TeammateConfigureParams",
         "TeammateCreateTaskParams",
         "TeammateListTasksParams",
         "TeammateStartTaskParams",
-        "TeammateWaitParams",
         "TeammateCancelTaskParams",
-        "TeammateReportParams",
-    ):
-        assert f"export const {schema}" in types
-    assert 'Type.Literal("team-leader")' not in types
-    assert 'Type.Literal("created")' not in types
-    assert "blocks: Type.Optional" not in types
-    assert "blockedBy" in types
-    for old_schema in (
-        "TeammateAssignTaskParams",
-        "TeammateUpdateTaskParams",
-        "TeammateTaskDepsParams",
-        "TeammateUpdateModelParams",
-        "TeammateSpawnParams",
-        "TeammateUpdateOwnTaskParams",
     ):
         assert old_schema not in types
 
 
-def test_create_task_declares_access_and_defers_shared_write_conflicts_to_start() -> None:
-    ext = source("index.ts")
-    state = source("state.ts")
+def test_read_receipt_protocol_is_removed() -> None:
     types = source("types.ts")
-    create_start = ext.index('name: "teammate_create_task"')
-    create_end = ext.index('name: "teammate_list_tasks"', create_start)
-    create_body = ext[create_start:create_end]
-    assert 'createTask(params.title, params.description, params.paths, params.access ?? "write", params.assignee, "agent", params.blockedBy ?? [])' in create_body
-    assert "Access:" in create_body
-    assert "access:" in types
-    assert "normalizeTaskPaths" in state
-    assert "findSharedWorkspaceWriteConflict" in state
-    assert "uniqueBlockedBy" in state
-    assert "for (const dep of uniqueBlockedBy)" in state
-    assert "setTaskDeps" not in state
+    state = source("state.ts")
+    ext = source("index.ts")
+    assert "message_read" not in types
+    assert "WorkerMessageReadEvent" not in types
+    assert "message_read" not in ext
+    assert "syncReadFlagsToFile" not in ext
+    assert "acknowledgedWorkerMessageIds" not in ext
+    assert "emits receipts" not in source("spawner.ts")
+    assert "emits read receipts" not in ext
 
 
-def test_start_task_reuses_assignee_and_allows_explicit_retry() -> None:
+def test_workers_cannot_message_peers() -> None:
     ext = source("index.ts")
     state = source("state.ts")
-    types = source("types.ts")
-    start = ext.index('name: "teammate_start_task"')
-    end = ext.index('name: "teammate_cancel_task"', start)
-    body = ext[start:end]
-    assert "getTeammate(task.assignee)" in body
-    assert "params.retry === true" in body
-    assert "retryFailedTask" in state
-    assert "retry:" in types
-    assert "findSharedWorkspaceWriteConflict" in body
-    assert "markTeammateRunning(teammate.name, params.taskId, runId)" in body
-    assert "spawnPiWorker({" in body
-    assert "The main session is free to continue" in body
-    assert "params.name" not in body
+    assert "Workers may only message agent (the main session), not peers." in ext
+    assert "mailboxExists" not in state
+    assert "mailboxExists" not in ext
 
 
-def test_start_task_is_nonblocking_and_wait_is_only_join_barrier() -> None:
-    ext = source("index.ts")
-    spawner = source("spawner.ts")
-    assert "spawnPiWorkerBlocking" not in ext
-    assert "spawnPiWorkerBlocking" not in spawner
-    assert "Abort signal" not in spawner
-    assert "options.signal" not in spawner
-    wait_start = ext.index('name: "teammate_wait"')
-    wait_end = ext.index('name: "teammate_configure"', wait_start)
-    wait_body = ext[wait_start:wait_end]
-    assert "await new Promise" in wait_body
-    assert "isSettled" in wait_body
-
-
-def test_cancel_task_is_the_only_leader_run_interruption() -> None:
-    ext = source("index.ts")
-    state = source("state.ts")
-    spawner = source("spawner.ts")
-    cancel_start = ext.index('name: "teammate_cancel_task"')
-    cancel_end = ext.index('name: "teammate_remove"', cancel_start)
-    cancel_body = ext[cancel_start:cancel_end]
-    assert "await terminateWorker(task.assignee" in cancel_body
-    assert "const result = cancelTask(params.taskId);" in cancel_body
-    assert "throw new Error" in cancel_body
-    assert "export function cancelTask" in state
-    assert "still has a running worker" in state
-    assert "export async function terminateWorker" in spawner
-    assert "SIGKILL" in spawner
-    assert "force" not in source("types.ts")
-
-
-def test_cancel_task_stays_nonterminal_until_its_worker_close_is_recorded() -> None:
+def test_run_timeout_and_retry_state_machine() -> None:
     module = (SRC / "state.ts").as_uri()
     payload = run_node(
         f'''\
-        import {{ cancelTask, createTask, registerTeammate, setSpawnInfo, updateTaskStatus }} from "{module}";
-        registerTeammate({{ name: "worker", role: "worker", description: "", prompt: "", registeredAt: 1 }});
-        const task = createTask("resistant", "", ["packages/worker"], "write", "worker", "agent").task;
-        setSpawnInfo(task.id, {{ runId: "run-1", pid: 1, status: "running", startedAt: 1 }});
-        updateTaskStatus(task.id, "in_progress");
-        const beforeClose = cancelTask(task.id);
-        const statusBeforeClose = task.status;
-        setSpawnInfo(task.id, {{ runId: "run-1", pid: 1, status: "failed", startedAt: 1, finishedAt: 2 }});
-        const afterClose = cancelTask(task.id);
+        import {{ createRun, resetState, failRunTimeout, retryRun, setNodeSpawnInfo, getRun }} from "{module}";
+        resetState();
+        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false, timeoutMs: 5000,
+          nodes: [
+            {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
+            {{ id: "b", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: ["a"] }},
+          ] }});
+        const run = created.run;
+        const hasDeadline = Boolean(run.deadlineAt && run.timeoutMs === 5000);
+        setNodeSpawnInfo(run.id, "a", {{ runId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
+        const failed = failRunTimeout(run.id, "Run timed out after 5s.");
+        const afterFail = {{ status: run.status, running: failed.runningNodeIds.join(","), b: run.nodes.b.status, error: run.errorMessage }};
+        const retried = retryRun(run.id);
+        const afterRetry = {{ status: run.status, reset: retried.reset.join(","), a: run.nodes.a.status, b: run.nodes.b.status, notified: run.completionNotified }};
+        console.log(JSON.stringify({{ hasDeadline, afterFail, afterRetry }}));
+        '''
+    )
+    assert payload["hasDeadline"] is True
+    assert payload["afterFail"] == {"status": "failed", "running": "a", "b": "cancelled", "error": "Run timed out after 5s."}
+    assert payload["afterRetry"] == {"status": "running", "reset": "a,b", "a": "pending", "b": "pending", "notified": False}
+
+
+def test_retry_rearms_deadline_propagates_and_validates() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, retryRun, updateNodeStatus, cancelBlockedDependents, settleRun }} from "{module}";
+        resetState();
+        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false, timeoutMs: 60000,
+          nodes: [
+            {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
+            {{ id: "b", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: ["a"] }},
+            {{ id: "c", agent: "worker", prompt: "", paths: ["z"], access: "read", dependsOn: ["b"] }},
+          ] }});
+        const run = created.run;
+        // a fails -> finalizeNode cancels b and c as its dependents and settles the run.
+        updateNodeStatus(run.id, "a", "failed", undefined, "boom");
+        cancelBlockedDependents(run.id, "a");
+        settleRun(run.id);
+        // Unknown node ids are validated before any retry is attempted.
+        const unknown = retryRun(run.id, ["ghost"]);
+        // Simulate an expired run cap, then verify retry re-arms it to the future.
+        run.deadlineAt = Date.now() - 1000;
+        const oldDeadline = run.deadlineAt;
+        const retried = retryRun(run.id, ["a"]);
+        const rearmed = Boolean(run.deadlineAt && run.deadlineAt > Date.now());
+        const completed = retryRun(run.id, ["c"]);
         console.log(JSON.stringify({{
-          beforeClose: beforeClose.ok,
-          beforeCloseError: beforeClose.error,
-          statusBeforeClose,
-          afterClose: afterClose.ok,
-          finalStatus: task.status,
+          ok: retried.ok, reset: retried.reset.join(","), rearmed,
+          a: run.nodes.a.status, b: run.nodes.b.status, c: run.nodes.c.status,
+          unknownOk: unknown.ok, unknownError: unknown.ok ? "" : unknown.error,
+          completedOk: completed.ok,
+        }}));
+        '''
+    )
+    assert payload["ok"] is True
+    assert payload["reset"] == "a,b,c"  # b and c propagated as cancelled dependents of a
+    assert payload["rearmed"] is True
+    assert payload["a"] == "pending" and payload["b"] == "pending" and payload["c"] == "pending"
+    assert payload["unknownOk"] is False and "ghost" in payload["unknownError"]
+    assert payload["completedOk"] is False
+
+
+def test_node_cancel_keeps_run_running() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, cancelNode, setNodeSpawnInfo }} from "{module}";
+        resetState();
+        const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+          nodes: [
+            {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
+            {{ id: "b", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: [] }},
+            {{ id: "c", agent: "worker", prompt: "", paths: ["z"], access: "read", dependsOn: ["b"] }},
+          ] }});
+        const run = created.run;
+        setNodeSpawnInfo(run.id, "b", {{ runId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "c", {{ runId: "s2", pid: 2, status: "running", startedAt: 1, isolation: "none" }});
+        const cancelled = cancelNode(run.id, "b");
+        console.log(JSON.stringify({{ ok: cancelled.ok, running: cancelled.runningNodeIds.join(","), b: run.nodes.b.status, c: run.nodes.c.status, a: run.nodes.a.status, runStatus: run.status }}));
+        '''
+    )
+    # b was cancelled while running (its worker must be terminated by the caller);
+    # c was running on a cancelled prerequisite (b) and is propagated for termination;
+    # unrelated node a stays pending; the run itself keeps running.
+    assert payload == {
+        "ok": True,
+        "running": "b,c",
+        "b": "running",
+        "c": "running",
+        "a": "pending",
+        "runStatus": "running",
+    }
+
+
+def test_agent_definitions_are_declarative_files() -> None:
+    agents_src = source("agents.ts")
+    assert "discoverAgents" in agents_src
+    assert "resolveAgent" in agents_src
+    assert '"bundled"' in agents_src and '"user"' in agents_src and '"project"' in agents_src
+    assert "PI_CODING_AGENT_DIR" in agents_src
+    assert ".pi" in agents_src and "agents" in agents_src
+    bundled = sorted(path.name for path in (PACKAGE / "agents").glob("*.md"))
+    assert {"worker.md", "reviewer.md", "specialist.md", "observer.md"} <= set(bundled)
+    worker = (PACKAGE / "agents" / "worker.md").read_text(encoding="utf-8")
+    assert "name: worker" in worker
+    assert "description:" in worker
+    assert "tools:" in worker
+
+
+def test_agent_frontmatter_parses_tools_and_model() -> None:
+    module = (SRC / "agents.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ resolveAgent, discoverAgents }} from "{module}";
+        const bundled = discoverAgents();
+        const worker = bundled.get("worker");
+        const reviewer = bundled.get("reviewer");
+        console.log(JSON.stringify({{
+          workerTools: worker?.tools ?? [],
+          workerPrompt: Boolean(worker?.prompt?.includes("worker agent")),
+          workerScope: worker?.scope,
+          reviewerTools: reviewer?.tools ?? [],
+          hasUnknown: bundled.has("no-such-agent"),
         }}));
         '''
     )
     assert payload == {
-        "beforeClose": False,
-        "beforeCloseError": 'Task "task_1" still has a running worker and cannot be cancelled until it closes.',
-        "statusBeforeClose": "in_progress",
-        "afterClose": True,
-        "finalStatus": "cancelled",
+        "workerTools": ["read", "bash", "edit", "write"],
+        "workerPrompt": True,
+        "workerScope": "bundled",
+        "reviewerTools": ["read", "bash"],
+        "hasUnknown": False,
     }
+
+
+def test_agent_frontmatter_strips_inline_comments(tmp_path) -> None:
+    module = (SRC / "agents.ts").as_uri()
+    agents_dir = tmp_path / ".pi" / "agents"
+    agents_dir.mkdir(parents=True)
+    (agents_dir / "commented.md").write_text(
+        "---\n"
+        "name: commented\n"
+        "description: Agent with comments\n"
+        "tools: read, bash  # read-only audit\n"
+        "model: provider/model  # pinned\n"
+        "---\n"
+        "You are the commented agent.\n",
+        encoding="utf-8",
+    )
+    payload = run_node(
+        f'''\
+        import {{ discoverAgents }} from "{module}";
+        const agents = discoverAgents("{tmp_path}");
+        const agent = agents.get("commented");
+        console.log(JSON.stringify({{ tools: agent?.tools ?? [], model: agent?.model ?? null }}));
+        '''
+    )
+    assert payload == {"tools": ["read", "bash"], "model": "provider/model"}
+
+
+def test_project_agent_overrides_bundled_and_user(tmp_path) -> None:
+    module = (SRC / "agents.ts").as_uri()
+    agents_dir = tmp_path / ".pi" / "agents"
+    agents_dir.mkdir(parents=True)
+    (agents_dir / "reviewer.md").write_text(
+        "---\n"
+        "name: reviewer\n"
+        "description: Project-scoped reviewer override\n"
+        "tools: read\n"
+        "---\n"
+        "Project reviewer prompt.\n",
+        encoding="utf-8",
+    )
+    payload = run_node(
+        f'''\
+        import {{ discoverAgents }} from "{module}";
+        const project = discoverAgents("{tmp_path}");
+        const reviewer = project.get("reviewer");
+        const bundled = discoverAgents();
+        console.log(JSON.stringify({{
+          scope: reviewer?.scope,
+          tools: reviewer?.tools ?? [],
+          prompt: reviewer?.prompt ?? "",
+          bundledPrompt: bundled.get("reviewer")?.prompt ?? "",
+        }}));
+        '''
+    )
+    assert payload["scope"] == "project"
+    assert payload["tools"] == ["read"]
+    assert "Project reviewer prompt" in payload["prompt"]
+    assert "Project reviewer prompt" not in payload["bundledPrompt"]
+
+
+def test_summary_node_appends_after_leaves_and_reserves_its_id() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, SUMMARY_NODE_ID }} from "{module}";
+        resetState();
+        const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false, summarize: true,
+          nodes: [
+            {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
+            {{ id: "b", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: [] }},
+            {{ id: "c", agent: "worker", prompt: "", paths: ["z"], access: "read", dependsOn: ["a"] }},
+          ] }});
+        const run = created.run;
+        const summary = run.nodes[SUMMARY_NODE_ID];
+        const conflict = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false, summarize: true,
+          nodes: [{{ id: SUMMARY_NODE_ID, agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }}] }});
+        console.log(JSON.stringify({{
+          summaryExists: Boolean(summary),
+          summaryAgent: summary?.agent,
+          summaryDepends: summary?.dependsOn.join(","),
+          summaryStatus: summary?.status,
+          summaryAccess: summary?.access,
+          conflictOk: conflict.ok,
+        }}));
+        '''
+    )
+    assert payload["summaryExists"] is True
+    assert payload["summaryAgent"] == "observer"
+    # Leaves are b and c (c depends on a, so a is not a leaf); the summary runs after both.
+    assert sorted(payload["summaryDepends"].split(",")) == ["b", "c"]
+    assert payload["summaryStatus"] == "pending"
+    assert payload["summaryAccess"] == "read"
+    assert payload["conflictOk"] is False
+
+
+def test_run_creation_rejects_malformed_graphs() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState }} from "{module}";
+        resetState();
+        const node = (id, dependsOn = []) => ({{
+          id, agent: "worker", prompt: "do it", paths: ["packages/a"], access: "read", dependsOn,
+        }});
+        const dup = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+          nodes: [node("a"), node("a")] }});
+        const unknownDep = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+          nodes: [node("a", ["ghost"])] }});
+        const cycle = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+          nodes: [node("a", ["b"]), node("b", ["a"])] }});
+        const badPath = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+          nodes: [{{ ...node("a"), paths: ["/etc/passwd"] }}] }});
+        const ok = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+          nodes: [node("a"), node("b", ["a"])] }});
+        console.log(JSON.stringify({{
+          dupOk: dup.ok, dupError: dup.ok ? "" : dup.error,
+          unknownDepOk: unknownDep.ok,
+          cycleOk: cycle.ok,
+          badPathOk: badPath.ok,
+          okRun: ok.ok ? ok.run.id : "",
+          okStatus: ok.ok ? ok.run.status : "",
+          nodeKeys: ok.ok ? Object.keys(ok.run.nodes).join(",") : "",
+          workerKey: ok.ok ? ok.run.nodes.a.workerKey : "",
+          edges: ok.ok ? ok.run.nodes.b.dependsOn.join(",") : "",
+        }}));
+        '''
+    )
+    assert payload["dupOk"] is False
+    assert "Duplicate node id" in payload["dupError"]
+    assert payload["unknownDepOk"] is False
+    assert payload["cycleOk"] is False
+    assert payload["badPathOk"] is False
+    assert payload["okRun"].startswith("run_")
+    assert payload["okStatus"] == "running"
+    assert payload["nodeKeys"] == "a,b"
+    assert payload["workerKey"].startswith("run_1:a")
+    assert payload["edges"] == "a"
+
+
+def test_dependency_readiness_and_settlement() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, nodeIsReady, settleRun, cancelBlockedDependents,
+                 updateNodeStatus, runningNodeCount, listRuns }} from "{module}";
+        resetState();
+        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false,
+          nodes: [
+            {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
+            {{ id: "b", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: ["a"] }},
+            {{ id: "c", agent: "worker", prompt: "", paths: ["z"], access: "read", dependsOn: ["b"] }},
+          ] }});
+        const run = created.run;
+        const before = {{
+          aReady: nodeIsReady(run, run.nodes.a),
+          bReady: nodeIsReady(run, run.nodes.b),
+          running: runningNodeCount(run.id),
+        }};
+        updateNodeStatus(run.id, "a", "failed");
+        const cancelled = cancelBlockedDependents(run.id, "a");
+        const after = {{
+          aStatus: run.nodes.a.status,
+          bStatus: run.nodes.b.status,
+          cStatus: run.nodes.c.status,
+          cancelled,
+          settled: settleRun(run.id),
+        }};
+        console.log(JSON.stringify({{ before, after }}));
+        '''
+    )
+    assert payload["before"] == {"aReady": True, "bReady": False, "running": 0}
+    assert payload["after"]["aStatus"] == "failed"
+    assert payload["after"]["bStatus"] == "cancelled"
+    assert payload["after"]["cStatus"] == "cancelled"
+    assert payload["after"]["cancelled"] == 2
+    assert payload["after"]["settled"] == "failed"
+
+
+def test_write_conflict_detection_is_run_scoped() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, findSharedWorkspaceWriteConflict, setNodeSpawnInfo }} from "{module}";
+        resetState();
+        const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+          nodes: [
+            {{ id: "w1", agent: "worker", prompt: "", paths: ["packages/a"], access: "write", dependsOn: [] }},
+            {{ id: "w2", agent: "worker", prompt: "", paths: ["packages/a/lib"], access: "write", dependsOn: [] }},
+            {{ id: "r", agent: "reviewer", prompt: "", paths: ["packages/a"], access: "read", dependsOn: [] }},
+          ] }});
+        const run = created.run;
+        setNodeSpawnInfo(run.id, "w1", {{ runId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
+        const writeOverlap = findSharedWorkspaceWriteConflict(run.id, "w2")?.id ?? null;
+        const readOverlap = findSharedWorkspaceWriteConflict(run.id, "r")?.id ?? null;
+        setNodeSpawnInfo(run.id, "w2", {{ runId: "s2", pid: 2, status: "running", startedAt: 1, isolation: "worktree" }});
+        const isolated = findSharedWorkspaceWriteConflict(run.id, "w1")?.id ?? null;
+        console.log(JSON.stringify({{ writeOverlap, readOverlap, isolated }}));
+        '''
+    )
+    assert payload == {"writeOverlap": "w1", "readOverlap": None, "isolated": None}
+
+
+def test_cancel_run_marks_pending_and_returns_running_nodes() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, cancelRun, setNodeSpawnInfo, isRunTerminal }} from "{module}";
+        resetState();
+        const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+          nodes: [
+            {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
+            {{ id: "b", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: [] }},
+            {{ id: "c", agent: "worker", prompt: "", paths: ["z"], access: "read", dependsOn: ["a"] }},
+          ] }});
+        const run = created.run;
+        setNodeSpawnInfo(run.id, "a", {{ runId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
+        const cancelled = cancelRun(run.id);
+        const terminal = isRunTerminal(run);
+        console.log(JSON.stringify({{
+          ok: cancelled.ok,
+          runningNodeIds: cancelled.runningNodeIds.join(","),
+          a: run.nodes.a.status,
+          b: run.nodes.b.status,
+          c: run.nodes.c.status,
+          terminal,
+        }}));
+        '''
+    )
+    assert payload == {
+        "ok": True,
+        "runningNodeIds": "a",
+        "a": "running",
+        "b": "cancelled",
+        "c": "cancelled",
+        "terminal": False,
+    }
+
+
+def test_mailbox_is_best_effort_without_receipts() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, sendMessage, readMailbox, receiveWorkerMessage }} from "{module}";
+        resetState();
+        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false,
+          nodes: [{{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }}] }});
+        const run = created.run;
+        const key = run.nodes.a.workerKey;
+        sendMessage({{ from: "agent", to: key, subject: "hi", body: "hello" }});
+        const unread = readMailbox(key, {{ unreadOnly: true }}).length;
+        const marked = readMailbox(key, {{ unreadOnly: false, markRead: true }}).map((m) => m.subject);
+        const delivered = receiveWorkerMessage({{
+          id: "evt-1", worker: key, runId: "s1", type: "message", to: "agent", subject: "plan", body: "p",
+        }});
+        const agentUnread = readMailbox("agent", {{ unreadOnly: true }}).length;
+        console.log(JSON.stringify({{ unread, marked, delivered, agentUnread }}));
+        '''
+    )
+    assert payload == {"unread": 1, "marked": ["hi"], "delivered": True, "agentUnread": 1}
+
+
+def test_worker_spawn_is_nonblocking_and_identity_bound() -> None:
+    ext = source("index.ts")
+    spawner = source("spawner.ts")
+    assert "spawnPiWorkerBlocking" not in ext
+    assert "spawnPiWorkerBlocking" not in spawner
+    # Worker identity is the node key (runId:nodeId) plus a fresh spawn id.
+    assert "PI_TEAMMATE_WORKER_NAME: workerKey" in ext
+    assert "PI_TEAMMATE_TASK_ID: node.id" in ext
+    assert "PI_TEAMMATE_RUN_ID: spawnId" in ext
+    assert 'const spawnId = randomUUID()' in ext
+    # Stale close events from an older spawn cannot affect a newer spawn.
+    assert 'getNode(runId, nodeId)?.spawn?.runId !== spawnId' in ext
+
+
+def test_run_dispatch_is_single_call_with_scheduler() -> None:
+    ext = source("index.ts")
+    assert 'name: "teammate_run"' in ext
+    assert "scheduleRun(run.id, ctx)" in ext
+    assert "readyPendingNodes(run)" in ext
+    assert "run.concurrency - runningNodeCount(runId)" in ext
+    assert "findSharedWorkspaceWriteConflict(runId, node.id)" in ext
+    assert "startNode(runId, node.id, ctx)" in ext
+    assert "onRunSettled(runId, ctx)" in ext
+    assert "markLeaderMessagesReadForRun(run.id)" in ext
+    # Wait claims completion delivery up front (and revokes on timeout/abort)
+    # so a settled run does not also emit a follow-up.
+    assert "for (const id of runIds) markRunCompletionDelivered(id)" in ext
+    assert "clearRunCompletionClaim(id)" in ext
+    assert "run.background && !run.completionNotified" in ext
+    assert "markRunCompletionDelivered(run.id)" in ext
+    # Foreground gather blocks; background returns immediately.
+    assert "if (run.background)" in ext
+
+
+def test_tool_returns_are_compact_and_detail_lives_in_status_inbox() -> None:
+    ext = source("index.ts")
+    state = source("state.ts")
+    types = source("types.ts")
+    # Tool returns (run/wait/follow-up) use the compact summary; the full
+    # per-node transcript stays in teammate_status runId and teammate_inbox.
+    assert "function buildRunSummary" in ext
+    assert "function buildRunResultSummary" in ext
+    assert "Detail: teammate_status runId=" in ext
+    assert "text: buildRunSummary(run.id)" in ext
+    assert "buildRunSummary(id)" in ext
+    assert "text: buildRunResultSummary(params.runId)" in ext
+    # No truncation heuristics: per-node rows are status-only unless a
+    # synthesized __summary node produced a real summary.
+    assert "nodeHeadline" not in ext
+    assert "SUMMARY_NODE_ID" in ext
+    assert "summarize" in types
+    assert "summaryAgent" in types
+    assert "settledRun.summary = nodeNow?.result" in ext
+    assert "if (run.summary)" in ext
+    # No full per-node Result blobs inside the wait loop anymore.
+    wait_start = ext.index('name: "teammate_wait"')
+    wait_end = ext.index('name: "teammate_cancel"', wait_start)
+    assert "buildRunSummary(id)" in ext[wait_start:wait_end]
+    assert "Result: ${cap(node.result)}" not in ext[wait_start:wait_end]
+    assert "await sleep(500)" in ext
+
+
+def test_guidance_is_run_centric_without_redundant_tool_list() -> None:
+    ext = source("index.ts")
+    guidance = ext[ext.index("const TEAMMATE_GUIDANCE"):ext.index("export default function")]
+    assert "teammate_run" in guidance
+    assert "teammate_status" in guidance
+    assert "teammate_wait" in guidance
+    assert "teammate_cancel" in guidance
+    assert ".pi/agents" in guidance
+    assert "~/.pi/agent/agents" in guidance
+    assert "dependsOn" in guidance
+    assert "teammate_register" not in guidance
+    assert "inspect idle teammates" not in guidance
+    assert "Available orchestration tools:" not in guidance
+
+
+def test_no_runtime_identity_registry_remains() -> None:
+    state = source("state.ts")
+    ext = source("index.ts")
+    for legacy in ("registerTeammate", "configureTeammate", "removeTeammate", "findReusableTeammate",
+                   "retireExpiredTeammates", "retryFailedTask", "createTask(", "cancelTask(",
+                   "setSpawnInfo(", "listTeammates", "markTeammateRunning"):
+        assert legacy not in state and legacy not in ext
 
 
 def test_cancellation_intent_defers_close_finalization_until_the_cancel_outcome_is_known() -> None:
@@ -316,300 +747,3 @@ def test_sigterm_resistant_worker_is_escalated_and_close_is_observed_before_term
         '''
     )
     assert payload == {"beforeClose": True, "closed": True, "terminated": True, "signal": "SIGKILL"}
-
-
-def test_teammates_expire_only_after_idle_ttl_and_cleanup_is_terminal_only() -> None:
-    ext = source("index.ts")
-    state = source("state.ts")
-    assert "activeTask" in state
-    assert "retireExpiredTeammates" in state
-    assert "DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000" in ext
-    assert "cancel or complete it before removing" in state
-    remove_start = ext.index('name: "teammate_remove"')
-    remove_end = ext.index('name: "teammate_cleanup"', remove_start)
-    assert "params.force" not in ext[remove_start:remove_end]
-    cleanup_start = ext.index('name: "teammate_cleanup"')
-    cleanup_body = ext[cleanup_start:]
-    assert "pruneFinishedTasks()" in cleanup_body
-    assert "parameters: EmptyParams" in cleanup_body
-    assert "export function pruneFinishedTasks" in state
-    assert 'new Set<Task["status"]>(["completed", "failed", "cancelled"])' in state
-
-
-def test_configure_requires_a_real_change() -> None:
-    state = source("state.ts")
-    ext = source("index.ts")
-    assert "export function configureTeammate" in state
-    assert "Provide at least one teammate configuration field." in state
-    configure_start = ext.index('name: "teammate_configure"')
-    configure_end = ext.index('name: "teammate_start_task"', configure_start)
-    assert "configureTeammate(params.name" in ext[configure_start:configure_end]
-
-
-def test_unified_message_inbox_and_main_session_delivery() -> None:
-    ext = source("index.ts")
-    worker_section = ext[ext.index("function registerWorkerCapabilities"):ext.index("function notifyUnblockedTasks")]
-    assert 'params.to === "all" || params.role' in worker_section
-    assert 'params.to !== "agent" && !snapshot?.teammates[params.to]' in worker_section
-    assert "acknowledgedWorkerMessageIds" in worker_section
-    leader_message = ext[ext.index('name: "teammate_message"', ext.index("// ── Leader tools")):ext.index('name: "teammate_inbox"', ext.index("// ── Leader tools"))]
-    assert 'params.to === "all"' in leader_message
-    assert "params.role" in leader_message
-    assert "if (liveStateFile) applyWorkerEvents(liveStateFile);" in ext
-    assert "Intermediate worker communication stays in the mailbox" in (PACKAGE / "features" / "teammate-status.feature").read_text(encoding="utf-8")
-    assert "sendMainSessionUpdate(event.subject, event.body, taskId);" not in ext
-    assert "Task progress" not in ext
-    assert "Task started" not in ext
-    assert "buildTerminalResult" in ext
-    assert "sendMainSessionUpdate(terminalSubject, terminalBody, params.taskId);" in ext
-    assert 'deliverAs: "followUp"' in ext
-    assert 'triggerTurn: true' in ext
-    assert "Before substantive work, call teammate_message" in source("spawner.ts")
-    assert "does not interrupt the leader" in source("spawner.ts")
-
-
-def test_role_defaults_and_explicit_tools_are_least_privilege() -> None:
-    ext = source("index.ts")
-    spawner = source("spawner.ts")
-    for role, tools in {
-        'case "worker"': '["read", "bash", "edit", "write"]',
-        'case "reviewer"': '["read", "bash"]',
-        'case "observer"': '["read"]',
-    }.items():
-        assert role in ext
-        assert tools in ext
-    assert "function executionToolsFor" in ext
-    assert "tools: executionToolsFor(teammate)" in ext
-    assert 'const capabilityTools = ["teammate_message", "teammate_inbox", "teammate_report"]' in spawner
-    assert "const requestedTools = (options.tools ?? []).filter" in spawner
-    assert '"edit", "write", "teammate_message"' not in spawner
-
-
-def test_worker_report_is_bound_to_current_task_and_run() -> None:
-    ext = source("index.ts")
-    report_start = ext.index('name: "teammate_report"')
-    report_end = ext.index("function notifyUnblockedTasks", report_start)
-    report = ext[report_start:report_end]
-    assert "taskId: binding.taskId" in report
-    assert "runId: binding.runId" in report
-    assert 'type: "task_update"' in report
-    assert "event.taskId !== teammate.currentTaskId" in ext
-    assert "event.worker !== workerName || event.runId !== runId" in ext
-
-
-def test_worker_event_validation_checks_optional_fields() -> None:
-    ext = source("index.ts")
-    assert 'event.taskId === undefined || typeof event.taskId === "string"' in ext
-    assert 'event.result === undefined || typeof event.result === "string"' in ext
-    assert 'event.errorMessage === undefined || typeof event.errorMessage === "string"' in ext
-
-
-def test_terminal_result_builder_is_harness_owned_and_fallback_backed() -> None:
-    module = (SRC / "terminal.ts").as_uri()
-    payload = run_node(
-        f'''\
-        import {{ buildTerminalResult }} from "{module}";
-        const base = {{ taskId: "task_1", teammate: "worker", patchText: "" }};
-        const silent = buildTerminalResult({{ ...base, result: {{ stdout: "", stderr: "", signal: null, timedOut: false }}, cancelled: false }});
-        const timeout = buildTerminalResult({{ ...base, result: {{ stdout: "", stderr: "", signal: "SIGKILL", timedOut: true }}, cancelled: false }});
-        const cancelled = buildTerminalResult({{ ...base, result: {{ stdout: "", stderr: "", signal: "SIGTERM", timedOut: false }}, cancelled: true }});
-        console.log(JSON.stringify({{ silent, timeout, cancelled }}));
-        '''
-    )
-    assert payload == {
-        "silent": "Task [task_1] completed — teammate worker.\nNo worker summary was produced.",
-        "timeout": "Task [task_1] timed out — teammate worker.\nNo worker summary was produced.",
-        "cancelled": "Task [task_1] cancelled — teammate worker.\nNo worker summary was produced.",
-    }
-    assert "sendMainSessionUpdate(terminalSubject, terminalBody, params.taskId);" in source("index.ts")
-
-
-def test_terminal_delivery_contract_uses_child_close_as_authoritative_boundary() -> None:
-    ext = source("index.ts")
-    report_start = ext.index('name: "teammate_report"')
-    report_end = ext.index("function notifyUnblockedTasks", report_start)
-    report = ext[report_start:report_end]
-    assert "sendMainSessionUpdate" not in report
-    finalize_start = ext.index("const finalizeWorker")
-    finalize_end = ext.index("const finish", finalize_start)
-    finalize = ext[finalize_start:finalize_end]
-    assert "applyWorkerEvents(stateFile);" in finalize
-    assert "buildTerminalResult" in finalize
-    assert "sendMessage({" in finalize
-    assert "sendMainSessionUpdate(terminalSubject, terminalBody, params.taskId);" in finalize
-
-
-def test_normal_exit_is_required_for_success() -> None:
-    module = (SRC / "spawner.ts").as_uri()
-    payload = run_node(
-        f'''\
-        import {{ isSuccessfulWorkerExit }} from "{module}";
-        const check = (exitCode, signal, timedOut) => isSuccessfulWorkerExit({{ exitCode, signal, timedOut }});
-        console.log(JSON.stringify({{
-          normal: check(0, null, false),
-          nonZero: check(1, null, false),
-          signal: check(null, "SIGTERM", false),
-          timeout: check(null, "SIGKILL", true),
-        }}));
-        '''
-    )
-    assert payload == {"normal": True, "nonZero": False, "signal": False, "timeout": False}
-
-
-def test_state_runtime_reuses_teammates_tracks_access_and_expires_only_after_ttl() -> None:
-    module = (SRC / "state.ts").as_uri()
-    payload = run_node(
-        f'''\
-        import {{ configureTeammate, createTask, findReusableTeammate, findSharedWorkspaceWriteConflict, getState, listTasks, pruneFinishedTasks, registerTeammate, retireExpiredTeammates, retryFailedTask, sendMessage, setSpawnInfo, updateTaskStatus }} from "{module}";
-        registerTeammate({{ name: "worker", role: "worker", description: "old", prompt: "shared", registeredAt: 1, lastActiveAt: 1 }});
-        registerTeammate({{ name: "reader", role: "reviewer", description: "", prompt: "review", registeredAt: 1, lastActiveAt: 1 }});
-        registerTeammate({{ name: "writer", role: "worker", description: "", prompt: "write", registeredAt: 1, lastActiveAt: 1 }});
-        registerTeammate({{ name: "stale", role: "observer", description: "", prompt: "observe", registeredAt: 1, lastActiveAt: 1 }});
-        const empty = configureTeammate("worker", {{}});
-        const configured = configureTeammate("worker", {{ description: "new" }});
-        const reusable = findReusableTeammate({{ role: "worker", prompt: "shared", model: undefined, tools: undefined }})?.name;
-        const differentPrompt = findReusableTeammate({{ role: "worker", prompt: "different", model: undefined, tools: undefined }})?.name;
-        const first = createTask("first", "", ["packages/api"], "write", "worker", "agent").task;
-        const read = createTask("read", "", ["packages/api/src"], "read", "reader", "agent").task;
-        const write = createTask("write", "", ["packages/api/src"], "write", "writer", "agent").task;
-        const invalid = createTask("invalid", "", ["../secrets"], "write", "worker", "agent");
-        setSpawnInfo(first.id, {{ runId: "run-1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
-        updateTaskStatus(first.id, "in_progress");
-        const writeConflict = findSharedWorkspaceWriteConflict(write.id)?.id;
-        const readConflict = findSharedWorkspaceWriteConflict(read.id);
-        updateTaskStatus(first.id, "completed", "kept result");
-        const prunedWhileRunning = pruneFinishedTasks();
-        const retainedWhileRunning = listTasks().some((task) => task.id === first.id);
-        setSpawnInfo(first.id, {{ runId: "run-1", pid: 1, status: "failed", startedAt: 1, finishedAt: 2, isolation: "none" }});
-        const retry = retryFailedTask(first.id);
-        sendMessage({{ from: "agent", to: "stale", subject: "pending", body: "reply" }});
-        const expiredWithUnread = retireExpiredTeammates(100, 200);
-        getState().mailboxes.stale[0].read = true;
-        const expiredAfterRead = retireExpiredTeammates(100, 200);
-        console.log(JSON.stringify({{
-          empty: empty.ok,
-          configured: configured.ok,
-          reusable,
-          differentPrompt: differentPrompt ?? null,
-          read: read?.id,
-          write: write?.id,
-          invalid: invalid.error,
-          prunedWhileRunning,
-          retainedWhileRunning,
-          retry: retry.ok,
-          writeConflict: writeConflict ?? null,
-          readConflict: readConflict?.id ?? null,
-          expiredWithUnread,
-          expiredAfterRead,
-        }}));
-        '''
-    )
-    assert payload == {
-        "empty": False,
-        "configured": True,
-        "reusable": "worker",
-        "differentPrompt": None,
-        "read": "task_2",
-        "write": "task_3",
-        "invalid": 'Invalid task path: "../secrets".',
-        "prunedWhileRunning": 0,
-        "retainedWhileRunning": True,
-        "retry": True,
-        "writeConflict": "task_1",
-        "readConflict": None,
-        "expiredWithUnread": 0,
-        "expiredAfterRead": 1,
-    }
-
-
-def test_session_start_does_not_restore_a_previous_team_and_shutdown_stops_workers() -> None:
-    ext = source("index.ts")
-    session_start = ext[ext.index('pi.on("session_start"'):ext.index('pi.on("session_shutdown"')]
-    session_shutdown = ext[ext.index('pi.on("session_shutdown"'):ext.index('pi.on("turn_end"')]
-    assert "resetState()" in session_start
-    assert "tryRestoreState" not in session_start
-    assert "await terminateAllWorkers()" in session_shutdown
-    assert "persistState(pi)" not in session_shutdown
-
-
-def test_statefile_outbox_reads_complete_records_only(tmp_path: Path) -> None:
-    module = (SRC / "statefile.ts").as_uri()
-    payload = run_node(
-        f'''\
-        import * as fs from "node:fs";
-        import * as path from "node:path";
-        import {{ appendWorkerEvent, readWorkerEvents, workerOutboxPath }} from "{module}";
-        const stateFile = path.join(process.argv[1], "state.json");
-        const outbox = workerOutboxPath(stateFile, "worker/a", "run-1");
-        appendWorkerEvent(outbox, {{ id: "one", type: "message", worker: "worker/a", runId: "run-1", to: "agent", subject: "s", body: "b" }});
-        const first = readWorkerEvents(outbox, 0);
-        fs.appendFileSync(outbox, '{{"id":"partial"');
-        const partial = readWorkerEvents(outbox, first.nextOffset);
-        fs.appendFileSync(outbox, '}}\\n');
-        const second = readWorkerEvents(outbox, first.nextOffset);
-        console.log(JSON.stringify({{ first: first.events.length, partial: partial.events.length, stable: partial.nextOffset === first.nextOffset, second: second.events.length }}));
-        ''',
-        str(tmp_path),
-    )
-    assert payload == {"first": 1, "partial": 0, "stable": True, "second": 1}
-
-
-def test_console_is_fullscreen_display_only_and_uses_working_text() -> None:
-    ext = source("index.ts")
-    assert 'registerCommand("teammate"' in ext
-    assert "ctx.ui.custom" in ext
-    assert "onTerminalInput" not in ext
-    assert "working..." in ext
-    assert "setWidget" in ext
-
-
-def test_tool_failures_throw_and_guidance_lists_the_full_surface() -> None:
-    ext = source("index.ts")
-    spawner = source("spawner.ts")
-
-    assert "isError" not in ext
-    for message in (
-        "This capability is available only inside a spawned teammate.",
-        "Workers may message one teammate or agent, not broadcast.",
-        "The role filter is only valid when to is all.",
-        "Waiting for parallel tasks was cancelled.",
-        "Timed out waiting for:",
-        "Failed to start worker:",
-    ):
-        assert f'throw new Error(`{message}' in ext or f'throw new Error("{message}' in ext
-
-    guidance = ext[ext.index("const TEAMMATE_GUIDANCE"):ext.index("export default function")]
-    for tool in LEADER_TOOLS:
-        assert tool in guidance
-    assert "reuse a compatible role/model/tool/prompt configuration" in guidance
-    assert "Only the harness-delivered terminal result triggers a main-session follow-up" in guidance
-    assert "Use Pi's read tool to inspect the snapshot" in spawner
-    assert "`cat ${opts.stateFile}`" not in spawner
-
-
-def test_empty_lists_and_terminal_waits_remain_normal_results() -> None:
-    ext = source("index.ts")
-    leader = ext[ext.index("// ── Leader tools"):]
-    teammate_list = leader[leader.index('name: "teammate_list"'):leader.index('name: "teammate_message"')]
-    task_list = leader[leader.index('name: "teammate_list_tasks"'):leader.index('name: "teammate_wait"')]
-    wait = leader[leader.index('name: "teammate_wait"'):leader.index('name: "teammate_configure"')]
-
-    assert "No teammates registered yet." in teammate_list
-    assert "return {" in teammate_list
-    assert "No tasks found." in task_list
-    assert "return {" in task_list
-    assert 'new Set(["completed", "failed", "cancelled"])' in wait
-    assert "if (tasks.every(isSettled)) break;" in wait
-
-
-def test_readme_documents_the_target_surface() -> None:
-    readme = (PACKAGE / "README.md").read_text(encoding="utf-8")
-    for tool in LEADER_TOOLS | {"teammate_report"}:
-        assert f"`{tool}`" in readme
-    for tool in LEGACY_TOOLS:
-        assert f"`{tool}`" not in readme
-    assert "not a registerable role" in readme
-    assert "reuse a compatible role/model/tool configuration" in readme
-    assert "read" in readme and "write" in readme
-    assert "retry=true" in readme
-    assert "blockedBy" in readme

@@ -1,73 +1,87 @@
 /**
- * @fradser/pi-agent-teams — Pi extension for multi-agent teams.
+ * @fradser/pi-agent-teams — Pi extension for run-centric agent teams.
  *
- * Provides a mailbox-based communication system, task management,
- * and main-session orchestration for Pi agents.
+ * Agents are declarative Markdown files (bundled, user, and project scopes).
+ * A run is a dependency-aware task graph dispatched in a single call; each
+ * node is a bounded child-process worker with a best-effort mailbox (validated
+ * delivery, no read receipts) and per-spawn identity validation.
  *
- * Leader tools: teammate_register, teammate_list, teammate_configure,
- * teammate_remove, teammate_message, teammate_inbox, teammate_create_task,
- * teammate_list_tasks, teammate_start_task, teammate_wait,
- * teammate_cancel_task, teammate_cleanup.
+ * Leader tools: teammate_run, teammate_status, teammate_wait, teammate_cancel,
+ * teammate_cleanup, teammate_message, teammate_inbox.
  *
  * Spawned workers receive only teammate_message, teammate_inbox, and
  * teammate_report.
  */
 
 import { randomUUID } from "node:crypto";
-import * as fs from "node:fs";
-import { isKeyRelease, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { Key, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import type { ExtensionAPI, ExtensionUIContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import { truncateTail, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
+import { discoverAgents, resolveAgent, type AgentDefinition } from "./agents";
 import {
   EmptyParams,
-  TeammateCancelTaskParams,
-  TeammateConfigureParams,
-  TeammateCreateTaskParams,
+  TeammateCancelParams,
   TeammateInboxParams,
-  TeammateListTasksParams,
   TeammateMessageParams,
-  TeammateRegisterParams,
-  TeammateRemoveParams,
-  TeammateStartTaskParams,
-  TeammateWaitParams,
   TeammateReportParams,
-  type Task,
-  type Teammate,
-  type TeammateRole,
+  TeammateRetryParams,
+  TeammateRunParams,
+  TeammateStatusParams,
+  TeammateWaitParams,
+  type Node,
+  type Run,
+  type SpawnInfo,
+  type WorkerEvent,
+  type WorkerUsage,
 } from "./types";
 import {
-  cancelTask,
+  cancelBlockedDependents,
+  cancelNode,
+  cancelRun,
+  clearRunCompletionClaim,
   clearWorkerRunEvents,
-  configureTeammate,
-  createTask,
+  createRun,
+  failRunTimeout,
+  findSharedWorkspaceWriteConflict,
+  getNode,
+  getNodeByWorkerKey,
+  getRun,
   getState,
   getSummary,
-  getTeammate,
   getUnreadCount,
-  findReusableTeammate,
-  findSharedWorkspaceWriteConflict,
-  isTaskReady,
   listAllMessages,
-  listTasks,
-  listTeammates,
-  markLeaderMessagesReadForTask,
-  markTeammateIdle,
-  markTeammateRunning,
-  markTaskNotificationsRead,
-  pruneFinishedTasks,
-  resetState,
-  retireExpiredTeammates,
-  retryFailedTask,
+  listNodes,
+  listRuns,
+  markLeaderMessagesReadForRun,
+  markNodeRunning,
+  markRunCompletionDelivered,
+  pruneFinishedRuns,
   readMailbox,
+  readyPendingNodes,
   receiveWorkerMessage,
-  registerTeammate,
-  removeTeammate,
+  resetState,
+  retryRun,
+  runningNodeCount,
   sendMessage,
-  setSpawnInfo,
-  updateTaskStatus,
+  settleRun,
+  setNodeSpawnInfo,
+  SUMMARY_NODE_ID,
+  updateNodeSpawnProgress,
+  updateNodeStatus,
 } from "./state";
-import { buildAutonomousPrompt, CancellationIntents, isSuccessfulWorkerExit, killWorker, spawnPiWorker, terminateAllWorkers, terminateWorker } from "./spawner";
-import { buildTerminalResult } from "./terminal";
+import {
+  buildAutonomousPrompt,
+  CancellationIntents,
+  finishReportedWorker,
+  isCompletedWorkerExit,
+  killWorker,
+  POST_REPORT_GRACE_MS,
+  spawnPiWorker,
+  terminateAllWorkers,
+  terminateWorker,
+  type WorkerProcessResult,
+} from "./spawner";
+import { buildNodeTerminalResult } from "./terminal";
 import { captureWorktreeDiff, cleanupWorktree, createWorktree, discardWorktree } from "./worktree";
 import {
   appendWorkerEvent,
@@ -80,17 +94,22 @@ import {
   workerOutboxPath,
   writeStateFile,
 } from "./statefile";
-import type { WorkerEvent, WorkerUsage } from "./types";
+import {
+  clampConsoleScroll,
+  consoleScrollRange,
+  maxConsoleBody,
+  scrollConsoleDetail,
+  wrapConsoleDetail,
+} from "./console-viewport";
 
 /** Keep shared state dirs for at most 7 days after their last write. */
 const STATE_DIR_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000;
-const TEAMMATE_EXPIRY_POLL_MS = 30_000;
+/** Per-node hard wall-clock cap before the worker is killed. */
+const DEFAULT_NODE_TIMEOUT_MS = 30 * 60 * 1000;
 const cancellationIntents = new CancellationIntents();
-let idleTtlMs = DEFAULT_IDLE_TTL_MS;
-let teammateExpiryTimer: ReturnType<typeof setInterval> | undefined;
+const reportedWorkerShutdowns = new Set<string>();
 
-/** Truncate worker/task output to the built-in tool-output limits (50KB / 2000 lines). */
+/** Truncate worker/node output to the built-in tool-output limits (50KB / 2000 lines). */
 function cap(text: string | undefined, maxBytes = DEFAULT_MAX_BYTES): string {
   if (!text) return "";
   if (text.length <= maxBytes) return text;
@@ -117,7 +136,6 @@ function isWorkerEvent(value: unknown): value is WorkerEvent {
       && typeof event.body === "string"
       && (event.taskId === undefined || typeof event.taskId === "string");
   }
-  if (event.type === "message_read") return typeof event.messageId === "string";
   return event.type === "task_update"
     && typeof event.taskId === "string"
     && ["in_progress", "completed", "failed"].includes(event.status ?? "")
@@ -125,103 +143,90 @@ function isWorkerEvent(value: unknown): value is WorkerEvent {
     && (event.errorMessage === undefined || typeof event.errorMessage === "string");
 }
 
-/** Apply complete, validated event records from every worker-owned outbox. */
+/** Apply complete, validated event records from every running node's outbox. */
 function applyWorkerEvents(stateFile: string): void {
   const state = getState();
-  for (const workerName of Object.keys(state.teammates)) {
-    const teammate = getTeammate(workerName);
-    if (!teammate) continue;
-    const runId = teammate.currentRunId;
-    if (!runId) continue;
-    const outboxKey = `${workerName}:${runId}`;
-    const outbox = workerOutboxPath(stateFile, workerName, runId);
-    const { events, nextOffset } = readWorkerEvents(outbox, state.workerEventOffsets[outboxKey] ?? 0);
-    state.workerEventOffsets[outboxKey] = nextOffset;
-    for (const value of events) {
-      if (!isWorkerEvent(value) || state.workerEventIds[`${runId}:${value.id}`]) continue;
-      const event = value;
-      if (event.worker !== workerName || event.runId !== runId) continue;
-      if (event.type === "message") {
-        if (event.to !== "agent" && !getTeammate(event.to)) continue;
-        state.workerEventIds[`${runId}:${event.id}`] = runId;
-        const taskId = event.taskId === teammate.currentTaskId ? event.taskId : undefined;
-        if (receiveWorkerMessage({
-          id: event.id,
-          worker: workerName,
-          runId,
-          type: "message",
-          to: event.to,
-          subject: event.subject,
-          body: event.body,
-          taskId,
-        }) && event.to === "agent") {
-          // Intermediate communication stays in the mailbox. The main session
-          // is woken only once the child close produces its canonical result.
+  for (const run of Object.values(state.runs)) {
+    for (const node of Object.values(run.nodes)) {
+      const spawn = node.spawn;
+      if (!spawn || spawn.status !== "running") continue;
+      const spawnId = spawn.runId;
+      const outboxKey = `${node.workerKey}:${spawnId}`;
+      const outbox = workerOutboxPath(stateFile, node.workerKey, spawnId);
+      const { events, nextOffset } = readWorkerEvents(outbox, state.workerEventOffsets[outboxKey] ?? 0);
+      state.workerEventOffsets[outboxKey] = nextOffset;
+      for (const value of events) {
+        if (!isWorkerEvent(value) || state.workerEventIds[`${spawnId}:${value.id}`]) continue;
+        const event = value;
+        if (event.worker !== node.workerKey || event.runId !== spawnId) continue;
+        if (event.type === "message") {
+          // Workers may only message the main session; peer messages are dropped.
+          if (event.to !== "agent") continue;
+          state.workerEventIds[`${spawnId}:${event.id}`] = spawnId;
+          receiveWorkerMessage({
+            id: event.id,
+            worker: node.workerKey,
+            runId: spawnId,
+            type: "message",
+            to: "agent",
+            subject: event.subject,
+            body: event.body,
+            taskId: event.taskId === node.id ? run.id : undefined,
+          });
+          continue;
         }
-        continue;
+        // task_update: bound to this node's current spawn. Only terminal
+        // reports mutate node status (the node is already running otherwise).
+        if (event.taskId !== node.id) continue;
+        if (["completed", "failed", "cancelled"].includes(node.status)) continue;
+        state.workerEventIds[`${spawnId}:${event.id}`] = spawnId;
+        if (event.status === "completed" || event.status === "failed") {
+          updateNodeStatus(run.id, node.id, event.status, event.result, event.errorMessage);
+          // A worker that already sent a terminal report should close promptly.
+          requestReportedWorkerShutdown(node.workerKey, spawnId);
+        }
       }
-      if (event.type === "message_read") {
-        const message = listAllMessages().find((candidate) => candidate.id === event.messageId);
-        if (message?.to !== workerName) continue;
-        state.workerEventIds[`${runId}:${event.id}`] = runId;
-        message.read = true;
-        continue;
-      }
-      if (event.taskId !== teammate.currentTaskId) continue;
-      const task = listTasks().find((candidate) => candidate.id === event.taskId);
-      if (!task || ["completed", "failed", "cancelled"].includes(task.status)) continue;
-      state.workerEventIds[`${runId}:${event.id}`] = runId;
-      updateTaskStatus(event.taskId, event.status, event.result, event.errorMessage);
-      // A worker's terminal report updates task state, but process close is the
-      // authoritative completion boundary. finalizeWorker delivers one canonical
-      // terminal result to the mailbox and main session after that boundary.
     }
   }
 }
 
-/** Persist final task state before compacting an exhausted per-run outbox. */
-function compactFinishedWorkerRun(stateFile: string, workerName: string, runId: string): void {
+/** End a process that already sent a terminal report, without changing its result to cancelled. */
+function requestReportedWorkerShutdown(workerKey: string, spawnId: string): void {
+  if (reportedWorkerShutdowns.has(spawnId)) return;
+  reportedWorkerShutdowns.add(spawnId);
+  void finishReportedWorker(workerKey, POST_REPORT_GRACE_MS)
+    .catch(() => false)
+    .finally(() => {
+      reportedWorkerShutdowns.delete(spawnId);
+    });
+}
+
+/** Persist final node state before compacting an exhausted per-spawn outbox. */
+function compactFinishedNodeRun(stateFile: string, workerKey: string, spawnId: string): void {
   try {
     // First persist the final board while its event cursor still points past
     // every applied record. A crash here preserves replay protection.
     writeStateFile(stateFile, getState());
-    clearWorkerRunEvents(workerName, runId);
+    clearWorkerRunEvents(workerKey, spawnId);
     writeStateFile(stateFile, getState());
-    removeWorkerOutbox(stateFile, workerName, runId);
+    removeWorkerOutbox(stateFile, workerKey, spawnId);
   } catch {
-    // Retain metadata/outbox on a failed compaction; it is harmless because
-    // the finished run is no longer current and remains safely ignored.
+    // Best-effort compaction — the in-memory board is authoritative.
   }
-}
-
-function acknowledgedWorkerMessageIds(outbox: string, worker: string, runId: string): Set<string> {
-  const ids = new Set<string>();
-  try {
-    for (const line of fs.readFileSync(outbox, "utf-8").split("\n")) {
-      if (!line.trim()) continue;
-      const event = JSON.parse(line) as Partial<WorkerEvent>;
-      if (event.type === "message_read" && event.worker === worker && event.runId === runId && typeof event.messageId === "string") {
-        ids.add(event.messageId);
-      }
-    }
-  } catch {
-    // A missing/out-of-date outbox means no local receipt has been emitted.
-  }
-  return ids;
 }
 
 let leaderPi: ExtensionAPI | undefined;
 
-function sendMainSessionUpdate(subject: string, body: string, taskId?: string): void {
+function sendMainSessionUpdate(subject: string, body: string, runId?: string): void {
   try {
     leaderPi?.sendMessage({
       customType: "teammate-update",
-      content: `Teammate update — ${subject}${taskId ? ` [${taskId}]` : ""}\n${body}`,
+      content: `Teammate update — ${subject}${runId ? ` [${runId}]` : ""}\n${body}`,
       display: true,
-      details: { taskId },
+      details: { runId },
     }, { triggerTurn: true, deliverAs: "followUp" });
   } catch {
-    // A late worker event must not prevent final task cleanup during shutdown.
+    // A late run event must not prevent cleanup during shutdown.
   }
 }
 
@@ -231,7 +236,7 @@ function renderInbox(name: string, messages: Array<{ id: string; from: string; s
   for (const message of messages) {
     lines.push(`### [${message.id}] ${message.subject}`);
     lines.push(`From: ${message.from} | ${new Date(message.timestamp).toLocaleString()}`);
-    if (message.taskId) lines.push(`Task: ${message.taskId}`);
+    if (message.taskId) lines.push(`Run: ${message.taskId}`);
     lines.push("", cap(message.body), "", "---", "");
   }
   return lines.join("\n");
@@ -241,31 +246,27 @@ function renderInbox(name: string, messages: Array<{ id: string; from: string; s
 function registerWorkerCapabilities(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "teammate_message",
-    promptSnippet: "Send a direct message to a teammate or the main session",
+    promptSnippet: "Send a direct message to the main session",
     label: "Teammate Message",
-    description: "Worker-only sender. Addresses a teammate by name, or agent to message the main session through the leader-validated outbox.",
+    description: "Worker-only sender. Addresses agent to message the main session; workers cannot message peers.",
     parameters: TeammateMessageParams,
     async execute(_toolCallId, params) {
       const binding = workerOutboxBinding();
       if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
-      const snapshot = readStateFile(binding.stateFile);
-      if (params.to === "all" || params.role) {
-        throw new Error("Workers may message one teammate or agent, not broadcast.");
-      }
-      if (params.to !== "agent" && !snapshot?.teammates[params.to]) {
-        throw new Error(`Unknown teammate recipient: ${params.to}.`);
+      if (params.to !== "agent") {
+        throw new Error("Workers may only message agent (the main session), not peers.");
       }
       appendWorkerEvent(binding.outbox, {
         id: randomUUID(),
         type: "message",
         worker: binding.worker,
         runId: binding.runId,
-        to: params.to,
+        to: "agent",
         subject: params.subject,
         body: params.body,
         taskId: binding.taskId,
       });
-      return { content: [{ type: "text", text: `Queued message to ${params.to}.` }], details: {} };
+      return { content: [{ type: "text", text: "Queued message to agent." }], details: {} };
     },
   });
 
@@ -273,32 +274,25 @@ function registerWorkerCapabilities(pi: ExtensionAPI): void {
     name: "teammate_inbox",
     promptSnippet: "Read this teammate's inbox",
     label: "Teammate Inbox",
-    description: "Worker-only inbox. Reads this worker's leader-published inbox and emits read receipts for returned messages.",
+    description: "Worker-only inbox. Reads this worker's leader-published messages from the shared snapshot. Best-effort mailbox: no read receipts are exchanged.",
     parameters: TeammateInboxParams,
     async execute(_toolCallId, params) {
       const binding = workerOutboxBinding();
       if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
       const snapshot = readStateFile(binding.stateFile);
       const unreadOnly = params.unreadOnly ?? true;
-      const markRead = params.markRead ?? true;
-      const acknowledged = acknowledgedWorkerMessageIds(binding.outbox, binding.worker, binding.runId);
       const messages = (snapshot?.mailboxes[binding.worker] ?? []).filter(
-        (message) => !unreadOnly || (!message.read && !acknowledged.has(message.id)),
+        (message) => !unreadOnly || !message.read,
       );
-      if (markRead) {
-        for (const message of messages.filter((message) => !message.read)) {
-          appendWorkerEvent(binding.outbox, { id: randomUUID(), type: "message_read", worker: binding.worker, runId: binding.runId, messageId: message.id });
-        }
-      }
       return { content: [{ type: "text", text: renderInbox(binding.worker, messages) }], details: {} };
     },
   });
 
   pi.registerTool({
     name: "teammate_report",
-    promptSnippet: "Worker-only: report progress, completion, or failure for this worker's assigned task",
-    label: "Report Teammate Task Status",
-    description: "Worker-only capability. Reports progress, completion, or failure for the task bound to this worker process.",
+    promptSnippet: "Worker-only: report progress, completion, or failure for this worker's bound node",
+    label: "Report Teammate Node Status",
+    description: "Worker-only capability. Reports progress, completion, or failure for the node bound to this worker process.",
     parameters: TeammateReportParams,
     async execute(_toolCallId, params) {
       const binding = workerOutboxBinding();
@@ -318,31 +312,9 @@ function registerWorkerCapabilities(pi: ExtensionAPI): void {
   });
 }
 
-/** Notify downstream assignees once all dependencies for their task are done. */
-function notifyUnblockedTasks(taskId: string): void {
-  const completed = listTasks().find((task) => task.id === taskId);
-  if (!completed) return;
-  for (const blockedId of completed.blocks) {
-    const blocked = listTasks().find((task) => task.id === blockedId);
-    if (!blocked || blocked.status !== "assigned" || !isTaskReady(blocked.id)) continue;
-    if (completed.unblockedNotificationTaskIds?.includes(blocked.id)) continue;
-    completed.unblockedNotificationTaskIds ??= [];
-    completed.unblockedNotificationTaskIds.push(blocked.id);
-    sendMessage({
-      from: "agent",
-      to: blocked.assignee,
-      subject: "Task unblocked",
-      body: `Task [${blocked.id}] "${blocked.title}" is ready to start. All blocking tasks are complete.`,
-      taskId: blocked.id,
-    });
-  }
-}
-
 // ── Team UI: passive widget + full-screen console ──────────────────
-// Design: the widget above the editor is DISPLAY-ONLY (no key interception —
-// pi's model selector, history navigation and dialogs are never affected).
-// ALL interaction happens in the full-screen Team Console (`/teammate`), which
-// owns input explicitly via ctx.ui.custom, so ↑/↓/Enter are safe in there.
+// The widget above the editor is DISPLAY-ONLY. ALL interaction happens in the
+// full-screen Team Console (/teammate), which owns input via ctx.ui.custom.
 
 const TEAM_COLORS = ["accent", "success", "warning", "error", "toolTitle", "mdLink"] as const;
 const PANEL_IDLE_COLLAPSE_MS = 30_000;
@@ -355,34 +327,7 @@ let spinnerFrame = 0;
 let panelLastActivity = 0;
 let panelCollapseTimer: ReturnType<typeof setTimeout> | undefined;
 
-/**
- * Esc arrives as a bare `\x1b` in legacy terminals, or as CSI-u `\x1b[27u`
- * (with optional `:shifted`, `;mod`, `:event` segments) once the Kitty
- * protocol (flags=7, which pi negotiates) is active in Ghostty.
- */
-function isEscapeKey(data: string): boolean {
-  return data === "\u001b" || /^\u001b\[27(?:[:;\d]*)?u$/.test(data);
-}
-
-/** Display label for a role: a plain registered teammate shows as "teammate". */
-function displayRole(role: string): string {
-  return role === "worker" ? "teammate" : role;
-}
-
-function executionToolsFor(teammate: Teammate): string[] {
-  if (teammate.tools) return teammate.tools;
-  switch (teammate.role) {
-    case "worker":
-      return ["read", "bash", "edit", "write"];
-    case "reviewer":
-    case "specialist":
-      return ["read", "bash"];
-    case "observer":
-      return ["read"];
-  }
-}
-
-/** Stable per-teammate color (independent of row order). */
+/** Stable per-node color (independent of row order). */
 function hashName(name: string): number {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
@@ -390,36 +335,33 @@ function hashName(name: string): number {
 }
 
 interface PanelRow {
-  name: string;
+  key: string;
 }
-/** Console/widget rows contain teammate status only; messages use the mailbox tool. */
+
+/** Console/widget rows contain node status only; messages use the mailbox tool. */
 function buildPanelRows(): PanelRow[] {
-  return listTeammates().map((teammate) => ({ name: teammate.name }));
+  return listNodes().map((node) => ({ key: node.workerKey }));
 }
 
-function shortTaskTitle(taskId?: string): string {
-  if (!taskId) return "working";
-  const task = listTasks().find((candidate) => candidate.id === taskId);
-  const title = task?.title.trim().replace(/\s+/g, " ") || "working";
-  return title.length > 32 ? `${title.slice(0, 31)}…` : title;
+function shortRunLabel(runId: string): string {
+  const run = getRun(runId);
+  if (!run) return runId;
+  return `${runId} (${Object.keys(run.nodes).length} node${Object.keys(run.nodes).length === 1 ? "" : "s"})`;
 }
 
-function runningTaskLabel(teammate: Teammate): string {
-  return `${SPINNER_FRAMES[spinnerFrame]} ${shortTaskTitle(teammate.currentTaskId)} · working...`;
+function runningNodeLabel(node: Node): string {
+  const activity = node.spawn?.activeTool ? ` · ${node.spawn.activeTool}` : "";
+  return `${SPINNER_FRAMES[spinnerFrame]} ${node.workerKey} (${node.agent}) · working...${activity}`;
 }
 
 function ensureSpinner(): void {
-  const running = listTeammates().some((teammate) => teammate.status === "running");
+  const running = listNodes().some((node) => node.status === "running");
   if (running && !spinnerTimer && panelRequestRender) {
     spinnerTimer = setInterval(() => {
-      if (!listTeammates().some((teammate) => teammate.status === "running")) {
-        clearInterval(spinnerTimer);
-        spinnerTimer = undefined;
-        return;
-      }
       spinnerFrame = (spinnerFrame + 1) % SPINNER_FRAMES.length;
       panelRequestRender?.();
     }, SPINNER_MS);
+    spinnerTimer.unref?.();
   } else if (!running && spinnerTimer) {
     clearInterval(spinnerTimer);
     spinnerTimer = undefined;
@@ -427,29 +369,16 @@ function ensureSpinner(): void {
 }
 
 function isPanelCollapsed(): boolean {
-  const rows = buildPanelRows();
-  if (rows.length === 0) return false;
-  const teammates = listTeammates();
-  return teammates.length > 0 && teammates.every((t) => t.status === "idle") && Date.now() - panelLastActivity > PANEL_IDLE_COLLAPSE_MS;
+  return Date.now() - panelLastActivity > PANEL_IDLE_COLLAPSE_MS;
 }
 
 function scheduleIdleCollapse(): void {
   if (panelCollapseTimer) clearTimeout(panelCollapseTimer);
-  panelCollapseTimer = undefined;
-  const teammates = listTeammates();
-  if (teammates.length === 0 || !teammates.every((t) => t.status === "idle")) return;
-  panelCollapseTimer = setTimeout(() => {
-    panelCollapseTimer = undefined;
-    panelRequestRender?.();
-  }, PANEL_IDLE_COLLAPSE_MS);
+  panelCollapseTimer = setTimeout(() => panelRequestRender?.(), PANEL_IDLE_COLLAPSE_MS);
+  panelCollapseTimer.unref?.();
 }
 
-/** Refresh the passive widget after any state change. */
 function stopUiTimers(): void {
-  if (teammateExpiryTimer) {
-    clearInterval(teammateExpiryTimer);
-    teammateExpiryTimer = undefined;
-  }
   if (spinnerTimer) {
     clearInterval(spinnerTimer);
     spinnerTimer = undefined;
@@ -464,32 +393,23 @@ function refreshTeamUI(_ctx: { ui: ExtensionUIContext }): void {
   panelLastActivity = Date.now();
   scheduleIdleCollapse();
   ensureLivePoll();
-  ensureTeammateExpiryPoll();
   ensureSpinner();
   panelRequestRender?.();
 }
 
-// ── Live worker-event drain while workers run ──────────────────────
-// The leader owns state.json. Each worker appends events to its own outbox;
-// while any teammate runs, the leader validates and applies those events.
+// ── Live worker-event drain while nodes run ───────────────────────
+
 let liveStateFile: string | undefined;
 let livePollTimer: ReturnType<typeof setInterval> | undefined;
-const LIVE_POLL_MS = 5000;
-
-function ensureTeammateExpiryPoll(): void {
-  if (teammateExpiryTimer || idleTtlMs <= 0) return;
-  teammateExpiryTimer = setInterval(() => {
-    if (retireExpiredTeammates(idleTtlMs) > 0) panelRequestRender?.();
-  }, TEAMMATE_EXPIRY_POLL_MS);
-  teammateExpiryTimer.unref?.();
-}
+const LIVE_POLL_MS = 500;
 
 function ensureLivePoll(): void {
-  const running = listTeammates().some((t) => t.status === "running");
+  const running = listNodes().some((node) => node.status === "running");
   if (running && !livePollTimer && liveStateFile) {
     livePollTimer = setInterval(() => {
       try {
         applyWorkerEvents(liveStateFile!);
+        enforceRunTimeouts();
         writeStateFile(liveStateFile!, getState());
         panelRequestRender?.();
       } catch {
@@ -502,46 +422,54 @@ function ensureLivePoll(): void {
   }
 }
 
+/** Fail runs whose run-level hard wall-clock cap was exceeded. */
+function enforceRunTimeouts(): void {
+  for (const run of listRuns()) {
+    if (run.status !== "running" || !run.deadlineAt || Date.now() < run.deadlineAt) continue;
+    const failed = failRunTimeout(run.id, `Run timed out after ${Math.round((run.timeoutMs ?? 0) / 1000)}s.`);
+    if (!failed.ok) continue;
+    for (const nodeId of failed.runningNodeIds) {
+      // Spawn was cleared by failRunTimeout, so terminate by the stable workerKey
+      // (a no-op when the child already closed).
+      const node = getNode(run.id, nodeId);
+      if (node) void terminateWorker(node.workerKey).catch(() => false);
+    }
+    onRunSettled(run.id);
+  }
+}
+
 /** Passive widget rows (display only — no selection, no key handling). */
 function panelRows(theme: Theme, width?: number): string[] {
   const fg = (color: ThemeColor, s: string): string => theme.fg(color, s);
   const bold = (s: string): string => theme.bold(s);
   const fit = (line: string): string =>
     typeof width === "number" && width > 0 ? truncateToWidth(line, Math.max(10, width - 1)) : line;
-  const rows = buildPanelRows();
-  if (rows.length === 0) return [];
-
-  if (isPanelCollapsed()) {
-    return [fit(fg("dim", `Team idle — ${listTeammates().length} teammate(s) — /teammate to interact`))];
+  const nodes = listNodes();
+  const running = nodes.filter((node) => node.status === "running");
+  if (running.length === 0) {
+    return [fit(fg("dim", `Team idle — ${nodes.length} node(s) / ${listRuns().length} run(s) — /teammate to interact`))];
   }
-
+  if (isPanelCollapsed()) {
+    return [fit(fg("dim", `Team working — ${running.length} node(s) — /teammate to interact`))];
+  }
   const lines: string[] = [];
-  for (const row of rows) {
-    const t = getTeammate(row.name);
-    if (!t) continue;
-    const color = TEAM_COLORS[hashName(t.name) % TEAM_COLORS.length];
-    const name = bold(fg(color, t.name));
-    const role = fg("muted", `(${displayRole(t.role)})`);
-    const status = t.status === "running" ? fg("warning", runningTaskLabel(t)) : fg("dim", "○ idle");
-    lines.push(fit(`${name} ${role} ${status}`));
+  for (const node of running) {
+    const color = TEAM_COLORS[hashName(node.workerKey) % TEAM_COLORS.length];
+    lines.push(fit(`${bold(fg(color, node.workerKey))} ${fg("warning", runningNodeLabel(node))}`));
   }
   lines.push(fit(fg("dim", "/teammate — open console")));
   return lines;
 }
 
-/** Full content of a task as shown on an agent's detail page: description,
- * dependencies, spawn lifecycle (pid/status/timing/exit/timeout/usage), the
- * worker's final report (stdout), stderr, result and error. The worker output
- * is the agent's actual "running content" — previously hidden behind a
- * one-line status. */
-function buildTaskSection(t: Task): string[] {
-  const lines: string[] = [`- [${t.id}] ${t.status}: ${t.title}`];
-  if (t.description) lines.push(`  ${t.description}`);
-  lines.push(`  Access: ${t.access} | Paths: ${t.paths.join(", ")}`);
-  if (t.blockedBy.length > 0) lines.push(`  Blocked by: ${t.blockedBy.join(", ")}`);
-  if (t.blocks.length > 0) lines.push(`  Blocks: ${t.blocks.join(", ")}`);
+/** Full content of a node as shown on its detail page: spawn lifecycle, live
+ * worker text, captured output, result and error. */
+function buildNodeSection(node: Node): string[] {
+  const lines: string[] = [`- [${node.id}] ${node.status}: ${node.agent}`];
+  if (node.prompt) lines.push(`  Task: ${cap(node.prompt, 2000)}`);
+  lines.push(`  Access: ${node.access} | Paths: ${node.paths.join(", ")}`);
+  if (node.dependsOn.length > 0) lines.push(`  Depends on: ${node.dependsOn.join(", ")}`);
 
-  const spawn = t.spawn;
+  const spawn = node.spawn;
   if (spawn) {
     const stateLabel = spawn.status === "running" ? `running (pid ${spawn.pid})` : spawn.status;
     lines.push(`  Spawn: ${stateLabel} | Isolation: ${spawn.isolation ?? "none"}`);
@@ -553,7 +481,13 @@ function buildTaskSection(t: Task): string[] {
       const u = spawn.usage;
       lines.push(`  Usage: ${u.totalTokens} tokens (in ${u.input} / out ${u.output}) | cost $${u.cost}`);
     }
+    if (spawn.turns) lines.push(`  Worker turns: ${spawn.turns}`);
+    if (spawn.activeTool) lines.push(`  Current tool: ${spawn.activeTool}`);
     if (spawn.error) lines.push(`  Spawn error: ${spawn.error}`);
+    if (spawn.status === "running") {
+      lines.push("  --- Live worker activity ---");
+      lines.push(...(spawn.liveText?.trim() ? spawn.liveText.split("\n") : ["  Waiting for the worker's first response…"]));
+    }
     if (spawn.stdout) {
       lines.push("  --- Worker output ---");
       lines.push(...spawn.stdout.split("\n"));
@@ -564,91 +498,54 @@ function buildTaskSection(t: Task): string[] {
     }
   }
 
-  // Completed spawns already fold stdout into task.result (setSpawnInfo) — avoid
-  // printing the same report twice. Standalone results (update_task_status or a
-  // worker-written state file) are still shown here.
-  if (t.result && t.result !== spawn?.stdout) lines.push(`  Result: ${t.result}`);
-  if (t.errorMessage) lines.push(`  Error: ${t.errorMessage}`);
+  if (node.result && node.result !== spawn?.stdout) lines.push(`  Result: ${node.result}`);
+  if (node.errorMessage) lines.push(`  Error: ${node.errorMessage}`);
   return lines;
 }
 
-/**
- * Write the leader's read flags back into the shared state file so the
- * SENDER (the worker) can see the read receipt: once the team leader has
- * read a message, the file copy shows read:true and the worker sees
- * "leader received ✓".
- */
-function syncReadFlagsToFile(): void {
-  if (!liveStateFile) return;
-  try {
-    applyWorkerEvents(liveStateFile);
-    writeStateFile(liveStateFile, getState());
-  } catch {
-    // Never break reading on a receipt-sync failure.
-  }
-}
-
-/**
- * Publish the parent's current board to the shared state file so running
- * workers see leader-side changes (new messages, task status) — without this,
- * message/broadcast/assign only touched the parent's memory and the
- * worker's mailbox watch never saw the message.
- */
+/** Publish the parent's current board to the shared state file so running
+ * workers see leader-side changes. The in-memory board is authoritative. */
 function publishToStateFile(): void {
   if (!liveStateFile) return;
   try {
     applyWorkerEvents(liveStateFile);
     writeStateFile(liveStateFile, getState());
   } catch {
-    // Best effort — the in-memory board is authoritative.
+    // Best effort.
   }
 }
 
-/** Teammate detail: special sections (unread, tasks) + the FULL conversation —
- * every message the teammate received (←) and every message it sent (→),
- * merged and sorted by time. */
-function buildTeammateDetail(name: string): string[] {
-  const teammate = getTeammate(name);
-  if (!teammate) return ["(removed)"];
-  const incoming = readMailbox(name, { unreadOnly: false, markRead: false });
+/** Node detail: unread messages + node section + the FULL conversation
+ * (received ← / sent →), merged and sorted by time. No receipt labels — the
+ * mailbox is best-effort and the read flag is leader-local. */
+function buildNodeDetail(workerKey: string): string[] {
+  const entry = getNodeByWorkerKey(workerKey);
+  if (!entry) return ["(removed)"];
+  const { run, node } = entry;
+  const incoming = readMailbox(workerKey, { unreadOnly: false, markRead: false });
   const unread = incoming.filter((m) => !m.read);
-  const outgoing = listAllMessages().filter((m) => m.from === name);
+  const outgoing = listAllMessages().filter((m) => m.from === workerKey);
   const conversation = [...incoming, ...outgoing].sort((a, b) => a.timestamp - b.timestamp);
-  const tasks = listTasks({ assignee: name });
 
   const lines: string[] = [
-    `${teammate.name} (${displayRole(teammate.role)}) [${teammate.status}]`,
-    teammate.description,
-    teammate.model ? `Model: ${teammate.model}` : "",
-    `Prompt: ${teammate.prompt}`,
+    `${node.workerKey} (${node.agent}) [${node.status}] — run ${run.status}`,
     "",
     `== ${unread.length} unread message(s) ==`,
     ...(unread.length === 0 ? ["(none)"] : unread.map((m) => `[${m.id}] ${m.subject} — from ${m.from}`)),
     "",
-    `== ${tasks.length} task(s) ==`,
-    ...(tasks.length === 0 ? ["(none)"] : tasks.flatMap(buildTaskSection)),
+    "== node ==",
+    ...buildNodeSection(node),
     "",
     `== all conversations (${conversation.length}) ==`,
     ...(conversation.length === 0
       ? ["(no messages yet)"]
       : conversation.flatMap((m) => {
-          const sent = m.from === name;
+          const sent = m.from === workerKey;
           const peer = sent ? m.to : m.from;
           const time = new Date(m.timestamp).toLocaleString();
-          // Read status: outgoing → whether the leader received/read it (read
-          // receipt); incoming → whether the teammate read it.
-          const receipt = sent
-            ? m.to === "agent"
-              ? m.read
-                ? "✓ leader received"
-                : "○ leader pending"
-              : ""
-            : m.read
-              ? "✓ read"
-              : "● unread";
           return [
-            `${sent ? "→" : "←"} [${m.id}] ${m.subject} — ${sent ? `to ${peer}` : `from ${peer}`} | ${time}${receipt ? ` | ${receipt}` : ""}`,
-            m.taskId ? `  task ${m.taskId}` : "",
+            `${sent ? "→" : "←"} [${m.id}] ${m.subject} — ${sent ? `to ${peer}` : `from ${peer}`} | ${time}`,
+            m.taskId ? `  run ${m.taskId}` : "",
             m.body,
             "",
           ];
@@ -657,21 +554,30 @@ function buildTeammateDetail(name: string): string[] {
   return lines;
 }
 
-/**
- * Full-screen Team Console — owns input via ctx.ui.custom, so ↑/↓ and Enter are
- * safe in here and nothing is intercepted globally. Modes: list / detail.
- */
+/** Full-screen Team Console — owns input via ctx.ui.custom, so ↑/↓ and Enter
+ * are safe in here and nothing is intercepted globally. Modes: list / detail. */
 function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> {
-  return ctx.ui.custom<void>((_tui, theme, _keybindings, done) => {
+  return ctx.ui.custom<void>((tui, theme, _keybindings, done) => {
     let mode: "list" | "detail" = "list";
     let selected = 0;
-    let detailName = "";
-    let replyMode = false;
-    let replyBuffer = "";
+    let detailKey = "";
     let offset = 0;
-    const WINDOW = 20;
-    const up = /^\u001b\[(?:[0-9;:]*)?A$|^\u001bOA$/;
-    const down = /^\u001b\[(?:[0-9;:]*)?B$|^\u001bOB$/;
+    let closed = false;
+    let renderTimer: ReturnType<typeof setInterval> | undefined;
+    const requestRender = () => {
+      if (!closed) tui.requestRender();
+    };
+    const startLiveRefresh = () => {
+      if (renderTimer) return;
+      renderTimer = setInterval(requestRender, SPINNER_MS);
+      renderTimer.unref?.();
+    };
+    const stopLiveRefresh = () => {
+      if (!renderTimer) return;
+      clearInterval(renderTimer);
+      renderTimer = undefined;
+    };
+    startLiveRefresh();
 
     // btw-style callbacks (same accent/muted/dim/border/success/error language as @fradser/pi-btw).
     const style = {
@@ -683,18 +589,14 @@ function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> {
       error: (s: string) => theme.fg("error", s),
     };
 
-    const windowLines = (full: string[], width: number): string[] => {
-      const contentWidth = Math.max(20, width - 4);
-      const maxOffset = Math.max(0, full.length - WINDOW);
-      if (offset > maxOffset) offset = maxOffset;
-      const wrapped: string[] = [];
-      for (const line of full.slice(offset, offset + WINDOW)) {
-        wrapped.push(...wrapTextWithAnsi(line, contentWidth));
-      }
-      if (full.length > WINDOW) {
-        wrapped.push(style.dim(`… ${full.length - WINDOW} more lines — ↑/↓`));
-      }
-      return wrapped;
+    const windowLines = (full: string[], width: number): { lines: string[]; range: string } => {
+      const wrapped = wrapConsoleDetail(full, width);
+      const viewport = maxConsoleBody(tui.terminal.rows);
+      offset = clampConsoleScroll(offset, wrapped.length, viewport);
+      return {
+        lines: wrapped.slice(offset, offset + viewport),
+        range: consoleScrollRange(offset, wrapped.length, viewport),
+      };
     };
 
     const renderList = (width: number): string[] => {
@@ -703,116 +605,111 @@ function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> {
       const border = style.border("─".repeat(Math.max(1, width)));
       const lines: string[] = [
         border,
-        style.accent(truncateToWidth(`teammate  ${listTeammates().length} teammate(s)`, width)),
+        style.accent(truncateToWidth(`agent-teams  ${listRuns().length} run(s) / ${listNodes().length} node(s)`, width)),
         "",
       ];
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         const marker = i === selected ? style.accent("❯ ") : "  ";
-        const t = getTeammate(row.name);
-        if (!t) continue;
-        const color = TEAM_COLORS[hashName(t.name) % TEAM_COLORS.length];
-        const name = theme.bold(theme.fg(color, t.name));
-        const role = style.muted(`(${displayRole(t.role)})`);
-        const status = t.status === "running" ? theme.fg("warning", runningTaskLabel(t)) : style.dim("○ idle");
+        const entry = getNodeByWorkerKey(row.key);
+        if (!entry) continue;
+        const { node } = entry;
+        const color = TEAM_COLORS[hashName(node.workerKey) % TEAM_COLORS.length];
+        const name = theme.bold(theme.fg(color, node.workerKey));
+        const role = style.muted(`(${node.agent})`);
+        const status = node.status === "running"
+          ? theme.fg("warning", runningNodeLabel(node))
+          : node.status === "completed"
+            ? style.success("✓ completed")
+            : node.status === "failed"
+              ? style.error("✗ failed")
+              : style.dim(`○ ${node.status}`);
         lines.push(`${marker}${name} ${role} ${status}`);
       }
-      lines.push("", style.dim("↑↓ select · enter open · r reply · esc interrupt · x stop · q close"), border);
+      lines.push("", style.dim("↑↓ select · enter open · esc/q close · x stop"), border);
       return lines.map((l) => truncateToWidth(l, Math.max(10, width - 1)));
     };
 
     const renderDetail = (width: number): string[] => {
       const border = style.border("─".repeat(Math.max(1, width)));
+      const detail = windowLines(buildNodeDetail(detailKey), width);
+      const footer = style.dim(`  ${detail.range} · ↑↓ scroll · pgup/pgdn page · home/end jump · esc back · q close`);
       const lines = [
         border,
-        style.accent(truncateToWidth(`teammate  ${detailName}`, width)),
+        style.accent(truncateToWidth(`agent-teams  ${detailKey}`, width)),
         "",
-        ...windowLines(buildTeammateDetail(detailName), width).map((l) => `  ${l}`),
+        ...detail.lines.map((line) => `  ${line}`),
         "",
-        replyMode
-          ? style.accent(`  Reply to ${detailName}: ${replyBuffer}_(enter send, esc cancel)`)
-          : style.dim("  esc back · r reply · q close"),
+        footer,
         border,
       ];
-      return lines.map((l) => truncateToWidth(l, Math.max(10, width - 1)));
+      return lines.map((line) => truncateToWidth(line, Math.max(10, width - 1)));
     };
 
     return {
       render: (width) =>
         mode === "list" ? renderList(width) : renderDetail(width),
-      invalidate: () => {},
       handleInput: (data: string) => {
-        // Detail-mode inline reply input.
-        if (mode === "detail" && replyMode) {
-          if (isEscapeKey(data)) {
-            replyMode = false;
-            return;
-          }
-          if (data === "\r" || data === "\n") {
-            if (replyBuffer.trim()) {
-              sendMessage({ from: "agent", to: detailName, subject: "Direct message", body: replyBuffer.trim() });
-              refreshTeamUI(ctx);
-              ctx.ui.notify(`Message sent to ${detailName}.`, "info");
-            }
-            replyMode = false;
-            replyBuffer = "";
-            return;
-          }
-          if (data === "\x7f" || data === "\x08") {
-            replyBuffer = replyBuffer.slice(0, -1);
-            return;
-          }
-          if (data.length === 1 && data >= " " && data < "\x7f") replyBuffer += data;
-          return;
-        }
-
-        // Detail mode: Esc returns to the list, q closes, r replies.
+        // Detail mode: Esc returns to the list, q closes.
         if (mode !== "list") {
-          if (isEscapeKey(data)) {
+          if (matchesKey(data, Key.escape)) {
             mode = "list";
             offset = 0;
             return;
           }
           if (data === "q" || data === "Q") {
+            closed = true;
+            stopLiveRefresh();
             done();
             return;
           }
-          if (mode === "detail" && (data === "r" || data === "R")) {
-            replyMode = true;
-            return;
-          }
-          if (down.test(data)) offset++;
-          if (up.test(data)) offset--;
+          const detail = wrapConsoleDetail(buildNodeDetail(detailKey), tui.terminal.columns);
+          const viewport = maxConsoleBody(tui.terminal.rows);
+          if (matchesKey(data, Key.up)) offset = scrollConsoleDetail(offset, -1, detail.length, viewport);
+          else if (matchesKey(data, Key.down)) offset = scrollConsoleDetail(offset, 1, detail.length, viewport);
+          else if (matchesKey(data, Key.pageUp)) offset = scrollConsoleDetail(offset, -Math.max(1, viewport - 1), detail.length, viewport);
+          else if (matchesKey(data, Key.pageDown)) offset = scrollConsoleDetail(offset, Math.max(1, viewport - 1), detail.length, viewport);
+          else if (matchesKey(data, Key.home)) offset = 0;
+          else if (matchesKey(data, Key.end)) offset = clampConsoleScroll(Number.MAX_SAFE_INTEGER, detail.length, viewport);
           return;
         }
 
         // List mode — the console owns input, so ↑/↓/Enter are safe here.
         const rows = buildPanelRows();
-        if (down.test(data)) selected = Math.min(selected + 1, rows.length - 1);
-        if (up.test(data)) selected = Math.max(selected - 1, 0);
-        if (data === "\r" || data === "\n") {
+        if (matchesKey(data, Key.down)) selected = Math.min(selected + 1, rows.length - 1);
+        if (matchesKey(data, Key.up)) selected = Math.max(selected - 1, 0);
+        if (matchesKey(data, Key.enter)) {
           const row = rows[Math.min(selected, rows.length - 1)];
-          if (row.name) {
+          if (row?.key) {
             mode = "detail";
-            detailName = row.name;
+            detailKey = row.key;
             offset = 0;
           }
           return;
         }
-        if (isEscapeKey(data) || data === "q" || data === "Q") {
+        if (matchesKey(data, Key.escape) || data === "q" || data === "Q") {
+          closed = true;
+          stopLiveRefresh();
           done();
           return;
         }
         if (data === "x" || data === "X") {
           const row = rows[Math.min(selected, rows.length - 1)];
-          if (row.name) {
-            const t = getTeammate(row.name);
-            if (t?.status === "running" && killWorker(row.name, "SIGKILL")) {
-              ctx.ui.notify(`Stopped ${row.name}'s worker.`, "info");
+          if (row?.key) {
+            const node = getNodeByWorkerKey(row.key)?.node;
+            if (node?.status === "running" && killWorker(row.key, "SIGKILL")) {
+              ctx.ui.notify(`Stopped ${row.key}'s worker.`, "info");
             }
           }
           return;
         }
+      },
+      invalidate: () => {
+        requestRender();
+      },
+      dispose: () => {
+        closed = true;
+        stopLiveRefresh();
       },
     };
   });
@@ -835,53 +732,391 @@ function setupTeamWidget(ctx: { ui: ExtensionUIContext; mode: string }): void {
   });
 }
 
+// ── Run dispatch machinery ────────────────────────────────────────
+
+interface DispatchCtx {
+  ui: ExtensionUIContext;
+  sessionManager?: { getSessionFile(): string | undefined };
+  cwd?: string;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function buildRunResultSummary(runId: string): string {
+  const run = getRun(runId);
+  if (!run) return `Run ${runId} not found.`;
+  const counts = Object.values(run.nodes).reduce<Record<string, number>>((acc, node) => {
+    acc[node.status] = (acc[node.status] ?? 0) + 1;
+    return acc;
+  }, {});
+  const lines = [
+    `## Run [${run.id}] ${run.status}`,
+    `Nodes: ${Object.keys(run.nodes).length} (${Object.entries(counts).map(([status, n]) => `${status} ${n}`).join(", ")}) | Concurrency: ${run.concurrency} | Worktree: ${run.worktree ? "yes" : "no"}`,
+    "",
+  ];
+  for (const node of Object.values(run.nodes)) {
+    lines.push(`- [${node.id}] ${node.status}: ${node.agent}`);
+    if (node.result) lines.push(`  Result: ${cap(node.result)}`);
+    if (node.errorMessage) lines.push(`  Error: ${cap(node.errorMessage)}`);
+    if (node.spawn?.usage) {
+      const u = node.spawn.usage;
+      lines.push(`  Usage: ${u.totalTokens} tokens | cost $${u.cost}`);
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+/** Compact run summary for tool returns and follow-ups; detail lives in
+ * teammate_status runId and teammate_inbox transcripts. When the run has a
+ * synthesized __summary node result, that is shown instead of per-node
+ * headlines (no truncation heuristics). */
+function buildRunSummary(runId: string): string {
+  const run = getRun(runId);
+  if (!run) return `Run ${runId} not found.`;
+  const counts = Object.values(run.nodes).reduce<Record<string, number>>((acc, node) => {
+    acc[node.status] = (acc[node.status] ?? 0) + 1;
+    return acc;
+  }, {});
+  const totalTokens = Object.values(run.nodes).reduce((sum, node) => sum + (node.spawn?.usage?.totalTokens ?? 0), 0);
+  const totalCost = Object.values(run.nodes).reduce((sum, node) => sum + (node.spawn?.usage?.cost ?? 0), 0);
+  const lines = [
+    `## Run [${run.id}] ${run.status}`,
+    `${Object.keys(run.nodes).length} node(s): ${Object.entries(counts).map(([status, n]) => `${status} ${n}`).join(", ")} | ${totalTokens.toLocaleString()} tokens | $${totalCost.toFixed(4)}`,
+    "",
+  ];
+  if (run.summary) {
+    lines.push(run.summary, "");
+  }
+  for (const node of Object.values(run.nodes)) {
+    if (node.id === SUMMARY_NODE_ID) continue;
+    lines.push(`- [${node.id}] ${node.status} (${node.agent})`);
+  }
+  lines.push("", `Detail: teammate_status runId=${run.id} · Transcripts: teammate_inbox`);
+  return lines.join("\n");
+}
+
+/** Called once a run reaches a terminal status. Idempotent: the mailbox summary
+ * and follow-up fire only on the first settled observation (a run can transition
+ * through settleRun once per node close). */
+function onRunSettled(runId: string, ctx?: DispatchCtx): void {
+  const run = getRun(runId);
+  if (!run) return;
+  if (run.settledMessageSent) return;
+  run.settledMessageSent = true;
+  const summary = buildRunSummary(runId);
+  sendMessage({ from: run.id, to: "agent", subject: `Run ${run.status}`, body: summary, taskId: runId });
+  if (run.background && !run.completionNotified) {
+    // One follow-up only when no other delivery path (wait/foreground gather)
+    // has already consumed the run's completion.
+    run.completionNotified = true;
+    sendMainSessionUpdate(`Run ${run.status}`, summary, runId);
+  }
+  publishToStateFile();
+  if (ctx) refreshTeamUI(ctx);
+}
+
+/**
+ * Start ready nodes of a run up to its concurrency budget. Root nodes start
+ * immediately; downstream nodes auto-start when their dependencies complete.
+ */
+function scheduleRun(runId: string, ctx: DispatchCtx): void {
+  const run = getRun(runId);
+  if (!run || run.status !== "running") return;
+  const settled = settleRun(runId);
+  if (settled !== "running") {
+    onRunSettled(runId, ctx);
+    return;
+  }
+  const budget = run.concurrency - runningNodeCount(runId);
+  if (budget <= 0) return;
+  const ready = readyPendingNodes(run);
+  let started = 0;
+  for (const node of ready) {
+    if (started >= budget) break;
+    if (!run.worktree) {
+      const conflict = findSharedWorkspaceWriteConflict(runId, node.id);
+      if (conflict) continue; // deferred until the overlapping writer finishes
+    }
+    startNode(runId, node.id, ctx);
+    started++;
+  }
+}
+
+/** Spawn one node's worker process. Always asynchronous; the node settles via
+ * finalizeNode when the child closes. */
+function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void {
+  const run = getRun(runId);
+  const node = run?.nodes[nodeId];
+  if (!run || !node || node.status !== "pending") return;
+  const agent = resolveAgent(node.agent, run.cwd);
+  const stateFile = liveStateFile ?? (ctx.sessionManager ? stateFilePath(ctx.sessionManager.getSessionFile(), run.cwd) : "");
+  if (!agent || !stateFile) {
+    updateNodeStatus(runId, nodeId, "failed", undefined, agent ? "Shared state file unavailable." : `Agent "${node.agent}" not found.`);
+    cancelBlockedDependents(runId, nodeId);
+    scheduleRun(runId, ctx);
+    return;
+  }
+
+  const spawnId = randomUUID();
+  markNodeRunning(runId, nodeId, spawnId);
+
+  // Optional git worktree isolation: run the node on its own branch.
+  let worktree: ReturnType<typeof createWorktree> | undefined;
+  if (run.worktree) {
+    worktree = createWorktree(run.cwd, `${runId}-${nodeId}`);
+    if ("error" in worktree) {
+      updateNodeStatus(runId, nodeId, "failed", undefined, `Cannot isolate node: ${worktree.error}`);
+      cancelBlockedDependents(runId, nodeId);
+      scheduleRun(runId, ctx);
+      return;
+    }
+  }
+  const workerCwd = worktree && !("error" in worktree) ? worktree.cwd : run.cwd;
+  const workerKey = node.workerKey;
+  const outboxFile = workerOutboxPath(stateFile, workerKey, spawnId);
+  const workerEnv = {
+    PI_TEAMMATE_WORKER_NAME: workerKey,
+    PI_TEAMMATE_TASK_ID: node.id,
+    PI_TEAMMATE_RUN_ID: spawnId,
+    PI_TEAMMATE_STATE_FILE: stateFile,
+    PI_TEAMMATE_OUTBOX_FILE: outboxFile,
+  };
+
+  const timeoutMs = node.timeoutMs ?? DEFAULT_NODE_TIMEOUT_MS;
+  const description = [
+    buildAutonomousPrompt({
+      name: `${runId}/${nodeId} (${node.agent})`,
+      role: node.agent,
+      prompt: agent.prompt,
+      taskId: nodeId,
+      stateFile,
+      outboxFile,
+      timeoutSec: Math.round(timeoutMs / 1000),
+    }),
+    "",
+    "=== TASK ===",
+    `Access: ${node.access}`,
+    `Paths: ${node.paths.join(", ")}`,
+    node.prompt,
+  ].join("\n");
+
+  const finalizeNode = (result: WorkerProcessResult, cancelled = false) => {
+    // A stale close from an older spawn must not affect this node's newer spawn.
+    if (getNode(runId, nodeId)?.spawn?.runId !== spawnId) {
+      if (worktree && !("error" in worktree)) cleanupWorktree(worktree);
+      return;
+    }
+    // Drain validated worker events before recording the final process outcome.
+    applyWorkerEvents(stateFile);
+    let patchText = "";
+    if (worktree && !("error" in worktree)) {
+      const diff = captureWorktreeDiff(worktree);
+      if (diff.patch.trim()) {
+        patchText = `\n\n=== Worktree changes ===\n${diff.diffStat}\n\n${diff.patch}`;
+      }
+      cleanupWorktree(worktree);
+    }
+    const nodeNow = getNode(runId, nodeId);
+    const reportedTerminalStatus = nodeNow?.status === "completed" || nodeNow?.status === "failed"
+      ? nodeNow.status
+      : undefined;
+    const completedAfterFinalResponse = nodeNow?.spawn?.finalResponse === true;
+    const workerReportedFailure = reportedTerminalStatus === "failed";
+    const completedAfterShutdown = (reportedTerminalStatus === "completed" || completedAfterFinalResponse)
+      && (result.signal === "SIGTERM" || result.exitCode === 128 + 15)
+      && !result.timedOut;
+    const ok = isCompletedWorkerExit(
+      result,
+      reportedTerminalStatus === "completed" || completedAfterFinalResponse,
+    ) && !workerReportedFailure && !cancelled;
+    setNodeSpawnInfo(runId, nodeId, {
+      runId: spawnId,
+      pid: result.pid,
+      status: ok ? "completed" : "failed",
+      startedAt: nodeNow?.spawn?.startedAt ?? Date.now(),
+      finishedAt: Date.now(),
+      exitCode: result.exitCode ?? undefined,
+      stdout: ok ? result.stdout + patchText : undefined,
+      stderr: ok ? undefined : result.stderr,
+      usage: result.usage,
+      timedOut: result.timedOut,
+      isolation: run.worktree ? "worktree" : "none",
+      error: ok
+        ? undefined
+        : result.timedOut
+          ? `Worker timed out after ${Math.round(timeoutMs / 1000)}s.`
+          : result.signal
+            ? `Worker was terminated by ${result.signal}.`
+            : workerReportedFailure
+              ? nodeNow?.errorMessage ?? "Worker reported task failure."
+              : `Worker exited with code ${result.exitCode ?? "unknown"}.`,
+    });
+    reportedWorkerShutdowns.delete(spawnId);
+    // A successful summary node becomes the run's headline result.
+    if (ok && node.id === SUMMARY_NODE_ID) {
+      const settledRun = getRun(runId);
+      if (settledRun) settledRun.summary = nodeNow?.result ?? result.stdout;
+    }
+    const terminalSubject = cancelled ? "Node cancelled" : ok ? "Node completed" : "Node failed";
+    const terminalBody = buildNodeTerminalResult({
+      runId,
+      nodeId,
+      agent: node.agent,
+      result,
+      nodeResult: nodeNow?.result,
+      nodeError: nodeNow?.errorMessage,
+      cancelled,
+      completedAfterShutdown,
+      patchText,
+    });
+    sendMessage({ from: workerKey, to: "agent", subject: terminalSubject, body: terminalBody, taskId: runId });
+    if (cancelled) {
+      // A cancelled node keeps its process outcome but not a misleading error.
+      const cleared = getNode(runId, nodeId);
+      if (cleared) cleared.errorMessage = undefined;
+      updateNodeStatus(runId, nodeId, "cancelled", nodeNow?.result, undefined);
+    } else if (!ok) {
+      // A failed node cancels its not-yet-started transitive dependents.
+      cancelBlockedDependents(runId, nodeId);
+    }
+    compactFinishedNodeRun(stateFile, workerKey, spawnId);
+    scheduleRun(runId, ctx);
+    refreshTeamUI(ctx);
+  };
+
+  const finish = (result: WorkerProcessResult) => {
+    if (cancellationIntents.defer(spawnId, (cancelled) => finalizeNode(result, cancelled))) return;
+    finalizeNode(result);
+  };
+
+  const spawnFailure = (error: Error | string) => {
+    if (getNode(runId, nodeId)?.spawn?.runId !== spawnId) return;
+    setNodeSpawnInfo(runId, nodeId, {
+      runId: spawnId,
+      pid: 0,
+      status: "failed",
+      startedAt: node.spawn?.startedAt ?? Date.now(),
+      finishedAt: Date.now(),
+      isolation: run.worktree ? "worktree" : "none",
+      error: typeof error === "string" ? error : error.message,
+    });
+    reportedWorkerShutdowns.delete(spawnId);
+    sendMessage({
+      from: workerKey,
+      to: "agent",
+      subject: "Node failed",
+      body: `Node [${runId}/${nodeId}] could not start.\nError: ${typeof error === "string" ? error : error.message}`,
+      taskId: runId,
+    });
+    cancelBlockedDependents(runId, nodeId);
+    compactFinishedNodeRun(stateFile, workerKey, spawnId);
+    if (worktree && !("error" in worktree)) discardWorktree(worktree);
+    scheduleRun(runId, ctx);
+    refreshTeamUI(ctx);
+  };
+
+  const started = spawnPiWorker({
+    workerName: workerKey,
+    description,
+    model: node.model ?? agent.model,
+    tools: agent.tools,
+    cwd: workerCwd,
+    env: workerEnv,
+    timeoutMs,
+    onUpdate: (progress) => {
+      updateNodeSpawnProgress(runId, nodeId, spawnId, {
+        liveText: progress.text,
+        activeTool: progress.activeTool,
+        turns: progress.turns,
+        finalResponse: progress.finalResponse,
+      });
+      if (progress.finalResponse) requestReportedWorkerShutdown(workerKey, spawnId);
+      writeStateFile(stateFile, getState());
+      refreshTeamUI(ctx);
+    },
+    onExit: (result) => finish(result),
+    onError: (error) => spawnFailure(error),
+  });
+
+  if ("error" in started) {
+    spawnFailure(started.error);
+    return;
+  }
+
+  setNodeSpawnInfo(runId, nodeId, {
+    runId: spawnId,
+    pid: started.pid,
+    status: "running",
+    startedAt: Date.now(),
+    isolation: run.worktree ? "worktree" : "none",
+  });
+  publishToStateFile();
+  refreshTeamUI(ctx);
+}
+
 const WORKER_GUIDANCE = `
 ## Spawned Teammate Protocol
 
-You are a worker, not the team leader. Work only on the task bound to this process and its declared access/paths. Before substantive work, message agent with your plan; message agent again for material progress, blockers, changed assumptions, and decision requests. These intermediate messages remain in the mailbox without interrupting the main session. Use teammate_inbox only for relevant leader messages and teammate_report for progress/final status. The harness delivers the final result after your child process closes. Do not use leader coordination tools, claim new tasks, change another teammate's task, or overwrite shared files outside your assigned scope.
+You are a worker node, not the team leader. Work only on the task bound to
+this process and its declared access/paths. Before substantive work, message
+agent with your plan; message agent again for material progress, blockers,
+changed assumptions, and decision requests. These intermediate messages stay
+in the mailbox without interrupting the main session. Use teammate_inbox only
+for relevant leader messages and teammate_report for progress/final status.
+The harness delivers the final result after your child process closes. Do not
+use leader coordination tools, claim new tasks, or overwrite files outside
+your assigned scope. You may only message agent; worker-to-worker messaging
+is not available. The mailbox is best-effort: process each message you
+receive once and do not rely on read receipts.
 `;
 
 const TEAMMATE_GUIDANCE = `
 ## Agent Teams Orchestration
 
-You are the team leader: the current Pi session owns decomposition, delegation, synchronization, and the final user-facing answer. Teammates are isolated workers; they do not see this conversation unless you put the needed context in their task or send it through teammate_message.
+You are the team leader: the current Pi session owns decomposition,
+delegation, synchronization, and the final user-facing answer. Workers are
+isolated child processes; they do not see this conversation unless you put
+the needed context in their task or send it through teammate_message.
 
-### When to use a team
+### Agents are declarative files
 
-Use teammates when the work has genuinely independent streams, specialist boundaries, large context, or a latency benefit from parallel execution. Do not delegate tiny edits or a task that requires constant shared decisions. Before registering, inspect idle teammates and reuse a compatible role/model/tool/prompt configuration rather than creating a duplicate. Prefer one task per clear outcome.
+Agents live in Markdown files with frontmatter (name, description, tools,
+optional model); the body is the role prompt. Discovery precedence per name:
+project .pi/agents > user ~/.pi/agent/agents > bundled package agents.
+Call teammate_status to list available agents and route by description.
+Prefer a bundled or existing agent; add a project agent under .pi/agents
+only when its role materially differs. Never register runtime identities.
 
-### Design a teammate
+### Dispatch a run in one call
 
-Register a teammate with a stable, descriptive name, the narrowest useful role, an explicit responsibility, and only the tools it needs. A good teammate prompt answers:
-- Role: what perspective or capability does this teammate own?
-- Goal: one observable outcome, not a vague area of work.
-- Context: relevant paths, requirements, constraints, and decisions already made.
-- Procedure: what to inspect or do, in what order.
-- Deliverable: exact file/report/test/result expected, including its location.
-- Boundaries: files it may change, files it must not touch, and what it should do when blocked.
-- Completion: how to verify the result and how to report status, risks, and follow-up work.
+Use teammate_run with a tasks array: each task has id, agent, prompt, paths,
+access (read default, write explicit), optional dependsOn, model, and
+timeoutMs. The scheduler starts root nodes immediately, bounds concurrency,
+blocks overlapping shared-workspace writes unless worktree=true, and
+auto-starts downstream nodes when their dependencies complete. Foreground
+(default) gathers node results in the tool call and detaches to background
+after the foreground cap (5 min) so the model turn is never hung; a run-level timeoutMs fails the whole run past its cap. background=true returns the run
+id immediately and delivers one run-completion follow-up. summarize=true appends a
+__summary node after all leaf nodes that synthesizes one final run summary (use for
+multi-node runs; small runs can rely on teammate_status). For a review
+pipeline: inspect -> fix -> verify with dependsOn edges.
 
-Example task description:
-"Audit packages/api/src/auth.ts for token refresh bugs. Read the adjacent tests first. Do not edit files. Reproduce any suspected bug, report each finding with severity, exact lines, evidence, and a minimal fix recommendation. If no issue is confirmed, say so and list the checks performed."
+### Coordinate and synthesize
 
-### Assign and run work
-
-1. Decompose the user goal into independent outcomes; create tasks with concise titles and complete descriptions.
-2. Before parallel work, record each task's repo-relative paths and read/write access. Read tasks may overlap. Concurrent overlapping writes in the shared workspace are unsafe; sequence them with blockedBy or use worktree isolation with integration review.
-3. Spawn independent ready tasks in the same turn so workers run concurrently. Each spawn returns immediately.
-4. Call teammate_wait with task IDs only when their final outcomes are needed; do not serialize independent work.
-5. Give reviewers the artifact, diff, or task ID to review and ask for evidence rather than general opinions.
-6. After teammate_wait, synthesize the results yourself: reconcile conflicts, inspect important outputs, run verification, and communicate one final answer.
-
-### Communication and session delivery
-
-Use teammate_message for every handoff, decision, blocker, and update. Workers record plans, material progress, blockers, and changed assumptions in the agent mailbox. The leader may target one teammate, or to=all with an optional role filter to broadcast; it reads intermediate messages with teammate_inbox when needed. Only the harness-delivered terminal result triggers a main-session follow-up, keeping the leader focused on dispatch and final synthesis.
-
-### Failure and cleanup
-
-Treat failed, timed-out, cancelled, and missing results explicitly. Do not silently accept a worker's claim: inspect its deliverable and run the relevant tests. A child worker exits after one task run, but its idle teammate identity remains reusable for five minutes by default while it has no unread messages or active task. Use retry=true for a fresh run of a settled failed task. Keep task titles short, use task descriptions for detail, and clean finished tasks only after their results have been synthesized or recorded.
-
-Available orchestration tools: teammate_register, teammate_list, teammate_configure, teammate_remove, teammate_message, teammate_inbox, teammate_create_task, teammate_list_tasks, teammate_start_task, teammate_wait, teammate_cancel_task, and teammate_cleanup.
+Use teammate_wait as the explicit gather barrier for background runs;
+teammate_status for run/node detail; teammate_cancel to stop a run (or one
+node with nodeId); teammate_retry to re-run only the failed/cancelled nodes
+of a settled run. Workers record plans, progress, and blockers in the agent
+mailbox — read them with teammate_inbox when needed, and reply with
+teammate_message. Only the harness-delivered run completion (background) or
+wait/run results trigger model turns. After a run, inspect the artifacts
+yourself: a worker's claim is not proof until its deliverable and tests are
+checked. Treat failed, timed-out, cancelled, and missing nodes explicitly; a
+failed node cancels its downstream dependents and fails the run. Clean
+terminal runs with teammate_cleanup after you have synthesized their results.
 `;
 
 export default function (pi: ExtensionAPI) {
@@ -900,7 +1135,6 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", async (_event, ctx) => {
     spinnerFrame = 0;
-    idleTtlMs = DEFAULT_IDLE_TTL_MS;
     resetState();
     setupTeamWidget(ctx);
     liveStateFile = stateFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd || process.cwd());
@@ -924,11 +1158,7 @@ export default function (pi: ExtensionAPI) {
     resetState();
   });
 
-  pi.on("turn_end", async () => {
-    retireExpiredTeammates(idleTtlMs);
-  });
-
-  // ── Inject teammate guidance into system prompt ─────────────────
+  // ── Inject team guidance into system prompt ─────────────────────
 
   pi.on("before_agent_start", async (event) => {
     return {
@@ -936,56 +1166,320 @@ export default function (pi: ExtensionAPI) {
     };
   });
 
-  // ── Leader tools ─────────────────────────────────────────────────
+  // ── Leader tools ────────────────────────────────────────────────
 
   pi.registerTool({
-    name: "teammate_register",
-    promptSnippet: "Register a teammate agent (worker/reviewer/specialist/observer)",
-    label: "Register Teammate",
+    name: "teammate_run",
+    promptSnippet: "Dispatch a dependency-aware task graph in one call",
+    label: "Run Tasks",
     description: [
-      "Register a new teammate agent with a concise name, focused role, explicit responsibility, and reusable prompt.",
-      "Roles: worker (default executor), reviewer (code review), specialist (domain expert), observer (read-only).",
-      "The prompt must define the role, method, boundaries, deliverable, and completion criteria.",
+      "Dispatch a dependency-aware task graph in one call. Each task references an agent definition",
+      "(bundled, user ~/.pi/agent/agents, or project .pi/agents). Root nodes start immediately;",
+      "downstream nodes auto-start when their dependencies complete. Concurrency bounds simultaneous",
+      "workers; overlapping shared-workspace writes are blocked unless worktree=true.",
+      "Foreground (default) gathers node results in this call; background=true returns the run id",
+      "immediately and delivers one run-completion follow-up.",
     ].join(" "),
-    parameters: TeammateRegisterParams,
+    parameters: TeammateRunParams,
+
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const cwd = params.cwd ?? ctx.cwd ?? process.cwd();
+      for (const task of params.tasks) {
+        if (!resolveAgent(task.agent, cwd)) {
+          throw new Error(
+            `Agent "${task.agent}" not found in any scope (project .pi/agents, user ~/.pi/agent/agents, bundled). ` +
+            "List agents with teammate_status to pick a valid name.",
+          );
+        }
+      }
+
+      const created = createRun({
+        cwd,
+        concurrency: params.concurrency ?? 4,
+        worktree: params.worktree ?? false,
+        background: params.background ?? false,
+        timeoutMs: params.timeoutMs,
+        summarize: params.summarize ?? false,
+        summaryAgent: params.summaryAgent,
+        nodes: params.tasks.map((task) => ({
+          id: task.id,
+          agent: task.agent,
+          prompt: task.prompt,
+          paths: task.paths,
+          access: task.access ?? "read",
+          model: task.model,
+          timeoutMs: task.timeoutMs,
+          dependsOn: task.dependsOn ?? [],
+        })),
+      });
+      if (!created.ok) throw new Error(created.error ?? "Failed to create run.");
+      const run = created.run;
+      publishToStateFile();
+      refreshTeamUI(ctx);
+
+      scheduleRun(run.id, ctx);
+
+      if (run.background) {
+        const lines = [
+          `Started run [${run.id}] "${Object.keys(run.nodes).length} node(s)" — background (returns immediately).`,
+          `Concurrency: ${run.concurrency} | Worktree: ${run.worktree ? "yes" : "no"}`,
+          "",
+          "The main session is free to continue. Call teammate_wait or teammate_status when you need this run's final outcome.",
+        ];
+        return { content: [{ type: "text", text: lines.join("\n") }], details: {} };
+      }
+
+      // Foreground gather: block until the run settles, the call is aborted,
+      // or the foreground cap is exceeded (detach to background so the model
+      // turn is never hung on a long run).
+      const foregroundTimeoutMs = params.foregroundTimeoutMs ?? 5 * 60 * 1000;
+      const foregroundDeadline = Date.now() + foregroundTimeoutMs;
+      while (true) {
+        if (liveStateFile) applyWorkerEvents(liveStateFile);
+        const current = getRun(run.id);
+        if (!current) break;
+        if (current.status !== "running") break;
+        if (signal?.aborted) {
+          // Mirror detach: the run keeps executing in the background and
+          // delivers one completion follow-up at settle.
+          current.background = true;
+          current.completionNotified = false;
+          publishToStateFile();
+          throw new Error(`Run [${run.id}] continues in the background — collect results with teammate_wait/teammate_status.`);
+        }
+        if (Date.now() >= foregroundDeadline) {
+          // Detach: the run keeps executing and delivers one completion follow-up.
+          current.background = true;
+          current.completionNotified = false;
+          publishToStateFile();
+          refreshTeamUI(ctx);
+          return {
+            content: [{ type: "text", text: `Run [${run.id}] is still running after ${Math.round(foregroundTimeoutMs / 1000)}s — detached to background. Collect results with teammate_wait or teammate_status.` }],
+            details: {},
+          };
+        }
+        await sleep(500);
+      }
+      markLeaderMessagesReadForRun(run.id);
+      markRunCompletionDelivered(run.id);
+      publishToStateFile();
+      refreshTeamUI(ctx);
+      return { content: [{ type: "text", text: buildRunSummary(run.id) }], details: {} };
+    },
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+
+  pi.registerTool({
+    name: "teammate_status",
+    promptSnippet: "List agents, runs, and node detail",
+    label: "Team Status",
+    description: [
+      "Query the team. Without a run id: returns discovered agents (name, description, scope, tools, model)",
+      "plus a run overview (id, status, node counts). With a run id: returns that run's nodes with status,",
+      "spawn lifecycle, and results.",
+    ].join(" "),
+    parameters: TeammateStatusParams,
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const compatible = findReusableTeammate({
-        role: params.role as TeammateRole,
-        prompt: params.prompt,
-        model: params.model,
-        tools: params.tools,
-      });
-      if (compatible) {
+      if (params.runId) {
+        const run = getRun(params.runId);
+        if (!run) throw new Error(`Run "${params.runId}" not found.`);
+        return { content: [{ type: "text", text: buildRunResultSummary(params.runId) }], details: {} };
+      }
+
+      const agents = discoverAgents(ctx.cwd ?? process.cwd());
+      const lines = ["## Agents"];
+      if (agents.size === 0) {
+        lines.push("(none found in bundled, user, or project scopes)");
+      }
+      for (const agent of agents.values()) {
+        lines.push(`- **${agent.name}** (${agent.scope})`);
+        if (agent.description) lines.push(`  ${agent.description}`);
+        const model = agent.model ? ` | Model: ${agent.model}` : "";
+        lines.push(`  Tools: ${agent.tools.join(", ") || "(role defaults)"}${model}`);
+        lines.push("");
+      }
+
+      const runs = listRuns();
+      lines.push(`## Runs (${runs.length})`);
+      if (runs.length === 0) {
+        lines.push("(none) — dispatch work with teammate_run");
+      }
+      for (const run of runs) {
+        const counts = Object.values(run.nodes).reduce<Record<string, number>>((acc, node) => {
+          acc[node.status] = (acc[node.status] ?? 0) + 1;
+          return acc;
+        }, {});
+        const mode = run.background ? "background" : "foreground";
+        const worktree = run.worktree ? " | worktree" : "";
+        lines.push(`- [${run.id}] ${run.status}: ${Object.entries(counts).map(([status, n]) => `${status} ${n}`).join(", ") || "no nodes"} | ${mode}${worktree}`);
+        lines.push(`  Created: ${new Date(run.createdAt).toLocaleString()}`);
+        lines.push("");
+      }
+      return { content: [{ type: "text", text: lines.join("\n") }], details: {} };
+    },
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+
+  pi.registerTool({
+    name: "teammate_wait",
+    promptSnippet: "Wait for background runs to finish",
+    label: "Wait for Runs",
+    description: "Wait for a group of background runs to reach terminal status and return their node results.",
+    parameters: TeammateWaitParams,
+
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const runIds = [...new Set(params.runIds)];
+      const timeoutMs = params.timeoutMs ?? 5 * 60 * 1000;
+      const missing = runIds.filter((id) => !getRun(id));
+      if (missing.length > 0) {
+        throw new Error(`Run(s) not found: ${missing.join(", ")}.`);
+      }
+
+      // Claim completion delivery up front: wait is a delivery path, so a run
+      // that settles while we wait must not also emit a follow-up. Revoked on
+      // timeout/abort so a later settle still notifies.
+      for (const id of runIds) markRunCompletionDelivered(id);
+
+      const deadline = Date.now() + timeoutMs;
+      while (true) {
+        if (liveStateFile) applyWorkerEvents(liveStateFile);
+        const settled = runIds.every((id) => {
+          const run = getRun(id);
+          return run && run.status !== "running";
+        });
+        if (settled) break;
+        if (signal?.aborted) {
+          for (const id of runIds) clearRunCompletionClaim(id);
+          throw new Error("Waiting for runs was cancelled.");
+        }
+        if (Date.now() >= deadline) {
+          for (const id of runIds) clearRunCompletionClaim(id);
+          const pending = runIds.filter((id) => {
+            const run = getRun(id);
+            return !run || run.status === "running";
+          });
+          throw new Error(`Timed out waiting for: ${pending.join(", ")}.`);
+        }
+        await sleep(1000);
+      }
+
+      for (const id of runIds) markLeaderMessagesReadForRun(id);
+      publishToStateFile();
+      refreshTeamUI(ctx);
+
+      const lines = ["## Runs completed\n"];
+      for (const id of runIds) {
+        const run = getRun(id);
+        if (!run) continue;
+        lines.push(buildRunSummary(id));
+        lines.push("");
+      }
+      return { content: [{ type: "text", text: lines.join("\n") }], details: {} };
+    },
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+
+  pi.registerTool({
+    name: "teammate_cancel",
+    promptSnippet: "Cancel a run and stop its workers",
+    label: "Cancel Run",
+    description: [
+      "Cancel a run: pending nodes are cancelled, running workers receive SIGTERM with a SIGKILL",
+      "escalation after a bounded grace period, and the run is marked cancelled once its workers close.",
+    ].join(" "),
+    parameters: TeammateCancelParams,
+
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      // Node-level cancel: stop one node (and its not-yet-started dependents)
+      // while the rest of the run continues.
+      if (params.nodeId) {
+        const cancelled = cancelNode(params.runId, params.nodeId);
+        if (!cancelled.ok) throw new Error(cancelled.error ?? "Failed to cancel node.");
+        for (const nodeId of cancelled.runningNodeIds) {
+          const node = getNode(params.runId, nodeId);
+          if (!node?.spawn) continue;
+          const spawnId = node.spawn.runId;
+          if (cancellationIntents.begin(spawnId)) {
+            const terminated = await terminateWorker(node.workerKey);
+            cancellationIntents.resolve(spawnId, terminated);
+          }
+        }
+        publishToStateFile();
+        scheduleRun(params.runId, ctx);
         refreshTeamUI(ctx);
         return {
-          content: [{
-            type: "text",
-            text: `Reused idle teammate "${compatible.name}" (${displayRole(compatible.role)}) instead of registering duplicate "${params.name}". Use teammate_configure if its prompt or description needs updating before the next run.`,
-          }],
+          content: [{ type: "text", text: `Node [${params.runId}/${params.nodeId}] cancelled — the rest of the run continues.` }],
           details: {},
         };
       }
 
-      const result = registerTeammate({
-        name: params.name,
-        role: params.role as TeammateRole,
-        description: params.description,
-        prompt: params.prompt,
-        model: params.model,
-        tools: params.tools,
-        registeredAt: Date.now(),
-      });
-      if (!result.ok) throw new Error(result.error ?? "Failed to register teammate.");
+      const run = getRun(params.runId);
+      if (!run) throw new Error(`Run "${params.runId}" not found.`);
+      if (run.status !== "running") {
+        throw new Error(`Run "${params.runId}" is already ${run.status}.`);
+      }
+      const cancellation = cancelRun(params.runId);
+      if (!cancellation.ok) throw new Error(cancellation.error ?? "Failed to cancel run.");
 
+      // Mark the run cancelled immediately so settleRun from a concurrent node
+      // close cannot reclassify it, and so no follow-up fires from finalize paths.
+      const runAfterCancel = getRun(params.runId);
+      if (runAfterCancel && runAfterCancel.status === "running") {
+        runAfterCancel.status = "cancelled";
+        runAfterCancel.finishedAt = Date.now();
+        runAfterCancel.updatedAt = Date.now();
+      }
+
+      for (const nodeId of cancellation.runningNodeIds) {
+        const node = getNode(params.runId, nodeId);
+        if (!node?.spawn) continue;
+        const spawnId = node.spawn.runId;
+        if (!cancellationIntents.begin(spawnId)) continue;
+        const terminated = await terminateWorker(node.workerKey);
+        if (!terminated) {
+          cancellationIntents.resolve(spawnId, false);
+          continue;
+        }
+        cancellationIntents.resolve(spawnId, true);
+      }
+
+      publishToStateFile();
+      onRunSettled(params.runId, ctx);
+      refreshTeamUI(ctx);
+      return {
+        content: [{ type: "text", text: `Run [${params.runId}] cancelled — pending nodes were cancelled and running workers were stopped.` }],
+        details: {},
+      };
+    },
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+
+  pi.registerTool({
+    name: "teammate_retry",
+    promptSnippet: "Retry the failed or cancelled nodes of a settled run",
+    label: "Retry Run Nodes",
+    description: [
+      "Retry the failed and cancelled nodes of a settled run without re-running the completed ones.",
+      "Reset nodes return to pending and are re-dispatched by the scheduler; the run returns to running.",
+      "Optionally pass nodeIds to retry only specific failed or cancelled nodes.",
+    ].join(" "),
+    parameters: TeammateRetryParams,
+
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const retried = retryRun(params.runId, params.nodeIds);
+      if (!retried.ok) throw new Error(retried.error ?? "Failed to retry run.");
+      publishToStateFile();
+      scheduleRun(params.runId, ctx);
       refreshTeamUI(ctx);
       return {
         content: [{
           type: "text",
-          text: [
-            `Registered teammate "${params.name}" (${displayRole(params.role)}).`,
-            `Registered teammates: ${listTeammates().map((t) => `${t.name} (${displayRole(t.role)})`).join(", ")}`,
-          ].join("\n"),
+          text: `Run [${params.runId}] retried — reset ${retried.reset.length} node(s): ${retried.reset.join(", ")}. Completed nodes are retained.`,
         }],
         details: {},
       };
@@ -995,35 +1489,20 @@ export default function (pi: ExtensionAPI) {
   // ─────────────────────────────────────────────────────────────────
 
   pi.registerTool({
-    name: "teammate_list",
-    promptSnippet: "List all registered teammates",
-    label: "List Teammates",
-    description: "List all registered teammates with their roles and descriptions.",
+    name: "teammate_cleanup",
+    promptSnippet: "Prune terminal runs from the board",
+    label: "Clean Up Runs",
+    description: "Remove all terminal runs and their node mailboxes after their results have been synthesized. Running and pending runs are retained.",
     parameters: EmptyParams,
 
-    async execute() {
-      const teammates = listTeammates();
-      if (teammates.length === 0) {
-        return {
-          content: [{ type: "text", text: "No teammates registered yet. Use teammate_register to add one." }],
-          details: {},
-        };
-      }
-
-      const lines: string[] = ["## Registered Teammates\n"];
-      for (const t of teammates) {
-        const unread = getUnreadCount(t.name);
-        const liveness = t.status === "running" ? `working... · ${shortTaskTitle(t.currentTaskId)}` : "idle";
-        lines.push(`- **${t.name}** (${displayRole(t.role)}) [${liveness}]`);
-        lines.push(`  ${t.description}`);
-        lines.push(`  Prompt: ${t.prompt}`);
-        if (unread > 0) lines.push(`  - ${unread} unread message(s)`);
-        if (t.model) lines.push(`  Model: ${t.model}`);
-        if (t.tools && t.tools.length > 0) lines.push(`  Tools: ${t.tools.join(", ")}`);
-        lines.push("");
-      }
-
-      return { content: [{ type: "text", text: lines.join("\n") }], details: {} };
+    async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
+      const removed = pruneFinishedRuns();
+      publishToStateFile();
+      refreshTeamUI(ctx);
+      return {
+        content: [{ type: "text", text: `Pruned ${removed} terminal run(s).\nRuns remaining: ${Object.keys(getState().runs).length}` }],
+        details: {},
+      };
     },
   });
 
@@ -1031,34 +1510,48 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerTool({
     name: "teammate_message",
-    promptSnippet: "Send a direct message to a teammate",
+    promptSnippet: "Send a direct message to a node or broadcast to a run",
     label: "Teammate Message",
-    description: "Send a direct message to a registered teammate. Spawned teammates use the same tool to message peers or agent (the main session).",
+    description: [
+      "Send a direct message to a node (to=\"runId:nodeId\"), or broadcast to every node of a run",
+      "(to=\"all\" with runId). Workers use the same tool to message agent only.",
+    ].join(" "),
     parameters: TeammateMessageParams,
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      if (params.to !== "all" && params.role) {
-        throw new Error("The role filter is only valid when to is all.");
+      if (params.to === "all") {
+        const run = params.runId ? getRun(params.runId) : undefined;
+        if (!run) throw new Error('to="all" requires a valid runId of a run to broadcast to.');
+        const recipients = Object.values(run.nodes).filter((node) => node.status === "running" || node.status === "pending");
+        for (const node of recipients) {
+          sendMessage({
+            from: "agent",
+            to: node.workerKey,
+            subject: `Broadcast: ${params.subject}`,
+            body: params.body,
+            taskId: run.id,
+          });
+        }
+        publishToStateFile();
+        refreshTeamUI(ctx);
+        return {
+          content: [{ type: "text", text: `Message sent to ${recipients.length} node(s) of run [${run.id}].\nSubject: ${params.subject}` }],
+          details: {},
+        };
       }
-      const recipients = params.to === "all"
-        ? listTeammates().filter((teammate) => !params.role || teammate.role === params.role)
-        : [getTeammate(params.to)].filter((teammate): teammate is Teammate => Boolean(teammate));
-      if (recipients.length === 0) {
-        const target = params.to === "all" && params.role ? `role "${params.role}"` : `teammate "${params.to}"`;
-        throw new Error(`No recipient found for ${target}.`);
-      }
-      const messages = recipients.map((recipient) => sendMessage({
+      const entry = getNodeByWorkerKey(params.to);
+      if (!entry) throw new Error(`Unknown node "${params.to}". Use a runId:nodeId key or to="all" with runId.`);
+      sendMessage({
         from: "agent",
-        to: recipient.name,
-        subject: params.to === "all" ? `Broadcast: ${params.subject}` : params.subject,
+        to: entry.node.workerKey,
+        subject: params.subject,
         body: params.body,
-        taskId: params.taskId,
-      }));
+        taskId: entry.run.id,
+      });
       publishToStateFile();
       refreshTeamUI(ctx);
-      const target = params.to === "all" ? `${messages.length} teammate(s)` : `"${params.to}"`;
       return {
-        content: [{ type: "text", text: `Message sent to ${target}.\nSubject: ${params.subject}` }],
+        content: [{ type: "text", text: `Message sent to "${params.to}".\nSubject: ${params.subject}` }],
         details: {},
       };
     },
@@ -1070,627 +1563,27 @@ export default function (pi: ExtensionAPI) {
     name: "teammate_inbox",
     promptSnippet: "Read messages sent to the main session by teammates",
     label: "Teammate Inbox",
-    description: "Read the main session's teammate inbox. Returned messages are marked read so workers can observe the receipt.",
+    description: "Read the main session's teammate inbox (best-effort mailbox; read flags are leader-local).",
     parameters: TeammateInboxParams,
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (liveStateFile) applyWorkerEvents(liveStateFile);
       const messages = readMailbox("agent", {
         unreadOnly: params.unreadOnly ?? true,
-        markRead: params.markRead ?? true,
+        markRead: true,
       });
-      if (params.markRead !== false) syncReadFlagsToFile();
       refreshTeamUI(ctx);
       return { content: [{ type: "text", text: renderInbox("agent", messages) }], details: {} };
-    },
-  });
-
-  // ─────────────────────────────────────────────────────────────────
-
-  pi.registerTool({
-    name: "teammate_create_task",
-    promptSnippet: "Create and assign a task to a teammate",
-    label: "Create Task",
-    description: [
-      "Create one focused outcome and assign it to a teammate. The team leader is the current main session,",
-      "so this is always available. Put paths, constraints, procedure, deliverable, and verification in the description.",
-      "Declare repo-relative paths and access mode. Read scopes may overlap; concurrent overlapping writes in a shared workspace are blocked when starting the worker.",
-      "Optionally specify blockedBy task IDs — inverse dependency edges are derived internally.",
-      "The assignee will see the task in their task list and receive a mailbox notification.",
-    ].join(" "),
-    parameters: TeammateCreateTaskParams,
-
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const assignee = getTeammate(params.assignee);
-      if (!assignee) {
-        throw new Error(`Teammate "${params.assignee}" not found. Register them first with teammate_register.`);
-      }
-
-      const created = createTask(params.title, params.description, params.paths, params.access ?? "write", params.assignee, "agent", params.blockedBy ?? []);
-      if (!created.ok || !created.task) {
-        throw new Error(created.error ?? "Failed to create task.");
-      }
-      const task = created.task;
-
-      sendMessage({
-        from: "agent",
-        to: params.assignee,
-        subject: `New task: ${params.title}`,
-        body: `You have been assigned a new task.\n\nTitle: ${params.title}\nAccess: ${task.access}\nPaths: ${task.paths.join(", ")}\nDescription: ${params.description}\n\nTask ID: ${task.id}`,
-        taskId: task.id,
-      });
-
-      publishToStateFile();
-      refreshTeamUI(ctx);
-
-      const depNote = task.blockedBy.length > 0 ? `\nBlocked by: ${task.blockedBy.join(", ")}` : "";
-      const pathNote = `\nAccess: ${task.access}\nPaths: ${task.paths.join(", ")}`;
-      return {
-        content: [
-          {
-            type: "text",
-            text: [
-              `Task created for "${params.assignee}".`,
-              `Task ID: ${task.id}`,
-              `Title: ${params.title}`,
-              `Status: assigned`,
-              pathNote,
-              depNote,
-              "",
-              `${params.assignee} has been notified via mailbox.`,
-            ].filter(Boolean).join("\n"),
-          },
-        ],
-        details: {},
-      };
-    },
-  });
-
-  // ─────────────────────────────────────────────────────────────────
-
-  pi.registerTool({
-    name: "teammate_list_tasks",
-    promptSnippet: "List tasks by status or assignee",
-    label: "List Tasks",
-    description: "List tasks, optionally filtered by status or assignee.",
-    parameters: TeammateListTasksParams,
-
-    async execute(_toolCallId, params) {
-      const tasks = listTasks({
-        status: params.status,
-        assignee: params.assignee,
-      });
-
-      if (tasks.length === 0) {
-        let msg = "No tasks found.";
-        if (params.status) msg += ` Status: ${params.status}.`;
-        if (params.assignee) msg += ` Assignee: ${params.assignee}.`;
-        return { content: [{ type: "text", text: msg }], details: {} };
-      }
-
-      const lines: string[] = ["## Tasks\n"];
-      for (const task of tasks) {
-        const statusIcon =
-          task.status === "completed"
-            ? "\u2713"
-            : task.status === "failed"
-              ? "\u2717"
-              : task.status === "in_progress"
-                ? "\u22EF"
-                : task.status === "cancelled"
-                  ? "\u2212"
-                  : "\u25CB";
-        lines.push(`### ${statusIcon} [${task.id}] ${task.title}`);
-        lines.push(`Assignee: ${task.assignee} | Status: ${task.status} | Access: ${task.access}`);
-        if (task.spawn) {
-          const spawn = task.spawn;
-          const stateLabel = spawn.status === "running" ? "running (pid " + spawn.pid + ")" : spawn.status;
-          lines.push(`Spawn: ${stateLabel}`);
-          if (spawn.timedOut) lines.push(`Timed out: yes`);
-          if (spawn.usage) {
-            const u = spawn.usage;
-            lines.push(`Usage: ${u.totalTokens} tokens (in ${u.input} / out ${u.output}) | cost $${u.cost}`);
-          }
-        }
-        lines.push(`Access: ${task.access} | Paths: ${task.paths.join(", ")}`);
-        if (task.blockedBy.length > 0) lines.push(`Blocked by: ${task.blockedBy.join(", ")}`);
-        if (task.blocks.length > 0) lines.push(`Blocks: ${task.blocks.join(", ")}`);
-        lines.push(cap(task.description));
-        if (task.result) lines.push(`Result: ${cap(task.result)}`);
-        if (task.errorMessage) lines.push(`Error: ${cap(task.errorMessage)}`);
-        lines.push(`Created: ${new Date(task.createdAt).toLocaleString()}`);
-        if (task.completedAt) lines.push(`Completed: ${new Date(task.completedAt).toLocaleString()}`);
-        lines.push("");
-      }
-
-      return { content: [{ type: "text", text: lines.join("\n") }], details: {} };
-    },
-  });
-
-  // ─────────────────────────────────────────────────────────────────
-
-  pi.registerTool({
-    name: "teammate_wait",
-    promptSnippet: "Wait for parallel teammate tasks to finish",
-    label: "Wait for Teammates",
-    description: [
-      "Wait for a group of asynchronously spawned tasks to reach terminal status.",
-      "Use this after starting independent tasks to",
-      "coordinate parallel execution and collect their results together."
-    ].join(" "),
-    parameters: TeammateWaitParams,
-
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const taskIds = [...new Set(params.taskIds)];
-      const timeoutMs = params.timeoutMs ?? 5 * 60 * 1000;
-      const missing = taskIds.filter((id) => !listTasks().some((task) => task.id === id));
-      if (missing.length > 0) {
-        throw new Error(`Task(s) not found: ${missing.join(", ")}.`);
-      }
-
-      const terminal = new Set(["completed", "failed", "cancelled"]);
-      const isSettled = (task: Task): boolean => terminal.has(task.status) && task.spawn?.status !== "running";
-      const deadline = Date.now() + timeoutMs;
-
-      while (true) {
-        if (liveStateFile) applyWorkerEvents(liveStateFile);
-        const tasks = taskIds.map((id) => listTasks().find((task) => task.id === id)!);
-        if (tasks.every(isSettled)) break;
-        if (signal?.aborted) {
-          throw new Error("Waiting for parallel tasks was cancelled.");
-        }
-        if (Date.now() >= deadline) {
-          const pending = tasks.filter((task) => !isSettled(task)).map((task) => `${task.id} (${task.status})`);
-          throw new Error(`Timed out waiting for: ${pending.join(", ")}.`);
-        }
-        await new Promise<void>((resolve) => setTimeout(resolve, 1000));
-      }
-
-      const tasks = taskIds.map((id) => listTasks().find((task) => task.id === id)!);
-      for (const task of tasks) markLeaderMessagesReadForTask(task.id, task.assignee);
-      syncReadFlagsToFile();
-      retireExpiredTeammates(idleTtlMs);
-      refreshTeamUI(ctx);
-
-      const lines = ["## Parallel tasks completed\n"];
-      for (const task of tasks) {
-        lines.push(`Task [${task.id}] ${task.status}: ${task.title}`);
-        if (task.result) lines.push(`Result: ${cap(task.result)}`);
-        if (task.errorMessage) lines.push(`Error: ${cap(task.errorMessage)}`);
-        lines.push("");
-      }
-      return { content: [{ type: "text", text: lines.join("\n") }], details: {} };
-    },
-  });
-
-  // ─────────────────────────────────────────────────────────────────
-
-  pi.registerTool({
-    name: "teammate_configure",
-    promptSnippet: "Configure an existing teammate (description, prompt, model, tools)",
-    label: "Configure Teammate",
-    description: [
-      "Configure an existing teammate's description, prompt, model, or tools.",
-      "A running worker keeps the configuration it started with.",
-    ].join(" "),
-    parameters: TeammateConfigureParams,
-
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = configureTeammate(params.name, {
-        description: params.description,
-        prompt: params.prompt,
-        model: params.model,
-        tools: params.tools,
-      });
-      if (!result.ok) {
-        throw new Error(result.error ?? "Failed to configure teammate.");
-      }
-      refreshTeamUI(ctx);
-      const changed = [
-        params.description !== undefined ? "description" : "",
-        params.prompt !== undefined ? "prompt" : "",
-        params.model !== undefined ? "model" : "",
-        params.tools !== undefined ? "tools" : "",
-      ].filter(Boolean).join(", ");
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Teammate "${params.name}" configured: ${changed} (next start).`,
-          },
-        ],
-        details: {},
-      };
-    },
-  });
-
-  // ─────────────────────────────────────────────────────────────────
-
-  pi.registerTool({
-    name: "teammate_start_task",
-    promptSnippet: "Start an autonomous child Pi worker to execute a task",
-    label: "Start Task",
-    description: [
-      "Start a real child Pi process as a fully autonomous teammate and return immediately.",
-      "For independent work, start every ready task in the same turn, then call teammate_wait with all task IDs when results are needed.",
-      "The worker executes its one assigned task, reports its final outcome, and exits.",
-      "The task must be ready: every blockedBy task must be completed or cancelled.",
-      "Set retry=true to restart a settled failed task with the same idle teammate and a fresh run identity.",
-      "Overlapping write tasks in the shared workspace are blocked at start; use worktree isolation for deliberate parallel experiments and review integration.",
-    ].join(" "),
-    parameters: TeammateStartTaskParams,
-
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const task = listTasks().find((t) => t.id === params.taskId);
-      if (!task) {
-        throw new Error(`Task "${params.taskId}" not found.`);
-      }
-
-      // Resolve the teammate from the task's assignee.
-      const teammate = getTeammate(task.assignee);
-      if (!teammate) {
-        throw new Error(`Teammate "${task.assignee}" (assignee of task "${params.taskId}") not found.`);
-      }
-
-      if (teammate.status === "running") {
-        throw new Error(`Teammate "${teammate.name}" is already running task "${teammate.currentTaskId ?? "unknown"}".`);
-      }
-
-      if (params.retry === true) {
-        const retry = retryFailedTask(params.taskId);
-        if (!retry.ok) throw new Error(retry.error ?? "Could not retry failed task.");
-      } else if (task.status === "failed") {
-        throw new Error(`Task "${params.taskId}" is failed — use retry=true to restart it.`);
-      } else if (task.status !== "assigned") {
-        throw new Error(`Task "${params.taskId}" cannot start from status "${task.status}".`);
-      }
-
-      const readiness = isTaskReady(params.taskId);
-      if (!readiness.ready) {
-        throw new Error([
-          `Task "${params.taskId}" is not ready: blocked by ${readiness.unmet.join(", ")}.`,
-          "Complete or cancel those tasks first.",
-        ].join(" "));
-      }
-
-      const sharedWriteConflict = params.isolation === "worktree" ? undefined : findSharedWorkspaceWriteConflict(params.taskId);
-      if (sharedWriteConflict) {
-        throw new Error(`Task "${params.taskId}" overlaps write scope of running task "${sharedWriteConflict.id}" in the shared workspace. Wait for it or use isolation="worktree" and review integration.`);
-      }
-
-      const sessionFile = ctx.sessionManager.getSessionFile();
-      const cwd = ctx.cwd || process.cwd();
-      const stateFile = stateFilePath(sessionFile, cwd);
-      // Optional git worktree isolation: run the worker on its own branch.
-      let worktree: ReturnType<typeof createWorktree> | undefined;
-      if (params.isolation === "worktree") {
-        worktree = createWorktree(cwd, params.taskId);
-        if ("error" in worktree) {
-          throw new Error(`Cannot isolate worker: ${worktree.error}`);
-        }
-      }
-
-      const runId = randomUUID();
-      markTeammateRunning(teammate.name, params.taskId, runId);
-      // Consume the assignment notification: the task has now started.
-      markTaskNotificationsRead(params.taskId);
-      updateTaskStatus(params.taskId, "in_progress");
-      // Publish run identity, task state, and mailbox before the worker starts.
-      writeStateFile(stateFile, getState());
-      // Start the live poll now so messages and read receipts converge while
-      // the main session continues independently of this worker.
-      refreshTeamUI(ctx);
-
-      const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
-      const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-      const workerCwd = worktree && !("error" in worktree) ? worktree.cwd : cwd;
-      const outboxFile = workerOutboxPath(stateFile, teammate.name, runId);
-      const workerEnv = {
-        PI_TEAMMATE_WORKER_NAME: teammate.name,
-        PI_TEAMMATE_TASK_ID: task.id,
-        PI_TEAMMATE_RUN_ID: runId,
-        PI_TEAMMATE_STATE_FILE: stateFile,
-        PI_TEAMMATE_OUTBOX_FILE: outboxFile,
-      };
-
-      const description = [
-        buildAutonomousPrompt({
-          name: teammate.name,
-          role: teammate.role,
-          prompt: teammate.prompt,
-          taskId: task.id,
-          taskTitle: task.title,
-          stateFile,
-          outboxFile,
-          timeoutSec: Math.round(timeoutMs / 1000),
-        }),
-        "",
-        "=== TASK ===",
-        `Access: ${task.access}`,
-        `Paths: ${task.paths.join(", ")}`,
-        task.description,
-      ].join("\n");
-
-      const finalizeWorker = (result: {
-        pid: number;
-        exitCode: number | null;
-        signal: NodeJS.Signals | null;
-        stdout: string;
-        stderr: string;
-        usage?: WorkerUsage;
-        timedOut: boolean;
-      }, cancelled = false) => {
-        // A forced removal/re-registration can leave an older process alive.
-        // Its completion may never mutate a newer worker run.
-        if (getTeammate(teammate.name)?.currentRunId !== runId) {
-          if (worktree && !("error" in worktree)) cleanupWorktree(worktree);
-          return;
-        }
-        // Drain validated worker events before recording the final process outcome.
-        applyWorkerEvents(stateFile);
-        let patchText = "";
-        if (worktree && !("error" in worktree)) {
-          const diff = captureWorktreeDiff(worktree);
-          if (diff.patch.trim()) {
-            patchText = `\n\n=== Worktree changes ===\n${diff.diffStat}\n\n${diff.patch}`;
-          }
-          cleanupWorktree(worktree);
-        }
-        const reportedTask = listTasks().find((candidate) => candidate.id === params.taskId);
-        const workerReportedFailure = reportedTask?.status === "failed";
-        const ok = isSuccessfulWorkerExit(result) && !workerReportedFailure && !cancelled;
-        setSpawnInfo(params.taskId, {
-          runId,
-          pid: result.pid,
-          status: ok ? "completed" : "failed",
-          startedAt: task.spawn?.startedAt ?? Date.now(),
-          finishedAt: Date.now(),
-          exitCode: result.exitCode ?? undefined,
-          stdout: ok ? result.stdout + patchText : undefined,
-          stderr: ok ? undefined : result.stderr,
-          usage: result.usage,
-          timedOut: result.timedOut,
-          isolation: params.isolation ?? "none",
-          error: ok
-            ? undefined
-            : result.timedOut
-              ? `Worker timed out after ${Math.round(timeoutMs / 1000)}s.`
-              : result.signal
-                ? `Worker was terminated by ${result.signal}.`
-                : workerReportedFailure
-                  ? reportedTask?.errorMessage ?? "Worker reported task failure."
-                  : `Worker exited with code ${result.exitCode ?? "unknown"}.`,
-        });
-        markTeammateIdle(teammate.name, runId);
-        const terminalSubject = cancelled ? "Task cancelled" : ok ? "Task completed" : "Task failed";
-        const terminalBody = buildTerminalResult({
-          taskId: params.taskId,
-          teammate: teammate.name,
-          result,
-          taskResult: reportedTask?.result,
-          taskError: reportedTask?.errorMessage,
-          cancelled,
-          patchText,
-        });
-        sendMessage({
-          from: teammate.name,
-          to: "agent",
-          subject: terminalSubject,
-          body: terminalBody,
-          taskId: params.taskId,
-        });
-        sendMainSessionUpdate(terminalSubject, terminalBody, params.taskId);
-        if (cancelled) {
-          const cancellation = cancelTask(params.taskId);
-          if (!cancellation.ok) {
-            updateTaskStatus(params.taskId, "failed", undefined, cancellation.error);
-          }
-        } else if (ok) notifyUnblockedTasks(params.taskId);
-        compactFinishedWorkerRun(stateFile, teammate.name, runId);
-        refreshTeamUI(ctx);
-      };
-
-      const finish = (result: {
-        pid: number;
-        exitCode: number | null;
-        signal: NodeJS.Signals | null;
-        stdout: string;
-        stderr: string;
-        usage?: WorkerUsage;
-        timedOut: boolean;
-      }) => {
-        if (cancellationIntents.defer(runId, (cancelled) => finalizeWorker(result, cancelled))) return;
-        finalizeWorker(result);
-      };
-
-      const spawnFailure = (error: Error | string) => {
-        if (getTeammate(teammate.name)?.currentRunId !== runId) return;
-        setSpawnInfo(params.taskId, {
-          runId,
-          pid: 0,
-          status: "failed",
-          startedAt: task.spawn?.startedAt ?? Date.now(),
-          finishedAt: Date.now(),
-          isolation: params.isolation ?? "none",
-          error: typeof error === "string" ? error : error.message,
-        });
-        markTeammateIdle(teammate.name, runId);
-        const terminalBody = `Task [${params.taskId}] could not start.\nError: ${typeof error === "string" ? error : error.message}`;
-        sendMessage({
-          from: teammate.name,
-          to: "agent",
-          subject: "Task failed",
-          body: terminalBody,
-          taskId: params.taskId,
-        });
-        sendMainSessionUpdate("Task failed", terminalBody, params.taskId);
-        if (worktree && !("error" in worktree)) discardWorktree(worktree);
-        compactFinishedWorkerRun(stateFile, teammate.name, runId);
-        refreshTeamUI(ctx);
-      };
-
-      // ── Always asynchronous: worker outlives this tool call. ────────────
-      const started = spawnPiWorker({
-        workerName: teammate.name,
-        description,
-        model: teammate.model,
-        tools: executionToolsFor(teammate),
-        cwd: workerCwd,
-        env: workerEnv,
-        timeoutMs,
-        onExit: (result) => finish(result),
-        onError: (error) => spawnFailure(error),
-      });
-
-      if ("error" in started) {
-        spawnFailure(started.error);
-        throw new Error(`Failed to start worker: ${started.error}`);
-      }
-
-      setSpawnInfo(params.taskId, {
-        runId,
-        pid: started.pid,
-        status: "running",
-        startedAt: Date.now(),
-        isolation: params.isolation ?? "none",
-      });
-      refreshTeamUI(ctx);
-
-      const isolationNote =
-        params.isolation === "worktree" && worktree && !("error" in worktree)
-          ? `Isolation: worktree ${worktree.path} (branch ${worktree.branch}) — review integration before applying the captured diff.`
-          : "Isolation: none";
-      return {
-        content: [
-          {
-            type: "text",
-            text: [
-              `Started "${teammate.name}" for task [${params.taskId}] "${task.title}".`,
-              `PID: ${started.pid} | Model: ${teammate.model ?? "default"} | Status: working (one task — reports and exits)`,
-              isolationNote,
-              "The main session is free to continue. Call teammate_wait when you need this task's final outcome.",
-            ].join("\n"),
-          },
-        ],
-        details: {},
-      };
-    },
-  });
-
-  // ── Management tools: cancel task, remove teammate, clean up tasks ──
-
-  pi.registerTool({
-    name: "teammate_cancel_task",
-    promptSnippet: "Cancel a task and stop its worker if running",
-    label: "Cancel Task",
-    description: [
-      "Cancel a task only after its running worker closes. Cancellation first sends SIGTERM",
-      "then escalates to SIGKILL after a bounded grace period; an unavailable or unconfirmed child leaves the task unchanged and fails the tool call.",
-      "Already-completed or already-cancelled tasks are rejected.",
-    ].join(" "),
-    parameters: TeammateCancelTaskParams,
-
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const task = listTasks().find((t) => t.id === params.taskId);
-      if (!task) {
-        throw new Error(`Task "${params.taskId}" not found.`);
-      }
-      const runId = task.spawn?.runId;
-      if (task.spawn?.status === "running") {
-        if (!runId || getTeammate(task.assignee)?.currentRunId !== runId) {
-          throw new Error(`Worker lifecycle changed before cancellation of task "${params.taskId}" could begin.`);
-        }
-        if (!cancellationIntents.begin(runId)) {
-          throw new Error(`Cancellation is already in progress for task "${params.taskId}".`);
-        }
-        const terminated = await terminateWorker(task.assignee);
-        if (!terminated) {
-          cancellationIntents.resolve(runId, false);
-          throw new Error(`Unable to confirm termination of the worker for task "${params.taskId}"; the task remains ${task.status}.`);
-        }
-        if (!cancellationIntents.resolve(runId, true)) {
-          throw new Error(`Worker lifecycle changed before cancellation of task "${params.taskId}" could be confirmed.`);
-        }
-        publishToStateFile();
-        refreshTeamUI(ctx);
-        return {
-          content: [{ type: "text", text: `Task [${params.taskId}] "${task.title}" cancelled.` }],
-          details: {},
-        };
-      }
-      const result = cancelTask(params.taskId);
-      if (!result.ok) {
-        throw new Error(result.error ?? "Failed to cancel task.");
-      }
-      publishToStateFile();
-      refreshTeamUI(ctx);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Task [${params.taskId}] "${task.title}" cancelled.`,
-          },
-        ],
-        details: {},
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: "teammate_remove",
-    promptSnippet: "Unregister a teammate and delete its mailbox",
-    label: "Remove Teammate",
-    description: [
-      "Unregister a teammate and delete its mailbox.",
-      "Refuses while the teammate is running a worker.",
-    ].join(" "),
-    parameters: TeammateRemoveParams,
-
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = removeTeammate(params.name);
-      if (!result.ok) {
-        throw new Error(result.error ?? "Failed to remove teammate.");
-      }
-      refreshTeamUI(ctx);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Removed teammate "${params.name}".\nRemaining: ${listTeammates().length} teammate(s).`,
-          },
-        ],
-        details: {},
-      };
-    },
-  });
-
-
-
-  pi.registerTool({
-    name: "teammate_cleanup",
-    promptSnippet: "Prune completed, failed, and cancelled tasks from the board",
-    label: "Clean Up Tasks",
-    description: "Remove all terminal tasks after their results have been synthesized. Working and assigned tasks are retained.",
-    parameters: EmptyParams,
-
-    async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      const removed = pruneFinishedTasks();
-      refreshTeamUI(ctx);
-      return {
-        content: [{ type: "text", text: `Pruned ${removed} terminal task(s).\nTasks remaining: ${Object.keys(getState().tasks).length}` }],
-        details: {},
-      };
     },
   });
 
   // ── Team console (full-screen, owns input) ───────────────────────
 
   pi.registerCommand("teammate", {
-    description: "Open the full-screen teammate team console: teammate status, task details, replies, interrupt/stop",
+    description: "Open the full-screen teammate team console: run/node status, node details, interrupt/stop",
     handler: async (_args, ctx) => {
       if (ctx.mode !== "tui") {
-        ctx.ui.notify(getSummary() ?? "No teammates registered.", "info");
+        ctx.ui.notify(getSummary() ?? "No runs yet — dispatch work with teammate_run.", "info");
         return;
       }
       await openTeamConsole(ctx);

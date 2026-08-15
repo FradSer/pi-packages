@@ -1,0 +1,21 @@
+---
+name: teammate-autonomous-and-tui
+description: Agent Teams (packages/agent-teams) — run-centric: declarative agent files, single-call DAG dispatch, bounded child-process nodes, best-effort mailbox, per-spawn identity validation
+type: project
+---
+
+`packages/agent-teams` (0.3.0) is a run-centric multi-agent system: the Pi session is the leader; agents are declarative Markdown files; each run is a dependency-aware task graph dispatched in one call, where each node is a bounded child Pi process.
+
+**Why:**
+The teammate-registry model (runtime `teammate_register`/`create_task`/`start_task` ceremony, session-scoped identities, read receipts) was replaced after a design review. The ceremony critique: a one-off delegation cost 4 tool calls (list/register/create/start), identities were session-ephemeral so registration cost was paid per session, and both competitor packages (pi-maestro-teammate, @gcoder1991/pi-mesh) proved single-call DAG dispatch + declarative markdown agents. User decision (2026-08): replace (remove obsolete paths), keep runId validation, keep mailbox but best-effort, cut the read-receipt protocol.
+
+**How to apply:**
+1. **Agents are declarative files** (`src/agents.ts`): frontmatter `name`/`description`/`tools`/`model` (inline `#` comments stripped), body = role prompt. Discovery precedence per name: project `.pi/agents/` > user `~/.pi/agent/agents/` > bundled `agents/`. Bundled: worker/reviewer/specialist/observer.
+2. **Single-call DAG dispatch** (`teammate_run`): `tasks` with `id`/`agent`/`prompt`/`paths`/`access` (default read)/`dependsOn`/`model`/`timeoutMs`, plus `concurrency` (default 4), `worktree`, `background`. Validates dup ids, unknown dependsOn, cycles, bad paths before any spawn. Root nodes start immediately; `scheduleRun` auto-starts dependents on completion; write nodes with overlapping paths are deferred unless worktree-isolated (`findSharedWorkspaceWriteConflict`, run-scoped).
+3. **Leader tools (7)**: `teammate_run`, `teammate_status` (agents + run overview, or runId node detail), `teammate_wait` (gather barrier for runIds), `teammate_cancel` (marks run cancelled BEFORE terminating workers so settleRun can't reclassify; SIGTERM→SIGKILL), `teammate_cleanup` (prune terminal runs), `teammate_message` (to `runId:nodeId` or `all` + runId), `teammate_inbox`. Removed: register/list/configure/remove/create_task/list_tasks/start_task/cancel_task.
+4. **Worker protocol** (3 tools, unchanged surface): `teammate_message` (agent or peer node key, validated against snapshot), `teammate_inbox` (no receipts), `teammate_report` (bound to node). Per-spawn identity: `PI_TEAMMATE_WORKER_NAME` = `runId:nodeId`, `PI_TEAMMATE_RUN_ID` = fresh UUID; `applyWorkerEvents` rejects stale-spawn events. Read-receipt protocol (message_read events, syncReadFlagsToFile, ack dedup) is gone; mailbox is best-effort, idempotent by event id.
+5. **Outcomes authoritative**: one canonical terminal result per node built by the harness after child close; reported completion + SIGTERM close stays completed; failed node cancels its transitive pending dependents (`cancelBlockedDependents`) and fails the run. Worktree per node (`createWorktree(run.cwd, "${runId}-${nodeId}")`), diff captured for integration review. Foreground gather blocks the tool call (abort → run continues in background); background=true delivers one run-completion follow-up.
+6. **UI**: passive widget (display-only) + `/teammate` full-screen console (owns input via `ctx.ui.custom`, no global interception) — rows are nodes, detail = node conversation + spawn. Follow `@packages/btw` style language.
+7. **Testing**: BDD in `features/teammate-status.feature`, 22 pytest cases (`tests/test_teammate_package.py`) including node-eval runtime tests of state.ts/spawner.ts; typecheck via `npx tsc --noEmit --strict ... src/*.ts`. Fresh-agent audit pattern works: a registered reviewer teammate audited the rewrite and found 3 real bugs (inline YAML comments, ineffective peer-recipient check, `~` literal fallback) — all fixed with regression tests.
+
+**Related:** [[pi-cli-print-json-usage]] [[no-global-input-interception]] [[pi-kitty-csi-u-keys]] [[pi-custom-component-rendering]] [[pi-package-conventions]]
