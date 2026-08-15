@@ -74,10 +74,11 @@ def test_no_emojis_in_shipped_documentation() -> None:
             assert not 0x1F600 < ord(char) < 0x1F9FF, f"Emoji found in {path.name}: {char}"
 
 
-def test_extension_registers_result_contract_tools() -> None:
+def test_extension_registers_result_contract_tools_without_polling_or_reading() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
-    for tool in ("monitor_start", "monitor_read", "monitor_stop"):
+    for tool in ("monitor_start", "monitor_stop"):
         assert f'name: "{tool}"' in extension
+    assert 'name: "monitor_read"' not in extension
     assert 'name: "monitor_list"' not in extension
     assert 'registerCommand("monitor"' in extension
 
@@ -86,16 +87,17 @@ def test_start_schema_requires_result_pattern_and_has_optional_failure_pattern()
     schemas = (SRC / "types.ts").read_text(encoding="utf-8")
     assert "result_pattern: Type.String" in schemas
     assert "failure_pattern: Type.Optional" in schemas
-    assert "MonitorReadParams" in schemas
+    assert "MonitorReadParams" not in schemas
     assert "match:" not in schemas
 
 
-def test_guidance_teaches_result_contract_and_on_demand_diagnostics() -> None:
+def test_guidance_teaches_result_contract_and_terminal_diagnostics() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     assert "MONITOR_GUIDANCE" in extension
     assert "unique JSON sentinel" in extension
     assert "Progress logs never trigger turns" in extension
-    assert "monitor_read" in extension
+    assert "terminal result includes a bounded diagnostic tail" in extension
+    assert "monitor_read" not in extension
     assert 'pi.on("before_agent_start"' in extension
 
 
@@ -120,20 +122,20 @@ def test_monitor_uses_close_event_and_kills_detached_process_group() -> None:
     assert "monitor.killTimer.unref()" in manager
 
 
-def test_monitor_bounds_raw_logs_and_read_results() -> None:
+def test_monitor_bounds_raw_logs_and_terminal_diagnostics() -> None:
     manager = (SRC / "monitor.ts").read_text(encoding="utf-8")
     for constant in (
         "MAX_LINE_LENGTH",
         "MAX_LINE_BUFFER",
         "MAX_LOG_LINES",
         "MAX_LOG_BYTES",
-        "MAX_READ_LINES",
-        "MAX_READ_BYTES",
         "MAX_HISTORY",
     ):
         assert f"export const {constant}" in manager
     assert "trimLogs" in manager
     assert "boundedTail" in manager
+    assert "MAX_RESULT_OUTPUT_LINES" in manager
+    assert "MAX_RESULT_OUTPUT_BYTES" in manager
 
 
 def test_terminal_message_is_compact_plain_text() -> None:
@@ -144,7 +146,8 @@ def test_terminal_message_is_compact_plain_text() -> None:
     assert "result=${JSON.stringify(result.result)}" in extension
     assert "JSON.stringify({" not in extension
     assert "null, 2" not in extension
-    assert "diagnostics=monitor_read" in extension
+    assert "output=${JSON.stringify(result.output)}" in extension
+    assert "output_truncated=true" in extension
 
 
 def test_widget_is_display_only_and_console_owns_input() -> None:
@@ -177,9 +180,8 @@ def test_success_sentinel_returns_one_structured_terminal_result() -> None:
         if (terminal.result.result.ok !== true || terminal.result.result.count !== 3) {
           throw new Error(JSON.stringify(terminal));
         }
-        const read = manager.read(started.id, 100);
-        if (!read || !read.lines.some((line) => line.includes("progress"))) {
-          throw new Error(JSON.stringify(read));
+        if (!terminal.result.output?.some((line) => line.includes("progress"))) {
+          throw new Error(JSON.stringify(terminal));
         }
         if (manager.list().length !== 0) throw new Error("monitor remained active");
         ''',
@@ -207,9 +209,8 @@ def test_failure_pattern_matches_stderr_and_returns_capture() -> None:
         if (terminals[0].result.captures.reason !== "broken config") {
           throw new Error(JSON.stringify(terminals));
         }
-        const read = manager.read(started.id, 100);
-        if (!read || !read.lines.some((line) => line.startsWith("[stderr]"))) {
-          throw new Error(JSON.stringify(read));
+        if (!terminals[0].result.output?.some((line) => line.startsWith("[stderr]"))) {
+          throw new Error(JSON.stringify(terminals));
         }
         ''',
     )
@@ -232,8 +233,6 @@ def test_progress_output_does_not_emit_notifications() -> None:
         });
         await new Promise((resolve) => setTimeout(resolve, 200));
         if (terminals.length !== 0) throw new Error(JSON.stringify(terminals));
-        const read = manager.read(started.id, 100);
-        if (!read || read.lines.length !== 2) throw new Error(JSON.stringify(read));
         manager.stop(started.id);
         if (terminals.length !== 0) throw new Error("manual stop emitted a terminal result");
         ''',
@@ -482,7 +481,7 @@ def test_session_shutdown_waits_for_sigkill_escalation_before_parent_exit() -> N
     )
 
 
-def test_raw_log_history_is_bounded_and_readable_after_completion() -> None:
+def test_terminal_diagnostics_are_bounded_after_completion() -> None:
     run_typescript(
         r'''
         import { MAX_LOG_LINES, MonitorManager } from "./packages/monitor/src/monitor.ts";
@@ -497,13 +496,10 @@ def test_raw_log_history_is_bounded_and_readable_after_completion() -> None:
           resultPattern: "NEVER_MATCHES",
         });
         await new Promise((resolve) => setTimeout(resolve, 600));
-        const read = manager.read(started.id, 500);
-        if (!read) throw new Error("missing archived log");
-        if (read.monitor.retainedLogLines > MAX_LOG_LINES) throw new Error(JSON.stringify(read.monitor));
-        if (read.droppedLines <= 0 || !read.truncated) throw new Error(JSON.stringify(read));
-        if (read.lines.length > 500) throw new Error(`too many lines ${read.lines.length}`);
-        if (terminals.length !== 1 || terminals[0].result.status !== "result_missing") {
-          throw new Error(JSON.stringify(terminals));
-        }
+        if (terminals.length !== 1) throw new Error(JSON.stringify(terminals));
+        const result = terminals[0].result;
+        if (result.output?.length > 100) throw new Error(`too many lines ${result.output.length}`);
+        if (!result.outputTruncated) throw new Error(JSON.stringify(result));
+        if (result.status !== "result_missing") throw new Error(JSON.stringify(terminals));
         ''',
     )

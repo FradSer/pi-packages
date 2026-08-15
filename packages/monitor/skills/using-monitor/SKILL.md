@@ -17,7 +17,6 @@ Progress output is captured silently; it does not wake the model.
 | Tool | Purpose |
 |---|---|
 | `monitor_start` | Start a command and wait for a declared terminal result |
-| `monitor_read` | Read bounded raw output when diagnostics are necessary |
 | `monitor_stop` | Stop one or all active monitors without a result notification |
 
 ## Start with a result contract
@@ -74,7 +73,9 @@ contracts.
 
 The monitor sends one compact plain-text terminal message with `triggerTurn:
 true`. It uses stable `key=value` fields and emits complex `result` data as one
-compact JSON value. Ordinary stdout and stderr never create messages or turns.
+compact JSON value. The terminal message also includes a bounded source-labelled
+diagnostic tail, so ordinary stdout and stderr never create extra messages or
+turns and no output-reading tool is needed.
 
 ## Downstream filters must stay line-buffered
 
@@ -91,18 +92,13 @@ output.
 - If the source script supports exclusion flags, use those instead of piping
   through `grep -v`.
 
-## Diagnose only when needed
+## Diagnostics are included in the terminal result
 
-After `failure`, `timeout`, or `result_missing`, inspect retained output:
-
-```text
-monitor_read monitor_id="monitor_1" tail_lines=100
-```
-
-Logs are source-labelled as `[stdout]` and `[stderr]`. Reads and retained history
-are bounded, so diagnostic output cannot grow without limit. Do not call
-`monitor_read` after a successful structured result unless the result is
-insufficient.
+After `failure`, `timeout`, or `result_missing`, use the bounded diagnostic tail
+already included in the terminal notification. Logs are source-labelled as
+`[stdout]` and `[stderr]`; retained history and terminal diagnostics are bounded,
+so output cannot grow without limit. Do not start another tool call to inspect
+progress or poll a running monitor.
 
 ## Lifecycle
 
@@ -114,4 +110,6 @@ insufficient.
   escalation during session shutdown, so surviving descendants are cleaned up.
 - `/monitor` shows active and recently finished monitors plus their bounded
   output without a global terminal-input listener.
+- `monitor_start` is intentionally a one-shot contract: wait for its terminal
+  notification instead of calling an output-reading or status-polling tool.
 - All active process groups are stopped when the Pi session shuts down.

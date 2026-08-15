@@ -35,20 +35,6 @@ export const MonitorStartParams = Type.Object({
   ),
 });
 
-/** Parameters for monitor_read: inspect bounded raw output on demand. */
-export const MonitorReadParams = Type.Object({
-  monitor_id: Type.String({
-    description: "ID of an active or recently finished monitor.",
-  }),
-  tail_lines: Type.Optional(
-    Type.Integer({
-      minimum: 1,
-      maximum: 500,
-      description: "Maximum number of recent source-labelled log lines to return. Default 100, max 500.",
-    }),
-  ),
-});
-
 /** Parameters for monitor_stop: end a monitor by id, or all active monitors. */
 export const MonitorStopParams = Type.Object({
   monitor_id: Type.Optional(

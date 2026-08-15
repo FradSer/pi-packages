@@ -5,11 +5,7 @@ import {
   type Monitor,
   type MonitorTerminalResult,
 } from "./monitor";
-import {
-  MonitorReadParams,
-  MonitorStartParams,
-  MonitorStopParams,
-} from "./types";
+import { MonitorStartParams, MonitorStopParams } from "./types";
 
 const MONITOR_GUIDANCE = `
 ## Background Result Monitor
@@ -19,7 +15,7 @@ Use monitor_start to run a non-interactive command in the background and wait fo
 - Always declare result_pattern. Prefer wrapping controllable commands so they print a unique JSON sentinel, for example: __PI_MONITOR_RESULT__ (?<json>\\{.*\\}).
 - Add failure_pattern when the command has a recognizable terminal failure line.
 - Named regex captures are returned as structured fields. A named capture called json is parsed and exposed as structured JSON.
-- Progress logs never trigger turns. Use monitor_read only when the terminal result indicates failure, timeout, or result_missing and diagnostics are needed.
+- Progress logs never trigger turns. The terminal result includes a bounded diagnostic tail, so do not poll for output.
 - Do not poll for status; wait for the terminal notification. Use monitor_stop to stop an active monitor if needed.
 `;
 
@@ -171,13 +167,13 @@ export default function (pi: ExtensionAPI) {
       "Run a non-interactive shell command in the background and wait for a declared terminal result.",
       "result_pattern is required and scans both stdout and stderr. failure_pattern is optional.",
       "Named regex captures are returned as structured fields; a named 'json' capture is parsed as JSON.",
-      "Ordinary output is retained in a bounded buffer outside model context and never triggers turns.",
+      "Ordinary output is retained in a bounded buffer and a small diagnostic tail is included in the terminal result.",
       "Exactly one terminal notification is emitted for success, failure, timeout, or result_missing.",
     ].join(" "),
     promptSnippet: "Run a background command and expose one contracted terminal result without streaming progress logs",
     promptGuidelines: [
       "Declare the exact terminal result before starting a monitor; prefer a unique JSON sentinel for commands you can wrap.",
-      "Use monitor_read only after failure, timeout, or result_missing when raw diagnostics are necessary.",
+      "Wait for the terminal notification; it includes a bounded diagnostic tail without a polling step.",
     ],
     parameters: MonitorStartParams,
 
@@ -207,29 +203,6 @@ export default function (pi: ExtensionAPI) {
           ].filter(Boolean).join("\n"),
         }],
         details: { monitorId: monitor.id },
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: "monitor_read",
-    label: "Read Monitor Output",
-    description: "Read a bounded tail of source-labelled raw output from an active or recently finished monitor. Use only when diagnostics are needed.",
-    promptSnippet: "Read bounded raw output from a result monitor for diagnostics",
-    parameters: MonitorReadParams,
-
-    async execute(_toolCallId, params) {
-      const result = manager.read(params.monitor_id, params.tail_lines);
-      if (!result) throw new Error(`No active or recent monitor with id "${params.monitor_id}".`);
-      const header = [
-        `Monitor ${result.monitor.id}: ${result.monitor.description}`,
-        `Status: ${result.monitor.status}`,
-        `Retained: ${result.monitor.retainedLogLines} line(s); dropped: ${result.droppedLines}`,
-        result.truncated ? "Output is a bounded/truncated tail." : "",
-      ].filter(Boolean).join("\n");
-      return {
-        content: [{ type: "text", text: `${header}\n\n${result.lines.join("\n") || "(no output captured)"}` }],
-        details: { monitorId: result.monitor.id, truncated: result.truncated },
       };
     },
   });
@@ -287,8 +260,8 @@ export default function (pi: ExtensionAPI) {
     ].filter(Boolean);
     if (monitor.terminal) lines.push(`result: ${JSON.stringify(monitor.terminal)}`);
     if (showOutput) {
-      const output = manager.read(monitor.id, 50);
-      lines.push("", "--- Recent output ---", ...(output?.lines ?? ["(no output captured)"]));
+      const output = monitor.terminal?.output ?? manager.tail(monitor.id, 50)?.lines;
+      lines.push("", "--- Recent output ---", ...(output ?? ["(no output captured)"]));
     }
     return lines;
   }
@@ -313,9 +286,8 @@ function formatTerminalMessage(monitor: Monitor, result: MonitorTerminalResult):
   if (result.exitCode !== undefined && result.exitCode !== null) lines.push(`exit_code=${result.exitCode}`);
   if (result.signal) lines.push(`signal=${result.signal}`);
   if (result.reason) lines.push(`reason=${compactValue(result.reason)}`);
-  if (result.status !== "success") {
-    lines.push(`diagnostics=monitor_read monitor_id="${monitor.id}"`);
-  }
+  if (result.output?.length) lines.push(`output=${JSON.stringify(result.output)}`);
+  if (result.outputTruncated) lines.push("output_truncated=true");
   return lines.join("\n");
 }
 

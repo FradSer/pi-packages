@@ -26,7 +26,6 @@ one terminal result when:
 | Tool / Command | Description |
 |---|---|
 | `monitor_start` | Run a command and wait for a declared success or failure result |
-| `monitor_read` | Read a bounded tail of raw output on demand |
 | `monitor_stop` | Stop one or all active monitors without emitting a result |
 | `/monitor` | Inspect active and recent monitors and their retained output |
 
@@ -92,12 +91,11 @@ terminal contract, not a general log filter.
 
 ## Diagnostics
 
-Ordinary output never triggers background model turns. If a terminal result is
-`failure`, `timeout`, or `result_missing`, inspect the retained log explicitly:
-
-```text
-monitor_read monitor_id="monitor_1" tail_lines=100
-```
+Ordinary output never triggers background model turns. When a terminal result is
+`failure`, `timeout`, or `result_missing`, the terminal notification already
+includes a bounded tail of source-labelled output. There is no output-reading
+or status-polling tool; wait for the one terminal notification instead of
+calling another tool or sleeping and checking again.
 
 A `running` monitor showing `0 retained, 0 dropped` while the source clearly
 produced output usually means an intermediate filter is block-buffering: `grep`,
@@ -113,12 +111,12 @@ Output is labelled by source:
 [stderr] connection refused
 ```
 
-The retained history and every read are bounded:
+The retained history and terminal diagnostic tail are bounded:
 
 - individual displayed line: 10 KiB
 - unterminated input fragment: 64 KiB
 - retained output: 2,000 lines and 256 KiB per monitor
-- `monitor_read`: 500 lines and 64 KiB maximum
+- terminal diagnostic tail: 100 lines and 32 KiB maximum
 - recently finished monitor history: 20 monitors
 
 ## Result semantics

@@ -51,11 +51,11 @@ Feature: Result-contract background monitoring
     Then it is not subject to a timeout
     And it keeps running across turns until a result matches, monitor_stop runs, or the session shuts down
 
-  Scenario: Raw output is available only on demand
+  Scenario: Terminal results include bounded diagnostics without a polling tool
     Given a monitor has captured stdout and stderr
-    When monitor_read runs with its monitor id
-    Then it returns a bounded tail of source-labelled raw output
-    And reading the output does not create background model notifications
+    When the monitor reaches a terminal result
+    Then the result includes a bounded tail of source-labelled output
+    And no follow-up output-reading tool is available or required
 
   Scenario: Structured details remain available to extensions
     Given a monitor reaches a terminal result
@@ -67,7 +67,7 @@ Feature: Result-contract background monitoring
     Given a monitor is running
     When the command writes oversized lines or a large output burst
     Then individual lines and the retained raw log are truncated to bounded sizes
-    And truncation is surfaced in monitor_read
+    And truncation is surfaced in the terminal result
 
   Scenario: Stopping a monitor manually
     Given a monitor is running
@@ -76,10 +76,11 @@ Feature: Result-contract background monitoring
     And a SIGTERM-resistant descendant still receives SIGKILL escalation after the shell child closes
     And no terminal result notification is sent
 
-  Scenario: Monitor tool surface excludes polling tools
+  Scenario: Monitor tool surface excludes polling and output-reading tools
     Given the extension tools are registered
-    Then monitor_start, monitor_read, and monitor_stop tools are available
-    And monitor_list tool is not registered to prevent sleep-polling loops
+    Then monitor_start and monitor_stop tools are available
+    And monitor_read and monitor_list tools are not registered
+    And the terminal result is the only model notification for a monitor
 
   Scenario: Session shutdown cleans up all monitors
     Given monitors are running
@@ -97,4 +98,5 @@ Feature: Result-contract background monitoring
     When the user opens /monitor
     Then a full-screen console lists the monitors and their bounded recent output
     And x stops the selected active monitor and a stops all active monitors
+    And the console renders bounded output without registering an output-reading tool
     And no global input listener is registered

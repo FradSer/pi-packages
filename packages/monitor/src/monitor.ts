@@ -7,8 +7,8 @@ export const MAX_LINE_LENGTH = 10 * 1024;
 export const MAX_LINE_BUFFER = 64 * 1024;
 export const MAX_LOG_LINES = 2000;
 export const MAX_LOG_BYTES = 256 * 1024;
-export const MAX_READ_LINES = 500;
-export const MAX_READ_BYTES = 64 * 1024;
+export const MAX_RESULT_OUTPUT_LINES = 100;
+export const MAX_RESULT_OUTPUT_BYTES = 32 * 1024;
 export const MAX_HISTORY = 20;
 export const MAX_RESULT_TEXT = 4096;
 export const MAX_RESULT_JSON_BYTES = 32 * 1024;
@@ -26,6 +26,8 @@ export type MonitorLogSource = "stdout" | "stderr";
 export interface MonitorTerminalResult {
   status: Exclude<MonitorStatus, "running">;
   elapsedMs: number;
+  output?: string[];
+  outputTruncated?: boolean;
   matched?: string;
   captures?: Record<string, string>;
   result?: unknown;
@@ -52,10 +54,8 @@ export interface Monitor {
   droppedLogLines: number;
 }
 
-export interface MonitorReadResult {
-  monitor: Monitor;
+export interface MonitorOutput {
   lines: string[];
-  droppedLines: number;
   truncated: boolean;
 }
 
@@ -97,7 +97,7 @@ export interface StartMonitorArgs {
   cwd?: string;
 }
 
-/** Session-scoped result-contract monitors with bounded, on-demand raw logs. */
+/** Session-scoped result-contract monitors with bounded terminal diagnostics. */
 export class MonitorManager {
   private active = new Map<string, InternalMonitor>();
   private history: ArchivedMonitor[] = [];
@@ -151,20 +151,19 @@ export class MonitorManager {
     ];
   }
 
-  read(id: string, tailLines = 100): MonitorReadResult | undefined {
+  tail(id: string, tailLines = MAX_RESULT_OUTPUT_LINES): MonitorOutput | undefined {
     const active = this.active.get(id);
     const archived = this.history.find((entry) => entry.monitor.id === id);
-    const monitor = active ? this.public(active) : archived?.monitor;
     const logs = active?.logs ?? archived?.logs;
-    if (!monitor || !logs) return undefined;
+    if (!logs) return undefined;
 
-    const requested = Math.min(Math.max(tailLines, 1), MAX_READ_LINES);
-    const selected = boundedTail(logs.slice(-requested));
+    const requested = Math.min(Math.max(tailLines, 1), MAX_RESULT_OUTPUT_LINES);
+    const selected = boundedTail(logs.slice(-requested), MAX_RESULT_OUTPUT_BYTES);
     return {
-      monitor,
       lines: selected.map((entry) => `[${entry.source}] ${entry.text}`),
-      droppedLines: monitor.droppedLogLines,
-      truncated: selected.length < Math.min(requested, logs.length) || monitor.droppedLogLines > 0,
+      truncated: logs.length > requested
+        || selected.length < Math.min(requested, logs.length)
+        || (active?.droppedLogLines ?? archived?.monitor.droppedLogLines ?? 0) > 0,
     };
   }
 
@@ -371,6 +370,9 @@ export class MonitorManager {
     keepKillTimerAlive = false,
   ): void {
     if (monitor.status !== "running") return;
+    const output = this.tail(monitor.id);
+    terminal.output = output?.lines ?? [];
+    terminal.outputTruncated = output?.truncated ?? false;
     if (killProcess) this.killTree(monitor, keepKillTimerAlive);
     monitor.status = terminal.status;
     monitor.completedAt = Date.now();
@@ -489,12 +491,12 @@ function buildMatchedResult(
   return terminal;
 }
 
-function boundedTail(logs: MonitorLogEntry[]): MonitorLogEntry[] {
+function boundedTail(logs: MonitorLogEntry[], maxBytes: number): MonitorLogEntry[] {
   const selected: MonitorLogEntry[] = [];
   let bytes = 0;
   for (let index = logs.length - 1; index >= 0; index -= 1) {
     const entry = logs[index];
-    if (selected.length > 0 && bytes + entry.bytes > MAX_READ_BYTES) break;
+    if (selected.length > 0 && bytes + entry.bytes > maxBytes) break;
     selected.unshift(entry);
     bytes += entry.bytes;
   }
