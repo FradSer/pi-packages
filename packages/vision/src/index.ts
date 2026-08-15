@@ -18,6 +18,7 @@ import {
 } from "./config";
 
 let config: VisionConfig = readVisionConfig();
+const VISION_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 type ContextTransform = { messages: ContextEvent["messages"] };
 
@@ -253,7 +254,7 @@ export default function visionExtension(pi: ExtensionAPI): void {
 
       try {
         ctx.ui.setStatus("vision", `reading ${images.length} image${images.length === 1 ? "" : "s"} · ${config.provider}/${config.model}`);
-        ctx.ui.setWorkingIndicator({ frames: ["◐", "◓", "◑", "◒"], intervalMs: 200 });
+        ctx.ui.setWorkingIndicator({ frames: VISION_SPINNER_FRAMES, intervalMs: 120 });
         const result = await describeImages(ctx.modelRegistry, visionModel, extracted.text, images, ctx.signal);
         const analysis = { analysisPrompt: extracted.text, analysis: result.text };
         if (activeAnalysis?.key === key) activeAnalysis.result = analysis;

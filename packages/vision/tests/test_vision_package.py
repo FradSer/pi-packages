@@ -187,7 +187,9 @@ def test_bridge_only_handles_images_for_text_only_models() -> None:
     assert 'vision · not configured' not in source
     assert 'ctx.ui.setStatus("vision", undefined)' in source
     assert '`${config.enabled ? "vision"' not in source
-    assert 'setWorkingIndicator' in source
+    assert 'const VISION_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]' in source
+    assert 'setWorkingIndicator({ frames: VISION_SPINNER_FRAMES, intervalMs: 120 })' in source
+    assert 'frames: ["◐", "◓", "◑", "◒"]' not in source
 
 
 def test_prompt_mentions_images_and_instruction() -> None:

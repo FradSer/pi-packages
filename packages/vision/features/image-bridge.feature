@@ -72,6 +72,12 @@ Feature: Transparent image reading for text-only models
     When the user chooses model selection from the vision menu
     Then the menu uses Pi's currently available model list
 
+  Scenario: Use the required vision working indicator
+    Given image analysis is in progress
+    When the vision extension shows its working indicator
+    Then the indicator cycles through the standard ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏ frames
+    And it does not use circular glyphs
+
   Scenario: Hide the idle vision status entry
     Given the vision bridge is idle
     When the status bar is updated
