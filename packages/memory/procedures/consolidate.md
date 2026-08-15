@@ -1,10 +1,10 @@
 # Memory — Consolidate procedure
 
-> **Inline procedure.** The `/memory` command, `/consolidate`, and the
-> auto-trigger write this document into a temporary task file and start a fresh
-> background Pi child with `--print --mode json --no-session @<task-file>`. It
-> is not a skill and is never invoked as `/skill:consolidate`. `{{PKG_DIR}}` is
-> substituted with the installed package directory before the child starts.
+> **Inline procedure.** The `/memory` command ("Consolidate memory now") and `/consolidate`
+> write this document into a temporary task file and start a fresh background Pi child
+> with `--print --mode json --no-session @<task-file>`. It is not a skill and is
+> never invoked as `/skill:consolidate`. `{{PKG_DIR}}` is substituted with the
+> installed package directory before the child starts.
 >
 > A zero child exit alone does not prove consolidation. The parent reports
 > success only when the JSONL stream records completed tool work, a passing full
@@ -85,15 +85,9 @@ Bad:  `feedback_git_commit_hook_needed.md — git PreToolUse hook intercepts git
 
 ---
 
-## Consolidate (via /memory menu, /consolidate, or auto-trigger)
+## Consolidate (via /memory menu or /consolidate)
 
-User-invoked via the /memory menu or /consolidate, or **auto-triggered** by the
-extension when the session context fill reaches `consolidateAtContextFraction`
-of the active model's context window (default 0.4 = 40%, based on research that
-long-context quality degrades from ~40-50% fill; 0 = off, persisted in
-`~/.pi/agent/memory/settings.json`). It fires once per fraction boundary
-(40%, 80%, …) after a real user turn (`input` source "interactive") in a TUI
-session, so the consolidation run itself never re-triggers.
+User-invoked via the /memory menu ("Consolidate memory now") or the `/consolidate` command.
 Default failure mode of a weak run is **cosmetic tidy while leaving thematic
 redundancy and factually dead notes**. This procedure is fail-closed against that.
 

@@ -8,14 +8,13 @@
  *     1. Consolidate memory now        (inline procedure from procedures/consolidate.md)
  *     2. Edit user instructions        (~/.pi/agent/AGENTS.md)
  *     3. Edit project instructions     (./AGENTS.md or ./CLAUDE.md — whichever exists)
- *     4. Open auto-memory folder
+ *     4. Open memory folder
  *     5. Toggle auto-memory
  *
- * Auto-memory on → `before_agent_start` injects a guidance block that tells the
- * agent to actively capture durable decisions/preferences into memory (same
- * pattern as @fradser/pi-agent-teams injecting its guidance). Existing memories are
- * always injected into the system prompt; the toggle only controls the
- * auto-write guidance.
+ * Auto-memory on → `before_agent_start` injects prompt guidance that tells the
+ * LLM to actively capture durable decisions/preferences into memory when needed.
+ * Existing memories are always injected into the system prompt; the toggle only
+ * controls the auto-write guidance.
  */
 
 import fs from "fs/promises";
@@ -104,11 +103,7 @@ export function formatMemoriesBlock(memories: MemoryEntry[]): string {
 
 interface MemorySettings {
   autoMemory: boolean;
-  /** Context-window fraction (0-1) at which auto-consolidation fires. 0 disables. */
-  consolidateAtContextFraction: number;
 }
-
-const DEFAULT_CONSOLIDATE_AT_CONTEXT_FRACTION = 0.4;
 
 function settingsFilePath(): string {
   return path.join(os.homedir(), CONFIG_DIR_NAME, "agent", "memory", "settings.json");
@@ -120,13 +115,10 @@ async function readSettings(): Promise<MemorySettings> {
     const parsed = JSON.parse(raw) as Partial<MemorySettings>;
     return {
       autoMemory: parsed.autoMemory ?? true,
-      consolidateAtContextFraction:
-        parsed.consolidateAtContextFraction ?? DEFAULT_CONSOLIDATE_AT_CONTEXT_FRACTION,
     };
   } catch {
     return {
       autoMemory: true,
-      consolidateAtContextFraction: DEFAULT_CONSOLIDATE_AT_CONTEXT_FRACTION,
     };
   }
 }
@@ -152,11 +144,6 @@ preference, lesson, gotcha, or non-obvious project fact during this session,
 - Do not log pure operations or timelines — those belong in git history.
 
 Run \`/memory\` to review, edit, or consolidate memory at any time.
-- When the session context reaches the configured fraction of the active model's
-  context window (\`consolidateAtContextFraction\`, default 0.4 = 40%), the
-  extension consolidates memory automatically in the background — a
-  \`Memory: dreaming\` widget shows above the input box until it finishes; your
-  session is never blocked.
 `;
 
 // ── locate this package (consolidate procedure doc) ────────────────
@@ -363,7 +350,7 @@ function setDreamingWidget(ctx: ExtensionContext): void {
             ? theme.fg("muted", ` · ${dreamingActivity}`)
             : ` · ${dreamingActivity}`
           : "";
-        // Leading space aligns the spinner with the native " ⠋ Working..." row.
+        // Leading space aligns the spinner with the native " ⠋ Working...\" row.
         return [` ${icon} ${text}${detail}`];
       },
       invalidate: () => {},
@@ -417,7 +404,7 @@ async function spawnAsyncConsolidation(
 
   const cli = resolvePiCli();
   if (!cli) {
-    ctx.ui.notify("Auto-consolidation: could not resolve the Pi CLI", "error");
+    ctx.ui.notify("Memory consolidation: could not resolve the Pi CLI", "error");
     return;
   }
 
@@ -434,7 +421,7 @@ async function spawnAsyncConsolidation(
     );
   } catch (err: unknown) {
     nodeFs.rmSync(tempDir, { recursive: true, force: true });
-    ctx.ui.notify(`Auto-consolidation spawn failed: ${(err as Error).message}`, "error");
+    ctx.ui.notify(`Memory consolidation spawn failed: ${(err as Error).message}`, "error");
     return;
   }
 
@@ -549,6 +536,8 @@ async function editInstructions(ctx: ExtensionCommandContext, filePath: string):
 // ── extension ──────────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
+  const dreamState: DreamState = { active: false };
+
   // Inject existing memories + auto-memory guidance before every turn
   pi.on("before_agent_start", async (event, ctx) => {
     const cwd = ctx.cwd || process.cwd();
@@ -557,9 +546,11 @@ export default function (pi: ExtensionAPI) {
 
     if (memories.length === 0 && !settings.autoMemory) return;
 
-    let systemPrompt = event.systemPrompt;
+    let systemPrompt = event.systemPrompt || "";
     if (memories.length > 0) {
-      systemPrompt = systemPrompt + "\n\n" + formatMemoriesBlock(memories);
+      systemPrompt = systemPrompt
+        ? systemPrompt + "\n\n" + formatMemoriesBlock(memories)
+        : formatMemoriesBlock(memories);
     }
     if (settings.autoMemory) {
       systemPrompt = systemPrompt + AUTO_MEMORY_GUIDANCE;
@@ -569,7 +560,7 @@ export default function (pi: ExtensionAPI) {
 
   // /memory command with the management menu
   pi.registerCommand("memory", {
-    description: "Manage project memory: instructions, auto-memory folder, consolidation",
+    description: "Manage project memory: instructions, memory folder, consolidation",
     handler: async (_args, ctx) => {
       const settings = await readSettings();
       const status = settings.autoMemory ? "on" : "off";
@@ -585,7 +576,7 @@ export default function (pi: ExtensionAPI) {
         "Consolidate memory now",
         "Edit user instructions (~/.pi/agent/AGENTS.md)",
         `Edit project instructions (${projectInstructions.display})`,
-        "Open auto-memory folder",
+        "Open memory folder",
         `Toggle auto-memory (currently ${status})`,
       ];
 
@@ -621,13 +612,13 @@ export default function (pi: ExtensionAPI) {
         await editInstructions(ctx, path.join(home, CONFIG_DIR_NAME, "agent", "AGENTS.md"));
       } else if (choice.startsWith("Edit project instructions")) {
         await editInstructions(ctx, projectInstructions.path);
-      } else if (choice.startsWith("Open auto-memory folder")) {
+      } else if (choice.startsWith("Open memory folder")) {
         await fs.mkdir(harnessDir, { recursive: true });
         if (ctx.mode === "tui" && process.platform === "darwin") {
           await pi.exec("open", [harnessDir]);
           ctx.ui.notify(`Opened ${harnessDir}`, "info");
         } else {
-          ctx.ui.notify(`Auto-memory folder: ${harnessDir}`, "info");
+          ctx.ui.notify(`Memory folder: ${harnessDir}`, "info");
         }
       } else if (choice.startsWith("Toggle auto-memory")) {
         const next = { ...settings, autoMemory: !settings.autoMemory };
@@ -667,50 +658,5 @@ export default function (pi: ExtensionAPI) {
         reason: "Consolidate the project memory now (user-invoked via /consolidate command).",
       });
     },
-  });
-
-  // ── auto-consolidation (per-session-instance state) ───────────────
-  // When the session's context fill reaches a fraction of the active model's
-  // context window (default 0.4 = 40%, based on research that long-context
-  // quality degrades from ~40-50% fill), deliver the inline consolidate
-  // procedure while idle. Tier-based firing — one trigger per fraction
-  // boundary (40%, 80%, …) — means the consolidation run itself never
-  // re-triggers; gated on user-typed turns (input source "interactive") and
-  // interactive TUI sessions.
-  let lastTriggeredTier = 0;
-  let userTurnSeen = false;
-  const dreamState: DreamState = { active: false };
-
-  pi.on("input", (event) => {
-    if (event.source === "interactive") userTurnSeen = true;
-  });
-
-  pi.on("agent_settled", async (_event, ctx) => {
-    if (ctx.mode !== "tui") return;
-    const settings = await readSettings();
-    const fraction = settings.consolidateAtContextFraction;
-    if (!settings.autoMemory || fraction <= 0) return;
-    if (!userTurnSeen) return; // extension-injected run (e.g. consolidation)
-    userTurnSeen = false;
-
-    const usage = ctx.getContextUsage();
-    if (!usage || usage.percent == null || usage.contextWindow <= 0) return;
-
-    const tier = Math.floor(usage.percent / (fraction * 100));
-    if (tier < 1 || tier <= lastTriggeredTier) return;
-    lastTriggeredTier = tier;
-    if (dreamState.active) return; // single-flight: one dreaming run at a time
-
-    const pkgDir = await resolvePackageDir();
-    ctx.ui.notify(
-      `Memory dreaming: context ${usage.percent.toFixed(0)}% ≥ ${Math.round(fraction * 100)}% of ${usage.contextWindow} tokens — consolidating in background…`,
-      "info",
-    );
-    await spawnAsyncConsolidation(ctx, dreamState, {
-      pkgDir,
-      cwd: ctx.cwd || process.cwd(),
-      sessionFile: ctx.sessionManager.getSessionFile(),
-      reason: `session context reached ${usage.percent.toFixed(0)}% of the ${usage.contextWindow}-token context window (≥ ${Math.round(fraction * 100)}%)`,
-    });
   });
 }

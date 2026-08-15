@@ -74,7 +74,7 @@ A collection of Pi-adapted BDD, TDD, implementation, review, debugging, architec
 
 ### [`memory`](packages/memory/)
 
-Manages durable project memory with a `/memory` menu, automatic memory guidance, and background consolidation. The consolidation procedure runs in a separate child Pi process and keeps its raw work outside the active conversation.
+Manages durable project memory with a `/memory` menu, auto-memory guidance, and background consolidation. The consolidation procedure runs in a separate child Pi process and keeps its raw work outside the active conversation.
 
 **Commands:** `/memory`, `/consolidate`
 

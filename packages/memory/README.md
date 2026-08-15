@@ -1,8 +1,8 @@
 # Memory Plugin
 
-Native pi `/memory` command — no skill surface. Provides auto-memory guidance
-(injected like @fradser/pi-agent-teams injects its guidance), an instructions editor
-menu, manual consolidation, and a dedicated `/consolidate` command.
+Native pi `/memory` command — no skill surface. Provides an instructions editor
+menu, memory folder access, auto-memory guidance toggle, manual consolidation,
+and a dedicated `/consolidate` command.
 
 Two locations must stay **identical** (idempotent):
 
@@ -24,7 +24,7 @@ pi install npm:@fradser/pi-memory
 ## Usage
 
 Type `/memory` to open the management menu (native pi select dialog). Type
-`/consolidate` to skip the menu and start the same consolidation immediately.
+`/consolidate` to skip the menu and start consolidation immediately.
 
 ```
 Auto-memory: on
@@ -32,14 +32,14 @@ Auto-memory: on
 ❯ 1. Consolidate memory now
   2. Edit user instructions        (~/.pi/agent/AGENTS.md)
   3. Edit project instructions     (./AGENTS.md — or ./CLAUDE.md if that exists)
-  4. Open auto-memory folder
+  4. Open memory folder
   5. Toggle auto-memory (currently on)
 ```
 
-- **Auto-memory on** (default): `before_agent_start` injects a guidance block that
-  tells the agent to actively capture durable decisions/preferences/lessons into
-  memory as they occur. Off = no auto-write guidance; existing memories are still
-  injected into the system prompt.
+- **Auto-memory on** (default): `before_agent_start` injects prompt guidance that
+  instructs the LLM to actively capture durable decisions, preferences, and lessons
+  into memory during the session as needed. Off = no prompt guidance; existing
+  memories are still injected into the system prompt.
 - **Consolidate memory now**: spawns an **independent background child Pi
   process** (`spawnAsyncConsolidation`, `--print --mode json --no-session`) to
   run the full fail-closed consolidation procedure (`procedures/consolidate.md`)
@@ -56,26 +56,13 @@ Auto-memory: on
   (single-flight: a running consolidation blocks a second one). It already runs
   entirely in the background, so the foreground user just sees the "Memory:
   dreaming" widget.
-- **Auto-consolidate**: while auto-memory is on, the extension watches
-  `ctx.getContextUsage()` and, once the session context fill reaches
-  `consolidateAtContextFraction` of the active model's context window (default
-  0.4 = 40% — research shows long-context quality degrades from ~40-50% fill),
-  spawns a **background child Pi process** (`--print --mode json --no-session`)
-  to run the same fail-closed consolidation — the session is never blocked, and
-  a "Memory: dreaming" widget shows above the input editor until the child
-  exits. Fires once per fraction boundary (40%, 80%, …) after a real user turn
-  (`input` source `interactive`) in TUI mode, so the consolidation run itself
-  never re-triggers; only one dreaming run at a time.
-- Settings are persisted per-user at
-  `~/.pi/agent/memory/settings.json` — `{ "autoMemory": bool,
-  "consolidateAtContextFraction": 0.4 }` (set the fraction to 0 to disable).
 
 ## How it works
 
-- **Auto-write**: the injected guidance tells the agent to search existing theme
-  files first, write harness, then mirror **safe** files to `.memory/`. Private
-  content (preferences, credentials) is harness-only — never body or index line in `.memory/`.
-- **Consolidation** — menu item 1, `/consolidate`, or auto-trigger. Fail-closed pipeline:
+- **System prompt injection**: active project memories in `.memory/` and the
+  harness directory are loaded and formatted into the system prompt before each turn.
+  When auto-memory is enabled, guidance for active memory capture is also appended.
+- **Consolidation** — menu item 1 or `/consolidate`. Fail-closed pipeline:
   1. Read all files + inventory (mutation freeze until planning artifacts exist)
   2. Theme-cluster covering every non-index file (merge bias default)
   3. Staleness rubric (practical expiry, not calendar age alone)
@@ -92,12 +79,12 @@ Cosmetic-only runs (frontmatter + index rewrite while thematic duplicates remain
 
 ```
 memory/
-├── extensions/inject-memory.ts   # /memory + /consolidate commands, auto-memory injection, auto-consolidation
+├── extensions/inject-memory.ts   # /memory + /consolidate commands, memory injection, auto-memory guidance
 ├── procedures/
 │   └── consolidate.md            # inline procedure written to a child Pi task file, not a skill
 ├── scripts/validate-consolidate.py
 ├── features/validate-consolidate.feature
-├── features/auto-consolidate.feature
+├── features/consolidate.feature
 ├── tests/test_validate_consolidate.py
 ├── tests/test_inject_memory_extension.py
 ├── tests/consolidation_evidence_harness.ts

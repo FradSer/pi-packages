@@ -6,22 +6,58 @@ import unittest
 MEMORY_PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class TestInjectMemoryExtension(unittest.TestCase):
+    def ext_source(self) -> str:
+        with open(os.path.join(MEMORY_PKG_DIR, "extensions", "inject-memory.ts"), "r", encoding="utf-8") as f:
+            return f.read()
+
     def test_extension_file_exists(self):
         """Verify extensions/inject-memory.ts exists and has correct exports."""
         ext_path = os.path.join(MEMORY_PKG_DIR, "extensions", "inject-memory.ts")
         self.assertTrue(os.path.exists(ext_path))
-        with open(ext_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        content = self.ext_source()
         self.assertIn("loadAndDeduplicateMemories", content)
         self.assertIn("formatMemoriesBlock", content)
         self.assertIn("before_agent_start", content)
-        self.assertIn("registerCommand(\"memory\"", content)
+        self.assertIn('registerCommand("memory"', content)
+        self.assertIn('registerCommand("consolidate"', content)
+
+    def test_auto_memory_guidance_present_without_auto_consolidation_text(self):
+        """Auto-memory guidance is injected for the LLM to actively capture durable facts,
+        but it must NOT contain auto-consolidation threshold instructions."""
+        content = self.ext_source()
+        self.assertIn("AUTO_MEMORY_GUIDANCE", content)
+        self.assertIn("autoMemory", content)
+        self.assertIn("readSettings", content)
+        self.assertIn("writeSettings", content)
+        self.assertIn("settings.json", content)
+        # Guidance should tell LLM to capture durable facts
+        self.assertIn("You maintain a durable project memory", content)
+        # Guidance must NOT reference automatic consolidation triggers or fractions
+        self.assertNotIn("consolidateAtContextFraction", content)
+        self.assertNotIn("consolidates memory automatically", content)
+        self.assertNotIn("40%", content)
+
+    def test_no_auto_consolidation_hooks(self):
+        """Auto-consolidation hooks (agent_settled, input tracking, context fraction) are removed."""
+        content = self.ext_source()
+        self.assertNotIn('pi.on("agent_settled"', content)
+        self.assertNotIn("getContextUsage", content)
+        self.assertNotIn("consolidateAtContextFraction", content)
+        self.assertNotIn("lastTriggeredTier", content)
+        self.assertNotIn("userTurnSeen", content)
+
+    def test_menu_options_contain_auto_memory_toggle(self):
+        """The /memory menu provides auto-memory toggle and memory management."""
+        content = self.ext_source()
+        self.assertIn('"Consolidate memory now"', content)
+        self.assertIn('"Edit user instructions (~/.pi/agent/AGENTS.md)"', content)
+        self.assertIn('"Open memory folder"', content)
+        self.assertIn("Toggle auto-memory", content)
+        self.assertIn("Auto-memory: ${status}", content)
 
     def test_consolidate_procedure_is_inline_not_a_skill(self):
         """Consolidate runs via procedures/consolidate.md, not via a skill doc path lookup."""
-        ext_path = os.path.join(MEMORY_PKG_DIR, "extensions", "inject-memory.ts")
-        with open(ext_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        content = self.ext_source()
         self.assertNotIn("skills/consolidate", content)
         self.assertNotIn("SKILL.md", content)
         self.assertIn("procedures", content)
@@ -50,45 +86,23 @@ class TestInjectMemoryExtension(unittest.TestCase):
         self.assertIn("./extensions", data["pi"]["extensions"])
 
 
-class TestAutoConsolidation(unittest.TestCase):
-    """Auto-consolidation triggers the inline consolidate procedure at a context
-    fill fraction (features/auto-consolidate.feature)."""
+class TestManualConsolidation(unittest.TestCase):
+    """Memory consolidation runs on-demand in a background child Pi process
+    (features/consolidate.feature)."""
 
     def ext_source(self) -> str:
         with open(os.path.join(MEMORY_PKG_DIR, "extensions", "inject-memory.ts"), "r", encoding="utf-8") as f:
             return f.read()
 
-    def test_hooks_user_input_and_agent_settled(self):
-        """The extension must gate on user-typed turns (input source interactive)
-        and evaluate at agent settle, so extension-injected runs never re-trigger."""
-        content = self.ext_source()
-        self.assertIn('pi.on("input"', content)
-        self.assertIn('event.source', content)
-        self.assertIn('"interactive"', content)
-        self.assertIn('pi.on("agent_settled"', content)
-
-    def test_reads_context_usage(self):
-        """The trigger reads pi's native context usage (percent + window)."""
-        content = self.ext_source()
-        self.assertIn("getContextUsage", content)
-        self.assertIn("usage.percent", content)
-        self.assertIn("contextWindow", content)
-
-    def test_fraction_setting_defaults_to_0_4(self):
-        """consolidateAtContextFraction defaults to 0.4 (40% of the window) and is
-        persisted in settings.json."""
-        content = self.ext_source()
-        self.assertIn("consolidateAtContextFraction", content)
-        self.assertIn("0.4", content)
-        self.assertIn("settings.json", content)
-
     def test_triggers_async_consolidation(self):
-        """Crossing the fraction boundary spawns a non-interactive child Pi process
-        (--print --no-session) instead of blocking the session with a follow-up."""
+        """Triggering consolidation spawns a non-interactive child Pi process
+        (--print --mode json --no-session) instead of blocking the session."""
         content = self.ext_source()
         self.assertIn("node:child_process", content)
         self.assertIn("spawn", content)
         self.assertIn('"--print"', content)
+        self.assertIn('"--mode"', content)
+        self.assertIn('"json"', content)
         self.assertIn('"--no-session"', content)
         self.assertIn("consolidate.md", content)
         self.assertIn("{{PKG_DIR}}", content)
@@ -168,7 +182,7 @@ class TestAutoConsolidation(unittest.TestCase):
 
     def test_single_flight(self):
         """Only one dreaming consolidation runs at a time — a running child blocks
-        a second spawn even when a new fraction tier is crossed."""
+        a second spawn."""
         content = self.ext_source()
         self.assertIn("dreaming", content)
         self.assertIn("active", content)
@@ -197,25 +211,6 @@ class TestAutoConsolidation(unittest.TestCase):
         self.assertIn('"consolidate"', content)
         # The /memory menu itself must stay unchanged: only one registerCommand("memory")
         self.assertEqual(content.count('registerCommand("memory"'), 1)
-
-    def test_tier_prevents_retrigger(self):
-        """Tier-based firing (one trigger per fraction boundary) stops the
-        consolidation run itself from re-triggering."""
-        content = self.ext_source()
-        self.assertIn("tier", content)
-        self.assertIn("lastTriggeredTier", content)
-
-    def test_gated_on_auto_memory_and_tui_mode(self):
-        """Auto-consolidation only runs when auto-memory is on and the session is TUI."""
-        content = self.ext_source()
-        self.assertIn("autoMemory", content)
-        self.assertIn('ctx.mode === "tui"', content)
-
-    def test_fraction_zero_disables(self):
-        """A fraction <= 0 disables auto-consolidation."""
-        content = self.ext_source()
-        self.assertIn("<= 0", content)
-        self.assertIn("fraction", content)
 
 
 if __name__ == "__main__":
