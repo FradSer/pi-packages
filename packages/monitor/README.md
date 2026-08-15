@@ -99,6 +99,13 @@ Ordinary output never triggers background model turns. If a terminal result is
 monitor_read monitor_id="monitor_1" tail_lines=100
 ```
 
+A `running` monitor showing `0 retained, 0 dropped` while the source clearly
+produced output usually means an intermediate filter is block-buffering: `grep`,
+`sed`, and `awk` buffer when their stdout is a pipe, so lines stall until ~4 KB
+accumulates or the process exits. Keep filter stages line-buffered (`grep
+--line-buffered`, `sed -l`, `awk` with `fflush()`), or emit the terminal result
+without a filter stage.
+
 Output is labelled by source:
 
 ```text

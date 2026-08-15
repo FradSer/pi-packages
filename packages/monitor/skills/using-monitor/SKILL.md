@@ -76,6 +76,21 @@ The monitor sends one compact plain-text terminal message with `triggerTurn:
 true`. It uses stable `key=value` fields and emits complex `result` data as one
 compact JSON value. Ordinary stdout and stderr never create messages or turns.
 
+## Downstream filters must stay line-buffered
+
+The monitor consumes child stdout as it arrives, but an intermediate filter can
+hold data back: `grep`, `sed`, and `awk` block-buffer when their stdout is a
+pipe, so lines stall inside the filter until ~4 KB accumulates or the process
+exits (verified on macOS BSD grep). A monitor watching such a pipeline can show
+`0 retained, 0 dropped` for a long time even though the source already produced
+output.
+
+- Prefer commands that emit the terminal result directly, with no filter stage.
+- If a filter stage is unavoidable, keep it line-buffered: `grep
+  --line-buffered`, `sed -l`, or `awk '{ print ...; fflush() }'`.
+- If the source script supports exclusion flags, use those instead of piping
+  through `grep -v`.
+
 ## Diagnose only when needed
 
 After `failure`, `timeout`, or `result_missing`, inspect retained output:

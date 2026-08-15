@@ -23,6 +23,7 @@
 - `project_pi_package_conventions.md` — Native Pi package standards for package.json, skills, extensions, worktrees, runtime deps — no Claude plugin artifacts
 - `feedback_agents_skills_symlinks.md` — `~/.agents/skills/` entries are user symlinks to local dev repos — never delete them when cleaning skill installs
 - `feedback_stale_session_skill_paths.md` — pi caches package/skill paths at session start; after a repo restructure old sessions throw ENOENT — restart pi
+- `feedback_pipe_buffering_watch_filters.md` — grep/sed/awk block-buffer when piped; a monitor watching `script | grep -v` sees nothing — use native exclusion or --line-buffered
 
 ## package designs
 - `project_teammate_autonomous_and_tui.md` — teammate: autonomous child Pi workers over a shared state file, blocking/background spawn, deps, worktree isolation, live polling, /teammate console
