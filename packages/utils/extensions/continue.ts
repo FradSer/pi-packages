@@ -4,8 +4,8 @@
  * Intercepts plain text continuation requests ("continue" / "继续" / "繼續").
  *
  * Behavior matrix:
- *   - Interrupted, provider/API-failed, or truncated turn -> Silent resume (display: false) to avoid chat transcript clutter.
- *   - Normal Completed turn -> Visible message (display: true / sendUserMessage) so the transcript clearly shows the continuation prompt.
+ *   - Interrupted, provider/API-failed, or truncated turn -> Direct continuation without adding continuation text to LLM context.
+ *   - Normal completed turn -> Visible user message so the transcript and LLM context include the continuation request.
  *
  * Usage:
  *   /continue [optional extra prompt]
@@ -16,11 +16,12 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 
 export interface ContinuationTarget {
   promptText: string;
-  isInterrupted: boolean;
+  isDirectContinuation: boolean;
   requiresUserAction?: boolean;
 }
 
 const CONTINUE_SET = new Set(["continue", "继续", "繼續"]);
+const CONTINUATION_MESSAGE_TYPE = "continue-extension";
 const TRANSIENT_PROVIDER_ERROR_PATTERN =
   /overloaded|rate.?limit|too many requests|\b429\b|\b5(?:00|02|03|04|24)\b|service.?unavailable|server.?error|internal.?error|provider.?returned.?error|network.?error|connection.?error|connection.?refused|connection.?lost|other side closed|fetch failed|getaddrinfo|ENOTFOUND|EAI_AGAIN|upstream.?connect|reset before headers|ECONNRESET|socket hang up|socket connection was closed|timed? out|timeout|terminated|websocket.?closed|websocket.?error|ended without|stream ended before|http2 request did not get a response|retry delay|you can retry your request|try your request again|please retry your request|ResourceExhausted/i;
 
@@ -64,7 +65,8 @@ function getLastUserPrompt(ctx: ExtensionContext): string | null {
 
 /**
  * Inspect the session history to construct a continuation prompt and determine
- * whether the turn was interrupted (requires silent resume) or completed (requires visible message).
+ * whether the turn can continue directly (without a new user message) or needs
+ * a visible user message.
  */
 async function resolvePreflightFailure(ctx: ExtensionContext): Promise<string | null> {
   if (!ctx.model) {
@@ -223,12 +225,16 @@ type ContinuationMessage =
 export function resolveContinuation(ctx: ExtensionContext, customArgs?: string): ContinuationTarget {
   const raw = customArgs?.trim();
   if (raw) {
-    return { promptText: raw, isInterrupted: false };
+    return { promptText: raw, isDirectContinuation: false };
   }
 
   const branch = ctx.sessionManager.getBranch();
   if (branch.length === 0) {
-    return { promptText: "Please continue execution.", isInterrupted: false };
+    return {
+      promptText: "Cannot continue because there is no previous model request.",
+      isDirectContinuation: false,
+      requiresUserAction: true,
+    };
   }
 
   // Find the last message entry in the branch
@@ -242,7 +248,11 @@ export function resolveContinuation(ctx: ExtensionContext, customArgs?: string):
   }
 
   if (!lastMessageEntry) {
-    return { promptText: "Please continue execution.", isInterrupted: false };
+    return {
+      promptText: "Cannot continue because there is no previous model request.",
+      isDirectContinuation: false,
+      requiresUserAction: true,
+    };
   }
 
   const msg = lastMessageEntry.message;
@@ -252,7 +262,7 @@ export function resolveContinuation(ctx: ExtensionContext, customArgs?: string):
     const userText = getLastUserPrompt(ctx);
     return {
       promptText: userText ?? "Please resume execution from the last request.",
-      isInterrupted: true,
+      isDirectContinuation: true,
     };
   }
 
@@ -264,7 +274,7 @@ export function resolveContinuation(ctx: ExtensionContext, customArgs?: string):
       const decision = resolvePendingContinuation(ctx);
       return {
         ...decision,
-        isInterrupted: true,
+        isDirectContinuation: true,
       };
     }
 
@@ -273,7 +283,7 @@ export function resolveContinuation(ctx: ExtensionContext, customArgs?: string):
         promptText:
           lastUserText ??
           "The previous turn was aborted. Please resume execution from where it was interrupted.",
-        isInterrupted: true,
+        isDirectContinuation: true,
       };
     }
 
@@ -281,7 +291,7 @@ export function resolveContinuation(ctx: ExtensionContext, customArgs?: string):
       const decision = resolveLengthContinuation(msg, ctx.model?.contextWindow);
       return {
         ...decision,
-        isInterrupted: !decision.requiresUserAction,
+        isDirectContinuation: !decision.requiresUserAction,
       };
     }
 
@@ -289,7 +299,7 @@ export function resolveContinuation(ctx: ExtensionContext, customArgs?: string):
       return {
         promptText:
           "The previous model response was deferred and is not complete. Poll or cancel the deferred request, or switch providers, before continuing.",
-        isInterrupted: false,
+        isDirectContinuation: false,
         requiresUserAction: true,
       };
     }
@@ -298,7 +308,7 @@ export function resolveContinuation(ctx: ExtensionContext, customArgs?: string):
       const decision = resolveAssistantErrorContinuation(msg, lastUserText);
       return {
         ...decision,
-        isInterrupted: !decision.requiresUserAction,
+        isDirectContinuation: !decision.requiresUserAction,
       };
     }
   }
@@ -308,18 +318,68 @@ export function resolveContinuation(ctx: ExtensionContext, customArgs?: string):
     const decision = resolveToolErrorContinuation(msg);
     return {
       ...decision,
-      isInterrupted: !decision.requiresUserAction,
+      isDirectContinuation: !decision.requiresUserAction,
     };
   }
 
-  // Case 4: Last assistant message completed normally — prompt AI to continue based on suggestions (visible message)
+  // Only a normally stopped assistant turn is a completed model run. Every
+  // other trailing message continues from the existing context directly.
+  if (msg.role === "assistant" && msg.stopReason === "stop") {
+    return {
+      promptText: "Please continue execution based on the suggestions, incomplete steps, or next actions from your previous response.",
+      isDirectContinuation: false,
+    };
+  }
+
   return {
-    promptText: "Please continue execution based on the suggestions, incomplete steps, or next actions from your previous response.",
-    isInterrupted: false,
+    promptText: "Resume execution from the current context without repeating completed work.",
+    isDirectContinuation: true,
   };
 }
 
+function isDirectContinuationMarker(message: { role: string; customType?: string }): boolean {
+  return message.role === "custom" && message.customType === CONTINUATION_MESSAGE_TYPE;
+}
+
+function isIncompleteAssistant(message: { role: string; stopReason?: string }): boolean {
+  return message.role === "assistant" && message.stopReason !== "stop";
+}
+
+export function stripDirectContinuationMessages<T extends { role: string; customType?: string; stopReason?: string }>(messages: T[]): T[] {
+  const filtered: T[] = [];
+  for (const message of messages) {
+    if (isDirectContinuationMarker(message)) {
+      const previous = filtered[filtered.length - 1];
+      if (previous && isIncompleteAssistant(previous)) {
+        filtered.pop();
+      }
+      continue;
+    }
+    filtered.push(message);
+  }
+  return filtered;
+}
+
+function sendDirectContinuation(pi: ExtensionAPI): void {
+  pi.sendMessage(
+    {
+      customType: CONTINUATION_MESSAGE_TYPE,
+      content: "",
+      display: false,
+    },
+    {
+      triggerTurn: true,
+    },
+  );
+}
+
 export default function (pi: ExtensionAPI) {
+  // The hidden marker only starts the agent loop. The context hook removes it,
+  // plus the immediately preceding incomplete assistant message, before the
+  // provider request is assembled.
+  pi.on("context", async (event) => ({
+    messages: stripDirectContinuationMessages(event.messages),
+  }));
   // 1. Intercept plain user input matching "continue" or "继续"
   pi.on("input", async (event, ctx) => {
     if (isContinuationKeyword(event.text)) {
@@ -330,29 +390,20 @@ export default function (pi: ExtensionAPI) {
       }
 
       const target = resolveContinuation(ctx);
-      const { promptText, isInterrupted } = target;
+      const { promptText, isDirectContinuation } = target;
 
       if (target.requiresUserAction) {
         ctx.ui.notify(target.promptText, "error");
         return { action: "handled" };
       }
 
-      if (isInterrupted) {
-        // Interrupted turn: silently trigger re-run without cluttering UI with duplicate prompt
-        pi.sendMessage(
-          {
-            customType: "continue-extension",
-            content: promptText,
-            display: false,
-          },
-          {
-            triggerTurn: true,
-          },
-        );
+      if (isDirectContinuation) {
+        // Direct continuation: trigger a model request without adding a user message.
+        sendDirectContinuation(pi);
         return { action: "handled" };
       }
 
-      // Completed task: user typed continuation keyword to proceed to next steps — transform and display visibly
+      // A normally completed turn is a new user request and remains visible.
       return {
         action: "transform",
         text: promptText,
@@ -363,7 +414,7 @@ export default function (pi: ExtensionAPI) {
 
   // 2. Register /continue slash command
   pi.registerCommand("continue", {
-    description: "Resume interrupted, failed, or truncated work silently; continue completed work visibly",
+    description: "Resume incomplete work directly; continue completed work with a visible request",
     handler: async (args, ctx) => {
       await ctx.waitForIdle();
       const preflightError = await resolvePreflightFailure(ctx);
@@ -373,25 +424,16 @@ export default function (pi: ExtensionAPI) {
       }
 
       const target = resolveContinuation(ctx, args);
-      const { promptText, isInterrupted } = target;
+      const { promptText, isDirectContinuation } = target;
 
       if (target.requiresUserAction) {
         ctx.ui.notify(promptText, "error");
         return;
       }
 
-      if (isInterrupted) {
-        // Interrupted: silent resume
-        pi.sendMessage(
-          {
-            customType: "continue-extension",
-            content: promptText,
-            display: false,
-          },
-          {
-            triggerTurn: true,
-          },
-        );
+      if (isDirectContinuation) {
+        // Incomplete turn: direct continuation without a user message.
+        sendDirectContinuation(pi);
       } else {
         // Normal completion: visible user message
         pi.sendUserMessage(promptText);

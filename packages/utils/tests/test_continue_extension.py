@@ -53,7 +53,11 @@ class TestContinueExtension(unittest.TestCase):
         self.assertIn("ECONNRESET", content)
         self.assertIn("not recognized as a transient provider failure", content)
         self.assertIn("errorMessage", content)
-        self.assertIn("isInterrupted", content)
+        self.assertIn("isDirectContinuation", content)
+        self.assertIn("stripDirectContinuationMessages", content)
+        self.assertIn('pi.on("context"', content)
+        self.assertIn('CONTINUATION_MESSAGE_TYPE = "continue-extension"', content)
+        self.assertNotIn('pi.sendMessage(\n          {\n            customType: "continue-extension"', content)
 
     def test_feature_file_covers_provider_failure_recovery(self) -> None:
         feature = (UTILS_PKG_DIR / "features" / "continue.feature").read_text(encoding="utf-8")
@@ -69,7 +73,11 @@ class TestContinueExtension(unittest.TestCase):
         self.assertIn("arguments were truncated", feature)
         self.assertIn("non-retryable malformed request", feature)
         self.assertIn("unclassified provider error", feature)
-        self.assertIn('latest assistant message completed normally', feature)
+        self.assertIn('latest assistant message has stopReason "stop"', feature)
+        self.assertIn("without a continuation user message", feature)
+        self.assertIn("omitted before the provider request", feature)
+        self.assertIn("included in the model context", feature)
+        self.assertIn('stopReason "stop"', feature)
 
     def test_feature_file_is_mirrored_in_project_memory(self) -> None:
         memory = (UTILS_PKG_DIR.parent.parent / ".memory" / "project_continue_recovery.md").read_text(encoding="utf-8")

@@ -37,12 +37,12 @@ pi install npm:@fradser/pi-utils
 ```
 
 Behavior:
-1. **Input Interception**: Intercepts plain text `continue` and transforms it into explicit instructions for the model to pick up where it left off.
-2. **Interrupted Step Recovery**: If a tool execution failed or was interrupted, prompts the model to inspect error details and retry from the interrupted step.
+1. **Input Interception**: Intercepts plain text `continue` and routes it according to the last turn state.
+2. **Direct Recovery**: For interrupted, failed, truncated, pending, or tool-error turns, starts a request from the existing conversation state without adding `continue` or an internal instruction as a user message. A hidden marker is removed before the provider request, along with the immediately preceding incomplete assistant response.
 3. **Model/API Failure Recovery**: If the provider request ends with `stopReason: "error"`, classifies context overflow, authentication, quota/billing, malformed requests, transient provider failures, and safety/content blocks. Deterministic failures show an actionable error instead of blindly retrying.
 4. **Truncated Response Recovery**: If the response ends with `stopReason: "length"`, resumes from the last completed step without repeating completed work. Empty-output truncation is treated as possible context exhaustion.
 5. **Incomplete Tool Recovery**: Handles pending/tool-use turns and tool results caused by truncated arguments, invalid tool calls, permission blocks, or execution failures.
-6. **Suggestion Continuation**: If the previous assistant message ended with steps or recommendations, prompts the model to continue implementing them.
+6. **Suggestion Continuation**: Only after a normally completed assistant turn does `/continue` become a visible user request, allowing the continuation instruction to remain in the transcript and model context.
 
 ### `effort` — set the thinking level
 

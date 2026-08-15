@@ -1,6 +1,7 @@
 Feature: /continue recovery for incomplete and failed turns
   The utils package exposes /continue and continuation keyword input that can
-  resume work without duplicating prompts after interrupted or failed turns.
+  resume work without adding continuation text to the model context after an
+  incomplete turn.
 
   Background:
     Given the @fradser/pi-utils package is installed
@@ -10,14 +11,14 @@ Feature: /continue recovery for incomplete and failed turns
     And its error says the provider is overloaded or the network timed out
     When the user runs /continue
     Then the last user request is retried silently
-    And the continuation prompt tells the model to inspect the API error and current state
+    And the request starts from the existing context without a continuation user message
 
   Scenario: A model API request fails without an error message
     Given the latest assistant message has stopReason "error"
     And it has no error message
     When the user types "继续"
     Then the last user request is retried silently
-    And the continuation prompt still identifies the previous model request as failed
+    And the request starts from the existing context without a continuation user message
 
   Scenario: Context overflow recovery has already failed
     Given the latest assistant message has stopReason "error"
@@ -58,25 +59,27 @@ Feature: /continue recovery for incomplete and failed turns
     Given the latest assistant message has stopReason "length"
     When the user runs /continue
     Then execution resumes silently from the incomplete point
-    And the continuation prompt warns the model not to repeat completed work
+    And the truncated assistant response is omitted from the retried provider context
 
   Scenario: A tool-call turn was interrupted before tool results were saved
     Given the latest assistant message has stopReason "toolUse"
     And no tool result follows it
     When the user runs /continue
     Then execution resumes silently from the pending tool work
-    And the continuation prompt tells the model to re-issue only missing tool calls
+    And the incomplete assistant tool-call message is omitted from the retried provider context
 
   Scenario: A partial streaming message was persisted unexpectedly
     Given the latest assistant message has stopReason "pending"
     When the user runs /continue
     Then execution resumes silently from the incomplete turn
+    And no continuation text is sent as a user message
 
   Scenario: A tool call was rejected because its arguments were truncated
     Given the latest message is an error tool result
     And its error says the response hit the output token limit
     When the user runs /continue
     Then the incomplete tool call is re-issued silently
+    And no continuation text is sent as a user message
 
   Scenario: A non-retryable malformed request fails
     Given the latest assistant message has stopReason "error"
@@ -89,8 +92,17 @@ Feature: /continue recovery for incomplete and failed turns
     Given the latest message is an error tool result
     When the user runs /continue
     Then execution resumes silently from the interrupted step
+    And the existing tool error remains the only continuation context
+
+  Scenario: A direct continuation marker never becomes model input
+    Given the latest assistant message has stopReason "error"
+    When the user runs /continue
+    Then a hidden continuation marker may trigger the request
+    And the marker and failed assistant response are omitted before the provider request
+    And no continuation text is sent as a user message
 
   Scenario: A completed turn continues visibly
-    Given the latest assistant message completed normally
+    Given the latest assistant message has stopReason "stop"
     When the user runs /continue
-    Then a visible continuation message is sent
+    Then a visible continuation user message is sent
+    And that message is included in the model context
