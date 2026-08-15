@@ -5,16 +5,19 @@
  *
  *   /memory
  *     Auto-memory: on
- *     1. Consolidate memory now        (inline procedure from procedures/consolidate.md)
- *     2. Edit user instructions        (~/.pi/agent/AGENTS.md)
- *     3. Edit project instructions     (./AGENTS.md or ./CLAUDE.md — whichever exists)
- *     4. Open memory folder
- *     5. Toggle auto-memory
+ *     1. Select memory model
+ *     2. Enter provider/model manually
+ *     3. Consolidate memory now        (inline procedure from procedures/consolidate.md)
+ *     4. Edit user instructions        (~/.pi/agent/AGENTS.md)
+ *     5. Edit project instructions     (./AGENTS.md or ./CLAUDE.md — whichever exists)
+ *     6. Open memory folder
+ *     7. Toggle auto-memory
  *
  * Auto-memory on → `before_agent_start` injects prompt guidance that tells the
  * LLM to actively capture durable decisions/preferences into memory when needed.
  * Existing memories are always injected into the system prompt; the toggle only
- * controls the auto-write guidance.
+ * controls the auto-write guidance. Consolidation uses a separately selected
+ * Pi model when configured.
  */
 
 import fs from "fs/promises";
@@ -23,8 +26,17 @@ import os from "os";
 import { spawn } from "node:child_process";
 import * as nodeFs from "node:fs";
 import { fileURLToPath } from "node:url";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
+import {
+  memoryConfigPath,
+  modelRef,
+  parseModelRef,
+  readMemoryConfig,
+  writeMemoryConfig,
+  type MemoryConfig,
+} from "../config";
 
 export function getEscapedCwd(cwd: string): string {
   return cwd.replace(/\//g, "-");
@@ -105,6 +117,8 @@ interface MemorySettings {
   autoMemory: boolean;
 }
 
+let memoryConfig: MemoryConfig = readMemoryConfig();
+
 function settingsFilePath(): string {
   return path.join(os.homedir(), CONFIG_DIR_NAME, "agent", "memory", "settings.json");
 }
@@ -182,7 +196,7 @@ function resolvePackageDir(): string {
   return path.resolve(extensionDir, "..");
 }
 
-// ── child Pi process for async consolidation ("dreaming") ──────────
+// ── background consolidation ("dreaming") ─────────────────────────
 
 function isPiPackageScript(filePath: string): boolean {
   try {
@@ -364,17 +378,73 @@ function setDreamingWidget(ctx: ExtensionContext): void {
   });
 }
 
+function modelLabel(model: Model<Api>): string {
+  return `${model.provider}/${model.id}`;
+}
+
+function availableMemoryModels(ctx: ExtensionContext): Model<Api>[] {
+  const models = ctx.scopedModels.length > 0
+    ? ctx.scopedModels.map((scoped) => scoped.model)
+    : ctx.modelRegistry.getAvailable();
+  return models.sort((left, right) => modelLabel(left).localeCompare(modelLabel(right)));
+}
+
+function configuredMemoryModel(): string {
+  return modelRef(memoryConfig) ?? "(not configured)";
+}
+
+function saveMemoryConfig(next: MemoryConfig): void {
+  memoryConfig = next;
+  writeMemoryConfig(memoryConfig);
+}
+
+async function chooseMemoryModel(ctx: ExtensionContext): Promise<void> {
+  const models = availableMemoryModels(ctx);
+  if (models.length === 0) {
+    ctx.ui.notify("No models are available in the model registry.", "warning");
+    return;
+  }
+  const options = models.map((model) => {
+    const current = modelLabel(model) === configuredMemoryModel() ? " · current" : "";
+    return `${modelLabel(model)} · ${model.name}${current}`;
+  });
+  const selected = await ctx.ui.select("Select a memory model", options);
+  if (!selected) return;
+  const model = models[options.indexOf(selected)];
+  if (!model) return;
+  saveMemoryConfig({ provider: model.provider, model: model.id });
+  ctx.ui.notify(`Memory model set to ${modelLabel(model)}`, "info");
+}
+
+async function setMemoryModel(value: string, ctx: ExtensionContext): Promise<void> {
+  const ref = parseModelRef(value);
+  if (!ref) {
+    ctx.ui.notify("Enter a model in provider/model format", "error");
+    return;
+  }
+  if (!ctx.modelRegistry.find(ref.provider, ref.model)) {
+    ctx.ui.notify(`Model ${ref.provider}/${ref.model} was not found in the model registry`, "error");
+    return;
+  }
+  saveMemoryConfig(ref);
+  ctx.ui.notify(`Memory model set to ${ref.provider}/${ref.model}`, "info");
+}
+
+async function enterMemoryModel(ctx: ExtensionContext): Promise<void> {
+  const value = await ctx.ui.input("Memory model", configuredMemoryModel() === "(not configured)" ? "provider/model" : configuredMemoryModel());
+  if (value === undefined) return;
+  await setMemoryModel(value, ctx);
+}
+
 function clearDreamingWidget(ctx: ExtensionContext): void {
   dreamingActivity = "";
   if (ctx.mode === "tui") ctx.ui.setWidget("memory-dreaming", undefined);
 }
 
 /**
- * Run the inline consolidate procedure in a fresh, non-interactive child Pi
- * process (--print --mode json --no-session) so the current session is never
- * blocked. The child gets the procedure text, the session file path (for the
- * procedure's Step 0 session-context capture), and the memory dirs. A
- * "dreaming" widget shows above the input editor until the child exits.
+ * Run the consolidation procedure in the background so the current session
+ * stays responsive. The configured memory model is passed to the background
+ * run when available. A "dreaming" widget shows progress until it exits.
  */
 async function spawnAsyncConsolidation(
   ctx: ExtensionContext,
@@ -414,9 +484,12 @@ async function spawnAsyncConsolidation(
 
   let child;
   try {
+    const modelArgs = memoryConfig.provider && memoryConfig.model
+      ? ["--model", `${memoryConfig.provider}/${memoryConfig.model}`]
+      : [];
     child = spawn(
       cli.command,
-      [...cli.args, "--print", "--mode", "json", "--no-session", `@${taskFile}`],
+      [...cli.args, "--print", "--mode", "json", "--no-session", ...modelArgs, `@${taskFile}`],
       { cwd: opts.cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] },
     );
   } catch (err: unknown) {
@@ -539,6 +612,10 @@ export default function (pi: ExtensionAPI) {
   const dreamState: DreamState = { active: false };
 
   // Inject existing memories + auto-memory guidance before every turn
+  pi.on("session_start", () => {
+    memoryConfig = readMemoryConfig();
+  });
+
   pi.on("before_agent_start", async (event, ctx) => {
     const cwd = ctx.cwd || process.cwd();
     const memories = await loadAndDeduplicateMemories(cwd);
@@ -560,8 +637,22 @@ export default function (pi: ExtensionAPI) {
 
   // /memory command with the management menu
   pi.registerCommand("memory", {
-    description: "Manage project memory: instructions, memory folder, consolidation",
-    handler: async (_args, ctx) => {
+    description: "Manage project memory: model, instructions, memory folder, consolidation",
+    handler: async (args, ctx) => {
+      const command = args.trim();
+      if (command === "model") {
+        await chooseMemoryModel(ctx);
+        return;
+      }
+      if (command.startsWith("model ")) {
+        await setMemoryModel(command.slice("model ".length).trim(), ctx);
+        return;
+      }
+      if (command === "show" || command === "status") {
+        ctx.ui.notify(`Memory model: ${configuredMemoryModel()}\nConfig file: ${memoryConfigPath()}`, "info");
+        return;
+      }
+
       const settings = await readSettings();
       const status = settings.autoMemory ? "on" : "off";
       const cwd = ctx.cwd || process.cwd();
@@ -573,6 +664,8 @@ export default function (pi: ExtensionAPI) {
       const projectInstructions = await resolveProjectInstructionsFile(cwd);
 
       const options = [
+        `Select memory model (current: ${configuredMemoryModel()})`,
+        "Enter provider/model manually",
         "Consolidate memory now",
         "Edit user instructions (~/.pi/agent/AGENTS.md)",
         `Edit project instructions (${projectInstructions.display})`,
@@ -584,6 +677,7 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify(
           [
             `Auto-memory: ${status}`,
+            `Memory model: ${configuredMemoryModel()}`,
             `Harness memory: ${harnessDir}`,
             `Public memory: ${cwd}/.memory`,
             `Consolidate procedure: ${procedureFile}`,
@@ -596,12 +690,16 @@ export default function (pi: ExtensionAPI) {
       const choice = await ctx.ui.select(`Auto-memory: ${status}\n\nMemory management:`, options);
       if (!choice) return; // cancelled
 
-      if (choice.startsWith("Consolidate memory now")) {
+      if (choice.startsWith("Select memory model")) {
+        await chooseMemoryModel(ctx);
+      } else if (choice === "Enter provider/model manually") {
+        await enterMemoryModel(ctx);
+      } else if (choice.startsWith("Consolidate memory now")) {
         if (dreamState.active) {
           ctx.ui.notify("Memory consolidation is already running in background.", "info");
           return;
         }
-        ctx.ui.notify("Starting memory consolidation in background worker…", "info");
+        ctx.ui.notify("Starting memory consolidation in the background…", "info");
         await spawnAsyncConsolidation(ctx, dreamState, {
           pkgDir,
           cwd,
@@ -630,9 +728,8 @@ export default function (pi: ExtensionAPI) {
 
   // /consolidate — dedicated one-shot consolidation trigger, sibling of
   // /memory (no menu). Kept separate from /memory so the management menu
-  // stays focused on instructions + settings. The consolidation itself already
-  // runs entirely in a background child, so the foreground user just sees the
-  // "Memory: dreaming" widget — no need to surface the worker mechanics.
+  // stays focused on instructions + settings. Consolidation runs in the
+  // background, so the active session remains responsive.
   pi.registerCommand("consolidate", {
     description: "Consolidate project memory now",
     handler: async (_args, ctx) => {
@@ -650,7 +747,7 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      ctx.ui.notify("Starting memory consolidation…", "info");
+      ctx.ui.notify("Starting memory consolidation in the background…", "info");
       await spawnAsyncConsolidation(ctx, dreamState, {
         pkgDir,
         cwd,

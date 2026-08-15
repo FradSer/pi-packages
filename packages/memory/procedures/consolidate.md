@@ -1,10 +1,9 @@
 # Memory — Consolidate procedure
 
 > **Inline procedure.** The `/memory` command ("Consolidate memory now") and `/consolidate`
-> write this document into a temporary task file and start a fresh background Pi child
-> with `--print --mode json --no-session @<task-file>`. It is not a skill and is
-> never invoked as `/skill:consolidate`. `{{PKG_DIR}}` is substituted with the
-> installed package directory before the child starts.
+> run this procedure in the background without blocking the active session. It is
+> not a skill and is never invoked as `/skill:consolidate`. `{{PKG_DIR}}` is
+> substituted with the installed package directory before the run starts.
 >
 > A zero child exit alone does not prove consolidation. The parent reports
 > success only when the JSONL stream records completed tool work, a passing full
@@ -96,7 +95,7 @@ session context into memory (Step 0 below), then consolidates existing memory.
 If the session has no memorable content, capture is skipped and consolidation runs
 directly. To skip capture explicitly, invoke the /memory consolidate with "no-context".
 
-Work order: Step 0 session capture, then harness first, then sync to `.memory/`.
+Work order: Step 0 session capture, then select related memories, consolidate harness first, then sync safe results to `.memory/`.
 
 ### Step 0: Session context capture (default)
 
@@ -122,14 +121,26 @@ the exact path); it is JSONL — one JSON entry per line with `role`/`content` f
 4. Files written in Step 0 are ordinary memory files: they join the inventory,
    cluster map, and staleness pass that follow, exactly like pre-existing files.
 
+### Step 0.5: Select related memories
+
+Consolidation is scoped to the current session's durable candidates and the existing memories related to those candidates. Do not treat the whole memory folder as one consolidation input by default.
+
+1. Build a candidate keyword/theme set from Step 0's extracted decisions, preferences, lessons, and project facts.
+2. Read both `MEMORY.md` indexes and use filenames, descriptions, and `[[links]]` to identify related memory files.
+3. Read every selected related memory file in full, including linked files and files sharing the same theme. Indexes are navigation aids, not candidates.
+4. Leave unrelated memory files untouched. If no durable session candidate exists, skip consolidation rather than scanning and rewriting unrelated memories.
+5. Emit a related-memory selection table with `candidate → selected files → reason`; include it in the final report.
+
+The selected related set is the scope for clustering, staleness checks, merge/prune decisions, ground-truth verification, privacy checks, and public sync. A newly captured memory is always selected. Existing memories outside the set must not be edited, deleted, or copied solely because consolidation ran.
+
 ### CRITICAL: Mutation freeze until planning artifacts exist
 
 **Do not `write`, `edit`, or `rm` any memory file** until all three artifacts exist in this conversation
 (Step 0 session-context captures are exempt — they follow the Active Write procedure and are folded into the inventory):
 
-1. **Inventory** — complete name list of harness `*.md` and `.memory/*.md` (including both `MEMORY.md`)
-2. **Cluster map** — every non-index file appears in exactly one theme cluster
-3. **Staleness table** — every non-index file has a rubric verdict (step 4)
+1. **Inventory** — complete name list of the selected related memory files in harness and `.memory/` (including both `MEMORY.md` indexes)
+2. **Cluster map** — every selected non-index file appears in exactly one theme cluster
+3. **Staleness table** — every selected non-index file has a rubric verdict (step 4)
 
 After ground-truth probes (step 5), also hold a **ground-truth table** with tool-observed paths (`path → found|missing|updated`) before applying claim fixes. Fabricating these tables without `read` / bash grep / `find` / `ls` is a failed run.
 
@@ -163,9 +174,9 @@ Do **not** claim consolidate complete unless every gate below is true:
 
 | Gate | Requirement |
 |------|-------------|
-| G1 read | Every `*.md` in harness and `.memory/` was read (including both `MEMORY.md`) |
-| G2 Cluster | Theme-cluster map covers **every** non-index file **before** any merge/delete |
-| G3 Staleness | Every file scored with the staleness rubric (not calendar age alone) |
+| G1 read | Every selected related `*.md` in harness and `.memory/` was read (including both selected `MEMORY.md` indexes) |
+| G2 Cluster | Theme-cluster map covers **every selected** non-index file **before** any merge/delete |
+| G3 Staleness | Every selected file scored with the staleness rubric (not calendar age alone) |
 | G4 Ground truth | Every `project_*` claim checked against the **current** tree with cited paths (or N/A with reason) |
 | G5 Merge bias | Every multi-file cluster either merged, or has an explicit one-line "keep separate because …" |
 | G6 Adversarial | Independent second pass ran when required (step 8); findings applied or rejected with reason |
@@ -174,9 +185,9 @@ Do **not** claim consolidate complete unless every gate below is true:
 
 If any gate fails mid-run, continue until it passes — do not stop at "normalized frontmatter + rebuilt index".
 
-### 1. Read every file (Pi `read`)
+### 1. Read every selected related file (Pi `read`)
 
-Use Pi `read` on every `*.md` in both harness memory and `.memory/`, including `MEMORY.md`. Detect drift (name sets and content hashes / word-level diffs). List harness-only private files. Emit the **inventory**.
+Use Pi `read` on every selected related `*.md` in both harness memory and `.memory/`, including the selected `MEMORY.md` indexes. Detect drift (name sets and content hashes / word-level diffs). List harness-only private files. Emit the inventory and related-memory selection table. Unselected files are not part of this run and must remain untouched.
 
 ### 2. Normalize shape plan (do not stop here; mutations still frozen)
 
@@ -190,7 +201,7 @@ Normalization alone is **not** consolidation.
 
 ### 3. CRITICAL: Theme-cluster before merge
 
-Group every non-index file into theme clusters (e.g. deploy, billing, review pipeline, naming). Use overlapping keywords, shared `[[links]]`, and near-duplicate descriptions.
+Group every selected non-index file into theme clusters (e.g. deploy, billing, review pipeline, naming). Use overlapping keywords, shared `[[links]],` and near-duplicate descriptions.
 
 Output a cluster map (keep it for the report):
 
@@ -205,7 +216,7 @@ cluster: <theme>
 
 ### 4. CRITICAL: Staleness rubric (practical expiry ≠ calendar expiry)
 
-Score every non-index file. Calendar age is only one signal — a note can be days old and still SUPERSEDED or OPS-ONLY.
+Score every selected non-index file. Calendar age is only one signal — a note can be days old and still SUPERSEDED or OPS-ONLY.
 
 **Verdicts:** `CONTRADICTED` | `SUPERSEDED` | `SUBSUMED` | `OPS-ONLY` | `ONE-SHOT` | `DORMANT` | `KEEP`
 

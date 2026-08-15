@@ -46,10 +46,23 @@ class TestInjectMemoryExtension(unittest.TestCase):
         self.assertNotIn("lastTriggeredTier", content)
         self.assertNotIn("userTurnSeen", content)
 
+    def test_memory_model_configuration_is_available(self):
+        content = self.ext_source()
+        self.assertIn('"../config"', content)
+        self.assertIn("availableMemoryModels", content)
+        self.assertIn("chooseMemoryModel", content)
+        self.assertIn("enterMemoryModel", content)
+        self.assertIn("memoryConfigPath", content)
+        self.assertIn('"--model"', content)
+        with open(os.path.join(MEMORY_PKG_DIR, "config.ts"), encoding="utf-8") as f:
+            self.assertIn("PI_MEMORY_MODEL", f.read())
+
     def test_menu_options_contain_auto_memory_toggle(self):
         """The /memory menu provides auto-memory toggle and memory management."""
         content = self.ext_source()
         self.assertIn('"Consolidate memory now"', content)
+        self.assertIn("Select memory model", content)
+        self.assertIn("Enter provider/model manually", content)
         self.assertIn('"Edit user instructions (~/.pi/agent/AGENTS.md)"', content)
         self.assertIn('"Open memory folder"', content)
         self.assertIn("Toggle auto-memory", content)
@@ -87,7 +100,7 @@ class TestInjectMemoryExtension(unittest.TestCase):
 
 
 class TestManualConsolidation(unittest.TestCase):
-    """Memory consolidation runs on-demand in a background child Pi process
+    """Memory consolidation runs on-demand in the background
     (features/consolidate.feature)."""
 
     def ext_source(self) -> str:
@@ -95,7 +108,7 @@ class TestManualConsolidation(unittest.TestCase):
             return f.read()
 
     def test_triggers_async_consolidation(self):
-        """Triggering consolidation spawns a non-interactive child Pi process
+        """Triggering consolidation starts a non-interactive background run
         (--print --mode json --no-session) instead of blocking the session."""
         content = self.ext_source()
         self.assertIn("node:child_process", content)
@@ -129,8 +142,8 @@ class TestManualConsolidation(unittest.TestCase):
         content = self.ext_source()
         self.assertIn('fileURLToPath(import.meta.url)', content)
         self.assertIn('path.resolve(extensionDir, "..")', content)
-        self.assertNotIn('"settings.json"', content[content.index("function resolvePackageDir"):content.index("// ── child Pi")])
-        self.assertNotIn('process.cwd()', content[content.index("function resolvePackageDir"):content.index("// ── child Pi")])
+        self.assertNotIn('"settings.json"', content[content.index("function resolvePackageDir"):content.index("// ── background consolidation")])
+        self.assertNotIn('process.cwd()', content[content.index("function resolvePackageDir"):content.index("// ── background consolidation")])
 
     def test_success_requires_tool_validator_and_gate_report_evidence(self):
         """A zero exit is not consolidation proof. Success requires completed tool
@@ -196,7 +209,7 @@ class TestManualConsolidation(unittest.TestCase):
 
     def test_menu_triggers_async_consolidation(self):
         """The /memory menu item 'Consolidate memory now' triggers async consolidation
-        via an independent background child worker process."""
+        via the background consolidation runner."""
         content = self.ext_source()
         self.assertIn('choice.startsWith("Consolidate memory now")', content)
         self.assertIn("spawnAsyncConsolidation", content)
@@ -204,7 +217,7 @@ class TestManualConsolidation(unittest.TestCase):
 
     def test_dedicated_consolidate_command_is_sibling_of_memory(self):
         """A dedicated /consolidate command exists alongside /memory and triggers the
-        same background worker without going through the management menu."""
+        same background runner without going through the management menu."""
         content = self.ext_source()
         self.assertIn('registerCommand("consolidate"', content)
         self.assertIn("spawnAsyncConsolidation", content)
