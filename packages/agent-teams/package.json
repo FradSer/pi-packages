@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-agent-teams",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Multi-agent team system for Pi — mailbox-based communication, task management, and team-leader orchestration",
   "keywords": [
     "pi-package",
