@@ -90,7 +90,9 @@ pi install npm:@fradser/pi-memory
 
 在后台按明确的结果契约运行命令。普通输出保留在模型 context 之外，并且仅在成功、失败、超时或缺失结果时发送一条结构化终态结果。
 
-**工具：** `monitor_start`、`monitor_read`、`monitor_list`、`monitor_stop`
+**工具：** `monitor_start`、`monitor_stop`
+
+终态通知会包含一段有界的诊断输出。`/monitor` 供用户查看，不提供面向模型的输出读取或轮询工具。
 
 **Skill：** `/skill:using-monitor`
 

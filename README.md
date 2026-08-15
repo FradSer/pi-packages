@@ -90,7 +90,9 @@ pi install npm:@fradser/pi-memory
 
 Runs a command in the background against an explicit result contract. It stores ordinary output outside model context and sends exactly one structured terminal result for success, failure, timeout, or a missing result.
 
-**Tools:** `monitor_start`, `monitor_read`, `monitor_list`, `monitor_stop`
+**Tools:** `monitor_start`, `monitor_stop`
+
+The terminal notification includes a bounded diagnostic tail. `/monitor` is for human inspection; there is no model-facing output reader or polling tool.
 
 **Skill:** `/skill:using-monitor`
 
