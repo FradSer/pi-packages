@@ -2,7 +2,7 @@
  * btw overlay — the interactive popup that hosts the side question.
  *
  * Rendered as a full-width panel anchored to the bottom of the terminal
- * (just above the input box), with height adapting to the content: short
+ * (covering the main session input area), with height adapting to the content: short
  * answers shrink the panel, long answers cap at ~40% of the terminal and
  * scroll with the arrow/page keys. Escape closes (or cancels while loading).
  *
@@ -96,7 +96,7 @@ function buildMarkdownTheme(style: BtwOverlayStyle): MarkdownTheme {
     codeBlockBorder: (t) => style.border(t),
     quote: (t) => style.muted(t),
     quoteBorder: (t) => style.border(t),
-    hr: (t) => style.dim(t),
+    hr: () => "__BTW_CONVERSATION_SEPARATOR__",
     listBullet: (t) => style.accent(t),
     bold: (t) => style.accent(t),
     italic: (t) => style.muted(t),
@@ -137,13 +137,12 @@ export function createBtwOverlay(
       return turn.answer ?? "";
     }
     const parts: string[] = [];
-    for (let i = 0; i < turns.length; i++) {
-      const turn = turns[i];
-      const turnParts: string[] = [`**Q: ${turn.question}**`];
+    for (const turn of turns) {
+      const turnParts: string[] = [`**You**  ${turn.question}`];
       if (turn.error) {
         turnParts.push(`*Error: ${turn.error}*`);
       } else if (turn.answer !== undefined) {
-        turnParts.push(turn.answer);
+        turnParts.push(`**btw**  ${turn.answer}`);
       }
       parts.push(turnParts.join("\n\n"));
     }
@@ -183,6 +182,26 @@ export function createBtwOverlay(
   const pad = (line: string, width: number): string => {
     const visible = visibleWidth(line);
     return visible >= width ? line : line + " ".repeat(width - visible);
+  };
+
+  const renderComposer = (width: number): string[] => {
+    const lineWidth = Math.max(1, width);
+    const separator = style.border("─".repeat(lineWidth));
+    const inputWidth = Math.max(4, lineWidth - 4);
+    const inputLines = input.render(inputWidth);
+    const lines = [separator, ""];
+
+    for (const line of inputLines) {
+      const value = line.startsWith("> ") ? line.slice(2) : line;
+      const prompt = truncateToWidth(`${style.accent("btw")} ${style.muted("›")} ${value}`, lineWidth);
+      const promptWidth = visibleWidth(prompt);
+      const leftSpace = Math.floor(Math.max(0, lineWidth - promptWidth) / 2);
+      const rightSpace = Math.max(0, lineWidth - promptWidth - leftSpace);
+      lines.push(`${" ".repeat(leftSpace)}${prompt}${" ".repeat(rightSpace)}`);
+    }
+
+    lines.push("", separator);
+    return lines;
   };
 
   const askQuestion = (question: string) => {
@@ -428,16 +447,22 @@ export function createBtwOverlay(
         for (const line of loader.render(contentWidth)) lines.push(pad(line, contentWidth));
         while (lines.length < 2 + 2) lines.push("");
       } else if (markdown) {
-        const mdLines = markdown.render(contentWidth);
+        const mdLines = markdown.render(contentWidth).map((line) =>
+          line.includes("__BTW_CONVERSATION_SEPARATOR__") ? "__BTW_CONVERSATION_SEPARATOR__" : line,
+        );
         // Adaptive body: short answers fill the panel; long ones cap and scroll.
         const viewport = Math.min(mdLines.length, maxBody);
         const max = Math.max(0, mdLines.length - viewport);
         if (scroll > max) scroll = max;
         const windowLines = mdLines.slice(scroll, scroll + viewport);
         lines.push("");
-        for (const line of windowLines) lines.push(pad(`  ${line}`, contentWidth));
-        if (mdLines.length > maxBody) {
-          lines.push(style.dim(`  … ${mdLines.length - maxBody} more lines`));
+        for (const line of windowLines) {
+          if (line === "__BTW_CONVERSATION_SEPARATOR__") {
+            const separator = style.dim("─".repeat(Math.max(1, width - 4)));
+            lines.push(`${" ".repeat(2)}${separator}${" ".repeat(2)}`);
+          } else {
+            lines.push(pad(`  ${line}`, width));
+          }
         }
         lines.push("");
       }
@@ -448,10 +473,9 @@ export function createBtwOverlay(
       }
 
       if (state !== "loading") {
-        const inputLines = input.render(contentWidth - 2);
-        for (const line of inputLines) {
-          lines.push(pad(`  ${line}`, contentWidth));
-        }
+        lines.push("");
+        for (const line of renderComposer(width)) lines.push(line);
+        lines.push("");
       }
 
       // Footer
@@ -488,7 +512,7 @@ export function createBtwOverlay(
         if (state === "loading") {
           parts.push("esc cancel · ↑↓ scroll");
         } else {
-          parts.push("esc close · enter send · ↑↓ scroll · pgup/pgdn page · home/end jump");
+          parts.push("esc close · enter ask · ↑↓ scroll · pgup/pgdn page · home/end jump");
         }
         footer = parts.join("   ");
       }

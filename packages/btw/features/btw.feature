@@ -32,9 +32,38 @@ Feature: Read-only side questions
     And the prompt includes the new side question
     And the child process executes without persisting a session
 
+  Scenario: The btw overlay covers the main session input area
+    Given the main session has its input TUI visible
+    When the btw overlay opens
+    Then the overlay is rendered directly over the main session input area
+    And the overlay has no bottom margin
+
   Scenario: Multi-turn overlay maintains turns and aggregates token usage
     Given an interactive side question overlay
     When an initial question and a follow-up question are answered
     Then the overlay displays all conversation turns
     And the footer aggregates token usage and cost across turns
+    And the follow-up composer uses two full-width horizontal separators instead of a boxed frame
+    And the follow-up composer keeps equal spacing on both sides of the input area
+    And conversation separators span the available width with equal side spacing
+    And the overlay does not report nonexistent hidden lines
+    And conversation separators are longer than the content text and centered
+
+  Scenario: Side answers are constrained to concise responses
+    Given a side question prompt is built
+    When the child receives its instructions
+    Then it is told to answer in at most five short bullets
+    And it is told to stay within a short word or character budget
+    And it is told not to repeat the question or write a report
+
+  Scenario: Side context stays compact
+    Given a current session contains many messages
+    When the side question context is built
+    Then at most four recent messages are included
+    And the context is capped at 4000 characters
+
+  Scenario: Excessive side output is capped before display
+    Given the side child returns an unusually long answer
+    When the JSONL output is parsed
+    Then the displayed answer is capped at 6000 characters
 

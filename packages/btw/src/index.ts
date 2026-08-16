@@ -1,8 +1,8 @@
 /**
  * @fradser/pi-btw — side questions for Pi.
  *
- * `/btw <question>` answers a quick side question in a full-width popup at
- * the bottom of the terminal (above the input box), without interrupting the
+ * `/btw <question>` answers a quick side question in a full-width popup that
+ * directly covers the main session input area, without interrupting the
  * current task and without ever entering the session history.
  *
  * Improvements over Claude Code's /btw:
@@ -90,7 +90,7 @@ export default function (pi: ExtensionAPI) {
             anchor: "bottom-center",
             width: "100%",
             maxHeight: "80%",
-            margin: { bottom: 4 },
+            margin: { bottom: 0 },
           },
         },
       );

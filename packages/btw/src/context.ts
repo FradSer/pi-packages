@@ -4,8 +4,8 @@
  * guarantee Claude Code's /btw gives, minus the tool-calling limitation).
  */
 
-export const DEFAULT_MAX_MESSAGES = 10;
-export const DEFAULT_MAX_CHARS = 12_000;
+export const DEFAULT_MAX_MESSAGES = 4;
+export const DEFAULT_MAX_CHARS = 4_000;
 
 export interface BuildContextOptions {
   /** Maximum number of recent user/assistant messages to include. */

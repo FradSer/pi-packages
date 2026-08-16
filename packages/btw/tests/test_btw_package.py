@@ -33,6 +33,13 @@ def test_feature_covers_isolation_and_temp_prompt_lifecycle() -> None:
     assert "Scenario: A long side prompt is cleaned up when the child cannot launch" in feature
     assert "Scenario: Multi-turn side questions include conversation history in the prompt" in feature
     assert "Scenario: Multi-turn overlay maintains turns and aggregates token usage" in feature
+    assert "follow-up composer uses two full-width horizontal separators instead of a boxed frame" in feature
+    assert "follow-up composer keeps equal spacing on both sides of the input area" in feature
+    assert "overlay does not report nonexistent hidden lines" in feature
+    assert "conversation separators are longer than the content text and centered" in feature
+    assert "Scenario: Side answers are constrained to concise responses" in feature
+    assert "Scenario: Side context stays compact" in feature
+    assert "Scenario: Excessive side output is capped before display" in feature
 
 
 
@@ -224,6 +231,25 @@ def test_prompt_does_not_specify_reply_language() -> None:
     assert "language" not in spawner
 
 
+def test_prompt_constrains_side_answer_length_and_shape() -> None:
+    spawner = (SRC / "spawner.ts").read_text(encoding="utf-8")
+    assert "150 words or 600 characters" in spawner
+    assert "at most five short bullet points" in spawner
+    assert "Do not repeat the question" in spawner
+    assert "write a report" in spawner
+
+
+def test_context_defaults_are_compact() -> None:
+    context = (SRC / "context.ts").read_text(encoding="utf-8")
+    assert "DEFAULT_MAX_MESSAGES = 4" in context
+    assert "DEFAULT_MAX_CHARS = 4_000" in context
+
+
+def test_output_cap_is_suitable_for_a_short_side_answer() -> None:
+    spawner = (SRC / "spawner.ts").read_text(encoding="utf-8")
+    assert "OUTPUT_CAP = 6_000" in spawner
+
+
 def test_all_prompt_and_ui_strings_are_english() -> None:
     """All prompts and UI strings in the package source must be English — no CJK."""
     cjk = [
@@ -261,10 +287,11 @@ def test_overlay_is_interactive_and_never_writes_to_session() -> None:
     assert "appendEntry" not in overlay
 
 
-def test_overlay_is_full_width_adaptive_popup() -> None:
+def test_overlay_is_full_width_and_covers_main_input() -> None:
     index = (SRC / "index.ts").read_text(encoding="utf-8")
     assert '"bottom-center"' in index
     assert '"100%"' in index
+    assert "margin: { bottom: 0 }" in index
     assert "maxAnswerBody" in (SRC / "overlay.ts").read_text(encoding="utf-8")
 
 
@@ -407,6 +434,21 @@ def test_overlay_handles_multi_turn_flow() -> None:
     assert "Yes, it uses jsonwebtoken." in turn2_rendered
     assert "360 tokens" in turn2_rendered
     assert "2 turns" in turn2_rendered
+    assert "Follow-up" not in turn2_rendered
+    assert "Ask a follow-up" not in turn2_rendered
+    assert "[acc]btw[/acc]" in turn2_rendered
+    assert "[mut]›[/mut]" in turn2_rendered
+    assert "more lines" not in turn2_rendered
+    assert "__BTW_CONVERSATION_SEPARATOR__" not in turn2_rendered
+    assert "[bor]─" in turn2_rendered
+    assert "╭" not in turn2_rendered
+    assert "╰" not in turn2_rendered
+
+    separator = "[bor]" + "─" * 80 + "[/bor]"
+    assert turn2_rendered.count(separator) == 4
+    overlay_source = (SRC / "overlay.ts").read_text(encoding="utf-8")
+    assert "const rightSpace = Math.max" in overlay_source
+    assert "leftSpace = Math.floor" in overlay_source
 
 
 def test_overlay_cancelling_followup_turn_preserves_previous_turns() -> None:

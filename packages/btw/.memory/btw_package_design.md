@@ -20,16 +20,15 @@ even though it is arguably "read-only capable" because a shell is an escape hatc
 
 ## Display: interactive bottom popup (overlay)
 
-User feedback (Aug 12): the answer must be a **full-width popup above the input box
-with adaptive height** — and it must be interactive (mouse scroll + esc close). The
-widget approach (setWidget) was tried and dropped: widgets are non-interactive displays
-— no keyboard, no mouse, no esc.
+The answer is a **full-width popup directly over the main session input area**, with
+adaptive height and interactive keyboard input. The widget approach (setWidget) was
+tried and dropped: widgets are non-interactive displays — no keyboard, no mouse, no esc.
 
 The overlay (`ctx.ui.custom(..., { overlay: true })`) is the right primitive:
-- `anchor: "bottom-center"`, `width: "100%"`, `margin: { bottom: 4 }` → full-width
-  panel right above the input box.
+- `anchor: "bottom-center"`, `width: "100%"`, `margin: { bottom: 0 }` → full-width
+  panel covering the main session input area.
 - Adaptive height: `render()` returns content-sized lines (short answers shrink the
-  panel, long answers cap at ~40% of terminal rows via `maxAnswerBody`).
+  panel, long answers cap at ~40% of terminal rows via `maxAnswerBody` and remain scrollable without a hidden-line count).
 - `CancellableLoader` drives the spinner; its signal kills the child on escape.
 - Escape closes (handleInput), arrows/pgup/pgdn/home/end scroll.
 

@@ -21,7 +21,7 @@ export const READ_ONLY_TOOLS = ["read", "grep", "find", "ls"];
 export const EXCLUDED_TOOLS = ["bash", "edit", "write"];
 
 const PROMPT_ARG_LIMIT = 8000;
-const OUTPUT_CAP = 16_000;
+export const OUTPUT_CAP = 6_000;
 export const DEFAULT_TIMEOUT_MS = 180_000;
 
 export interface BtwUsage {
@@ -180,6 +180,9 @@ export function buildBtwPrompt(
     "You have read-only tools (read, grep, find, ls). Use them to verify facts in the codebase when helpful.",
     "You must NOT modify, create, or delete any files.",
     "Answer concisely and directly.",
+    "Keep the answer within 150 words or 600 characters, whichever comes first.",
+    "Use at most five short bullet points; if one sentence is enough, answer with one sentence.",
+    "Do not repeat the question, summarize the session, or write a report with separate analysis and recommendations."
   ];
   if (context.trim()) {
     lines.push("", "=== Recent session context (read-only excerpt) ===", context);
