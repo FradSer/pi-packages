@@ -11,14 +11,13 @@ SRC = PACKAGE / "src"
 LEADER_TOOLS = {
     "teammate_run",
     "teammate_status",
-    "teammate_wait",
     "teammate_cancel",
     "teammate_retry",
     "teammate_message",
-    "teammate_inbox",
 }
-WORKER_TOOLS = {"teammate_message", "teammate_inbox", "teammate_report"}
+WORKER_TOOLS = {"teammate_message", "teammate_report"}
 REMOVED_TOOLS = {
+    "teammate_inbox",
     "teammate_register",
     "teammate_list",
     "teammate_configure",
@@ -85,12 +84,12 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Dispatch a dependency graph in one call",
         "Downstream nodes auto-start after their dependencies complete",
         "Concurrency bounds simultaneous workers",
-        "Foreground dispatch gathers results; background dispatch returns immediately",
-        "A long foreground run detaches to background after the foreground cap",
+        "Teammates run in the background by default",
+        "A long inline run detaches to background after the gather cap",
         "A run-level timeout fails the whole run",
         "Cancel one node while the rest of the run continues",
         "Retry failed and cancelled nodes without re-running completed ones",
-        "A worker messages the main session or a peer in the same run",
+        "A worker messages the team leader or a peer in the same run",
         "Completing a node hands its result to downstream peers",
         "Multi-node runs synthesize a final summary by default",
         "Read nodes with overlapping paths may run concurrently",
@@ -101,13 +100,12 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Reject ambiguous path ownership",
         "Run lifecycle is explicit",
         "Status lists agents, runs, and node detail",
-        "Wait is the explicit gather barrier for runs",
+        "Run completion is delivered automatically without a wait tool",
         "Cancel a run stops its running nodes",
         "Runs do not survive session restarts",
         "Messaging is capability-bound",
-        "Inbox reads are scoped to the caller",
         "A worker reports only its bound node",
-        "Intermediate worker communication stays in the mailbox",
+        "Intermediate worker communication does not interrupt the main session",
         "The harness delivers one canonical terminal result per node",
         "Workers cannot access leader tools",
         "Worker process outcomes are authoritative",
@@ -115,7 +113,7 @@ def test_bdd_contract_covers_target_resources() -> None:
         "An abnormal worker exit fails its node",
         "Completed run metadata is compacted safely",
         "Invalid tool operations surface as Pi failures",
-        "Cancelled or timed-out waits surface as tool failures",
+        "Inline foreground gather remains the explicit sync option",
         "Legitimate empty and terminal data remains a normal result",
         "Console is a user interface, not an agent tool substitute",
         "Console shows live teammate activity without intercepting global input",
@@ -123,6 +121,13 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Detail scrolling preserves every wrapped display line",
     ):
         assert phrase in feature
+
+
+def test_console_supports_mouse_wheel_scrolling() -> None:
+    ext = source("index.ts")
+    assert "const sgrWheel = /^\\x1b\\[<(\\d+);(\\d+);(\\d+)[Mm]$/" in ext
+    assert "(button & 64) !== 0" in ext
+    assert "direction === 0" in ext and "direction === 1" in ext
 
 
 def test_leader_tool_surface_is_exact() -> None:
@@ -138,7 +143,7 @@ def test_worker_surface_is_capability_bound() -> None:
     worker_section = ext[ext.index("function registerWorkerCapabilities"):ext.index("// ── Team UI")]
     for tool in WORKER_TOOLS:
         assert f'name: "{tool}"' in worker_section
-    for tool in LEADER_TOOLS - {"teammate_message", "teammate_inbox"}:
+    for tool in LEADER_TOOLS - {"teammate_message"}:
         assert f'name: "{tool}"' not in worker_section
     assert "if (workerOutboxBinding())" in ext
     assert "registerWorkerCapabilities(pi);" in ext
@@ -153,16 +158,38 @@ def test_idle_widget_stays_hidden_until_a_teammate_is_running() -> None:
     assert "runningNodeLabel" not in ext
 
 
+def test_widget_rows_align_with_native_loader_and_show_live_activity() -> None:
+    ext = source("index.ts")
+    spawner = source("spawner.ts")
+    types = source("types.ts")
+    # Leading space before each widget row so spinner columns align with pi's
+    # native " ⠋ Working..." loader row.
+    assert '` ${fit(`${bold(fg(color, node.id))}' in ext
+    assert '` ${fit(fg("dim", "/teammate — open console"))}' in ext
+    # Live activity: current tool first, then reasoning, then text.
+    assert "node.spawn?.activeTool" in ext and "liveThinking" in ext
+    assert "liveThinking?: string" in types
+    # The JSON stream parser tracks tool calls via message_update subtypes
+    # (toolcall_start/delta/end) — the obsolete tool_execution_* events do not
+    # exist in pi's JSON mode output.
+    assert '"toolcall_start"' in spawner and '"toolcall_delta"' in spawner and '"toolcall_end"' in spawner
+    assert "tool_execution_start" not in spawner
+    assert "tool_execution_end" not in spawner
+    # toolcall_end keeps the richer delta-derived label ("bash: echo hello")
+    # instead of overwriting it with the bare tool name.
+    assert "if (tc?.name && !state.activeTool)" in spawner
+    # Reasoning deltas are accumulated for the activity line.
+    assert '"thinking_delta"' in spawner
+
+
 def test_types_express_run_centric_surface() -> None:
     types = source("types.ts")
     for schema in (
         "TeammateRunParams",
         "TeammateStatusParams",
-        "TeammateWaitParams",
         "TeammateCancelParams",
         "TeammateRetryParams",
         "TeammateMessageParams",
-        "TeammateInboxParams",
         "TeammateReportParams",
         "RunTaskSpec",
     ):
@@ -468,7 +495,7 @@ def test_completing_a_node_hands_result_to_dependents() -> None:
     module = (SRC / "state.ts").as_uri()
     payload = run_node(
         f'''\
-        import {{ createRun, resetState, updateNodeStatus, handoffNodeResult, readMailbox }} from "{module}";
+        import {{ createRun, resetState, updateNodeStatus, handoffNodeResult, getState }} from "{module}";
         resetState();
         const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false, summarize: false,
           nodes: [
@@ -478,12 +505,12 @@ def test_completing_a_node_hands_result_to_dependents() -> None:
         const run = created.run;
         updateNodeStatus(run.id, "a", "completed", "fixed auth.ts");
         const sent = handoffNodeResult(run.id, "a");
-        const inbox = readMailbox(run.nodes.b.workerKey, {{ unreadOnly: true, markRead: false }});
+        const mailbox = getState().mailboxes[run.nodes.b.workerKey] ?? [];
         console.log(JSON.stringify({{
           sent,
-          subject: inbox[0]?.subject ?? "",
-          body: inbox[0]?.body ?? "",
-          from: inbox[0]?.from ?? "",
+          subject: mailbox[0]?.subject ?? "",
+          body: mailbox[0]?.body ?? "",
+          from: mailbox[0]?.from ?? "",
         }}));
         '''
     )
@@ -640,23 +667,26 @@ def test_mailbox_is_best_effort_without_receipts() -> None:
     module = (SRC / "state.ts").as_uri()
     payload = run_node(
         f'''\
-        import {{ createRun, resetState, sendMessage, readMailbox, receiveWorkerMessage }} from "{module}";
+        import {{ createRun, resetState, sendMessage, receiveWorkerMessage, getState }} from "{module}";
         resetState();
         const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false,
           nodes: [{{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }}] }});
         const run = created.run;
         const key = run.nodes.a.workerKey;
-        sendMessage({{ from: "agent", to: key, subject: "hi", body: "hello" }});
-        const unread = readMailbox(key, {{ unreadOnly: true }}).length;
-        const marked = readMailbox(key, {{ unreadOnly: false, markRead: true }}).map((m) => m.subject);
+        sendMessage({{ from: "team-leader", to: key, subject: "hi", body: "hello" }});
         const delivered = receiveWorkerMessage({{
-          id: "evt-1", worker: key, runId: "s1", type: "message", to: "agent", subject: "plan", body: "p",
+          id: "evt-1", worker: key, runId: "s1", type: "message", to: "team-leader", subject: "plan", body: "p",
         }});
-        const agentUnread = readMailbox("agent", {{ unreadOnly: true }}).length;
-        console.log(JSON.stringify({{ unread, marked, delivered, agentUnread }}));
+        const nodeMailbox = getState().mailboxes[key] ?? [];
+        const leaderMailbox = getState().mailboxes["team-leader"] ?? [];
+        console.log(JSON.stringify({{
+          delivered,
+          nodeMessages: nodeMailbox.map((m) => m.subject).join(","),
+          leaderMessages: leaderMailbox.map((m) => m.subject).join(","),
+        }}));
         '''
     )
-    assert payload == {"unread": 1, "marked": ["hi"], "delivered": True, "agentUnread": 1}
+    assert payload == {"delivered": True, "nodeMessages": "hi", "leaderMessages": "plan"}
 
 
 def test_worker_spawn_is_nonblocking_and_identity_bound() -> None:
@@ -664,6 +694,11 @@ def test_worker_spawn_is_nonblocking_and_identity_bound() -> None:
     spawner = source("spawner.ts")
     assert "spawnPiWorkerBlocking" not in ext
     assert "spawnPiWorkerBlocking" not in spawner
+    # Worker knows its mailbox key and the push-only receive path (read state.json).
+    assert "workerKey: node.workerKey" in ext
+    assert "Your mailbox key:" in spawner
+    assert "mailboxes[\"${opts.workerKey}\"]" in spawner
+    assert "watch and process the mailbox" not in spawner
     # Worker identity is the node key (runId:nodeId) plus a fresh spawn id.
     assert "PI_TEAMMATE_WORKER_NAME: workerKey" in ext
     assert "PI_TEAMMATE_TASK_ID: node.id" in ext
@@ -682,28 +717,32 @@ def test_run_dispatch_is_single_call_with_scheduler() -> None:
     assert "findSharedWorkspaceWriteConflict(runId, node.id)" in ext
     assert "startNode(runId, node.id, ctx)" in ext
     assert "onRunSettled(runId, ctx)" in ext
-    assert "markLeaderMessagesReadForRun(run.id)" in ext
-    # Wait claims completion delivery up front (and revokes on timeout/abort)
-    # so a settled run does not also emit a follow-up.
-    assert "for (const id of runIds) markRunCompletionDelivered(id)" in ext
-    assert "clearRunCompletionClaim(id)" in ext
+    assert "markLeaderMessagesReadForRun" not in ext
+    assert "readMailbox" not in ext
+    # Foreground gather claims completion delivery so a settled run does not
+    # also emit a follow-up; background runs notify once via completionNotified.
     assert "run.background && !run.completionNotified" in ext
-    assert "markRunCompletionDelivered(run.id)" in ext
+    assert "markRunCompletionDelivered(run.id)" in ext    # Teammates run in the background by default.
+    assert "background: params.background ?? true" in ext
+    # Run detail includes the full leader-bound message flow.
+    assert "messages sent to the team leader" in ext
+    assert "listAllMessages().filter(" in ext
+    assert "m.taskId === runId" in ext
     # Foreground gather blocks; background returns immediately.
     assert "if (run.background)" in ext
 
 
-def test_tool_returns_are_compact_and_detail_lives_in_status_inbox() -> None:
+def test_tool_returns_are_compact_and_detail_lives_in_status() -> None:
     ext = source("index.ts")
     state = source("state.ts")
     types = source("types.ts")
-    # Tool returns (run/wait/follow-up) use the compact summary; the full
-    # per-node transcript stays in teammate_status runId and teammate_inbox.
+    # Tool returns (run/status/follow-up) use the compact summary; the full
+    # per-node transcript stays in teammate_status runId and the /teammate console.
     assert "function buildRunSummary" in ext
     assert "function buildRunResultSummary" in ext
     assert "Detail: teammate_status runId=" in ext
+    assert "Console: /teammate" in ext
     assert "text: buildRunSummary(run.id)" in ext
-    assert "buildRunSummary(id)" in ext
     assert "text: buildRunResultSummary(params.runId)" in ext
     # No truncation heuristics: per-node rows are status-only unless a
     # synthesized __summary node produced a real summary.
@@ -713,12 +752,10 @@ def test_tool_returns_are_compact_and_detail_lives_in_status_inbox() -> None:
     assert "summaryAgent" in types
     assert "settledRun.summary = nodeNow?.result" in ext
     assert "if (run.summary)" in ext
-    # No full per-node Result blobs inside the wait loop anymore.
-    wait_start = ext.index('name: "teammate_wait"')
-    wait_end = ext.index('name: "teammate_cancel"', wait_start)
-    assert "buildRunSummary(id)" in ext[wait_start:wait_end]
-    assert "Result: ${cap(node.result)}" not in ext[wait_start:wait_end]
-    assert "await sleep(500)" in ext
+    # No wait tool: delivery is the automatic completion follow-up; the
+    # foreground gather loop is the only inline blocking path.
+    assert 'name: "teammate_wait"' not in ext
+    assert "await sleep(" in ext
 
 
 def test_guidance_is_run_centric_without_redundant_tool_list() -> None:
@@ -726,7 +763,7 @@ def test_guidance_is_run_centric_without_redundant_tool_list() -> None:
     guidance = ext[ext.index("const TEAMMATE_GUIDANCE"):ext.index("export default function")]
     assert "teammate_run" in guidance
     assert "teammate_status" in guidance
-    assert "teammate_wait" in guidance
+    assert "teammate_wait" not in guidance
     assert "teammate_cancel" in guidance
     assert ".pi/agents" in guidance
     assert "~/.pi/agent/agents" in guidance
@@ -734,6 +771,8 @@ def test_guidance_is_run_centric_without_redundant_tool_list() -> None:
     assert "teammate_register" not in guidance
     assert "inspect idle teammates" not in guidance
     assert "Available orchestration tools:" not in guidance
+    assert "teammate_inbox" not in guidance
+    assert "teammate_message" in guidance
 
 
 def test_no_runtime_identity_registry_remains() -> None:

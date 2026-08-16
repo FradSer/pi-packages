@@ -1,8 +1,6 @@
 import type { Static } from "typebox";
 import { Type } from "typebox";
 
-export const EmptyParams = Type.Object({}, { description: "No parameters required" });
-
 // ── Run / Node ────────────────────────────────────────────────────
 
 export const NodeStatus = Type.Union(
@@ -111,6 +109,8 @@ export interface SpawnInfo {
   liveText?: string;
   /** Current child tool name, if a tool is executing. */
   activeTool?: string;
+  /** Live assistant reasoning streamed from the child (shown while no tool runs). */
+  liveThinking?: string;
   /** Number of assistant turns observed from the child JSON stream. */
   turns?: number;
   /** The child emitted a final successful assistant response and should close promptly. */
@@ -200,7 +200,7 @@ export const TeammateRunParams = Type.Object({
   }),
   concurrency: Type.Optional(Type.Integer({ minimum: 1, maximum: 32, description: "Max nodes running at once (default: 4)" })),
   worktree: Type.Optional(Type.Boolean({ description: "Run every node in its own git worktree (default: false)" })),
-  background: Type.Optional(Type.Boolean({ description: "Return immediately and deliver one completion follow-up (default: false = foreground gather)" })),
+  background: Type.Optional(Type.Boolean({ description: "Return immediately and deliver one completion follow-up. Default: true — teammates always run in the background; collect via the completion follow-up or teammate_status." })),
   timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Run-level hard wall-clock cap; the run fails when exceeded (default: none, nodes have their own caps)" })),
   summarize: Type.Optional(Type.Boolean({ description: "Append a __summary node after all leaf nodes. Default: true when the run has more than one user task, false for a single task." })),
   summaryAgent: Type.Optional(Type.String({ description: "Agent used for the summary node when summarize is on (default: observer)" })),
@@ -212,15 +212,7 @@ export const TeammateStatusParams = Type.Object({
   runId: Type.Optional(Type.String({ description: "Run id for node-level detail; omit for agents plus run overview" })),
 });
 
-/** Explicit gather barrier for background runs. */
-export const TeammateWaitParams = Type.Object({
-  runIds: Type.Array(Type.String(), {
-    minItems: 1,
-    description: "Run ids of background runs to wait for",
-  }),
-  timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Maximum time to wait in milliseconds (default: 300000 = 5 min)" })),
-});
-
+/** Explicit cancel of a run or single node. */
 export const TeammateCancelParams = Type.Object({
   runId: Type.String({ description: "Run id to cancel" }),
   nodeId: Type.Optional(Type.String({ description: "Cancel one node (and its not-yet-started dependents) instead of the whole run; the run continues" })),
@@ -232,17 +224,12 @@ export const TeammateRetryParams = Type.Object({
   nodeIds: Type.Optional(Type.Array(Type.String(), { description: "Node ids to reset and re-run; defaults to all failed and cancelled nodes" })),
 });
 
-/** Send a direct message. Leaders address a node key or broadcast to a run; workers address agent or a same-run peer. */
+/** Send a direct message. Leaders address a node key or broadcast to a run; workers address team-leader or a same-run peer. */
 export const TeammateMessageParams = Type.Object({
-  to: Type.String({ description: "Recipient: agent, a same-run node id, or runId:nodeId. Leaders may also use all with runId." }),
+  to: Type.String({ description: "Recipient: team-leader (the main session), a same-run node id, or runId:nodeId. Leaders may also use all with runId." }),
   subject: Type.String({ description: "Concise message subject" }),
   body: Type.String({ description: "Message body" }),
   runId: Type.Optional(Type.String({ description: "Run id required when to is all (leader only)" })),
-});
-
-/** Read the caller's inbox. Workers may also acknowledge a consumed message. */
-export const TeammateInboxParams = Type.Object({
-  unreadOnly: Type.Optional(Type.Boolean({ description: "Only return unread messages. Default: true.", default: true })),
 });
 
 /** Worker-only: report progress or a final outcome for the bound node. */

@@ -8,7 +8,6 @@
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
-import * as fs from "node:fs";
 import * as path from "node:path";
 
 export interface WorktreeSetup {
@@ -113,9 +112,4 @@ export function cleanupWorktree(setup: WorktreeSetup): { ok: boolean; error?: st
 /** Best-effort cleanup used when a spawn fails before the worker starts. */
 export function discardWorktree(setup: WorktreeSetup): void {
   cleanupWorktree(setup);
-}
-
-/** Whether a worktree setup exists on disk (for stale-cleanup checks). */
-export function worktreeExists(setup: WorktreeSetup): boolean {
-  return fs.existsSync(setup.path);
 }

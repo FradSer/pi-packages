@@ -61,15 +61,15 @@ Feature: Agent Teams run-centric public API
       Then at most the concurrency limit of nodes run at once
       And remaining ready nodes wait for a running slot
 
-    Scenario: Foreground dispatch gathers results; background dispatch returns immediately
-      When the leader dispatches with background=false (default)
-      Then the tool call blocks until the run reaches a terminal status and returns the node results
-      When the leader dispatches with background=true
+    Scenario: Teammates run in the background by default
+      When the leader dispatches without setting background
       Then the tool call returns immediately with the run id
       And one run-completion follow-up is delivered when the run settles
+      When the leader dispatches with background=false
+      Then the tool call blocks until the run reaches a terminal status and returns the node results
 
-    Scenario: A long foreground run detaches to background after the foreground cap
-      Given a foreground run is still executing after the foreground gather cap
+    Scenario: A long inline run detaches to background after the gather cap
+      Given a background=false run is still executing after the foreground gather cap
       When the cap is exceeded
       Then the tool call returns with the run id instead of hanging the model turn
       And the run continues executing in the background
@@ -92,8 +92,8 @@ Feature: Agent Teams run-centric public API
 
     Scenario: A collected run completion does not produce a duplicate follow-up
       Given a background run reaches a terminal status
-      When the leader collects its results with teammate_wait or foreground gather
-      Then the run-completion follow-up is suppressed
+      When the leader gathers its results with background=false or reads them via teammate_status
+      Then the run-completion follow-up is suppressed for a gathered run
 
     Scenario: Read nodes with overlapping paths may run concurrently
       Given two ready nodes declare overlapping paths with access=read
@@ -135,10 +135,18 @@ Feature: Agent Teams run-centric public API
       When the leader calls teammate_status with a run id
       Then it returns that run's nodes with status, spawn lifecycle, and results
 
-    Scenario: Wait is the explicit gather barrier for runs
+    Scenario: Run detail includes the full messages workers pushed to the leader
+      Given workers sent messages to team-leader during a run
+      When the leader calls teammate_status with the run id
+      Then the full message bodies are included so the leader can read complete reports
+      And the leader does not need a separate inbox tool
+
+    Scenario: Run completion is delivered automatically without a wait tool
       Given a background run is working
-      When the leader calls teammate_wait with its run id
-      Then it returns each run's terminal status and node results
+      When the run reaches a terminal status
+      Then the harness delivers one completion follow-up to the leader
+      And the leader reads results via teammate_status
+      And no teammate_wait tool exists
 
     Scenario: Cancel a run stops its running nodes
       Given a run is working
@@ -171,11 +179,11 @@ Feature: Agent Teams run-centric public API
 
   Rule: Messaging is capability-bound
 
-    Scenario: A worker messages the main session or a peer in the same run
+    Scenario: A worker messages the team leader or a peer in the same run
       Given a node is working
-      When it calls teammate_message with to="agent" or a peer node key in the same run
+      When it calls teammate_message with to="team-leader" or a peer node key in the same run
       Then the leader validates the worker identity, spawn identity, and recipient
-      And the message reaches the selected inbox
+      And the message is delivered to the team leader
       When it tries to message a node in another run or an unknown key
       Then the request is rejected and no message is queued
 
@@ -185,32 +193,23 @@ Feature: Agent Teams run-centric public API
       Then each pending dependent receives a handoff message with the result
       And the downstream worker prompt includes the upstream result
 
-    Scenario: Inbox reads are scoped to the caller
-      Given messages are present
-      When the main session calls teammate_inbox
-      Then it reads the agent inbox into the current conversation
-      When a worker calls teammate_inbox
-      Then it reads only its own node inbox without exchanging read receipts
-      And the inbox tool exposes only an unreadOnly option
-
     Scenario: A worker reports only its bound node
       Given a node is working
       When it calls teammate_report with progress, completion, or failure
       Then the leader applies the report only to that node's current spawn
-      And the report is delivered to the main session inbox
+      And the report is delivered to the team leader
 
-    Scenario: Intermediate worker communication stays in the mailbox
-      Given a worker sends a plan, progress report, blocker, or direct message to agent
+    Scenario: Intermediate worker communication does not interrupt the main session
+      Given a worker sends a plan, progress report, blocker, or direct message to team-leader
       When the leader drains the worker outbox
-      Then the message is recorded in the agent mailbox
+      Then the message is recorded for the team leader
       And it does not interrupt the main session or trigger a model turn
-      And the leader can retrieve it with teammate_inbox
 
     Scenario: The harness delivers one canonical terminal result per node
       Given a node exits normally, fails, times out, is cancelled, or never sends a terminal report
       When the child process close is observed
       Then the harness creates one canonical terminal result from node state and captured output
-      And it records the result in the agent mailbox
+      And it records the result for the team leader
       And a worker terminal report alone is not treated as final delivery
 
     Scenario: Workers cannot access leader tools
@@ -249,10 +248,11 @@ Feature: Agent Teams run-centric public API
       When the operation cannot be completed
       Then the tool throws an error for Pi to record as a failed tool call
 
-    Scenario: Cancelled or timed-out waits surface as tool failures
-      Given the leader is waiting for run results
-      When the wait is cancelled or exceeds its timeout
-      Then teammate_wait throws an error
+    Scenario: Inline foreground gather remains the explicit sync option
+      Given the leader needs a run's result in the same turn
+      When the leader calls teammate_run with background=false
+      Then it blocks inline and detaches after the foreground cap
+      And background runs never block the model turn
 
     Scenario: Legitimate empty and terminal data remains a normal result
       Given no agents or runs match a query, or a run has a terminal status
@@ -265,12 +265,13 @@ Feature: Agent Teams run-centric public API
       Given a teammate is working
       When the user opens /teammate
       Then the full-screen console shows the teammate's live model text and current tool activity
-      And working rows display a spinner and working...
+      And working rows display a spinner with the live activity (current tool, reasoning, or text)
+      And widget rows are left-padded to align with the native loader row
       And the idle widget stays hidden until a teammate is running
       And it does not intercept global terminal input
 
     Scenario: Detail scrolling preserves every wrapped display line
       Given a node detail has content longer than the terminal viewport
-      When the user scrolls up, down, by page, or jumps to either end
+      When the user scrolls up, down, by page, jumps to either end, or uses the mouse wheel
       Then the viewport moves over wrapped display lines without omitting content
       And the footer shows the visible display-line range and available navigation keys

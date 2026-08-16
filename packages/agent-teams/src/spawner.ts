@@ -26,41 +26,39 @@ export function buildAutonomousPrompt(opts: {
   role: string;
   prompt: string;
   taskId?: string;
+  workerKey: string;
   stateFile: string;
   outboxFile: string;
   timeoutSec: number;
 }): string {
-  const taskLine = opts.taskId
-    ? `\nAssigned node: [${opts.taskId}]\nUse teammate_report to report progress and the final result (status → completed/failed). Keep the result concise: outcome, files, verification, risks.`
-    : "\nNo assigned node — your job is purely to watch and process the mailbox.";
+  const taskLine = `\nAssigned teammate: [${opts.taskId}].\nUse teammate_report to submit your FULL final deliverable (status → completed/failed). Keep it complete and structured — this is what the leader reads.`;
 
-  return `You are a FULLY AUTONOMOUS worker node named "${opts.name}" (agent: ${opts.role}) in a pi multi-agent team run.
+  return `You are a FULLY AUTONOMOUS teammate named "${opts.name}" (agent: ${opts.role}) in a pi multi-agent team run.
 
 === ROLE PROMPT ===
 ${opts.prompt}
 
 Shared state snapshot (READ ONLY — leader-owned): ${opts.stateFile}
 Your append-only outbox (WRITE ONLY): ${opts.outboxFile}
-Snapshot shape: { "runs": { "<runId>": { id, status, concurrency, worktree, nodes: { "<nodeId>": {id, agent, access, paths, status, ...} } } }, "mailboxes": { "<workerKey>": [...] } }${taskLine}
+Your mailbox key: "${opts.workerKey}" — the leader or a peer may push messages for you under mailboxes["${opts.workerKey}"] in the snapshot.${taskLine}
 
-YOUR ONE-NODE RUN:
-1. Read the state snapshot for your assigned node and relevant leader messages. MUST NOT write state.json or modify its in-memory shape.
-2. Before substantive work, call teammate_message to:"agent" with a concise plan: approach, Paths, likely verification, and any dependency risk. The plan is recorded in the mailbox; it does not interrupt the leader.
-3. Work only on the assigned node and recorded Paths. Call teammate_report with a concise in_progress update after material progress. Message agent for a blocker, changed material assumption, scope risk, or need for a decision; these messages remain in the mailbox until the leader reads them.
-4. **Direct messaging**: use teammate_message with to:"agent" for plan, blocker, and decision request. Message same-run peers proactively (node id or runId:nodeId) when a handoff, shared assumption, or review finding would help them.
-5. Call teammate_report exactly once with completed or failed. Its result must be the final summary: outcome, changed paths, verification, and risks. After the child closes, the parent harness delivers one authoritative terminal result to the main session. Do not wait for future work or claim nodes.
-6. The hard wall-clock cap is ${opts.timeoutSec}s — notify agent of a blocker and report failure before it when blocked.
+YOUR ROLE IN THIS RUN:
+1. Read the state snapshot to see your teammate record (${opts.taskId}) and any messages already pushed to your mailbox key. DAG upstream results are ALREADY injected into this prompt below — do not poll the snapshot for them. To receive a leader reply or a peer handoff during the run, read the snapshot again and look at mailboxes["${opts.workerKey}"]. MUST NOT write state.json or modify its in-memory shape.
+2. Before substantive work, call teammate_message to:"team-leader" with a concise plan: approach, Paths, likely verification, and any dependency risk. The plan is recorded for the team leader without interrupting the main session.
+3. Work only on your assigned scope and recorded Paths. Call teammate_report with a concise in_progress update after material progress. Message team-leader for a blocker, changed material assumption, scope risk, or need for a decision.
+4. **Direct messaging**: use teammate_message with to:"team-leader" for plan, blocker, and decision request. Message same-run peers proactively (teammate id or runId:teammateId) when a handoff, shared assumption, or review finding would help them; read your mailbox key (step 1) to receive their replies. teammate_message is for SHORT notices — the full deliverable belongs in step 5's report result.
+5. Call teammate_report exactly once with completed or failed. Its result MUST contain the FULL final deliverable: the complete report, findings, evidence, or output — the leader reads this as your authoritative output. Keep it structured and complete, not a pointer to a message you sent. After the child closes, the parent harness delivers this result to the main session. Do not wait for future work or claim teammates.
+6. The hard wall-clock cap is ${opts.timeoutSec}s — notify team-leader of a blocker and report failure before it when blocked.
 
 BOUND CAPABILITIES:
-- teammate_message sends a leader-validated direct message (best-effort mailbox, no read receipts).
-- teammate_inbox reads your own inbox from the snapshot; messages are not acknowledged.
-- teammate_report updates only the node bound to this worker process.
+- teammate_message sends a direct message to team-leader or a same-run peer.
+- teammate_report updates only the record bound to this worker process.
 
 Technical notes:
 - Use Pi's read tool to inspect the snapshot at ${opts.stateFile}; use a Python one-liner only if the read tool is unavailable.
 - Your outbox path is ${opts.outboxFile}; use the bound teammate tools instead of writing it with bash.
-- MUST NOT write state.json, rewrite/truncate the outbox, claim nodes, or update another node's task.
-- The leader rejects malformed events, events claiming another worker identity, and task updates for nodes other than your own assigned node.`;
+- MUST NOT write state.json, rewrite/truncate the outbox, claim teammates, or update another teammate's record.
+- The leader rejects malformed events, events claiming another worker identity, and task updates for records other than your own assigned record.`;
 }
 
 export interface SpawnPiWorkerOptions {
@@ -102,6 +100,7 @@ export interface WorkerProcessResult {
 export interface WorkerProgressUpdate {
   text: string;
   activeTool?: string;
+  liveThinking?: string;
   turns: number;
   finalResponse?: boolean;
 }
@@ -225,20 +224,6 @@ export async function terminateChildProcess(child: ReturnType<typeof spawn>, gra
   return closedAfterKill;
 }
 
-/**
- * Interrupt (SIGTERM) or stop (SIGKILL) the worker currently running as the
- * named teammate. Returns false when no live worker is registered for it.
- */
-export function killWorker(name: string, signal: "SIGTERM" | "SIGKILL" = "SIGTERM"): boolean {
-  const child = workers.get(name);
-  if (!child || !isChildRunning(child)) return false;
-  try {
-    return child.kill(signal);
-  } catch {
-    return false;
-  }
-}
-
 /** Terminate a live worker and wait until its child process has closed. */
 export async function terminateWorker(name: string, graceMs = CANCEL_GRACE_MS): Promise<boolean> {
   const child = workers.get(name);
@@ -295,6 +280,8 @@ export function parseWorkerOutput(stdout: string): { text: string; usage?: Worke
 
 interface WorkerStreamState {
   text: string;
+  thinking: string;
+  toolcallArgs: string;
   activeTool?: string;
   turns: number;
   finalResponse?: boolean;
@@ -302,7 +289,27 @@ interface WorkerStreamState {
 }
 
 function createWorkerStreamState(): WorkerStreamState {
-  return { text: "", turns: 0 };
+  return { text: "", thinking: "", toolcallArgs: "", turns: 0 };
+}
+
+/** Human-readable label from a partially streamed tool-call argument JSON. */
+function toolcallLabel(rawArgs: string): string | undefined {
+  const trimmed = rawArgs.trim();
+  if (!trimmed.startsWith("{")) return undefined;
+  try {
+    const args = JSON.parse(trimmed) as Record<string, unknown>;
+    const command = args.command;
+    if (typeof command === "string" && command.trim()) return `bash: ${truncate(command.trim(), 40)}`;
+    const filePath = args.path;
+    if (typeof filePath === "string" && filePath.trim()) return `file: ${path.basename(filePath.trim())}`;
+    const subject = args.subject;
+    if (typeof subject === "string" && subject.trim()) return `message: ${truncate(subject.trim(), 40)}`;
+    const query = args.query;
+    if (typeof query === "string" && query.trim()) return `search: ${truncate(query.trim(), 40)}`;
+  } catch {
+    // Incomplete JSON mid-stream — retry on the next delta.
+  }
+  return undefined;
 }
 
 function applyWorkerJsonLine(state: WorkerStreamState, line: string): boolean {
@@ -313,38 +320,58 @@ function applyWorkerJsonLine(state: WorkerStreamState, line: string): boolean {
   } catch {
     return false;
   }
-  if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta") {
-    state.text += event.assistantMessageEvent.delta ?? "";
+  if (event.type !== "message_update") {
+    if (event.type !== "message_end" || event.message?.role !== "assistant") return false;
+    state.turns++;
+    if (event.message.stopReason === "stop") state.finalResponse = true;
+    const parts = (event.message.content ?? [])
+      .filter((part) => part.type === "text" && typeof part.text === "string")
+      .map((part) => part.text as string)
+      .join("");
+    if (parts.trim()) state.text = parts;
+    const u = event.message.usage;
+    if (u) {
+      state.usage = {
+        input: u.input ?? 0,
+        output: u.output ?? 0,
+        cacheRead: u.cacheRead ?? 0,
+        cacheWrite: u.cacheWrite ?? 0,
+        totalTokens: u.totalTokens ?? 0,
+        cost: u.cost?.total ?? 0,
+      };
+    }
     return true;
   }
-  if (event.type === "tool_execution_start") {
-    state.activeTool = event.toolName;
-    return true;
+  const sub = event.assistantMessageEvent;
+  if (!sub) return false;
+  switch (sub.type) {
+    case "text_delta":
+      state.text += sub.delta ?? "";
+      return true;
+    case "thinking_delta":
+      state.thinking += sub.delta ?? "";
+      return true;
+    case "toolcall_start":
+      state.toolcallArgs = "";
+      state.activeTool = undefined;
+      return true;
+    case "toolcall_delta": {
+      state.toolcallArgs += sub.delta ?? "";
+      const label = toolcallLabel(state.toolcallArgs);
+      if (label) state.activeTool = label;
+      return true;
+    }
+    case "toolcall_end": {
+      const tc = (sub as { toolCall?: { name?: string } }).toolCall;
+      // Prefer the richer delta-derived label (e.g. "bash: echo hello");
+      // fall back to the bare tool name only when no label could be parsed.
+      if (tc?.name && !state.activeTool) state.activeTool = tc.name;
+      state.toolcallArgs = "";
+      return true;
+    }
+    default:
+      return false;
   }
-  if (event.type === "tool_execution_end") {
-    state.activeTool = undefined;
-    return true;
-  }
-  if (event.type !== "message_end" || event.message?.role !== "assistant") return false;
-  state.turns++;
-  if (event.message.stopReason === "stop") state.finalResponse = true;
-  const parts = (event.message.content ?? [])
-    .filter((part) => part.type === "text" && typeof part.text === "string")
-    .map((part) => part.text as string)
-    .join("");
-  if (parts.trim()) state.text = parts;
-  const u = event.message.usage;
-  if (u) {
-    state.usage = {
-      input: u.input ?? 0,
-      output: u.output ?? 0,
-      cacheRead: u.cacheRead ?? 0,
-      cacheWrite: u.cacheWrite ?? 0,
-      totalTokens: u.totalTokens ?? 0,
-      cost: u.cost?.total ?? 0,
-    };
-  }
-  return true;
 }
 
 function truncate(text: string, cap: number): string {
@@ -388,7 +415,7 @@ function isPiPackageScript(filePath: string): boolean {
  *   2. The installed `@earendil-works/pi-coding-agent` package's `dist/cli.js`.
  *   3. A `pi` binary on PATH (best effort).
  */
-export function resolvePiCli(): PiCliResolution | undefined {
+export function resolvePiCli(): PiCliResolution {
   const argv1 = process.argv[1];
   if (argv1 && isPiPackageScript(argv1)) {
     return { command: process.execPath, args: [path.resolve(argv1)] };
@@ -414,16 +441,14 @@ export function resolvePiCli(): PiCliResolution | undefined {
  * is delivered via `onExit` / `onError`.
  */
 export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { error: string } {
+  // resolvePiCli always resolves (worst case a "pi" binary on PATH); a missing
+  // binary surfaces later as a child "error" event through onError.
   const cli = resolvePiCli();
-  if (!cli) {
-    return { error: "Could not resolve the Pi CLI. Set PI_SUBAGENT_PI_BINARY or install @earendil-works/pi-coding-agent." };
-  }
-
   const args: string[] = [...cli.args, "--print", "--mode", "json", "--no-session"];
   if (options.model) args.push("--model", options.model);
   // Capability tools cannot be removed; execution tools are selected by the
   // leader from the teammate's explicit configuration or role default.
-  const capabilityTools = ["teammate_message", "teammate_inbox", "teammate_report"];
+  const capabilityTools = ["teammate_message", "teammate_report"];
   const requestedTools = (options.tools ?? []).filter((tool) => !tool.startsWith("teammate_"));
   const tools = [...new Set([...requestedTools, ...capabilityTools])];
   args.push("--tools", tools.join(","));
@@ -459,6 +484,7 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
   const emitProgress = () => options.onUpdate?.({
     text: truncate(streamState.text, OUTPUT_CAP),
     activeTool: streamState.activeTool,
+    liveThinking: truncate(streamState.thinking, OUTPUT_CAP),
     turns: streamState.turns,
     finalResponse: streamState.finalResponse,
   });

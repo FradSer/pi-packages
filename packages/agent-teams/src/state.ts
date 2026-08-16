@@ -233,16 +233,10 @@ export function isRunTerminal(run: Run): boolean {
   return run.status === "completed" || run.status === "failed" || run.status === "cancelled";
 }
 
-/** Claim a run's completion delivery so the follow-up is suppressed (wait/foreground gather). */
+/** Claim a run's completion delivery so the follow-up is suppressed (foreground gather). */
 export function markRunCompletionDelivered(runId: string): void {
   const run = state.runs[runId];
   if (run) run.completionNotified = true;
-}
-
-/** Revoke a completion claim (e.g. a wait that timed out or was aborted). */
-export function clearRunCompletionClaim(runId: string): void {
-  const run = state.runs[runId];
-  if (run) run.completionNotified = false;
 }
 
 /** Every node across every run (for console rows and liveness polls). */
@@ -252,7 +246,7 @@ export function listNodes(): Node[] {
 
 // ── Node lifecycle ────────────────────────────────────────────────
 
-export function markNodeRunning(runId: string, nodeId: string, spawnId: string): { ok: boolean; error?: string } {
+export function markNodeRunning(runId: string, nodeId: string): { ok: boolean; error?: string } {
   const node = getNode(runId, nodeId);
   if (!node) return { ok: false, error: `Node "${nodeId}" not found.` };
   node.status = "running";
@@ -312,7 +306,7 @@ export function updateNodeSpawnProgress(
   runId: string,
   nodeId: string,
   spawnId: string,
-  progress: Pick<SpawnInfo, "liveText" | "activeTool" | "turns" | "finalResponse">,
+  progress: Pick<SpawnInfo, "liveText" | "activeTool" | "liveThinking" | "turns" | "finalResponse">,
 ): { ok: boolean; node?: Node; error?: string } {
   const node = getNode(runId, nodeId);
   if (!node) return { ok: false, error: `Node "${nodeId}" not found.` };
@@ -321,6 +315,7 @@ export function updateNodeSpawnProgress(
   }
   node.spawn.liveText = progress.liveText;
   node.spawn.activeTool = progress.activeTool;
+  node.spawn.liveThinking = progress.liveThinking;
   node.spawn.turns = progress.turns;
   node.spawn.finalResponse = progress.finalResponse;
   node.updatedAt = Date.now();
@@ -344,20 +339,30 @@ export function readyPendingNodes(run: Run): Node[] {
 
 /**
  * The running shared-workspace write node whose paths overlap this node's,
- * if any (worktree-isolated nodes never conflict).
+ * if any. Searched across EVERY run in the session: a write node deferred in
+ * one run must also wait for an overlapping writer dispatched by another run.
+ * Worktree-isolated nodes never conflict. This is advisory scheduling
+ * coordination — it defers node starts; it does not isolate file access.
  */
 export function findSharedWorkspaceWriteConflict(runId: string, nodeId: string): Node | undefined {
   const run = state.runs[runId];
   const node = run?.nodes[nodeId];
   if (!run || !node || node.access !== "write") return undefined;
-  return Object.values(run.nodes).find((other) =>
-    other.id !== node.id
-    && other.status === "running"
-    && other.spawn?.status === "running"
-    && other.spawn.isolation !== "worktree"
-    && other.access === "write"
-    && node.paths.some((path) => other.paths.some((otherPath) => pathsOverlap(path, otherPath))),
-  );
+  for (const candidateRun of Object.values(state.runs)) {
+    for (const other of Object.values(candidateRun.nodes)) {
+      if (candidateRun.id === runId && other.id === node.id) continue;
+      if (
+        other.status === "running"
+        && other.spawn?.status === "running"
+        && other.spawn.isolation !== "worktree"
+        && other.access === "write"
+        && node.paths.some((path) => other.paths.some((otherPath) => pathsOverlap(path, otherPath)))
+      ) {
+        return other;
+      }
+    }
+  }
+  return undefined;
 }
 
 /** Cancel pending nodes that transitively depend on the given node. */
@@ -641,42 +646,17 @@ export function receiveWorkerMessage(event: WorkerMessageEvent): boolean {
   return true;
 }
 
-export function readMailbox(
-  name: string,
-  opts: { unreadOnly?: boolean; markRead?: boolean } = {},
-): MailboxMessage[] {
-  const mailbox = state.mailboxes[name] ?? [];
-  let messages = opts.unreadOnly !== false ? mailbox.filter((m) => !m.read) : [...mailbox];
-
-  if (opts.markRead !== false) {
-    for (const msg of messages) {
-      msg.read = true;
-    }
-  }
-
-  return messages;
-}
-
-export function getUnreadCount(name: string): number {
-  return (state.mailboxes[name] ?? []).filter((m) => !m.read).length;
-}
-
-/** A mailbox exists for the main session or a known node worker key. */
-export function mailboxExists(name: string): boolean {
-  return name === "agent" || getNodeByWorkerKey(name) !== undefined;
-}
-
-/** Resolve a worker-facing recipient: agent, same-run node id, or runId:nodeId. */
+/** Resolve a worker-facing recipient: team-leader, same-run node id, or runId:nodeId. */
 export function resolveWorkerRecipientFromRuns(
   runs: Record<string, Run>,
   fromWorkerKey: string,
   to: string,
 ): { ok: true; to: string } | { ok: false; error: string } {
-  if (to === "agent") return { ok: true, to: "agent" };
+  if (to === "team-leader") return { ok: true, to: "team-leader" };
   const senderRun = Object.values(runs).find((run) => Object.values(run.nodes).some((node) => node.workerKey === fromWorkerKey));
   if (!senderRun) return { ok: false, error: `Unknown sender "${fromWorkerKey}".` };
   const peer = senderRun.nodes[to] ?? (to.startsWith(`${senderRun.id}:`) ? senderRun.nodes[to.slice(senderRun.id.length + 1)] : undefined);
-  if (!peer) return { ok: false, error: `Unknown peer "${to}" in run "${senderRun.id}".` };
+  if (!peer) return { ok: false, error: `Unknown peer "${to}" in run "${senderRun.id}". Use a peer node id or "team-leader".` };
   if (peer.workerKey === fromWorkerKey) return { ok: false, error: "A worker cannot message itself." };
   return { ok: true, to: peer.workerKey };
 }
@@ -726,21 +706,9 @@ export function handoffNodeResult(runId: string, nodeId: string): number {
   return sent;
 }
 
-/** Every message across every mailbox (for building full conversation transcripts). */
+/** Every message across every mailbox (for building conversation transcripts). */
 export function listAllMessages(): MailboxMessage[] {
   return Object.values(state.mailboxes).flat();
-}
-
-/** Mark only a run's messages in the leader inbox as read. */
-export function markLeaderMessagesReadForRun(runId: string, from?: string): number {
-  const mailbox = state.mailboxes.agent ?? [];
-  let marked = 0;
-  for (const msg of mailbox) {
-    if (msg.taskId !== runId || (from && msg.from !== from) || msg.read) continue;
-    msg.read = true;
-    marked++;
-  }
-  return marked;
 }
 
 // ── State inspection ──────────────────────────────────────────────
@@ -752,7 +720,7 @@ export function getState(): TeammateState {
 export function getSummary(): string | undefined {
   const runCount = Object.keys(state.runs).length;
   if (runCount === 0) return undefined;
-  const unreadTotal = Object.keys(state.mailboxes).reduce((sum, name) => sum + getUnreadCount(name), 0);
+  const messageCount = Object.values(state.mailboxes).reduce((sum, mailbox) => sum + mailbox.length, 0);
   const activeNodes = listNodes().filter((node) => node.status === "running" || node.status === "pending").length;
-  return `${runCount} run(s) | ${unreadTotal} unread message(s) | ${activeNodes} active node(s)`;
+  return `${runCount} run(s) | ${messageCount} message(s) | ${activeNodes} active node(s)`;
 }
