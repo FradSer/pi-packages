@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-recap",
   "version": "0.1.1",
-  "description": "Session recap for Pi — shows a concise summary of what's happening above the TUI input box, like Claude Code's ※ recap: feature",
+  "description": "Session recap for Pi — shows a concise summary of what's happening above the TUI input box, like Claude Code's ※ Recap: feature",
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",
   "keywords": [
@@ -29,6 +29,7 @@
     ]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
   }
 }

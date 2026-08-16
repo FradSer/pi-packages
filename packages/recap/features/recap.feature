@@ -1,61 +1,100 @@
 Feature: Session Recap
+  The recap package displays a concise, scannable summary of the current session
+  above the TUI input box (aboveEditor widget), inspired by Claude Code's recap.
+  When installed, it automatically captures completed turns and shows the latest
+  recap by default. Running /recap opens an interactive management TUI (similar
+  to @packages/memory/ and @packages/vision/) to manage recap generation,
+  select custom models, and configure language preferences.
 
-  As a Pi user
-  I want a concise recap of what the session is doing
-  So that I can quickly reorient when returning to the conversation
+  Background:
+    Given the @fradser/pi-recap package is installed
 
-  Scenario: Recap is enabled by default
-    Given the recap package is installed
-    Then the recap setting "recapEnabled" is true
-    And the recap setting "autoRecap" is true
+  Scenario: Recap widget is displayed above the editor by default
+    Given an active session in TUI mode
+    When a turn completes with a user request and assistant response
+    Then a concise recap is generated
+    And it is displayed above the editor with the format "※ Recap: <summary>"
 
-  Scenario: Recap shows after a turn
-    Given the recap is enabled
-    When the user sends a message
-    And the agent finishes responding
-    Then a recap is generated from the last user and assistant messages
-    And the recap is displayed above the editor
+  Scenario: Recap is informative and scannable
+    Given a raw model summary
+    When cleaned and formatted
+    Then the recap text is a single line with specific action, target, and outcome
+    And quotes, markdown wrappers, and redundant prefixes are stripped
 
-  Scenario: Recap is concise
-    Given a recap is generated
-    Then the recap text is at most 80 characters
-    And the recap is a single line
-    And the recap starts with a verb in present tense
+  Scenario: Existing session restores latest recap on startup
+    Given a session with existing messages in history
+    When session_start fires
+    Then the last exchange is extracted and the recap widget is updated
 
-  Scenario: Toggle recap on/off
-    Given the recap is enabled
-    When the user runs "/recap off"
-    Then the recap setting "recapEnabled" is false
-    And the recap widget is removed from the editor
+  Scenario: /recap opens an interactive management menu
+    Given an active session in TUI mode
+    When the user runs /recap
+    Then an interactive select menu opens displaying the current recap, language, and management options
 
-    When the user runs "/recap on"
-    Then the recap setting "recapEnabled" is true
-    And the recap widget is shown again
+  Scenario: Model selection supports custom provider and model overrides
+    Given the recap management menu
+    When the user selects a custom recap model
+    Then the preference is persisted in recap.json
+    And subsequent recap generations use the configured model
 
-  Scenario: Toggle auto-recap
-    Given the recap is enabled
-    When the user runs "/recap auto"
-    Then the recap setting "autoRecap" is toggled
+  Scenario: Language selection allows specifying target generation language
+    Given the recap management menu
+    When the user chooses "Chinese (中文)" or "English"
+    Then the target language preference is persisted
+    And prompt instructions enforce outputting in that specified language
 
-  Scenario: Generate recap manually
-    Given the recap is enabled
-    When the user runs "/recap now"
-    Then a recap is generated immediately from the last exchange
+  Scenario: Recap maintains context continuity using previous recap and last exchange
+    Given a session with an existing recap "Fixing authentication token validation"
+    When a new turn completes with "Add unit tests for the token validator"
+    Then the recap generator prompt includes the previous recap and the latest exchange
+    And produces an updated progressive summary
 
-  Scenario: Recap respects language
-    Given the conversation is in Chinese
-    When a recap is generated
-    Then the recap is in Chinese
+  Scenario: Recap shows a generation marker while refreshing
+    Given an active session in TUI mode
+    When recap generation starts
+    Then the widget shows an animated "⠙ Recapping..." status line
+    And the recap content remains on its own "※ Recap:" line
+    And the previous recap remains visible until the new recap is ready
+    When recap generation finishes
+    Then the generation marker is replaced by the new recap
 
-  Scenario: Recap updates on each turn
-    Given the recap is enabled
-    And a recap is shown for the previous turn
-    When the user sends another message
-    And the agent finishes responding
-    Then the recap is updated for the new turn
+  Scenario: Recap marker aligns with the native working spinner
+    Given the recap widget is displayed above the editor
+    When the recap content is rendered
+    Then the recap marker starts in the same visual column as the native working spinner
+    And continuation lines align with the first recap character rather than the marker
 
-  Scenario: Recap does not block the user
-    Given the recap is being generated
-    When the user starts typing a new message
-    Then the old recap remains visible
-    And the user can type without delay
+  Scenario: Existing recap prevents redundant startup generation
+    Given a saved recap exists for the current session
+    When session_start fires
+    Then the saved recap is displayed without starting another generation
+
+  Scenario: Recap generation requests are deduplicated and cancellable
+    Given recap generation is already running
+    When a request for the same exchange starts
+    Then it reuses the existing request
+    When a request for a newer exchange starts
+    Then the previous request is cancelled
+    And the newer result cannot be overwritten by the previous result
+
+  Scenario: Recap generation times out safely
+    Given recap generation does not complete before its timeout
+    When the timeout is reached
+    Then the request is cancelled
+    And the previous recap remains visible
+
+  Scenario: Recap ignores thinking-only provider output
+    Given a provider response contains thinking but no text
+    When the recap response is extracted
+    Then no recap is produced
+
+  Scenario: Recap skips unchanged persistence
+    Given the generated recap matches the displayed recap
+    When generation finishes
+    Then the recap file is not rewritten
+    And the widget is not refreshed for a content change
+
+  Scenario: Recap runs in-process without blocking interaction
+    When an agent turn settles
+    Then the recap generation runs asynchronously using the model registry
+    And the user can continue typing immediately

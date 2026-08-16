@@ -1,6 +1,6 @@
 # @fradser/pi-recap
 
-Session recap for Pi — shows a concise summary of what's happening above the TUI input box, inspired by Claude Code's `recap:` feature.
+Session recap for Pi — displays a concise, scannable summary of the current session above the TUI input box, inspired by Claude Code's `※ Recap:` feature.
 
 ## Install
 
@@ -8,38 +8,44 @@ Session recap for Pi — shows a concise summary of what's happening above the T
 pi install npm:@fradser/pi-recap
 ```
 
-## How it works
+## Features
 
-After each turn, the extension captures the last user message and assistant response, generates a one-line summary, and displays it at the top of the input box via `setWidget` with `placement: "aboveEditor"`.
-
-```
-recap  Refactoring the API client to use connection pooling...
-```
-
-The recap is generated in a background child Pi process — it never blocks the session.
+- **TUI Above-Editor Display**: Once installed, the extension automatically displays the most recent recap in the widget above the editor (`※ Recap: <summary>`).
+- **Management Menu (`/recap`)**: Running `/recap` opens an interactive management TUI (similar to `@packages/memory/` and `@packages/vision/`) allowing you to generate recaps on demand, choose dedicated models, or toggle display settings.
+- **Model Selection**: Supports selecting any model available in Pi's model registry (e.g. `anthropic/claude-3-5-haiku`, `openai/gpt-4o-mini`, or session default).
+- **Non-blocking & In-process**: Recaps are generated asynchronously using Pi's model registry after each completed turn without spawning external child processes. Requests are deduplicated, superseded requests are cancelled, and generation has a 30-second timeout.
+- **Context Continuity**: Progressively evolves the recap by combining the previous recap with the latest turn's exchange. Output is limited to one line and 120 characters; unchanged recaps are not persisted again.
+- **Cross-Session Sync**: Automatically updates the directory session registry (`~/.pi/agent/directory-sessions/`), keeping parallel sessions informed.
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `/recap` | Open the recap settings menu |
-| `/recap on` | Enable recap display |
-| `/recap off` | Disable recap display |
-| `/recap auto` | Toggle auto-recap (generate after each turn) |
-| `/recap now` | Generate a recap immediately from the last exchange |
+| `/recap` | Open interactive recap management menu |
+| `/recap now` | Generate and refresh recap immediately |
+| `/recap on` | Enable recap display widget |
+| `/recap off` | Disable recap display widget |
+| `/recap auto` | Toggle automatic generation after turns |
+| `/recap model [provider/model]` | Set model override or open model picker |
 
-## Settings
+## Configuration
 
-Persisted in `~/.pi/agent/recap/settings.json`:
+Persisted in `~/.pi/agent/recap.json`:
 
-- **recapEnabled** (default: `true`) — master toggle
-- **autoRecap** (default: `true`) — generate recap automatically after each turn
-- **recapModel** (optional) — model override for recap generation, e.g. `"anthropic/claude-haiku-3-5"`
+```json
+{
+  "provider": "anthropic",
+  "model": "claude-3-5-haiku",
+  "enabled": true,
+  "autoRecap": true
+}
+```
 
-## Design
+Environment variable overrides (take precedence over saved configuration):
+- `PI_RECAP_MODEL` — e.g. `anthropic/claude-3-5-haiku`
+- `PI_RECAP_PROVIDER` — fallback provider name
+- `PI_RECAP_LANGUAGE` — e.g. `en`, `zh`, or `Japanese`
 
-- Uses the same prefix convention as Claude Code's `recap:` but rendered as a styled widget above the editor (not injected into the conversation).
-- Generated from the last user message + assistant response, keeping the recap grounded in the current activity.
-- Language-aware: the recap uses the same language as the conversation.
-- Single-turn scope: each new turn replaces the previous recap.
-- Non-blocking: the recap runs in a background child process; the user can type immediately.
+## License
+
+MIT

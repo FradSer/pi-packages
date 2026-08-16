@@ -1,462 +1,517 @@
 /**
  * @fradser/pi-recap — session recap for Pi.
  *
- * After each turn, generates a concise one-line summary of what the session
- * is doing and displays it at the top of the TUI input box (above the editor).
- * Toggleable via `/recap`.
+ * Automatically displays a scannable one-line recap of the current session
+ * above the TUI input box (aboveEditor widget), inspired by Claude Code's recap.
  *
- * Inspired by Claude Code's `※ recap:` feature, keeping the same scannable
- * prefix convention but adapted for pi's extension widget system.
- *
- * Settings persisted at `~/.pi/agent/recap/settings.json`:
- *   - recapEnabled: boolean (default: true)
- *   - autoRecap: boolean (default: true) — generate recap after each turn
- *   - recapModel: string (optional) — model override for recap generation
+ * Running `/recap` opens an interactive management TUI for recap controls,
+ * model selection, and language preferences.
  */
 
-import fs from "fs/promises";
-import path from "path";
-import os from "os";
-import { spawn } from "node:child_process";
-import * as nodeFs from "node:fs";
-import { fileURLToPath } from "node:url";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
-import { buildRecapPrompt, getLastExchange, parseRecapOutput } from "./recap";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import type { Api, Model } from "@earendil-works/pi-ai";
+import type {
+  ExtensionAPI,
+  ExtensionCommandContext,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import { visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import {
+  languageLabel,
+  modelRef,
+  parseModelRef,
+  readRecapConfig,
+  recapConfigPath,
+  writeRecapConfig,
+  type RecapConfig,
+} from "./config";
+import { generateRecap, getLastExchange } from "./recap";
 
-// ── Settings ───────────────────────────────────────────────────────
+let config: RecapConfig = readRecapConfig();
+const RECAP_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
-interface RecapSettings {
-  /** Master toggle — recap shown above the editor when true. */
-  recapEnabled: boolean;
-  /** Generate recap automatically after each turn. */
-  autoRecap: boolean;
-  /** Optional model override for recap generation (e.g. "anthropic/claude-haiku-3-5"). */
-  recapModel?: string;
+function configuredModelLabel(): string {
+  return modelRef(config) ?? "(session default)";
 }
 
-const DEFAULT_SETTINGS: RecapSettings = {
-  recapEnabled: true,
-  autoRecap: true,
-};
-
-function settingsFilePath(): string {
-  return path.join(os.homedir(), CONFIG_DIR_NAME, "agent", "recap", "settings.json");
+function modelLabel(model: Model<Api>): string {
+  return `${model.provider}/${model.id}`;
 }
 
-async function readSettings(): Promise<RecapSettings> {
-  try {
-    const raw = await fs.readFile(settingsFilePath(), "utf-8");
-    const parsed = JSON.parse(raw) as Partial<RecapSettings>;
-    return { ...DEFAULT_SETTINGS, ...parsed };
-  } catch {
-    return { ...DEFAULT_SETTINGS };
-  }
+function modelOptionLabel(model: Model<Api>): string {
+  const current = modelLabel(model) === modelRef(config) ? " · current" : "";
+  return `${modelLabel(model)} · ${model.name}${current}`;
 }
 
-async function writeSettings(s: RecapSettings): Promise<void> {
-  const dir = path.dirname(settingsFilePath());
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(settingsFilePath(), JSON.stringify(s, null, 2) + "\n", "utf-8");
-}
+function availableModels(ctx: ExtensionContext): Model<Api>[] {
+  const currentPiModels =
+    ctx.scopedModels && ctx.scopedModels.length > 0
+      ? ctx.scopedModels.map((scoped) => scoped.model)
+      : ctx.modelRegistry.getAvailable();
 
-// ── Pi CLI resolution ──────────────────────────────────────────────
-
-function isPiPackageScript(filePath: string): boolean {
-  try {
-    const resolved = nodeFs.realpathSync(filePath);
-    if (!/\.(mjs|cjs|js)$/.test(resolved)) return false;
-    let dir = path.dirname(resolved);
-    while (dir !== path.dirname(dir)) {
-      const pkgPath = path.join(dir, "package.json");
-      if (nodeFs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(nodeFs.readFileSync(pkgPath, "utf-8")) as { name?: unknown };
-        return pkg.name === "@earendil-works/pi-coding-agent";
-      }
-      dir = path.dirname(dir);
-    }
-  } catch {
-    // Unreadable paths are simply not candidates.
-  }
-  return false;
-}
-
-function resolvePiCli(): { command: string; args: string[] } | undefined {
-  const argv1 = process.argv[1];
-  if (argv1 && isPiPackageScript(argv1)) {
-    return { command: process.execPath, args: [path.resolve(argv1)] };
-  }
-
-  try {
-    const entry = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));
-    const packageRoot = path.dirname(path.dirname(entry));
-    const cliPath = path.join(packageRoot, "dist", "cli.js");
-    if (nodeFs.existsSync(cliPath)) {
-      return { command: process.execPath, args: [cliPath] };
-    }
-  } catch {
-    // Package resolution is best-effort; fall through to PATH.
-  }
-
-  return { command: "pi", args: [] };
-}
-
-// ── Recap generation (child process) ───────────────────────────────
-
-const RECAP_TIMEOUT_MS = 15_000;
-const RECAP_OUTPUT_CAP = 200;
-
-interface RecapResult {
-  text: string;
-  timedOut: boolean;
-  exitCode: number;
-  stderr: string;
-}
-
-/**
- * Run the recap generation in a child Pi process (no tools, no session,
- * JSON mode). Returns the generated recap text or an empty string on failure.
- */
-export function generateRecap(
-  user: string,
-  assistant: string,
-  model?: string,
-  signal?: AbortSignal,
-): Promise<RecapResult> {
-  return new Promise<RecapResult>((resolve) => {
-    const cli = resolvePiCli();
-    if (!cli) {
-      resolve({ text: "", timedOut: false, exitCode: 1, stderr: "Could not resolve Pi CLI" });
-      return;
-    }
-
-    const args: string[] = [
-      ...cli.args,
-      "--print",
-      "--mode",
-      "json",
-      "--no-session",
-      "--no-tools",
-    ];
-    if (model) args.push("--model", model);
-
-    const prompt = buildRecapPrompt(user, assistant);
-    args.push(prompt);
-
-    let child;
-    try {
-      child = spawn(cli.command, args, {
-        cwd: process.cwd(),
-        env: process.env,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-    } catch (error) {
-      resolve({
-        text: "",
-        timedOut: false,
-        exitCode: 1,
-        stderr: error instanceof Error ? error.message : String(error),
-      });
-      return;
-    }
-
-    const stdoutChunks: string[] = [];
-    const stderrChunks: string[] = [];
-    let timedOut = false;
-    let settled = false;
-    const settle = (result: RecapResult) => {
-      if (settled) return;
-      settled = true;
-      if (timer) clearTimeout(timer);
-      resolve(result);
-    };
-
-    child.stdout?.on("data", (chunk: Buffer) => stdoutChunks.push(chunk.toString()));
-    child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk.toString()));
-    child.on("error", (error) => {
-      settle({
-        text: "",
-        timedOut,
-        exitCode: 1,
-        stderr: error instanceof Error ? error.message : String(error),
-      });
-    });
-    child.on("close", (code) => {
-      const text = parseRecapOutput(stdoutChunks.join(""));
-      settle({
-        text: text.slice(0, RECAP_OUTPUT_CAP),
-        timedOut,
-        exitCode: code ?? 0,
-        stderr: stderrChunks.join("").trim().slice(0, RECAP_OUTPUT_CAP),
-      });
-    });
-
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill("SIGKILL");
-    }, RECAP_TIMEOUT_MS);
-    timer.unref?.();
-
-    if (signal) {
-      if (signal.aborted) child.kill("SIGTERM");
-      else signal.addEventListener("abort", () => child.kill("SIGTERM"), { once: true });
-    }
-  });
-}
-
-// ─── Widget ────────────────────────────────────────────────────────
-
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-
-interface RecapWidgetState {
-  /** Current recap text (empty = generating). */
-  text: string;
-  /** True while the child process is generating a recap. */
-  generating: boolean;
-}
-
-let recapWidgetState: RecapWidgetState = { text: "", generating: false };
-let recapTimer: NodeJS.Timeout | undefined;
-
-/**
- * Register or update the recap widget above the editor.
- * Pass undefined to remove the widget entirely.
- */
-function updateRecapWidget(ctx: ExtensionContext, settings: RecapSettings): void {
-  if (!settings.recapEnabled || ctx.mode !== "tui") {
-    if (ctx.mode === "tui") ctx.ui.setWidget("recap", undefined);
-    return;
-  }
-
-  ctx.ui.setWidget(
-    "recap",
-    (tui, theme) => {
-      let frameIndex = 0;
-      if (recapTimer) {
-        clearInterval(recapTimer);
-        recapTimer = undefined;
-      }
-
-      if (recapWidgetState.generating) {
-        recapTimer = setInterval(() => {
-          frameIndex++;
-          tui.requestRender();
-        }, 80);
-        recapTimer.unref?.();
-      }
-
-      return {
-        render: (_width: number) => {
-          if (recapWidgetState.generating) {
-            const frame = SPINNER_FRAMES[frameIndex % SPINNER_FRAMES.length];
-            const icon = theme.fg("accent", frame);
-            const text = theme.fg("dim", " recapping...");
-            return [` ${icon}${text}`];
-          }
-
-          const text = recapWidgetState.text;
-          if (!text) return [];
-
-          const prefix = theme.fg("accent", "recap");
-          const body = theme.fg("muted", text);
-          return [` ${prefix}  ${body}`];
-        },
-        invalidate: () => {},
-        dispose: () => {
-          if (recapTimer) {
-            clearInterval(recapTimer);
-            recapTimer = undefined;
-          }
-        },
-      };
-    },
-    { placement: "aboveEditor" },
+  return [...currentPiModels].sort((left, right) =>
+    modelLabel(left).localeCompare(modelLabel(right)),
   );
 }
 
-/**
- * Start generating a recap in the background.
- * Updates the widget state when done.
- */
-async function refreshRecap(
-  ctx: ExtensionContext,
-  user: string,
-  assistant: string,
-  settings: RecapSettings,
-): Promise<void> {
-  // Clear previous text and show spinner
-  recapWidgetState.text = "";
-  recapWidgetState.generating = true;
-  updateRecapWidget(ctx, settings);
-
-  const result = await generateRecap(user, assistant, settings.recapModel);
-
-  recapWidgetState.generating = false;
-  if (result.text) {
-    recapWidgetState.text = result.text;
-  } else {
-    recapWidgetState.text = "";
+function resolveRecapModel(ctx: ExtensionContext): Model<Api> | undefined {
+  if (config.provider && config.model) {
+    const found = ctx.modelRegistry.find(config.provider, config.model);
+    if (found) return found;
   }
-  updateRecapWidget(ctx, settings);
+  return ctx.model;
 }
 
-// ── Extension ──────────────────────────────────────────────────────
+function readDirectorySessionRecap(
+  cwd: string,
+  sessionFile: string | undefined,
+): string | undefined {
+  try {
+    if (!cwd || !sessionFile) return undefined;
+    const sessionId = path.basename(sessionFile, ".jsonl");
+    const normalized = path.resolve(cwd);
+    const dirKey = `--${normalized.replace(/^[/\\\\]/, "").replace(/[/\\:]/g, "-")}--`;
+    const regDir = path.join(os.homedir(), ".pi", "agent", "directory-sessions", dirKey);
+    const filePath = path.join(regDir, `${sessionId}.json`);
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, "utf-8");
+      const data = JSON.parse(raw);
+      if (typeof data.recap === "string" && data.recap.trim()) {
+        return data.recap.trim();
+      }
+    }
+  } catch {
+    // Best-effort directory session read
+  }
+  return undefined;
+}
+
+function syncDirectorySessionRecap(
+  cwd: string,
+  sessionFile: string | undefined,
+  recapText: string,
+): void {
+  try {
+    if (!cwd || !sessionFile) return;
+    const sessionId = path.basename(sessionFile, ".jsonl");
+    const normalized = path.resolve(cwd);
+    const dirKey = `--${normalized.replace(/^[/\\\\]/, "").replace(/[/\\:]/g, "-")}--`;
+    const regDir = path.join(os.homedir(), ".pi", "agent", "directory-sessions", dirKey);
+    const filePath = path.join(regDir, `${sessionId}.json`);
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, "utf-8");
+      const data = JSON.parse(raw);
+      data.recap = recapText;
+      data.updatedAt = Date.now();
+      const tmpPath = `${filePath}.tmp.${Date.now()}`;
+      fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+      fs.renameSync(tmpPath, filePath);
+    }
+  } catch {
+    // Best-effort directory session sync
+  }
+}
 
 export default function (pi: ExtensionAPI) {
-  // Track whether the next agent_settled should generate a recap.
-  // Reset to true on each user input, set to false after we generate.
+  let currentRecap = "";
+  let recapSpinnerFrame = 0;
+  let recapSpinnerTimer: NodeJS.Timeout | undefined;
   let shouldRecap = false;
+  let generatingRecap = false;
+  let activeRequest: {
+    key: string;
+    controller: AbortController;
+    promise: Promise<string | undefined>;
+  } | undefined;
+  let completedRequestKey: string | undefined;
 
+  function saveConfig(next: RecapConfig, ctx: ExtensionContext): void {
+    config = next;
+    writeRecapConfig(config);
+    updateRecapWidget(ctx);
+  }
+
+  function updateRecapWidget(ctx: ExtensionContext): void {
+    if (ctx.mode !== "tui") return;
+
+    if (!config.enabled || (!currentRecap && !generatingRecap)) {
+      ctx.ui.setWidget("recap", undefined);
+      return;
+    }
+
+    if (!generatingRecap && recapSpinnerTimer) {
+      clearInterval(recapSpinnerTimer);
+      recapSpinnerTimer = undefined;
+    }
+
+    ctx.ui.setWidget(
+      "recap",
+      (tui, theme) => {
+        if (generatingRecap) {
+          recapSpinnerFrame = 0;
+          recapSpinnerTimer = setInterval(() => {
+            recapSpinnerFrame = (recapSpinnerFrame + 1) % RECAP_SPINNER_FRAMES.length;
+            tui.requestRender();
+          }, 80);
+          recapSpinnerTimer.unref?.();
+        }
+
+        return {
+          render: (width: number) => {
+            if (!config.enabled || (!currentRecap && !generatingRecap)) return [];
+            const icon = theme.fg("accent", "※");
+            const label = theme.fg("dim", "Recap:");
+            const firstPrefix = ` ${icon} ${label} `;
+            const prefixWidth = visibleWidth(firstPrefix);
+            const contentWidth = Math.max(15, width - prefixWidth);
+            const indent = " ".repeat(prefixWidth);
+            const lines: string[] = [];
+
+            if (generatingRecap) {
+              const spinner = RECAP_SPINNER_FRAMES[recapSpinnerFrame];
+              lines.push(` ${theme.fg("accent", `${spinner} Recapping...`)}`);
+            }
+
+            if (currentRecap) {
+              const wrapped = wrapTextWithAnsi(currentRecap, contentWidth);
+              for (let i = 0; i < wrapped.length; i++) {
+                const prefix = i === 0 ? firstPrefix : indent;
+                lines.push(`${prefix}${theme.fg("muted", wrapped[i])}`);
+              }
+            }
+
+            return lines;
+          },
+          invalidate: () => {},
+          dispose: () => {
+            if (recapSpinnerTimer) {
+              clearInterval(recapSpinnerTimer);
+              recapSpinnerTimer = undefined;
+            }
+          },
+        };
+      },
+      { placement: "aboveEditor" },
+    );
+  }
+
+  async function performRecap(ctx: ExtensionContext): Promise<string | undefined> {
+    const model = resolveRecapModel(ctx);
+    if (!model) return undefined;
+
+    const exchange = getLastExchange(ctx.sessionManager.getBranch());
+    if (!exchange) return undefined;
+
+    const key = [
+      exchange.user,
+      exchange.assistant,
+      model.provider,
+      model.id,
+      config.language,
+    ].join("\u0000");
+    if (activeRequest?.key === key) return activeRequest.promise;
+    if (completedRequestKey === key && currentRecap) return currentRecap;
+    activeRequest?.controller.abort();
+
+    const controller = new AbortController();
+    const request: {
+      key: string;
+      controller: AbortController;
+      promise: Promise<string | undefined>;
+    } = { key, controller, promise: Promise.resolve(undefined) };
+    activeRequest = request;
+    generatingRecap = true;
+    updateRecapWidget(ctx);
+
+    request.promise = (async () => {
+      try {
+        const text = await generateRecap(
+          ctx.modelRegistry,
+          model,
+          exchange.user,
+          exchange.assistant,
+          currentRecap || undefined,
+          config.language,
+          controller.signal,
+        );
+
+        if (controller.signal.aborted || activeRequest !== request || !text) return undefined;
+        completedRequestKey = key;
+        if (text === currentRecap) return text;
+
+        currentRecap = text;
+        syncDirectorySessionRecap(ctx.cwd, ctx.sessionManager.getSessionFile(), text);
+        return text;
+      } finally {
+        if (activeRequest === request) {
+          activeRequest = undefined;
+          generatingRecap = false;
+          updateRecapWidget(ctx);
+        }
+      }
+    })();
+
+    return request.promise;
+  }
+
+  async function chooseRecapModel(ctx: ExtensionCommandContext): Promise<void> {
+    const models = availableModels(ctx);
+    if (models.length === 0) {
+      ctx.ui.notify("No models found in model registry.", "warning");
+      return;
+    }
+
+    const options = models.map(modelOptionLabel);
+    const selected = await ctx.ui.select("Select a model for recap generation:", options);
+    if (!selected) return;
+
+    const model = models[options.indexOf(selected)];
+    if (!model) return;
+
+    saveConfig({ ...config, provider: model.provider, model: model.id }, ctx);
+    ctx.ui.notify(`Recap model set to ${modelLabel(model)}`, "info");
+  }
+
+  async function enterRecapModel(ctx: ExtensionCommandContext): Promise<void> {
+    const value = await ctx.ui.input(
+      "Recap model (provider/model format):",
+      config.provider && config.model ? `${config.provider}/${config.model}` : "",
+    );
+    if (value === undefined) return; // cancelled
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+      saveConfig({ ...config, provider: undefined, model: undefined }, ctx);
+      ctx.ui.notify("Recap model reset to session default", "info");
+      return;
+    }
+
+    const ref = parseModelRef(trimmed);
+    if (!ref) {
+      ctx.ui.notify("Enter a model in provider/model format (e.g. anthropic/claude-3-5-haiku)", "error");
+      return;
+    }
+
+    const model = ctx.modelRegistry.find(ref.provider, ref.model);
+    if (!model) {
+      ctx.ui.notify(`Model ${ref.provider}/${ref.model} was not found in the model registry`, "error");
+      return;
+    }
+
+    saveConfig({ ...config, ...ref }, ctx);
+    ctx.ui.notify(`Recap model set to ${modelLabel(model)}`, "info");
+  }
+
+  async function chooseRecapLanguage(ctx: ExtensionCommandContext): Promise<void> {
+    const current = languageLabel(config.language);
+    const options = [
+      `Auto (same as conversation)${config.language === "auto" ? " · current" : ""}`,
+      `Chinese (\u4E2D\u6587)${config.language === "zh" ? " · current" : ""}`,
+      `English${config.language === "en" ? " · current" : ""}`,
+      "Custom language...",
+    ];
+
+    const selected = await ctx.ui.select(`Recap language (current: ${current}):`, options);
+    if (!selected) return;
+
+    if (selected.startsWith("Auto")) {
+      saveConfig({ ...config, language: "auto" }, ctx);
+      ctx.ui.notify("Recap language set to Auto (same as conversation)", "info");
+    } else if (selected.startsWith("Chinese")) {
+      saveConfig({ ...config, language: "zh" }, ctx);
+      ctx.ui.notify("Recap language set to Chinese", "info");
+    } else if (selected.startsWith("English")) {
+      saveConfig({ ...config, language: "en" }, ctx);
+      ctx.ui.notify("Recap language set to English", "info");
+    } else if (selected.startsWith("Custom")) {
+      const custom = await ctx.ui.input("Enter target language name (e.g. Japanese, French):", "");
+      if (custom && custom.trim()) {
+        saveConfig({ ...config, language: custom.trim() }, ctx);
+        ctx.ui.notify(`Recap language set to ${custom.trim()}`, "info");
+      }
+    }
+  }
+
+  function configSummary(): string {
+    return [
+      `Recap: ${config.enabled ? "on" : "off"}`,
+      `Auto-recap: ${config.autoRecap ? "on" : "off"}`,
+      `Language: ${languageLabel(config.language)}`,
+      `Model: ${configuredModelLabel()}`,
+      `Current recap: ${currentRecap || "(none)"}`,
+      `Config file: ${recapConfigPath()}`,
+    ].join("\n");
+  }
+
+  async function openRecapMenu(ctx: ExtensionCommandContext): Promise<void> {
+    if (!ctx.hasUI) {
+      ctx.ui.notify(configSummary(), "info");
+      return;
+    }
+
+    const modelDesc = config.provider && config.model ? `Model: ${configuredModelLabel()}` : "Model: (session default)";
+    const langDesc = `Language: ${languageLabel(config.language)}`;
+    const recapPreview = currentRecap ? `Current recap: ${currentRecap}` : "Current recap: (none)";
+    const title = `Recap: ${config.enabled ? "on" : "off"} · Auto: ${config.autoRecap ? "on" : "off"} · ${langDesc} · ${modelDesc}\n\n${recapPreview}\n\nRecap management:`;
+
+    const toggleDisplay = config.enabled ? "Disable recap display" : "Enable recap display";
+    const toggleAuto = config.autoRecap ? "Disable auto-recap" : "Enable auto-recap";
+
+    const options = [
+      "Generate recap now",
+      `Set recap language (current: ${languageLabel(config.language)})`,
+      `Select recap model${config.provider && config.model ? ` (current: ${configuredModelLabel()})` : ""}`,
+      "Enter provider/model manually",
+      config.provider && config.model ? "Clear model override (use session default)" : "",
+      toggleDisplay,
+      toggleAuto,
+    ].filter(Boolean);
+
+    const choice = await ctx.ui.select(title, options);
+    if (!choice) return;
+
+    if (choice.startsWith("Generate recap now")) {
+      ctx.ui.notify("Generating recap...", "info");
+      const refreshed = await performRecap(ctx);
+      if (refreshed) {
+        ctx.ui.notify(`※ Recap: ${refreshed}`, "info");
+      } else {
+        ctx.ui.notify("No recent exchange to recap or generation failed", "warning");
+      }
+    } else if (choice.startsWith("Set recap language")) {
+      await chooseRecapLanguage(ctx);
+    } else if (choice.startsWith("Select recap model")) {
+      await chooseRecapModel(ctx);
+    } else if (choice === "Enter provider/model manually") {
+      await enterRecapModel(ctx);
+    } else if (choice.startsWith("Clear model override")) {
+      saveConfig({ ...config, provider: undefined, model: undefined }, ctx);
+      ctx.ui.notify("Recap model reset to session default", "info");
+    } else if (choice === "Enable recap display") {
+      saveConfig({ ...config, enabled: true }, ctx);
+      ctx.ui.notify("Recap display enabled", "info");
+    } else if (choice === "Disable recap display") {
+      saveConfig({ ...config, enabled: false }, ctx);
+      ctx.ui.notify("Recap display disabled", "info");
+    } else if (choice === "Enable auto-recap") {
+      saveConfig({ ...config, autoRecap: true }, ctx);
+      ctx.ui.notify("Auto-recap enabled", "info");
+    } else if (choice === "Disable auto-recap") {
+      saveConfig({ ...config, autoRecap: false }, ctx);
+      ctx.ui.notify("Auto-recap disabled", "info");
+    }
+  }
+
+  // Restore or compute latest recap on session start
+  pi.on("session_start", async (_event, ctx) => {
+    config = readRecapConfig();
+    const savedRecap = readDirectorySessionRecap(ctx.cwd, ctx.sessionManager.getSessionFile());
+    if (savedRecap) {
+      currentRecap = savedRecap;
+    }
+    updateRecapWidget(ctx);
+    if (config.enabled && !savedRecap) {
+      void performRecap(ctx);
+    }
+  });
+
+  // Track user interactive input to trigger recap on settlement
   pi.on("input", (event) => {
     if (event.source === "interactive") {
       shouldRecap = true;
     }
   });
 
+  // Automatically update recap after each turn
   pi.on("agent_settled", async (_event, ctx) => {
     if (!shouldRecap) return;
     shouldRecap = false;
-
-    const settings = await readSettings();
-    if (!settings.recapEnabled || !settings.autoRecap) return;
-
-    if (ctx.mode !== "tui") return;
-
-    // Get the last exchange from the session
-    const entries = ctx.sessionManager.getBranch();
-    const exchange = getLastExchange(entries);
-    if (!exchange) return;
-
-    // Generate recap in background (don't await — it's fire-and-forget)
-    refreshRecap(ctx, exchange.user, exchange.assistant, settings);
+    if (!config.enabled || !config.autoRecap) return;
+    void performRecap(ctx);
   });
 
-  // Restore previous recap when session is reloaded
-  pi.on("session_start", async (_event, ctx) => {
-    const settings = await readSettings();
-    updateRecapWidget(ctx, settings);
-  });
-
-  // /recap command — toggle, configure, or generate manually
+  // /recap command — open management menu or execute subcommand
   pi.registerCommand("recap", {
-    description: "Toggle session recap or configure settings",
-    handler: async (_args, ctx) => {
-      const settings = await readSettings();
-      const args = _args.trim().toLowerCase();
+    description: "Manage session recap: generate, configure model/language, toggle display",
+    handler: async (args, ctx) => {
+      const raw = args.trim();
+      const lower = raw.toLowerCase();
 
-      if (args === "off" || args === "0" || args === "disable") {
-        settings.recapEnabled = false;
-        await writeSettings(settings);
-        updateRecapWidget(ctx, settings);
-        if (ctx.hasUI) ctx.ui.notify("Recap: off", "info");
+      if (!raw) {
+        await openRecapMenu(ctx);
         return;
       }
 
-      if (args === "on" || args === "1" || args === "enable") {
-        settings.recapEnabled = true;
-        await writeSettings(settings);
-        updateRecapWidget(ctx, settings);
-        if (ctx.hasUI) ctx.ui.notify("Recap: on", "info");
+      if (lower === "on" || lower === "enable") {
+        saveConfig({ ...config, enabled: true }, ctx);
+        ctx.ui.notify("Recap display: on", "info");
         return;
       }
 
-      if (args === "auto" || args === "automatic") {
-        settings.autoRecap = !settings.autoRecap;
-        await writeSettings(settings);
-        if (ctx.hasUI) {
-          ctx.ui.notify(`Auto-recap: ${settings.autoRecap ? "on" : "off"}`, "info");
+      if (lower === "off" || lower === "disable") {
+        saveConfig({ ...config, enabled: false }, ctx);
+        ctx.ui.notify("Recap display: off", "info");
+        return;
+      }
+
+      if (lower === "auto") {
+        saveConfig({ ...config, autoRecap: !config.autoRecap }, ctx);
+        ctx.ui.notify(`Auto-recap: ${config.autoRecap ? "on" : "off"}`, "info");
+        return;
+      }
+
+      if (lower === "now" || lower === "generate") {
+        ctx.ui.notify("Generating recap...", "info");
+        const refreshed = await performRecap(ctx);
+        if (refreshed) {
+          ctx.ui.notify(`※ Recap: ${refreshed}`, "info");
+        } else {
+          ctx.ui.notify("No recent exchange to recap or generation failed", "warning");
         }
         return;
       }
 
-      if (args === "now" || args === "generate") {
-        const entries = ctx.sessionManager.getBranch();
-        const exchange = getLastExchange(entries);
-        if (!exchange) {
-          if (ctx.hasUI) ctx.ui.notify("No recent exchange to recap", "warning");
+      if (lower.startsWith("lang") || lower.startsWith("language")) {
+        const parts = raw.split(/\s+/);
+        const langArg = parts.slice(1).join(" ").trim();
+        if (!langArg) {
+          await chooseRecapLanguage(ctx);
           return;
         }
-        if (ctx.hasUI) ctx.ui.notify("Generating recap...", "info");
-        await refreshRecap(ctx, exchange.user, exchange.assistant, settings);
-        if (ctx.hasUI) {
-          ctx.ui.notify(
-            recapWidgetState.text
-              ? `Recap: ${recapWidgetState.text}`
-              : "Recap generation failed",
-            "info",
-          );
-        }
+        saveConfig({ ...config, language: langArg }, ctx);
+        ctx.ui.notify(`Recap language set to ${languageLabel(langArg)}`, "info");
         return;
       }
 
-      if (!ctx.hasUI) {
-        ctx.ui.notify(
-          [
-            `Recap: ${settings.recapEnabled ? "on" : "off"}`,
-            `Auto-recap: ${settings.autoRecap ? "on" : "off"}`,
-            settings.recapModel ? `Model: ${settings.recapModel}` : "Model: (session default)",
-          ].join("\n"),
-          "info",
-        );
-        return;
-      }
-
-      const options = [
-        `Toggle recap (currently ${settings.recapEnabled ? "on" : "off"})`,
-        `Toggle auto-recap (currently ${settings.autoRecap ? "on" : "off"})`,
-        "Generate recap now",
-        "Set recap model (session default)",
-        settings.recapModel ? `Clear recap model override` : "",
-      ].filter(Boolean);
-
-      const choice = await ctx.ui.select(
-        `Recap settings\n\n${recapWidgetState.text ? `Current recap: ${recapWidgetState.text}` : ""}`,
-        options,
-      );
-      if (!choice) return;
-
-      if (choice.startsWith("Toggle recap")) {
-        settings.recapEnabled = !settings.recapEnabled;
-        await writeSettings(settings);
-        updateRecapWidget(ctx, settings);
-        ctx.ui.notify(`Recap: ${settings.recapEnabled ? "on" : "off"}`, "info");
-      } else if (choice.startsWith("Toggle auto-recap")) {
-        settings.autoRecap = !settings.autoRecap;
-        await writeSettings(settings);
-        ctx.ui.notify(`Auto-recap: ${settings.autoRecap ? "on" : "off"}`, "info");
-      } else if (choice.startsWith("Generate recap now")) {
-        const entries = ctx.sessionManager.getBranch();
-        const exchange = getLastExchange(entries);
-        if (!exchange) {
-          ctx.ui.notify("No recent exchange to recap", "warning");
+      if (lower.startsWith("model")) {
+        const modelArg = raw.slice("model".length).trim();
+        if (!modelArg) {
+          await chooseRecapModel(ctx);
           return;
         }
-        await refreshRecap(ctx, exchange.user, exchange.assistant, settings);
-        ctx.ui.notify(
-          recapWidgetState.text
-            ? `Recap: ${recapWidgetState.text}`
-            : "Recap generation failed",
-          "info",
-        );
-      } else if (choice.startsWith("Set recap model")) {
-        const model = await ctx.ui.input(
-          "Recap model override (e.g. anthropic/claude-haiku-3-5, or empty to use session default):",
-          settings.recapModel ?? "",
-        );
-        if (model === undefined) return; // cancelled
-        settings.recapModel = model.trim() || undefined;
-        await writeSettings(settings);
-        ctx.ui.notify(
-          settings.recapModel
-            ? `Recap model: ${settings.recapModel}`
-            : "Recap model: session default",
-          "info",
-        );
-      } else if (choice.startsWith("Clear recap model")) {
-        settings.recapModel = undefined;
-        await writeSettings(settings);
-        ctx.ui.notify("Recap model: session default", "info");
+        if (modelArg === "default" || modelArg === "clear" || modelArg === "none") {
+          saveConfig({ ...config, provider: undefined, model: undefined }, ctx);
+          ctx.ui.notify("Recap model reset to session default", "info");
+          return;
+        }
+        const ref = parseModelRef(modelArg);
+        if (!ref) {
+          ctx.ui.notify("Enter a model in provider/model format (e.g. anthropic/claude-3-5-haiku)", "error");
+          return;
+        }
+        const model = ctx.modelRegistry.find(ref.provider, ref.model);
+        if (!model) {
+          ctx.ui.notify(`Model ${ref.provider}/${ref.model} was not found in the model registry`, "error");
+          return;
+        }
+        saveConfig({ ...config, ...ref }, ctx);
+        ctx.ui.notify(`Recap model set to ${modelLabel(model)}`, "info");
+        return;
       }
+
+      ctx.ui.notify(`Unknown subcommand "${raw}". Run /recap to open the management menu.`, "warning");
     },
   });
 }
