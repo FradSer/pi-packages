@@ -51,7 +51,7 @@ const captureMainContext = (context: { messages: Array<{ content?: unknown }> })
   mainPrompt = contentText(content);
   mainContexts.push(context.messages.map((message) => contentText(message.content)).join("\n"));
 };
-const visionResponses = scenario === "failure"
+const visionResponses = scenario === "failure" || scenario === "tool-failure"
   ? [() => {
       visionCallCount++;
       throw new Error("TEST_PROVIDER_FAILURE");
@@ -97,12 +97,23 @@ main.setResponses(
           return fauxAssistantMessage("SECOND_MAIN_RESULT");
         },
       ]
-    : [
-        (context) => {
-          captureMainContext(context);
-          return fauxAssistantMessage("MAIN_RESULT");
-        },
-      ],
+    : scenario === "tool-image" || scenario === "tool-failure"
+      ? [
+          (context) => {
+            captureMainContext(context);
+            return fauxAssistantMessage(fauxToolCall("read_image", { path: "/tmp/shot.png" }));
+          },
+          (context) => {
+            captureMainContext(context);
+            return fauxAssistantMessage("MAIN_RESULT_AFTER_TOOL");
+          },
+        ]
+      : [
+          (context) => {
+            captureMainContext(context);
+            return fauxAssistantMessage("MAIN_RESULT");
+          },
+        ],
 );
 
 const runtime = await ModelRuntime.create({ modelsPath: null, refreshOnCreate: false });
@@ -125,6 +136,31 @@ const repeatContext = defineTool({
   parameters: Type.Object({}),
   execute: async () => ({ content: [{ type: "text", text: "done" }], details: {} }),
 });
+const readImage = defineTool({
+  name: "read_image",
+  label: "Read image",
+  description: "Test tool that returns image content",
+  parameters: Type.Object({ path: Type.String() }),
+  execute: async () => ({
+    content: [
+      {
+        type: "text",
+        text: "Read image file [image/png]\n[Current model does not support images. The image will be omitted from this request.]",
+      },
+      {
+        type: "image",
+        data: "iVBORw0KGgo=",
+        mimeType: "image/png",
+      },
+    ],
+    details: {},
+  }),
+});
+const customTools = scenario === "cache"
+  ? [repeatContext]
+  : scenario === "tool-image" || scenario === "tool-failure"
+    ? [readImage]
+    : undefined;
 const { session } = await createAgentSession({
   cwd: process.cwd(),
   agentDir,
@@ -132,8 +168,8 @@ const { session } = await createAgentSession({
   model: main.getModel(mainModelId),
   resourceLoader: loader,
   sessionManager,
-  customTools: scenario === "cache" ? [repeatContext] : undefined,
-  noTools: scenario === "cache" ? "builtin" : "all",
+  customTools,
+  noTools: customTools ? "builtin" : "all",
 });
 
 session.subscribe((event) => {
@@ -163,6 +199,18 @@ const sessionUserImageCount = Array.isArray(sessionUserContent)
 const sessionUserPrompt = Array.isArray(sessionUserContent)
   ? sessionUserContent.filter((part) => part.type === "text").map((part) => part.text).join("\n")
   : String(sessionUserContent ?? "");
+
+const sessionToolResultMessage = [...sessionManager.buildSessionContext().messages]
+  .reverse()
+  .find((message) => message.role === "toolResult");
+const sessionToolResultContent = sessionToolResultMessage?.content;
+const sessionToolResultImageCount = Array.isArray(sessionToolResultContent)
+  ? sessionToolResultContent.filter((part) => part.type === "image").length
+  : 0;
+const sessionToolResultText = Array.isArray(sessionToolResultContent)
+  ? sessionToolResultContent.filter((part) => part.type === "text").map((part) => part.text).join("\n")
+  : String(sessionToolResultContent ?? "");
+
 session.dispose();
 
 console.log(JSON.stringify({
@@ -174,6 +222,8 @@ console.log(JSON.stringify({
   mainContexts,
   sessionUserImageCount,
   sessionUserPrompt,
+  sessionToolResultImageCount,
+  sessionToolResultText,
   sessionEntryTypes,
   visionCallsAtUserMessageEnd,
 }));
