@@ -9,7 +9,7 @@
  * Leader tools: teammate_run, teammate_status, teammate_cancel,
  * teammate_retry, teammate_message.
  *
- * Spawned workers receive only teammate_message and teammate_report.
+ * Spawned workers receive teammate_message.
  */
 
 import { randomUUID } from "node:crypto";
@@ -20,7 +20,6 @@ import { discoverAgents, resolveAgent, type AgentDefinition } from "./agents";
 import {
   TeammateCancelParams,
   TeammateMessageParams,
-  TeammateReportParams,
   TeammateRetryParams,
   TeammateRunParams,
   TeammateStatusParams,
@@ -127,13 +126,10 @@ function isWorkerEvent(value: unknown): value is WorkerEvent {
     return typeof event.to === "string"
       && typeof event.subject === "string"
       && typeof event.body === "string"
+      && (event.status === undefined || ["in_progress", "completed", "failed"].includes(event.status as string))
       && (event.taskId === undefined || typeof event.taskId === "string");
   }
-  return event.type === "task_update"
-    && typeof event.taskId === "string"
-    && ["in_progress", "completed", "failed"].includes(event.status ?? "")
-    && (event.result === undefined || typeof event.result === "string")
-    && (event.errorMessage === undefined || typeof event.errorMessage === "string");
+  return false;
 }
 
 /** Apply complete, validated event records from every running node's outbox. */
@@ -166,17 +162,16 @@ function applyWorkerEvents(stateFile: string): void {
             body: event.body,
             taskId: event.taskId === node.id ? run.id : undefined,
           });
+          if (event.status && !["completed", "failed", "cancelled"].includes(node.status)) {
+            if (event.status === "completed") {
+              updateNodeStatus(run.id, node.id, "completed", event.body, undefined);
+              requestReportedWorkerShutdown(node.workerKey, spawnId);
+            } else if (event.status === "failed") {
+              updateNodeStatus(run.id, node.id, "failed", undefined, event.body);
+              requestReportedWorkerShutdown(node.workerKey, spawnId);
+            }
+          }
           continue;
-        }
-        // task_update: bound to this node's current spawn. Only terminal
-        // reports mutate node status (the node is already running otherwise).
-        if (event.taskId !== node.id) continue;
-        if (["completed", "failed", "cancelled"].includes(node.status)) continue;
-        state.workerEventIds[`${spawnId}:${event.id}`] = spawnId;
-        if (event.status === "completed" || event.status === "failed") {
-          updateNodeStatus(run.id, node.id, event.status, event.result, event.errorMessage);
-          // A worker that already sent a terminal report should close promptly.
-          requestReportedWorkerShutdown(node.workerKey, spawnId);
         }
       }
     }
@@ -229,9 +224,9 @@ function sendMainSessionUpdate(subject: string, body: string, runId?: string): v
 function registerWorkerCapabilities(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "teammate_message",
-    promptSnippet: "Send a direct message to the main session",
+    promptSnippet: "Send a direct message or final report",
     label: "Teammate Message",
-    description: "Worker-only sender. Addresses team-leader (the main session) or a same-run peer (node id or runId:nodeId).",
+    description: "Worker-only sender. Addresses team-leader (the main session) or a same-run peer (node id or runId:nodeId). Set status=\"completed\"|\"failed\" to deliver final results to team-leader.",
     parameters: TeammateMessageParams,
     async execute(_toolCallId, params) {
       const binding = workerOutboxBinding();
@@ -248,32 +243,11 @@ function registerWorkerCapabilities(pi: ExtensionAPI): void {
         to: recipient.to,
         subject: params.subject,
         body: params.body,
-        taskId: binding.taskId,
-      });
-      return { content: [{ type: "text", text: `Queued message to ${recipient.to}.` }], details: {} };
-    },
-  });
-
-  pi.registerTool({
-    name: "teammate_report",
-    promptSnippet: "Worker-only: report progress, completion, or failure for this worker's bound node",
-    label: "Report Teammate Node Status",
-    description: "Worker-only capability. Reports progress, completion, or failure for the node bound to this worker process.",
-    parameters: TeammateReportParams,
-    async execute(_toolCallId, params) {
-      const binding = workerOutboxBinding();
-      if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
-      appendWorkerEvent(binding.outbox, {
-        id: randomUUID(),
-        type: "task_update",
-        worker: binding.worker,
-        runId: binding.runId,
-        taskId: binding.taskId,
         status: params.status,
-        result: params.result,
-        errorMessage: params.errorMessage,
+        taskId: binding.taskId,
       });
-      return { content: [{ type: "text", text: `Queued ${params.status} update for ${binding.taskId}.` }], details: {} };
+      const statusNote = params.status ? ` with status "${params.status}"` : "";
+      return { content: [{ type: "text", text: `Queued message to ${recipient.to}${statusNote}.` }], details: {} };
     },
   });
 }
@@ -797,11 +771,9 @@ function buildRunSummary(runId: string): string {
     acc[node.status] = (acc[node.status] ?? 0) + 1;
     return acc;
   }, {});
-  const totalTokens = Object.values(run.nodes).reduce((sum, node) => sum + (node.spawn?.usage?.totalTokens ?? 0), 0);
-  const totalCost = Object.values(run.nodes).reduce((sum, node) => sum + (node.spawn?.usage?.cost ?? 0), 0);
   const lines = [
     `## Run [${run.id}] ${run.status}`,
-    `${Object.keys(run.nodes).length} node(s): ${Object.entries(counts).map(([status, n]) => `${status} ${n}`).join(", ")} | ${totalTokens.toLocaleString()} tokens | $${totalCost.toFixed(4)}`,
+    `${Object.keys(run.nodes).length} node(s): ${Object.entries(counts).map(([status, n]) => `${status} ${n}`).join(", ")}`,
     "",
   ];
   if (run.summary) {
@@ -991,8 +963,7 @@ function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void {
     const completedAfterFinalResponse = nodeNow?.spawn?.finalResponse === true;
     const workerReportedFailure = reportedTerminalStatus === "failed";
     const completedAfterShutdown = (reportedTerminalStatus === "completed" || completedAfterFinalResponse)
-      && (result.signal === "SIGTERM" || result.exitCode === 128 + 15)
-      && !result.timedOut;
+      && (result.signal === "SIGTERM" || result.exitCode === 128 + 15 || result.timedOut);
     const ok = isCompletedWorkerExit(
       result,
       reportedTerminalStatus === "completed" || completedAfterFinalResponse,
@@ -1004,7 +975,7 @@ function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void {
       startedAt: nodeNow?.spawn?.startedAt ?? Date.now(),
       finishedAt: Date.now(),
       exitCode: result.exitCode ?? undefined,
-      stdout: ok ? result.stdout + patchText : undefined,
+      stdout: (result.stdout + patchText).trim() ? result.stdout + patchText : undefined,
       stderr: ok ? undefined : result.stderr,
       usage: result.usage,
       timedOut: result.timedOut,
@@ -1130,21 +1101,19 @@ const WORKER_GUIDANCE = `
 ## Spawned Teammate Protocol
 
 You are a teammate, not the team leader. Work only on the task bound to
-this process and its declared access/paths. Best-effort communication:
+this process and its declared access/paths. Communication:
 
 - Send: teammate_message to "team-leader" for plans, progress, blockers,
-  and decisions; to a same-run peer (teammate id) for handoffs and review
-  findings. Your message is recorded for the recipient; it never interrupts
-  the main session.
+  and your final deliverable (with status="completed" or status="failed"); to
+  same-run peers (node id) for handoffs and findings.
 - Receive: messages pushed to you live in the shared state snapshot under
   mailboxes["<your worker key>"] — read that snapshot with the read tool when
-you need a leader reply or a peer handoff. Do not poll for them; DAG
-upstream results are already injected into your task prompt.
-- Submit: teammate_report for progress and the final completed/failed
-  outcome. Put your FULL deliverable in the final report result — the leader
-  reads it as your authoritative output. teammate_message is for short
-  notices (plans, blockers, decisions), not for shipping the deliverable.
-  The harness delivers the authoritative result after your process closes.
+  you need a leader reply or a peer handoff. Do not poll for them; DAG
+  upstream results are already injected into your task prompt.
+- Final deliverable: send teammate_message to "team-leader" with
+  status="completed" (or "failed") and put your FULL deliverable/findings in
+  the message body. The harness delivers this result to the main session after
+  your process closes.
 
 The mailbox is best-effort: process each message you read once. Do not use
 leader coordination tools, claim new tasks, or overwrite files outside your
@@ -1194,15 +1163,15 @@ message flow) or use background=false on teammate_run to gather inline. A run
 cancelled with teammate_cancel fires no follow-up: the cancel result already
 reported the outcome in that turn. teammate_cancel stops a run (or one
 node with nodeId); teammate_retry re-runs only the failed/cancelled nodes
-of a settled run. Workers message team-leader and same-run peers; completing
-a node hands its result to pending dependents. A worker's FULL deliverable is
-its teammate_report result; if it also pushed a full report via teammate_message,
-call teammate_status with the run id to read the complete message bodies — you
-do not need any inbox tool. Only the harness-delivered run completion
-(background) or wait/run results trigger model turns. After a run, inspect
-the artifacts yourself: a worker's claim is not proof until its deliverable
-and tests are checked. Treat failed, timed-out, cancelled, and missing nodes
-explicitly; a failed node cancels its downstream dependents and fails the run.
+of a settled run. Workers message team-leader (including their final report
+with status="completed") and same-run peers; completing a node hands its
+result to pending dependents. Call teammate_status with the run id to read the
+complete message bodies and deliverables. Only the harness-delivered run
+completion (background) or wait/run results trigger model turns. After a run,
+inspect the artifacts yourself: a worker's claim is not proof until its
+deliverable and tests are checked. Treat failed, timed-out, cancelled, and
+missing nodes explicitly; a failed node cancels its downstream dependents and
+fails the run.
 `;
 
 export default function (pi: ExtensionAPI) {

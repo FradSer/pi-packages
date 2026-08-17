@@ -31,7 +31,7 @@ export function buildAutonomousPrompt(opts: {
   outboxFile: string;
   timeoutSec: number;
 }): string {
-  const taskLine = `\nAssigned teammate: [${opts.taskId}].\nUse teammate_report to submit your FULL final deliverable (status → completed/failed). Keep it complete and structured — this is what the leader reads.`;
+  const taskLine = `\nAssigned task: [${opts.taskId}].\nUse teammate_message to "team-leader" with status="completed" to submit your FULL final deliverable.`;
 
   return `You are a FULLY AUTONOMOUS teammate named "${opts.name}" (agent: ${opts.role}) in a pi multi-agent team run.
 
@@ -43,16 +43,13 @@ Your append-only outbox (WRITE ONLY): ${opts.outboxFile}
 Your mailbox key: "${opts.workerKey}" — the leader or a peer may push messages for you under mailboxes["${opts.workerKey}"] in the snapshot.${taskLine}
 
 YOUR ROLE IN THIS RUN:
-1. Read the state snapshot to see your teammate record (${opts.taskId}) and any messages already pushed to your mailbox key. DAG upstream results are ALREADY injected into this prompt below — do not poll the snapshot for them. To receive a leader reply or a peer handoff during the run, read the snapshot again and look at mailboxes["${opts.workerKey}"]. MUST NOT write state.json or modify its in-memory shape.
-2. Before substantive work, call teammate_message to:"team-leader" with a concise plan: approach, Paths, likely verification, and any dependency risk. The plan is recorded for the team leader without interrupting the main session.
-3. Work only on your assigned scope and recorded Paths. Call teammate_report with a concise in_progress update after material progress. Message team-leader for a blocker, changed material assumption, scope risk, or need for a decision.
-4. **Direct messaging**: use teammate_message with to:"team-leader" for plan, blocker, and decision request. Message same-run peers proactively (teammate id or runId:teammateId) when a handoff, shared assumption, or review finding would help them; read your mailbox key (step 1) to receive their replies. teammate_message is for SHORT notices — the full deliverable belongs in step 5's report result.
-5. Call teammate_report exactly once with completed or failed. Its result MUST contain the FULL final deliverable: the complete report, findings, evidence, or output — the leader reads this as your authoritative output. Keep it structured and complete, not a pointer to a message you sent. After the child closes, the parent harness delivers this result to the main session. Do not wait for future work or claim teammates.
-6. The hard wall-clock cap is ${opts.timeoutSec}s — notify team-leader of a blocker and report failure before it when blocked.
+1. Work directly on your assigned scope and recorded Paths. DAG upstream results are ALREADY injected into this prompt below — do not poll the snapshot for them. You only need to read the state snapshot if you expect asynchronous peer messages under mailboxes["${opts.workerKey}"]. MUST NOT write state.json or modify its in-memory shape.
+2. Direct communication: call teammate_message to:"team-leader" for plans, progress, blockers, or questions. Call teammate_message to same-run peers (node id or runId:nodeId) proactively when a handoff, shared interface, or finding would help them.
+3. Deliver your work: When finished, call teammate_message with to:"team-leader", status:"completed", and put your FULL deliverable/report in body. If blocked/failed, send with status:"failed" and the error in body. This is your authoritative output delivered to the team leader.
+4. The hard wall-clock cap is ${opts.timeoutSec}s — manage your time budget, avoid unnecessary exploration, and deliver your final message before the deadline.
 
 BOUND CAPABILITIES:
-- teammate_message sends a direct message to team-leader or a same-run peer.
-- teammate_report updates only the record bound to this worker process.
+- teammate_message sends a direct message to team-leader (with optional status="completed"|"failed") or a same-run peer.
 
 Technical notes:
 - Use Pi's read tool to inspect the snapshot at ${opts.stateFile}; use a Python one-liner only if the read tool is unavailable.
@@ -110,13 +107,12 @@ export function isSuccessfulWorkerExit(result: Pick<WorkerProcessResult, "exitCo
   return result.exitCode === 0 && result.signal === null && !result.timedOut;
 }
 
-/** A reported completion remains successful when the harness then closes it with SIGTERM. */
+/** A reported completion remains successful when the harness closes it or teardown observes a signal/timeout. */
 export function isCompletedWorkerExit(
   result: Pick<WorkerProcessResult, "exitCode" | "signal" | "timedOut">,
   reportedCompleted = false,
 ): boolean {
-  const sigtermExit = result.signal === "SIGTERM" || result.exitCode === 128 + 15;
-  return isSuccessfulWorkerExit(result) || (reportedCompleted && sigtermExit && !result.timedOut);
+  return isSuccessfulWorkerExit(result) || reportedCompleted;
 }
 
 export interface SpawnedWorker {
@@ -448,7 +444,7 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
   if (options.model) args.push("--model", options.model);
   // Capability tools cannot be removed; execution tools are selected by the
   // leader from the teammate's explicit configuration or role default.
-  const capabilityTools = ["teammate_message", "teammate_report"];
+  const capabilityTools = ["teammate_message"];
   const requestedTools = (options.tools ?? []).filter((tool) => !tool.startsWith("teammate_"));
   const tools = [...new Set([...requestedTools, ...capabilityTools])];
   args.push("--tools", tools.join(","));

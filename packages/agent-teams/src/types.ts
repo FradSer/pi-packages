@@ -153,21 +153,11 @@ export interface WorkerMessageEvent {
   to: string;
   subject: string;
   body: string;
+  status?: "in_progress" | "completed" | "failed";
   taskId?: string;
 }
 
-export interface WorkerTaskUpdateEvent {
-  id: string;
-  type: "task_update";
-  worker: string;
-  runId: string;
-  taskId: string;
-  status: "in_progress" | "completed" | "failed";
-  result?: string;
-  errorMessage?: string;
-}
-
-export type WorkerEvent = WorkerMessageEvent | WorkerTaskUpdateEvent;
+export type WorkerEvent = WorkerMessageEvent;
 
 // ── Tool parameter schemas (typebox) ──────────────────────────────
 
@@ -188,7 +178,7 @@ export const RunTaskSpec = Type.Object({
   }),
   access: Type.Optional(NodeAccess),
   model: Type.Optional(Type.String({ description: "Optional per-node provider/model pin" })),
-  timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Optional per-node hard wall-clock cap before the worker is killed" })),
+  timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Optional per-node hard wall-clock cap before the worker is killed (default: 30 minutes; do not set overly short timeouts for multi-file or reasoning tasks)" })),
 });
 
 /** Dispatch a dependency-aware task graph in one call. */
@@ -200,7 +190,7 @@ export const TeammateRunParams = Type.Object({
   }),
   concurrency: Type.Optional(Type.Integer({ minimum: 1, maximum: 32, description: "Max nodes running at once (default: 4)" })),
   worktree: Type.Optional(Type.Boolean({ description: "Run every node in its own git worktree (default: false)" })),
-  background: Type.Optional(Type.Boolean({ description: "Return immediately and deliver one completion follow-up. Default: true — teammates always run in the background; collect via the completion follow-up or teammate_status." })),
+  background: Type.Optional(Type.Boolean({ default: true, description: "Return immediately and deliver one completion follow-up. Default: true — teammates always run in the background; collect via the completion follow-up or teammate_status." })),
   timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Run-level hard wall-clock cap; the run fails when exceeded (default: none, nodes have their own caps)" })),
   summarize: Type.Optional(Type.Boolean({ description: "Append a __summary node after all leaf nodes. Default: true when the run has more than one user task, false for a single task." })),
   summaryAgent: Type.Optional(Type.String({ description: "Agent used for the summary node when summarize is on (default: observer)" })),
@@ -224,19 +214,17 @@ export const TeammateRetryParams = Type.Object({
   nodeIds: Type.Optional(Type.Array(Type.String(), { description: "Node ids to reset and re-run; defaults to all failed and cancelled nodes" })),
 });
 
-/** Send a direct message. Leaders address a node key or broadcast to a run; workers address team-leader or a same-run peer. */
+/** Send a direct message or final report. Leaders address a node key or broadcast; workers address team-leader (with optional status) or a same-run peer. */
 export const TeammateMessageParams = Type.Object({
   to: Type.String({ description: "Recipient: team-leader (the main session), a same-run node id, or runId:nodeId. Leaders may also use all with runId." }),
   subject: Type.String({ description: "Concise message subject" }),
-  body: Type.String({ description: "Message body" }),
+  body: Type.String({ description: "Message body (or full final deliverable when submitting status=completed/failed to team-leader)" }),
+  status: Type.Optional(Type.Union([
+    Type.Literal("in_progress"),
+    Type.Literal("completed"),
+    Type.Literal("failed"),
+  ], { description: "Optional status update for the sender's node (use completed/failed when submitting the final deliverable to team-leader)" })),
   runId: Type.Optional(Type.String({ description: "Run id required when to is all (leader only)" })),
-});
-
-/** Worker-only: report progress or a final outcome for the bound node. */
-export const TeammateReportParams = Type.Object({
-  status: Type.Union([Type.Literal("in_progress"), Type.Literal("completed"), Type.Literal("failed")]),
-  result: Type.Optional(Type.String({ description: "Final result when completed" })),
-  errorMessage: Type.Optional(Type.String({ description: "Failure detail when failed" })),
 });
 
 // ── State snapshot for persistence ────────────────────────────────
