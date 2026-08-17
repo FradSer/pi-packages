@@ -2,7 +2,7 @@
  * Run-centric state management for the current session only.
  *
  * A run is a dispatched dependency-aware task graph; each node is one bounded
- * child-process worker with a mailbox identity of `${runId}:${nodeId}`.
+ * child-process worker with a stable identity of `${runId}:${nodeId}`.
  */
 
 import type { MailboxMessage, Node, NodeStatus, Run, RunStatus, SpawnInfo, TeammateState, WorkerMessageEvent } from "./types";
@@ -10,7 +10,7 @@ import type { MailboxMessage, Node, NodeStatus, Run, RunStatus, SpawnInfo, Teamm
 function emptyState(): TeammateState {
   return {
     runs: {},
-    mailboxes: {},
+    leaderMailbox: [],
     messageCounter: 0,
     runCounter: 0,
     workerEventOffsets: {},
@@ -135,6 +135,8 @@ export function createRun(
       timeoutMs: node.timeoutMs,
       dependsOn: [...new Set(node.dependsOn)],
       status: "pending",
+      inboxMessages: [],
+      sentMessages: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -172,6 +174,8 @@ export function createRun(
         access: "read",
         dependsOn: leaves.map((node) => node.id),
         status: "pending",
+        inboxMessages: [],
+        sentMessages: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -195,7 +199,6 @@ export function createRun(
   for (const node of normalized) {
     node.workerKey = `${runId}:${node.id}`;
     run.nodes[node.id] = node;
-    if (!state.mailboxes[node.workerKey]) state.mailboxes[node.workerKey] = [];
   }
   state.runs[runId] = run;
   return { ok: true, run };
@@ -221,6 +224,10 @@ export function getNodeByWorkerKey(workerKey: string): { run: Run; node: Node } 
 
 export function listRuns(): Run[] {
   return Object.values(state.runs).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export function listActiveRuns(): Run[] {
+  return listRuns().filter((run) => run.status === "running");
 }
 
 export function runningNodeCount(runId: string): number {
@@ -589,20 +596,6 @@ export function retryRun(runId: string, nodeIds?: string[]): { ok: boolean; rese
   return { ok: true, reset };
 }
 
-/** Remove terminal runs and their node mailboxes. Running and pending runs are retained. */
-export function pruneFinishedRuns(): number {
-  let removed = 0;
-  for (const [runId, run] of Object.entries(state.runs)) {
-    if (!isRunTerminal(run)) continue;
-    for (const node of Object.values(run.nodes)) {
-      delete state.mailboxes[node.workerKey];
-    }
-    delete state.runs[runId];
-    removed++;
-  }
-  return removed;
-}
-
 /** Drop per-spawn replay metadata after its final state snapshot was persisted. */
 export function clearWorkerRunEvents(workerKey: string, spawnId: string): void {
   const outboxKey = `${workerKey}:${spawnId}`;
@@ -612,27 +605,50 @@ export function clearWorkerRunEvents(workerKey: string, spawnId: string): void {
   }
 }
 
-// ── Mailbox ───────────────────────────────────────────────────────
+// ── Message storage ───────────────────────────────────────────────
 
-export function sendMessage(msg: Omit<MailboxMessage, "id" | "timestamp" | "read">): MailboxMessage {
+/** Append a message to the sending node's push-only transcript, when the
+ * sender is a node (run-settled summaries from run ids are skipped). */
+function recordSentMessage(from: string, message: MailboxMessage): void {
+  for (const run of Object.values(state.runs)) {
+    for (const node of Object.values(run.nodes)) {
+      if (node.workerKey === from) {
+        node.sentMessages.push(message);
+        return;
+      }
+    }
+  }
+}
+
+/** Deliver a message: leader-bound messages land in the single leader inbox;
+ * worker-bound messages land on the target node's inbox. */
+export function sendMessage(msg: Omit<MailboxMessage, "id" | "timestamp">): MailboxMessage {
   const full: MailboxMessage = {
     ...msg,
     id: nextMessageId(),
     timestamp: Date.now(),
-    read: false,
   };
-  if (!state.mailboxes[msg.to]) {
-    state.mailboxes[msg.to] = [];
+  recordSentMessage(msg.from, full);
+  if (msg.to === "team-leader") {
+    state.leaderMailbox.push(full);
+  } else {
+    const recipient = getNodeByWorkerKey(msg.to);
+    if (recipient) recipient.node.inboxMessages.push(full);
   }
-  state.mailboxes[msg.to].push(full);
   return full;
 }
 
-/** Deliver a validated worker event exactly once using the worker event ID. */
+/** Apply a validated worker event exactly once (by event id). Leader-bound
+ * messages are delivered to the leader inbox; peer messages are recorded in
+ * the sender's sent transcript but NOT delivered — upstream context reaches
+ * dependents via the DAG prompt injection, and workers do not read peer
+ * inboxes. */
 export function receiveWorkerMessage(event: WorkerMessageEvent): boolean {
-  const mailbox = state.mailboxes[event.to] ?? [];
-  if (mailbox.some((message) => message.id === event.id)) return false;
-  mailbox.push({
+  const sender = getNodeByWorkerKey(event.worker)?.node;
+  if (!sender) return false;
+  if (sender.sentMessages.some((message) => message.id === event.id)) return false;
+  if (event.to === "team-leader" && state.leaderMailbox.some((message) => message.id === event.id)) return false;
+  const message: MailboxMessage = {
     id: event.id,
     from: event.worker,
     to: event.to,
@@ -640,9 +656,10 @@ export function receiveWorkerMessage(event: WorkerMessageEvent): boolean {
     body: event.body,
     taskId: event.taskId,
     timestamp: Date.now(),
-    read: false,
-  });
-  state.mailboxes[event.to] = mailbox;
+  };
+  recordSentMessage(event.worker, message);
+  if (event.to !== "team-leader") return true;
+  state.leaderMailbox.push(message);
   return true;
 }
 
@@ -661,10 +678,6 @@ export function resolveWorkerRecipientFromRuns(
   return { ok: true, to: peer.workerKey };
 }
 
-export function resolveWorkerRecipient(fromWorkerKey: string, to: string): { ok: true; to: string } | { ok: false; error: string } {
-  return resolveWorkerRecipientFromRuns(getState().runs, fromWorkerKey, to);
-}
-
 /** Resolve a leader-facing recipient: worker key, unique node id, or runId:nodeId. */
 export function resolveLeaderRecipient(to: string, runId?: string): { ok: true; to: string; runId: string } | { ok: false; error: string } {
   const byKey = getNodeByWorkerKey(to);
@@ -679,38 +692,6 @@ export function resolveLeaderRecipient(to: string, runId?: string): { ok: true; 
   return { ok: false, error: `Unknown node "${to}". Use a node id, runId:nodeId, or to="all" with runId.` };
 }
 
-/** Pending/running dependents of a node (direct dependsOn edges). */
-export function dependentNodes(runId: string, nodeId: string): Node[] {
-  const run = state.runs[runId];
-  if (!run) return [];
-  return Object.values(run.nodes).filter((node) => node.dependsOn.includes(nodeId));
-}
-
-/** Push a completed node's result into each dependent's inbox. */
-export function handoffNodeResult(runId: string, nodeId: string): number {
-  const run = state.runs[runId];
-  const node = run?.nodes[nodeId];
-  if (!run || !node) return 0;
-  const body = node.result?.trim() || node.errorMessage?.trim() || `${node.status} with no written result.`;
-  let sent = 0;
-  for (const dependent of dependentNodes(runId, nodeId)) {
-    sendMessage({
-      from: node.workerKey,
-      to: dependent.workerKey,
-      subject: `Handoff from ${node.id}`,
-      body: `Upstream node [${node.id}] (${node.agent}) is ${node.status}.\n\n${body}`,
-      taskId: runId,
-    });
-    sent++;
-  }
-  return sent;
-}
-
-/** Every message across every mailbox (for building conversation transcripts). */
-export function listAllMessages(): MailboxMessage[] {
-  return Object.values(state.mailboxes).flat();
-}
-
 // ── State inspection ──────────────────────────────────────────────
 
 export function getState(): TeammateState {
@@ -720,7 +701,8 @@ export function getState(): TeammateState {
 export function getSummary(): string | undefined {
   const runCount = Object.keys(state.runs).length;
   if (runCount === 0) return undefined;
-  const messageCount = Object.values(state.mailboxes).reduce((sum, mailbox) => sum + mailbox.length, 0);
+  const messageCount = state.leaderMailbox.length
+    + listNodes().reduce((sum, node) => sum + node.inboxMessages.length, 0);
   const activeNodes = listNodes().filter((node) => node.status === "running" || node.status === "pending").length;
   return `${runCount} run(s) | ${messageCount} message(s) | ${activeNodes} active node(s)`;
 }

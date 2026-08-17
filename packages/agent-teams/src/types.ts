@@ -51,6 +51,10 @@ export interface Node {
   errorMessage?: string;
   /** Real child-process execution info when this node was spawned. */
   spawn?: SpawnInfo;
+  /** Messages from the leader waiting for this worker to read the snapshot. */
+  inboxMessages: MailboxMessage[];
+  /** Push-only transcript of messages this node sent (to team-leader or peers). */
+  sentMessages: MailboxMessage[];
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
@@ -78,7 +82,7 @@ export interface Run {
   finishedAt?: number;
   /** True once the run-completion follow-up was delivered, or claimed by wait/foreground gather. */
   completionNotified?: boolean;
-  /** True once the run-settled mailbox summary was sent (onRunSettled is idempotent). */
+  /** True once the run-settled leader summary was sent (onRunSettled is idempotent). */
   settledMessageSent?: boolean;
   /** Synthesized final summary produced by the optional __summary node. */
   summary?: string;
@@ -141,7 +145,6 @@ export interface MailboxMessage {
   body: string;
   taskId?: string;
   timestamp: number;
-  read: boolean;
 }
 
 /** Append-only event emitted by a worker and applied by the team leader. */
@@ -190,16 +193,11 @@ export const TeammateRunParams = Type.Object({
   }),
   concurrency: Type.Optional(Type.Integer({ minimum: 1, maximum: 32, description: "Max nodes running at once (default: 4)" })),
   worktree: Type.Optional(Type.Boolean({ description: "Run every node in its own git worktree (default: false)" })),
-  background: Type.Optional(Type.Boolean({ default: true, description: "Return immediately and deliver one completion follow-up. Default: true — teammates always run in the background; collect via the completion follow-up or teammate_status." })),
+  background: Type.Optional(Type.Boolean({ default: true, description: "Return immediately and deliver one completion follow-up. Default: true — teammates always run in the background; workers message team-leader with deliverables upon completion." })),
   timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Run-level hard wall-clock cap; the run fails when exceeded (default: none, nodes have their own caps)" })),
   summarize: Type.Optional(Type.Boolean({ description: "Append a __summary node after all leaf nodes. Default: true when the run has more than one user task, false for a single task." })),
   summaryAgent: Type.Optional(Type.String({ description: "Agent used for the summary node when summarize is on (default: observer)" })),
   cwd: Type.Optional(Type.String({ description: "Working directory for this run (default: the session cwd)" })),
-});
-
-/** Query agents, runs, or one run's node detail. */
-export const TeammateStatusParams = Type.Object({
-  runId: Type.Optional(Type.String({ description: "Run id for node-level detail; omit for agents plus run overview" })),
 });
 
 /** Explicit cancel of a run or single node. */
@@ -231,7 +229,8 @@ export const TeammateMessageParams = Type.Object({
 
 export interface TeammateState {
   runs: Record<string, Run>;
-  mailboxes: Record<string, MailboxMessage[]>;
+  /** Single leader inbox for worker terminal reports and leader-bound messages. */
+  leaderMailbox: MailboxMessage[];
   messageCounter: number;
   runCounter: number;
   /** Byte offsets consumed by the parent from each worker's append-only outbox. */

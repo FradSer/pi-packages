@@ -120,3 +120,19 @@ export function resolveAgent(name: string, cwd?: string): AgentDefinition | unde
 export function hasAgent(name: string, cwd?: string): boolean {
   return resolveAgent(name, cwd) !== undefined;
 }
+
+/**
+ * Format discovered agents as Markdown for prompt injection in before_agent_start.
+ */
+export function formatAgentGuidance(cwd?: string): string {
+  const agents = discoverAgents(cwd);
+  if (agents.size === 0) return "(none found in bundled, user, or project scopes)";
+  const lines: string[] = [];
+  for (const agent of agents.values()) {
+    const model = agent.model ? ` | Model: ${agent.model}` : "";
+    lines.push(`- **${agent.name}** (${agent.scope})`);
+    if (agent.description) lines.push(`  ${agent.description}`);
+    lines.push(`  Tools: ${agent.tools.join(", ") || "(role defaults)"}${model}`);
+  }
+  return lines.join("\n");
+}

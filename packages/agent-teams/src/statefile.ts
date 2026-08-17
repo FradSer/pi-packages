@@ -1,6 +1,6 @@
 /**
  * Shared state file — the medium that lets spawned worker processes (separate
- * Pi processes) see and update the teammate mailbox/task board that lives in
+ * Pi processes) see the teammate task board and worker inboxes that live in
  * the parent session.
  *
  * Layout: `~/.pi/agent/teammate/<sessionKey>/state.json`, sessionKey derived
@@ -9,7 +9,7 @@
  *
  * Concurrency: the parent is the sole writer of state.json (atomic tmp+rename).
  * Workers read that snapshot and append requests only to their own JSONL outbox;
- * this avoids stale whole-file writes clobbering another worker or read receipt.
+ * this avoids stale whole-file writes clobbering another worker or message.
  */
 
 import * as crypto from "node:crypto";

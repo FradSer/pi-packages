@@ -13,16 +13,16 @@
     `worktree`, `background`). Root nodes start immediately; downstream nodes
     auto-start when dependencies complete; overlapping shared-workspace writes
     are deferred unless worktree-isolated.
-  - New: `teammate_status` (agents + run overview, or run/node detail),
-    `teammate_wait` (explicit gather barrier for runs), `teammate_cancel`
-    (cancel a run), `teammate_cleanup` (prune terminal runs).
+  - New: automatic completion follow-ups for background runs, foreground
+    gather with bounded detachment, `teammate_cancel`, `teammate_retry`, and
+    `teammate_message`.
   - Removed: `teammate_register`, `teammate_list`, `teammate_configure`,
     `teammate_remove`, `teammate_create_task`, `teammate_list_tasks`,
     `teammate_start_task`, `teammate_cancel_task`.
   - Agents are now declarative Markdown files (bundled `agents/`, user
     `~/.pi/agent/agents/`, project `.pi/agents/`; project > user > bundled).
-  - Read-receipt protocol removed: the mailbox is best-effort (validated,
-    idempotent delivery; no `message_read` events, read flags leader-local).
-  - Worker protocol kept: per-spawn identity validation, 3 capability tools
-    (`teammate_message`/`teammate_inbox`/`teammate_report`), one canonical
-    terminal result per node, SIGTERM->SIGKILL cancellation.
+  - Read-receipt protocol removed: messages have no read flags or receipt events.
+  - Worker protocol kept: per-spawn identity validation, `teammate_message`
+    capability, one leader inbox, per-node leader inbox entries, push-only node
+    sent transcripts, DAG prompt handoffs, one canonical terminal result per
+    node, SIGTERM->SIGKILL cancellation.

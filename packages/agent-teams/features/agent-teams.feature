@@ -1,8 +1,10 @@
 Feature: Agent Teams run-centric public API
   Agent Teams dispatches dependency-aware task graphs in a single call.
   Agents are declarative Markdown files (bundled, user, and project scopes);
-  each run is a bounded set of child-process nodes with a best-effort mailbox
-  (validated delivery, no read receipts) and per-spawn identity validation.
+  each run is a bounded set of child-process nodes with a collapsed mailbox
+  (leader inbox + per-node sent transcript + per-worker inboxes for
+  leader replies; validated delivery, no read receipts) and per-spawn
+  identity validation.
 
   Background:
     Given the @fradser/pi-agent-teams extension is loaded
@@ -27,14 +29,14 @@ Feature: Agent Teams run-centric public API
       And the worker receives exactly the declared execution tools plus its capability tools
       And a declared model is used when one is provided
 
-    Scenario: Agent descriptions are the routing contract
-      Given agent definitions are discovered
-      When the leader lists available agents
-      Then each entry shows its name, description, scope, tools, and model so the leader can route work
+    Scenario: Agent descriptions are injected into prompt guidance
+      Given agent definitions exist in bundled, user, or project scopes
+      When a turn starts and before_agent_start runs
+      Then each discovered agent's name, description, scope, tools, and model are injected into prompt guidance
 
     Scenario: An unknown agent name fails the dispatch
       When the leader dispatches a task to an agent name that no scope defines
-      Then the run is rejected before any worker starts
+      Then the run is rejected before any worker starts and available agents are listed
 
   Rule: A run is a single-call DAG dispatch
 
@@ -64,6 +66,7 @@ Feature: Agent Teams run-centric public API
     Scenario: Teammates run in the background by default
       When the leader dispatches without setting background
       Then the tool call returns immediately with the run id
+      And workers message team-leader with deliverables upon completion
       And one run-completion follow-up is delivered when the run settles
       When the leader dispatches with background=false
       Then the tool call blocks until the run reaches a terminal status and returns the node results
@@ -92,7 +95,7 @@ Feature: Agent Teams run-centric public API
 
     Scenario: A collected run completion does not produce a duplicate follow-up
       Given a background run reaches a terminal status
-      When the leader gathers its results with background=false or reads them via teammate_status
+      When the leader gathers its results with background=false
       Then the run-completion follow-up is suppressed for a gathered run
 
     Scenario: Read nodes with overlapping paths may run concurrently
@@ -128,27 +131,19 @@ Feature: Agent Teams run-centric public API
 
   Rule: Run lifecycle is explicit
 
-    Scenario: Status lists agents, runs, and node detail
-      Given runs exist
-      When the leader calls teammate_status
-      Then it returns discovered agents and a run overview
-      When the leader calls teammate_status with a run id
-      Then it returns that run's nodes with status, spawn lifecycle, and results
-
-    Scenario: Run detail includes the full messages workers pushed to the leader
-      Given workers sent messages to team-leader during a run
-      When the leader calls teammate_status with the run id
-      Then the full message bodies are included so the leader can read complete reports
-      And the leader does not need a separate inbox tool
+    Scenario: No model status polling tool exists
+      Given background tasks are running
+      When the leader inspects available tools
+      Then no teammate_status or polling tool is registered
+      And the leader waits for the worker message follow-up
 
     Scenario: Run completion is delivered automatically without a wait tool
       Given a background run is working
       When the run reaches a terminal status
       Then the harness delivers one completion follow-up to the leader
       And the follow-up includes the full final deliverable submitted by the worker
-      And a single-node run does not require a separate teammate_status call to read its result
-      And teammate_status remains available for detailed transcripts
-      And no teammate_wait tool exists
+      And a single-node run delivers its result directly in the follow-up
+      And no teammate_wait or teammate_status tool exists
 
     Scenario: Cancel a run stops its running nodes
       Given a run is working
@@ -185,15 +180,26 @@ Feature: Agent Teams run-centric public API
       Given a node is working
       When it calls teammate_message with to="team-leader" or a peer node key in the same run
       Then the leader validates the worker identity, spawn identity, and recipient
-      And the message is delivered to the team leader
+      And leader-bound messages are delivered to the leader inbox
+      And peer messages are recorded in the sender's sent transcript but not delivered into a peer mailbox
       When it tries to message a node in another run or an unknown key
       Then the request is rejected and no message is queued
 
-    Scenario: Completing a node hands its result to downstream peers
+    Scenario: Completing a node injects its result into downstream prompts
       Given a run has a node that other nodes depend on
       When that node completes
-      Then each pending dependent receives a handoff message with the result
-      And the downstream worker prompt includes the upstream result
+      Then no worker-to-worker mailbox handoff is written
+      And each pending dependent's spawned prompt includes the upstream result
+
+    Scenario: Leader replies and broadcasts land in the worker's inbox
+      Given a run is working
+      When the leader sends teammate_message to a worker or broadcasts to a run
+      Then the message is written to that worker's inbox in the shared snapshot
+      And the worker reads it only when it re-reads the snapshot
+
+    Scenario: Messages carry no read receipts
+      Given messages are delivered
+      Then no message stores a read flag and no read receipt is exchanged
 
     Scenario: A worker delivers its outcome via teammate_message
       Given a node is working

@@ -3,10 +3,10 @@
  *
  * Agents are declarative Markdown files (bundled, user, and project scopes).
  * A run is a dependency-aware task graph dispatched in a single call; each
- * node is a bounded child-process worker with a best-effort mailbox (validated
- * delivery, no read receipts) and per-spawn identity validation.
+ * node is a bounded child-process worker with a leader inbox, node sent-message
+ * transcripts, and per-spawn identity validation.
  *
- * Leader tools: teammate_run, teammate_status, teammate_cancel,
+ * Leader tools: teammate_run, teammate_cancel,
  * teammate_retry, teammate_message.
  *
  * Spawned workers receive teammate_message.
@@ -16,13 +16,12 @@ import { randomUUID } from "node:crypto";
 import { Key, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import type { ExtensionAPI, ExtensionUIContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import { truncateTail, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
-import { discoverAgents, resolveAgent, type AgentDefinition } from "./agents";
+import { discoverAgents, formatAgentGuidance, resolveAgent, type AgentDefinition } from "./agents";
 import {
   TeammateCancelParams,
   TeammateMessageParams,
   TeammateRetryParams,
   TeammateRunParams,
-  TeammateStatusParams,
   type Node,
   type Run,
   type SpawnInfo,
@@ -41,8 +40,7 @@ import {
   getRun,
   getState,
   getSummary,
-  handoffNodeResult,
-  listAllMessages,
+  listActiveRuns,
   listNodes,
   listRuns,
   markNodeRunning,
@@ -51,7 +49,6 @@ import {
   receiveWorkerMessage,
   resetState,
   resolveLeaderRecipient,
-  resolveWorkerRecipient,
   resolveWorkerRecipientFromRuns,
   retryRun,
   runningNodeCount,
@@ -226,7 +223,7 @@ function registerWorkerCapabilities(pi: ExtensionAPI): void {
     name: "teammate_message",
     promptSnippet: "Send a direct message or final report",
     label: "Teammate Message",
-    description: "Worker-only sender. Addresses team-leader (the main session) or a same-run peer (node id or runId:nodeId). Set status=\"completed\"|\"failed\" to deliver final results to team-leader.",
+    description: "Worker-only sender. Addresses team-leader (the main session) or records a validated same-run peer message in the sender transcript. Set status=\"completed\"|\"failed\" when delivering final results to team-leader.",
     parameters: TeammateMessageParams,
     async execute(_toolCallId, params) {
       const binding = workerOutboxBinding();
@@ -279,7 +276,7 @@ interface PanelRow {
   key: string;
 }
 
-/** Console/widget rows contain node status only; messages use the mailbox tool. */
+/** Console/widget rows contain node status only; messages are shown in node transcripts. */
 function buildPanelRows(): PanelRow[] {
   return listNodes().map((node) => ({ key: node.workerKey }));
 }
@@ -500,12 +497,12 @@ function publishToStateFile(): void {
 
 /** Node detail: node section + messages this node sent (plans, reports, peer
  * messages). Push-only: the node never reads an inbox; upstream context arrives
- * via the DAG handoff injected into its prompt. */
+ * via the DAG result injected into its prompt. */
 function buildNodeDetail(workerKey: string): string[] {
   const entry = getNodeByWorkerKey(workerKey);
   if (!entry) return ["(removed)"];
   const { run, node } = entry;
-  const outgoing = listAllMessages().filter((m) => m.from === workerKey);
+  const outgoing = node.sentMessages;
 
   const lines: string[] = [
     `${node.workerKey} (${node.agent}) [${node.status}] — run ${run.status}`,
@@ -720,48 +717,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function buildRunResultSummary(runId: string): string {
-  const run = getRun(runId);
-  if (!run) return `Run ${runId} not found.`;
-  const counts = Object.values(run.nodes).reduce<Record<string, number>>((acc, node) => {
-    acc[node.status] = (acc[node.status] ?? 0) + 1;
-    return acc;
-  }, {});
-  const lines = [
-    `## Run [${run.id}] ${run.status}`,
-    `Nodes: ${Object.keys(run.nodes).length} (${Object.entries(counts).map(([status, n]) => `${status} ${n}`).join(", ")}) | Concurrency: ${run.concurrency} | Worktree: ${run.worktree ? "yes" : "no"}`,
-    "",
-  ];
-  for (const node of Object.values(run.nodes)) {
-    lines.push(`- [${node.id}] ${node.status}: ${node.agent}`);
-    if (node.result) lines.push(`  Result: ${cap(node.result)}`);
-    if (node.errorMessage) lines.push(`  Error: ${cap(node.errorMessage)}`);
-    if (node.spawn?.usage) {
-      const u = node.spawn.usage;
-      lines.push(`  Usage: ${u.totalTokens} tokens | cost $${u.cost}`);
-    }
-    lines.push("");
-  }
-
-  // Full messages workers pushed to the team leader for this run — the
-  // complete transcripts (plans, blockers, and full reports sent via
-  // teammate_message) that the compact node results summarize.
-  const leaderMessages = listAllMessages().filter(
-    (m) => m.taskId === runId && m.to === "team-leader",
-  );
-  if (leaderMessages.length > 0) {
-    lines.push(`== messages sent to the team leader (${leaderMessages.length}) ==`);
-    for (const m of leaderMessages) {
-      lines.push(`### [${m.from}] ${m.subject}`);
-      lines.push(cap(m.body));
-      lines.push("");
-    }
-  }
-  return lines.join("\n");
-}
-
-/** Compact run summary for tool returns and follow-ups; detail lives in
- * teammate_status runId transcripts. When the run has a
+/** Compact run summary for tool returns and follow-ups. When the run has a
  * synthesized __summary node result, that is shown instead of per-node
  * headlines (no truncation heuristics). */
 function buildRunSummary(runId: string): string {
@@ -783,15 +739,22 @@ function buildRunSummary(runId: string): string {
     const node = nodes[0];
     const deliverable = node.result?.trim() || node.errorMessage?.trim();
     if (deliverable) lines.push(deliverable, "");
+  } else {
+    for (const node of nodes) {
+      const deliverable = node.result?.trim() || node.errorMessage?.trim();
+      if (deliverable) {
+        lines.push(`### [${node.id}] (${node.agent}):`, deliverable, "");
+      }
+    }
   }
   for (const node of nodes) {
     lines.push(`- [${node.id}] ${node.status} (${node.agent})`);
   }
-  lines.push("", `Detail: teammate_status runId=${run.id} · Console: /teammate`);
+  lines.push("", "Console: /teammate");
   return lines.join("\n");
 }
 
-/** Called once a run reaches a terminal status. Idempotent: the mailbox summary
+/** Called once a run reaches a terminal status. Idempotent: the leader summary
  * and follow-up fire only on the first settled observation (a run can transition
  * through settleRun once per node close). */
 function onRunSettled(runId: string, ctx?: DispatchCtx): void {
@@ -1000,9 +963,6 @@ function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void {
       const settledRun = getRun(runId);
       if (settledRun) settledRun.summary = nodeNow?.result ?? result.stdout;
     }
-    if (ok || cancelled) {
-      handoffNodeResult(runId, nodeId);
-    }
     const terminalSubject = cancelled ? "Node cancelled" : ok ? "Node completed" : "Node failed";
     const terminalBody = buildNodeTerminalResult({
       runId,
@@ -1108,23 +1068,36 @@ You are a teammate, not the team leader. Work only on the task bound to
 this process and its declared access/paths. Communication:
 
 - Send: teammate_message to "team-leader" for plans, progress, blockers,
-  and your final deliverable (with status="completed" or status="failed"); to
-  same-run peers (node id) for handoffs and findings.
-- Receive: messages pushed to you live in the shared state snapshot under
-  mailboxes["<your worker key>"] — read that snapshot with the read tool when
-  you need a leader reply or a peer handoff. Do not poll for them; DAG
-  upstream results are already injected into your task prompt.
-- Final deliverable: send teammate_message to "team-leader" with
-  status="completed" (or "failed") and put your FULL deliverable/findings in
-  the message body. The harness delivers this result to the main session after
-  your process closes.
+  and your final deliverable (with status="completed" or status="failed");
+  same-run peer messages are recorded in your sent transcript but are not
+  delivered into peer inboxes.
+- Receive: leader replies and broadcasts land in inboxMessages on your node's
+  shared state snapshot — read that snapshot with the read tool only when you
+  expect a leader reply or broadcast. Do not poll for them; DAG upstream
+  results are already injected into your task prompt.
+- Final deliverable: when finished, you MUST send teammate_message to "team-leader"
+  with status="completed" (or "failed") and put your FULL deliverable/findings in
+  the message body. The harness delivers this message directly to the team leader.
 
-The mailbox is best-effort: process each message you read once. Do not use
-leader coordination tools, claim new tasks, or overwrite files outside your
-assigned scope.
+The leader inbox and worker inboxes are best-effort. Process any message you
+read once. Do not use leader coordination tools, claim new tasks, or overwrite
+files outside your assigned scope.
 `;
 
-const TEAMMATE_GUIDANCE = `
+function buildTeamLeaderGuidance(cwd?: string): string {
+  const agents = formatAgentGuidance(cwd);
+  const activeRuns = listActiveRuns();
+  const activeRunsText = activeRuns.length === 0
+    ? "(none)"
+    : activeRuns.map((run) => {
+        const counts = Object.values(run.nodes).reduce<Record<string, number>>((acc, node) => {
+          acc[node.status] = (acc[node.status] ?? 0) + 1;
+          return acc;
+        }, {});
+        const status = Object.entries(counts).map(([s, n]) => `${s} ${n}`).join(", ");
+        return `- [${run.id}] ${status}`;
+      }).join("\n");
+  return `
 ## Agent Teams Orchestration
 
 You are the team leader: the current Pi session owns decomposition,
@@ -1137,9 +1110,15 @@ the needed context in their task or send it through teammate_message.
 Agents live in Markdown files with frontmatter (name, description, tools,
 optional model); the body is the role prompt. Discovery precedence per name:
 project .pi/agents > user ~/.pi/agent/agents > bundled package agents.
-Call teammate_status to list available agents and route by description.
 Prefer a bundled or existing agent; add a project agent under .pi/agents
 only when its role materially differs. Never register runtime identities.
+
+Available agents:
+${agents}
+
+### Active background runs
+
+${activeRunsText}
 
 ### Dispatch a run in one call
 
@@ -1150,33 +1129,37 @@ defers overlapping shared-workspace writes — advisory scheduling across every
 run in this session, not file-access isolation — unless worktree=true, and
 auto-starts downstream nodes when their dependencies complete. access and
 paths coordinate scheduling only; a worker's real capabilities come from its
-agent definition's tools list. Teammates
-always run in the background (default): the call returns the run id
-immediately, the model turn stays free, and one run-completion follow-up is
-delivered when the run settles. Pass background=false only to block and
-gather inline (it detaches after 5 minutes so the turn is never hung); a
-run-level timeoutMs fails the whole run past its cap. Multi-node runs append
-a __summary node by default; pass summarize=false to skip it. For a review
-pipeline: inspect -> fix -> verify with dependsOn edges.
+agent definition's tools list.
 
-### Coordinate and synthesize
+Teammates always run in the background (default): the call returns the run id
+immediately, and the main session is free. When a teammate finishes, it sends
+a message with its final deliverable to team-leader (using teammate_message).
+The harness delivers this completion message automatically as a follow-up turn.
+Pass background=false only when you strictly need inline synchronous blocking
+(it detaches after 5 minutes so the turn is never hung); a run-level timeoutMs
+fails the whole run past its cap. Multi-node runs append a __summary node by
+default; pass summarize=false to skip it. For a review pipeline: inspect ->
+fix -> verify with dependsOn edges.
 
-Runs deliver one completion follow-up automatically when they settle — there is
-no wait tool; collect results with teammate_status (run detail, leader-bound
-message flow) or use background=false on teammate_run to gather inline. A run
-cancelled with teammate_cancel fires no follow-up: the cancel result already
-reported the outcome in that turn. teammate_cancel stops a run (or one
-node with nodeId); teammate_retry re-runs only the failed/cancelled nodes
-of a settled run. Workers message team-leader (including their final report
-with status="completed") and same-run peers; completing a node hands its
-result to pending dependents. Call teammate_status with the run id to read the
-complete message bodies and deliverables. Only the harness-delivered run
-completion (background) or wait/run results trigger model turns. After a run,
-inspect the artifacts yourself: a worker's claim is not proof until its
-deliverable and tests are checked. Treat failed, timed-out, cancelled, and
-missing nodes explicitly; a failed node cancels its downstream dependents and
-fails the run.
+### DO NOT poll status — wait for teammate message
+
+- **CRITICAL**: When tasks run in the background, do not run sleep commands,
+  and do not execute repetitive read/grep busywork to pass time.
+- Teammates will message you (teammate_message to team-leader) with their
+  findings and deliverables upon completion.
+- Once you dispatch background tasks, if you have no independent foreground
+  tasks, **END YOUR TURN IMMEDIATELY** and wait for the teammate's completion
+  message follow-up.
+- A run cancelled with teammate_cancel fires no follow-up: the cancel result
+  already reported the outcome in that turn. teammate_cancel stops a run (or
+  one node with nodeId); teammate_retry re-runs only the failed/cancelled nodes
+  of a settled run.
+- After a run completes and the message is delivered, inspect the artifacts
+  yourself: a worker's claim is not proof until its deliverable and tests are
+  checked. Treat failed, timed-out, cancelled, and missing nodes explicitly;
+  a failed node cancels its downstream dependents and fails the run.
 `;
+}
 
 export default function (pi: ExtensionAPI) {
   // A spawned child receives only identity-bound outbox capabilities. Do not
@@ -1221,9 +1204,10 @@ export default function (pi: ExtensionAPI) {
 
   // ── Inject team guidance into system prompt ─────────────────────
 
-  pi.on("before_agent_start", async (event) => {
+  pi.on("before_agent_start", async (event, ctx) => {
+    const cwd = ctx?.cwd ?? process.cwd();
     return {
-      systemPrompt: event.systemPrompt + TEAMMATE_GUIDANCE,
+      systemPrompt: event.systemPrompt + buildTeamLeaderGuidance(cwd),
     };
   });
 
@@ -1238,8 +1222,9 @@ export default function (pi: ExtensionAPI) {
       "(bundled, user ~/.pi/agent/agents, or project .pi/agents). Root nodes start immediately;",
       "downstream nodes auto-start when their dependencies complete. Concurrency bounds simultaneous",
       "workers; overlapping shared-workspace writes are blocked unless worktree=true.",
-      "Teammates run in the background by default: the call returns the run id immediately and",
-      "delivers one run-completion follow-up; collect with teammate_status.",
+      "Teammates run in the background by default: the call returns immediately.",
+      "When finished, teammates message team-leader with their deliverables, delivered automatically as a follow-up.",
+      "Do NOT sleep to wait for running tasks.",
     ].join(" "),
     parameters: TeammateRunParams,
 
@@ -1251,9 +1236,10 @@ export default function (pi: ExtensionAPI) {
       ensureTeamWidget(ctx);
       for (const task of params.tasks) {
         if (!resolveAgent(task.agent, cwd)) {
+          const available = [...discoverAgents(cwd).keys()].join(", ");
           throw new Error(
             `Agent "${task.agent}" not found in any scope (project .pi/agents, user ~/.pi/agent/agents, bundled). ` +
-            "List agents with teammate_status to pick a valid name.",
+            `Available agents: ${available || "(none)"}.`,
           );
         }
       }
@@ -1286,10 +1272,11 @@ export default function (pi: ExtensionAPI) {
 
       if (run.background) {
         const lines = [
-          `Started run [${run.id}] "${Object.keys(run.nodes).length} node(s)" — background (returns immediately).`,
+          `Started run [${run.id}] "${Object.keys(run.nodes).length} node(s)" — background.`,
           `Concurrency: ${run.concurrency} | Worktree: ${run.worktree ? "yes" : "no"}`,
           "",
-          "The main session is free to continue. Call teammate_status when you need this run's final outcome.",
+          "Teammate workers are executing in the background. When finished, they will send a message to team-leader with their deliverables, delivered automatically as a follow-up turn.",
+          "DO NOT sleep to wait. If you have no other independent foreground work, end your turn and wait for the teammate's completion message.",
         ];
         return { content: [{ type: "text", text: lines.join("\n") }], details: {} };
       }
@@ -1310,7 +1297,7 @@ export default function (pi: ExtensionAPI) {
           current.background = true;
           current.completionNotified = false;
           publishToStateFile();
-          throw new Error(`Run [${run.id}] continues in the background — collect results with teammate_status.`);
+          throw new Error(`Run [${run.id}] continues in the background — workers will message team-leader upon completion.`);
         }
         if (Date.now() >= foregroundDeadline) {
           // Detach: the run keeps executing and delivers one completion follow-up.
@@ -1319,7 +1306,7 @@ export default function (pi: ExtensionAPI) {
           publishToStateFile();
           refreshTeamUI(ctx);
           return {
-            content: [{ type: "text", text: `Run [${run.id}] is still running after ${Math.round(foregroundTimeoutMs / 1000)}s — detached to background. Collect results with teammate_status.` }],
+            content: [{ type: "text", text: `Run [${run.id}] is still running after ${Math.round(foregroundTimeoutMs / 1000)}s — detached to background. Workers will message team-leader upon completion.` }],
             details: {},
           };
         }
@@ -1330,59 +1317,6 @@ export default function (pi: ExtensionAPI) {
       publishToStateFile();
       refreshTeamUI(ctx);
       return { content: [{ type: "text", text: buildRunSummary(run.id) }], details: {} };
-    },
-  });
-
-  // ─────────────────────────────────────────────────────────────────
-
-  pi.registerTool({
-    name: "teammate_status",
-    promptSnippet: "List agents, runs, and node detail",
-    label: "Team Status",
-    description: [
-      "Query the team. Without a run id: returns discovered agents (name, description, scope, tools, model)",
-      "plus a run overview (id, status, node counts). With a run id: returns that run's nodes with status,",
-      "spawn lifecycle, and results.",
-    ].join(" "),
-    parameters: TeammateStatusParams,
-
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      if (params.runId) {
-        const run = getRun(params.runId);
-        if (!run) throw new Error(`Run "${params.runId}" not found.`);
-        return { content: [{ type: "text", text: buildRunResultSummary(params.runId) }], details: {} };
-      }
-
-      const agents = discoverAgents(ctx.cwd ?? process.cwd());
-      const lines = ["## Agents"];
-      if (agents.size === 0) {
-        lines.push("(none found in bundled, user, or project scopes)");
-      }
-      for (const agent of agents.values()) {
-        lines.push(`- **${agent.name}** (${agent.scope})`);
-        if (agent.description) lines.push(`  ${agent.description}`);
-        const model = agent.model ? ` | Model: ${agent.model}` : "";
-        lines.push(`  Tools: ${agent.tools.join(", ") || "(role defaults)"}${model}`);
-        lines.push("");
-      }
-
-      const runs = listRuns();
-      lines.push(`## Runs (${runs.length})`);
-      if (runs.length === 0) {
-        lines.push("(none) — dispatch work with teammate_run");
-      }
-      for (const run of runs) {
-        const counts = Object.values(run.nodes).reduce<Record<string, number>>((acc, node) => {
-          acc[node.status] = (acc[node.status] ?? 0) + 1;
-          return acc;
-        }, {});
-        const mode = run.background ? "background" : "foreground";
-        const worktree = run.worktree ? " | worktree" : "";
-        lines.push(`- [${run.id}] ${run.status}: ${Object.entries(counts).map(([status, n]) => `${status} ${n}`).join(", ") || "no nodes"} | ${mode}${worktree}`);
-        lines.push(`  Created: ${new Date(run.createdAt).toLocaleString()}`);
-        lines.push("");
-      }
-      return { content: [{ type: "text", text: lines.join("\n") }], details: {} };
     },
   });
 
@@ -1493,7 +1427,7 @@ export default function (pi: ExtensionAPI) {
     label: "Teammate Message",
     description: [
       "Send a direct message to a node (node id or runId:nodeId), or broadcast to every node of a run",
-      "(to=\"all\" with runId). Workers use the same tool to message team-leader or a same-run peer.",
+      "(to=\"all\" with runId). Worker messages to team-leader are delivered; peer messages are transcript-only.",
     ].join(" "),
     parameters: TeammateMessageParams,
 
@@ -1514,7 +1448,7 @@ export default function (pi: ExtensionAPI) {
         publishToStateFile();
         refreshTeamUI(ctx);
         return {
-          content: [{ type: "text", text: `Message sent to ${recipients.length} node(s) of run [${run.id}].\nSubject: ${params.subject}` }],
+          content: [{ type: "text", text: `Broadcast sent to ${recipients.length} node(s) of run [${run.id}].\nMessages land in each node's inboxMessages snapshot entry.\nSubject: ${params.subject}` }],
           details: {},
         };
       }

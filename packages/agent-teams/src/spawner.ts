@@ -31,7 +31,7 @@ export function buildAutonomousPrompt(opts: {
   outboxFile: string;
   timeoutSec: number;
 }): string {
-  const taskLine = `\nAssigned task: [${opts.taskId}].\nUse teammate_message to "team-leader" with status="completed" to submit your FULL final deliverable.`;
+  const taskLine = `\nAssigned task: [${opts.taskId}].\nWhen finished, you MUST call teammate_message to "team-leader" with status="completed" to submit your FULL final deliverable.`;
 
   return `You are a FULLY AUTONOMOUS teammate named "${opts.name}" (agent: ${opts.role}) in a pi multi-agent team run.
 
@@ -40,16 +40,16 @@ ${opts.prompt}
 
 Shared state snapshot (READ ONLY — leader-owned): ${opts.stateFile}
 Your append-only outbox (WRITE ONLY): ${opts.outboxFile}
-Your mailbox key: "${opts.workerKey}" — the leader or a peer may push messages for you under mailboxes["${opts.workerKey}"] in the snapshot.${taskLine}
+Your worker key: "${opts.workerKey}" — the leader may push replies or broadcasts into your node's inboxMessages array in the snapshot.${taskLine}
 
 YOUR ROLE IN THIS RUN:
-1. Work directly on your assigned scope and recorded Paths. DAG upstream results are ALREADY injected into this prompt below — do not poll the snapshot for them. You only need to read the state snapshot if you expect asynchronous peer messages under mailboxes["${opts.workerKey}"]. MUST NOT write state.json or modify its in-memory shape.
-2. Direct communication: call teammate_message to:"team-leader" for plans, progress, blockers, or questions. Call teammate_message to same-run peers (node id or runId:nodeId) proactively when a handoff, shared interface, or finding would help them.
-3. Deliver your work: When finished, call teammate_message with to:"team-leader", status:"completed", and put your FULL deliverable/report in body. If blocked/failed, send with status:"failed" and the error in body. This is your authoritative output delivered to the team leader.
+1. Work directly on your assigned scope and recorded Paths. DAG upstream results are ALREADY injected into this prompt below — do not poll the snapshot for them. You only need to read the state snapshot if you expect a leader reply or broadcast in your node's inboxMessages. Messages you send to same-run peers are recorded in the shared transcript but not delivered into a peer inbox. MUST NOT write state.json or modify its in-memory shape.
+2. Direct communication: call teammate_message to:"team-leader" for plans, progress, blockers, questions, and findings. Same-run peer messages are recorded for the leader transcript; dependency handoffs arrive through the downstream prompt.
+3. Deliver your work: When finished, you MUST call teammate_message with to:"team-leader", status:"completed", and put your FULL deliverable/report in body. If blocked/failed, send with status:"failed" and the error in body. This message is delivered directly to the team leader upon task completion.
 4. The hard wall-clock cap is ${opts.timeoutSec}s — manage your time budget, avoid unnecessary exploration, and deliver your final message before the deadline.
 
 BOUND CAPABILITIES:
-- teammate_message sends a direct message to team-leader (with optional status="completed"|"failed") or a same-run peer.
+- teammate_message sends a direct message to team-leader (with optional status="completed"|"failed") or records a validated same-run peer message in the sender transcript.
 
 Technical notes:
 - Use Pi's read tool to inspect the snapshot at ${opts.stateFile}; use a Python one-liner only if the read tool is unavailable.
