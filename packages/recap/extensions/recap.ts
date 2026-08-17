@@ -2,7 +2,13 @@
  * @fradser/pi-recap — pure recap generation helpers.
  */
 
-import type { Api, AssistantMessage, Model, TextContent, UserMessage } from "@earendil-works/pi-ai";
+import type {
+  Api,
+  AssistantMessage,
+  Model,
+  TextContent,
+  UserMessage,
+} from "@earendil-works/pi-ai";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 
 /** Minimal structural view of a session message entry. */
@@ -10,14 +16,45 @@ export const RECAP_TIMEOUT_MS = 30_000;
 
 export interface RecapSessionEntry {
   type: string;
+  customType?: string;
+  data?: unknown;
   message?: {
     role?: string;
     content?: unknown;
   };
 }
 
+/**
+ * Extract the most recent saved recap from custom entries in the session branch.
+ * Returns undefined when no persisted recap entry is found.
+ */
+export function extractLatestSavedRecap(
+  entries: RecapSessionEntry[],
+): string | undefined {
+  if (!Array.isArray(entries)) return undefined;
+
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (entry && entry.type === "custom" && entry.customType === "recap") {
+      const data = entry.data as
+        | { recap?: unknown; text?: unknown }
+        | undefined;
+      if (typeof data?.recap === "string" && data.recap.trim()) {
+        return data.recap.trim();
+      }
+      if (typeof data?.text === "string" && data.text.trim()) {
+        return data.text.trim();
+      }
+    }
+  }
+
+  return undefined;
+}
+
 /** Extract plain text from a message content (string or content-block array). */
-export function extractMessageText(entry: RecapSessionEntry): string | undefined {
+export function extractMessageText(
+  entry: RecapSessionEntry,
+): string | undefined {
   if (entry.type !== "message") return undefined;
   const msg = entry.message;
   if (!msg) return undefined;
@@ -29,7 +66,9 @@ export function extractMessageText(entry: RecapSessionEntry): string | undefined
         (part): part is { type?: string; text?: string } =>
           typeof part === "object" && part !== null && "type" in part,
       )
-      .map((part) => (part.type === "text" && typeof part.text === "string" ? part.text : ""))
+      .map((part) =>
+        part.type === "text" && typeof part.text === "string" ? part.text : "",
+      )
       .join("\n")
       .trim();
     return text || undefined;
@@ -99,15 +138,11 @@ export function buildRecapPrompt(
     "- Single line only (no newlines).",
     langRule,
     "- Be concrete and scannable rather than vague.",
-    "- Do not explain, advise, greet, repeat the prompt, or mention this conversation."
+    "- Do not explain, advise, greet, repeat the prompt, or mention this conversation.",
   ];
 
-  if (previousRecap && previousRecap.trim()) {
-    lines.push(
-      "",
-      "=== Previous recap ===",
-      previousRecap.trim(),
-    );
+  if (previousRecap?.trim()) {
+    lines.push("", "=== Previous recap ===", previousRecap.trim());
   }
 
   lines.push(
@@ -145,9 +180,12 @@ export function cleanRecapText(raw: string): string {
 
 /** Extract text from assistant message response. */
 export function textFromResponse(message: AssistantMessage): string {
-  if (!message || !message.content || !Array.isArray(message.content)) return "";
+  if (!message?.content || !Array.isArray(message.content)) return "";
   const text = message.content
-    .filter((part): part is TextContent => part.type === "text" && typeof part.text === "string")
+    .filter(
+      (part): part is TextContent =>
+        part.type === "text" && typeof part.text === "string",
+    )
     .map((part) => part.text)
     .join("\n")
     .trim();

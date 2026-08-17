@@ -25,7 +25,9 @@ function nonEmpty(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-export function parseModelRef(value: string | undefined): { provider: string; model: string } | undefined {
+export function parseModelRef(
+  value: string | undefined,
+): { provider: string; model: string } | undefined {
   const ref = nonEmpty(value);
   if (!ref) return undefined;
   const separator = ref.indexOf("/");
@@ -37,14 +39,16 @@ export function parseModelRef(value: string | undefined): { provider: string; mo
 }
 
 export function modelRef(config: RecapConfig): string | undefined {
-  if (config.provider && config.model) return `${config.provider}/${config.model}`;
+  if (config.provider && config.model)
+    return `${config.provider}/${config.model}`;
   return config.model;
 }
 
 export function languageLabel(lang: RecapLanguage | undefined): string {
   const l = (lang || "auto").toLowerCase();
   if (l === "auto") return "Auto (same as conversation)";
-  if (l === "zh" || l === "zh-cn" || l === "chinese") return "Chinese (\u4E2D\u6587)";
+  if (l === "zh" || l === "zh-cn" || l === "chinese")
+    return "Chinese (\u4E2D\u6587)";
   if (l === "en" || l === "english") return "English";
   return lang || "Auto";
 }
@@ -53,7 +57,9 @@ export function readRecapConfig(): RecapConfig {
   let file: Partial<RecapConfig> = {};
   try {
     if (existsSync(CONFIG_PATH)) {
-      file = JSON.parse(readFileSync(CONFIG_PATH, "utf-8")) as Partial<RecapConfig>;
+      file = JSON.parse(
+        readFileSync(CONFIG_PATH, "utf-8"),
+      ) as Partial<RecapConfig>;
     }
   } catch {
     file = {};

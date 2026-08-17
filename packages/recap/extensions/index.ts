@@ -22,12 +22,17 @@ import {
   languageLabel,
   modelRef,
   parseModelRef,
+  type RecapConfig,
   readRecapConfig,
   recapConfigPath,
   writeRecapConfig,
-  type RecapConfig,
 } from "./config";
-import { generateRecap, getLastExchange } from "./recap";
+import {
+  extractLatestSavedRecap,
+  generateRecap,
+  getLastExchange,
+  type RecapSessionEntry,
+} from "./recap";
 
 let config: RecapConfig = readRecapConfig();
 const RECAP_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -73,7 +78,13 @@ function readDirectorySessionRecap(
     const sessionId = path.basename(sessionFile, ".jsonl");
     const normalized = path.resolve(cwd);
     const dirKey = `--${normalized.replace(/^[/\\\\]/, "").replace(/[/\\:]/g, "-")}--`;
-    const regDir = path.join(os.homedir(), ".pi", "agent", "directory-sessions", dirKey);
+    const regDir = path.join(
+      os.homedir(),
+      ".pi",
+      "agent",
+      "directory-sessions",
+      dirKey,
+    );
     const filePath = path.join(regDir, `${sessionId}.json`);
     if (fs.existsSync(filePath)) {
       const raw = fs.readFileSync(filePath, "utf-8");
@@ -98,7 +109,13 @@ function syncDirectorySessionRecap(
     const sessionId = path.basename(sessionFile, ".jsonl");
     const normalized = path.resolve(cwd);
     const dirKey = `--${normalized.replace(/^[/\\\\]/, "").replace(/[/\\:]/g, "-")}--`;
-    const regDir = path.join(os.homedir(), ".pi", "agent", "directory-sessions", dirKey);
+    const regDir = path.join(
+      os.homedir(),
+      ".pi",
+      "agent",
+      "directory-sessions",
+      dirKey,
+    );
     const filePath = path.join(regDir, `${sessionId}.json`);
     if (fs.existsSync(filePath)) {
       const raw = fs.readFileSync(filePath, "utf-8");
@@ -120,11 +137,13 @@ export default function (pi: ExtensionAPI) {
   let recapSpinnerTimer: NodeJS.Timeout | undefined;
   let shouldRecap = false;
   let generatingRecap = false;
-  let activeRequest: {
-    key: string;
-    controller: AbortController;
-    promise: Promise<string | undefined>;
-  } | undefined;
+  let activeRequest:
+    | {
+        key: string;
+        controller: AbortController;
+        promise: Promise<string | undefined>;
+      }
+    | undefined;
   let completedRequestKey: string | undefined;
 
   function saveConfig(next: RecapConfig, ctx: ExtensionContext): void {
@@ -152,7 +171,8 @@ export default function (pi: ExtensionAPI) {
         if (generatingRecap) {
           recapSpinnerFrame = 0;
           recapSpinnerTimer = setInterval(() => {
-            recapSpinnerFrame = (recapSpinnerFrame + 1) % RECAP_SPINNER_FRAMES.length;
+            recapSpinnerFrame =
+              (recapSpinnerFrame + 1) % RECAP_SPINNER_FRAMES.length;
             tui.requestRender();
           }, 80);
           recapSpinnerTimer.unref?.();
@@ -160,7 +180,8 @@ export default function (pi: ExtensionAPI) {
 
         return {
           render: (width: number) => {
-            if (!config.enabled || (!currentRecap && !generatingRecap)) return [];
+            if (!config.enabled || (!currentRecap && !generatingRecap))
+              return [];
             const icon = theme.fg("accent", "※");
             const label = theme.fg("dim", "Recap:");
             const firstPrefix = ` ${icon} ${label} `;
@@ -197,7 +218,9 @@ export default function (pi: ExtensionAPI) {
     );
   }
 
-  async function performRecap(ctx: ExtensionContext): Promise<string | undefined> {
+  async function performRecap(
+    ctx: ExtensionContext,
+  ): Promise<string | undefined> {
     const model = resolveRecapModel(ctx);
     if (!model) return undefined;
 
@@ -237,12 +260,22 @@ export default function (pi: ExtensionAPI) {
           controller.signal,
         );
 
-        if (controller.signal.aborted || activeRequest !== request || !text) return undefined;
+        if (controller.signal.aborted || activeRequest !== request || !text)
+          return undefined;
         completedRequestKey = key;
         if (text === currentRecap) return text;
 
         currentRecap = text;
-        syncDirectorySessionRecap(ctx.cwd, ctx.sessionManager.getSessionFile(), text);
+        pi.appendEntry("recap", {
+          recap: text,
+          language: config.language,
+          timestamp: Date.now(),
+        });
+        syncDirectorySessionRecap(
+          ctx.cwd,
+          ctx.sessionManager.getSessionFile(),
+          text,
+        );
         return text;
       } finally {
         if (activeRequest === request) {
@@ -264,7 +297,10 @@ export default function (pi: ExtensionAPI) {
     }
 
     const options = models.map(modelOptionLabel);
-    const selected = await ctx.ui.select("Select a model for recap generation:", options);
+    const selected = await ctx.ui.select(
+      "Select a model for recap generation:",
+      options,
+    );
     if (!selected) return;
 
     const model = models[options.indexOf(selected)];
@@ -277,7 +313,9 @@ export default function (pi: ExtensionAPI) {
   async function enterRecapModel(ctx: ExtensionCommandContext): Promise<void> {
     const value = await ctx.ui.input(
       "Recap model (provider/model format):",
-      config.provider && config.model ? `${config.provider}/${config.model}` : "",
+      config.provider && config.model
+        ? `${config.provider}/${config.model}`
+        : "",
     );
     if (value === undefined) return; // cancelled
 
@@ -290,13 +328,19 @@ export default function (pi: ExtensionAPI) {
 
     const ref = parseModelRef(trimmed);
     if (!ref) {
-      ctx.ui.notify("Enter a model in provider/model format (e.g. anthropic/claude-3-5-haiku)", "error");
+      ctx.ui.notify(
+        "Enter a model in provider/model format (e.g. anthropic/claude-3-5-haiku)",
+        "error",
+      );
       return;
     }
 
     const model = ctx.modelRegistry.find(ref.provider, ref.model);
     if (!model) {
-      ctx.ui.notify(`Model ${ref.provider}/${ref.model} was not found in the model registry`, "error");
+      ctx.ui.notify(
+        `Model ${ref.provider}/${ref.model} was not found in the model registry`,
+        "error",
+      );
       return;
     }
 
@@ -304,7 +348,9 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.notify(`Recap model set to ${modelLabel(model)}`, "info");
   }
 
-  async function chooseRecapLanguage(ctx: ExtensionCommandContext): Promise<void> {
+  async function chooseRecapLanguage(
+    ctx: ExtensionCommandContext,
+  ): Promise<void> {
     const current = languageLabel(config.language);
     const options = [
       `Auto (same as conversation)${config.language === "auto" ? " · current" : ""}`,
@@ -313,12 +359,18 @@ export default function (pi: ExtensionAPI) {
       "Custom language...",
     ];
 
-    const selected = await ctx.ui.select(`Recap language (current: ${current}):`, options);
+    const selected = await ctx.ui.select(
+      `Recap language (current: ${current}):`,
+      options,
+    );
     if (!selected) return;
 
     if (selected.startsWith("Auto")) {
       saveConfig({ ...config, language: "auto" }, ctx);
-      ctx.ui.notify("Recap language set to Auto (same as conversation)", "info");
+      ctx.ui.notify(
+        "Recap language set to Auto (same as conversation)",
+        "info",
+      );
     } else if (selected.startsWith("Chinese")) {
       saveConfig({ ...config, language: "zh" }, ctx);
       ctx.ui.notify("Recap language set to Chinese", "info");
@@ -326,8 +378,11 @@ export default function (pi: ExtensionAPI) {
       saveConfig({ ...config, language: "en" }, ctx);
       ctx.ui.notify("Recap language set to English", "info");
     } else if (selected.startsWith("Custom")) {
-      const custom = await ctx.ui.input("Enter target language name (e.g. Japanese, French):", "");
-      if (custom && custom.trim()) {
+      const custom = await ctx.ui.input(
+        "Enter target language name (e.g. Japanese, French):",
+        "",
+      );
+      if (custom?.trim()) {
         saveConfig({ ...config, language: custom.trim() }, ctx);
         ctx.ui.notify(`Recap language set to ${custom.trim()}`, "info");
       }
@@ -351,20 +406,31 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    const modelDesc = config.provider && config.model ? `Model: ${configuredModelLabel()}` : "Model: (session default)";
+    const modelDesc =
+      config.provider && config.model
+        ? `Model: ${configuredModelLabel()}`
+        : "Model: (session default)";
     const langDesc = `Language: ${languageLabel(config.language)}`;
-    const recapPreview = currentRecap ? `Current recap: ${currentRecap}` : "Current recap: (none)";
+    const recapPreview = currentRecap
+      ? `Current recap: ${currentRecap}`
+      : "Current recap: (none)";
     const title = `Recap: ${config.enabled ? "on" : "off"} · Auto: ${config.autoRecap ? "on" : "off"} · ${langDesc} · ${modelDesc}\n\n${recapPreview}\n\nRecap management:`;
 
-    const toggleDisplay = config.enabled ? "Disable recap display" : "Enable recap display";
-    const toggleAuto = config.autoRecap ? "Disable auto-recap" : "Enable auto-recap";
+    const toggleDisplay = config.enabled
+      ? "Disable recap display"
+      : "Enable recap display";
+    const toggleAuto = config.autoRecap
+      ? "Disable auto-recap"
+      : "Enable auto-recap";
 
     const options = [
       "Generate recap now",
       `Set recap language (current: ${languageLabel(config.language)})`,
       `Select recap model${config.provider && config.model ? ` (current: ${configuredModelLabel()})` : ""}`,
       "Enter provider/model manually",
-      config.provider && config.model ? "Clear model override (use session default)" : "",
+      config.provider && config.model
+        ? "Clear model override (use session default)"
+        : "",
       toggleDisplay,
       toggleAuto,
     ].filter(Boolean);
@@ -378,7 +444,10 @@ export default function (pi: ExtensionAPI) {
       if (refreshed) {
         ctx.ui.notify(`※ Recap: ${refreshed}`, "info");
       } else {
-        ctx.ui.notify("No recent exchange to recap or generation failed", "warning");
+        ctx.ui.notify(
+          "No recent exchange to recap or generation failed",
+          "warning",
+        );
       }
     } else if (choice.startsWith("Set recap language")) {
       await chooseRecapLanguage(ctx);
@@ -407,9 +476,27 @@ export default function (pi: ExtensionAPI) {
   // Restore or compute latest recap on session start
   pi.on("session_start", async (_event, ctx) => {
     config = readRecapConfig();
-    const savedRecap = readDirectorySessionRecap(ctx.cwd, ctx.sessionManager.getSessionFile());
+    const branch = (ctx.sessionManager?.getBranch?.() ??
+      []) as RecapSessionEntry[];
+    const savedRecap =
+      extractLatestSavedRecap(branch) ??
+      readDirectorySessionRecap(
+        ctx.cwd,
+        ctx.sessionManager?.getSessionFile?.(),
+      );
     if (savedRecap) {
       currentRecap = savedRecap;
+      const exchange = getLastExchange(branch);
+      const model = resolveRecapModel(ctx);
+      if (exchange && model) {
+        completedRequestKey = [
+          exchange.user,
+          exchange.assistant,
+          model.provider,
+          model.id,
+          config.language,
+        ].join("\u0000");
+      }
     }
     updateRecapWidget(ctx);
     if (config.enabled && !savedRecap) {
@@ -434,7 +521,8 @@ export default function (pi: ExtensionAPI) {
 
   // /recap command — open management menu or execute subcommand
   pi.registerCommand("recap", {
-    description: "Manage session recap: generate, configure model/language, toggle display",
+    description:
+      "Manage session recap: generate, configure model/language, toggle display",
     handler: async (args, ctx) => {
       const raw = args.trim();
       const lower = raw.toLowerCase();
@@ -468,7 +556,10 @@ export default function (pi: ExtensionAPI) {
         if (refreshed) {
           ctx.ui.notify(`※ Recap: ${refreshed}`, "info");
         } else {
-          ctx.ui.notify("No recent exchange to recap or generation failed", "warning");
+          ctx.ui.notify(
+            "No recent exchange to recap or generation failed",
+            "warning",
+          );
         }
         return;
       }
@@ -481,7 +572,10 @@ export default function (pi: ExtensionAPI) {
           return;
         }
         saveConfig({ ...config, language: langArg }, ctx);
-        ctx.ui.notify(`Recap language set to ${languageLabel(langArg)}`, "info");
+        ctx.ui.notify(
+          `Recap language set to ${languageLabel(langArg)}`,
+          "info",
+        );
         return;
       }
 
@@ -491,19 +585,29 @@ export default function (pi: ExtensionAPI) {
           await chooseRecapModel(ctx);
           return;
         }
-        if (modelArg === "default" || modelArg === "clear" || modelArg === "none") {
+        if (
+          modelArg === "default" ||
+          modelArg === "clear" ||
+          modelArg === "none"
+        ) {
           saveConfig({ ...config, provider: undefined, model: undefined }, ctx);
           ctx.ui.notify("Recap model reset to session default", "info");
           return;
         }
         const ref = parseModelRef(modelArg);
         if (!ref) {
-          ctx.ui.notify("Enter a model in provider/model format (e.g. anthropic/claude-3-5-haiku)", "error");
+          ctx.ui.notify(
+            "Enter a model in provider/model format (e.g. anthropic/claude-3-5-haiku)",
+            "error",
+          );
           return;
         }
         const model = ctx.modelRegistry.find(ref.provider, ref.model);
         if (!model) {
-          ctx.ui.notify(`Model ${ref.provider}/${ref.model} was not found in the model registry`, "error");
+          ctx.ui.notify(
+            `Model ${ref.provider}/${ref.model} was not found in the model registry`,
+            "error",
+          );
           return;
         }
         saveConfig({ ...config, ...ref }, ctx);
@@ -511,7 +615,10 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      ctx.ui.notify(`Unknown subcommand "${raw}". Run /recap to open the management menu.`, "warning");
+      ctx.ui.notify(
+        `Unknown subcommand "${raw}". Run /recap to open the management menu.`,
+        "warning",
+      );
     },
   });
 }
