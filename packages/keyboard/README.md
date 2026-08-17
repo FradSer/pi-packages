@@ -1,4 +1,4 @@
-# @fradser/pi-keyboard
+# pi-keyboard
 
 Dynamic VIA/QMK keyboard RGB lighting indicator reflecting Pi's internal states.
 
@@ -40,7 +40,7 @@ pi install ~/Developer/FradSer/pi-packages/packages/keyboard
 When published to npm:
 
 ```bash
-pi install npm:@fradser/pi-keyboard
+pi install npm:pi-keyboard
 ```
 
 ---

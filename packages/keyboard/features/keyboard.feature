@@ -41,11 +41,17 @@ Feature: Pi Keyboard Lighting Indicator
 
   Scenario: Pi transitions to error state with red blinking light
     Given an agent execution error, API failure, or turn error occurs
-    When the error event is captured
+    When a fatal error event is captured
     Then the keyboard state machine updates to "error"
     And the keyboard lighting is set to red color
     And the effect mode is set to blinking alert
     And the update is applied with --no-save in memory
+
+  Scenario: Non-fatal tool errors do not trigger red blinking light
+    Given the agent executes a bash command or test that returns a non-zero exit code
+    When the tool result arrives during ongoing turn reasoning
+    Then the keyboard lighting remains in "thinking" blue breathing state
+    And it does not trigger the red error alert
 
   Scenario: User submits input and clears unread chat status
     Given the keyboard is currently displaying unread chat state

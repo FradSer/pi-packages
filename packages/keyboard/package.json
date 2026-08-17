@@ -1,5 +1,5 @@
 {
-  "name": "@fradser/pi-keyboard",
+  "name": "pi-keyboard",
   "version": "0.1.0",
   "description": "Dynamic VIA/QMK keyboard RGB lighting indicator reflecting Pi states (idle, thinking, unread, need-approval, error)",
   "author": "Frad LEE <fradser@gmail.com>",

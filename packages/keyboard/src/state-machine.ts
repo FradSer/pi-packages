@@ -9,6 +9,7 @@ export class KeyboardStateMachine {
   private currentState: KeyboardState = "idle";
   private isProcessing = false;
   private hasUnreadChat = false;
+  private hasFatalError = false;
 
   constructor(private config: KeyboardConfig) {}
 
@@ -44,18 +45,21 @@ export class KeyboardStateMachine {
   public async onSessionStart(): Promise<void> {
     this.isProcessing = false;
     this.hasUnreadChat = false;
+    this.hasFatalError = false;
     await this.transitionTo("idle");
   }
 
   public async onAgentStart(): Promise<void> {
     this.isProcessing = true;
     this.hasUnreadChat = false;
+    this.hasFatalError = false;
     await this.transitionTo("thinking");
   }
 
   public async onTurnStart(): Promise<void> {
     this.isProcessing = true;
     this.hasUnreadChat = false;
+    this.hasFatalError = false;
     await this.transitionTo("thinking");
   }
 
@@ -75,17 +79,26 @@ export class KeyboardStateMachine {
     }
   }
 
-  public async onToolResult(isError: boolean): Promise<void> {
-    if (isError) {
-      await this.transitionTo("error");
-    } else if (this.isProcessing) {
+  public async onToolResult(): Promise<void> {
+    // Normal tool execution results (including bash non-zero exit codes or test failures)
+    // are part of normal agent reasoning and loop execution — they do NOT trigger an error state.
+    if (this.isProcessing) {
       await this.transitionTo("thinking");
+    }
+  }
+
+  public async onMessageEnd(stopReason?: string): Promise<void> {
+    if (stopReason === "error") {
+      this.hasFatalError = true;
+      this.isProcessing = false;
+      this.hasUnreadChat = false;
+      await this.transitionTo("error");
     }
   }
 
   public async onAgentSettled(hasError = false): Promise<void> {
     this.isProcessing = false;
-    if (hasError) {
+    if (hasError || this.hasFatalError) {
       this.hasUnreadChat = false;
       await this.transitionTo("error");
     } else {
@@ -96,6 +109,7 @@ export class KeyboardStateMachine {
 
   public async onUserInput(): Promise<void> {
     this.hasUnreadChat = false;
+    this.hasFatalError = false;
     if (this.isProcessing) {
       await this.transitionTo("thinking");
     } else {
@@ -105,11 +119,11 @@ export class KeyboardStateMachine {
 
   public async onError(): Promise<void> {
     this.isProcessing = false;
+    this.hasFatalError = true;
     await this.transitionTo("error");
   }
 
   public async onShutdown(): Promise<void> {
-    // Optionally restore to idle on clean shutdown
     await this.transitionTo("idle");
   }
 }

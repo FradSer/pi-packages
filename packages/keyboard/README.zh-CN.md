@@ -1,4 +1,4 @@
-# @fradser/pi-keyboard
+# pi-keyboard
 
 基于 VIA/QMK 协议的 Pi 键盘 RGB 状态指示灯插件。
 
@@ -40,7 +40,7 @@ pi install ~/Developer/FradSer/pi-packages/packages/keyboard
 当发布到 npm 后也可直接安装：
 
 ```bash
-pi install npm:@fradser/pi-keyboard
+pi install npm:pi-keyboard
 ```
 
 ---

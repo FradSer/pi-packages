@@ -37,6 +37,7 @@ def test_feature_covers_keyboard_scenarios() -> None:
     assert "Scenario: Pi transitions to thinking state with blue breathing light" in feature
     assert "Scenario: Pi transitions to need approval state with yellow blinking light" in feature
     assert "Scenario: Pi transitions to error state with red blinking light" in feature
+    assert "Scenario: Non-fatal tool errors do not trigger red blinking light" in feature
     assert "Scenario: User submits input and clears unread chat status" in feature
     assert "Scenario: Target lighting zone selection" in feature
     assert "Scenario: In-memory updates without EEPROM wear" in feature
@@ -150,22 +151,27 @@ def test_state_machine_lifecycle_transitions() -> None:
         await sm.onAgentStart();
         history.push(sm.getCurrentState());
 
-        await sm.onToolCall("bash", {{ command: "ls" }});
+        // Bash command running and failing (exit 1) should STAY in thinking
+        await sm.onToolCall("bash", {{ command: "grep nonexistent file" }});
         history.push(sm.getCurrentState());
 
+        await sm.onToolResult();
+        history.push(sm.getCurrentState());
+
+        // Interactive tool call transitions to need_approval
         await sm.onToolCall("confirm_action", {{}});
         history.push(sm.getCurrentState());
 
-        await sm.onToolResult(false);
-        history.push(sm.getCurrentState());
-
+        // Normal settle transitions to unread_chat
         await sm.onAgentSettled(false);
         history.push(sm.getCurrentState());
 
+        // User input clears unread
         await sm.onUserInput();
         history.push(sm.getCurrentState());
 
-        await sm.onError();
+        // Fatal error stops Pi and transitions to error
+        await sm.onMessageEnd("error");
         history.push(sm.getCurrentState());
 
         console.log(JSON.stringify({{ history }}));
@@ -174,12 +180,12 @@ def test_state_machine_lifecycle_transitions() -> None:
     expected = [
         "idle",           # onSessionStart
         "thinking",       # onAgentStart
-        "thinking",       # normal toolCall
+        "thinking",       # toolCall (bash)
+        "thinking",       # toolResult (bash error does NOT make it red)
         "need_approval",  # interactive toolCall
-        "thinking",       # normal toolResult
         "unread_chat",    # onAgentSettled
         "idle",           # onUserInput
-        "error",          # onError
+        "error",          # onMessageEnd("error")
     ]
     assert result["history"] == expected
 
@@ -213,6 +219,7 @@ def test_extension_registers_expected_hooks() -> None:
     assert "turn_start" in events
     assert "tool_call" in events
     assert "tool_result" in events
+    assert "message_end" in events
     assert "agent_settled" in events
     assert "input" in events
     assert "session_shutdown" in events

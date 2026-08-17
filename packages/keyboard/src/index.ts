@@ -43,9 +43,14 @@ export default function (pi: ExtensionAPI): void {
     await sm.onToolCall(event.toolName, input);
   });
 
-  pi.on("tool_result", async (event, _ctx) => {
-    const isError = Boolean(event.isError);
-    await sm.onToolResult(isError);
+  pi.on("tool_result", async (_event, _ctx) => {
+    // Normal tool execution results (e.g. bash non-zero exit) stay in thinking state
+    await sm.onToolResult();
+  });
+
+  pi.on("message_end", async (event, _ctx) => {
+    const stopReason = (event.message as { stopReason?: string })?.stopReason;
+    await sm.onMessageEnd(stopReason);
   });
 
   pi.on("agent_settled", async (_event, _ctx) => {
