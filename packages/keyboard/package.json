@@ -1,0 +1,39 @@
+{
+  "name": "@fradser/pi-keyboard",
+  "version": "0.1.0",
+  "description": "Dynamic VIA/QMK keyboard RGB lighting indicator reflecting Pi states (idle, thinking, unread, need-approval, error)",
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "keyboard",
+    "lighting",
+    "via",
+    "qmk",
+    "rgb-status",
+    "ambient-indicator"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "features",
+    "README.md",
+    "README.zh-CN.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  }
+}
