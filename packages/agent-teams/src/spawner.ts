@@ -295,13 +295,13 @@ function toolcallLabel(rawArgs: string): string | undefined {
   try {
     const args = JSON.parse(trimmed) as Record<string, unknown>;
     const command = args.command;
-    if (typeof command === "string" && command.trim()) return `bash: ${truncate(command.trim(), 40)}`;
+    if (typeof command === "string" && command.trim()) return `bash: ${truncateInline(command, 40)}`;
     const filePath = args.path;
     if (typeof filePath === "string" && filePath.trim()) return `file: ${path.basename(filePath.trim())}`;
     const subject = args.subject;
-    if (typeof subject === "string" && subject.trim()) return `message: ${truncate(subject.trim(), 40)}`;
+    if (typeof subject === "string" && subject.trim()) return `message: ${truncateInline(subject, 40)}`;
     const query = args.query;
-    if (typeof query === "string" && query.trim()) return `search: ${truncate(query.trim(), 40)}`;
+    if (typeof query === "string" && query.trim()) return `search: ${truncateInline(query, 40)}`;
   } catch {
     // Incomplete JSON mid-stream — retry on the next delta.
   }
@@ -368,6 +368,12 @@ function applyWorkerJsonLine(state: WorkerStreamState, line: string): boolean {
     default:
       return false;
   }
+}
+
+function truncateInline(text: string, cap: number): string {
+  const oneLine = text.replace(/\s+/g, " ").trim();
+  if (oneLine.length <= cap) return oneLine;
+  return `${oneLine.slice(0, cap).trimEnd()} ...`;
 }
 
 function truncate(text: string, cap: number): string {

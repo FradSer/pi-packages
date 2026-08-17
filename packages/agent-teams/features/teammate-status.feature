@@ -145,7 +145,9 @@ Feature: Agent Teams run-centric public API
       Given a background run is working
       When the run reaches a terminal status
       Then the harness delivers one completion follow-up to the leader
-      And the leader reads results via teammate_status
+      And the follow-up includes the full final deliverable submitted by the worker
+      And a single-node run does not require a separate teammate_status call to read its result
+      And teammate_status remains available for detailed transcripts
       And no teammate_wait tool exists
 
     Scenario: Cancel a run stops its running nodes
@@ -266,6 +268,8 @@ Feature: Agent Teams run-centric public API
       When the user opens /teammate
       Then the full-screen console shows the teammate's live model text and current tool activity
       And working rows display a spinner with the live activity (current tool, reasoning, or text)
+      And long tool activity is truncated inline with an ellipsis
+      And a teammate widget row never wraps a truncation notice onto a second line
       And widget rows are left-padded to align with the native loader row
       And the idle widget stays hidden until a teammate is running
       And it does not intercept global terminal input

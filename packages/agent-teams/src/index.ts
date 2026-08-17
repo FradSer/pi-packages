@@ -767,6 +767,7 @@ function buildRunResultSummary(runId: string): string {
 function buildRunSummary(runId: string): string {
   const run = getRun(runId);
   if (!run) return `Run ${runId} not found.`;
+  const nodes = Object.values(run.nodes).filter((node) => node.id !== SUMMARY_NODE_ID);
   const counts = Object.values(run.nodes).reduce<Record<string, number>>((acc, node) => {
     acc[node.status] = (acc[node.status] ?? 0) + 1;
     return acc;
@@ -778,9 +779,12 @@ function buildRunSummary(runId: string): string {
   ];
   if (run.summary) {
     lines.push(run.summary, "");
+  } else if (nodes.length === 1) {
+    const node = nodes[0];
+    const deliverable = node.result?.trim() || node.errorMessage?.trim();
+    if (deliverable) lines.push(deliverable, "");
   }
-  for (const node of Object.values(run.nodes)) {
-    if (node.id === SUMMARY_NODE_ID) continue;
+  for (const node of nodes) {
     lines.push(`- [${node.id}] ${node.status} (${node.agent})`);
   }
   lines.push("", `Detail: teammate_status runId=${run.id} · Console: /teammate`);

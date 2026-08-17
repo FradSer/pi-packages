@@ -102,6 +102,8 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Run lifecycle is explicit",
         "Status lists agents, runs, and node detail",
         "Run completion is delivered automatically without a wait tool",
+        "follow-up includes the full final deliverable submitted by the worker",
+        "single-node run does not require a separate teammate_status call",
         "Cancel a run stops its running nodes",
         "Runs do not survive session restarts",
         "Messaging is capability-bound",
@@ -118,6 +120,8 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Legitimate empty and terminal data remains a normal result",
         "Console is a user interface, not an agent tool substitute",
         "Console shows live teammate activity without intercepting global input",
+        "long tool activity is truncated inline with an ellipsis",
+        "a teammate widget row never wraps a truncation notice onto a second line",
         "the idle widget stays hidden until a teammate is running",
         "Detail scrolling preserves every wrapped display line",
     ):
@@ -181,6 +185,12 @@ def test_widget_rows_align_with_native_loader_and_show_live_activity() -> None:
     assert "if (tc?.name && !state.activeTool)" in spawner
     # Reasoning deltas are accumulated for the activity line.
     assert '"thinking_delta"' in spawner
+    # Tool labels are collapsed and truncated inline so a long command cannot
+    # add a visible "[truncated N chars]" row to the passive widget.
+    assert 'function truncateInline' in spawner
+    assert 'text.replace(/\\s+/g, " ").trim()' in spawner
+    assert 'return `${oneLine.slice(0, cap).trimEnd()} ...`' in spawner
+    assert 'bash: ${truncateInline(command, 40)}' in spawner
 
 
 def test_types_express_run_centric_surface() -> None:
@@ -753,6 +763,8 @@ def test_tool_returns_are_compact_and_detail_lives_in_status() -> None:
     assert "summaryAgent" in types
     assert "settledRun.summary = nodeNow?.result" in ext
     assert "if (run.summary)" in ext
+    assert "else if (nodes.length === 1)" in ext
+    assert "node.result?.trim() || node.errorMessage?.trim()" in ext
     # No wait tool: delivery is the automatic completion follow-up; the
     # foreground gather loop is the only inline blocking path.
     assert 'name: "teammate_wait"' not in ext
