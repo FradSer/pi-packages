@@ -42,6 +42,8 @@ Feature: Read-only side questions
     Given an interactive side question overlay
     When an initial question and a follow-up question are answered
     Then the overlay displays all conversation turns
+    And the overlay does not display a redundant header title for the initial question
+    And each conversation turn displays its question with You and its answer with btw
     And the footer aggregates token usage and cost across turns
     And the follow-up composer uses two full-width horizontal separators instead of a boxed frame
     And the follow-up composer keeps equal spacing on both sides of the input area
