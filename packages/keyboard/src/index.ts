@@ -25,17 +25,31 @@ function getStateMachine(): KeyboardStateMachine {
 export default function (pi: ExtensionAPI): void {
   const sm = getStateMachine();
   let terminalInputDetached: (() => void) | undefined;
+  let rawStdinListener: ((chunk: Buffer | string) => void) | undefined;
 
   // Pi Lifecycle Hooks
   pi.on("session_start", async (_event, ctx) => {
-    // Attach passive terminal input / focus observer to detect thread activation
+    const sessionId = (ctx as { sessionManager?: { getSessionId?: () => string } }).sessionManager?.getSessionId?.();
+    sm.setSessionContext(sessionId, ctx.cwd);
+
+    // Passive terminal input observer via extension UI context
     if (ctx.hasUI && typeof ctx.ui.onTerminalInput === "function" && !terminalInputDetached) {
       terminalInputDetached = ctx.ui.onTerminalInput((_data: string) => {
-        if (sm.isUnread()) {
+        if (sm.isUnread() || sm.hasError()) {
           void sm.onUserActivated();
         }
         return undefined; // Passive observer: never consume or block input
       });
+    }
+
+    // Direct raw stdin focus / keypress observer for reliable thread activation
+    if (process.stdin.isTTY && !rawStdinListener) {
+      rawStdinListener = (_chunk: Buffer | string) => {
+        if (sm.isUnread() || sm.hasError()) {
+          void sm.onUserActivated();
+        }
+      };
+      process.stdin.on("data", rawStdinListener);
     }
 
     await sm.onSessionStart();
@@ -67,14 +81,18 @@ export default function (pi: ExtensionAPI): void {
 
   pi.on("turn_end", async (event, _ctx) => {
     const msg = event.message as { stopReason?: string; errorMessage?: string } | undefined;
-    if (msg?.stopReason === "error" || msg?.stopReason === "aborted" || Boolean(msg?.errorMessage)) {
+    if (msg?.stopReason === "aborted") {
+      await sm.onMessageEnd("aborted");
+    } else if (msg?.stopReason === "error" || Boolean(msg?.errorMessage)) {
       await sm.onMessageEnd(msg?.stopReason, msg?.errorMessage);
     }
   });
 
   pi.on("message_end", async (event, _ctx) => {
     const msg = event.message as { stopReason?: string; errorMessage?: string } | undefined;
-    if (msg?.stopReason === "error" || msg?.stopReason === "aborted" || Boolean(msg?.errorMessage)) {
+    if (msg?.stopReason === "aborted") {
+      await sm.onMessageEnd("aborted");
+    } else if (msg?.stopReason === "error" || Boolean(msg?.errorMessage)) {
       await sm.onMessageEnd(msg?.stopReason, msg?.errorMessage);
     }
   });
@@ -89,7 +107,9 @@ export default function (pi: ExtensionAPI): void {
         const entry = branch[i];
         if (entry && entry.type === "message" && entry.message && entry.message.role === "assistant") {
           const msg = entry.message as { stopReason?: string; errorMessage?: string };
-          if (msg.stopReason === "error" || msg.stopReason === "aborted" || Boolean(msg.errorMessage)) {
+          if (msg.stopReason === "aborted") {
+            hasError = false;
+          } else if (msg.stopReason === "error" || Boolean(msg.errorMessage)) {
             hasError = true;
           }
           break;
@@ -107,6 +127,12 @@ export default function (pi: ExtensionAPI): void {
   pi.on("session_shutdown", async (_event, _ctx) => {
     terminalInputDetached?.();
     terminalInputDetached = undefined;
+
+    if (rawStdinListener) {
+      process.stdin.off("data", rawStdinListener);
+      rawStdinListener = undefined;
+    }
+
     await sm.onShutdown();
   });
 
@@ -114,6 +140,9 @@ export default function (pi: ExtensionAPI): void {
   pi.registerCommand("keyboard", {
     description: "Manage VIA/QMK keyboard RGB lighting status indicators",
     handler: async (args: string, ctx: ExtensionCommandContext) => {
+      // Executing a command in the session confirms user activation
+      void sm.onUserActivated();
+
       const trimmed = args.trim().toLowerCase();
 
       if (trimmed === "on") {

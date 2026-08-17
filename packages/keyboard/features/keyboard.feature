@@ -27,6 +27,7 @@ Feature: Pi Keyboard Lighting Indicator
   Scenario: User activates thread and marks message as read
     Given the keyboard is currently displaying unread chat state
     When the user activates or focuses the terminal window
+    And no other Pi sessions have unread messages
     And no other Pi sessions are running
     Then the unread status is cleared
     And the keyboard lighting transitions to white idle breathing
@@ -34,9 +35,24 @@ Feature: Pi Keyboard Lighting Indicator
   Scenario: User activates thread while another session is running
     Given the keyboard is currently displaying unread chat state
     When the user activates or focuses the terminal window
+    And no other Pi sessions have unread messages
     And another background Pi session is currently running
     Then the unread status is cleared
     And the keyboard lighting transitions to blue thinking breathing
+
+  Scenario: All sessions must be read for unread green light to clear
+    Given multiple Pi sessions exist across terminal tabs
+    And one session finishes generating an unread response
+    When the user activates one session but another session still has unread messages
+    Then the keyboard lighting remains in green unread chat breathing state
+    When all active sessions are read or activated
+    Then the keyboard lighting transitions out of unread chat to idle or thinking
+
+  Scenario: User manual abort does not trigger red error light
+    Given an agent turn is actively executing
+    When the user cancels or aborts the turn via Ctrl+C or abort
+    Then the keyboard lighting does not trigger red error alert
+    And the lighting state transitions cleanly back to idle or thinking
 
   Scenario: Pi transitions to thinking state with blue breathing light
     Given a user has submitted a prompt or the agent is executing a turn

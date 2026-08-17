@@ -1,5 +1,12 @@
+import crypto from "node:crypto";
 import { applyKeyboardState } from "./driver";
-import { hasOtherRunningSessions } from "./global-sessions";
+import {
+  evaluateGlobalLightingState,
+  removeSessionGlowState,
+  writeSessionGlowState,
+  type GlobalStateSummary,
+  type SessionGlowRecord,
+} from "./global-sessions";
 import {
   KEYBOARD_STATE_DEFINITIONS,
   type KeyboardConfig,
@@ -11,11 +18,32 @@ export class KeyboardStateMachine {
   private isProcessing = false;
   private hasUnreadChat = false;
   private hasFatalError = false;
+  private sessionId: string;
+  private cwd: string;
 
   constructor(
     private config: KeyboardConfig,
-    private checkOtherRunning: () => boolean = () => hasOtherRunningSessions(),
-  ) {}
+    sessionId?: string,
+    cwd?: string,
+    private evalGlobalState: (id: string, record: SessionGlowRecord) => GlobalStateSummary = (id, rec) =>
+      evaluateGlobalLightingState(id, rec),
+  ) {
+    this.sessionId = sessionId || crypto.randomUUID();
+    this.cwd = cwd || process.cwd();
+  }
+
+  public getSessionId(): string {
+    return this.sessionId;
+  }
+
+  public getCwd(): string {
+    return this.cwd;
+  }
+
+  public setSessionContext(sessionId?: string, cwd?: string): void {
+    if (sessionId) this.sessionId = sessionId;
+    if (cwd) this.cwd = cwd;
+  }
 
   public getConfig(): KeyboardConfig {
     return { ...this.config };
@@ -42,6 +70,34 @@ export class KeyboardStateMachine {
     return KEYBOARD_STATE_DEFINITIONS[state]?.labelZh ?? state;
   }
 
+  private buildSelfRecord(statusOverride?: SessionGlowRecord["status"]): SessionGlowRecord {
+    let status: SessionGlowRecord["status"] = "idle";
+    if (this.hasFatalError) {
+      status = "error";
+    } else if (this.isProcessing) {
+      status = "running";
+    } else if (this.hasUnreadChat) {
+      status = "settled";
+    }
+
+    return {
+      sessionId: this.sessionId,
+      pid: process.pid,
+      cwd: this.cwd,
+      status: statusOverride ?? status,
+      hasUnread: this.hasUnreadChat,
+      updatedAt: Date.now(),
+    };
+  }
+
+  private async syncAndEvaluate(statusOverride?: SessionGlowRecord["status"]): Promise<void> {
+    const record = this.buildSelfRecord(statusOverride);
+    writeSessionGlowState(record);
+
+    const summary = this.evalGlobalState(this.sessionId, record);
+    await this.transitionTo(summary.effectiveState);
+  }
+
   public async transitionTo(nextState: KeyboardState, force = false): Promise<void> {
     if (this.currentState === nextState && !force) {
       return;
@@ -58,26 +114,21 @@ export class KeyboardStateMachine {
     this.isProcessing = false;
     this.hasUnreadChat = false;
     this.hasFatalError = false;
-
-    if (this.checkOtherRunning()) {
-      await this.transitionTo("thinking");
-    } else {
-      await this.transitionTo("idle");
-    }
+    await this.syncAndEvaluate("idle");
   }
 
   public async onAgentStart(): Promise<void> {
     this.isProcessing = true;
     this.hasUnreadChat = false;
     this.hasFatalError = false;
-    await this.transitionTo("thinking");
+    await this.syncAndEvaluate("running");
   }
 
   public async onTurnStart(): Promise<void> {
     this.isProcessing = true;
     this.hasUnreadChat = false;
     this.hasFatalError = false;
-    await this.transitionTo("thinking");
+    await this.syncAndEvaluate("running");
   }
 
   public async onToolCall(toolName: string, _input?: Record<string, unknown>): Promise<void> {
@@ -89,15 +140,15 @@ export class KeyboardStateMachine {
       toolName === "question";
 
     if (isInteractive) {
-      await this.transitionTo("need_approval");
+      await this.syncAndEvaluate("need_approval");
     } else {
-      await this.transitionTo("thinking");
+      await this.syncAndEvaluate("running");
     }
   }
 
   public async onToolResult(): Promise<void> {
     if (this.isProcessing) {
-      await this.transitionTo("thinking");
+      await this.syncAndEvaluate("running");
     }
   }
 
@@ -106,16 +157,25 @@ export class KeyboardStateMachine {
       this.hasFatalError = true;
       this.isProcessing = false;
       this.hasUnreadChat = false;
-      await this.transitionTo("error");
+      await this.syncAndEvaluate("error");
     }
   }
 
   public async onMessageEnd(stopReason?: string, errorMessage?: string): Promise<void> {
-    if (stopReason === "error" || stopReason === "aborted" || Boolean(errorMessage)) {
+    if (stopReason === "aborted") {
+      // User manually stopped/cancelled session — NOT an error!
+      this.isProcessing = false;
+      this.hasFatalError = false;
+      this.hasUnreadChat = false;
+      await this.syncAndEvaluate("idle");
+      return;
+    }
+
+    if (stopReason === "error" || Boolean(errorMessage)) {
       this.hasFatalError = true;
       this.isProcessing = false;
       this.hasUnreadChat = false;
-      await this.transitionTo("error");
+      await this.syncAndEvaluate("error");
     }
   }
 
@@ -124,53 +184,44 @@ export class KeyboardStateMachine {
     if (hasError || this.hasFatalError) {
       this.hasFatalError = true;
       this.hasUnreadChat = false;
-      await this.transitionTo("error");
+      await this.syncAndEvaluate("error");
     } else {
+      this.hasFatalError = false;
       this.hasUnreadChat = true;
-      await this.transitionTo("unread_chat");
+      await this.syncAndEvaluate("settled");
     }
   }
 
+  /**
+   * Called when user focuses the terminal window or interacts (key press / FocusIn).
+   * Marks current session as read and re-evaluates global system status:
+   * - If any OTHER session still has unread messages -> stays in unread_chat (green)
+   * - Else if any session is running -> thinking (blue)
+   * - Else -> idle (white)
+   */
   public async onUserActivated(): Promise<void> {
-    if (!this.hasUnreadChat) {
-      return;
-    }
     this.hasUnreadChat = false;
-
-    if (this.hasFatalError) {
-      await this.transitionTo("error");
-      return;
-    }
-
-    if (this.isProcessing || this.checkOtherRunning()) {
-      await this.transitionTo("thinking");
-    } else {
-      await this.transitionTo("idle");
-    }
+    this.hasFatalError = false;
+    await this.syncAndEvaluate(this.isProcessing ? "running" : "idle");
   }
 
   public async onUserInput(): Promise<void> {
     this.hasUnreadChat = false;
     this.hasFatalError = false;
-    if (this.isProcessing || this.checkOtherRunning()) {
-      await this.transitionTo("thinking");
-    } else {
-      await this.transitionTo("idle");
-    }
+    this.isProcessing = true;
+    await this.syncAndEvaluate("running");
   }
 
   public async onError(): Promise<void> {
     this.isProcessing = false;
     this.hasFatalError = true;
     this.hasUnreadChat = false;
-    await this.transitionTo("error");
+    await this.syncAndEvaluate("error");
   }
 
   public async onShutdown(): Promise<void> {
-    if (this.checkOtherRunning()) {
-      await this.transitionTo("thinking");
-    } else {
-      await this.transitionTo("idle");
-    }
+    removeSessionGlowState(this.cwd, this.sessionId);
+    const summary = evaluateGlobalLightingState();
+    await this.transitionTo(summary.effectiveState);
   }
 }

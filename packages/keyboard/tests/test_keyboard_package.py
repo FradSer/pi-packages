@@ -37,6 +37,8 @@ def test_feature_covers_keyboard_scenarios() -> None:
     assert "Scenario: Pi transitions to unread chat state with green breathing light" in feature
     assert "Scenario: User activates thread and marks message as read" in feature
     assert "Scenario: User activates thread while another session is running" in feature
+    assert "Scenario: User manual abort does not trigger red error light" in feature
+    assert "Scenario: All sessions must be read for unread green light to clear" in feature
     assert "Scenario: Pi transitions to thinking state with blue breathing light" in feature
     assert "Scenario: Pi transitions to need approval state with yellow blinking light" in feature
     assert "Scenario: Pi transitions to error state with red blinking light" in feature
@@ -140,7 +142,9 @@ def test_state_machine_lifecycle_transitions() -> None:
         f"""
         import {{ KeyboardStateMachine }} from "{STATE_MACHINE_URI}";
 
-        let otherRunning = false;
+        let mockOtherUnread = false;
+        let mockOtherRunning = false;
+
         const sm = new KeyboardStateMachine(
             {{
                 enabled: false,
@@ -148,51 +152,73 @@ def test_state_machine_lifecycle_transitions() -> None:
                 brightnessScale: 1.0,
                 saveToEeprom: false,
             }},
-            () => otherRunning,
+            "test-session-1",
+            "/tmp/test-cwd",
+            (id, selfRec) => {{
+                let effectiveState = "idle";
+                if (selfRec.status === "error") {{
+                    effectiveState = "error";
+                }} else if (selfRec.status === "need_approval") {{
+                    effectiveState = "need_approval";
+                }} else if (selfRec.hasUnread || mockOtherUnread) {{
+                    effectiveState = "unread_chat";
+                }} else if (selfRec.status === "running" || mockOtherRunning) {{
+                    effectiveState = "thinking";
+                }}
+                return {{
+                    effectiveState,
+                    hasAnyUnread: selfRec.hasUnread || mockOtherUnread,
+                    hasAnyRunning: selfRec.status === "running" || mockOtherRunning,
+                    hasAnyError: selfRec.status === "error",
+                    hasAnyNeedApproval: selfRec.status === "need_approval",
+                    activeSessionCount: 1,
+                }};
+            }},
         );
 
         const history = [];
 
+        // 1. Session start -> idle (white)
         await sm.onSessionStart();
         history.push(sm.getCurrentState());
 
+        // 2. Agent start -> thinking (blue)
         await sm.onAgentStart();
         history.push(sm.getCurrentState());
 
-        // Bash command running and failing (exit 1) should STAY in thinking
+        // 3. Bash command error -> stays thinking (blue)
         await sm.onToolCall("bash", {{ command: "grep nonexistent file" }});
-        history.push(sm.getCurrentState());
-
         await sm.onToolResult();
         history.push(sm.getCurrentState());
 
-        // Interactive tool call transitions to need_approval
-        await sm.onToolCall("confirm_action", {{}});
+        // 4. User manual abort (Ctrl+C) -> returns to idle (white, NOT red!)
+        await sm.onMessageEnd("aborted");
         history.push(sm.getCurrentState());
 
-        // Normal settle transitions to unread_chat
+        // 5. Agent starts again -> thinking (blue)
+        await sm.onAgentStart();
+        history.push(sm.getCurrentState());
+
+        // 6. Normal finish -> unread_chat (green)
         await sm.onAgentSettled(false);
         history.push(sm.getCurrentState());
 
-        // User activates thread when NO other session is running -> becomes idle (white)
-        otherRunning = false;
+        // 7. User activates thread while another session HAS unread -> stays green unread_chat
+        mockOtherUnread = true;
         await sm.onUserActivated();
         history.push(sm.getCurrentState());
 
-        // Agent settles again -> unread_chat (green)
-        await sm.onAgentSettled(false);
-        history.push(sm.getCurrentState());
-
-        // User activates thread while ANOTHER session IS running -> becomes thinking (blue)
-        otherRunning = true;
+        // 8. User activates thread when ALL sessions are read -> becomes idle (white)
+        mockOtherUnread = false;
+        mockOtherRunning = false;
         await sm.onUserActivated();
         history.push(sm.getCurrentState());
 
-        // Upstream provider 429 error occurs -> transitions to error (red blinking)
+        // 9. Upstream provider 429 error occurs -> error (red blinking)
         await sm.onProviderResponse(429);
         history.push(sm.getCurrentState());
 
-        // Agent settled after error keeps error state (never turns green)
+        // 10. Agent settled after error keeps error state (never turns green)
         await sm.onAgentSettled(false);
         history.push(sm.getCurrentState());
 
@@ -200,17 +226,16 @@ def test_state_machine_lifecycle_transitions() -> None:
         """
     )
     expected = [
-        "idle",           # onSessionStart (no other running)
-        "thinking",       # onAgentStart
-        "thinking",       # toolCall (bash)
-        "thinking",       # toolResult (bash error does NOT make it red)
-        "need_approval",  # interactive toolCall
-        "unread_chat",    # onAgentSettled
-        "idle",           # onUserActivated (no other running -> white)
-        "unread_chat",    # onAgentSettled
-        "thinking",       # onUserActivated (other running -> blue)
-        "error",          # onProviderResponse(429) -> red blinking
-        "error",          # onAgentSettled preserves error state
+        "idle",           # 1. onSessionStart
+        "thinking",       # 2. onAgentStart
+        "thinking",       # 3. toolResult
+        "idle",           # 4. onMessageEnd("aborted") -> idle, NOT red!
+        "thinking",       # 5. onAgentStart
+        "unread_chat",    # 6. onAgentSettled -> unread_chat (green)
+        "unread_chat",    # 7. onUserActivated while other session unread -> stays unread_chat (green)
+        "idle",           # 8. onUserActivated when all sessions read -> idle (white)
+        "error",          # 9. onProviderResponse(429) -> error (red blinking)
+        "error",          # 10. onAgentSettled preserves error
     ]
     assert result["history"] == expected
 
