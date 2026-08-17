@@ -24,9 +24,20 @@ function getStateMachine(): KeyboardStateMachine {
 
 export default function (pi: ExtensionAPI): void {
   const sm = getStateMachine();
+  let terminalInputDetached: (() => void) | undefined;
 
   // Pi Lifecycle Hooks
-  pi.on("session_start", async (_event, _ctx) => {
+  pi.on("session_start", async (_event, ctx) => {
+    // Attach passive terminal input / focus observer to detect thread activation
+    if (ctx.hasUI && typeof ctx.ui.onTerminalInput === "function" && !terminalInputDetached) {
+      terminalInputDetached = ctx.ui.onTerminalInput((_data: string) => {
+        if (sm.isUnread()) {
+          void sm.onUserActivated();
+        }
+        return undefined; // Passive observer: never consume or block input
+      });
+    }
+
     await sm.onSessionStart();
   });
 
@@ -38,23 +49,55 @@ export default function (pi: ExtensionAPI): void {
     await sm.onTurnStart();
   });
 
+  pi.on("after_provider_response", async (event, _ctx) => {
+    // Detect upstream provider errors (429 rate limit, 401 auth, 500 error, etc.)
+    if (event.status && event.status >= 400) {
+      await sm.onProviderResponse(event.status);
+    }
+  });
+
   pi.on("tool_call", async (event, _ctx) => {
     const input = event.input && typeof event.input === "object" ? (event.input as Record<string, unknown>) : undefined;
     await sm.onToolCall(event.toolName, input);
   });
 
   pi.on("tool_result", async (_event, _ctx) => {
-    // Normal tool execution results (e.g. bash non-zero exit) stay in thinking state
     await sm.onToolResult();
   });
 
-  pi.on("message_end", async (event, _ctx) => {
-    const stopReason = (event.message as { stopReason?: string })?.stopReason;
-    await sm.onMessageEnd(stopReason);
+  pi.on("turn_end", async (event, _ctx) => {
+    const msg = event.message as { stopReason?: string; errorMessage?: string } | undefined;
+    if (msg?.stopReason === "error" || msg?.stopReason === "aborted" || Boolean(msg?.errorMessage)) {
+      await sm.onMessageEnd(msg?.stopReason, msg?.errorMessage);
+    }
   });
 
-  pi.on("agent_settled", async (_event, _ctx) => {
-    await sm.onAgentSettled(false);
+  pi.on("message_end", async (event, _ctx) => {
+    const msg = event.message as { stopReason?: string; errorMessage?: string } | undefined;
+    if (msg?.stopReason === "error" || msg?.stopReason === "aborted" || Boolean(msg?.errorMessage)) {
+      await sm.onMessageEnd(msg?.stopReason, msg?.errorMessage);
+    }
+  });
+
+  pi.on("agent_settled", async (_event, ctx) => {
+    let hasError = sm.hasError();
+
+    // Inspect session branch entries to detect trailing assistant errors
+    const branch = ctx.sessionManager?.getBranch?.();
+    if (branch && branch.length > 0) {
+      for (let i = branch.length - 1; i >= 0; i--) {
+        const entry = branch[i];
+        if (entry && entry.type === "message" && entry.message && entry.message.role === "assistant") {
+          const msg = entry.message as { stopReason?: string; errorMessage?: string };
+          if (msg.stopReason === "error" || msg.stopReason === "aborted" || Boolean(msg.errorMessage)) {
+            hasError = true;
+          }
+          break;
+        }
+      }
+    }
+
+    await sm.onAgentSettled(hasError);
   });
 
   pi.on("input", async (_event, _ctx) => {
@@ -62,6 +105,8 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.on("session_shutdown", async (_event, _ctx) => {
+    terminalInputDetached?.();
+    terminalInputDetached = undefined;
     await sm.onShutdown();
   });
 

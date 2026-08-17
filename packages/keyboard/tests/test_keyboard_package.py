@@ -12,6 +12,7 @@ TYPES_URI = (SRC / "types.ts").as_uri()
 PROTOCOL_URI = (SRC / "protocol.ts").as_uri()
 CONFIG_URI = (SRC / "config.ts").as_uri()
 STATE_MACHINE_URI = (SRC / "state-machine.ts").as_uri()
+GLOBAL_SESSIONS_URI = (SRC / "global-sessions.ts").as_uri()
 INDEX_URI = (SRC / "index.ts").as_uri()
 
 
@@ -34,10 +35,13 @@ def test_feature_covers_keyboard_scenarios() -> None:
     assert "Feature: Pi Keyboard Lighting Indicator" in feature
     assert "Scenario: Pi transitions to idle state with white breathing light" in feature
     assert "Scenario: Pi transitions to unread chat state with green breathing light" in feature
+    assert "Scenario: User activates thread and marks message as read" in feature
+    assert "Scenario: User activates thread while another session is running" in feature
     assert "Scenario: Pi transitions to thinking state with blue breathing light" in feature
     assert "Scenario: Pi transitions to need approval state with yellow blinking light" in feature
     assert "Scenario: Pi transitions to error state with red blinking light" in feature
     assert "Scenario: Non-fatal tool errors do not trigger red blinking light" in feature
+    assert "Scenario: Upstream provider rate limit (429) triggers red blinking error light" in feature
     assert "Scenario: User submits input and clears unread chat status" in feature
     assert "Scenario: Target lighting zone selection" in feature
     assert "Scenario: In-memory updates without EEPROM wear" in feature
@@ -136,12 +140,16 @@ def test_state_machine_lifecycle_transitions() -> None:
         f"""
         import {{ KeyboardStateMachine }} from "{STATE_MACHINE_URI}";
 
-        const sm = new KeyboardStateMachine({{
-            enabled: false,
-            zone: "all",
-            brightnessScale: 1.0,
-            saveToEeprom: false,
-        }});
+        let otherRunning = false;
+        const sm = new KeyboardStateMachine(
+            {{
+                enabled: false,
+                zone: "all",
+                brightnessScale: 1.0,
+                saveToEeprom: false,
+            }},
+            () => otherRunning,
+        );
 
         const history = [];
 
@@ -166,26 +174,43 @@ def test_state_machine_lifecycle_transitions() -> None:
         await sm.onAgentSettled(false);
         history.push(sm.getCurrentState());
 
-        // User input clears unread
-        await sm.onUserInput();
+        // User activates thread when NO other session is running -> becomes idle (white)
+        otherRunning = false;
+        await sm.onUserActivated();
         history.push(sm.getCurrentState());
 
-        // Fatal error stops Pi and transitions to error
-        await sm.onMessageEnd("error");
+        // Agent settles again -> unread_chat (green)
+        await sm.onAgentSettled(false);
+        history.push(sm.getCurrentState());
+
+        // User activates thread while ANOTHER session IS running -> becomes thinking (blue)
+        otherRunning = true;
+        await sm.onUserActivated();
+        history.push(sm.getCurrentState());
+
+        // Upstream provider 429 error occurs -> transitions to error (red blinking)
+        await sm.onProviderResponse(429);
+        history.push(sm.getCurrentState());
+
+        // Agent settled after error keeps error state (never turns green)
+        await sm.onAgentSettled(false);
         history.push(sm.getCurrentState());
 
         console.log(JSON.stringify({{ history }}));
         """
     )
     expected = [
-        "idle",           # onSessionStart
+        "idle",           # onSessionStart (no other running)
         "thinking",       # onAgentStart
         "thinking",       # toolCall (bash)
         "thinking",       # toolResult (bash error does NOT make it red)
         "need_approval",  # interactive toolCall
         "unread_chat",    # onAgentSettled
-        "idle",           # onUserInput
-        "error",          # onMessageEnd("error")
+        "idle",           # onUserActivated (no other running -> white)
+        "unread_chat",    # onAgentSettled
+        "thinking",       # onUserActivated (other running -> blue)
+        "error",          # onProviderResponse(429) -> red blinking
+        "error",          # onAgentSettled preserves error state
     ]
     assert result["history"] == expected
 
@@ -217,9 +242,11 @@ def test_extension_registers_expected_hooks() -> None:
     assert "session_start" in events
     assert "agent_start" in events
     assert "turn_start" in events
+    assert "after_provider_response" in events
     assert "tool_call" in events
     assert "tool_result" in events
     assert "message_end" in events
+    assert "turn_end" in events
     assert "agent_settled" in events
     assert "input" in events
     assert "session_shutdown" in events

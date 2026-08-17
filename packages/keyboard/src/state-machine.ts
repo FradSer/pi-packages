@@ -1,4 +1,5 @@
 import { applyKeyboardState } from "./driver";
+import { hasOtherRunningSessions } from "./global-sessions";
 import {
   KEYBOARD_STATE_DEFINITIONS,
   type KeyboardConfig,
@@ -11,7 +12,10 @@ export class KeyboardStateMachine {
   private hasUnreadChat = false;
   private hasFatalError = false;
 
-  constructor(private config: KeyboardConfig) {}
+  constructor(
+    private config: KeyboardConfig,
+    private checkOtherRunning: () => boolean = () => hasOtherRunningSessions(),
+  ) {}
 
   public getConfig(): KeyboardConfig {
     return { ...this.config };
@@ -24,6 +28,14 @@ export class KeyboardStateMachine {
 
   public getCurrentState(): KeyboardState {
     return this.currentState;
+  }
+
+  public isUnread(): boolean {
+    return this.hasUnreadChat;
+  }
+
+  public hasError(): boolean {
+    return this.hasFatalError;
   }
 
   public getStateLabel(state: KeyboardState = this.currentState): string {
@@ -46,7 +58,12 @@ export class KeyboardStateMachine {
     this.isProcessing = false;
     this.hasUnreadChat = false;
     this.hasFatalError = false;
-    await this.transitionTo("idle");
+
+    if (this.checkOtherRunning()) {
+      await this.transitionTo("thinking");
+    } else {
+      await this.transitionTo("idle");
+    }
   }
 
   public async onAgentStart(): Promise<void> {
@@ -63,9 +80,8 @@ export class KeyboardStateMachine {
     await this.transitionTo("thinking");
   }
 
-  public async onToolCall(toolName: string, input?: Record<string, unknown>): Promise<void> {
+  public async onToolCall(toolName: string, _input?: Record<string, unknown>): Promise<void> {
     this.isProcessing = true;
-    // Check if tool implies an interactive question / approval
     const isInteractive =
       toolName.includes("confirm") ||
       toolName.includes("ask") ||
@@ -80,15 +96,22 @@ export class KeyboardStateMachine {
   }
 
   public async onToolResult(): Promise<void> {
-    // Normal tool execution results (including bash non-zero exit codes or test failures)
-    // are part of normal agent reasoning and loop execution — they do NOT trigger an error state.
     if (this.isProcessing) {
       await this.transitionTo("thinking");
     }
   }
 
-  public async onMessageEnd(stopReason?: string): Promise<void> {
-    if (stopReason === "error") {
+  public async onProviderResponse(status?: number): Promise<void> {
+    if (typeof status === "number" && status >= 400) {
+      this.hasFatalError = true;
+      this.isProcessing = false;
+      this.hasUnreadChat = false;
+      await this.transitionTo("error");
+    }
+  }
+
+  public async onMessageEnd(stopReason?: string, errorMessage?: string): Promise<void> {
+    if (stopReason === "error" || stopReason === "aborted" || Boolean(errorMessage)) {
       this.hasFatalError = true;
       this.isProcessing = false;
       this.hasUnreadChat = false;
@@ -99,6 +122,7 @@ export class KeyboardStateMachine {
   public async onAgentSettled(hasError = false): Promise<void> {
     this.isProcessing = false;
     if (hasError || this.hasFatalError) {
+      this.hasFatalError = true;
       this.hasUnreadChat = false;
       await this.transitionTo("error");
     } else {
@@ -107,10 +131,28 @@ export class KeyboardStateMachine {
     }
   }
 
+  public async onUserActivated(): Promise<void> {
+    if (!this.hasUnreadChat) {
+      return;
+    }
+    this.hasUnreadChat = false;
+
+    if (this.hasFatalError) {
+      await this.transitionTo("error");
+      return;
+    }
+
+    if (this.isProcessing || this.checkOtherRunning()) {
+      await this.transitionTo("thinking");
+    } else {
+      await this.transitionTo("idle");
+    }
+  }
+
   public async onUserInput(): Promise<void> {
     this.hasUnreadChat = false;
     this.hasFatalError = false;
-    if (this.isProcessing) {
+    if (this.isProcessing || this.checkOtherRunning()) {
       await this.transitionTo("thinking");
     } else {
       await this.transitionTo("idle");
@@ -120,10 +162,15 @@ export class KeyboardStateMachine {
   public async onError(): Promise<void> {
     this.isProcessing = false;
     this.hasFatalError = true;
+    this.hasUnreadChat = false;
     await this.transitionTo("error");
   }
 
   public async onShutdown(): Promise<void> {
-    await this.transitionTo("idle");
+    if (this.checkOtherRunning()) {
+      await this.transitionTo("thinking");
+    } else {
+      await this.transitionTo("idle");
+    }
   }
 }

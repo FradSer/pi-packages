@@ -9,6 +9,7 @@ Feature: Pi Keyboard Lighting Indicator
 
   Scenario: Pi transitions to idle state with white breathing light
     Given Pi is in session startup or waiting for new user input
+    And no other Pi session is currently running
     When the keyboard state machine updates to "idle"
     Then the keyboard lighting is set to white color
     And the effect mode is set to breathing
@@ -16,12 +17,26 @@ Feature: Pi Keyboard Lighting Indicator
 
   Scenario: Pi transitions to unread chat state with green breathing light
     Given the agent has finished generating a response
-    And the user has not yet submitted new input
+    And the user has not yet submitted new input or activated the thread
     When the agent settles with a completed message
     Then the keyboard state machine updates to "unread_chat"
     And the keyboard lighting is set to green color
     And the effect mode is set to breathing
     And the update is applied with --no-save in memory
+
+  Scenario: User activates thread and marks message as read
+    Given the keyboard is currently displaying unread chat state
+    When the user activates or focuses the terminal window
+    And no other Pi sessions are running
+    Then the unread status is cleared
+    And the keyboard lighting transitions to white idle breathing
+
+  Scenario: User activates thread while another session is running
+    Given the keyboard is currently displaying unread chat state
+    When the user activates or focuses the terminal window
+    And another background Pi session is currently running
+    Then the unread status is cleared
+    And the keyboard lighting transitions to blue thinking breathing
 
   Scenario: Pi transitions to thinking state with blue breathing light
     Given a user has submitted a prompt or the agent is executing a turn
@@ -52,6 +67,12 @@ Feature: Pi Keyboard Lighting Indicator
     When the tool result arrives during ongoing turn reasoning
     Then the keyboard lighting remains in "thinking" blue breathing state
     And it does not trigger the red error alert
+
+  Scenario: Upstream provider rate limit (429) triggers red blinking error light
+    Given the model provider returns an HTTP 429 quota error or 500 failure
+    When the provider error response is received
+    Then the keyboard state machine transitions to "error" red blinking
+    And the subsequent agent settle event does not overwrite it with green
 
   Scenario: User submits input and clears unread chat status
     Given the keyboard is currently displaying unread chat state
