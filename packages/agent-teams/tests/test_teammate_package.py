@@ -15,8 +15,9 @@ LEADER_TOOLS = {
     "teammate_retry",
     "teammate_message",
 }
-WORKER_TOOLS = {"teammate_message", "teammate_report"}
+WORKER_TOOLS = {"teammate_message"}
 REMOVED_TOOLS = {
+    "teammate_report",
     "teammate_inbox",
     "teammate_register",
     "teammate_list",
@@ -104,7 +105,7 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Cancel a run stops its running nodes",
         "Runs do not survive session restarts",
         "Messaging is capability-bound",
-        "A worker reports only its bound node",
+        "A worker delivers its outcome via teammate_message",
         "Intermediate worker communication does not interrupt the main session",
         "The harness delivers one canonical terminal result per node",
         "Workers cannot access leader tools",
@@ -190,10 +191,10 @@ def test_types_express_run_centric_surface() -> None:
         "TeammateCancelParams",
         "TeammateRetryParams",
         "TeammateMessageParams",
-        "TeammateReportParams",
         "RunTaskSpec",
     ):
         assert f"export const {schema}" in types
+    assert "TeammateReportParams" not in types
     assert "foregroundTimeoutMs" not in types
     assert "timeoutMs" in types
     assert "nodeId: Type.Optional" in types
@@ -849,3 +850,247 @@ def test_sigterm_resistant_worker_is_escalated_and_close_is_observed_before_term
         '''
     )
     assert payload == {"beforeClose": True, "closed": True, "terminated": True, "signal": "SIGKILL"}
+
+
+def test_is_completed_worker_exit_semantics() -> None:
+    module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''
+        import {{ isCompletedWorkerExit, isSuccessfulWorkerExit }} from "{module}";
+        const normalZero = isSuccessfulWorkerExit({{ exitCode: 0, signal: null, timedOut: false }});
+        const abnormalExit = isSuccessfulWorkerExit({{ exitCode: 1, signal: null, timedOut: false }});
+        const reportedCompletedWithSigterm = isCompletedWorkerExit({{ exitCode: null, signal: "SIGTERM", timedOut: false }}, true);
+        const reportedCompletedWithTimeout = isCompletedWorkerExit({{ exitCode: null, signal: "SIGKILL", timedOut: true }}, true);
+        const unreportedTimeout = isCompletedWorkerExit({{ exitCode: null, signal: "SIGKILL", timedOut: true }}, false);
+        console.log(JSON.stringify({{ normalZero, abnormalExit, reportedCompletedWithSigterm, reportedCompletedWithTimeout, unreportedTimeout }}));
+        '''
+    )
+    assert payload == {
+        "normalZero": True,
+        "abnormalExit": False,
+        "reportedCompletedWithSigterm": True,
+        "reportedCompletedWithTimeout": True,
+        "unreportedTimeout": False,
+    }
+
+
+def test_spawner_prompt_focuses_on_direct_execution() -> None:
+    module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''
+        import {{ buildAutonomousPrompt }} from "{module}";
+        const prompt = buildAutonomousPrompt({{
+          name: "worker_1",
+          role: "reviewer",
+          prompt: "Review code",
+          taskId: "task_1",
+          workerKey: "run_1:task_1",
+          stateFile: "/tmp/state.json",
+          outboxFile: "/tmp/outbox.jsonl",
+          timeoutSec: 120,
+        }});
+        console.log(JSON.stringify({{
+          hasTask: prompt.includes("task_1"),
+          hasTimeoutCap: prompt.includes("120s"),
+          hasDirectScope: prompt.includes("Work directly on your assigned scope"),
+          hasDeliverInstruction: prompt.includes('status="completed"'),
+        }}));
+        '''
+    )
+    assert payload == {
+        "hasTask": True,
+        "hasTimeoutCap": True,
+        "hasDirectScope": True,
+        "hasDeliverInstruction": True,
+    }
+
+
+def test_teammates_run_in_background_by_default() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''
+        import {{ createRun, resetState }} from "{module}";
+        resetState();
+        const defaultRun = createRun({{
+          cwd: "/tmp",
+          concurrency: 2,
+          worktree: false,
+          nodes: [{{ id: "task_1", agent: "worker", prompt: "task 1", paths: ["src"], access: "read", dependsOn: [] }}]
+        }});
+        const explicitBgRun = createRun({{
+          cwd: "/tmp",
+          concurrency: 2,
+          worktree: false,
+          background: true,
+          nodes: [{{ id: "task_2", agent: "worker", prompt: "task 2", paths: ["src"], access: "read", dependsOn: [] }}]
+        }});
+        const explicitFgRun = createRun({{
+          cwd: "/tmp",
+          concurrency: 2,
+          worktree: false,
+          background: false,
+          nodes: [{{ id: "task_3", agent: "worker", prompt: "task 3", paths: ["src"], access: "read", dependsOn: [] }}]
+        }});
+        console.log(JSON.stringify({{
+          defaultBackground: defaultRun.run?.background,
+          explicitBgBackground: explicitBgRun.run?.background,
+          explicitFgBackground: explicitFgRun.run?.background,
+        }}));
+        '''
+    )
+    assert payload == {
+        "defaultBackground": True,
+        "explicitBgBackground": True,
+        "explicitFgBackground": False,
+    }
+
+
+def test_worker_message_delivers_completed_and_failed_status() -> None:
+    ext = source("index.ts")
+    types = source("types.ts")
+    assert 'status?: "in_progress" | "completed" | "failed"' in types
+    assert 'updateNodeStatus(run.id, node.id, "completed", event.body, undefined)' in ext
+    assert 'updateNodeStatus(run.id, node.id, "failed", undefined, event.body)' in ext
+    assert 'name: "teammate_report"' not in ext
+
+
+def test_end_to_end_worker_message_flow_and_peer_communication() -> None:
+    state_module = (SRC / "state.ts").as_uri()
+    statefile_module = (SRC / "statefile.ts").as_uri()
+    payload = run_node(
+        f'''
+        import * as fs from "node:fs";
+        import * as path from "node:path";
+        import * as os from "node:os";
+        import {{
+          createRun, resetState, updateNodeStatus, getNode, getState, setNodeSpawnInfo,
+          nodeIsReady, handoffNodeResult, settleRun, resolveWorkerRecipientFromRuns, receiveWorkerMessage
+        }} from "{state_module}";
+        import {{
+          appendWorkerEvent, readWorkerEvents, workerOutboxPath, writeStateFile
+        }} from "{statefile_module}";
+
+        resetState();
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "test-agent-teams-e2e-"));
+        const stateFile = path.join(tmpDir, "state.json");
+        writeStateFile(stateFile, getState());
+
+        const created = createRun({{
+          cwd: tmpDir,
+          concurrency: 2,
+          worktree: false,
+          background: true,
+          summarize: false,
+          nodes: [
+            {{ id: "node_a", agent: "worker", prompt: "design system", paths: ["src"], access: "read", dependsOn: [] }},
+            {{ id: "node_b", agent: "worker", prompt: "implement system", paths: ["src"], access: "read", dependsOn: ["node_a"] }}
+          ]
+        }});
+        const run = created.run;
+        const spawnIdA = "spawn-a-1";
+        setNodeSpawnInfo(run.id, "node_a", {{
+          runId: spawnIdA, pid: 1001, status: "running", startedAt: Date.now(), isolation: "none"
+        }});
+        writeStateFile(stateFile, getState());
+
+        const outboxA = workerOutboxPath(stateFile, run.nodes.node_a.workerKey, spawnIdA);
+        // Node A sends progress message to leader
+        appendWorkerEvent(outboxA, {{
+          id: "evt-a-1", type: "message", worker: run.nodes.node_a.workerKey, runId: spawnIdA,
+          to: "team-leader", subject: "Plan", body: "Designing architecture", status: "in_progress", taskId: "node_a"
+        }});
+        // Node A delivers final deliverable with completed status
+        appendWorkerEvent(outboxA, {{
+          id: "evt-a-2", type: "message", worker: run.nodes.node_a.workerKey, runId: spawnIdA,
+          to: "team-leader", subject: "Artifact A", body: "Architecture document V1", status: "completed", taskId: "node_a"
+        }});
+
+        function applyEvents(sf) {{
+          const state = getState();
+          for (const r of Object.values(state.runs)) {{
+            for (const node of Object.values(r.nodes)) {{
+              const spawn = node.spawn;
+              if (!spawn || spawn.status !== "running") continue;
+              const sId = spawn.runId;
+              const outboxKey = `${{node.workerKey}}:${{sId}}`;
+              const ob = workerOutboxPath(sf, node.workerKey, sId);
+              const {{ events, nextOffset }} = readWorkerEvents(ob, state.workerEventOffsets[outboxKey] ?? 0);
+              state.workerEventOffsets[outboxKey] = nextOffset;
+              for (const event of events) {{
+                if (state.workerEventIds[`${{sId}}:${{event.id}}`]) continue;
+                if (event.worker !== node.workerKey || event.runId !== sId) continue;
+                if (event.type === "message") {{
+                  const recipient = resolveWorkerRecipientFromRuns(state.runs, node.workerKey, event.to);
+                  if (!recipient.ok) continue;
+                  state.workerEventIds[`${{sId}}:${{event.id}}`] = sId;
+                  receiveWorkerMessage({{
+                    id: event.id, worker: node.workerKey, runId: sId, type: "message",
+                    to: recipient.to, subject: event.subject, body: event.body,
+                    taskId: event.taskId === node.id ? r.id : undefined,
+                  }});
+                  if (event.status && !["completed", "failed", "cancelled"].includes(node.status)) {{
+                    if (event.status === "completed") {{
+                      updateNodeStatus(r.id, node.id, "completed", event.body, undefined);
+                    }} else if (event.status === "failed") {{
+                      updateNodeStatus(r.id, node.id, "failed", undefined, event.body);
+                    }}
+                  }}
+                }}
+              }}
+            }}
+          }}
+        }}
+
+        applyEvents(stateFile);
+        const nodeAAfter = getNode(run.id, "node_a");
+        const nodeBReadyBeforeHandoff = nodeIsReady(run, run.nodes.node_b);
+        handoffNodeResult(run.id, "node_a");
+        const nodeBReadyAfterHandoff = nodeIsReady(run, run.nodes.node_b);
+        const mailboxB = getState().mailboxes[run.nodes.node_b.workerKey] ?? [];
+
+        // Now Node B starts and sends peer message to Node A
+        const spawnIdB = "spawn-b-1";
+        setNodeSpawnInfo(run.id, "node_b", {{
+          runId: spawnIdB, pid: 1002, status: "running", startedAt: Date.now(), isolation: "none"
+        }});
+        writeStateFile(stateFile, getState());
+        const outboxB = workerOutboxPath(stateFile, run.nodes.node_b.workerKey, spawnIdB);
+        appendWorkerEvent(outboxB, {{
+          id: "evt-b-1", type: "message", worker: run.nodes.node_b.workerKey, runId: spawnIdB,
+          to: "node_a", subject: "Sync", body: "Consuming your architecture doc", taskId: "node_b"
+        }});
+        appendWorkerEvent(outboxB, {{
+          id: "evt-b-2", type: "message", worker: run.nodes.node_b.workerKey, runId: spawnIdB,
+          to: "team-leader", subject: "Artifact B", body: "Implementation finished", status: "completed", taskId: "node_b"
+        }});
+        applyEvents(stateFile);
+
+        const mailboxA = getState().mailboxes[run.nodes.node_a.workerKey] ?? [];
+        const nodeBAfter = getNode(run.id, "node_b");
+        const finalSettled = settleRun(run.id);
+
+        console.log(JSON.stringify({{
+          nodeAStatus: nodeAAfter.status,
+          nodeAResult: nodeAAfter.result,
+          nodeBReadyBeforeHandoff,
+          nodeBReadyAfterHandoff,
+          nodeBStatus: nodeBAfter.status,
+          nodeBResult: nodeBAfter.result,
+          handoffReceived: mailboxB.some(m => m.subject.includes("Handoff from node_a")),
+          peerMessageReceived: mailboxA.some(m => m.subject === "Sync" && m.body === "Consuming your architecture doc"),
+          finalSettled,
+        }}));
+        '''
+    )
+    assert payload == {
+        "nodeAStatus": "completed",
+        "nodeAResult": "Architecture document V1",
+        "nodeBReadyBeforeHandoff": True,
+        "nodeBReadyAfterHandoff": True,
+        "nodeBStatus": "completed",
+        "nodeBResult": "Implementation finished",
+        "handoffReceived": True,
+        "peerMessageReceived": True,
+        "finalSettled": "completed",
+    }
+

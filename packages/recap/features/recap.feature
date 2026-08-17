@@ -21,10 +21,22 @@ Feature: Session Recap
     Then the recap text is a single line with specific action, target, and outcome
     And quotes, markdown wrappers, and redundant prefixes are stripped
 
-  Scenario: Existing session restores latest recap on startup
-    Given a session with existing messages in history
+  Scenario: Generated recap is persisted to the session
+    Given a newly generated recap for the current exchange
+    When generation completes
+    Then the recap is persisted as a session entry via appendEntry
+    And synced to the directory session registry
+
+  Scenario: Existing session restores persisted recap on startup across restarts
+    Given a session with a persisted recap in session branch history
+    When session_start fires on restart
+    Then the latest persisted recap is restored directly to the widget
+    And no new recap generation is triggered
+
+  Scenario: Existing session without saved recap computes initial recap on startup
+    Given a session with existing messages in history and no saved recap
     When session_start fires
-    Then the last exchange is extracted and the recap widget is updated
+    Then the last exchange is extracted and recap generation is performed
 
   Scenario: /recap opens an interactive management menu
     Given an active session in TUI mode

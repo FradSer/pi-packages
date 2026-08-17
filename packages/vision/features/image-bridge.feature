@@ -83,3 +83,18 @@ Feature: Transparent image reading for text-only models
     When the status bar is updated
     Then the configured vision model is not shown
     And the vision status entry is hidden
+
+  Scenario: Bridge images returned from tool results for a text-only model
+    Given the active model does not support image input
+    And a vision provider and model are configured
+    When a tool execution returns an image result
+    Then the extension sends the tool image and analysis request to the configured vision model
+    And appends the visual analysis to the tool result text
+    And removes any non-vision warning notes from the tool result
+    And preserves the original image attachment on the tool result
+
+  Scenario: Leave tool result images untouched for a multimodal model
+    Given the active model supports image input
+    When a tool execution returns an image result
+    Then the extension does not call the vision model
+    And the tool result continues unchanged

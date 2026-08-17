@@ -66,13 +66,13 @@ teammate_run({
 | `teammate_message` | Message the team leader or a node, or broadcast to a run (`to="all"`) |
 | `/teammate` | Full-screen console: run/node status, node detail, sent messages, cancel node |
 
-Best-effort snapshot mailbox: workers **send** via `teammate_message` (`team-leader` or a same-run peer) and submit outcomes via `teammate_report`. Delivery is validated and idempotent, but there are no read receipts and no delivery guarantees for worker-bound messages: a message addressed **to** a running worker (leader reply, peer handoff, broadcast) lands in the shared state snapshot, and the worker sees it only if it re-reads that snapshot, so treat worker-bound messages as best-effort. What *is* guaranteed is the DAG handoff — upstream results are injected into downstream prompts (`=== UPSTREAM HANDOFF ===`) by the scheduler.
+Best-effort snapshot mailbox: workers **send** via `teammate_message` (`team-leader` or a same-run peer) and submit final outcomes with `status="completed"|"failed"`. Delivery is validated and idempotent, but there are no read receipts and no delivery guarantees for worker-bound messages: a message addressed **to** a running worker (leader reply, peer handoff, broadcast) lands in the shared state snapshot, and the worker sees it only if it re-reads that snapshot, so treat worker-bound messages as best-effort. What *is* guaranteed is the DAG handoff — upstream results are injected into downstream prompts (`=== UPSTREAM HANDOFF ===`) by the scheduler.
 
 ## Reliability protocol
 
 - **Per-spawn identity validation**: every worker event must match the node's current spawn id; stale events from an older process cannot affect a newer spawn.
 - **Best-effort mailbox**: delivery is validated and idempotent (event ids), but no read receipts are exchanged and worker-bound messages are seen only if the worker re-reads the snapshot; read flags are leader-local.
-- **One canonical terminal result per node**: built by the harness from node state + captured output after the child closes; a worker's `teammate_report` alone is not final delivery.
+- **One canonical terminal result per node**: built by the harness from node state + captured output after the child closes; a worker's message with status alone is not final delivery.
 - **Advisory write-conflict coordination (session-wide)**: the scheduler never starts a shared-workspace write node while another shared-workspace write node with overlapping paths is running — checked across **all runs in the session**, not just the same run. This is scheduling-level coordination, not isolation.
 - **`access`/`paths` are metadata, not enforcement**: they drive conflict scheduling and prompts; a worker's real capabilities come from its agent definition's `tools` list. A `read` node whose agent has `write`/`bash` tools can still write. Use `worktree: true` or a restricted agent tool list when you need actual isolation.
 - **Failure semantics**: a failed node cancels its not-yet-started transitive dependents and fails the run; other nodes finish. Cancelling a run or node reports the outcome in the tool call itself — it does not fire an extra completion follow-up.

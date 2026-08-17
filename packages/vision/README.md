@@ -2,9 +2,13 @@
 
 A transparent image-to-text bridge for Pi sessions whose active model cannot read images.
 
-When a text-only model such as DeepSeek receives an image, this extension sends the image and a cleaned analysis request to a separately configured vision-capable model. It preserves the user's original text and image attachment as the only visible session message, then appends the returned analysis only to the transient context sent to the text-only model.
+When a text-only model such as DeepSeek receives an image in user input or via a tool result (such as `read` on an image file or browser screenshot), this extension sends the image and an analysis request to a separately configured vision-capable model.
 
-Pi's TUI saves clipboard images to a temporary file and inserts that file path into the editor. The extension handles both native image attachments and these TUI-inserted image paths, so the orchestration remains automatic and does not depend on the active model deciding to call a tool.
+For user prompts, it preserves the user's original text and image attachment as the only visible session message, then appends the returned analysis only to the transient context sent to the text-only model.
+
+For tool results, it intercepts the returned image attachment, runs visual analysis, cleans any model limitation notices, and enriches the tool result text with `<image-analysis>` while keeping the original image attachment intact.
+
+Pi's TUI saves clipboard images to a temporary file and inserts that file path into the editor. The extension handles both native image attachments and these TUI-inserted image paths, as well as tool-executed image reads.
 
 ## How it works
 
@@ -31,7 +35,7 @@ User prompt + image
 
 The bridge only runs when all of the following are true:
 
-- The prompt contains native image attachments or readable image file paths.
+- The prompt contains native image attachments / readable image file paths, or a tool returns an image result.
 - The active model does not declare image input support.
 - The bridge is enabled.
 - A valid vision model is configured.
@@ -117,7 +121,8 @@ The persisted configuration takes precedence over these variables.
 
 ## Behavior and safety
 
-- Text-only active models receive image analysis only in the transient provider context for that request.
+- Text-only active models receive image analysis in the transient provider context for user prompts, and in the enriched tool result text for tool executions.
+- When `read` or another tool returns an image result, the bridge strips non-vision omission warnings and appends visual analysis.
 - The original user text is preserved verbatim; it is never replaced, rewritten, wrapped in an extension prompt, or followed by an internal session message.
 - Original attachments remain on the visible user message so they are still visible in Pi's conversation UI.
 - Multiple images are sent to the vision model together.

@@ -14,7 +14,7 @@ pi install npm:@fradser/pi-recap
 - **Management Menu (`/recap`)**: Running `/recap` opens an interactive management TUI (similar to `@packages/memory/` and `@packages/vision/`) allowing you to generate recaps on demand, choose dedicated models, or toggle display settings.
 - **Model Selection**: Supports selecting any model available in Pi's model registry (e.g. `anthropic/claude-3-5-haiku`, `openai/gpt-4o-mini`, or session default).
 - **Non-blocking & In-process**: Recaps are generated asynchronously using Pi's model registry after each completed turn without spawning external child processes. Requests are deduplicated, superseded requests are cancelled, and generation has a 30-second timeout.
-- **Context Continuity**: Progressively evolves the recap by combining the previous recap with the latest turn's exchange. Output is limited to one line and 120 characters; unchanged recaps are not persisted again.
+- **Context Continuity & Persistence**: Progressively evolves the recap by combining the previous recap with the latest turn's exchange. Recaps are persisted directly into the session branch via custom session entries (`pi.appendEntry`), restoring immediately on restarts without redundant LLM calls. Output is limited to one line and 120 characters; unchanged recaps are not persisted again.
 - **Cross-Session Sync**: Automatically updates the directory session registry (`~/.pi/agent/directory-sessions/`), keeping parallel sessions informed.
 
 ## Commands

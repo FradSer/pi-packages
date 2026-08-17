@@ -1,15 +1,18 @@
 {
-  "name": "@fradser/pi-recap",
-  "version": "0.1.1",
-  "description": "Session recap for Pi — shows a concise summary of what's happening above the TUI input box, like Claude Code's ※ Recap: feature",
+  "name": "@fradser/pi-keyboard",
+  "version": "0.1.0",
+  "description": "Dynamic VIA/QMK keyboard RGB lighting indicator reflecting Pi states (idle, thinking, unread, need-approval, error)",
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",
+  "type": "module",
   "keywords": [
     "pi-package",
-    "recap",
-    "session-summary",
-    "context",
-    "TUI"
+    "keyboard",
+    "lighting",
+    "via",
+    "qmk",
+    "rgb-status",
+    "ambient-indicator"
   ],
   "repository": {
     "type": "git",
@@ -19,13 +22,14 @@
     "access": "public"
   },
   "files": [
-    "extensions",
+    "src",
     "features",
-    "README.md"
+    "README.md",
+    "README.zh-CN.md"
   ],
   "pi": {
     "extensions": [
-      "./extensions"
+      "./src/index.ts"
     ]
   },
   "peerDependencies": {

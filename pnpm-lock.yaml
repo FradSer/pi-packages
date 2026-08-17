@@ -88,6 +88,9 @@ importers:
       '@earendil-works/pi-coding-agent':
         specifier: '*'
         version: 0.84.1(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-tui':
+        specifier: '*'
+        version: 0.84.1
 
   packages/utils:
     dependencies:

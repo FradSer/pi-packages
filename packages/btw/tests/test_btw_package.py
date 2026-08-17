@@ -33,6 +33,8 @@ def test_feature_covers_isolation_and_temp_prompt_lifecycle() -> None:
     assert "Scenario: A long side prompt is cleaned up when the child cannot launch" in feature
     assert "Scenario: Multi-turn side questions include conversation history in the prompt" in feature
     assert "Scenario: Multi-turn overlay maintains turns and aggregates token usage" in feature
+    assert "overlay does not display a redundant header title for the initial question" in feature
+    assert "each conversation turn displays its question with You and its answer with btw" in feature
     assert "follow-up composer uses two full-width horizontal separators instead of a boxed frame" in feature
     assert "follow-up composer keeps equal spacing on both sides of the input area" in feature
     assert "overlay does not report nonexistent hidden lines" in feature
@@ -413,6 +415,7 @@ def test_overlay_handles_multi_turn_flow() -> None:
         console.log(JSON.stringify({{
           askedTurns,
           initialLinesCount: initialLines.length,
+          initialRendered: initialLines.join("\\n"),
           turn1Rendered: turn1Lines.join("\\n"),
           turn2LoadingRendered: turn2LoadingLines.join("\\n"),
           turn2AnsweredRendered: turn2AnsweredLines.join("\\n"),
@@ -427,11 +430,25 @@ def test_overlay_handles_multi_turn_flow() -> None:
     assert asked_turns[1]["question"] == "Does it use JWT?"
     assert asked_turns[1]["history"] == [{"question": "Where is auth?", "answer": "Auth is in src/auth.ts."}]
 
+    initial_rendered = result["initialRendered"]
+    assert "btw  Where is auth?" not in initial_rendered
+
+    turn1_rendered = result["turn1Rendered"]
+    assert "btw  Where is auth?" not in turn1_rendered
+    assert "Where is auth?" in turn1_rendered
+    assert "Auth is in src/auth.ts." in turn1_rendered
+    assert "[acc]You[/acc]" in turn1_rendered
+    assert "[acc]btw[/acc]" in turn1_rendered
+    assert turn1_rendered.count("Where is auth?") == 1
+
     turn2_rendered = result["turn2AnsweredRendered"]
+    assert "btw  Where is auth?" not in turn2_rendered
     assert "Where is auth?" in turn2_rendered
     assert "Auth is in src/auth.ts." in turn2_rendered
     assert "Does it use JWT?" in turn2_rendered
     assert "Yes, it uses jsonwebtoken." in turn2_rendered
+    assert turn2_rendered.count("Where is auth?") == 1
+    assert turn2_rendered.count("Does it use JWT?") == 1
     assert "360 tokens" in turn2_rendered
     assert "2 turns" in turn2_rendered
     assert "Follow-up" not in turn2_rendered

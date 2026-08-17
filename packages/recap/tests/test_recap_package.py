@@ -9,6 +9,7 @@ PACKAGE = Path(__file__).resolve().parents[1]
 REPO = PACKAGE.parents[1]
 EXTENSIONS = PACKAGE / "extensions"
 RECAP_URI = (EXTENSIONS / "recap.ts").as_uri()
+INDEX_URI = (EXTENSIONS / "index.ts").as_uri()
 CONFIG_URI = (EXTENSIONS / "config.ts").as_uri()
 
 
@@ -36,6 +37,9 @@ def test_feature_covers_recap_scenarios() -> None:
     assert "Scenario: Language selection allows specifying target generation language" in feature
     assert "Scenario: Recap shows a generation marker while refreshing" in feature
     assert "Scenario: Recap maintains context continuity using previous recap and last exchange" in feature
+    assert "Scenario: Generated recap is persisted to the session" in feature
+    assert "Scenario: Existing session restores persisted recap on startup across restarts" in feature
+    assert "Scenario: Existing session without saved recap computes initial recap on startup" in feature
     assert "Scenario: Existing recap prevents redundant startup generation" in feature
     assert "Scenario: Recap generation requests are deduplicated and cancellable" in feature
     assert "Scenario: Recap generation times out safely" in feature
@@ -43,7 +47,317 @@ def test_feature_covers_recap_scenarios() -> None:
     assert "Scenario: Recap skips unchanged persistence" in feature
 
 
-def test_manifest_declares_native_pi_package() -> None:
+def test_extract_latest_saved_recap_logic() -> None:
+    result = run_typescript(
+        f"""
+        import {{ extractLatestSavedRecap }} from "{RECAP_URI}";
+
+        const entries1 = [
+            {{ type: "message", message: {{ role: "user", content: "hello" }} }},
+            {{ type: "custom", customType: "recap", data: {{ recap: "First recap" }} }},
+            {{ type: "message", message: {{ role: "user", content: "next step" }} }},
+            {{ type: "custom", customType: "recap", data: {{ recap: "Second recap: updated auth" }} }},
+        ];
+
+        const entries2 = [
+            {{ type: "message", message: {{ role: "user", content: "hello" }} }},
+            {{ type: "custom", customType: "recap", data: {{ text: "Recap stored via text field" }} }},
+        ];
+
+        const entries3 = [
+            {{ type: "message", message: {{ role: "user", content: "hello" }} }},
+            {{ type: "custom", customType: "other", data: {{ recap: "Not a recap entry" }} }},
+        ];
+
+        const r1 = extractLatestSavedRecap(entries1);
+        const r2 = extractLatestSavedRecap(entries2);
+        const r3 = extractLatestSavedRecap(entries3);
+
+        console.log(JSON.stringify({{ r1, r2, r3: r3 ?? null }}));
+        """
+    )
+    assert result["r1"] == "Second recap: updated auth"
+    assert result["r2"] == "Recap stored via text field"
+    assert result["r3"] is None
+
+
+def test_extract_latest_saved_recap_edge_cases() -> None:
+    result = run_typescript(
+        f"""
+        import {{ extractLatestSavedRecap }} from "{RECAP_URI}";
+
+        const empty = extractLatestSavedRecap([]);
+        const notArray = extractLatestSavedRecap(null);
+        const blank = extractLatestSavedRecap([
+          {{ type: "custom", customType: "recap", data: {{ recap: "   " }} }},
+        ]);
+        const wrongType = extractLatestSavedRecap([
+          {{ type: "custom", customType: "recap", data: {{ recap: 12345 }} }},
+        ]);
+        const missingData = extractLatestSavedRecap([
+          {{ type: "custom", customType: "recap" }},
+        ]);
+
+        console.log(JSON.stringify({{
+          empty: empty ?? null,
+          notArray: notArray ?? null,
+          blank: blank ?? null,
+          wrongType: wrongType ?? null,
+          missingData: missingData ?? null,
+        }}));
+        """
+    )
+    assert result["empty"] is None
+    assert result["notArray"] is None
+    assert result["blank"] is None
+    assert result["wrongType"] is None
+    assert result["missingData"] is None
+
+
+def test_startup_does_not_regenerate_when_saved_recap_exists() -> None:
+    result = run_typescript(
+        f"""
+        import extensionModule from "{INDEX_URI}";
+        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+
+        let registeredEvents = {{}};
+        let completeCalls = 0;
+
+        const fakePi = {{
+          on(event, handler) {{
+            registeredEvents[event] = handler;
+          }},
+          registerCommand() {{}},
+          appendEntry() {{}},
+        }};
+
+        initExtension(fakePi);
+
+        const fakeCtx = {{
+          mode: "tui",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{
+            getBranch: () => [
+              {{ type: "message", message: {{ role: "user", content: "fix bug" }} }},
+              {{ type: "message", message: {{ role: "assistant", content: "bug fixed" }} }},
+              {{ type: "custom", customType: "recap", data: {{ recap: "Persisted: Already fixed" }} }},
+            ],
+            getSessionFile: () => "/tmp/fake-cwd/session-1.jsonl",
+          }},
+          ui: {{
+            setWidget: () => {{}},
+            notify: () => {{}},
+          }},
+          modelRegistry: {{
+            find: () => ({{ provider: "mock", id: "m1" }}),
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => {{
+              completeCalls++;
+              return {{ role: "assistant", content: [{{ type: "text", text: "Regenerated" }}] }};
+            }},
+          }},
+          model: {{ provider: "mock", id: "m1" }},
+        }};
+
+        registeredEvents["session_start"]({{}}, fakeCtx);
+
+        // Wait a short tick
+        await new Promise((r) => setTimeout(r, 50));
+
+        console.log(JSON.stringify({{ completeCalls }}));
+        """
+    )
+    assert result["completeCalls"] == 0
+
+
+def test_startup_regenerates_when_no_saved_recap_exists() -> None:
+    result = run_typescript(
+        f"""
+        import extensionModule from "{INDEX_URI}";
+        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+
+        let registeredEvents = {{}};
+        let completeCalls = 0;
+
+        const fakePi = {{
+          on(event, handler) {{
+            registeredEvents[event] = handler;
+          }},
+          registerCommand() {{}},
+          appendEntry() {{}},
+        }};
+
+        initExtension(fakePi);
+
+        const fakeCtx = {{
+          mode: "tui",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{
+            getBranch: () => [
+              {{ type: "message", message: {{ role: "user", content: "fix bug" }} }},
+              {{ type: "message", message: {{ role: "assistant", content: "bug fixed" }} }},
+            ],
+            getSessionFile: () => "/tmp/fake-cwd/session-1.jsonl",
+          }},
+          ui: {{
+            setWidget: () => {{}},
+            notify: () => {{}},
+          }},
+          modelRegistry: {{
+            find: () => ({{ provider: "mock", id: "m1" }}),
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => {{
+              completeCalls++;
+              return {{ role: "assistant", content: [{{ type: "text", text: "Generated on startup" }}] }};
+            }},
+          }},
+          model: {{ provider: "mock", id: "m1" }},
+        }};
+
+        registeredEvents["session_start"]({{}}, fakeCtx);
+
+        // Wait a short tick
+        await new Promise((r) => setTimeout(r, 50));
+
+        console.log(JSON.stringify({{ completeCalls }}));
+        """
+    )
+    assert result["completeCalls"] == 1
+
+
+def test_extension_appends_entry_when_recap_generated() -> None:
+    result = run_typescript(
+        f"""
+        import extensionModule from "{INDEX_URI}";
+        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+
+        let registeredEvents = {{}};
+        let appendedEntries = [];
+
+        const fakePi = {{
+          on(event, handler) {{
+            registeredEvents[event] = handler;
+          }},
+          registerCommand() {{}},
+          appendEntry(customType, data) {{
+            appendedEntries.push({{ customType, data }});
+          }},
+        }};
+
+        initExtension(fakePi);
+
+        const fakeCtx = {{
+          mode: "tui",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{
+            getBranch: () => [
+              {{ type: "message", message: {{ role: "user", content: "Implement feature X" }} }},
+              {{ type: "message", message: {{ role: "assistant", content: "I implemented feature X" }} }},
+            ],
+            getSessionFile: () => "/tmp/fake-cwd/session-1.jsonl",
+          }},
+          ui: {{
+            setWidget: () => {{}},
+            notify: () => {{}},
+          }},
+          modelRegistry: {{
+            find: () => ({{ provider: "mock", id: "m1" }}),
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => ({{
+              role: "assistant",
+              content: [{{ type: "text", text: "Implemented feature X in module" }}],
+            }}),
+          }},
+          model: {{ provider: "mock", id: "m1" }},
+        }};
+
+        // Simulate interactive turn
+        registeredEvents["input"]({{ source: "interactive" }}, fakeCtx);
+        await registeredEvents["agent_settled"]({{}}, fakeCtx);
+
+        // Wait a small tick for async performRecap promise
+        await new Promise((r) => setTimeout(r, 50));
+
+        console.log(JSON.stringify({{
+          appendedCount: appendedEntries.length,
+          entry: appendedEntries[0] ?? null,
+        }}));
+        """
+    )
+    assert result["appendedCount"] == 1
+    assert result["entry"]["customType"] == "recap"
+    assert result["entry"]["data"]["recap"] == "Implemented feature X in module"
+
+
+
+def test_extension_restores_recap_from_session_branch_on_startup() -> None:
+    result = run_typescript(
+        f"""
+        import extensionModule from "{INDEX_URI}";
+        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+
+        let registeredEvents = {{}};
+        let appendedEntries = [];
+        let setWidgetCall = null;
+
+        const fakePi = {{
+          on(event, handler) {{
+            registeredEvents[event] = handler;
+          }},
+          registerCommand() {{}},
+          appendEntry(customType, data) {{
+            appendedEntries.push({{ customType, data }});
+          }},
+        }};
+
+        initExtension(fakePi);
+
+        const fakeCtx = {{
+          mode: "tui",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{
+            getBranch: () => [
+              {{ type: "message", message: {{ role: "user", content: "fix bug" }} }},
+              {{ type: "message", message: {{ role: "assistant", content: "bug fixed in auth.ts" }} }},
+              {{ type: "custom", customType: "recap", data: {{ recap: "Persisted: Fixed auth bug in auth.ts" }} }},
+            ],
+            getSessionFile: () => "/tmp/fake-cwd/session-1.jsonl",
+          }},
+          ui: {{
+            setWidget: (name, factory) => {{
+              setWidgetCall = {{ name, factory }};
+            }},
+            notify: () => {{}},
+          }},
+          modelRegistry: {{
+            find: () => undefined,
+            getApiKeyAndHeaders: async () => ({{ ok: false }}),
+          }},
+          model: {{ provider: "test", id: "test-model" }},
+        }};
+
+        const sessionStartHandler = registeredEvents["session_start"];
+        sessionStartHandler({{}}, fakeCtx);
+
+        const fakeTheme = {{
+          fg: (_name, text) => text,
+        }};
+
+        const widgetFactory = setWidgetCall?.factory;
+        const widget = widgetFactory ? widgetFactory({{ requestRender: () => {{}} }}, fakeTheme) : null;
+        const lines = widget ? widget.render(80) : [];
+
+        console.log(JSON.stringify({{
+          widgetSet: setWidgetCall !== null,
+          widgetName: setWidgetCall?.name,
+          lines,
+        }}));
+        """
+    )
+    assert result["widgetSet"] is True
+    assert result["widgetName"] == "recap"
+    assert any("Persisted: Fixed auth bug in auth.ts" in line for line in result["lines"])
+
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert "pi-package" in manifest["keywords"]
     assert manifest["pi"]["extensions"] == ["./extensions"]

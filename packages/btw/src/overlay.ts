@@ -131,11 +131,6 @@ export function createBtwOverlay(
 
   const buildConversationMarkdown = (): string => {
     if (turns.length === 0) return "";
-    if (turns.length === 1) {
-      const turn = turns[0];
-      if (turn.error) return `*Error: ${turn.error}*`;
-      return turn.answer ?? "";
-    }
     const parts: string[] = [];
     for (const turn of turns) {
       const turnParts: string[] = [`**You**  ${turn.question}`];
@@ -438,15 +433,10 @@ export function createBtwOverlay(
       const border = style.border("─".repeat(Math.max(1, width)));
       const lines: string[] = [];
 
-      // Top border + header
+      // Top border
       lines.push(border);
-      lines.push(style.accent(truncateToWidth(`btw  ${options.question}`, width)));
 
-      if (state === "loading" && turns.length <= 1) {
-        lines.push("");
-        for (const line of loader.render(contentWidth)) lines.push(pad(line, contentWidth));
-        while (lines.length < 2 + 2) lines.push("");
-      } else if (markdown) {
+      if (markdown) {
         const mdLines = markdown.render(contentWidth).map((line) =>
           line.includes("__BTW_CONVERSATION_SEPARATOR__") ? "__BTW_CONVERSATION_SEPARATOR__" : line,
         );
@@ -467,7 +457,7 @@ export function createBtwOverlay(
         lines.push("");
       }
 
-      if (state === "loading" && turns.length > 1) {
+      if (state === "loading") {
         for (const line of loader.render(contentWidth)) lines.push(pad(line, contentWidth));
         lines.push("");
       }

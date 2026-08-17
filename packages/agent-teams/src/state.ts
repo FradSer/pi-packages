@@ -99,7 +99,7 @@ export function createRun(
     cwd: string;
     concurrency: number;
     worktree: boolean;
-    background: boolean;
+    background?: boolean;
     timeoutMs?: number;
     summarize?: boolean;
     summaryAgent?: string;
@@ -185,7 +185,7 @@ export function createRun(
     status: "running",
     concurrency: input.concurrency,
     worktree: input.worktree,
-    background: input.background,
+    background: input.background ?? true,
     timeoutMs: input.timeoutMs,
     deadlineAt: input.timeoutMs ? Date.now() + input.timeoutMs : undefined,
     nodes: {},

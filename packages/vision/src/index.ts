@@ -5,6 +5,7 @@ import type {
   ExtensionAPI,
   ExtensionCommandContext,
   ExtensionContext,
+  ToolResultEvent,
 } from "@earendil-works/pi-coding-agent";
 import { buildImageAnalysisContext, describeImages } from "./bridge";
 import { extractInputImages, mayContainInputImage } from "./input-images";
@@ -122,6 +123,22 @@ function menuTitle(ctx: ExtensionContext): string {
     "",
     "Manage image reading for text-only models:",
   ].join("\n");
+}
+
+function toolAnalysisPrompt(toolName: string, input: Record<string, unknown>): string {
+  const rawPath =
+    typeof input?.path === "string"
+      ? input.path
+      : typeof input?.file_path === "string"
+        ? input.file_path
+        : undefined;
+  if (toolName === "read" && rawPath) {
+    return `Describe the image file "${rawPath}" in detail, including visual layout, UI elements, text, colors, alignment, and styling.`;
+  }
+  if (rawPath) {
+    return `Describe the image "${rawPath}" in detail, including visual layout, UI elements, text, colors, alignment, and styling.`;
+  }
+  return "Describe this image in detail, including visual layout, UI elements, text, colors, alignment, and styling.";
 }
 
 function saveConfig(next: VisionConfig, ctx: ExtensionContext): void {
@@ -312,6 +329,65 @@ export default function visionExtension(pi: ExtensionAPI): void {
   pi.on("agent_settled", () => {
     activePromptKey = undefined;
     activeAnalysis = undefined;
+  });
+
+  pi.on("tool_result", async (event: ToolResultEvent, ctx) => {
+    if (!ctx.model || (ctx.model.input ?? ["text"]).includes("image")) return;
+    if (!config.enabled || !config.provider || !config.model) return;
+    if (event.isError) return;
+
+    const images = event.content.filter(
+      (part): part is ImageContent =>
+        typeof part === "object" && part !== null && (part as ImageContent).type === "image",
+    );
+    if (images.length === 0) return;
+
+    const visionModel = ctx.modelRegistry.find(config.provider, config.model);
+    if (!visionModel?.input.includes("image")) return;
+
+    try {
+      ctx.ui.setStatus(
+        "vision",
+        `reading ${images.length} image${images.length === 1 ? "" : "s"} · ${config.provider}/${config.model}`,
+      );
+      ctx.ui.setWorkingIndicator({ frames: VISION_SPINNER_FRAMES, intervalMs: 120 });
+
+      const prompt = toolAnalysisPrompt(event.toolName, event.input ?? {});
+      const result = await describeImages(ctx.modelRegistry, visionModel, prompt, images, ctx.signal);
+      const analysisBlock = buildImageAnalysisContext(result.text);
+
+      let textAppended = false;
+      const content = event.content.map((part) => {
+        if (part.type === "text") {
+          const cleaned = part.text
+            .replace(/\n?\[Current model does not support images\..*?\]/g, "")
+            .trim();
+          if (!textAppended) {
+            textAppended = true;
+            return {
+              type: "text" as const,
+              text: cleaned ? `${cleaned}\n\n${analysisBlock}` : analysisBlock,
+            };
+          }
+          return {
+            type: "text" as const,
+            text: cleaned,
+          };
+        }
+        return part;
+      });
+
+      if (!textAppended) {
+        content.unshift({ type: "text", text: analysisBlock });
+      }
+
+      return { content };
+    } catch {
+      return undefined;
+    } finally {
+      ctx.ui.setWorkingIndicator();
+      updateStatus(ctx);
+    }
   });
 
   pi.on("session_start", (_event, ctx) => {

@@ -193,9 +193,9 @@ Feature: Agent Teams run-centric public API
       Then each pending dependent receives a handoff message with the result
       And the downstream worker prompt includes the upstream result
 
-    Scenario: A worker reports only its bound node
+    Scenario: A worker delivers its outcome via teammate_message
       Given a node is working
-      When it calls teammate_report with progress, completion, or failure
+      When it calls teammate_message with to="team-leader" and status="completed" or status="failed"
       Then the leader applies the report only to that node's current spawn
       And the report is delivered to the team leader
 
@@ -226,14 +226,14 @@ Feature: Agent Teams run-centric public API
       And ready downstream nodes start
 
     Scenario: An abnormal worker exit fails its node
-      Given a worker reported a completed result
+      Given a worker did not report a completed result
       When the child exits non-zero, times out, or is terminated by a signal
       Then the node is failed unless the leader cancelled it
       And downstream nodes are not started
 
     Scenario: A reported completion does not become a hard-timeout failure
       Given a worker reported completion but remains alive
-      When the leader requests its graceful shutdown and observes SIGTERM close
+      When the leader requests its graceful shutdown and observes SIGTERM close or timeout
       Then the node is retained as completed with the reported result
 
     Scenario: Completed run metadata is compacted safely

@@ -162,6 +162,7 @@ def test_feature_file_exists() -> None:
 def test_extension_registers_image_bridge_and_configuration_command() -> None:
     source = read_source("index.ts")
     assert 'pi.on("input"' in source
+    assert 'pi.on("tool_result"' in source
     assert 'pi.registerCommand("vision"' in source
     assert 'ctx.modelRegistry.find' in source
     assert "describeImages" in (SRC / "bridge.ts").read_text(encoding="utf-8")
@@ -169,6 +170,45 @@ def test_extension_registers_image_bridge_and_configuration_command() -> None:
     assert 'ctx.ui.select' in source
     assert 'ctx.ui.input' in source
     assert 'ctx.ui.confirm' in source
+
+
+def test_tool_result_image_is_bridged_for_text_only_model(tmp_path: Path) -> None:
+    result = run_input_harness(
+        tmp_path,
+        "Read the image",
+        main_model="text-only",
+        scenario="tool-image",
+    )
+    assert result["visionCallCount"] == 1
+    assert result["visionImageCount"] == 1
+    assert result["sessionToolResultImageCount"] == 1
+    assert "<image-analysis>" in str(result["sessionToolResultText"])
+    assert "VISION_RESULT" in str(result["sessionToolResultText"])
+    assert "[Current model does not support images" not in str(result["sessionToolResultText"])
+
+
+def test_tool_result_image_is_untouched_for_multimodal_model(tmp_path: Path) -> None:
+    result = run_input_harness(
+        tmp_path,
+        "Read the image",
+        main_model="multimodal",
+        scenario="tool-image",
+    )
+    assert result["visionCallCount"] == 0
+    assert result["sessionToolResultImageCount"] == 1
+    assert "<image-analysis>" not in str(result["sessionToolResultText"])
+
+
+def test_tool_result_preserves_content_when_vision_fails(tmp_path: Path) -> None:
+    result = run_input_harness(
+        tmp_path,
+        "Read the image",
+        main_model="text-only",
+        scenario="tool-failure",
+    )
+    assert result["visionCallCount"] == 1
+    assert result["sessionToolResultImageCount"] == 1
+    assert "<image-analysis>" not in str(result["sessionToolResultText"])
 
 
 def test_bridge_only_handles_images_for_text_only_models() -> None:
