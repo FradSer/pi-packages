@@ -1,4 +1,4 @@
-# Frad's Pi Packages ![](https://img.shields.io/badge/packages-8-blue)
+# Frad's Pi Packages ![](https://img.shields.io/badge/packages-10-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -10,11 +10,12 @@ Native Pi packages for reusable skills, extensions, and workflow commands.
 
 Skills use Pi's `/skill:<name>` command. Arguments after the command are appended to the skill text. Pi does not expand `$ARGUMENTS` or execute shell substitutions embedded in skill Markdown.
 
-Packages that manage interactive workflows use native commands such as `/memory`, `/btw`, and `/teammate` instead of skills.
+Packages that manage interactive workflows use native commands such as `/keyboard`, `/recap`, `/memory`, `/btw`, and `/teammate` instead of skills.
 
-Released packages can be installed with a copyable npm source:
+Released packages can be installed with an npm source:
 
 ```bash
+pi install npm:pi-keyboard
 pi install npm:@fradser/pi-memory
 ```
 
@@ -26,13 +27,45 @@ pi install /path/to/pi-packages/packages/<name>
 
 ## Packages
 
+### [`keyboard`](packages/keyboard/)
+
+Drives VIA and QMK mechanical keyboard RGB lighting to reflect Pi states, including white breathing for idle, blue breathing for thinking, green breathing for unread chat, yellow blinking for approval or questions, and red blinking for fatal errors. All updates run in memory without writing to EEPROM or Flash.
+
+**Command:** `/keyboard`, `/keyboard on`, `/keyboard off`, `/keyboard status`, `/keyboard test <state>`
+
+**Install:**
+
+```bash
+pi install npm:pi-keyboard
+```
+
+---
+
+### [`recap`](packages/recap/)
+
+Generates and displays a concise summary of current session progress above the TUI editor box. It persists across restarts and updates across parallel directory sessions.
+
+**Command:** `/recap`, `/recap on`, `/recap off`, `/recap language <lang>`, `/recap model <model>`
+
+**Install:**
+
+```bash
+pi install npm:@fradser/pi-recap
+```
+
+---
+
 ### [`vision`](packages/vision/)
 
 Bridges images to text for a text-only active model through a configured vision-capable Pi model. It preserves the original session attachment and adds visual analysis only to the transient provider context.
 
 **Command:** `/vision`, `/vision model provider/model`, `/vision on`, `/vision off`
 
-**Availability:** install from this checkout. Its first npm release has not been published yet.
+**Install:**
+
+```bash
+pi install npm:@fradser/pi-vision
+```
 
 ---
 
@@ -47,28 +80,6 @@ Answers a side question in a read-only overlay without adding it to the current 
 ```bash
 pi install npm:@fradser/pi-btw
 ```
-
----
-
-### [`code-context`](packages/code-context/)
-
-Provides DeepWiki, Context7, and Exa retrieval tools, with clone and HTTP fetch workflows as fallbacks. The package uses direct REST calls rather than MCP sidecars.
-
-**Skills:** `/skill:get-context`, `/skill:code-context`
-
-**Tools:** `context_deepwiki`, `context_context7`, `context_exa`
-
-**Availability:** install from this checkout. It is not currently released to npm.
-
----
-
-### [`mattpocock`](packages/mattpocock/)
-
-A collection of Pi-adapted BDD, TDD, implementation, review, debugging, architecture, research, planning, handoff, teaching, and skill-writing workflows.
-
-**Skills:** 27 individual skills, including `/skill:bdd`, `/skill:tdd`, `/skill:implement`, and `/skill:code-review`
-
-**Availability:** install from this checkout. It is not currently released to npm.
 
 ---
 
@@ -92,8 +103,6 @@ Runs a command in the background against an explicit result contract. It stores 
 
 **Tools:** `monitor_start`, `monitor_stop`
 
-The terminal notification includes a bounded diagnostic tail. `/monitor` is for human inspection; there is no model-facing output reader or polling tool.
-
 **Skill:** `/skill:using-monitor`
 
 **Command:** `/monitor`
@@ -106,11 +115,25 @@ pi install npm:@fradser/pi-monitor
 
 ---
 
+### [`utils`](packages/utils/)
+
+Adds commands for selecting a model thinking level and recovering interrupted work. It also provides multi-session registry synchronization and directs safe `git worktree add` invocations into `.pi/worktrees/`.
+
+**Commands:** `/effort`, `/continue`, `/sessions`
+
+**Install:**
+
+```bash
+pi install npm:@fradser/pi-utils
+```
+
+---
+
 ### [`agent-teams`](packages/agent-teams/)
 
-Coordinates autonomous child Pi workers through a leader-owned task board and mailbox protocol. The team leader can register teammates, create and start ready tasks, wait for results, send messages, cancel runs, and inspect the full-screen console.
+Coordinates autonomous child Pi workers through a run-centric task graph and mailbox protocol. The team leader dispatches dependency-aware task graphs in one call, tracks progress, cancels or retries nodes, and inspects the full-screen console.
 
-**Tools:** `teammate_register`, `teammate_list`, `teammate_configure`, `teammate_remove`, `teammate_message`, `teammate_inbox`, `teammate_create_task`, `teammate_list_tasks`, `teammate_start_task`, `teammate_wait`, `teammate_cancel_task`, `teammate_cleanup`
+**Tools:** `teammate_run`, `teammate_status`, `teammate_cancel`, `teammate_retry`, `teammate_message`, `teammate_inbox`
 
 **Command:** `/teammate`
 
@@ -118,17 +141,25 @@ Coordinates autonomous child Pi workers through a leader-owned task board and ma
 
 ---
 
-### [`utils`](packages/utils/)
+### [`code-context`](packages/code-context/)
 
-Adds commands for selecting a model thinking level and recovering interrupted work. It also directs safe `git worktree add` invocations into `.pi/worktrees/`.
+Provides DeepWiki, Context7, and Exa retrieval tools, with clone and HTTP fetch workflows as fallbacks. The package uses direct REST calls rather than MCP sidecars.
 
-**Commands:** `/effort`, `/continue`
+**Skills:** `/skill:get-context`, `/skill:code-context`
 
-**Install:**
+**Tools:** `context_deepwiki`, `context_context7`, `context_exa`
 
-```bash
-pi install npm:@fradser/pi-utils
-```
+**Availability:** install from this checkout. It is not currently released to npm.
+
+---
+
+### [`mattpocock`](packages/mattpocock/)
+
+A collection of Pi-adapted BDD, TDD, implementation, review, debugging, architecture, research, planning, handoff, teaching, and skill-writing workflows.
+
+**Skills:** 27 individual skills, including `/skill:bdd`, `/skill:tdd`, `/skill:implement`, and `/skill:code-review`
+
+**Availability:** install from this checkout. It is not currently released to npm.
 
 ## Development
 
