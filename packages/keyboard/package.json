@@ -1,6 +1,6 @@
 {
   "name": "pi-keyboard",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Dynamic VIA/QMK keyboard RGB lighting indicator reflecting Pi states (idle, thinking, unread, need-approval, error)",
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",

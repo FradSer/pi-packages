@@ -58,8 +58,8 @@ Feature: Pi Keyboard Lighting Indicator
     Given a user has submitted a prompt or the agent is executing a turn
     When the agent starts thinking or executing tools
     Then the keyboard state machine updates to "thinking"
-    And the keyboard lighting is set to blue color
-    And the effect mode is set to breathing
+    And the transition is buffered with a gentle intermediate ramp to avoid abrupt visual changes
+    And the keyboard lighting is set to softened oceanic blue breathing
     And the update is applied with --no-save in memory
 
   Scenario: Pi transitions to need approval state with yellow blinking light

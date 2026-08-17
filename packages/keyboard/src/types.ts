@@ -20,6 +20,7 @@ export interface KeyboardStateDefinition {
   brightness: number;
   pattern: KeyboardPattern;
   blinkCount?: number;
+  smoothRamp?: boolean;
 }
 
 export interface KeyboardConfig {
@@ -45,7 +46,7 @@ export const KEYBOARD_STATE_DEFINITIONS: Record<KeyboardState, KeyboardStateDefi
     hue: 0,
     sat: 0, // White
     effect: 2, // Breathing
-    speed: 100,
+    speed: 90,
     brightness: 180,
     pattern: "breathing",
   },
@@ -54,22 +55,23 @@ export const KEYBOARD_STATE_DEFINITIONS: Record<KeyboardState, KeyboardStateDefi
     label: "Green Breathing (Unread Chat)",
     labelZh: "绿色 呼吸灯 (未读消息)",
     hue: 85, // Green
-    sat: 255,
+    sat: 240,
     effect: 2, // Breathing
-    speed: 150,
-    brightness: 220,
+    speed: 130,
+    brightness: 210,
     pattern: "breathing",
   },
   thinking: {
     state: "thinking",
     label: "Blue Breathing (Thinking)",
     labelZh: "蓝色 呼吸灯 (正在思考/执行)",
-    hue: 170, // Blue
-    sat: 255,
+    hue: 165, // Calm oceanic blue (softened from harsh 170)
+    sat: 210, // Softened saturation (non-glaring)
     effect: 2, // Breathing
-    speed: 200,
-    brightness: 255,
+    speed: 120, // Calmed, gentle cadence (softened from 200)
+    brightness: 195, // Balanced ambient level (smooth from 180)
     pattern: "breathing",
+    smoothRamp: true,
   },
   need_approval: {
     state: "need_approval",

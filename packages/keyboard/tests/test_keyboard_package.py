@@ -78,9 +78,11 @@ def test_state_definitions_match_requirements() -> None:
     assert result["unread"]["effect"] == 2
 
     # Thinking: Blue Breathing
-    assert result["thinking"]["hue"] == 170  # Blue
+    assert result["thinking"]["hue"] == 165  # Softened oceanic blue
+    assert result["thinking"]["sat"] == 210  # Softened saturation
     assert result["thinking"]["pattern"] == "breathing"
     assert result["thinking"]["effect"] == 2
+    assert result["thinking"]["smoothRamp"] is True
 
     # Need Approval / Question: Yellow Blinking
     assert result["approval"]["hue"] == 43  # Yellow

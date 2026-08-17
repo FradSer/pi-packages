@@ -22,7 +22,7 @@ export function resolveCliPath(customPath?: string): string {
 
   const standardPaths = [
     join(homedir(), ".local", "bin", "via-rgb"),
-    "/opt/homebrew/bin/via-rgb",
+    "/opt/homebrew/bin", "via-rgb",
     "/usr/local/bin/via-rgb",
   ];
 
@@ -41,6 +41,8 @@ export interface HardwareApplyResult {
   zone: string;
   error?: string;
 }
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function applyKeyboardState(
   state: KeyboardState,
@@ -71,7 +73,27 @@ export async function applyKeyboardState(
 
   const task = async (): Promise<HardwareApplyResult> => {
     try {
-      // Set color, effect, speed, brightness in memory
+      // If state specifies smooth ramp (e.g. thinking blue), apply a gentle buffered transition
+      if (def.smoothRamp) {
+        const intermediateSat = Math.round(def.sat * 0.6);
+        const intermediateBrightness = Math.round(targetBrightness * 0.9);
+        const rampArgs = [
+          ...baseArgs,
+          "set",
+          "-b",
+          String(intermediateBrightness),
+          "-e",
+          String(def.effect),
+          "-s",
+          "100",
+          "-c",
+          `${def.hue} ${intermediateSat}`,
+        ];
+        await execFileAsync(cli, rampArgs, { timeout: 3000 });
+        await sleep(150); // 150ms graceful transition buffer
+      }
+
+      // Set final color, effect, speed, brightness in memory
       const setArgs = [
         ...baseArgs,
         "set",
