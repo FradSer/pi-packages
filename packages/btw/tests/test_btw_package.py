@@ -39,6 +39,8 @@ def test_feature_covers_isolation_and_temp_prompt_lifecycle() -> None:
     assert "follow-up composer keeps equal spacing on both sides of the input area" in feature
     assert "overlay does not report nonexistent hidden lines" in feature
     assert "conversation separators are longer than the content text and centered" in feature
+    assert "Scenario: Side answers render Markdown formatting" in feature
+    assert "block-level Markdown at the start of an answer is not joined to the btw label" in feature
     assert "Scenario: Side answers are constrained to concise responses" in feature
     assert "Scenario: Side context stays compact" in feature
     assert "Scenario: Excessive side output is capped before display" in feature
@@ -344,7 +346,7 @@ def test_overlay_handles_multi_turn_flow() -> None:
         let cancelled = false;
 
         const fakeTui = {{
-          terminal: {{ rows: 30, columns: 80 }},
+          terminal: {{ rows: 40, columns: 80 }},
           requestRender: () => {{}},
         }};
 
@@ -466,6 +468,52 @@ def test_overlay_handles_multi_turn_flow() -> None:
     overlay_source = (SRC / "overlay.ts").read_text(encoding="utf-8")
     assert "const rightSpace = Math.max" in overlay_source
     assert "leftSpace = Math.floor" in overlay_source
+
+
+def test_overlay_renders_markdown_answers_and_separates_block_content() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createBtwOverlay }} from {json.dumps((SRC / "overlay.ts").as_uri())};
+
+        const fakeTui = {{
+          terminal: {{ rows: 40, columns: 100 }},
+          requestRender: () => {{}},
+        }};
+        const style = {{
+          accent: (s) => `[acc]${{s}}[/acc]`,
+          muted: (s) => `[mut]${{s}}[/mut]`,
+          dim: (s) => `[dim]${{s}}[/dim]`,
+          border: (s) => `[bor]${{s}}[/bor]`,
+          success: (s) => `[suc]${{s}}[/suc]`,
+          error: (s) => `[err]${{s}}[/err]`,
+          fg: (_c, s) => s,
+        }};
+
+        const overlay = createBtwOverlay(fakeTui, style, {{
+          question: "What is this?",
+          onCancel: () => {{}},
+          onAsk: async () => ({{
+            text: "# Heading\\n\\n**bold** and *italic*\\n\\n- one\\n- two\\n\\n```ts\\nconst answer = true;\\n```",
+            timedOut: false,
+            exitCode: 0,
+            stderr: "",
+          }}),
+        }});
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        const rendered = overlay.render(100).join("\\n");
+        overlay.dispose();
+        console.log(JSON.stringify({{ rendered }}));
+        """
+    )
+
+    rendered = result["rendered"]
+    assert "[acc]Heading[/acc]" in rendered
+    assert "[acc]bold[/acc]" in rendered
+    assert "[mut]italic[/mut]" in rendered
+    assert "[acc]- [/acc]one" in rendered
+    assert "const answer = true;" in rendered
+    assert "[bor]```ts[/bor]" in rendered
+    assert "[acc]btw[/acc]  [acc]Heading" not in rendered
 
 
 def test_overlay_cancelling_followup_turn_preserves_previous_turns() -> None:

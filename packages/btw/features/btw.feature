@@ -51,6 +51,12 @@ Feature: Read-only side questions
     And the overlay does not report nonexistent hidden lines
     And conversation separators are longer than the content text and centered
 
+  Scenario: Side answers render Markdown formatting
+    Given an interactive side question overlay
+    When the side child returns an answer containing headings, emphasis, lists, and code
+    Then the overlay renders the answer through the Markdown component
+    And block-level Markdown at the start of an answer is not joined to the btw label
+
   Scenario: Side answers are constrained to concise responses
     Given a side question prompt is built
     When the child receives its instructions

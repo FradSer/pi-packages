@@ -129,6 +129,13 @@ export function createBtwOverlay(
   let markdown: Markdown | undefined;
   let currentAbortController: AbortController | undefined;
 
+  const formatAnswer = (answer: string): string => {
+    // Keep inline answers compact, but separate a block-level construct from
+    // the label so headings, lists, quotes, and fenced code are parsed as Markdown.
+    const startsWithBlock = /^(?:#{1,6}\s|[-*+]\s|\d+[.)]\s|>\s|```|~~~)/.test(answer);
+    return startsWithBlock ? `**btw**\n\n${answer}` : `**btw**  ${answer}`;
+  };
+
   const buildConversationMarkdown = (): string => {
     if (turns.length === 0) return "";
     const parts: string[] = [];
@@ -137,7 +144,7 @@ export function createBtwOverlay(
       if (turn.error) {
         turnParts.push(`*Error: ${turn.error}*`);
       } else if (turn.answer !== undefined) {
-        turnParts.push(`**btw**  ${turn.answer}`);
+        turnParts.push(formatAnswer(turn.answer));
       }
       parts.push(turnParts.join("\n\n"));
     }
