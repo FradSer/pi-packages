@@ -1,5 +1,5 @@
 /**
- * @fradser/pi-memory — native pi /memory command.
+ * pi-memory-fradser — native pi /memory command.
  *
  * Replaces the /skill:consolidate skill surface with a pi-native command menu:
  *
