@@ -108,6 +108,7 @@ def test_only_terminal_results_are_injected_into_model_context() -> None:
     assert 'customType: "monitor-result"' in extension
     assert 'deliverAs: "steer"' in extension
     assert "triggerTurn: true" in extension
+    assert "terminate: true" in extension
     assert "onTerminal" in manager
     assert "onEvent" not in manager
 
@@ -157,6 +158,61 @@ def test_widget_is_display_only_and_console_owns_input() -> None:
     assert "onTerminalInput" not in extension
     assert "ctx.ui.custom" in extension
     assert "handleInput" in extension
+
+
+def test_monitor_start_terminates_the_current_agent_turn() -> None:
+    extension = (SRC / "index.ts").read_text(encoding="utf-8")
+    start_tool = extension.split('name: "monitor_start"', 1)[1].split('name: "monitor_stop"', 1)[0]
+    assert "terminate: true" in start_tool
+    assert "monitorStartRequestedInTurn" not in extension
+    assert "monitorStartPendingInTurn" not in extension
+    assert 'pi.on("tool_call"' not in extension
+
+
+def test_registered_monitor_tool_terminates_and_wakes_once() -> None:
+    run_typescript(
+        r'''
+        import * as extensionModule from "./packages/monitor/src/index.ts";
+
+        const extension = extensionModule.default.default;
+        const tools = new Map();
+        const handlers = new Map();
+        const messages = [];
+        const pi = {
+          registerTool(tool) { tools.set(tool.name, tool); },
+          registerCommand() {},
+          on(name, handler) {
+            const current = handlers.get(name) ?? [];
+            current.push(handler);
+            handlers.set(name, current);
+          },
+          sendMessage(message, options) { messages.push({ message, options }); },
+        };
+        extension(pi);
+        const start = tools.get("monitor_start");
+        if (!start) throw new Error("monitor_start was not registered");
+        const startResult = await start.execute(
+          "call-1",
+          {
+            command: `sleep 0.15; printf '__PI_MONITOR_RESULT__ {"ok":true}\\n'`,
+            description: "extension integration",
+            result_pattern: String.raw`__PI_MONITOR_RESULT__ (?<json>\{.*\})`,
+          },
+          undefined,
+          undefined,
+          { cwd: process.cwd() },
+        );
+        if (startResult.terminate !== true) throw new Error(JSON.stringify(startResult));
+        if (messages.length !== 0) throw new Error("monitor emitted before completion");
+
+        await new Promise((resolve) => setTimeout(resolve, 450));
+        if (messages.length !== 1) throw new Error(JSON.stringify(messages));
+        if (messages[0].options.triggerTurn !== true) throw new Error(JSON.stringify(messages));
+        if (!messages[0].message.content.includes("status=success")) {
+          throw new Error(JSON.stringify(messages));
+        }
+        ''',
+    )
 
 
 def test_success_sentinel_returns_one_structured_terminal_result() -> None:

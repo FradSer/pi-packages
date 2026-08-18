@@ -10,6 +10,8 @@ Feature: Result-contract background monitoring
     When monitor_start runs with a command, description, and result pattern
     Then a background process is spawned for the command
     And the tool returns a monitor id immediately without blocking
+    And the tool result terminates the current agent turn
+    And the agent remains idle until the terminal result arrives
     And ordinary stdout and stderr do not wake the agent
 
   Scenario: A success pattern exposes one compact text result

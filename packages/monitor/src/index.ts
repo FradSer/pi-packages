@@ -16,6 +16,8 @@ Use monitor_start to run a non-interactive command in the background and wait fo
 - Add failure_pattern when the command has a recognizable terminal failure line.
 - Named regex captures are returned as structured fields. A named capture called json is parsed and exposed as structured JSON.
 - Progress logs never trigger turns. The terminal result includes a bounded diagnostic tail, so do not poll for output.
+- After monitor_start returns, end the current turn immediately: do not add sleep, polling, waiting, or follow-up work. Wait for the terminal result to wake you.
+- This is positive guidance only; the monitor never blocks or rejects any tool or command.
 - Do not poll for status; wait for the terminal notification. Use monitor_stop to stop an active monitor if needed.
 `;
 
@@ -203,6 +205,7 @@ export default function (pi: ExtensionAPI) {
           ].filter(Boolean).join("\n"),
         }],
         details: { monitorId: monitor.id },
+        terminate: true,
       };
     },
   });

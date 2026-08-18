@@ -10,7 +10,10 @@ description: >
 
 Use `monitor_start` instead of shell sleep-polling loops when a command takes an
 unknown amount of time. Define the terminal result before starting the monitor.
-Progress output is captured silently; it does not wake the model.
+Progress output is captured silently; it does not wake the model. Starting a
+monitor ends the current agent turn, so do not add sleep, polling, or follow-up
+work after the call. Other tools and commands remain available and are never
+blocked by the monitor.
 
 ## Tools
 
@@ -75,7 +78,8 @@ The monitor sends one compact plain-text terminal message with `triggerTurn:
 true`. It uses stable `key=value` fields and emits complex `result` data as one
 compact JSON value. The terminal message also includes a bounded source-labelled
 diagnostic tail, so ordinary stdout and stderr never create extra messages or
-turns and no output-reading tool is needed.
+turns and no output-reading tool is needed. The terminal message automatically
+wakes the agent once after the monitor reaches a terminal state.
 
 ## Downstream filters must stay line-buffered
 
