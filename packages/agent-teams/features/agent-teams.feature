@@ -1,10 +1,10 @@
 Feature: Agent Teams run-centric public API
   Agent Teams dispatches dependency-aware task graphs in a single call.
   Agents are declarative Markdown files (bundled, user, and project scopes);
-  each run is a bounded set of child-process nodes with a collapsed mailbox
-  (leader inbox + per-node sent transcript + per-worker inboxes for
-  leader replies; validated delivery, no read receipts) and per-spawn
-  identity validation.
+  each run is a bounded set of child-process nodes reporting through one
+  leader inbox fed by validated append-only worker outboxes. There are no
+  peer mailboxes, no worker inboxes, and no leader-to-worker channel:
+  upstream context travels through the DAG prompt at spawn time.
 
   Background:
     Given the @fradser/pi-agent-teams extension is loaded
@@ -37,6 +37,16 @@ Feature: Agent Teams run-centric public API
     Scenario: An unknown agent name fails the dispatch
       When the leader dispatches a task to an agent name that no scope defines
       Then the run is rejected before any worker starts and available agents are listed
+
+  Rule: Leader prompt guidance is static per project
+
+    Scenario: Prompt guidance does not embed live run status
+      Given runs may be active in the session
+      When before_agent_start builds the leader guidance
+      Then it injects the orchestration protocol and the discovered agent definitions
+      And it embeds no run ids, node statuses, or other per-turn live state
+      And the guidance is byte-identical across turns while agents and cwd are unchanged
+      And run awareness reaches the leader through tool results and completion follow-ups
 
   Rule: A run is a single-call DAG dispatch
 
@@ -129,12 +139,45 @@ Feature: Agent Teams run-centric public API
       When the leader dispatches a node with a POSIX or Windows absolute path, parent traversal, glob, empty path list, or duplicate path
       Then the run is rejected before any worker starts
 
+  Rule: Session resources are bounded
+
+    Scenario: A session-wide cap bounds concurrent worker processes
+      Given multiple runs are active in the same session
+      When the scheduler starts nodes
+      Then at most 8 worker child processes run at once across every run in the session
+      And ready nodes beyond the cap wait for a session slot
+
+    Scenario: Long task prompts spill to a temporary file that is removed on close
+      Given a task description exceeds the inline argument limit
+      When the spawner launches the worker
+      Then the task is written to a private temporary file passed by reference
+      And the temporary directory is removed when the child closes or fails to spawn
+
+    Scenario: The shared state snapshot is persisted on transitions, not per stream delta
+      Given workers are streaming live progress
+      When the leader persists the shared state snapshot
+      Then writes happen only when state actually changed since the last write
+      And a poll tick with no changes performs no write
+
+    Scenario: Background runs drain worker reports and enforce run timeouts
+      Given a background run has a live worker and a run-level timeout
+      When the scheduler starts the first worker
+      Then the live poll starts without a foreground gather
+      And worker outboxes are drained while the run is active
+      And the run timeout terminates live workers and marks the run failed
+
+    Scenario: Worker setup failures clean temporary task files and settle the node
+      Given a long task prompt needs a temporary task file
+      When temporary directory creation, task-file writing, or child spawning fails
+      Then the temporary directory is removed
+      And the node receives a failed terminal outcome instead of remaining running
+
   Rule: Run lifecycle is explicit
 
-    Scenario: No model status polling tool exists
+    Scenario: The leader coordinates only through dispatch, cancel, and retry
       Given background tasks are running
       When the leader inspects available tools
-      Then no teammate_status or polling tool is registered
+      Then no teammate_status, teammate_wait, teammate_message, or polling tool is registered for the leader
       And the leader waits for the worker message follow-up
 
     Scenario: Run completion is delivered automatically without a wait tool
@@ -174,16 +217,21 @@ Feature: Agent Teams run-centric public API
       Then it starts with no runs
       And shutdown reports any worker that could not be confirmed closed before shared state is removed
 
-  Rule: Messaging is capability-bound
+  Rule: Messaging is capability-bound and leader-only
 
-    Scenario: A worker messages the team leader or a peer in the same run
+    Scenario: Workers report exclusively to the team leader
       Given a node is working
-      When it calls teammate_message with to="team-leader" or a peer node key in the same run
-      Then the leader validates the worker identity, spawn identity, and recipient
-      And leader-bound messages are delivered to the leader inbox
-      And peer messages are recorded in the sender's sent transcript but not delivered into a peer mailbox
-      When it tries to message a node in another run or an unknown key
-      Then the request is rejected and no message is queued
+      When it calls teammate_message with a subject, body, and optional status
+      Then the message is appended to the worker's own outbox
+      And the leader validates the worker identity and spawn identity
+      And the message is delivered to the single leader inbox
+      And no recipient addressing exists on the worker tool
+
+    Scenario: No peer or leader-to-worker channels exist
+      When the shared state is inspected
+      Then nodes carry no inbox and no sent-message transcript
+      And the leader has no tool to message or broadcast to a worker
+      And a worker's only inbound context is its task prompt with the DAG upstream handoff
 
     Scenario: Completing a node injects its result into downstream prompts
       Given a run has a node that other nodes depend on
@@ -191,24 +239,18 @@ Feature: Agent Teams run-centric public API
       Then no worker-to-worker mailbox handoff is written
       And each pending dependent's spawned prompt includes the upstream result
 
-    Scenario: Leader replies and broadcasts land in the worker's inbox
-      Given a run is working
-      When the leader sends teammate_message to a worker or broadcasts to a run
-      Then the message is written to that worker's inbox in the shared snapshot
-      And the worker reads it only when it re-reads the snapshot
-
     Scenario: Messages carry no read receipts
       Given messages are delivered
       Then no message stores a read flag and no read receipt is exchanged
 
     Scenario: A worker delivers its outcome via teammate_message
       Given a node is working
-      When it calls teammate_message with to="team-leader" and status="completed" or status="failed"
+      When it calls teammate_message with status="completed" or status="failed"
       Then the leader applies the report only to that node's current spawn
       And the report is delivered to the team leader
 
     Scenario: Intermediate worker communication does not interrupt the main session
-      Given a worker sends a plan, progress report, blocker, or direct message to team-leader
+      Given a worker sends a plan, progress report, or blocker to the team leader
       When the leader drains the worker outbox
       Then the message is recorded for the team leader
       And it does not interrupt the main session or trigger a model turn
@@ -222,7 +264,7 @@ Feature: Agent Teams run-centric public API
 
     Scenario: Workers cannot access leader tools
       Given a worker is working
-      When it tries to broadcast, dispatch a run, cancel a run, or mutate another node
+      When it tries to dispatch a run, cancel a run, retry a run, or mutate another node
       Then no such capability is available or the request is rejected
 
   Rule: Worker process outcomes are authoritative

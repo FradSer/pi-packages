@@ -30,7 +30,7 @@ export type RunStatus = Static<typeof RunStatus>;
 export interface Node {
   /** User-chosen id, unique within the run. */
   id: string;
-  /** Mailbox identity: `${runId}:${nodeId}`. */
+  /** Stable node identity: `${runId}:${nodeId}`. */
   workerKey: string;
   /** Resolved agent definition name. */
   agent: string;
@@ -51,10 +51,6 @@ export interface Node {
   errorMessage?: string;
   /** Real child-process execution info when this node was spawned. */
   spawn?: SpawnInfo;
-  /** Messages from the leader waiting for this worker to read the snapshot. */
-  inboxMessages: MailboxMessage[];
-  /** Push-only transcript of messages this node sent (to team-leader or peers). */
-  sentMessages: MailboxMessage[];
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
@@ -105,7 +101,7 @@ export interface WorkerUsage {
 
 export interface SpawnInfo {
   /** Per-spawn capability identity, regenerated for every worker process. */
-  runId: string;
+  spawnId: string;
   pid: number;
   status: SpawnStatus;
   startedAt: number;
@@ -140,10 +136,9 @@ export interface SpawnInfo {
 export interface MailboxMessage {
   id: string;
   from: string;
-  to: string;
   subject: string;
   body: string;
-  taskId?: string;
+  runId?: string;
   timestamp: number;
 }
 
@@ -152,12 +147,10 @@ export interface WorkerMessageEvent {
   id: string;
   type: "message";
   worker: string;
-  runId: string;
-  to: string;
+  spawnId: string;
   subject: string;
   body: string;
   status?: "in_progress" | "completed" | "failed";
-  taskId?: string;
 }
 
 export type WorkerEvent = WorkerMessageEvent;
@@ -212,17 +205,15 @@ export const TeammateRetryParams = Type.Object({
   nodeIds: Type.Optional(Type.Array(Type.String(), { description: "Node ids to reset and re-run; defaults to all failed and cancelled nodes" })),
 });
 
-/** Send a direct message or final report. Leaders address a node key or broadcast; workers address team-leader (with optional status) or a same-run peer. */
+/** Worker progress message or final report to the team leader. */
 export const TeammateMessageParams = Type.Object({
-  to: Type.String({ description: "Recipient: team-leader (the main session), a same-run node id, or runId:nodeId. Leaders may also use all with runId." }),
-  subject: Type.String({ description: "Concise message subject" }),
-  body: Type.String({ description: "Message body (or full final deliverable when submitting status=completed/failed to team-leader)" }),
+  subject: Type.String({ description: "Concise report subject" }),
+  body: Type.String({ description: "Progress note or full final deliverable for the team leader" }),
   status: Type.Optional(Type.Union([
     Type.Literal("in_progress"),
     Type.Literal("completed"),
     Type.Literal("failed"),
-  ], { description: "Optional status update for the sender's node (use completed/failed when submitting the final deliverable to team-leader)" })),
-  runId: Type.Optional(Type.String({ description: "Run id required when to is all (leader only)" })),
+  ], { description: "Optional worker status; use completed or failed for the final deliverable" })),
 });
 
 // ── State snapshot for persistence ────────────────────────────────

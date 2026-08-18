@@ -1,15 +1,13 @@
 /**
- * Shared state file — the medium that lets spawned worker processes (separate
- * Pi processes) see the teammate task board and worker inboxes that live in
- * the parent session.
+ * Shared session files for the leader-owned debug snapshot and worker outboxes.
  *
  * Layout: `~/.pi/agent/teammate/<sessionKey>/state.json`, sessionKey derived
  * from the session file (or cwd for ephemeral sessions) so different sessions
  * never share a board file.
  *
  * Concurrency: the parent is the sole writer of state.json (atomic tmp+rename).
- * Workers read that snapshot and append requests only to their own JSONL outbox;
- * this avoids stale whole-file writes clobbering another worker or message.
+ * Workers append requests only to their own JSONL outbox; the state snapshot is
+ * not a worker inbox or a communication channel.
  */
 
 import * as crypto from "node:crypto";
@@ -35,24 +33,12 @@ export function stateFilePath(sessionFile: string | undefined, cwd: string): str
   return path.join(sessionStateDir(sessionFile, cwd), "state.json");
 }
 
-/** Write the leader-owned state snapshot atomically (tmp + rename). */
+/** Write the leader-owned debug snapshot atomically (tmp + rename). */
 export function writeStateFile(file: string, state: TeammateState): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(state), { mode: 0o600 });
   fs.renameSync(tmp, file);
-}
-
-/** Read a state snapshot; returns undefined when missing/corrupt. */
-export function readStateFile(file: string): TeammateState | undefined {
-  try {
-    const raw = fs.readFileSync(file, "utf-8");
-    const parsed = JSON.parse(raw) as TeammateState;
-    if (!parsed || typeof parsed !== "object") return undefined;
-    return parsed;
-  } catch {
-    return undefined;
-  }
 }
 
 /** Per-run append-only event log. Its filename cannot escape the session dir. */

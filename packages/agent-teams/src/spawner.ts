@@ -18,44 +18,31 @@ import type { WorkerUsage } from "./types";
  * Build the one-task execution prompt for a spawned worker.
  *
  * A worker executes one bounded task run. It reports to the leader throughout
- * the run and then exits; its idle teammate identity may be reused for later
- * current-session work. The parent independently drains the worker outbox.
+ * the run and then exits. The parent independently drains the worker outbox.
  */
 export function buildAutonomousPrompt(opts: {
   name: string;
   role: string;
   prompt: string;
   taskId?: string;
-  workerKey: string;
-  stateFile: string;
-  outboxFile: string;
   timeoutSec: number;
 }): string {
-  const taskLine = `\nAssigned task: [${opts.taskId}].\nWhen finished, you MUST call teammate_message to "team-leader" with status="completed" to submit your FULL final deliverable.`;
+  const taskLine = `\nAssigned task: [${opts.taskId}].\nWhen finished, you MUST call teammate_message with status="completed" to submit your FULL final deliverable.`;
 
   return `You are a FULLY AUTONOMOUS teammate named "${opts.name}" (agent: ${opts.role}) in a pi multi-agent team run.
 
 === ROLE PROMPT ===
 ${opts.prompt}
-
-Shared state snapshot (READ ONLY — leader-owned): ${opts.stateFile}
-Your append-only outbox (WRITE ONLY): ${opts.outboxFile}
-Your worker key: "${opts.workerKey}" — the leader may push replies or broadcasts into your node's inboxMessages array in the snapshot.${taskLine}
+${taskLine}
 
 YOUR ROLE IN THIS RUN:
-1. Work directly on your assigned scope and recorded Paths. DAG upstream results are ALREADY injected into this prompt below — do not poll the snapshot for them. You only need to read the state snapshot if you expect a leader reply or broadcast in your node's inboxMessages. Messages you send to same-run peers are recorded in the shared transcript but not delivered into a peer inbox. MUST NOT write state.json or modify its in-memory shape.
-2. Direct communication: call teammate_message to:"team-leader" for plans, progress, blockers, questions, and findings. Same-run peer messages are recorded for the leader transcript; dependency handoffs arrive through the downstream prompt.
-3. Deliver your work: When finished, you MUST call teammate_message with to:"team-leader", status:"completed", and put your FULL deliverable/report in body. If blocked/failed, send with status:"failed" and the error in body. This message is delivered directly to the team leader upon task completion.
+1. Work directly on your assigned scope and declared paths. DAG upstream results are ALREADY injected into this prompt below; do not poll for them.
+2. Report plans, progress, and blockers with teammate_message. When finished, call teammate_message with status="completed" and put your FULL deliverable in the body. If blocked or failed, use status="failed" and explain the error.
+3. There is no peer or leader-to-worker message channel. Make decisions within the assigned task and report blockers instead of waiting for a reply.
 4. The hard wall-clock cap is ${opts.timeoutSec}s — manage your time budget, avoid unnecessary exploration, and deliver your final message before the deadline.
 
 BOUND CAPABILITIES:
-- teammate_message sends a direct message to team-leader (with optional status="completed"|"failed") or records a validated same-run peer message in the sender transcript.
-
-Technical notes:
-- Use Pi's read tool to inspect the snapshot at ${opts.stateFile}; use a Python one-liner only if the read tool is unavailable.
-- Your outbox path is ${opts.outboxFile}; use the bound teammate tools instead of writing it with bash.
-- MUST NOT write state.json, rewrite/truncate the outbox, claim teammates, or update another teammate's record.
-- The leader rejects malformed events, events claiming another worker identity, and task updates for records other than your own assigned record.`;
+- teammate_message reports progress or a final deliverable to the team leader.`;
 }
 
 export interface SpawnPiWorkerOptions {
@@ -132,30 +119,30 @@ export const POST_REPORT_GRACE_MS = 10_000;
 export class CancellationIntents {
   private readonly finalizers = new Map<string, Array<(cancelled: boolean) => void>>();
 
-  begin(runId: string): boolean {
-    if (this.finalizers.has(runId)) return false;
-    this.finalizers.set(runId, []);
+  begin(spawnId: string): boolean {
+    if (this.finalizers.has(spawnId)) return false;
+    this.finalizers.set(spawnId, []);
     return true;
   }
 
-  has(runId: string): boolean {
-    return this.finalizers.has(runId);
+  has(spawnId: string): boolean {
+    return this.finalizers.has(spawnId);
   }
 
-  defer(runId: string, finalize: (cancelled: boolean) => void): boolean {
-    const pending = this.finalizers.get(runId);
+  defer(spawnId: string, finalize: (cancelled: boolean) => void): boolean {
+    const pending = this.finalizers.get(spawnId);
     if (!pending) return false;
     pending.push(finalize);
     return true;
   }
 
-  resolve(runId: string, cancelled: boolean): boolean {
-    const pending = this.finalizers.get(runId);
+  resolve(spawnId: string, cancelled: boolean): boolean {
+    const pending = this.finalizers.get(spawnId);
     if (!pending) return false;
     try {
       for (const finalize of pending) finalize(cancelled);
     } finally {
-      this.finalizers.delete(runId);
+      this.finalizers.delete(spawnId);
     }
     return true;
   }
@@ -455,14 +442,34 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
   const tools = [...new Set([...requestedTools, ...capabilityTools])];
   args.push("--tools", tools.join(","));
 
-  const taskText = `Task: ${options.description}`;
-  if (taskText.length > TASK_ARG_LIMIT) {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "teammate-"));
-    const taskFile = path.join(tempDir, "task.md");
-    fs.writeFileSync(taskFile, taskText, { mode: 0o600 });
-    args.push(`@${taskFile}`);
-  } else {
-    args.push(taskText);
+  let tempDir: string | undefined;
+  const cleanupTempDir = () => {
+    if (!tempDir) return;
+    try {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+      // Temporary cleanup must not mask the worker outcome.
+    } finally {
+      tempDir = undefined;
+    }
+  };
+  const setupError = (error: unknown): { error: string } => ({
+    error: error instanceof Error ? error.message : String(error),
+  });
+
+  try {
+    const taskText = `Task: ${options.description}`;
+    if (taskText.length > TASK_ARG_LIMIT) {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "teammate-"));
+      const taskFile = path.join(tempDir, "task.md");
+      fs.writeFileSync(taskFile, taskText, { mode: 0o600 });
+      args.push(`@${taskFile}`);
+    } else {
+      args.push(taskText);
+    }
+  } catch (error) {
+    cleanupTempDir();
+    return setupError(error);
   }
 
   let child;
@@ -473,7 +480,8 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
       stdio: ["ignore", "pipe", "pipe"],
     });
   } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) };
+    cleanupTempDir();
+    return setupError(error);
   }
   if (options.workerName) workers.set(options.workerName, child);
 
@@ -513,6 +521,7 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
 
   child.on("error", (error) => {
     if (timer) clearTimeout(timer);
+    cleanupTempDir();
     settled = true;
     if (options.workerName && workers.get(options.workerName) === child) workers.delete(options.workerName);
     options.onError?.(error);
@@ -520,6 +529,7 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
 
   child.on("close", (code, signal) => {
     if (timer) clearTimeout(timer);
+    cleanupTempDir();
     // A spawn failure already reported via onError (Node fires error then
     // close) — do not double-report through onExit, which would let a failed
     // spawn look like a successful 0-exit run.

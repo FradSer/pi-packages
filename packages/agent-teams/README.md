@@ -1,6 +1,6 @@
 # Agent Teams Pi Package
 
-Run-centric multi-agent system for Pi — declarative agents, single-call DAG dispatch, bounded child-process nodes with a leader inbox and push-only node message transcripts.
+Run-centric multi-agent system for Pi — declarative agents, single-call DAG dispatch, bounded child-process nodes, and one-way worker reports to the leader.
 
 **Display Name**: Agent Teams
 
@@ -50,10 +50,11 @@ teammate_run({
 - `access` defaults to `read`; declare `write` explicitly.
 - `dependsOn` edges must form a DAG (duplicate ids, unknown references, and cycles are rejected before any worker starts).
 - `worktree: true` runs every node in its own git worktree and captures each diff for integration review.
-- `background` defaults to `true`: teammates always run in the background — the call returns the run id immediately, the model turn stays free, and workers message `team-leader` (`teammate_message`) with their deliverables upon completion, delivered automatically as a follow-up turn. The team leader does not sleep or busy-wait while tasks execute. Pass `background=false` to block and gather inline (it detaches after 5 minutes so the turn is never hung).
+- `background` defaults to `true`: teammates always run in the background — the call returns the run id immediately, the model turn stays free, and workers report their deliverables through the worker-only `teammate_message` capability, delivered automatically as a follow-up turn. The team leader does not sleep or busy-wait while tasks execute. Pass `background=false` to block and gather inline (it detaches after 5 minutes so the turn is never hung).
 - `timeoutMs` is a run-level hard cap: when exceeded, the run fails and live workers are terminated.
+- A session-wide cap of 8 worker processes applies in addition to each run's `concurrency` limit.
 - Multi-node runs append a `__summary` node by default (`summarize=false` to skip). Single-task runs stay compact unless `summarize=true`.
-- Completing a node hands its result to pending dependents through the spawned worker prompt. Workers may also send same-run peer messages for the leader transcript; peer inbox delivery is intentionally omitted.
+- Completing a node hands its result to pending dependents through the spawned worker prompt. Workers have no peer-message or inbound-reply path.
 
 ## Tools
 
@@ -62,15 +63,16 @@ teammate_run({
 | `teammate_run` | Dispatch a dependency-aware task graph in one call |
 | `teammate_cancel` | Cancel a run, or one node (`nodeId`) while the rest continues |
 | `teammate_retry` | Re-run only the failed/cancelled nodes of a settled run |
-| `teammate_message` | Message the team leader or a node, or broadcast to a run (`to="all"`) |
-| `/teammate` | Full-screen console: run/node status, node detail, sent messages, cancel node |
+| `/teammate` | Full-screen console: run/node status, node detail, worker reports, cancel node |
 
-Message storage is deliberately narrow: worker reports and leader-bound messages go to one leader inbox; each node keeps a push-only `sentMessages` transcript for `/teammate`; leader replies and broadcasts go to the target node's `inboxMessages` in the shared snapshot. Worker-to-worker mailbox delivery is not performed. Workers can still address same-run peers for a validated transcript entry, but dependency results are delivered through the DAG prompt (`=== UPSTREAM HANDOFF ===`) when the dependent starts.
+Spawned workers receive one additional capability, `teammate_message`, for progress notes and final reports to the team leader.
+
+Messaging is deliberately one-way: workers append validated reports to their own outbox, and the leader drains them into one leader inbox. There is no peer mailbox, worker inbox, leader broadcast tool, or worker-to-worker delivery path. Dependency results are delivered through the DAG prompt (`=== UPSTREAM HANDOFF ===`) when the dependent starts.
 
 ## Reliability protocol
 
 - **Per-spawn identity validation**: every worker event must match the node's current spawn id; stale events from an older process cannot affect a newer spawn.
-- **Narrow message storage**: worker event ids are validated and deduplicated; leader-bound reports use the leader inbox, node sent transcripts are push-only, and leader-to-worker messages are best-effort snapshot inbox entries. No read flags or receipts exist.
+- **One-way message storage**: worker event ids and per-spawn identities are validated and deduplicated; every accepted report lands in the single leader inbox. No read flags, receipts, peer mailboxes, or leader-to-worker inboxes exist.
 - **One canonical terminal result per node**: built by the harness from node state + captured output after the child closes; a worker's message with status alone is not final delivery.
 - **Advisory write-conflict coordination (session-wide)**: the scheduler never starts a shared-workspace write node while another shared-workspace write node with overlapping paths is running — checked across **all runs in the session**, not just the same run. This is scheduling-level coordination, not isolation.
 - **`access`/`paths` are metadata, not enforcement**: they drive conflict scheduling and prompts; a worker's real capabilities come from its agent definition's `tools` list. A `read` node whose agent has `write`/`bash` tools can still write. Use `worktree: true` or a restricted agent tool list when you need actual isolation.
@@ -87,11 +89,16 @@ agent-teams/
 ├── package.json       — Pi package manifest
 ├── agents/            — bundled agent definitions (worker/reviewer/specialist/observer)
 ├── src/
-│   ├── index.ts       — extension: tools, run scheduler, widget + /teammate console
+│   ├── index.ts       — composition root: Pi hooks and session lifecycle
+│   ├── tools.ts       — leader tool and /teammate command registration
+│   ├── run-machine.ts — DAG scheduler, worker lifecycle, persistence, session cap
+│   ├── ui.ts          — passive widget and /teammate console
+│   ├── worker.ts      — worker identity binding and report capability
+│   ├── guidance.ts    — static leader/worker protocol guidance
 │   ├── agents.ts      — declarative agent discovery (frontmatter parsing, scope precedence)
-│   ├── state.ts       — runs/nodes state machine, message storage, settlement
+│   ├── state.ts       — runs/nodes state machine, leader inbox, dirty tracking
 │   ├── spawner.ts     — child Pi worker spawner (JSON-mode, usage accounting)
-│   ├── statefile.ts   — shared state file + worker outbox IO
+│   ├── statefile.ts   — leader snapshot + worker outbox IO
 │   ├── worktree.ts    — git worktree isolation
 │   ├── console-viewport.ts — console viewport math (wrap, scroll clamp, ranges)
 │   └── terminal.ts    — canonical per-node terminal result builder

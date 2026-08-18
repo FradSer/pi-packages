@@ -19,6 +19,27 @@ function emptyState(): TeammateState {
 }
 
 let state = emptyState();
+let stateDirty = false;
+
+export function markStateDirty(): void {
+  stateDirty = true;
+}
+
+/** Return whether state changed since the last persisted snapshot. */
+export function isStateDirty(): boolean {
+  return stateDirty;
+}
+
+export function clearStateDirty(): void {
+  stateDirty = false;
+}
+
+/** Return whether state changed since the last persisted snapshot, then clear it. */
+export function consumeStateDirty(): boolean {
+  const dirty = stateDirty;
+  clearStateDirty();
+  return dirty;
+}
 
 function nextMessageId(): string {
   return `msg_${++state.messageCounter}`;
@@ -30,6 +51,7 @@ function nextRunId(): string {
 
 export function resetState(): void {
   state = emptyState();
+  markStateDirty();
 }
 
 // ── Path normalization ────────────────────────────────────────────
@@ -79,9 +101,9 @@ export const SUMMARY_NODE_ID = "__summary";
 /** System-generated task text for the summary node. */
 function summaryNodePrompt(): string {
   return [
-    "You are the final summary step of this run. Read the shared state snapshot",
-    "(state.json) and the results of every completed node, then write ONE concise",
-    "final summary covering: overall outcome, what changed or was produced,",
+    "You are the final summary step of this run. Use the upstream handoffs from",
+    "every completed leaf node, then write ONE concise final summary covering:",
+    "overall outcome, what changed or was produced,",
     "verification status, confirmed risks or failures, and recommended follow-ups.",
     "Synthesize — do not repeat node results verbatim and do not report your own",
     "plan or process. The leader sees this summary as the run's headline result.",
@@ -135,8 +157,6 @@ export function createRun(
       timeoutMs: node.timeoutMs,
       dependsOn: [...new Set(node.dependsOn)],
       status: "pending",
-      inboxMessages: [],
-      sentMessages: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -174,8 +194,6 @@ export function createRun(
         access: "read",
         dependsOn: leaves.map((node) => node.id),
         status: "pending",
-        inboxMessages: [],
-        sentMessages: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -201,6 +219,7 @@ export function createRun(
     run.nodes[node.id] = node;
   }
   state.runs[runId] = run;
+  markStateDirty();
   return { ok: true, run };
 }
 
@@ -243,7 +262,10 @@ export function isRunTerminal(run: Run): boolean {
 /** Claim a run's completion delivery so the follow-up is suppressed (foreground gather). */
 export function markRunCompletionDelivered(runId: string): void {
   const run = state.runs[runId];
-  if (run) run.completionNotified = true;
+  if (run) {
+    run.completionNotified = true;
+    markStateDirty();
+  }
 }
 
 /** Every node across every run (for console rows and liveness polls). */
@@ -259,6 +281,7 @@ export function markNodeRunning(runId: string, nodeId: string): { ok: boolean; e
   node.status = "running";
   node.updatedAt = Date.now();
   state.runs[runId].updatedAt = Date.now();
+  markStateDirty();
   return { ok: true };
 }
 
@@ -279,6 +302,7 @@ export function updateNodeStatus(
     node.completedAt = Date.now();
   }
   state.runs[runId].updatedAt = Date.now();
+  markStateDirty();
   return { ok: true, node };
 }
 
@@ -305,6 +329,7 @@ export function setNodeSpawnInfo(runId: string, nodeId: string, info: SpawnInfo)
     node.completedAt = Date.now();
     node.errorMessage = info.error ?? info.stderr ?? `Child process exited with code ${info.exitCode ?? "unknown"}.`;
   }
+  markStateDirty();
   return { ok: true, node };
 }
 
@@ -317,7 +342,7 @@ export function updateNodeSpawnProgress(
 ): { ok: boolean; node?: Node; error?: string } {
   const node = getNode(runId, nodeId);
   if (!node) return { ok: false, error: `Node "${nodeId}" not found.` };
-  if (node.spawn?.runId !== spawnId || node.spawn.status !== "running") {
+  if (node.spawn?.spawnId !== spawnId || node.spawn.status !== "running") {
     return { ok: false, error: `Node "${nodeId}" is not running the expected worker.` };
   }
   node.spawn.liveText = progress.liveText;
@@ -327,6 +352,7 @@ export function updateNodeSpawnProgress(
   node.spawn.finalResponse = progress.finalResponse;
   node.updatedAt = Date.now();
   state.runs[runId].updatedAt = Date.now();
+  markStateDirty();
   return { ok: true, node };
 }
 
@@ -392,6 +418,7 @@ export function cancelBlockedDependents(runId: string, nodeId: string): number {
     }
   }
   run.updatedAt = Date.now();
+  if (cancelled.size > 1) markStateDirty();
   return cancelled.size - 1;
 }
 
@@ -418,6 +445,7 @@ export function settleRun(runId: string): RunStatus | undefined {
   }
   run.finishedAt = Date.now();
   run.updatedAt = Date.now();
+  markStateDirty();
   return run.status;
 }
 
@@ -442,6 +470,7 @@ export function cancelRun(runId: string): { ok: boolean; runningNodeIds: string[
     }
   }
   run.updatedAt = Date.now();
+  markStateDirty();
   return { ok: true, runningNodeIds };
 }
 
@@ -493,6 +522,7 @@ export function cancelNode(runId: string, nodeId: string): { ok: boolean; runnin
     if (!runningNodeIds.includes(id)) runningNodeIds.push(id);
   }
   run.updatedAt = Date.now();
+  markStateDirty();
   return { ok: true, runningNodeIds };
 }
 
@@ -526,6 +556,7 @@ export function failRunTimeout(runId: string, errorMessage: string): { ok: boole
   run.errorMessage = errorMessage;
   run.finishedAt = Date.now();
   run.updatedAt = Date.now();
+  markStateDirty();
   return { ok: true, runningNodeIds };
 }
 
@@ -593,6 +624,7 @@ export function retryRun(runId: string, nodeIds?: string[]): { ok: boolean; rese
   // on the very next poll.
   run.deadlineAt = run.timeoutMs ? Date.now() + run.timeoutMs : undefined;
   run.updatedAt = Date.now();
+  markStateDirty();
   return { ok: true, reset };
 }
 
@@ -603,93 +635,38 @@ export function clearWorkerRunEvents(workerKey: string, spawnId: string): void {
   for (const id of Object.keys(state.workerEventIds)) {
     if (id.startsWith(`${spawnId}:`)) delete state.workerEventIds[id];
   }
+  markStateDirty();
 }
 
 // ── Message storage ───────────────────────────────────────────────
 
-/** Append a message to the sending node's push-only transcript, when the
- * sender is a node (run-settled summaries from run ids are skipped). */
-function recordSentMessage(from: string, message: MailboxMessage): void {
-  for (const run of Object.values(state.runs)) {
-    for (const node of Object.values(run.nodes)) {
-      if (node.workerKey === from) {
-        node.sentMessages.push(message);
-        return;
-      }
-    }
-  }
-}
-
-/** Deliver a message: leader-bound messages land in the single leader inbox;
- * worker-bound messages land on the target node's inbox. */
-export function sendMessage(msg: Omit<MailboxMessage, "id" | "timestamp">): MailboxMessage {
+/** Deliver a message to the single leader inbox. */
+export function deliverToLeader(msg: Omit<MailboxMessage, "id" | "timestamp">): MailboxMessage {
   const full: MailboxMessage = {
     ...msg,
     id: nextMessageId(),
     timestamp: Date.now(),
   };
-  recordSentMessage(msg.from, full);
-  if (msg.to === "team-leader") {
-    state.leaderMailbox.push(full);
-  } else {
-    const recipient = getNodeByWorkerKey(msg.to);
-    if (recipient) recipient.node.inboxMessages.push(full);
-  }
+  state.leaderMailbox.push(full);
+  markStateDirty();
   return full;
 }
 
-/** Apply a validated worker event exactly once (by event id). Leader-bound
- * messages are delivered to the leader inbox; peer messages are recorded in
- * the sender's sent transcript but NOT delivered — upstream context reaches
- * dependents via the DAG prompt injection, and workers do not read peer
- * inboxes. */
+/** Apply a validated worker event exactly once by event id. */
 export function receiveWorkerMessage(event: WorkerMessageEvent): boolean {
-  const sender = getNodeByWorkerKey(event.worker)?.node;
-  if (!sender) return false;
-  if (sender.sentMessages.some((message) => message.id === event.id)) return false;
-  if (event.to === "team-leader" && state.leaderMailbox.some((message) => message.id === event.id)) return false;
-  const message: MailboxMessage = {
+  const sender = getNodeByWorkerKey(event.worker);
+  if (!sender || sender.node.spawn?.spawnId !== event.spawnId) return false;
+  if (state.leaderMailbox.some((message) => message.id === event.id)) return false;
+  state.leaderMailbox.push({
     id: event.id,
     from: event.worker,
-    to: event.to,
     subject: event.subject,
     body: event.body,
-    taskId: event.taskId,
+    runId: sender.run.id,
     timestamp: Date.now(),
-  };
-  recordSentMessage(event.worker, message);
-  if (event.to !== "team-leader") return true;
-  state.leaderMailbox.push(message);
+  });
+  markStateDirty();
   return true;
-}
-
-/** Resolve a worker-facing recipient: team-leader, same-run node id, or runId:nodeId. */
-export function resolveWorkerRecipientFromRuns(
-  runs: Record<string, Run>,
-  fromWorkerKey: string,
-  to: string,
-): { ok: true; to: string } | { ok: false; error: string } {
-  if (to === "team-leader") return { ok: true, to: "team-leader" };
-  const senderRun = Object.values(runs).find((run) => Object.values(run.nodes).some((node) => node.workerKey === fromWorkerKey));
-  if (!senderRun) return { ok: false, error: `Unknown sender "${fromWorkerKey}".` };
-  const peer = senderRun.nodes[to] ?? (to.startsWith(`${senderRun.id}:`) ? senderRun.nodes[to.slice(senderRun.id.length + 1)] : undefined);
-  if (!peer) return { ok: false, error: `Unknown peer "${to}" in run "${senderRun.id}". Use a peer node id or "team-leader".` };
-  if (peer.workerKey === fromWorkerKey) return { ok: false, error: "A worker cannot message itself." };
-  return { ok: true, to: peer.workerKey };
-}
-
-/** Resolve a leader-facing recipient: worker key, unique node id, or runId:nodeId. */
-export function resolveLeaderRecipient(to: string, runId?: string): { ok: true; to: string; runId: string } | { ok: false; error: string } {
-  const byKey = getNodeByWorkerKey(to);
-  if (byKey) return { ok: true, to: byKey.node.workerKey, runId: byKey.run.id };
-  if (runId) {
-    const node = getNode(runId, to);
-    if (node) return { ok: true, to: node.workerKey, runId };
-  }
-  const matches = listRuns().flatMap((run) => (run.nodes[to] ? [{ run, node: run.nodes[to] }] : []));
-  if (matches.length === 1) return { ok: true, to: matches[0].node.workerKey, runId: matches[0].run.id };
-  if (matches.length > 1) return { ok: false, error: `Node id "${to}" is ambiguous across runs; use runId:nodeId.` };
-  return { ok: false, error: `Unknown node "${to}". Use a node id, runId:nodeId, or to="all" with runId.` };
 }
 
 // ── State inspection ──────────────────────────────────────────────
@@ -701,8 +678,7 @@ export function getState(): TeammateState {
 export function getSummary(): string | undefined {
   const runCount = Object.keys(state.runs).length;
   if (runCount === 0) return undefined;
-  const messageCount = state.leaderMailbox.length
-    + listNodes().reduce((sum, node) => sum + node.inboxMessages.length, 0);
+  const messageCount = state.leaderMailbox.length;
   const activeNodes = listNodes().filter((node) => node.status === "running" || node.status === "pending").length;
   return `${runCount} run(s) | ${messageCount} message(s) | ${activeNodes} active node(s)`;
 }

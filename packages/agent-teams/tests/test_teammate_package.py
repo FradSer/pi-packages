@@ -12,7 +12,6 @@ LEADER_TOOLS = {
     "teammate_run",
     "teammate_cancel",
     "teammate_retry",
-    "teammate_message",
 }
 WORKER_TOOLS = {"teammate_message"}
 REMOVED_TOOLS = {
@@ -90,9 +89,9 @@ def test_bdd_contract_covers_target_resources() -> None:
         "A run-level timeout fails the whole run",
         "Cancel one node while the rest of the run continues",
         "Retry failed and cancelled nodes without re-running completed ones",
-        "A worker messages the team leader or a peer in the same run",
+        "Workers report exclusively to the team leader",
+        "No peer or leader-to-worker channels exist",
         "Completing a node injects its result into downstream prompts",
-        "Leader replies and broadcasts land in the worker's inbox",
         "Messages carry no read receipts",
         "Multi-node runs synthesize a final summary by default",
         "Read nodes with overlapping paths may run concurrently",
@@ -102,13 +101,19 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Reject malformed task graphs",
         "Reject ambiguous path ownership",
         "Run lifecycle is explicit",
-        "No model status polling tool exists",
+        "The leader coordinates only through dispatch, cancel, and retry",
         "Run completion is delivered automatically without a wait tool",
         "follow-up includes the full final deliverable submitted by the worker",
         "single-node run delivers its result directly in the follow-up",
         "Cancel a run stops its running nodes",
         "Runs do not survive session restarts",
-        "Messaging is capability-bound",
+        "Messaging is capability-bound and leader-only",
+        "Prompt guidance does not embed live run status",
+        "A session-wide cap bounds concurrent worker processes",
+        "Long task prompts spill to a temporary file that is removed on close",
+        "The shared state snapshot is persisted on transitions, not per stream delta",
+        "Background runs drain worker reports and enforce run timeouts",
+        "Worker setup failures clean temporary task files and settle the node",
         "A worker delivers its outcome via teammate_message",
         "Intermediate worker communication does not interrupt the main session",
         "The harness delivers one canonical terminal result per node",
@@ -131,34 +136,36 @@ def test_bdd_contract_covers_target_resources() -> None:
 
 
 def test_console_supports_mouse_wheel_scrolling() -> None:
-    ext = source("index.ts")
+    ext = source("ui.ts")
     assert "const sgrWheel = /^\\x1b\\[<(\\d+);(\\d+);(\\d+)[Mm]$/" in ext
     assert "(button & 64) !== 0" in ext
     assert "direction === 0" in ext and "direction === 1" in ext
 
 
 def test_leader_tool_surface_is_exact() -> None:
-    ext = source("index.ts")
+    ext = source("index.ts") + source("tools.ts")
     for tool in LEADER_TOOLS:
         assert f'name: "{tool}"' in ext
+    assert 'name: "teammate_message"' not in ext
     for tool in REMOVED_TOOLS | LEGACY_TOOLS:
         assert f'name: "{tool}"' not in ext
 
 
 def test_worker_surface_is_capability_bound() -> None:
     ext = source("index.ts")
-    worker_section = ext[ext.index("function registerWorkerCapabilities"):ext.index("// ── Team UI")]
+    worker = source("worker.ts")
     for tool in WORKER_TOOLS:
-        assert f'name: "{tool}"' in worker_section
-    for tool in LEADER_TOOLS - {"teammate_message"}:
-        assert f'name: "{tool}"' not in worker_section
+        assert f'name: "{tool}"' in worker
+    for tool in LEADER_TOOLS:
+        assert f'name: "{tool}"' not in worker
     assert "if (workerOutboxBinding())" in ext
     assert "registerWorkerCapabilities(pi);" in ext
-    assert "return;" in ext[ext.index("if (workerOutboxBinding())"):ext.index("// ── Session lifecycle")]
+    assert "return;" in ext[ext.index("if (workerOutboxBinding())"):ext.index("leaderPi = pi;")]
+    assert "PI_TEAMMATE_STATE_FILE" not in worker
 
 
 def test_idle_widget_stays_hidden_until_a_teammate_is_running() -> None:
-    ext = source("index.ts")
+    ext = source("ui.ts")
     assert "if (running.length === 0) return [];" in ext
     assert "Team idle" not in ext
     assert "runningTeammateLabel" in ext
@@ -166,7 +173,7 @@ def test_idle_widget_stays_hidden_until_a_teammate_is_running() -> None:
 
 
 def test_widget_rows_align_with_native_loader_and_show_live_activity() -> None:
-    ext = source("index.ts")
+    ext = source("ui.ts")
     spawner = source("spawner.ts")
     types = source("types.ts")
     # Leading space before each widget row so spinner columns align with pi's
@@ -240,17 +247,19 @@ def test_read_receipt_protocol_is_removed() -> None:
     assert "read: false" not in state
 
 
-def test_workers_can_message_same_run_peers() -> None:
-    ext = source("index.ts")
+def test_workers_report_only_to_the_team_leader() -> None:
     state = source("state.ts")
-    assert "resolveWorkerRecipientFromRuns" in state
-    assert "handoffNodeResult" not in state
-    assert "=== UPSTREAM HANDOFF ===" in ext
-    assert "Workers may only message agent" not in ext
-    # Peer messages are recorded for the transcript, not delivered into a peer mailbox.
-    assert "sent transcript" in state
-    assert "sentMessages" in source("types.ts")
-
+    worker = source("worker.ts")
+    machine = source("run-machine.ts")
+    types = source("types.ts")
+    assert "resolveWorkerRecipientFromRuns" not in state
+    assert "resolveLeaderRecipient" not in state
+    assert "sentMessages" not in types and "inboxMessages" not in types
+    assert "recipient" not in worker
+    assert "=== UPSTREAM HANDOFF ===" in machine
+    assert "PI_TEAMMATE_STATE_FILE" not in worker
+    message_schema = types[types.index("export const TeammateMessageParams"):]
+    assert "to:" not in message_schema and "runId:" not in message_schema
 
 def test_run_timeout_and_retry_state_machine() -> None:
     module = (SRC / "state.ts").as_uri()
@@ -265,7 +274,7 @@ def test_run_timeout_and_retry_state_machine() -> None:
           ] }});
         const run = created.run;
         const hasDeadline = Boolean(run.deadlineAt && run.timeoutMs === 5000);
-        setNodeSpawnInfo(run.id, "a", {{ runId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "a", {{ spawnId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
         const failed = failRunTimeout(run.id, "Run timed out after 5s.");
         const afterFail = {{ status: run.status, running: failed.runningNodeIds.join(","), b: run.nodes.b.status, error: run.errorMessage }};
         const retried = retryRun(run.id);
@@ -332,8 +341,8 @@ def test_node_cancel_keeps_run_running() -> None:
             {{ id: "c", agent: "worker", prompt: "", paths: ["z"], access: "read", dependsOn: ["b"] }},
           ] }});
         const run = created.run;
-        setNodeSpawnInfo(run.id, "b", {{ runId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
-        setNodeSpawnInfo(run.id, "c", {{ runId: "s2", pid: 2, status: "running", startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "b", {{ spawnId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "c", {{ spawnId: "s2", pid: 2, status: "running", startedAt: 1, isolation: "none" }});
         const cancelled = cancelNode(run.id, "b");
         console.log(JSON.stringify({{ ok: cancelled.ok, running: cancelled.runningNodeIds.join(","), b: run.nodes.b.status, c: run.nodes.c.status, a: run.nodes.a.status, runStatus: run.status }}));
         '''
@@ -510,33 +519,23 @@ def test_single_task_run_skips_summary_unless_requested() -> None:
     assert payload == {"implicit": False, "explicit": True, "off": False}
 
 
-def test_worker_peer_message_is_recorded_not_delivered() -> None:
+def test_worker_report_is_leader_only_and_deduplicated() -> None:
     module = (SRC / "state.ts").as_uri()
     payload = run_node(
         f'''\
         import {{ createRun, resetState, receiveWorkerMessage, getState }} from "{module}";
         resetState();
-        const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false, summarize: false,
-          nodes: [
-            {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
-            {{ id: "b", agent: "reviewer", prompt: "", paths: ["y"], access: "read", dependsOn: ["a"] }},
-          ] }});
+        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false, summarize: false,
+          nodes: [{{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }}] }});
         const run = created.run;
-        receiveWorkerMessage({{
-          id: "evt-1", worker: run.nodes.a.workerKey, runId: "s1", type: "message",
-          to: run.nodes.b.workerKey, subject: "Sync", body: "design ready", taskId: run.id,
-        }});
-        const peerInbox = run.nodes.b.inboxMessages;
-        const sentA = run.nodes.a.sentMessages.map((m) => m.subject).join(",");
-        const leaderMessages = getState().leaderMailbox.length;
-        console.log(JSON.stringify({{ peerInboxCount: peerInbox.length, sentA, leaderMessages }}));
+        run.nodes.a.spawn = {{ spawnId: "spawn-1", pid: 1, status: "running", startedAt: 1, isolation: "none" }};
+        const event = {{ id: "evt-1", worker: run.nodes.a.workerKey, spawnId: "spawn-1", type: "message", subject: "Plan", body: "ready" }};
+        const first = receiveWorkerMessage(event);
+        const duplicate = receiveWorkerMessage(event);
+        console.log(JSON.stringify({{ first, duplicate, messages: getState().leaderMailbox.map((m) => m.subject).join(","), runId: getState().leaderMailbox[0]?.runId }}));
         '''
     )
-    # A peer message is recorded in the sender's sent transcript (console trace)
-    # but must not land in the peer's worker inbox — DAG upstream results are
-    # injected into downstream prompts at spawn instead.
-    assert payload == {"peerInboxCount": 0, "sentA": "Sync", "leaderMessages": 0}
-
+    assert payload == {"first": True, "duplicate": False, "messages": "Plan", "runId": "run_1"}
 
 def test_run_creation_rejects_malformed_graphs() -> None:
     module = (SRC / "state.ts").as_uri()
@@ -634,10 +633,10 @@ def test_write_conflict_detection_is_run_scoped() -> None:
             {{ id: "r", agent: "reviewer", prompt: "", paths: ["packages/a"], access: "read", dependsOn: [] }},
           ] }});
         const run = created.run;
-        setNodeSpawnInfo(run.id, "w1", {{ runId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "w1", {{ spawnId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
         const writeOverlap = findSharedWorkspaceWriteConflict(run.id, "w2")?.id ?? null;
         const readOverlap = findSharedWorkspaceWriteConflict(run.id, "r")?.id ?? null;
-        setNodeSpawnInfo(run.id, "w2", {{ runId: "s2", pid: 2, status: "running", startedAt: 1, isolation: "worktree" }});
+        setNodeSpawnInfo(run.id, "w2", {{ spawnId: "s2", pid: 2, status: "running", startedAt: 1, isolation: "worktree" }});
         const isolated = findSharedWorkspaceWriteConflict(run.id, "w1")?.id ?? null;
         console.log(JSON.stringify({{ writeOverlap, readOverlap, isolated }}));
         '''
@@ -658,7 +657,7 @@ def test_cancel_run_marks_pending_and_returns_running_nodes() -> None:
             {{ id: "c", agent: "worker", prompt: "", paths: ["z"], access: "read", dependsOn: ["a"] }},
           ] }});
         const run = created.run;
-        setNodeSpawnInfo(run.id, "a", {{ runId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "a", {{ spawnId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
         const cancelled = cancelRun(run.id);
         const terminal = isRunTerminal(run);
         console.log(JSON.stringify({{
@@ -681,129 +680,95 @@ def test_cancel_run_marks_pending_and_returns_running_nodes() -> None:
     }
 
 
-def test_mailbox_is_best_effort_without_receipts() -> None:
+def test_mailbox_is_leader_only_without_receipts() -> None:
     module = (SRC / "state.ts").as_uri()
     payload = run_node(
         f'''\
-        import {{ createRun, resetState, sendMessage, receiveWorkerMessage, getState }} from "{module}";
+        import {{ createRun, resetState, deliverToLeader, receiveWorkerMessage, getState }} from "{module}";
         resetState();
         const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false,
           nodes: [{{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }}] }});
         const run = created.run;
-        const key = run.nodes.a.workerKey;
-        // Leader → worker reply lands in the worker's inbox (best-effort read).
-        sendMessage({{ from: "team-leader", to: key, subject: "hi", body: "hello" }});
-        // Worker → leader message lands in the leader inbox and the sender's transcript.
-        const event = {{
-          id: "evt-1", worker: key, runId: "s1", type: "message", to: "team-leader", subject: "plan", body: "p",
-        }};
+        deliverToLeader({{ from: "run_1:a", subject: "harness", body: "hello", runId: run.id }});
+        run.nodes.a.spawn = {{ spawnId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }};
+        const event = {{ id: "evt-1", worker: run.nodes.a.workerKey, spawnId: "s1", type: "message", subject: "plan", body: "p" }};
         const delivered = receiveWorkerMessage(event);
         const duplicate = receiveWorkerMessage(event);
-        const nodeInbox = run.nodes.a.inboxMessages;
-        const leaderMessages = getState().leaderMailbox;
-        const sentTranscript = run.nodes.a.sentMessages.map((m) => m.subject).join(",");
-        console.log(JSON.stringify({{
-          delivered,
-          nodeMessages: nodeInbox.map((m) => m.subject).join(","),
-          leaderMessages: leaderMessages.map((m) => m.subject).join(","),
-          sentTranscript,
-          duplicate,
-        }}));
+        const messages = getState().leaderMailbox.map((m) => m.subject).join(",");
+        console.log(JSON.stringify({{ delivered, messages, duplicate, hasInbox: "inboxMessages" in run.nodes.a }}));
         '''
     )
-    assert payload == {"delivered": True, "nodeMessages": "hi", "leaderMessages": "plan", "sentTranscript": "plan", "duplicate": False}
-
+    assert payload == {"delivered": True, "messages": "harness,plan", "duplicate": False, "hasInbox": False}
 
 def test_worker_spawn_is_nonblocking_and_identity_bound() -> None:
-    ext = source("index.ts")
+    ext = source("run-machine.ts")
     spawner = source("spawner.ts")
     assert "spawnPiWorkerBlocking" not in ext
     assert "spawnPiWorkerBlocking" not in spawner
-    # Worker knows its mailbox key and the push-only receive path (read state.json).
-    assert "workerKey: node.workerKey" in ext
-    assert "Your worker key:" in spawner
-    assert "inboxMessages" in spawner
-    assert "watch and process the mailbox" not in spawner
-    # Worker identity is the node key (runId:nodeId) plus a fresh spawn id.
+    assert "Your worker key:" not in spawner
+    assert "inboxMessages" not in spawner
     assert "PI_TEAMMATE_WORKER_NAME: workerKey" in ext
     assert "PI_TEAMMATE_TASK_ID: node.id" in ext
-    assert "PI_TEAMMATE_RUN_ID: spawnId" in ext
+    assert "PI_TEAMMATE_SPAWN_ID: spawnId" in ext
     assert 'const spawnId = randomUUID()' in ext
-    # Stale close events from an older spawn cannot affect a newer spawn.
-    assert 'getNode(runId, nodeId)?.spawn?.runId !== spawnId' in ext
-
+    assert 'getNode(runId, nodeId)?.spawn?.spawnId !== spawnId' in ext
 
 def test_run_dispatch_is_single_call_with_scheduler() -> None:
-    ext = source("index.ts")
+    ext = source("index.ts") + source("tools.ts")
+    machine = source("run-machine.ts")
     assert 'name: "teammate_run"' in ext
-    assert "scheduleRun(run.id, ctx)" in ext
-    assert "readyPendingNodes(run)" in ext
-    assert "run.concurrency - runningNodeCount(runId)" in ext
-    assert "findSharedWorkspaceWriteConflict(runId, node.id)" in ext
-    assert "startNode(runId, node.id, ctx)" in ext
-    assert "onRunSettled(runId, ctx)" in ext
-    assert "markLeaderMessagesReadForRun" not in ext
-    assert "readMailbox" not in ext
-    # Foreground gather claims completion delivery so a settled run does not
-    # also emit a follow-up; background runs notify once via completionNotified.
-    assert "run.background && !run.completionNotified" in ext
-    assert "markRunCompletionDelivered(run.id)" in ext    # Teammates run in the background by default.
+    assert "scheduleRun(run.id, dctx)" in ext
+    assert "readyPendingNodes(run)" in machine
+    assert "run.concurrency - runningNodeCount(runId)" in machine
+    assert "MAX_SESSION_WORKERS" in machine
+    assert "findSharedWorkspaceWriteConflict(runId, node.id)" in machine
+    assert "startNode(runId, node.id, ctx)" in machine
+    assert "onRunSettled(runId, ctx)" in machine
+    assert "run.background && !run.completionNotified" in machine
+    assert "markRunCompletionDelivered(runId)" in ext
     assert "background: params.background ?? true" in ext
-    # Console detail includes the full sent message flow (push-only transcript).
-    assert "sent messages" in ext
-    assert "node.sentMessages" in ext
-    # Foreground gather blocks; background returns immediately.
+    assert "reports to team-leader" in source("ui.ts")
     assert "if (run.background)" in ext
 
-
 def test_tool_returns_are_compact_and_summary_is_synthesized() -> None:
-    ext = source("index.ts")
-    state = source("state.ts")
+    ext = source("index.ts") + source("tools.ts")
+    machine = source("run-machine.ts")
     types = source("types.ts")
-    # Tool returns (run/follow-up) use the compact summary; the full
-    # per-node transcript stays in the /teammate console.
-    assert "function buildRunSummary" in ext
-    assert "buildRunResultSummary" not in ext
-    assert "Console: /teammate" in ext
-    assert "text: buildRunSummary(run.id)" in ext
-    # No truncation heuristics: per-node rows are status-only unless a
-    # synthesized __summary node produced a real summary.
-    assert "nodeHeadline" not in ext
-    assert "SUMMARY_NODE_ID" in ext
+    assert "buildRunSummary" in machine
+    assert "Console: /teammate" in machine
+    assert "buildRunSummary(runId)" in source("tools.ts")
+    assert "nodeHeadline" not in machine
+    assert "SUMMARY_NODE_ID" in machine
     assert "summarize" in types
     assert "summaryAgent" in types
-    assert "settledRun.summary = nodeNow?.result" in ext
-    assert "if (run.summary)" in ext
-    assert "else if (nodes.length === 1)" in ext
-    assert "node.result?.trim() || node.errorMessage?.trim()" in ext
-    # No wait/status polling tool: delivery is the automatic completion follow-up; the
-    # foreground gather loop is the only inline blocking path.
+    assert "settledRun.summary" in machine
+    assert "if (run.summary)" in machine
+    assert "node.result?.trim() || node.errorMessage?.trim()" in machine
     assert 'name: "teammate_wait"' not in ext
     assert 'name: "teammate_status"' not in ext
     assert "await sleep(" in ext
 
-
-def test_guidance_is_run_centric_without_redundant_tool_list() -> None:
+def test_guidance_is_static_and_run_centric() -> None:
     ext = source("index.ts")
+    guidance = source("guidance.ts")
     agents = source("agents.ts")
     assert "formatAgentGuidance" in agents
-    assert "buildTeamLeaderGuidance" in ext
+    assert "buildTeamLeaderGuidance" in guidance
     assert "before_agent_start" in ext
-    assert "teammate_run" in ext
+    assert "teammate_run" in guidance
     assert 'name: "teammate_status"' not in ext
     assert "teammate_wait" not in ext
-    assert "teammate_cancel" in ext
-    assert ".pi/agents" in ext
-    assert "~/.pi/agent/agents" in ext
-    assert "dependsOn" in ext
-    assert "teammate_register" not in ext
-    assert "teammate_inbox" not in ext
-    assert "teammate_message" in ext
-
+    assert "teammate_cancel" in guidance
+    assert ".pi/agents" in guidance
+    assert "~/.pi/agent/agents" in guidance
+    assert "dependsOn" in guidance
+    assert "Active background runs" not in guidance
+    assert "listActiveRuns" not in guidance
+    assert "teammate_message" not in ext
 
 def test_no_runtime_identity_registry_remains() -> None:
     state = source("state.ts")
-    ext = source("index.ts")
+    ext = source("index.ts") + source("tools.ts")
     for legacy in ("registerTeammate", "configureTeammate", "removeTeammate", "findReusableTeammate",
                    "retireExpiredTeammates", "retryFailedTask", "createTask(", "cancelTask(",
                    "setSpawnInfo(", "listTeammates", "markTeammateRunning"):
@@ -909,9 +874,6 @@ def test_spawner_prompt_focuses_on_direct_execution() -> None:
           role: "reviewer",
           prompt: "Review code",
           taskId: "task_1",
-          workerKey: "run_1:task_1",
-          stateFile: "/tmp/state.json",
-          outboxFile: "/tmp/outbox.jsonl",
           timeoutSec: 120,
         }});
         console.log(JSON.stringify({{
@@ -971,160 +933,98 @@ def test_teammates_run_in_background_by_default() -> None:
 
 
 def test_worker_message_delivers_completed_and_failed_status() -> None:
-    ext = source("index.ts")
+    machine = source("run-machine.ts")
     types = source("types.ts")
     assert 'status?: "in_progress" | "completed" | "failed"' in types
-    assert 'updateNodeStatus(run.id, node.id, "completed", event.body, undefined)' in ext
-    assert 'updateNodeStatus(run.id, node.id, "failed", undefined, event.body)' in ext
-    assert 'name: "teammate_report"' not in ext
+    assert 'updateNodeStatus(run.id, node.id, "completed", event.body, undefined)' in machine
+    assert 'updateNodeStatus(run.id, node.id, "failed", undefined, event.body)' in machine
+    assert 'name: "teammate_report"' not in machine
+
+def test_dirty_state_tracking_and_session_worker_cap() -> None:
+    state_module = (SRC / "state.ts").as_uri()
+    machine = source("run-machine.ts")
+    payload = run_node(
+        f'''
+        import {{ createRun, resetState, isStateDirty, clearStateDirty }} from "{state_module}";
+        resetState();
+        const afterReset = isStateDirty();
+        clearStateDirty();
+        createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, summarize: false,
+          nodes: [{{ id: "a", agent: "worker", prompt: "task", paths: ["src"], access: "read", dependsOn: [] }}] }});
+        console.log(JSON.stringify({{ afterReset, afterCreate: isStateDirty() }}));
+        '''
+    )
+    assert payload == {"afterReset": True, "afterCreate": True}
+    assert "export const MAX_SESSION_WORKERS = 8" in machine
+    assert "isStateDirty()" in machine and "clearStateDirty()" in machine
+    assert "Keep the dirty bit set" in machine
 
 
-def test_end_to_end_worker_message_flow_and_peer_communication() -> None:
+def test_long_task_temp_directory_is_cleaned_on_worker_exit() -> None:
+    spawner = source("spawner.ts")
+    assert "fs.mkdtempSync(path.join(os.tmpdir(), \"teammate-\"))" in spawner
+    assert "const cleanupTempDir = () =>" in spawner
+    assert "fs.rmSync(tempDir, { recursive: true, force: true })" in spawner
+    assert "cleanupTempDir();" in spawner
+    assert "try {\n    const taskText = `Task: ${options.description}`;" in spawner
+    assert "if (taskText.length > TASK_ARG_LIMIT)" in spawner
+    assert "return setupError(error);" in spawner
+
+
+def test_background_runs_start_the_live_poll() -> None:
+    machine = source("run-machine.ts")
+    assert "export function ensureLivePoll()" in machine
+    assert "ensureLivePoll();" in machine
+    assert "enforceRunTimeouts();" in machine
+    assert "applyWorkerEvents();" in machine
+
+
+def test_leader_guidance_is_static_and_excludes_live_runs() -> None:
+    ext = source("guidance.ts")
+    assert "formatAgentGuidance" in ext
+    assert "buildTeamLeaderGuidance" in ext
+    assert "Active background runs" not in ext
+    assert "listActiveRuns" not in ext
+    assert "run.id" not in ext
+    assert "teammate_run" in ext
+    assert "teammate_cancel" in ext
+    assert "teammate_retry" in ext
+
+
+def test_end_to_end_worker_message_flow_is_leader_only() -> None:
     state_module = (SRC / "state.ts").as_uri()
     statefile_module = (SRC / "statefile.ts").as_uri()
     payload = run_node(
-        f'''
+        f'''\
         import * as fs from "node:fs";
         import * as path from "node:path";
         import * as os from "node:os";
-        import {{
-          createRun, resetState, updateNodeStatus, getNode, getState, setNodeSpawnInfo,
-          nodeIsReady, settleRun, resolveWorkerRecipientFromRuns, receiveWorkerMessage
-        }} from "{state_module}";
-        import {{
-          appendWorkerEvent, readWorkerEvents, workerOutboxPath, writeStateFile
-        }} from "{statefile_module}";
-
+        import {{ createRun, resetState, getState, setNodeSpawnInfo, receiveWorkerMessage, updateNodeStatus, nodeIsReady, settleRun }} from "{state_module}";
+        import {{ appendWorkerEvent, readWorkerEvents, workerOutboxPath }} from "{statefile_module}";
         resetState();
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "test-agent-teams-e2e-"));
         const stateFile = path.join(tmpDir, "state.json");
-        writeStateFile(stateFile, getState());
-
-        const created = createRun({{
-          cwd: tmpDir,
-          concurrency: 2,
-          worktree: false,
-          background: true,
-          summarize: false,
+        const created = createRun({{ cwd: tmpDir, concurrency: 2, worktree: false, background: true, summarize: false,
           nodes: [
-            {{ id: "node_a", agent: "worker", prompt: "design system", paths: ["src"], access: "read", dependsOn: [] }},
-            {{ id: "node_b", agent: "worker", prompt: "implement system", paths: ["src"], access: "read", dependsOn: ["node_a"] }}
-          ]
-        }});
+            {{ id: "node_a", agent: "worker", prompt: "design", paths: ["src"], access: "read", dependsOn: [] }},
+            {{ id: "node_b", agent: "worker", prompt: "implement", paths: ["src"], access: "read", dependsOn: ["node_a"] }}
+          ] }});
         const run = created.run;
-        const spawnIdA = "spawn-a-1";
-        setNodeSpawnInfo(run.id, "node_a", {{
-          runId: spawnIdA, pid: 1001, status: "running", startedAt: Date.now(), isolation: "none"
-        }});
-        writeStateFile(stateFile, getState());
-
-        const outboxA = workerOutboxPath(stateFile, run.nodes.node_a.workerKey, spawnIdA);
-        // Node A sends progress message to leader
-        appendWorkerEvent(outboxA, {{
-          id: "evt-a-1", type: "message", worker: run.nodes.node_a.workerKey, runId: spawnIdA,
-          to: "team-leader", subject: "Plan", body: "Designing architecture", status: "in_progress", taskId: "node_a"
-        }});
-        // Node A delivers final deliverable with completed status
-        appendWorkerEvent(outboxA, {{
-          id: "evt-a-2", type: "message", worker: run.nodes.node_a.workerKey, runId: spawnIdA,
-          to: "team-leader", subject: "Artifact A", body: "Architecture document V1", status: "completed", taskId: "node_a"
-        }});
-
-        function applyEvents(sf) {{
-          const state = getState();
-          for (const r of Object.values(state.runs)) {{
-            for (const node of Object.values(r.nodes)) {{
-              const spawn = node.spawn;
-              if (!spawn || spawn.status !== "running") continue;
-              const sId = spawn.runId;
-              const outboxKey = `${{node.workerKey}}:${{sId}}`;
-              const ob = workerOutboxPath(sf, node.workerKey, sId);
-              const {{ events, nextOffset }} = readWorkerEvents(ob, state.workerEventOffsets[outboxKey] ?? 0);
-              state.workerEventOffsets[outboxKey] = nextOffset;
-              for (const event of events) {{
-                if (state.workerEventIds[`${{sId}}:${{event.id}}`]) continue;
-                if (event.worker !== node.workerKey || event.runId !== sId) continue;
-                if (event.type === "message") {{
-                  const recipient = resolveWorkerRecipientFromRuns(state.runs, node.workerKey, event.to);
-                  if (!recipient.ok) continue;
-                  state.workerEventIds[`${{sId}}:${{event.id}}`] = sId;
-                  receiveWorkerMessage({{
-                    id: event.id, worker: node.workerKey, runId: sId, type: "message",
-                    to: recipient.to, subject: event.subject, body: event.body,
-                    taskId: event.taskId === node.id ? r.id : undefined,
-                  }});
-                  if (event.status && !["completed", "failed", "cancelled"].includes(node.status)) {{
-                    if (event.status === "completed") {{
-                      updateNodeStatus(r.id, node.id, "completed", event.body, undefined);
-                    }} else if (event.status === "failed") {{
-                      updateNodeStatus(r.id, node.id, "failed", undefined, event.body);
-                    }}
-                  }}
-                }}
-              }}
-            }}
-          }}
+        const spawnId = "spawn-a-1";
+        setNodeSpawnInfo(run.id, "node_a", {{ spawnId, pid: 1001, status: "running", startedAt: Date.now(), isolation: "none" }});
+        const outbox = workerOutboxPath(stateFile, run.nodes.node_a.workerKey, spawnId);
+        appendWorkerEvent(outbox, {{ id: "evt-a-1", type: "message", worker: run.nodes.node_a.workerKey, spawnId, subject: "Artifact", body: "Architecture", status: "completed" }});
+        const {{ events }} = readWorkerEvents(outbox, 0);
+        for (const event of events) {{
+          if (event.type !== "message") continue;
+          receiveWorkerMessage(event);
+          updateNodeStatus(run.id, "node_a", event.status, event.body, undefined);
         }}
-
-        applyEvents(stateFile);
-        const nodeAAfter = getNode(run.id, "node_a");
-        const nodeBReady = nodeIsReady(run, run.nodes.node_b);
-        const leaderMessagesAfterA = getState().leaderMailbox.map((m) => m.subject).join(",");
-        // No worker-to-worker mailbox handoff: B's inbox is untouched.
-        const mailboxB = run.nodes.node_b.inboxMessages;
-
-        // Now Node B starts and sends a peer message to Node A (transcript-only)
-        // and its final deliverable to the leader.
-        const spawnIdB = "spawn-b-1";
-        setNodeSpawnInfo(run.id, "node_b", {{
-          runId: spawnIdB, pid: 1002, status: "running", startedAt: Date.now(), isolation: "none"
-        }});
-        writeStateFile(stateFile, getState());
-        const outboxB = workerOutboxPath(stateFile, run.nodes.node_b.workerKey, spawnIdB);
-        appendWorkerEvent(outboxB, {{
-          id: "evt-b-1", type: "message", worker: run.nodes.node_b.workerKey, runId: spawnIdB,
-          to: "node_a", subject: "Sync", body: "Consuming your architecture doc", taskId: "node_b"
-        }});
-        appendWorkerEvent(outboxB, {{
-          id: "evt-b-2", type: "message", worker: run.nodes.node_b.workerKey, runId: spawnIdB,
-          to: "team-leader", subject: "Artifact B", body: "Implementation finished", status: "completed", taskId: "node_b"
-        }});
-        applyEvents(stateFile);
-
-        const mailboxA = run.nodes.node_a.inboxMessages;
-        const sentB = run.nodes.node_b.sentMessages.map((m) => m.subject).join(",");
-        const sentA = run.nodes.node_a.sentMessages.map((m) => m.subject).join(",");
-        const nodeBAfter = getNode(run.id, "node_b");
-        const finalSettled = settleRun(run.id);
-
-        console.log(JSON.stringify({{
-          nodeAStatus: nodeAAfter.status,
-          nodeAResult: nodeAAfter.result,
-          nodeBReady,
-          nodeBStatus: nodeBAfter.status,
-          nodeBResult: nodeBAfter.result,
-          leaderMessagesAfterA,
-          mailboxBCount: mailboxB.length,
-          peerDeliveredToA: mailboxA.length,
-          sentA,
-          sentB,
-          leaderMessagesTotal: getState().leaderMailbox.map((m) => m.subject).join(","),
-          finalSettled,
-        }}));
+        const ready = nodeIsReady(run, run.nodes.node_b);
+        updateNodeStatus(run.id, "node_b", "completed", "Implementation", undefined);
+        const settled = settleRun(run.id);
+        console.log(JSON.stringify({{ messages: getState().leaderMailbox.map((m) => m.subject).join(","), ready, settled }}));
         '''
     )
-    assert payload == {
-        "nodeAStatus": "completed",
-        "nodeAResult": "Architecture document V1",
-        "nodeBReady": True,
-        "nodeBStatus": "completed",
-        "nodeBResult": "Implementation finished",
-        "leaderMessagesAfterA": "Plan,Artifact A",
-        "mailboxBCount": 0,
-        "peerDeliveredToA": 0,
-        "sentA": "Plan,Artifact A",
-        "sentB": "Sync,Artifact B",
-        "leaderMessagesTotal": "Plan,Artifact A,Artifact B",
-        "finalSettled": "completed",
-    }
+    assert payload == {"messages": "Artifact", "ready": True, "settled": "completed"}
 
