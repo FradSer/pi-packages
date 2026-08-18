@@ -1,6 +1,6 @@
 scopes:
     - name: cc
-      description: code context analysis and research utilities in packages/code-context/; does not cover git or project-specific tools.
+      description: code context analysis and research utilities in packages/context/; does not cover git or project-specific tools.
     - name: git
       description: git workflow automation, hooks, and commit management in packages/git/; does not cover github platform integrations.
     - name: gh
@@ -11,3 +11,9 @@ scopes:
       description: shared memory, state management, and persistence logic in packages/memory/; does not cover application-specific skill definitions.
     - name: ga
       description: git agent hooks, extensions, and commit skills in packages/git-agent/; does not cover core git workflows
+    - name: examples
+      description: SDK usage example in examples/; does not cover publish automation or package implementations.
+    - name: packages
+      description: Published Pi extensions, skills, and integrations in packages/; does not cover repository release scripts.
+    - name: scripts
+      description: Release publishing automation in scripts/; does not cover package runtime behavior.
