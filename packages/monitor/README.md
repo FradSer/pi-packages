@@ -10,12 +10,11 @@ Raw build, deploy, test, and server logs contain far more progress text than an
 agent needs. Streaming those lines into the conversation repeatedly consumes
 context and can trigger unnecessary model turns.
 
-`@fradser/pi-monitor` requires the caller to define success before starting the
-command. It scans both stdout and stderr in the background. Progress output is
-retained in a bounded log buffer but is not sent to the model. Starting a monitor
-ends the current agent turn; do not add a sleep, polling loop, or other follow-up
-work after `monitor_start`. Other tools and commands remain available and are
-never blocked by the monitor. The terminal result automatically wakes the agent once when:
+Use `monitor_start` for long-running commands. After it returns, the current
+agent turn ends immediately. Do not sleep, poll, wait, or do follow-up work;
+wait for the terminal result to wake the agent. Other tools and commands remain
+available and are never blocked by the monitor. The terminal result automatically
+wakes the agent once when:
 
 - `result_pattern` matches: `success`
 - `failure_pattern` matches: `failure`

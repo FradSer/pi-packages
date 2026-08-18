@@ -94,9 +94,9 @@ def test_start_schema_requires_result_pattern_and_has_optional_failure_pattern()
 def test_guidance_teaches_result_contract_and_terminal_diagnostics() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     assert "MONITOR_GUIDANCE" in extension
-    assert "unique JSON sentinel" in extension
-    assert "Progress logs never trigger turns" in extension
-    assert "terminal result includes a bounded diagnostic tail" in extension
+    assert "Use monitor_start for long-running commands" in extension
+    assert "Do not sleep, poll, wait, or do follow-up work" in extension
+    assert "Wait for the monitor's terminal result" in extension
     assert "monitor_read" not in extension
     assert 'pi.on("before_agent_start"' in extension
 

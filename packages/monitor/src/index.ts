@@ -8,17 +8,11 @@ import {
 import { MonitorStartParams, MonitorStopParams } from "./types";
 
 const MONITOR_GUIDANCE = `
-## Background Result Monitor
+## Background monitor
 
-Use monitor_start to run a non-interactive command in the background and wait for one machine-verifiable terminal result. Ordinary stdout and stderr are captured outside model context; the monitor wakes you exactly once on success, failure, timeout, or a missing result.
-
-- Always declare result_pattern. Prefer wrapping controllable commands so they print a unique JSON sentinel, for example: __PI_MONITOR_RESULT__ (?<json>\\{.*\\}).
-- Add failure_pattern when the command has a recognizable terminal failure line.
-- Named regex captures are returned as structured fields. A named capture called json is parsed and exposed as structured JSON.
-- Progress logs never trigger turns. The terminal result includes a bounded diagnostic tail, so do not poll for output.
-- After monitor_start returns, end the current turn immediately: do not add sleep, polling, waiting, or follow-up work. Wait for the terminal result to wake you.
-- This is positive guidance only; the monitor never blocks or rejects any tool or command.
-- Do not poll for status; wait for the terminal notification. Use monitor_stop to stop an active monitor if needed.
+- Use monitor_start for long-running commands with a result_pattern.
+- After monitor_start returns, end this turn. Do not sleep, poll, wait, or do follow-up work.
+- Wait for the monitor's terminal result; it will wake you automatically.
 `;
 
 function isEscapeKey(data: string): boolean {

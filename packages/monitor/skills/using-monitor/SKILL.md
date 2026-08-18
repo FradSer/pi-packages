@@ -8,12 +8,10 @@ description: >
 
 # Monitor Extension Usage
 
-Use `monitor_start` instead of shell sleep-polling loops when a command takes an
-unknown amount of time. Define the terminal result before starting the monitor.
-Progress output is captured silently; it does not wake the model. Starting a
-monitor ends the current agent turn, so do not add sleep, polling, or follow-up
-work after the call. Other tools and commands remain available and are never
-blocked by the monitor.
+Use `monitor_start` for long-running commands. After it returns, end the
+current turn immediately. Do not sleep, poll, wait, or do follow-up work; wait
+for the terminal result to wake the agent. Other tools and commands remain
+available and are never blocked by the monitor.
 
 ## Tools
 
