@@ -10,6 +10,7 @@ Feature: /init repository guidelines command
     Then the command sends an instruction to inspect the repository structure,
       commands, tests, style, history, and existing instruction files
     And the instruction asks for a concise "Repository Guidelines" document
+    And the instruction says to prefer pi-kit for shared reusable logic when available
 
   Scenario: /init updates an existing current-directory guide safely
     Given ./AGENTS.md already exists
@@ -17,12 +18,12 @@ Feature: /init repository guidelines command
     Then the instruction tells the agent to preserve useful guidance and update
       the existing document in place instead of replacing it blindly
 
-  Scenario: /init keeps nested guides consistent with their parent scope
+  Scenario: /init treats nested guides as independent scopes
     Given AGENTS.md files exist in the repository root and nested directories
     When the user runs /init
     Then the instruction tells the agent to discover all scoped guides
-    And update only guides relevant to the repository changes
-    And explain parent-child scope relationships without duplicating content
+    And update only guides relevant to each directory
+    And avoid adding inheritance references or duplicating parent instructions
 
   Scenario: /init accepts optional focus from the user
     When the user runs /init focus on package release commands
