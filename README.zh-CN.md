@@ -102,11 +102,11 @@ pi install npm:@fradser/pi-utils
 pi install npm:@fradser/pi-agent-teams
 ```
 
-### [`code-context`](packages/code-context/)
+### [`context`](packages/context/)
 
-通过原生 Pi extension 提供 DeepWiki、Context7 和 Exa 检索工具，并支持 clone 与 HTTP 抓取兜底。
+通过原生 Pi extension 提供 DeepWiki、Context7 和 Exa 检索工具，并支持 clone 与 HTTP 抓取兜底。通过系统提示词指引加 `/context` 命令（无 skill）。
 
-**Skills：** `/skill:get-context`、`/skill:code-context`
+**命令：** `/context`
 
 **安装：**
 
@@ -140,6 +140,8 @@ npx tsc --noEmit --strict --skipLibCheck --target ES2022 \
 ```
 
 在包目录执行 `pnpm pack --dry-run` 可以检查将要发布的文件。
+
+共享运行时辅助（TUI 旋转帧/主题样式原语、消息文本提取）位于内部包 [`@fradser/pi-kit`](packages/pi-kit/)。它不是 Pi 包，不能用 `pi install` 安装；消费包在 `dependencies` 中以 `"@fradser/pi-kit": "workspace:*"` 声明它。
 
 ## 添加包
 

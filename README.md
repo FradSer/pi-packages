@@ -102,11 +102,11 @@ Coordinates child Pi workers through dependency-aware task graphs, bounded concu
 pi install npm:@fradser/pi-agent-teams
 ```
 
-### [`code-context`](packages/code-context/)
+### [`context`](packages/context/)
 
-Provides DeepWiki, Context7, and Exa retrieval tools through native Pi extensions, with clone and HTTP fallbacks.
+Provides DeepWiki, Context7, and Exa retrieval tools through native Pi extensions, with clone and HTTP fallbacks. System-prompt guidance plus the `/context` command (no skill).
 
-**Skills:** `/skill:get-context`, `/skill:code-context`
+**Command:** `/context`
 
 **Install:**
 
@@ -140,6 +140,8 @@ npx tsc --noEmit --strict --skipLibCheck --target ES2022 \
 ```
 
 Use `pnpm pack --dry-run` from a package directory to inspect its published files.
+
+Shared runtime helpers (TUI spinner/theme primitives, message text extraction) live in the internal [`@fradser/pi-kit`](packages/pi-kit/) package. It is not a Pi package and is not installable with `pi install`; consumers declare it as `"@fradser/pi-kit": "workspace:*"` under `dependencies`.
 
 ## Adding a package
 

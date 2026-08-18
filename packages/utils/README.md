@@ -1,6 +1,6 @@
 # Utils Pi Package
 
-A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks or continuing based on recommendations, multi-session directory awareness (`/sessions`), plus a git worktree path redirect.
+A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks or continuing based on recommendations, `/init` for creating or updating scoped `AGENTS.md` contributor guides, multi-session directory awareness (`/sessions`), plus a git worktree path redirect.
 
 ## Installation
 
@@ -11,6 +11,18 @@ pi install npm:pi-utils-fradser
 ```
 
 ## Commands
+
+### `init` — repository contributor guides
+
+`/init` asks the active agent to inspect the repository and create or update
+scoped `AGENTS.md` files. It checks existing guides before writing, preserves
+useful instructions, and keeps root and nested guides aligned without
+needless duplication. An optional argument adds focus:
+
+```
+/init
+/init focus on package release commands
+```
 
 ### `sessions` — cross-session directory awareness
 
