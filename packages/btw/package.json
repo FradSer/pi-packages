@@ -32,5 +32,8 @@
     "extensions": [
       "./src/index.ts"
     ]
+  },
+  "dependencies": {
+    "@fradser/pi-kit": "workspace:*"
   }
 }

@@ -12,6 +12,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { extractTextContent } from "@fradser/pi-kit";
 import type { WorkerUsage } from "./types";
 
 /**
@@ -307,10 +308,7 @@ function applyWorkerJsonLine(state: WorkerStreamState, line: string): boolean {
     if (event.type !== "message_end" || event.message?.role !== "assistant") return false;
     state.turns++;
     if (event.message.stopReason === "stop") state.finalResponse = true;
-    const parts = (event.message.content ?? [])
-      .filter((part) => part.type === "text" && typeof part.text === "string")
-      .map((part) => part.text as string)
-      .join("");
+    const parts = extractTextContent(event.message.content, "");
     if (parts.trim()) state.text = parts;
     const u = event.message.usage;
     if (u) {

@@ -11,6 +11,7 @@ EXTENSIONS = PACKAGE / "extensions"
 RECAP_URI = (EXTENSIONS / "recap.ts").as_uri()
 INDEX_URI = (EXTENSIONS / "index.ts").as_uri()
 CONFIG_URI = (EXTENSIONS / "config.ts").as_uri()
+PIKIT_URI = (REPO / "packages" / "pi-kit" / "src" / "index.ts").as_uri()
 
 
 def run_typescript(script: str) -> dict[str, object]:
@@ -398,7 +399,9 @@ def test_extension_registers_recap_command_with_menu() -> None:
     assert "enterRecapModel" in extension
     assert "chooseRecapLanguage" in extension
     assert "Recapping..." in extension
-    assert "RECAP_SPINNER_FRAMES" in extension
+    assert 'from "@fradser/pi-kit"' in extension
+    assert "PI_SPINNER_FRAMES" in extension
+    assert "PI_SPINNER_FRAMES[recapSpinnerFrame]" in extension
     assert "requestRender" in extension
     assert "generatingRecap" in extension
     assert "same visual column as the native working spinner" in (PACKAGE / "features" / "recap.feature").read_text(encoding="utf-8")
@@ -556,7 +559,8 @@ def test_environment_overrides_take_precedence_over_saved_config() -> None:
 def test_config_parsing_and_model_ref() -> None:
     result = run_typescript(
         f"""
-        import {{ parseModelRef, modelRef, readRecapConfig, languageLabel }} from "{CONFIG_URI}";
+        import {{ readRecapConfig, languageLabel }} from "{CONFIG_URI}";
+        import {{ parseModelRef, modelRef }} from "{PIKIT_URI}";
 
         const parsed1 = parseModelRef("anthropic/claude-3-5-haiku");
         const parsed2 = parseModelRef("invalid-ref");

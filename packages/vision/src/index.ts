@@ -7,11 +7,19 @@ import type {
   ExtensionContext,
   ToolResultEvent,
 } from "@earendil-works/pi-coding-agent";
+import {
+  enterModelFromInput,
+  modelLabel,
+  modelRef,
+  parseModelRef,
+  PI_SPINNER_FRAMES,
+  PI_SPINNER_INTERVAL_MS,
+  selectModelFromMenu,
+  sortModels,
+} from "@fradser/pi-kit";
 import { buildImageAnalysisContext, describeImages } from "./bridge";
 import { extractInputImages, mayContainInputImage } from "./input-images";
 import {
-  modelRef,
-  parseModelRef,
   readVisionConfig,
   visionConfigPath,
   writeVisionConfig,
@@ -19,7 +27,6 @@ import {
 } from "./config";
 
 let config: VisionConfig = readVisionConfig();
-const VISION_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 type ContextTransform = { messages: ContextEvent["messages"] };
 
@@ -74,24 +81,15 @@ function configuredModelLabel(): string {
   return modelRef(config) ?? "(not configured)";
 }
 
-function modelLabel(model: Model<Api>): string {
-  return `${model.provider}/${model.id}`;
-}
-
-function modelOptionLabel(model: Model<Api>): string {
-  const current = modelLabel(model) === configuredModelLabel() ? " · current" : "";
-  return `${modelLabel(model)} · ${model.name}${current}`;
-}
-
 function imageModels(ctx: ExtensionContext): Model<Api>[] {
   const currentPiModels =
     ctx.scopedModels.length > 0
       ? ctx.scopedModels.map((scoped) => scoped.model)
       : ctx.modelRegistry.getAvailable();
 
-  return currentPiModels
-    .filter((model) => model.input.includes("image"))
-    .sort((left, right) => modelLabel(left).localeCompare(modelLabel(right)));
+  return sortModels(
+    currentPiModels.filter((model) => model.input.includes("image")),
+  );
 }
 
 function configSummary(ctx?: ExtensionContext): string {
@@ -157,39 +155,38 @@ async function chooseVisionModel(ctx: ExtensionCommandContext): Promise<void> {
     return;
   }
 
-  const options = models.map(modelOptionLabel);
-  const selected = await ctx.ui.select("Select a vision model", options);
-  if (!selected) return;
+  const result = await selectModelFromMenu(
+    ctx.ui,
+    models,
+    modelRef(config),
+    "Select a vision model",
+  );
+  if (!result) return;
 
-  const model = models[options.indexOf(selected)];
-  if (!model) return;
-
-  saveConfig({ ...config, provider: model.provider, model: model.id }, ctx);
-  ctx.ui.notify(`Vision reader set to ${modelLabel(model)}`, "info");
+  saveConfig({ ...config, ...result }, ctx);
+  ctx.ui.notify(`Vision reader set to ${result.provider}/${result.model}`, "info");
 }
 
 async function enterVisionModel(ctx: ExtensionCommandContext): Promise<void> {
-  const value = await ctx.ui.input("Vision model", configuredModelLabel() === "(not configured)" ? "provider/model" : configuredModelLabel());
-  if (value === undefined) return;
+  const result = await enterModelFromInput(
+    ctx.ui,
+    ctx.modelRegistry,
+    modelRef(config),
+    { label: "Vision model" },
+  );
+  if (!result) return;
 
-  const ref = parseModelRef(value);
-  if (!ref) {
-    ctx.ui.notify("Enter a model in provider/model format", "error");
+  const model = ctx.modelRegistry.find(result.provider, result.model);
+  if (!model?.input.includes("image")) {
+    ctx.ui.notify(
+      `Model ${result.provider}/${result.model} does not declare image input support`,
+      "error",
+    );
     return;
   }
 
-  const model = ctx.modelRegistry.find(ref.provider, ref.model);
-  if (!model) {
-    ctx.ui.notify(`Model ${ref.provider}/${ref.model} was not found in the model registry`, "error");
-    return;
-  }
-  if (!model.input.includes("image")) {
-    ctx.ui.notify(`Model ${ref.provider}/${ref.model} does not declare image input support`, "error");
-    return;
-  }
-
-  saveConfig({ ...config, ...ref }, ctx);
-  ctx.ui.notify(`Vision reader set to ${modelLabel(model)}`, "info");
+  saveConfig({ ...config, ...result }, ctx);
+  ctx.ui.notify(`Vision reader set to ${result.provider}/${result.model}`, "info");
 }
 
 async function resetConfiguration(ctx: ExtensionCommandContext): Promise<void> {
@@ -271,7 +268,7 @@ export default function visionExtension(pi: ExtensionAPI): void {
 
       try {
         ctx.ui.setStatus("vision", `reading ${images.length} image${images.length === 1 ? "" : "s"} · ${config.provider}/${config.model}`);
-        ctx.ui.setWorkingIndicator({ frames: VISION_SPINNER_FRAMES, intervalMs: 120 });
+        ctx.ui.setWorkingIndicator({ frames: PI_SPINNER_FRAMES, intervalMs: PI_SPINNER_INTERVAL_MS });
         const result = await describeImages(ctx.modelRegistry, visionModel, extracted.text, images, ctx.signal);
         const analysis = { analysisPrompt: extracted.text, analysis: result.text };
         if (activeAnalysis?.key === key) activeAnalysis.result = analysis;
@@ -350,7 +347,7 @@ export default function visionExtension(pi: ExtensionAPI): void {
         "vision",
         `reading ${images.length} image${images.length === 1 ? "" : "s"} · ${config.provider}/${config.model}`,
       );
-      ctx.ui.setWorkingIndicator({ frames: VISION_SPINNER_FRAMES, intervalMs: 120 });
+      ctx.ui.setWorkingIndicator({ frames: PI_SPINNER_FRAMES, intervalMs: PI_SPINNER_INTERVAL_MS });
 
       const prompt = toolAnalysisPrompt(event.toolName, event.input ?? {});
       const result = await describeImages(ctx.modelRegistry, visionModel, prompt, images, ctx.signal);

@@ -48,13 +48,16 @@ class TestInjectMemoryExtension(unittest.TestCase):
 
     def test_memory_model_configuration_is_available(self):
         content = self.ext_source()
-        self.assertIn('"../config"', content)
+        self.assertIn('"./config"', content)
         self.assertIn("availableMemoryModels", content)
         self.assertIn("chooseMemoryModel", content)
         self.assertIn("enterMemoryModel", content)
         self.assertIn("memoryConfigPath", content)
         self.assertIn('"--model"', content)
-        with open(os.path.join(MEMORY_PKG_DIR, "config.ts"), encoding="utf-8") as f:
+        with open(
+            os.path.join(MEMORY_PKG_DIR, "extensions", "config.ts"),
+            encoding="utf-8",
+        ) as f:
             self.assertIn("PI_MEMORY_MODEL", f.read())
 
     def test_menu_options_contain_auto_memory_toggle(self):
@@ -96,7 +99,9 @@ class TestInjectMemoryExtension(unittest.TestCase):
             data = json.load(f)
         self.assertIn("pi", data)
         self.assertIn("extensions", data["pi"])
-        self.assertIn("./extensions", data["pi"]["extensions"])
+        # The entry is the explicit factory file; config.ts is a helper module,
+        # never a directory glob (pi would otherwise try to load config.ts as an extension).
+        self.assertIn("./extensions/inject-memory.ts", data["pi"]["extensions"])
 
 
 class TestManualConsolidation(unittest.TestCase):

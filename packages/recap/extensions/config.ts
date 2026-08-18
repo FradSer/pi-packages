@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { dirname, join } from "node:path";
+import { nonEmpty, parseModelRef } from "@fradser/pi-kit";
 
 export type RecapLanguage = "auto" | "zh" | "en" | string;
 
@@ -20,29 +21,6 @@ function getAgentDir(): string {
 }
 
 const CONFIG_PATH = join(getAgentDir(), "recap.json");
-
-function nonEmpty(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-export function parseModelRef(
-  value: string | undefined,
-): { provider: string; model: string } | undefined {
-  const ref = nonEmpty(value);
-  if (!ref) return undefined;
-  const separator = ref.indexOf("/");
-  if (separator <= 0 || separator === ref.length - 1) return undefined;
-  return {
-    provider: ref.slice(0, separator),
-    model: ref.slice(separator + 1),
-  };
-}
-
-export function modelRef(config: RecapConfig): string | undefined {
-  if (config.provider && config.model)
-    return `${config.provider}/${config.model}`;
-  return config.model;
-}
 
 export function languageLabel(lang: RecapLanguage | undefined): string {
   const l = (lang || "auto").toLowerCase();

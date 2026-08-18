@@ -13,6 +13,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { extractTextContent } from "@fradser/pi-kit";
 
 export interface ContinuationTarget {
   promptText: string;
@@ -51,11 +52,7 @@ function getLastUserPrompt(ctx: ExtensionContext): string | null {
         return content;
       }
       if (Array.isArray(content)) {
-        const textParts = content
-          .filter((c): c is { type: "text"; text: string } => c.type === "text")
-          .map((c) => c.text)
-          .join("\n")
-          .trim();
+        const textParts = extractTextContent(content).trim();
         if (textParts) return textParts;
       }
     }
@@ -182,11 +179,7 @@ function resolvePendingContinuation(ctx: ExtensionContext): ContinuationDecision
 
 function resolveToolErrorContinuation(message: Extract<ContinuationMessage, { role: "toolResult" }>): ContinuationDecision {
   const toolName = message.toolName ? ` (${message.toolName})` : "";
-  const errorText = message.content
-    ?.filter((part): part is { type: "text"; text: string } => part.type === "text" && typeof part.text === "string")
-    .map((part) => part.text)
-    .join(" ")
-    .toLowerCase() ?? "";
+  const errorText = extractTextContent(message.content, " ").toLowerCase();
 
   if (/response hit the output token limit|arguments may be truncated|re-issue the tool call/.test(errorText)) {
     return {

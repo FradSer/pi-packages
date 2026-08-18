@@ -24,10 +24,13 @@
   ],
   "pi": {
     "extensions": [
-      "./extensions"
+      "./extensions/inject-memory.ts"
     ]
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
+  },
+  "dependencies": {
+    "@fradser/pi-kit": "workspace:*"
   }
 }

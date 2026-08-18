@@ -168,7 +168,7 @@ def test_extension_registers_image_bridge_and_configuration_command() -> None:
     assert "describeImages" in (SRC / "bridge.ts").read_text(encoding="utf-8")
     assert 'action: "transform"' in source
     assert 'ctx.ui.select' in source
-    assert 'ctx.ui.input' in source
+    assert "enterModelFromInput" in source
     assert 'ctx.ui.confirm' in source
 
 
@@ -227,8 +227,10 @@ def test_bridge_only_handles_images_for_text_only_models() -> None:
     assert 'vision · not configured' not in source
     assert 'ctx.ui.setStatus("vision", undefined)' in source
     assert '`${config.enabled ? "vision"' not in source
-    assert 'const VISION_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]' in source
-    assert 'setWorkingIndicator({ frames: VISION_SPINNER_FRAMES, intervalMs: 120 })' in source
+    assert 'from "@fradser/pi-kit"' in source
+    assert "PI_SPINNER_FRAMES" in source
+    assert "PI_SPINNER_INTERVAL_MS" in source
+    assert "setWorkingIndicator({ frames: PI_SPINNER_FRAMES, intervalMs: PI_SPINNER_INTERVAL_MS })" in source
     assert 'frames: ["◐", "◓", "◑", "◒"]' not in source
 
 

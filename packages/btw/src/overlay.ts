@@ -26,17 +26,11 @@ import {
   truncateToWidth,
   visibleWidth,
 } from "@earendil-works/pi-tui";
+import type { PiThemeStyle } from "@fradser/pi-kit";
 import type { BtwResult, BtwTurn, BtwUsage } from "./spawner";
 
-export interface BtwOverlayStyle {
-  accent: (s: string) => string;
-  muted: (s: string) => string;
-  dim: (s: string) => string;
-  border: (s: string) => string;
-  success: (s: string) => string;
-  error: (s: string) => string;
-  fg: (color: string, text: string) => string;
-}
+/** The shared pi-kit theme style language — btw's overlay style is that shape. */
+export type BtwOverlayStyle = PiThemeStyle;
 
 export interface BtwOverlayOptions {
   /** The initial side question as asked. */

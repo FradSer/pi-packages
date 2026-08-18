@@ -19,25 +19,12 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createPiThemeStyle } from "@fradser/pi-kit";
 import { buildConversationContext } from "./context";
-import { type BtwOverlayStyle, createBtwOverlay } from "./overlay";
+import { createBtwOverlay } from "./overlay";
 import { runBtw } from "./spawner";
 
 const DEFAULT_MODEL_ENV = "BTW_MODEL";
-
-function makeStyle(theme: {
-  fg(color: string, text: string): string;
-}): BtwOverlayStyle {
-  return {
-    accent: (s) => theme.fg("accent", s),
-    muted: (s) => theme.fg("muted", s),
-    dim: (s) => theme.fg("dim", s),
-    border: (s) => theme.fg("border", s),
-    success: (s) => theme.fg("success", s),
-    error: (s) => theme.fg("error", s),
-    fg: (color, s) => theme.fg(color, s),
-  };
-}
 
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("btw", {
@@ -64,7 +51,7 @@ export default function (pi: ExtensionAPI) {
 
       await ctx.ui.custom<undefined>(
         (tui, theme, _kb, done) => {
-          const style = makeStyle(theme);
+          const style = createPiThemeStyle(theme);
 
           const overlay = createBtwOverlay(tui, style, {
             question,

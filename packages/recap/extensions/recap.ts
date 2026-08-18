@@ -10,6 +10,7 @@ import type {
   UserMessage,
 } from "@earendil-works/pi-ai";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { extractTextContent } from "@fradser/pi-kit";
 
 /** Minimal structural view of a session message entry. */
 export const RECAP_TIMEOUT_MS = 30_000;
@@ -58,22 +59,7 @@ export function extractMessageText(
   if (entry.type !== "message") return undefined;
   const msg = entry.message;
   if (!msg) return undefined;
-  const content = msg.content;
-  if (typeof content === "string") return content.trim() || undefined;
-  if (Array.isArray(content)) {
-    const text = content
-      .filter(
-        (part): part is { type?: string; text?: string } =>
-          typeof part === "object" && part !== null && "type" in part,
-      )
-      .map((part) =>
-        part.type === "text" && typeof part.text === "string" ? part.text : "",
-      )
-      .join("\n")
-      .trim();
-    return text || undefined;
-  }
-  return undefined;
+  return extractTextContent(msg.content).trim() || undefined;
 }
 
 /**

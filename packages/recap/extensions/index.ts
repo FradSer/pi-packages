@@ -19,9 +19,15 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
-  languageLabel,
+  enterModelFromInput,
   modelRef,
   parseModelRef,
+  PI_SPINNER_FRAMES,
+  selectModelFromMenu,
+  sortModels,
+} from "@fradser/pi-kit";
+import {
+  languageLabel,
   type RecapConfig,
   readRecapConfig,
   recapConfigPath,
@@ -35,30 +41,18 @@ import {
 } from "./recap";
 
 let config: RecapConfig = readRecapConfig();
-const RECAP_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 function configuredModelLabel(): string {
   return modelRef(config) ?? "(session default)";
 }
 
-function modelLabel(model: Model<Api>): string {
-  return `${model.provider}/${model.id}`;
-}
-
-function modelOptionLabel(model: Model<Api>): string {
-  const current = modelLabel(model) === modelRef(config) ? " · current" : "";
-  return `${modelLabel(model)} · ${model.name}${current}`;
-}
-
-function availableModels(ctx: ExtensionContext): Model<Api>[] {
+function availableModels(ctx: ExtensionContext) {
   const currentPiModels =
     ctx.scopedModels && ctx.scopedModels.length > 0
       ? ctx.scopedModels.map((scoped) => scoped.model)
       : ctx.modelRegistry.getAvailable();
 
-  return [...currentPiModels].sort((left, right) =>
-    modelLabel(left).localeCompare(modelLabel(right)),
-  );
+  return sortModels([...currentPiModels]);
 }
 
 function resolveRecapModel(ctx: ExtensionContext): Model<Api> | undefined {
@@ -172,7 +166,7 @@ export default function (pi: ExtensionAPI) {
           recapSpinnerFrame = 0;
           recapSpinnerTimer = setInterval(() => {
             recapSpinnerFrame =
-              (recapSpinnerFrame + 1) % RECAP_SPINNER_FRAMES.length;
+              (recapSpinnerFrame + 1) % PI_SPINNER_FRAMES.length;
             tui.requestRender();
           }, 80);
           recapSpinnerTimer.unref?.();
@@ -191,7 +185,7 @@ export default function (pi: ExtensionAPI) {
             const lines: string[] = [];
 
             if (generatingRecap) {
-              const spinner = RECAP_SPINNER_FRAMES[recapSpinnerFrame];
+              const spinner = PI_SPINNER_FRAMES[recapSpinnerFrame];
               lines.push(` ${theme.fg("accent", `${spinner} Recapping...`)}`);
             }
 
@@ -290,62 +284,36 @@ export default function (pi: ExtensionAPI) {
   }
 
   async function chooseRecapModel(ctx: ExtensionCommandContext): Promise<void> {
-    const models = availableModels(ctx);
-    if (models.length === 0) {
-      ctx.ui.notify("No models found in model registry.", "warning");
-      return;
-    }
-
-    const options = models.map(modelOptionLabel);
-    const selected = await ctx.ui.select(
+    const result = await selectModelFromMenu(
+      ctx.ui,
+      availableModels(ctx),
+      modelRef(config),
       "Select a model for recap generation:",
-      options,
     );
-    if (!selected) return;
 
-    const model = models[options.indexOf(selected)];
-    if (!model) return;
+    if (!result) return;
 
-    saveConfig({ ...config, provider: model.provider, model: model.id }, ctx);
-    ctx.ui.notify(`Recap model set to ${modelLabel(model)}`, "info");
+    saveConfig({ ...config, ...result }, ctx);
+    ctx.ui.notify(`Recap model set to ${result.provider}/${result.model}`, "info");
   }
 
   async function enterRecapModel(ctx: ExtensionCommandContext): Promise<void> {
-    const value = await ctx.ui.input(
-      "Recap model (provider/model format):",
-      config.provider && config.model
-        ? `${config.provider}/${config.model}`
-        : "",
+    const result = await enterModelFromInput(
+      ctx.ui,
+      ctx.modelRegistry,
+      modelRef(config),
+      {
+        label: "Recap model (provider/model format):",
+        onEmpty: () => {
+          saveConfig({ ...config, provider: undefined, model: undefined }, ctx);
+          ctx.ui.notify("Recap model reset to session default", "info");
+        },
+      },
     );
-    if (value === undefined) return; // cancelled
+    if (!result) return;
 
-    const trimmed = value.trim();
-    if (!trimmed) {
-      saveConfig({ ...config, provider: undefined, model: undefined }, ctx);
-      ctx.ui.notify("Recap model reset to session default", "info");
-      return;
-    }
-
-    const ref = parseModelRef(trimmed);
-    if (!ref) {
-      ctx.ui.notify(
-        "Enter a model in provider/model format (e.g. anthropic/claude-3-5-haiku)",
-        "error",
-      );
-      return;
-    }
-
-    const model = ctx.modelRegistry.find(ref.provider, ref.model);
-    if (!model) {
-      ctx.ui.notify(
-        `Model ${ref.provider}/${ref.model} was not found in the model registry`,
-        "error",
-      );
-      return;
-    }
-
-    saveConfig({ ...config, ...ref }, ctx);
-    ctx.ui.notify(`Recap model set to ${modelLabel(model)}`, "info");
+    saveConfig({ ...config, ...result }, ctx);
+    ctx.ui.notify(`Recap model set to ${result.provider}/${result.model}`, "info");
   }
 
   async function chooseRecapLanguage(
@@ -611,7 +579,7 @@ export default function (pi: ExtensionAPI) {
           return;
         }
         saveConfig({ ...config, ...ref }, ctx);
-        ctx.ui.notify(`Recap model set to ${modelLabel(model)}`, "info");
+        ctx.ui.notify(`Recap model set to ${ref.provider}/${ref.model}`, "info");
         return;
       }
 

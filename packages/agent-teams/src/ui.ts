@@ -1,6 +1,7 @@
 /** Passive teammate widget and interactive full-screen console. */
 
 import { truncateToWidth, Key, matchesKey } from "@earendil-works/pi-tui";
+import { createPiThemeStyle, PI_SPINNER_FRAMES, PI_SPINNER_INTERVAL_MS } from "@fradser/pi-kit";
 import type { ExtensionUIContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import { truncateTail, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
 import {
@@ -23,8 +24,6 @@ function cap(text: string | undefined, maxBytes = DEFAULT_MAX_BYTES): string {
 
 const TEAM_COLORS = ["accent", "success", "warning", "error", "toolTitle", "mdLink"] as const;
 const PANEL_IDLE_COLLAPSE_MS = 30_000;
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-const SPINNER_MS = 120;
 
 let panelRequestRender: (() => void) | undefined;
 let spinnerTimer: ReturnType<typeof setInterval> | undefined;
@@ -50,7 +49,7 @@ function buildPanelRows(): PanelRow[] {
 }
 
 function runningTeammateLabel(node: Node): string {
-  const frame = SPINNER_FRAMES[spinnerFrame];
+  const frame = PI_SPINNER_FRAMES[spinnerFrame];
   const tool = node.spawn?.activeTool;
   const thinking = (node.spawn?.liveThinking ?? "").split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
   const live = (node.spawn?.liveText ?? "").split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
@@ -71,9 +70,9 @@ function ensureSpinner(): void {
   const running = listNodes().some((node) => node.status === "running");
   if (running && !spinnerTimer) {
     spinnerTimer = setInterval(() => {
-      spinnerFrame = (spinnerFrame + 1) % SPINNER_FRAMES.length;
+      spinnerFrame = (spinnerFrame + 1) % PI_SPINNER_FRAMES.length;
       panelRequestRender?.();
-    }, SPINNER_MS);
+    }, PI_SPINNER_INTERVAL_MS);
     spinnerTimer.unref?.();
   } else if (!running && spinnerTimer) {
     clearInterval(spinnerTimer);
@@ -245,7 +244,7 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
     };
     const startLiveRefresh = () => {
       if (renderTimer) return;
-      renderTimer = setInterval(requestRender, SPINNER_MS);
+      renderTimer = setInterval(requestRender, PI_SPINNER_INTERVAL_MS);
       renderTimer.unref?.();
     };
     const stopLiveRefresh = () => {
@@ -256,14 +255,7 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
     startLiveRefresh();
 
     // btw-style callbacks (same accent/muted/dim/border/success/error language as pi-btw-fradser).
-    const style = {
-      accent: (s: string) => theme.fg("accent", s),
-      muted: (s: string) => theme.fg("muted", s),
-      dim: (s: string) => theme.fg("dim", s),
-      border: (s: string) => theme.fg("border", s),
-      success: (s: string) => theme.fg("success", s),
-      error: (s: string) => theme.fg("error", s),
-    };
+    const style = createPiThemeStyle(theme);
 
     const windowLines = (full: string[], width: number): { lines: string[]; range: string } => {
       const wrapped = wrapConsoleDetail(full, width);
