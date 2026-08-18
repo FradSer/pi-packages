@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionUIContext, Theme } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { Key, matchesKey, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   MonitorManager,
   type Monitor,
@@ -14,10 +14,6 @@ const MONITOR_GUIDANCE = `
 - After monitor_start returns, end this turn. Do not sleep, poll, wait, or do follow-up work.
 - Wait for the monitor's terminal result; it will wake you automatically.
 `;
-
-function isEscapeKey(data: string): boolean {
-  return data === "\u001b" || /^\u001b\[27(?:[:;\d]*)?u$/.test(data);
-}
 
 export default function (pi: ExtensionAPI) {
   let requestRender: (() => void) | undefined;
@@ -110,7 +106,7 @@ export default function (pi: ExtensionAPI) {
         invalidate: () => {},
         handleInput: (data: string) => {
           const monitors = manager.listAll();
-          if (isEscapeKey(data) || data === "q" || data === "Q") {
+          if (matchesKey(data, Key.escape) || data === "q" || data === "Q") {
             done();
             return;
           }

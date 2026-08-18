@@ -1,0 +1,296 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import textwrap
+from pathlib import Path
+
+PACKAGE = Path(__file__).resolve().parents[1]
+REPO = PACKAGE.parents[1]
+SRC = PACKAGE / "src"
+
+CONSUMERS = [
+    "agent-teams",
+    "btw",
+    "memory",
+    "recap",
+    "utils",
+    "vision",
+]
+
+
+def run_typescript(script: str) -> dict[str, object]:
+    result = subprocess.run(
+        ["node", "--import", "tsx", "--input-type=module"],
+        cwd=REPO,
+        input=textwrap.dedent(script),
+        text=True,
+        capture_output=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 0, f"TypeScript runtime check failed:\n{result.stderr}\n{result.stdout}"
+    return json.loads(result.stdout.strip().splitlines()[-1])
+
+
+def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
+    feature = (PACKAGE / "features" / "pi-kit.feature").read_text(encoding="utf-8")
+    assert "Feature: Shared pi-kit runtime helpers" in feature
+    assert "Scenario: Spinner frames match pi's native loader" in feature
+    assert "Scenario: Theme style language is adapted from any pi theme" in feature
+    assert "Scenario: Plain text is extracted from string message content" in feature
+    assert "Scenario: Plain text is extracted from content-block arrays" in feature
+    assert "Scenario: Non-message content yields empty text" in feature
+    assert "Scenario: Model reference is parsed from a provider/model string" in feature
+    assert "Scenario: Model reference is formatted from config" in feature
+    assert "Scenario: Model label is formatted from a model object" in feature
+    assert "Scenario: A model is selected from the interactive menu" in feature
+    assert "Scenario: pi-kit stays a pure runtime dependency" in feature
+
+
+def test_spinner_constants_match_pi_native_loader() -> None:
+    result = run_typescript(
+        f"""
+        import {{ PI_SPINNER_FRAMES, PI_SPINNER_INTERVAL_MS }} from {json.dumps((SRC / "index.ts").as_uri())};
+        console.log(JSON.stringify({{ frames: PI_SPINNER_FRAMES, interval: PI_SPINNER_INTERVAL_MS }}));
+        """
+    )
+    assert result["frames"] == ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    assert result["interval"] == 120
+
+
+def test_theme_style_maps_shared_style_language() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createPiThemeStyle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const theme = {{ fg: (color, text) => `[${{color}}]${{text}}` }};
+        const style = createPiThemeStyle(theme);
+        console.log(JSON.stringify({{
+          accent: style.accent("a"),
+          muted: style.muted("m"),
+          dim: style.dim("d"),
+          border: style.border("b"),
+          success: style.success("s"),
+          error: style.error("e"),
+          fg: style.fg("warning", "w"),
+        }}));
+        """
+    )
+    assert result == {
+        "accent": "[accent]a",
+        "muted": "[muted]m",
+        "dim": "[dim]d",
+        "border": "[border]b",
+        "success": "[success]s",
+        "error": "[error]e",
+        "fg": "[warning]w",
+    }
+
+
+def test_extract_text_content_from_strings_blocks_and_non_content() -> None:
+    result = run_typescript(
+        f"""
+        import {{ extractTextContent }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const blocks = [
+          {{ type: "text", text: "first" }},
+          {{ type: "image", data: "..." }},
+          {{ type: "thinking", thinking: "secret" }},
+          {{ type: "text", text: "second" }},
+        ];
+        console.log(JSON.stringify({{
+          fromString: extractTextContent("hello"),
+          fromBlocks: extractTextContent(blocks),
+          joinedEmpty: extractTextContent(blocks, ""),
+          joinedSpace: extractTextContent(blocks, " "),
+          fromNull: extractTextContent(null),
+          fromNumber: extractTextContent(42),
+          fromEmptyArray: extractTextContent([]),
+        }}));
+        """
+    )
+    assert result == {
+        "fromString": "hello",
+        "fromBlocks": "first\nsecond",
+        "joinedEmpty": "firstsecond",
+        "joinedSpace": "first second",
+        "fromNull": "",
+        "fromNumber": "",
+        "fromEmptyArray": "",
+    }
+
+
+def test_model_ref_parse_and_format_helpers() -> None:
+    result = run_typescript(
+        f"""
+        import {{ parseModelRef, modelRef, modelLabel, sortModels, nonEmpty }} from {json.dumps((SRC / "index.ts").as_uri())};
+        console.log(JSON.stringify({{
+          parsed: parseModelRef("anthropic/claude-3-5-haiku"),
+          parsedModelOnly: parseModelRef("openai/gpt-4o-mini"),
+          invalidNoSlash: parseModelRef("gpt-4o"),
+          invalidEmpty: parseModelRef(""),
+          invalidUndefined: parseModelRef(undefined),
+          invalidLeadingSlash: parseModelRef("/gpt-4o"),
+          invalidTrailingSlash: parseModelRef("openai/"),
+          refBoth: modelRef({{ provider: "openai", model: "gpt-4o" }}),
+          refModelOnly: modelRef({{ provider: undefined, model: "gpt-4o" }}),
+          refNone: modelRef({{ provider: undefined, model: undefined }}),
+          label: modelLabel({{ provider: "anthropic", id: "claude" }}),
+          sorted: sortModels([
+            {{ provider: "z", id: "a" }},
+            {{ provider: "a", id: "z" }},
+            {{ provider: "a", id: "a" }},
+          ]),
+          nonEmpty: nonEmpty("  hi  "),
+          nonEmptyBlank: nonEmpty("   "),
+        }}, (k, v) => (v === undefined ? null : v)));
+        """
+    )
+    assert result["parsed"] == {"provider": "anthropic", "model": "claude-3-5-haiku"}
+    assert result["parsedModelOnly"] == {"provider": "openai", "model": "gpt-4o-mini"}
+    assert result["invalidNoSlash"] is None
+    assert result["invalidEmpty"] is None
+    assert result["invalidUndefined"] is None
+    assert result["invalidLeadingSlash"] is None
+    assert result["invalidTrailingSlash"] is None
+    assert result["refBoth"] == "openai/gpt-4o"
+    assert result["refModelOnly"] == "gpt-4o"
+    assert result["refNone"] is None
+    assert result["label"] == "anthropic/claude"
+    assert result["sorted"] == [
+        {"provider": "a", "id": "a"},
+        {"provider": "a", "id": "z"},
+        {"provider": "z", "id": "a"},
+    ]
+    assert result["nonEmpty"] == "hi"
+    assert result["nonEmptyBlank"] is None
+
+
+def test_select_model_from_menu_returns_selected_pair() -> None:
+    result = run_typescript(
+        f"""
+        import {{ selectModelFromMenu }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const ui = {{
+          notify: () => {{}},
+          select: async (label, options) => {{
+            // Simulate the user picking the "current" option.
+            return options.find((o) => o.includes("· current"));
+          }},
+        }};
+        const models = [
+          {{ provider: "anthropic", id: "claude-sonnet", name: "Claude Sonnet" }},
+          {{ provider: "openai", id: "gpt-4o", name: "GPT-4o" }},
+        ];
+        const selected = await selectModelFromMenu(ui, models, "anthropic/claude-sonnet", "Pick");
+        console.log(JSON.stringify({{ selected }}));
+        """
+    )
+    assert result["selected"] == {"provider": "anthropic", "model": "claude-sonnet"}
+
+
+def test_select_model_menu_no_models_notifies_and_returns_undefined() -> None:
+    result = run_typescript(
+        f"""
+        import {{ selectModelFromMenu }} from {json.dumps((SRC / "index.ts").as_uri())};
+        let notified = null;
+        const ui = {{ select: async () => "x", notify: (msg, type) => {{ notified = {{ msg, type }}; }} }};
+        const selected = await selectModelFromMenu(ui, [], undefined, "Pick");
+        console.log(JSON.stringify({{ selected, notified }}, (k, v) => (v === undefined ? null : v)));
+        """
+    )
+    assert result["selected"] is None
+    assert result["notified"] == {"msg": "No models are available in the model registry.", "type": "warning"}
+
+
+def test_enter_model_from_input_parses_and_validates() -> None:
+    result = run_typescript(
+        f"""
+        import {{ enterModelFromInput }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const registry = {{ find: (p, m) => (p === "openai" && m === "gpt-4o" ? {{}} : undefined) }};
+        const notifications = [];
+        const ui = {{
+          notify: (msg, type) => notifications.push({{ msg, type }}),
+        }};
+        const good = await enterModelFromInput({{ ...ui, input: async () => "openai/gpt-4o" }}, registry, undefined);
+        const bad = await enterModelFromInput({{ ...ui, input: async () => "nope" }}, registry, undefined);
+        const missing = await enterModelFromInput({{ ...ui, input: async () => "openai/unknown" }}, registry, undefined);
+        const empty = await enterModelFromInput({{ ...ui, input: async () => "   " }}, registry, undefined);
+        const cancelled = await enterModelFromInput({{ ...ui, input: async () => undefined }}, registry, undefined);
+        console.log(JSON.stringify({{ good, bad, missing, empty, cancelled, notifications }}, (k, v) => (v === undefined ? null : v)));
+        """
+    )
+    assert result["good"] == {"provider": "openai", "model": "gpt-4o"}
+    assert result["bad"] is None
+    assert result["missing"] is None
+    assert result["empty"] is None
+    assert result["cancelled"] is None
+    assert len(result["notifications"]) == 3
+    assert result["notifications"][0]["type"] == "error"
+    assert result["notifications"][1]["type"] == "error"
+    assert result["notifications"][2]["type"] == "error"
+
+
+def test_enter_model_population_and_on_empty_handler() -> None:
+    result = run_typescript(
+        f"""
+        import {{ enterModelFromInput }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const registry = {{ find: (p) => (p === "openai" ? {{}} : undefined) }};
+        const notifications = [];
+        const ui = {{ notify: (msg, type) => notifications.push({{ msg, type }}) }};
+        let reset = 0;
+        const empty = await enterModelFromInput(
+          {{ ...ui, input: async () => "   " }},
+          registry, undefined,
+          {{ onEmpty: () => {{ reset++; }} }},
+        );
+        const defaulted = await enterModelFromInput(
+          {{ ...ui, input: async (label, def) => def }},
+          registry, "openai/gpt-4o",
+          {{ label: "Pick me" }},
+        );
+        console.log(JSON.stringify({{ empty, reset, defaulted, notifications }}, (k, v) => (v === undefined ? null : v)));
+        """
+    )
+    assert result["empty"] is None
+    assert result["reset"] == 1
+    assert result["defaulted"] == {"provider": "openai", "model": "gpt-4o"}
+    # onEmpty suppresses the error notification.
+    assert result["notifications"] == []
+
+
+def test_pi_kit_manifest_is_a_pure_runtime_dependency() -> None:
+    manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
+    assert manifest["name"] == "@fradser/pi-kit"
+    assert "pi" not in manifest
+    assert "dependencies" not in manifest
+    assert "peerDependencies" not in manifest
+    assert "pi-package" not in manifest.get("keywords", [])
+    assert "src" in manifest["files"]
+
+
+def test_pi_kit_has_no_consumer_imports() -> None:
+    consumer_names = {json.loads((REPO / "packages" / c / "package.json").read_text())["name"] for c in CONSUMERS}
+    for source in SRC.glob("*.ts"):
+        text = source.read_text(encoding="utf-8")
+        for name in consumer_names:
+            assert name not in text, f"{source.name} must not import consumer package {name}"
+        assert "@earendil-works" not in text, f"{source.name} must stay free of pi core imports"
+
+
+def test_consumers_declare_pi_kit_as_workspace_dependency() -> None:
+    for consumer in CONSUMERS:
+        manifest = json.loads((REPO / "packages" / consumer / "package.json").read_text(encoding="utf-8"))
+        assert manifest.get("dependencies", {}).get("@fradser/pi-kit") == "workspace:*", (
+            f"{consumer} must depend on @fradser/pi-kit via workspace:* under dependencies"
+        )
+        assert "@fradser/pi-kit" not in manifest.get("peerDependencies", {}), (
+            f"{consumer} must not declare @fradser/pi-kit as a peer dependency"
+        )
+
+
+def test_publish_allowlist_orders_pi_kit_before_consumers() -> None:
+    script = (REPO / "scripts" / "publish-release.mjs").read_text(encoding="utf-8")
+    kit_position = script.index('"@fradser/pi-kit"')
+    assert kit_position > 0, "publish allowlist must include @fradser/pi-kit"
+    for name in ['"@fradser/pi-agent-teams"', '"@fradser/pi-btw"', '"@fradser/pi-memory"',
+                 '"@fradser/pi-recap"', '"@fradser/pi-utils"', '"@fradser/pi-vision"']:
+        assert script.index(name) > kit_position, f"pi-kit must publish before {name}"

@@ -1,5 +1,6 @@
-import type { Api, AssistantMessage, ImageContent, Model, TextContent, ThinkingContent, UserMessage } from "@earendil-works/pi-ai";
+import type { Api, AssistantMessage, ImageContent, Model, ThinkingContent, UserMessage } from "@earendil-works/pi-ai";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { extractTextContent } from "@fradser/pi-kit";
 
 const VISION_SYSTEM_PROMPT = [
   "You are a vision-to-text bridge for a coding assistant.",
@@ -14,11 +15,7 @@ export interface VisionBridgeResult {
 }
 
 function textFromResponse(message: AssistantMessage): string {
-  const text = message.content
-    .filter((part): part is TextContent => part.type === "text" && typeof part.text === "string")
-    .map((part) => part.text)
-    .join("\n")
-    .trim();
+  const text = extractTextContent(message.content).trim();
   if (text) return text;
 
   const thinking = message.content

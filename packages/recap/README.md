@@ -1,11 +1,11 @@
-# @fradser/pi-recap
+# pi-recap-fradser
 
 Session recap for Pi — displays a concise, scannable summary of the current session above the TUI input box, inspired by Claude Code's `✦ Recap:` feature.
 
 ## Install
 
 ```bash
-pi install npm:@fradser/pi-recap
+pi install npm:pi-recap-fradser
 ```
 
 ## Features

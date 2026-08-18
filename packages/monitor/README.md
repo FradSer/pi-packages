@@ -33,7 +33,7 @@ wakes the agent once when:
 ## Installation
 
 ```bash
-pi install npm:@fradser/pi-monitor
+pi install npm:pi-monitor-fradser
 # or from this repository:
 pi install /path/to/pi-packages/packages/monitor
 ```

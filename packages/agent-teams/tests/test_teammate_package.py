@@ -61,7 +61,7 @@ def run_node(script: str, *args: str) -> dict[str, object]:
 
 def test_manifest_declares_native_extension_package() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
-    assert manifest["name"] == "@fradser/pi-agent-teams"
+    assert manifest["name"] == "pi-agent-teams-fradser"
     assert "pi-package" in manifest["keywords"]
     assert manifest["pi"] == {"extensions": ["./src/index.ts"]}
     assert "skills" not in manifest["files"]

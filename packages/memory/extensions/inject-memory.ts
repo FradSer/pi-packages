@@ -1,5 +1,5 @@
 /**
- * @fradser/pi-memory — native pi /memory command.
+ * pi-memory-fradser — native pi /memory command.
  *
  * Replaces the /skill:consolidate skill surface with a pi-native command menu:
  *
@@ -26,17 +26,22 @@ import os from "os";
 import { spawn } from "node:child_process";
 import * as nodeFs from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+  enterModelFromInput,
+  modelRef,
+  parseModelRef,
+  PI_SPINNER_FRAMES,
+  selectModelFromMenu,
+  sortModels,
+} from "@fradser/pi-kit";
 import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
 import {
   memoryConfigPath,
-  modelRef,
-  parseModelRef,
   readMemoryConfig,
   writeMemoryConfig,
   type MemoryConfig,
-} from "../config";
+} from "./config";
 
 export function getEscapedCwd(cwd: string): string {
   return cwd.replace(/\//g, "-");
@@ -333,7 +338,6 @@ export function missingConsolidationEvidence(evidence: ConsolidationEvidence): s
 }
 
 const DREAM_TIMEOUT_MS = 20 * 60 * 1000;
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 let dreamingTimer: NodeJS.Timeout | undefined;
 let dreamingActivity = "";
@@ -356,7 +360,7 @@ function setDreamingWidget(ctx: ExtensionContext): void {
 
     return {
       render: (_width: number) => {
-        const frame = SPINNER_FRAMES[frameIndex % SPINNER_FRAMES.length];
+        const frame = PI_SPINNER_FRAMES[frameIndex % PI_SPINNER_FRAMES.length];
         const icon = theme?.fg ? theme.fg("accent", frame) : frame;
         const text = theme?.fg ? theme.fg("accent", "Dreaming...") : "Dreaming...";
         const detail = dreamingActivity
@@ -378,15 +382,11 @@ function setDreamingWidget(ctx: ExtensionContext): void {
   });
 }
 
-function modelLabel(model: Model<Api>): string {
-  return `${model.provider}/${model.id}`;
-}
-
-function availableMemoryModels(ctx: ExtensionContext): Model<Api>[] {
+function availableMemoryModels(ctx: ExtensionContext) {
   const models = ctx.scopedModels.length > 0
     ? ctx.scopedModels.map((scoped) => scoped.model)
     : ctx.modelRegistry.getAvailable();
-  return models.sort((left, right) => modelLabel(left).localeCompare(modelLabel(right)));
+  return sortModels(models);
 }
 
 function configuredMemoryModel(): string {
@@ -399,21 +399,22 @@ function saveMemoryConfig(next: MemoryConfig): void {
 }
 
 async function chooseMemoryModel(ctx: ExtensionContext): Promise<void> {
-  const models = availableMemoryModels(ctx);
-  if (models.length === 0) {
-    ctx.ui.notify("No models are available in the model registry.", "warning");
-    return;
-  }
-  const options = models.map((model) => {
-    const current = modelLabel(model) === configuredMemoryModel() ? " · current" : "";
-    return `${modelLabel(model)} · ${model.name}${current}`;
-  });
-  const selected = await ctx.ui.select("Select a memory model", options);
-  if (!selected) return;
-  const model = models[options.indexOf(selected)];
-  if (!model) return;
-  saveMemoryConfig({ provider: model.provider, model: model.id });
-  ctx.ui.notify(`Memory model set to ${modelLabel(model)}`, "info");
+  const result = await selectModelFromMenu(
+    ctx.ui,
+    availableMemoryModels(ctx),
+    configuredMemoryModel(),
+    "Select a memory model",
+  );
+  if (!result) return;
+  saveMemoryConfig(result);
+  ctx.ui.notify(`Memory model set to ${result.provider}/${result.model}`, "info");
+}
+
+async function enterMemoryModel(ctx: ExtensionContext): Promise<void> {
+  const result = await enterModelFromInput(ctx.ui, ctx.modelRegistry, modelRef(memoryConfig), { label: "Memory model" });
+  if (!result) return;
+  saveMemoryConfig(result);
+  ctx.ui.notify(`Memory model set to ${result.provider}/${result.model}`, "info");
 }
 
 async function setMemoryModel(value: string, ctx: ExtensionContext): Promise<void> {
@@ -428,12 +429,6 @@ async function setMemoryModel(value: string, ctx: ExtensionContext): Promise<voi
   }
   saveMemoryConfig(ref);
   ctx.ui.notify(`Memory model set to ${ref.provider}/${ref.model}`, "info");
-}
-
-async function enterMemoryModel(ctx: ExtensionContext): Promise<void> {
-  const value = await ctx.ui.input("Memory model", configuredMemoryModel() === "(not configured)" ? "provider/model" : configuredMemoryModel());
-  if (value === undefined) return;
-  await setMemoryModel(value, ctx);
 }
 
 function clearDreamingWidget(ctx: ExtensionContext): void {

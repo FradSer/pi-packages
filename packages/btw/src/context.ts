@@ -4,6 +4,8 @@
  * guarantee Claude Code's /btw gives, minus the tool-calling limitation).
  */
 
+import { extractTextContent } from "@fradser/pi-kit";
+
 export const DEFAULT_MAX_MESSAGES = 4;
 export const DEFAULT_MAX_CHARS = 4_000;
 
@@ -27,21 +29,6 @@ type BranchEntry = {
   };
 };
 
-function extractMessageText(msg: { role?: string; content?: unknown }): string {
-  const content = msg.content;
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .filter(
-        (part): part is { type?: string; text?: string } =>
-          typeof part === "object" && part !== null && "type" in part,
-      )
-      .map((part) => (part.type === "text" && typeof part.text === "string" ? part.text : ""))
-      .join("\n");
-  }
-  return "";
-}
-
 /**
  * Build a compact, most-recent-first conversation excerpt from the current
  * session branch. Only user and assistant text messages are included.
@@ -60,7 +47,7 @@ export function buildConversationContext(
     if (!entry || entry.type !== "message") continue;
     const msg = entry.message;
     if (!msg || (msg.role !== "user" && msg.role !== "assistant")) continue;
-    const text = extractMessageText(msg).trim();
+    const text = extractTextContent(msg.content).trim();
     if (!text) continue;
     parts.push(`[${msg.role}] ${text}`);
   }

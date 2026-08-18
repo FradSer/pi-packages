@@ -7,7 +7,7 @@ Feature: Memory management with auto-memory guidance and manual consolidation
   it only runs on manual user invocation in the background.
 
   Background:
-    Given the @fradser/pi-memory package is installed
+    Given the pi-memory-fradser package is installed
 
   Scenario: Injects auto-memory guidance when auto-memory is on
     Given auto-memory setting is on

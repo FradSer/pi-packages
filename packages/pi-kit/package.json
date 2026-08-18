@@ -1,0 +1,27 @@
+{
+  "name": "@fradser/pi-kit",
+  "version": "0.1.0",
+  "description": "Shared runtime helpers for FradSer pi packages — TUI spinner/theme primitives and message text extraction. Internal workspace dependency, not a Pi package.",
+  "keywords": [
+    "pi-kit",
+    "pi-packages",
+    "shared-runtime"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ]
+}

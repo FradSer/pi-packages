@@ -3,7 +3,7 @@ Feature: Read-only side questions
   without adding a session or leaving temporary prompt material behind.
 
   Background:
-    Given the @fradser/pi-btw extension is installed
+    Given the pi-btw-fradser extension is installed
 
   Scenario: A child Pi run is configured read-only
     When a side question starts

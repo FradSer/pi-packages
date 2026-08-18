@@ -31,5 +31,8 @@
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*"
+  },
+  "dependencies": {
+    "@fradser/pi-kit": "workspace:*"
   }
 }

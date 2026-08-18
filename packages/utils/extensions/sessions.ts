@@ -1,5 +1,5 @@
 /**
- * @fradser/pi-utils — cross-session awareness and directory recap extension.
+ * pi-utils-fradser — cross-session awareness and directory recap extension.
  *
  * Provides multi-session awareness for Pi sessions operating in the same project directory.
  * - Registers session status, latest goal, and recap in ~/.pi/agent/directory-sessions/

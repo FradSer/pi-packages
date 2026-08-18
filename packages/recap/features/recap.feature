@@ -7,7 +7,7 @@ Feature: Session Recap
   select custom models, and configure language preferences.
 
   Background:
-    Given the @fradser/pi-recap package is installed
+    Given the pi-recap-fradser package is installed
 
   Scenario: Recap widget is displayed above the editor by default
     Given an active session in TUI mode

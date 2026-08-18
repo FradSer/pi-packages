@@ -3,6 +3,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const packages = [
+  // pi-kit publishes first: consumer packages depend on it.
+  "@fradser/pi-kit",
   "@fradser/pi-memory",
   "@fradser/pi-btw",
   "@fradser/pi-monitor",

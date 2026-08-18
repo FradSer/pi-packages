@@ -4,7 +4,7 @@ Feature: Result-contract background monitoring
   result instead of streaming raw progress logs to the agent.
 
   Background:
-    Given the @fradser/pi-monitor extension is loaded
+    Given the pi-monitor-fradser extension is loaded
 
   Scenario: Starting a monitor requires a success result contract
     When monitor_start runs with a command, description, and result pattern

@@ -1,17 +1,67 @@
-# Pi Packages — Agent Guidelines
+# Repository Guidelines
 
-Monorepo of native **Pi** packages (`pi-packages/`). Each package under `packages/` is self-contained, installable via `pi install npm:@fradser/<name>` or a local path, and follows native Pi conventions — no Claude Code plugin artifacts.
+This is a pnpm monorepo of native Pi packages. Each directory under `packages/`
+is independently installable and follows Pi package conventions.
 
-## Layout & Tooling
+## Project Structure & Module Organization
 
-- `packages/<name>/` — one pi package each (`btw`, `code-context`, `lark`, `mattpocock`, `memory`, `monitor`, `agent-teams`, `utils`). (The former `git-agent` package now lives at `~/Developer/FradSer/git-agent/git-agent-pi-package`; the former `git`/`github` packages became pure skills in `~/Developer/FradSer/skills`.)
-- pnpm workspace at the root (`pnpm-workspace.yaml`); per-package deps live in `packages/<name>/node_modules`.
-- **Tests**: `python3 -m pytest packages/<name>/tests/`. BDD: write/update `.feature` files under `packages/<name>/features/` before behavior changes.
-- **Typecheck**: `npx tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution bundler --types "" packages/<name>/src/*.ts` (or `extensions/*.ts`).
-- Formatting: Biome, 2-space. Never edit `package.json`/`pyproject.toml` by hand — use `pnpm add` / `uv add`.
+- `packages/<name>/` contains the ten published packages: `agent-teams`, `btw`,
+  `context`, `keyboard`, `mattpocock`, `memory`, `monitor`, `recap`, `utils`, and
+  `vision`. Shared runtime code belongs in the internal `pi-kit` package when
+  that workspace package is available.
+- Package code lives in `src/` or `extensions/`; distributable skills,
+  procedures, and agents use their corresponding directories.
+- BDD scenarios are in `features/`; executable tests are in `tests/`.
+- Root release metadata lives in `.changeset/` and `.github/workflows/`.
+  `README.md` and `README.zh-CN.md` document the published package surface.
 
-## Pi package manifest
+## Build, Test, and Development Commands
 
+```bash
+pnpm install
+pnpm test
+npx tsc --noEmit -p tsconfig.extensions.json
+```
+
+`pnpm test` runs the Python test suite across `packages/`; run a single package
+with `python3 -m pytest packages/<name>/tests/`. Use `pnpm pack --dry-run`
+inside a package to inspect its published contents. There is no separate build
+step; Pi loads the TypeScript extensions and packaged resources directly.
+
+## Coding Style & Naming Conventions
+
+Use ESM TypeScript targeting Node 20 or newer, follow the surrounding file's
+indentation, and keep package names and command/tool names explicit and stable.
+Manifests need the `pi-package` keyword, a `pi` resource declaration, complete
+`files` entries, and Pi core packages as peer dependencies. Do not add Claude
+Code plugin artifacts or Claude-only skill frontmatter. Use package-manager
+commands such as `pnpm add` instead of hand-editing dependency manifests.
+
+## Shared Runtime: pi-kit
+
+Prefer the internal `@fradser/pi-kit` runtime for reusable helpers and shared
+Pi-package infrastructure before adding duplicate code to a package. It is a
+workspace runtime dependency, not a Pi package: consumer manifests use
+`"@fradser/pi-kit": "workspace:*"` under `dependencies`, never
+`peerDependencies`, and it has no `pi` manifest. Keep its dependency direction
+one-way: pi-kit may use Node built-ins, but must not import consumer packages.
+If the package is not present in the current checkout, do not invent a local
+replacement or external registry dependency; record the gap and coordinate the
+shared package first. Keep the release allowlist and pack/install checks in sync
+when pi-kit is introduced or changed.
+
+## Testing Guidelines
+
+Write or update a `.feature` scenario before behavior changes, then add tests
+under the package's `tests/` directory. Python tests use `pytest`; test modules
+follow `test_*.py`. Run the affected package tests and the strict TypeScript
+check before opening a pull request.
+
+## Pi UI and Extension Rules
+
+- Interactive popups use `ctx.ui.custom`; do not intercept terminal input globally.
+  Respect the established `packages/btw` wrapping, scrolling, theme, and cleanup
+  patterns. Keep passive widgets display-only.
 - `package.json`: `"keywords": ["pi-package"]`, `"pi": { "skills": [...], "extensions": [...] }`; extensions packages declare `"peerDependencies": { "@earendil-works/pi-coding-agent": "*" }`.
 - `files` must include everything that ships (`skills`/`extensions`/`procedures`/`references`/`scripts`).
 - **Never** add `.claude-plugin`, `${CLAUDE_PLUGIN_ROOT}`, or Claude-only skill frontmatter (`allowed-tools`, `user-invocable`, `argument-hint`, `model`). Skill frontmatter: `name`, `description`, optional `disable-model-invocation`.
@@ -39,6 +89,15 @@ Interactive extension UI mirrors `packages/btw/src/overlay.ts`:
 - `ctx.ui.custom` `render(width)` must fit the terminal: word-wrap with `wrapTextWithAnsi`, truncate with `truncateToWidth`.
 - pi negotiates the **Kitty keyboard protocol** (flags=7) with supporting terminals (Ghostty): Esc arrives as `\x1b[27u`, Shift+↑/↓ as `\x1b[1;2:1A`/`\x1b[1;2:1B` (event suffix). Match keys with CSI-u-aware regexes; filter releases with `isKeyRelease`.
 - Shared worker state between extension and child processes goes through a **shared JSON file** written atomically (tmp + rename); merge worker writes back on a poll/exit and never let a worker's write un-read a message the user already read.
+
+## Commits & Pull Requests
+
+Use the Conventional Commit style established in history, such as
+`feat:`, `fix(scope):`, `docs:`, `test(scope):`, `refactor:`, and
+`chore(release):`. Keep commits focused. Add a Changeset for a published
+package change. Pull requests should describe the affected packages, behavior
+and verification commands, and any release or migration impact. Update both
+root READMEs when the public package list or install commands change.
 
 ## Constraints
 
