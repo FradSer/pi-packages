@@ -1,4 +1,4 @@
-# @fradser/pi-btw
+# pi-btw-fradser
 
 Side questions for Pi — `/btw <question>` answers a quick side question in a full-width
 overlay directly covering the main session input area, **without interrupting the current task and without ever
@@ -21,7 +21,7 @@ fixes that:
 ## Install
 
 ```bash
-pi install npm:@fradser/pi-btw
+pi install npm:pi-btw-fradser
 ```
 
 Restart pi, then use `/btw <question>` in interactive mode.
