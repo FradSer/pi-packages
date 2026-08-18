@@ -14,19 +14,10 @@ import {
 } from "./types";
 
 export class KeyboardStateMachine {
-  /**
-   * After this long without any user activity, a settled/unread glow state is
-   * considered stale and decays back to idle instead of keeping the green light.
-   * Mirrors the 5-minute staleness window used for other sessions' on-disk records
-   * so the self session cannot keep unread alive indefinitely in memory.
-   */
-  static readonly STALE_UNREAD_MS = 5 * 60 * 1000;
-
   private currentState: KeyboardState = "idle";
   private isProcessing = false;
   private hasUnreadChat = false;
   private hasFatalError = false;
-  private lastUserActivityAt = 0;
   private sessionId: string;
   private cwd: string;
 
@@ -36,7 +27,6 @@ export class KeyboardStateMachine {
     cwd?: string,
     private evalGlobalState: (id: string, record: SessionGlowRecord) => GlobalStateSummary = (id, rec) =>
       evaluateGlobalLightingState(id, rec),
-    private now: () => number = () => Date.now(),
   ) {
     this.sessionId = sessionId || crypto.randomUUID();
     this.cwd = cwd || process.cwd();
@@ -81,15 +71,6 @@ export class KeyboardStateMachine {
   }
 
   private buildSelfRecord(statusOverride?: SessionGlowRecord["status"]): SessionGlowRecord {
-    // A settled/unread state that has not been refreshed by user activity within
-    // the staleness window is stale: decay it to idle so a session that was left
-    // unread for a long time does not keep the global green light on forever.
-    if (this.hasUnreadChat && this.lastUserActivityAt > 0) {
-      if (this.now() - this.lastUserActivityAt > KeyboardStateMachine.STALE_UNREAD_MS) {
-        this.hasUnreadChat = false;
-      }
-    }
-
     let status: SessionGlowRecord["status"] = "idle";
     if (this.hasFatalError) {
       status = "error";
@@ -105,7 +86,7 @@ export class KeyboardStateMachine {
       cwd: this.cwd,
       status: statusOverride ?? status,
       hasUnread: this.hasUnreadChat,
-      updatedAt: this.now(),
+      updatedAt: Date.now(),
     };
   }
 
@@ -133,7 +114,6 @@ export class KeyboardStateMachine {
     this.isProcessing = false;
     this.hasUnreadChat = false;
     this.hasFatalError = false;
-    this.lastUserActivityAt = 0;
     await this.syncAndEvaluate("idle");
   }
 
@@ -141,7 +121,6 @@ export class KeyboardStateMachine {
     this.isProcessing = true;
     this.hasUnreadChat = false;
     this.hasFatalError = false;
-    this.lastUserActivityAt = 0;
     await this.syncAndEvaluate("running");
   }
 
@@ -209,8 +188,6 @@ export class KeyboardStateMachine {
     } else {
       this.hasFatalError = false;
       this.hasUnreadChat = true;
-      // Stamp the user-activity timestamp so the unread state can be time-bounded.
-      this.lastUserActivityAt = this.lastUserActivityAt || this.now();
       await this.syncAndEvaluate("settled");
     }
   }
@@ -223,14 +200,12 @@ export class KeyboardStateMachine {
    * - Else -> idle (white)
    */
   public async onUserActivated(): Promise<void> {
-    this.lastUserActivityAt = this.now();
     this.hasUnreadChat = false;
     this.hasFatalError = false;
     await this.syncAndEvaluate(this.isProcessing ? "running" : "idle");
   }
 
   public async onUserInput(): Promise<void> {
-    this.lastUserActivityAt = this.now();
     this.hasUnreadChat = false;
     this.hasFatalError = false;
     this.isProcessing = true;

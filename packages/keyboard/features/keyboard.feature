@@ -96,20 +96,6 @@ Feature: Pi Keyboard Lighting Indicator
     Then the unread status is cleared
     And the keyboard state machine transitions to "thinking"
 
-  Scenario: Long-ago unread message decays so green light does not stay on forever
-    Given the agent has finished a response and the session is in unread chat state
-    When no user activity occurs in the session for longer than the staleness window
-    Then the stale unread status is cleared on the next state evaluation
-    And the keyboard lighting transitions back to white idle breathing
-    (Even when the user never presses a key in that session)
-
-  Scenario: User activates a stale unread session and returns to idle
-    Given the session shows unread chat state
-    And no user activity has occurred for longer than the staleness window
-    When the user activates the thread
-    Then the unread status is cleared
-    And the keyboard lighting transitions to white idle breathing
-
   Scenario: Target lighting zone selection
     Given the user configures the target zone
     When the zone is set to "matrix"
