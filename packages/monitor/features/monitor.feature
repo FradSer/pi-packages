@@ -42,17 +42,6 @@ Feature: Result-contract background monitoring
     Then the agent is woken once with status "failure"
     And the exit code is included
 
-  Scenario: A monitor times out
-    Given a non-persistent monitor with a timeout
-    When the timeout elapses before a terminal result
-    Then the process is killed
-    And the agent is woken once with status "timeout"
-
-  Scenario: A persistent monitor waits until stopped or matched
-    Given a monitor is started with persistent=true
-    Then it is not subject to a timeout
-    And it keeps running across turns until a result matches, monitor_stop runs, or the session shuts down
-
   Scenario: Terminal results include bounded diagnostics without a polling tool
     Given a monitor has captured stdout and stderr
     When the monitor reaches a terminal result

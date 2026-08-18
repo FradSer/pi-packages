@@ -160,7 +160,7 @@ export default function (pi: ExtensionAPI) {
       "result_pattern is required and scans both stdout and stderr. failure_pattern is optional.",
       "Named regex captures are returned as structured fields; a named 'json' capture is parsed as JSON.",
       "Ordinary output is retained in a bounded buffer and a small diagnostic tail is included in the terminal result.",
-      "Exactly one terminal notification is emitted for success, failure, timeout, or result_missing.",
+      "Exactly one terminal notification is emitted for success, failure, or result_missing.",
     ].join(" "),
     promptSnippet: "Run a background command and expose one contracted terminal result without streaming progress logs",
     promptGuidelines: [
@@ -176,14 +176,10 @@ export default function (pi: ExtensionAPI) {
         description: params.description,
         resultPattern: params.result_pattern,
         failurePattern: params.failure_pattern,
-        timeoutMs: params.timeout_ms,
-        persistent: params.persistent,
         cwd: ctx.cwd,
       });
       requestRender?.();
-      const timeoutNote = monitor.persistent
-        ? "persistent until matched or stopped"
-        : `timeout ${Math.round(monitor.timeoutMs / 1000)}s`;
+      const lifecycleNote = "until a result matches, the process exits, monitor_stop, or session shutdown";
       return {
         content: [{
           type: "text",
@@ -191,7 +187,7 @@ export default function (pi: ExtensionAPI) {
             `Started result monitor ${monitor.id}: ${monitor.description}.`,
             `Success contract: ${monitor.resultPattern}`,
             monitor.failurePattern ? `Failure contract: ${monitor.failurePattern}` : "",
-            `Status: waiting (${timeoutNote}). Progress output is retained outside model context.`,
+            `Status: waiting (${lifecycleNote}). Progress output is retained outside model context.`,
           ].filter(Boolean).join("\n"),
         }],
         details: { monitorId: monitor.id },

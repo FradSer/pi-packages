@@ -1,7 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
 
-export const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
-export const MAX_TIMEOUT_MS = 60 * 60 * 1000;
 export const KILL_GRACE_MS = 1000;
 export const MAX_LINE_LENGTH = 10 * 1024;
 export const MAX_LINE_BUFFER = 64 * 1024;
@@ -17,7 +15,6 @@ export type MonitorStatus =
   | "running"
   | "success"
   | "failure"
-  | "timeout"
   | "result_missing"
   | "stopped";
 
@@ -44,8 +41,6 @@ export interface Monitor {
   command: string;
   resultPattern: string;
   failurePattern?: string;
-  persistent: boolean;
-  timeoutMs: number;
   startedAt: number;
   completedAt?: number;
   status: MonitorStatus;
@@ -67,7 +62,6 @@ interface MonitorLogEntry {
 
 interface InternalMonitor extends Monitor {
   child?: ChildProcess;
-  timeoutTimer?: ReturnType<typeof setTimeout>;
   killTimer?: ReturnType<typeof setTimeout>;
   killPromise?: Promise<void>;
   killResolver?: () => void;
@@ -92,8 +86,6 @@ export interface StartMonitorArgs {
   description: string;
   resultPattern: string;
   failurePattern?: string;
-  timeoutMs?: number;
-  persistent?: boolean;
   cwd?: string;
 }
 
@@ -121,7 +113,6 @@ export class MonitorManager {
     monitor.child = child;
     this.active.set(monitor.id, monitor);
     this.attachProcessHandlers(monitor);
-    this.startTimeout(monitor);
     return this.public(monitor);
   }
 
@@ -186,15 +177,12 @@ export class MonitorManager {
     resultMatcher: RegExp,
     failureMatcher?: RegExp,
   ): InternalMonitor {
-    const persistent = args.persistent === true;
     return {
       id: `monitor_${++this.counter}`,
       description: args.description,
       command: args.command,
       resultPattern: args.resultPattern,
       failurePattern: args.failurePattern,
-      persistent,
-      timeoutMs: Math.min(Math.max(args.timeoutMs ?? DEFAULT_TIMEOUT_MS, 1), MAX_TIMEOUT_MS),
       startedAt: Date.now(),
       status: "running",
       retainedLogLines: 0,
@@ -222,23 +210,6 @@ export class MonitorManager {
       });
     });
     child?.on("close", (code, signal) => this.handleClose(monitor, code, signal));
-  }
-
-  private startTimeout(monitor: InternalMonitor): void {
-    if (monitor.persistent) return;
-    monitor.timeoutTimer = setTimeout(() => {
-      this.drainFinalBuffers(monitor, false);
-      if (monitor.status !== "running") return;
-      this.complete(
-        monitor,
-        {
-          status: "timeout",
-          elapsedMs: this.elapsed(monitor),
-          expected: monitor.resultPattern,
-        },
-        true,
-      );
-    }, monitor.timeoutMs);
   }
 
   private handleChunk(monitor: InternalMonitor, source: MonitorLogSource, text: string): void {
@@ -377,7 +348,6 @@ export class MonitorManager {
     monitor.status = terminal.status;
     monitor.completedAt = Date.now();
     monitor.terminal = terminal;
-    if (monitor.timeoutTimer) clearTimeout(monitor.timeoutTimer);
     this.detachOutput(monitor);
     this.active.delete(monitor.id);
     const publicMonitor = this.public(monitor);
@@ -437,8 +407,6 @@ export class MonitorManager {
       command: monitor.command,
       resultPattern: monitor.resultPattern,
       failurePattern: monitor.failurePattern,
-      persistent: monitor.persistent,
-      timeoutMs: monitor.timeoutMs,
       startedAt: monitor.startedAt,
       completedAt: monitor.completedAt,
       status: monitor.status,

@@ -68,7 +68,6 @@ contracts.
 - `success`: `result_pattern` matched.
 - `failure`: `failure_pattern` matched, the process failed to spawn, or it exited
   with a non-zero code.
-- `timeout`: the timeout expired before either pattern matched.
 - `result_missing`: the process exited successfully without satisfying the
   declared result contract.
 
@@ -96,7 +95,7 @@ output.
 
 ## Diagnostics are included in the terminal result
 
-After `failure`, `timeout`, or `result_missing`, use the bounded diagnostic tail
+After `failure` or `result_missing`, use the bounded diagnostic tail
 already included in the terminal notification. Logs are source-labelled as
 `[stdout]` and `[stderr]`; retained history and terminal diagnostics are bounded,
 so output cannot grow without limit. Do not start another tool call to inspect
@@ -104,8 +103,8 @@ progress or poll a running monitor.
 
 ## Lifecycle
 
-- Default timeout: five minutes; maximum: one hour.
-- `persistent=true`: wait until matched, stopped, or session shutdown.
+- Monitors run until a result matches, the process exits, `monitor_stop`, or session shutdown.
+- If a task needs a deadline, put it in the command itself (for example, `timeout 10m pnpm test`).
 - `monitor_stop` sends no terminal result notification. It sends the detached
   process group `SIGTERM`, then `SIGKILL` after a one-second grace period even
   if the shell child closed first. The grace timer keeps Pi alive through the

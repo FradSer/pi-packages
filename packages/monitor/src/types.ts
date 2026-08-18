@@ -21,18 +21,6 @@ export const MonitorStartParams = Type.Object({
         "Optional regular expression that identifies terminal failure in either stdout or stderr. Named capture groups are returned as fields.",
     }),
   ),
-  timeout_ms: Type.Optional(
-    Type.Integer({
-      minimum: 1,
-      maximum: 3600000,
-      description: "Auto-stop after this many milliseconds. Default 300000 (5 min), max 3600000 (1 hr). Ignored when persistent=true.",
-    }),
-  ),
-  persistent: Type.Optional(
-    Type.Boolean({
-      description: "Run for the full session until a result matches or monitor_stop is called.",
-    }),
-  ),
 });
 
 /** Parameters for monitor_stop: end a monitor by id, or all active monitors. */

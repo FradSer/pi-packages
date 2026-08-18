@@ -24,7 +24,6 @@ def run_typescript(script: str) -> subprocess.CompletedProcess[str]:
         input=textwrap.dedent(script),
         text=True,
         capture_output=True,
-        timeout=15,
         check=False,
     )
     assert result.returncode == 0, f"TypeScript runtime check failed:\n{result.stderr}\n{result.stdout}"
@@ -285,7 +284,6 @@ def test_progress_output_does_not_emit_notifications() -> None:
           command: `printf 'step 1\\nstep 2\\n'; sleep 5`,
           description: "quiet progress",
           resultPattern: "NEVER_MATCHES",
-          persistent: true,
         });
         await new Promise((resolve) => setTimeout(resolve, 200));
         if (terminals.length !== 0) throw new Error(JSON.stringify(terminals));
@@ -343,7 +341,7 @@ def test_clean_exit_without_result_reports_result_missing() -> None:
     )
 
 
-def test_timeout_scans_unterminated_buffer_before_reporting_timeout() -> None:
+def test_unterminated_buffer_matches_before_process_exit() -> None:
     run_typescript(
         r'''
         import { MonitorManager } from "./packages/monitor/src/monitor.ts";
@@ -353,10 +351,9 @@ def test_timeout_scans_unterminated_buffer_before_reporting_timeout() -> None:
           onTerminal: (monitor, result) => terminals.push({ monitor, result }),
         });
         manager.start({
-          command: `printf 'READY url=http://localhost:3000'; sleep 5`,
-          description: "timeout boundary",
+          command: `printf 'READY url=http://localhost:3000'`,
+          description: "result boundary",
           resultPattern: String.raw`READY url=(?<url>\S+)`,
-          timeoutMs: 100,
         });
         await new Promise((resolve) => setTimeout(resolve, 350));
         if (terminals.length !== 1 || terminals[0].result.status !== "success") {
@@ -369,7 +366,7 @@ def test_timeout_scans_unterminated_buffer_before_reporting_timeout() -> None:
     )
 
 
-def test_nonzero_exit_and_timeout_report_one_failure_each() -> None:
+def test_nonzero_exit_reports_failure() -> None:
     run_typescript(
         r'''
         import { MonitorManager } from "./packages/monitor/src/monitor.ts";
@@ -383,17 +380,10 @@ def test_nonzero_exit_and_timeout_report_one_failure_each() -> None:
           description: "exit failure",
           resultPattern: "SUCCESS",
         });
-        manager.start({
-          command: `sleep 5`,
-          description: "timeout",
-          resultPattern: "SUCCESS",
-          timeoutMs: 50,
-        });
         await new Promise((resolve) => setTimeout(resolve, 350));
-        if (terminals.length !== 2) throw new Error(JSON.stringify(terminals));
+        if (terminals.length !== 1) throw new Error(JSON.stringify(terminals));
         const failure = terminals.find((entry) => entry.result.status === "failure");
-        const timeout = terminals.find((entry) => entry.result.status === "timeout");
-        if (!failure || failure.result.exitCode !== 7 || !timeout) {
+        if (!failure || failure.result.exitCode !== 7) {
           throw new Error(JSON.stringify(terminals));
         }
         ''',

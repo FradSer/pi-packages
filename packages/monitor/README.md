@@ -20,7 +20,6 @@ wakes the agent once when:
 - `failure_pattern` matches: `failure`
 - the command exits non-zero: `failure`
 - the command exits zero without matching: `result_missing`
-- the timeout expires: `timeout`
 
 ### Tools and command
 
@@ -84,7 +83,6 @@ monitor_start
   description="development server"
   result_pattern="Ready on (?<url>https?://\\S+)"
   failure_pattern="(?:EADDRINUSE|FATAL|Failed to start):? (?<reason>.*)"
-  timeout_ms=120000
 ```
 
 Avoid broad patterns such as `success|error|ready`. A result pattern is a
@@ -93,7 +91,7 @@ terminal contract, not a general log filter.
 ## Diagnostics
 
 Ordinary output never triggers background model turns. When a terminal result is
-`failure`, `timeout`, or `result_missing`, the terminal notification already
+`failure` or `result_missing`, the terminal notification already
 includes a bounded tail of source-labelled output. There is no output-reading
 or status-polling tool; wait for the one terminal notification instead of
 calling another tool or sleeping and checking again.
@@ -135,8 +133,9 @@ The retained history and terminal diagnostic tail are bounded:
   one-second grace period even if the shell child has already closed. The
   escalation timer keeps the session alive through that grace period, so
   descendants that ignore `SIGTERM` cannot outlive the monitor during shutdown.
-- Non-persistent monitors time out after five minutes by default, with a maximum
-  of one hour. `persistent=true` disables the timeout.
+- Monitor processes run until a terminal result, natural process exit, `monitor_stop`,
+  or session shutdown. If a task needs a deadline, put it in the command itself
+  (for example, `timeout 10m pnpm test`).
 - All active monitors are stopped on session shutdown.
 
 Consult `/skill:using-monitor` for the agent-facing usage procedure.
