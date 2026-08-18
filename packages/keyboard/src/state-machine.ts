@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { applyKeyboardState } from "./driver";
 import {
   evaluateGlobalLightingState,
+  pruneOrphanedGlowStates,
   removeSessionGlowState,
   writeSessionGlowState,
   type GlobalStateSummary,
@@ -114,6 +115,11 @@ export class KeyboardStateMachine {
     this.isProcessing = false;
     this.hasUnreadChat = false;
     this.hasFatalError = false;
+    // Clean up unread (settled) glow records left behind by sessions that exited
+    // unexpectedly (crash / kill / terminal closed). Without this their leftover
+    // unread would pile up and keep the green light on. Only dead-process records
+    // are removed; a live unread session keeps its glow state.
+    pruneOrphanedGlowStates();
     await this.syncAndEvaluate("idle");
   }
 

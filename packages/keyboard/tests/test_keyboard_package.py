@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import textwrap
 from pathlib import Path
@@ -45,6 +46,7 @@ def test_feature_covers_keyboard_scenarios() -> None:
     assert "Scenario: Non-fatal tool errors do not trigger red blinking light" in feature
     assert "Scenario: Upstream provider rate limit (429) triggers red blinking error light" in feature
     assert "Scenario: User submits input and clears unread chat status" in feature
+    assert "Scenario: Orphaned unread record from an unexpectedly-exited session is cleaned up" in feature
     assert "Scenario: Target lighting zone selection" in feature
     assert "Scenario: In-memory updates without EEPROM wear" in feature
     assert "Scenario: State change deduplication prevents redundant HID writes" in feature
@@ -240,6 +242,60 @@ def test_state_machine_lifecycle_transitions() -> None:
         "error",          # 10. onAgentSettled preserves error
     ]
     assert result["history"] == expected
+
+
+def test_orphaned_unread_records_from_dead_sessions_are_pruned() -> None:
+    # A session that was unread and then exited unexpectedly (crash / kill / terminal
+    # closed without a clean shutdown) leaves an orphaned settled/unread glow record.
+    # pruneOrphanedGlowStates must remove those (so stale green does not pile up)
+    # while keeping records of live sessions.
+    import subprocess as sp
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # Use this pytest process's own PID as the "live" session to guarantee it is alive.
+        live_pid = os.getpid()
+        # A PID that is guaranteed dead for the sweep: spawn a short-lived child and let it exit.
+        dead_marker = Path(tmp) / "dead.pid"
+        subprocess.run(["sh", "-c", f"echo $$ > {dead_marker}"], check=True)
+        dead_pid = int(dead_marker.read_text().strip())
+
+        # Give the child a moment to fully exit so signal 0 reports it as dead.
+        import time
+        time.sleep(0.05)
+
+        # Layout mirrors getSessionFileKey(cwd): a per-cwd directory holding session files.
+        cwd_dir = Path(tmp) / "--tmp-test-cwd--"
+        cwd_dir.mkdir(parents=True, exist_ok=True)
+        (cwd_dir / "live-session.json").write_text(
+            json.dumps({"sessionId": "live", "pid": live_pid, "cwd": "/tmp", "status": "settled", "hasUnread": True, "updatedAt": 123456}),
+            encoding="utf-8",
+        )
+        (cwd_dir / "dead-session.json").write_text(
+            json.dumps({"sessionId": "dead", "pid": dead_pid, "cwd": "/tmp", "status": "settled", "hasUnread": True, "updatedAt": 123456}),
+            encoding="utf-8",
+        )
+
+        script = f"""
+        import {{ pruneOrphanedGlowStates }} from "{GLOBAL_SESSIONS_URI}";
+        const removed = pruneOrphanedGlowStates();
+        console.log(JSON.stringify({{ removed }}));
+        """
+        env = {**os.environ, "PI_DIRECTORY_SESSIONS_DIR": tmp}
+        result = sp.run(
+            ["node", "--import", "tsx", "--input-type=module"],
+            cwd=REPO,
+            input=textwrap.dedent(script),
+            text=True,
+            capture_output=True,
+            timeout=15,
+            env=env,
+        )
+        assert result.returncode == 0, f"prune test failed:\n{result.stderr}\n{result.stdout}"
+        parsed = json.loads(result.stdout.strip().splitlines()[-1])
+        assert parsed["removed"] == 1
+        assert (cwd_dir / "dead-session.json").exists() is False
+        assert (cwd_dir / "live-session.json").exists() is True
 
 
 def test_extension_registers_expected_hooks() -> None:

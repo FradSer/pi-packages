@@ -13,6 +13,10 @@ export interface SessionGlowRecord {
 }
 
 export function getRegistryDir(): string {
+  // Test seam: allow pointing at an isolated registry so tests never touch the
+  // real ~/.pi/agent/directory-sessions directory.
+  const override = process.env.PI_DIRECTORY_SESSIONS_DIR;
+  if (override) return override;
   return path.join(os.homedir(), ".pi", "agent", "directory-sessions");
 }
 
@@ -79,6 +83,57 @@ export function removeSessionGlowState(cwd: string, sessionId: string): void {
   } catch {
     // Best-effort remove
   }
+}
+
+/**
+ * Sweeps the whole registry and removes glow records whose owning process is no
+ * longer alive. Sessions that exit unexpectedly (crash, SIGKILL, terminal closed
+ * without a clean session_shutdown) never run removeSessionGlowState, so their
+ * leftover unread (settled) records would otherwise pile up and keep the green
+ * light on. Called at session start to clear that residue before evaluating.
+ *
+ * Deliberately cleans only dead-process records: a genuinely live session that
+ * is still unread keeps its glow record (and green light). No time-based expiry.
+ */
+export function pruneOrphanedGlowStates(): number {
+  const baseDir = getRegistryDir();
+  if (!fs.existsSync(baseDir)) return 0;
+
+  let removed = 0;
+  try {
+    const dirEntries = fs.readdirSync(baseDir, { withFileTypes: true });
+    for (const dirEntry of dirEntries) {
+      if (!dirEntry.isDirectory()) continue;
+      const subDirPath = path.join(baseDir, dirEntry.name);
+      let sessionFiles: string[] = [];
+      try {
+        sessionFiles = fs.readdirSync(subDirPath);
+      } catch {
+        continue;
+      }
+
+      for (const file of sessionFiles) {
+        if (!file.endsWith(".json")) continue;
+        const filePath = path.join(subDirPath, file);
+        try {
+          const content = fs.readFileSync(filePath, "utf-8");
+          const record = JSON.parse(content) as SessionGlowRecord;
+          if (!record || typeof record !== "object" || typeof record.pid !== "number") continue;
+          if (!isProcessAlive(record.pid)) {
+            try {
+              fs.unlinkSync(filePath);
+              removed++;
+            } catch {}
+          }
+        } catch {
+          // Ignore unreadable / non-glow files (all .json in the shared dir)
+        }
+      }
+    }
+  } catch {
+    // Best-effort sweep
+  }
+  return removed;
 }
 
 export interface GlobalStateSummary {

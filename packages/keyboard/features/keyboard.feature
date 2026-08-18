@@ -96,6 +96,14 @@ Feature: Pi Keyboard Lighting Indicator
     Then the unread status is cleared
     And the keyboard state machine transitions to "thinking"
 
+  Scenario: Orphaned unread record from an unexpectedly-exited session is cleaned up
+    Given a session had an unread chat state and then exited unexpectedly (crash / kill)
+    And that session's process is no longer alive, leaving an orphaned unread record
+    When a new session starts and sweeps the registry
+    Then the orphaned unread record is removed
+    And it no longer contributes to the green unread light
+    And a live unread session still keeps its green light
+
   Scenario: Target lighting zone selection
     Given the user configures the target zone
     When the zone is set to "matrix"
