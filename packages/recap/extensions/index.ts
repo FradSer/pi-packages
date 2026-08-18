@@ -182,8 +182,9 @@ export default function (pi: ExtensionAPI) {
           render: (width: number) => {
             if (!config.enabled || (!currentRecap && !generatingRecap))
               return [];
-            const prefix = theme.fg("accent", "recap");
-            const firstPrefix = ` ${prefix}  `;
+            const icon = theme.fg("accent", "✦");
+            const label = theme.fg("dim", "Recap:");
+            const firstPrefix = ` ${icon} ${label} `;
             const prefixWidth = visibleWidth(firstPrefix);
             const contentWidth = Math.max(15, width - prefixWidth);
             const indent = " ".repeat(prefixWidth);
@@ -197,8 +198,8 @@ export default function (pi: ExtensionAPI) {
             if (currentRecap) {
               const wrapped = wrapTextWithAnsi(currentRecap, contentWidth);
               for (let i = 0; i < wrapped.length; i++) {
-                const p = i === 0 ? firstPrefix : indent;
-                lines.push(`${p}${theme.fg("muted", wrapped[i])}`);
+                const prefix = i === 0 ? firstPrefix : indent;
+                lines.push(`${prefix}${theme.fg("muted", wrapped[i])}`);
               }
             }
 
@@ -441,7 +442,7 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.notify("Generating recap...", "info");
       const refreshed = await performRecap(ctx);
       if (refreshed) {
-        ctx.ui.notify(`Recap: ${refreshed}`, "info");
+        ctx.ui.notify(`✦ Recap: ${refreshed}`, "info");
       } else {
         ctx.ui.notify(
           "No recent exchange to recap or generation failed",
@@ -553,7 +554,7 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify("Generating recap...", "info");
         const refreshed = await performRecap(ctx);
         if (refreshed) {
-          ctx.ui.notify(`Recap: ${refreshed}`, "info");
+          ctx.ui.notify(`✦ Recap: ${refreshed}`, "info");
         } else {
           ctx.ui.notify(
             "No recent exchange to recap or generation failed",

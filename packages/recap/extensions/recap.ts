@@ -169,6 +169,7 @@ export function cleanRecapText(raw: string): string {
   text = text.replace(/^["'“‘`]+|["'”’`]+$/g, "").trim();
   // Strip common label prefixes like "※ Recap:", "recap:", "Summary:", "- ", "* "
   text = text.replace(/^(?:※\s*)?(?:recap|summary|status)\s*[:\uFF1A]\s*/i, "");
+  text = text.replace(/^※\s*/, "");
   text = text.replace(/^[-*•]\s*/, "");
   // Replace newlines and multi-spaces with single space
   text = text.replace(/\s+/g, " ").trim();

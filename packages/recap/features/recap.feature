@@ -13,7 +13,7 @@ Feature: Session Recap
     Given an active session in TUI mode
     When a turn completes with a user request and assistant response
     Then a concise recap is generated
-    And it is displayed above the editor with the format "recap  <summary>"
+    And it is displayed above the editor with the format "✦ Recap: <summary>"
 
   Scenario: Recap is informative and scannable
     Given a raw model summary
@@ -65,7 +65,7 @@ Feature: Session Recap
     Given an active session in TUI mode
     When recap generation starts
     Then the widget shows an animated "⠙ Recapping..." status line
-    And the recap content remains on its own "recap  " line
+    And the recap content remains on its own "✦ Recap:" line
     And the previous recap remains visible until the new recap is ready
     When recap generation finishes
     Then the generation marker is replaced by the new recap
