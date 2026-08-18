@@ -242,6 +242,129 @@ def test_state_machine_lifecycle_transitions() -> None:
     assert result["history"] == expected
 
 
+def test_stale_unread_decays_to_idle_without_user_activity() -> None:
+    # A session left unread for longer than the staleness window must decay back
+    # to idle on the next evaluation — even if the user never presses a key there.
+    # The keyboard's own evaluation re-reads the session glow state, so a long-idle
+    # unread session no longer holds the global green light on forever.
+    result = run_typescript(
+        f"""
+        import {{ KeyboardStateMachine }} from "{STATE_MACHINE_URI}";
+
+        let clock = 1_000_000;
+        const seenUnread = [];
+
+        const sm = new KeyboardStateMachine(
+            {{
+                enabled: false,
+                zone: "all",
+                brightnessScale: 1.0,
+                saveToEeprom: false,
+            }},
+            "test-session-stale",
+            "/tmp/test-cwd",
+            (id, selfRec) => {{
+                seenUnread.push(selfRec.hasUnread);
+                let effectiveState = "idle";
+                if (selfRec.status === "error") {{
+                    effectiveState = "error";
+                }} else if (selfRec.hasUnread) {{
+                    effectiveState = "unread_chat";
+                }} else if (selfRec.status === "running") {{
+                    effectiveState = "thinking";
+                }}
+                return {{
+                    effectiveState,
+                    hasAnyUnread: selfRec.hasUnread,
+                    hasAnyRunning: selfRec.status === "running",
+                    hasAnyError: selfRec.status === "error",
+                    hasAnyNeedApproval: false,
+                    activeSessionCount: 1,
+                }};
+            }},
+            () => clock,
+        );
+
+        const history = [];
+        await sm.onSessionStart();
+        await sm.onAgentSettled(false);
+        history.push(sm.getCurrentState());
+
+        // No user activity for longer than the staleness window.
+        clock += KeyboardStateMachine.STALE_UNREAD_MS + 1;
+
+        // A fresh evaluation occurs (e.g. an unrelated state event) while idle and
+        // unread. The stale unread decays to idle before the global state is read.
+        await sm.onUserActivated();
+        history.push(sm.getCurrentState());
+
+        console.log(JSON.stringify({{ history, seenUnread }}));
+        """
+    )
+    # Immediately after settle, unread is live (green).
+    assert result["history"][0] == "unread_chat"
+    assert True in result["seenUnread"]
+    # After the staleness window passes, unread decays to idle on re-evaluation.
+    assert result["history"][1] == "idle"
+    assert result["seenUnread"][-1] is False
+
+
+def test_stale_unread_cleared_on_user_activation() -> None:
+    # A user returning to a long-idle unread session clears it and returns to idle.
+    result = run_typescript(
+        f"""
+        import {{ KeyboardStateMachine }} from "{STATE_MACHINE_URI}";
+
+        let clock = 5_000_000;
+
+        const sm = new KeyboardStateMachine(
+            {{
+                enabled: false,
+                zone: "all",
+                brightnessScale: 1.0,
+                saveToEeprom: false,
+            }},
+            "test-session-read",
+            "/tmp/test-cwd",
+            (id, selfRec) => {{
+                let effectiveState = "idle";
+                if (selfRec.status === "error") {{
+                    effectiveState = "error";
+                }} else if (selfRec.hasUnread) {{
+                    effectiveState = "unread_chat";
+                }} else if (selfRec.status === "running") {{
+                    effectiveState = "thinking";
+                }}
+                return {{
+                    effectiveState,
+                    hasAnyUnread: selfRec.hasUnread,
+                    hasAnyRunning: selfRec.status === "running",
+                    hasAnyError: selfRec.status === "error",
+                    hasAnyNeedApproval: false,
+                    activeSessionCount: 1,
+                }};
+            }},
+            () => clock,
+        );
+
+        const history = [];
+        await sm.onSessionStart();
+        await sm.onAgentSettled(false);
+        history.push(sm.getCurrentState());
+
+        // Long idle, then the user activates the thread
+        clock += KeyboardStateMachine.STALE_UNREAD_MS * 2;
+        await sm.onUserActivated();
+        history.push(sm.getCurrentState());
+
+        console.log(JSON.stringify({{ history }}));
+        """
+    )
+    assert result["history"][0] == "unread_chat"
+    assert result["history"][1] == "idle"
+
+
+
 def test_extension_registers_expected_hooks() -> None:
     result = run_typescript(
         f"""
