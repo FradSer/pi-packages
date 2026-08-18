@@ -1,4 +1,4 @@
-"""Tests for the @fradser/code-context pi package.
+"""Tests for the @fradser/pi-context pi package.
 
 Guards the conversion from MCP sidecar servers (.mcp.json — pi has no built-in
 MCP support) to native pi extension tools that call the public REST APIs
@@ -23,7 +23,7 @@ class TestCodeContextManifest(unittest.TestCase):
         """package.json is a valid Pi package manifest with skills + extensions."""
         with open(os.path.join(CC_PKG_DIR, "package.json"), "r", encoding="utf-8") as f:
             data = json.load(f)
-        self.assertEqual(data["name"], "@fradser/code-context")
+        self.assertEqual(data["name"], "@fradser/pi-context")
         self.assertIn("pi-package", data.get("keywords", []))
         self.assertIn("skills", data["pi"])
         self.assertIn("extensions", data["pi"])
