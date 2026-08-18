@@ -1,5 +1,5 @@
 /**
- * @fradser/pi-recap — session recap for Pi.
+ * pi-recap-fradser — session recap for Pi.
  *
  * Automatically displays a scannable one-line recap of the current session
  * above the TUI input box (aboveEditor widget), inspired by Claude Code's recap.

@@ -255,7 +255,7 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
     };
     startLiveRefresh();
 
-    // btw-style callbacks (same accent/muted/dim/border/success/error language as @fradser/pi-btw).
+    // btw-style callbacks (same accent/muted/dim/border/success/error language as pi-btw-fradser).
     const style = {
       accent: (s: string) => theme.fg("accent", s),
       muted: (s: string) => theme.fg("muted", s),
@@ -341,7 +341,7 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
           }
           const detail = wrapConsoleDetail(buildNodeDetail(detailKey), tui.terminal.columns);
           const viewport = maxConsoleBody(tui.terminal.rows);
-          // Mouse-wheel scrolling (SGR wheel events, same as @fradser/pi-btw).
+          // Mouse-wheel scrolling (SGR wheel events, same as pi-btw-fradser).
           const sgrWheel = /^\x1b\[<(\d+);(\d+);(\d+)[Mm]$/.exec(data);
           if (sgrWheel) {
             const button = Number.parseInt(sgrWheel[1], 10);

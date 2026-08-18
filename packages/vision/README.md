@@ -1,4 +1,4 @@
-# @fradser/pi-vision
+# pi-vision-fradser
 
 A transparent image-to-text bridge for Pi sessions whose active model cannot read images.
 
@@ -53,10 +53,10 @@ pi install /path/to/pi-packages/packages/vision
 When a version is available on npm, it can be installed with:
 
 ```bash
-pi install npm:@fradser/pi-vision
+pi install npm:pi-vision-fradser
 ```
 
-Check availability with `npm view @fradser/pi-vision version` before relying on the npm command.
+Check availability with `npm view pi-vision-fradser version` before relying on the npm command.
 
 ## Configure a vision model
 

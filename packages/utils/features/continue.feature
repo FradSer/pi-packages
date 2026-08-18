@@ -4,7 +4,7 @@ Feature: /continue recovery for incomplete and failed turns
   incomplete turn.
 
   Background:
-    Given the @fradser/pi-utils package is installed
+    Given the pi-utils-fradser package is installed
 
   Scenario: A transient model API request fails after retries are exhausted
     Given the latest assistant message has stopReason "error"

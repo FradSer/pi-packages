@@ -5,7 +5,7 @@ Feature: /effort thinking-level command
   directly (with short aliases). The manifest registers it as an extension.
 
   Background:
-    Given the @fradser/pi-utils package is installed
+    Given the pi-utils-fradser package is installed
 
   Scenario: Manifest registers the extensions directory
     Given the package manifest

@@ -1,5 +1,5 @@
 /**
- * @fradser/pi-agent-teams — Pi extension for run-centric agent teams.
+ * pi-agent-teams-fradser — Pi extension for run-centric agent teams.
  *
  * The entry point is composition only: worker capability registration,
  * session lifecycle, and delegation to tools.ts. Scheduling lives in

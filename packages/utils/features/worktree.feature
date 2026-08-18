@@ -5,7 +5,7 @@ Feature: git worktree path redirect
   instead of scattering sibling directories next to it.
 
   Background:
-    Given the @fradser/pi-utils package is installed
+    Given the pi-utils-fradser package is installed
 
   Scenario: A `git worktree add` path is redirected into .pi/worktrees
     Given the agent runs `git worktree add ../foo feature/foo`

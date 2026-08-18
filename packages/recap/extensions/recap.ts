@@ -1,5 +1,5 @@
 /**
- * @fradser/pi-recap — pure recap generation helpers.
+ * pi-recap-fradser — pure recap generation helpers.
  */
 
 import type {

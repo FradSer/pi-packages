@@ -6,32 +6,11 @@
 
 Native Pi packages for reusable skills, extensions, and workflow commands.
 
-## Using packages
-
-Skills use Pi's `/skill:<name>` command. Arguments after the command are appended to the skill text. Pi does not expand `$ARGUMENTS` or execute shell substitutions embedded in skill Markdown.
-
-Packages that manage interactive workflows use native commands such as `/keyboard`, `/recap`, `/memory`, `/btw`, and `/teammate` instead of skills.
-
-Released packages can be installed with an npm source:
-
-```bash
-pi install npm:pi-keyboard
-pi install npm:@fradser/pi-memory
-```
-
-Every package can be used from this checkout during development:
-
-```bash
-pi install /path/to/pi-packages/packages/<name>
-```
-
 ## Packages
 
 ### [`keyboard`](packages/keyboard/)
 
-Drives VIA and QMK mechanical keyboard RGB lighting to reflect Pi states, including white breathing for idle, blue breathing for thinking, green breathing for unread chat, yellow blinking for approval or questions, and red blinking for fatal errors. All updates run in memory without writing to EEPROM or Flash.
-
-**Command:** `/keyboard`, `/keyboard on`, `/keyboard off`, `/keyboard status`, `/keyboard test <state>`
+Controls VIA and QMK keyboard lighting to reflect Pi states, including idle, thinking, unread messages, approval prompts, and fatal errors.
 
 **Install:**
 
@@ -39,11 +18,9 @@ Drives VIA and QMK mechanical keyboard RGB lighting to reflect Pi states, includ
 pi install npm:pi-keyboard
 ```
 
----
-
 ### [`recap`](packages/recap/)
 
-Generates and displays a concise summary of current session progress above the TUI editor box. It persists across restarts and updates across parallel directory sessions.
+Displays a concise summary of session progress above the TUI editor and restores it across restarts.
 
 **Command:** `/recap`, `/recap on`, `/recap off`, `/recap language <lang>`, `/recap model <model>`
 
@@ -53,11 +30,9 @@ Generates and displays a concise summary of current session progress above the T
 pi install npm:@fradser/pi-recap
 ```
 
----
-
 ### [`vision`](packages/vision/)
 
-Bridges images to text for a text-only active model through a configured vision-capable Pi model. It preserves the original session attachment and adds visual analysis only to the transient provider context.
+Bridges images to a configured vision-capable model when the active Pi model only accepts text.
 
 **Command:** `/vision`, `/vision model provider/model`, `/vision on`, `/vision off`
 
@@ -67,11 +42,9 @@ Bridges images to text for a text-only active model through a configured vision-
 pi install npm:@fradser/pi-vision
 ```
 
----
-
 ### [`btw`](packages/btw/)
 
-Answers a side question in a read-only overlay without adding it to the current session history. The child Pi process may use `read`, `grep`, `find`, and `ls` to check the codebase, but cannot use `bash`, `edit`, or `write`.
+Answers side questions in a read-only overlay without adding them to the current session history.
 
 **Command:** `/btw <question>`
 
@@ -81,13 +54,11 @@ Answers a side question in a read-only overlay without adding it to the current 
 pi install npm:@fradser/pi-btw
 ```
 
----
-
 ### [`memory`](packages/memory/)
 
-Manages durable project memory with a `/memory` menu, auto-memory guidance, and background consolidation. The consolidation procedure runs in a separate child Pi process and keeps its raw work outside the active conversation.
+Manages durable project memory with a `/memory` menu, auto-memory guidance, and manual consolidation.
 
-**Commands:** `/memory`, `/consolidate`
+**Command:** `/memory`, `/consolidate`
 
 **Install:**
 
@@ -95,17 +66,11 @@ Manages durable project memory with a `/memory` menu, auto-memory guidance, and 
 pi install npm:@fradser/pi-memory
 ```
 
----
-
 ### [`monitor`](packages/monitor/)
 
-Runs a command in the background against an explicit result contract. It stores ordinary output outside model context and sends exactly one structured terminal result for success, failure, timeout, or a missing result.
+Runs background commands against an explicit result contract and reports one structured terminal result.
 
 **Tools:** `monitor_start`, `monitor_stop`
-
-**Skill:** `/skill:using-monitor`
-
-**Command:** `/monitor`
 
 **Install:**
 
@@ -113,13 +78,9 @@ Runs a command in the background against an explicit result contract. It stores 
 pi install npm:@fradser/pi-monitor
 ```
 
----
-
 ### [`utils`](packages/utils/)
 
-Adds commands for selecting a model thinking level and recovering interrupted work. It also provides multi-session registry synchronization and directs safe `git worktree add` invocations into `.pi/worktrees/`.
-
-**Commands:** `/effort`, `/continue`, `/sessions`
+Adds `/effort`, `/continue`, and `/sessions`, and redirects safe Git worktrees into `.pi/worktrees/`.
 
 **Install:**
 
@@ -127,39 +88,41 @@ Adds commands for selecting a model thinking level and recovering interrupted wo
 pi install npm:@fradser/pi-utils
 ```
 
----
-
 ### [`agent-teams`](packages/agent-teams/)
 
-Coordinates autonomous child Pi workers through a run-centric task graph and mailbox protocol. The team leader dispatches dependency-aware task graphs in one call, tracks progress, cancels or retries nodes, and inspects the full-screen console.
+Coordinates child Pi workers through dependency-aware task graphs, bounded concurrency, cancellation, retries, and a full-screen console.
 
-**Tools:** `teammate_run`, `teammate_status`, `teammate_cancel`, `teammate_retry`, `teammate_message`, `teammate_inbox`
+**Tools:** `teammate_run`, `teammate_cancel`, `teammate_retry`, `teammate_message`
 
 **Command:** `/teammate`
 
-**Availability:** install from this checkout. It is not currently released to npm.
+**Install:**
 
----
+```bash
+pi install npm:@fradser/pi-agent-teams
+```
 
 ### [`code-context`](packages/code-context/)
 
-Provides DeepWiki, Context7, and Exa retrieval tools, with clone and HTTP fetch workflows as fallbacks. The package uses direct REST calls rather than MCP sidecars.
+Provides DeepWiki, Context7, and Exa retrieval tools through native Pi extensions, with clone and HTTP fallbacks.
 
 **Skills:** `/skill:get-context`, `/skill:code-context`
 
-**Tools:** `context_deepwiki`, `context_context7`, `context_exa`
+**Install:**
 
-**Availability:** install from this checkout. It is not currently released to npm.
-
----
+```bash
+pi install npm:@fradser/pi-context
+```
 
 ### [`mattpocock`](packages/mattpocock/)
 
-A collection of Pi-adapted BDD, TDD, implementation, review, debugging, architecture, research, planning, handoff, teaching, and skill-writing workflows.
+Provides Pi-adapted BDD, TDD, implementation, review, debugging, architecture, research, planning, teaching, and skill-writing workflows.
 
-**Skills:** 27 individual skills, including `/skill:bdd`, `/skill:tdd`, `/skill:implement`, and `/skill:code-review`
+**Install:**
 
-**Availability:** install from this checkout. It is not currently released to npm.
+```bash
+pi install npm:pi-mattpocock
+```
 
 ## Development
 
@@ -168,7 +131,7 @@ pnpm install
 python3 -m pytest packages
 ```
 
-Each package keeps its behavior scenarios in `features/` and tests in `tests/`. Run the relevant strict TypeScript check after editing an extension:
+Each package keeps behavior scenarios in `features/` and tests in `tests/`. For an extension, run the relevant strict TypeScript check:
 
 ```bash
 npx tsc --noEmit --strict --skipLibCheck --target ES2022 \
@@ -176,22 +139,22 @@ npx tsc --noEmit --strict --skipLibCheck --target ES2022 \
   packages/<name>/{src,extensions}/*.ts
 ```
 
-Use `pnpm pack --dry-run` from an individual package to inspect the files that would ship.
+Use `pnpm pack --dry-run` from a package directory to inspect its published files.
 
 ## Adding a package
 
 1. Create `packages/<name>/`.
 2. Add a `package.json` with the `pi-package` keyword and an explicit `pi` resource manifest.
-3. Include every runtime resource in `files` and declare every imported Pi core package as a peer dependency.
+3. Include runtime resources in `files` and declare imported Pi core packages as peer dependencies.
 4. Write the BDD scenario under `features/` before implementation, then add executable tests.
-5. Install the package locally with `pi install /path/to/pi-packages/packages/<name>` and validate its package contents.
+5. Add a Changeset for a released package change.
 
 ## Publishing
 
-This repository publishes through Changesets and the GitHub Actions release workflow. Do not run recursive `pnpm publish` from the repository root.
+Releases use Changesets and the GitHub Actions workflow in `.github/workflows/release.yml`. Push changes to `main`, then merge the generated version PR. The workflow publishes the explicit package list through npm Trusted Publishing and skips versions already present in the npm registry, so partial runs can be retried safely.
 
-For a released package change, create a Changeset, push it to `main`, and merge the generated version PR. The release workflow publishes only its explicit package allowlist with npm trusted publishing. A new package needs its first npm publication and trusted-publishing setup before the workflow can publish later versions.
+New packages require one manual first publication and npm Trusted Publishing configuration before later versions can be released by GitHub Actions.
 
 ## License
 
-Each package declares the MIT license in its own manifest. The repository does not have a separate root license file.
+Each package is licensed under MIT.

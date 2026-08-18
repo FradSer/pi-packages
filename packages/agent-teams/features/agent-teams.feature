@@ -7,7 +7,7 @@ Feature: Agent Teams run-centric public API
   upstream context travels through the DAG prompt at spawn time.
 
   Background:
-    Given the @fradser/pi-agent-teams extension is loaded
+    Given the pi-agent-teams-fradser extension is loaded
 
   Rule: Agents are declarative Markdown files
 

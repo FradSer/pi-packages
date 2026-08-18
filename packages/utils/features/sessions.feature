@@ -6,7 +6,7 @@ Feature: Cross-session awareness and directory recap
   command and a session recap tool for agents to query.
 
   Background:
-    Given the @fradser/pi-utils package is installed
+    Given the pi-utils-fradser package is installed
 
   Scenario: Session registers state in directory registry on startup
     Given a session starting in directory "/app/my-project"
