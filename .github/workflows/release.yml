@@ -44,7 +44,7 @@ jobs:
         uses: changesets/action@v1
         with:
           version: pnpm changeset version
-          publish: pnpm publish -r --provenance --access public --filter @fradser/pi-memory --filter @fradser/pi-btw --filter @fradser/pi-monitor --filter @fradser/pi-utils --filter @fradser/pi-vision --filter @fradser/pi-recap --filter pi-keyboard --filter @fradser/pi-agent-teams --filter @fradser/pi-context --filter @fradser/pi-mattpocock
+          publish: pnpm publish -r --provenance --access public --filter @fradser/pi-memory --filter @fradser/pi-btw --filter @fradser/pi-monitor --filter @fradser/pi-utils --filter @fradser/pi-vision --filter @fradser/pi-recap --filter pi-keyboard --filter @fradser/pi-agent-teams --filter @fradser/pi-context --filter pi-mattpocock
           commit: "chore(release): version packages"
           title: "chore(release): version packages"
         env:

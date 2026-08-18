@@ -8,7 +8,7 @@
 "@fradser/pi-vision": patch
 "@fradser/pi-agent-teams": minor
 "@fradser/pi-context": minor
-"@fradser/pi-mattpocock": minor
+"pi-mattpocock": minor
 ---
 
 Republish all published package versions through GitHub CI to align with current release flow and regenerate their release metadata after version comparison.
