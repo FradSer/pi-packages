@@ -201,9 +201,7 @@ function buildNodeSection(node: Node): string[] {
   return lines;
 }
 
-/** Node detail: node section + messages this node sent (plans, reports, peer
- * messages). Push-only: the node never reads an inbox; upstream context arrives
- * via the DAG result injected into its prompt. */
+/** Node detail: node section + reports this node sent to team-leader. */
 function buildNodeDetail(workerKey: string): string[] {
   const entry = getNodeByWorkerKey(workerKey);
   if (!entry) return ["(removed)"];

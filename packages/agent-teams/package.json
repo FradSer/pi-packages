@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-agent-teams",
   "version": "0.3.0",
-  "description": "Multi-agent team system for Pi — DAG orchestration, leader inbox, and push-only node message transcripts",
+  "description": "Multi-agent team system for Pi — DAG orchestration, leader inbox, and one-way worker reports",
   "keywords": [
     "pi-package",
     "teammates",
