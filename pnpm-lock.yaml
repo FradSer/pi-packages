@@ -63,6 +63,15 @@ importers:
         specifier: '*'
         version: 1.3.12
 
+  packages/keyboard:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '*'
+        version: 0.84.1(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-tui':
+        specifier: '*'
+        version: 0.84.1
+
   packages/mattpocock: {}
 
   packages/memory:

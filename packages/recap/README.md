@@ -1,6 +1,6 @@
 # @fradser/pi-recap
 
-Session recap for Pi — displays a concise, scannable summary of the current session above the TUI input box, inspired by Claude Code's `※ Recap:` feature.
+Session recap for Pi — displays a concise, scannable summary of the current session above the TUI input box, inspired by Claude Code's recap feature.
 
 ## Install
 
@@ -10,7 +10,7 @@ pi install npm:@fradser/pi-recap
 
 ## Features
 
-- **TUI Above-Editor Display**: Once installed, the extension automatically displays the most recent recap in the widget above the editor (`※ Recap: <summary>`).
+- **TUI Above-Editor Display**: Once installed, the extension automatically displays the most recent recap in the widget above the editor (`recap  <summary>`).
 - **Management Menu (`/recap`)**: Running `/recap` opens an interactive management TUI (similar to `@packages/memory/` and `@packages/vision/`) allowing you to generate recaps on demand, choose dedicated models, or toggle display settings.
 - **Model Selection**: Supports selecting any model available in Pi's model registry (e.g. `anthropic/claude-3-5-haiku`, `openai/gpt-4o-mini`, or session default).
 - **Non-blocking & In-process**: Recaps are generated asynchronously using Pi's model registry after each completed turn without spawning external child processes. Requests are deduplicated, superseded requests are cancelled, and generation has a 30-second timeout.

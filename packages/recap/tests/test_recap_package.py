@@ -530,8 +530,8 @@ def test_extension_wraps_recap_text_responsively() -> None:
 def test_recap_marker_matches_native_working_spinner_indent() -> None:
     extension = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
     assert 'lines.push(` ${theme.fg("accent", `${spinner} Recapping...`)}`);' in extension
-    assert "const prefix = i === 0 ? firstPrefix : indent;" in extension
-    assert 'const firstPrefix = ` ${icon} ${label} `;' in extension
+    assert "const p = i === 0 ? firstPrefix : indent;" in extension
+    assert 'const firstPrefix = ` ${prefix}  `;' in extension
     assert 'const indent = " ".repeat(prefixWidth);' in extension
     assert "wrapTextWithAnsi(currentRecap, contentWidth)" in extension
     assert "continuation lines align with the first recap character rather than the marker" in (PACKAGE / "features" / "recap.feature").read_text(encoding="utf-8")
