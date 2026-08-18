@@ -23,18 +23,14 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const packagesRoot = path.resolve(here, "..", "packages");
 
 const packageRoots = [
-  "code-context",
-  "github",
-  "git",
-  "git-agent",
+  "context",
   "memory",
-  "lark",
 ].map((name) => path.join(packagesRoot, name));
 
 const extensionPaths = [
   path.join(packagesRoot, "memory/extensions/inject-memory.ts"),
-  path.join(packagesRoot, "git/extensions/worktree.ts"),
-  path.join(packagesRoot, "git-agent/extensions/validate-commit.ts"),
+  path.join(packagesRoot, "context/extensions/context-tools.ts"),
+  path.join(packagesRoot, "context/extensions/context-command.ts"),
 ];
 
 const resourceLoader = new DefaultResourceLoader({
