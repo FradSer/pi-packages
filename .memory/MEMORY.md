@@ -16,8 +16,8 @@
 - `feedback_no_custom_interaction_tools.md` — no custom dialog/confirmation tools; ask in the conversation; permission gates are `tool_call` hooks offering options
 
 ## npm publishing
-- `feedback_pi_package_npm_naming.md` — npm naming ladder: unscoped first, `@fradser` fallback, org scope only with a paid npm org
-- `project_pi_package_npm_publishing.md` — Changesets-driven OIDC trusted publishing with release.yml whitelist; first release needs manual publish + `npm trust`
+- `feedback_pi_package_npm_naming.md` — use an available unscoped npm name, otherwise the established `@fradser` name; never invent `-fradser` suffixes
+- `project_pi_package_npm_publishing.md` — Changesets and GitHub Actions OIDC publishing use a registry-aware allowlist; first releases require manual publication and `npm trust`
 
 ## package & skill management
 - `project_pi_package_conventions.md` — native Pi package standards for package.json, skills, extensions, worktrees, runtime deps — no Claude plugin artifacts
