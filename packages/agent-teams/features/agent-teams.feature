@@ -188,6 +188,12 @@ Feature: Agent Teams run-centric public API
       And a single-node run delivers its result directly in the follow-up
       And no teammate_wait or teammate_status tool exists
 
+    Scenario: The run summary follow-up carries no console navigation hint
+      Given a run has settled
+      When the leader receives the completion follow-up
+      Then the summary covers status, nodes, and deliverables
+      And the message does not include the /teammate console hint
+
     Scenario: Cancel a run stops its running nodes
       Given a run is working
       When the leader calls teammate_cancel with its run id

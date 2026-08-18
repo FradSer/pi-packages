@@ -231,7 +231,6 @@ export function buildRunSummary(runId: string): string {
   for (const node of nodes) {
     lines.push(`- [${node.id}] ${node.status} (${node.agent})`);
   }
-  lines.push("", "Console: /teammate");
   return lines.join("\n");
 }
 

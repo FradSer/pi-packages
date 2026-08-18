@@ -735,7 +735,7 @@ def test_tool_returns_are_compact_and_summary_is_synthesized() -> None:
     machine = source("run-machine.ts")
     types = source("types.ts")
     assert "buildRunSummary" in machine
-    assert "Console: /teammate" in machine
+    assert "Console: /teammate" not in machine
     assert "buildRunSummary(runId)" in source("tools.ts")
     assert "nodeHeadline" not in machine
     assert "SUMMARY_NODE_ID" in machine
