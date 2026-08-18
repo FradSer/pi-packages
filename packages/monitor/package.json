@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-monitor",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Result-contract background monitoring for Pi — capture noisy command output outside model context and expose one structured terminal result",
   "keywords": [
     "pi-package",

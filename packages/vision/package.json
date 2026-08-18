@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-vision",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Transparent image-to-text bridge for text-only Pi models using a configurable vision model",
   "author": "Frad LEE <Frad LEE>",
   "license": "MIT",

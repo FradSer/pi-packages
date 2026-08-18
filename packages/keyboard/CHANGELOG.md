@@ -1,5 +1,11 @@
 # pi-keyboard
 
+## 0.1.4
+
+### Patch Changes
+
+- f4fccb1: Republish all published package versions through GitHub CI to align with current release flow and regenerate their release metadata after version comparison.
+
 ## 0.1.3
 
 ### Patch Changes

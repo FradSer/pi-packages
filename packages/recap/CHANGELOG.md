@@ -1,5 +1,11 @@
 # @fradser/pi-recap
 
+## 0.1.2
+
+### Patch Changes
+
+- f4fccb1: Republish all published package versions through GitHub CI to align with current release flow and regenerate their release metadata after version comparison.
+
 ## 0.1.1
 
 ### Patch Changes
