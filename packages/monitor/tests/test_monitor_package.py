@@ -213,6 +213,35 @@ def test_registered_monitor_tool_terminates_and_wakes_once() -> None:
         if (!messages[0].message.content.includes("status=success")) {
           throw new Error(JSON.stringify(messages));
         }
+        if (messages[0].message.content.includes("output=")) {
+          throw new Error(JSON.stringify(messages));
+        }
+        if (messages[0].message.details?.result?.result?.ok !== true) {
+          throw new Error(JSON.stringify(messages));
+        }
+        ''',    )
+
+
+def test_success_sentinel_omits_progress_output_from_terminal_result() -> None:
+    run_typescript(
+        r'''
+        import { MonitorManager } from "./packages/monitor/src/monitor.ts";
+
+        const terminals = [];
+        const manager = new MonitorManager({
+          onTerminal: (monitor, result) => terminals.push({ monitor, result }),
+        });
+        manager.start({
+          command: `printf 'progress\\nFINAL_RESULT ok\\n'`,
+          description: "quiet success",
+          resultPattern: String.raw`FINAL_RESULT (?<value>\w+)`,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        if (terminals.length !== 1) throw new Error(JSON.stringify(terminals));
+        const result = terminals[0].result;
+        if (result.status !== "success") throw new Error(JSON.stringify(result));
+        if (result.output !== undefined) throw new Error(JSON.stringify(result));
+        if (result.outputTruncated !== undefined) throw new Error(JSON.stringify(result));
         ''',
     )
 
@@ -238,12 +267,16 @@ def test_success_sentinel_returns_one_structured_terminal_result() -> None:
         if (terminal.result.result.ok !== true || terminal.result.result.count !== 3) {
           throw new Error(JSON.stringify(terminal));
         }
-        if (!terminal.result.output?.some((line) => line.includes("progress"))) {
+        if (terminal.result.output !== undefined) {
           throw new Error(JSON.stringify(terminal));
         }
         if (manager.list().length !== 0) throw new Error("monitor remained active");
-        ''',
-    )
+        const archived = manager.listAll().find((monitor) => monitor.id === terminal.monitor.id);
+        if (!archived || archived.status !== "success") throw new Error(JSON.stringify(manager.listAll()));
+        if (!manager.tail(archived.id)?.lines.some((line) => line.includes("progress"))) {
+          throw new Error(JSON.stringify(manager.tail(archived.id)));
+        }
+        ''',    )
 
 
 def test_failure_pattern_matches_stderr_and_returns_capture() -> None:

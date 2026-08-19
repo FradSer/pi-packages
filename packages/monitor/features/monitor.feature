@@ -22,6 +22,7 @@ Feature: Result-contract background monitoring
     And the process is stopped
     And the agent is woken exactly once with status "success"
     And the model-facing result uses compact key-value text instead of pretty JSON
+    And successful completion does not include noisy diagnostic output
 
   Scenario: A failure pattern exposes one structured failure
     Given a monitor is running with a failure pattern

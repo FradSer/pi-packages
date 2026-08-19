@@ -341,9 +341,11 @@ export class MonitorManager {
     keepKillTimerAlive = false,
   ): void {
     if (monitor.status !== "running") return;
-    const output = this.tail(monitor.id);
-    terminal.output = output?.lines ?? [];
-    terminal.outputTruncated = output?.truncated ?? false;
+    if (terminal.status !== "success") {
+      const output = this.tail(monitor.id);
+      terminal.output = output?.lines ?? [];
+      terminal.outputTruncated = output?.truncated ?? false;
+    }
     if (killProcess) this.killTree(monitor, keepKillTimerAlive);
     monitor.status = terminal.status;
     monitor.completedAt = Date.now();

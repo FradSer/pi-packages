@@ -153,7 +153,7 @@ export default function (pi: ExtensionAPI) {
       "Run a non-interactive shell command in the background and wait for a declared terminal result.",
       "result_pattern is required and scans both stdout and stderr. failure_pattern is optional.",
       "Named regex captures are returned as structured fields; a named 'json' capture is parsed as JSON.",
-      "Ordinary output is retained in a bounded buffer and a small diagnostic tail is included in the terminal result.",
+      "Ordinary output is retained in a bounded buffer; failure and missing-result terminals include a small diagnostic tail.",
       "Exactly one terminal notification is emitted for success, failure, or result_missing.",
     ].join(" "),
     promptSnippet: "Run a background command and expose one contracted terminal result without streaming progress logs",
