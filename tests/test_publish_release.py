@@ -16,3 +16,9 @@ def test_feature_covers_local_and_ci_provenance_modes() -> None:
 def test_publish_script_only_enables_provenance_in_github_actions() -> None:
     assert 'process.env.GITHUB_ACTIONS === "true"' in SCRIPT
     assert '...(useProvenance ? ["--provenance"] : [])' in SCRIPT
+
+
+def test_workflow_runs_publish_script_after_version_commits() -> None:
+    workflow = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "publish: node scripts/publish-release.mjs" in workflow
+    assert "NPM_CONFIG_PROVENANCE" in workflow
