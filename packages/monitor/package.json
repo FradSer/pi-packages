@@ -21,6 +21,7 @@
     "access": "public"
   },
   "files": [
+    "index.ts",
     "src",
     "skills",
     "README.md"
@@ -35,7 +36,7 @@
       "./skills"
     ],
     "extensions": [
-      "./src/index.ts"
+      "./index.ts"
     ]
   }
 }

@@ -150,13 +150,15 @@ def test_terminal_message_is_compact_plain_text() -> None:
     assert "output_truncated=true" in extension
 
 
-def test_widget_is_display_only_and_console_owns_input() -> None:
+def test_monitor_status_uses_the_native_footer_and_console_owns_input() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
-    assert 'setWidget("monitor"' in extension
-    assert 'placement: "belowEditor"' in extension
+    assert 'setStatus("monitor"' in extension
+    assert 'setWidget("monitor"' not in extension
+    assert 'placement: "belowEditor"' not in extension
     assert "onTerminalInput" not in extension
     assert "ctx.ui.custom" in extension
     assert "handleInput" in extension
+    assert "updateFooterStatus" in extension
 
 
 def test_monitor_start_terminates_the_current_agent_turn() -> None:
