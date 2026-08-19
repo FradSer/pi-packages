@@ -80,6 +80,7 @@ Cosmetic-only runs (frontmatter + index rewrite while thematic duplicates remain
 
 ```
 memory/
+├── index.ts                     # Package-root extension entry point
 ├── extensions/inject-memory.ts   # /memory + /consolidate commands, memory injection, auto-memory guidance
 ├── procedures/
 │   └── consolidate.md            # inline background consolidation procedure, not a skill

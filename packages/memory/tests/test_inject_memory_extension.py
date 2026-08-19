@@ -101,7 +101,8 @@ class TestInjectMemoryExtension(unittest.TestCase):
         self.assertIn("extensions", data["pi"])
         # The entry is the explicit factory file; config.ts is a helper module,
         # never a directory glob (pi would otherwise try to load config.ts as an extension).
-        self.assertIn("./extensions/inject-memory.ts", data["pi"]["extensions"])
+        self.assertEqual(data["pi"]["extensions"], ["./index.ts"])
+        self.assertTrue(os.path.isfile(os.path.join(MEMORY_PKG_DIR, "index.ts")))
 
 
 class TestManualConsolidation(unittest.TestCase):
