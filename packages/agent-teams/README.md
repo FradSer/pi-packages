@@ -86,6 +86,7 @@ State is session-scoped and dies with the session (`~/.pi/agent/teammate/<sessio
 
 ```
 agent-teams/
+├── index.ts           — package-root extension entry point
 ├── package.json       — Pi package manifest
 ├── agents/            — bundled agent definitions (worker/reviewer/specialist/observer)
 ├── src/

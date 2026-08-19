@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-btw",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Side questions for Pi — /btw answers in a read-only overlay, never entering the session history. Unlike Claude Code's /btw, it can actually call read-only tools (read, grep, find, ls) to verify facts in the codebase.",
   "keywords": [
     "pi-package",
@@ -20,6 +20,7 @@
     "access": "public"
   },
   "files": [
+    "index.ts",
     "src",
     ".memory",
     "README.md"
@@ -30,7 +31,7 @@
   },
   "pi": {
     "extensions": [
-      "./src/index.ts"
+      "./index.ts"
     ]
   },
   "dependencies": {

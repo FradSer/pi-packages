@@ -107,7 +107,7 @@ export class KeyboardStateMachine {
     await this.applyCurrentState(force);
   }
 
-  private async applyCurrentState(force = false): Promise<void> {
+  private async applyCurrentState(_force = false): Promise<void> {
     await applyKeyboardState(this.currentState, this.config);
   }
 

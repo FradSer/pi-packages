@@ -173,7 +173,7 @@ def test_long_prompt_temp_file_is_removed_when_child_launch_errors() -> None:
 def test_manifest_declares_native_pi_package() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert "pi-package" in manifest["keywords"]
-    assert manifest["pi"]["extensions"] == ["./src/index.ts"]
+    assert manifest["pi"]["extensions"] == ["./index.ts"]
 
 
 def test_extension_declares_peer_dependency() -> None:
@@ -192,7 +192,7 @@ def test_published_files_cover_extension_and_readme() -> None:
 
 
 def test_extension_entry_point_exists() -> None:
-    assert (SRC / "index.ts").is_file(), "Extension entry point src/index.ts is missing"
+    assert (PACKAGE / "index.ts").is_file(), "Extension entry point index.ts is missing"
     assert (SRC / "spawner.ts").is_file(), "Spawner module src/spawner.ts is missing"
     assert (SRC / "context.ts").is_file(), "Context module src/context.ts is missing"
     assert (SRC / "overlay.ts").is_file(), "Overlay module src/overlay.ts is missing"

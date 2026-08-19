@@ -10,7 +10,7 @@ Feature: /effort thinking-level command
   Scenario: Manifest registers the extensions directory
     Given the package manifest
     When inspected
-    Then its pi section exposes ./extensions
+    Then its pi section exposes ./index.ts
     And the extension file ships beside the skills
 
   Scenario: /effort with no argument opens a level menu

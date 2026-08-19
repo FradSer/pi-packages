@@ -63,7 +63,7 @@ def test_manifest_declares_native_extension_package() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert manifest["name"] == "@fradser/pi-agent-teams"
     assert "pi-package" in manifest["keywords"]
-    assert manifest["pi"] == {"extensions": ["./src/index.ts"]}
+    assert manifest["pi"] == {"extensions": ["./index.ts"]}
     assert "skills" not in manifest["files"]
     assert not (PACKAGE / "skills").exists()
     # Declarative agent files ship with the package.
@@ -729,7 +729,7 @@ def test_run_dispatch_is_single_call_with_scheduler() -> None:
     assert "MAX_SESSION_WORKERS" in machine
     assert "findSharedWorkspaceWriteConflict(runId, node.id)" in machine
     assert "startNode(runId, node.id, ctx)" in machine
-    assert "onRunSettled(runId, ctx)" in machine
+    assert "onRunSettled(runId)" in machine
     assert "run.background && !run.completionNotified" in machine
     assert "markRunCompletionDelivered(runId)" in ext
     assert "background: params.background ?? true" in ext

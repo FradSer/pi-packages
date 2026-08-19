@@ -36,7 +36,8 @@ class TestEffortExtension(unittest.TestCase):
     def test_package_json_registers_extensions(self) -> None:
         manifest = json.loads((UTILS_PKG_DIR / "package.json").read_text(encoding="utf-8"))
         self.assertIn("extensions", manifest["pi"])
-        self.assertIn("./extensions", manifest["pi"]["extensions"])
+        self.assertEqual(manifest["pi"]["extensions"], ["./index.ts"])
+        self.assertTrue((UTILS_PKG_DIR / "index.ts").is_file())
         self.assertIn("peerDependencies", manifest)
         self.assertIn("@earendil-works/pi-coding-agent", manifest["peerDependencies"])
 

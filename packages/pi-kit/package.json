@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared runtime helpers for FradSer pi packages — TUI spinner/theme primitives and message text extraction. Internal workspace dependency, not a Pi package.",
   "keywords": [
     "pi-kit",
@@ -18,9 +18,10 @@
     "access": "public"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./index.ts"
   },
   "files": [
+    "index.ts",
     "src",
     "README.md"
   ]

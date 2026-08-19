@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-recap",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Session recap for Pi — shows a concise summary of what's happening above the TUI input box, like Claude Code's ✦ Recap: feature",
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",
@@ -19,13 +19,14 @@
     "access": "public"
   },
   "files": [
+    "index.ts",
     "extensions",
     "features",
     "README.md"
   ],
   "pi": {
     "extensions": [
-      "./extensions"
+      "./index.ts"
     ]
   },
   "peerDependencies": {

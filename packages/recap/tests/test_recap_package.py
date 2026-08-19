@@ -361,7 +361,8 @@ def test_extension_restores_recap_from_session_branch_on_startup() -> None:
 
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert "pi-package" in manifest["keywords"]
-    assert manifest["pi"]["extensions"] == ["./extensions"]
+    assert manifest["pi"]["extensions"] == ["./index.ts"]
+    assert (PACKAGE / "index.ts").is_file()
 
 
 def test_extension_declares_peer_dependency() -> None:

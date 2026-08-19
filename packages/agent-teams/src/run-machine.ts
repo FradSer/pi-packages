@@ -2,25 +2,23 @@
 
 import { randomUUID } from "node:crypto";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { truncateTail, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
 import { resolveAgent } from "./agents";
 import { isWorkerEvent } from "./worker";
 import {
   cancelBlockedDependents, cancelNode, cancelRun, clearWorkerRunEvents, clearStateDirty, isStateDirty,
-  deliverToLeader, failRunTimeout, findSharedWorkspaceWriteConflict, getNode, getNodeByWorkerKey,
+  deliverToLeader, failRunTimeout, findSharedWorkspaceWriteConflict, getNode,
   getRun, getState, listNodes, listRuns, markNodeRunning, markStateDirty,
-  readyPendingNodes, receiveWorkerMessage, retryRun, runningNodeCount, settleRun, setNodeSpawnInfo,
+  readyPendingNodes, receiveWorkerMessage, runningNodeCount, settleRun, setNodeSpawnInfo,
   SUMMARY_NODE_ID, updateNodeSpawnProgress, updateNodeStatus,
 } from "./state";
 import {
   CancellationIntents, buildAutonomousPrompt, finishReportedWorker, isCompletedWorkerExit,
-  POST_REPORT_GRACE_MS, spawnPiWorker, terminateAllWorkers, terminateWorker,
+  POST_REPORT_GRACE_MS, spawnPiWorker, terminateWorker,
   type WorkerProcessResult,
 } from "./spawner";
 import { buildNodeTerminalResult } from "./terminal";
 import { captureWorktreeDiff, cleanupWorktree, createWorktree, discardWorktree } from "./worktree";
 import { readWorkerEvents, removeWorkerOutbox, stateFilePath, workerOutboxPath, writeStateFile } from "./statefile";
-import type { Run } from "./types";
 
 export interface DispatchCtx {
   ui: ExtensionContext["ui"];
@@ -184,7 +182,7 @@ function enforceRunTimeouts(): void {
       const node = getNode(run.id, nodeId);
       if (node) void terminateWorker(node.workerKey).catch(() => false);
     }
-    onRunSettled(run.id, machineCtx);
+    onRunSettled(run.id);
     // failRunTimeout clears spawns, so those nodes' close events skip their
     // finalize path — release write-deferred nodes in OTHER runs here.
     if (machineCtx) scheduleAllRuns(machineCtx);
@@ -193,10 +191,6 @@ function enforceRunTimeouts(): void {
 
 
 // ── Run dispatch machinery ────────────────────────────────────────
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 /** Compact run summary for tool returns and follow-ups. When the run has a
  * synthesized __summary node result, that is shown instead of per-node
@@ -237,7 +231,7 @@ export function buildRunSummary(runId: string): string {
 /** Called once a run reaches a terminal status. Idempotent: the leader summary
  * and follow-up fire only on the first settled observation (a run can transition
  * through settleRun once per node close). */
-export function onRunSettled(runId: string, ctx?: DispatchCtx): void {
+export function onRunSettled(runId: string): void {
   const run = getRun(runId);
   if (!run) return;
   if (run.settledMessageSent) return;
@@ -265,7 +259,7 @@ export function scheduleRun(runId: string, ctx: DispatchCtx): void {
   if (!run || run.status !== "running") return;
   const settled = settleRun(runId);
   if (settled !== "running") {
-    onRunSettled(runId, ctx);
+    onRunSettled(runId);
     return;
   }
   const sessionBudget = MAX_SESSION_WORKERS - listNodes().filter((node) => node.status === "running").length;
@@ -345,7 +339,7 @@ export async function cancelRunAndTerminate(
     cancellationIntents.resolve(spawnId, terminated);
   }
   publishStateSnapshot();
-  onRunSettled(runId, ctx);
+  onRunSettled(runId);
   scheduleAllRuns(ctx);
   notifyChange();
   return { ok: true };

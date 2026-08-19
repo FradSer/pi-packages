@@ -67,7 +67,8 @@ def run_input_harness(
 def test_manifest_declares_native_pi_package() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert "pi-package" in manifest["keywords"]
-    assert manifest["pi"]["extensions"] == ["./src/index.ts"]
+    assert manifest["pi"]["extensions"] == ["./index.ts"]
+    assert (PACKAGE / "index.ts").is_file()
     assert manifest["peerDependencies"]["@earendil-works/pi-coding-agent"] == "*"
     assert manifest["peerDependencies"]["@earendil-works/pi-ai"] == "*"
 

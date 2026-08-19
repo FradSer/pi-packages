@@ -27,9 +27,9 @@ no skills, and no extensions. Consumer packages declare it as
 
 - Zero runtime dependencies beyond Node built-ins; no imports of pi core or
   consumer packages (the dependency graph stays one-way).
-- All code lives in `src/index.ts`: a zero-internal-import module resolves
-  identically under Node's native type stripping, tsx, pi's extension loader,
-  and tsc with any moduleResolution.
+- The package root `index.ts` re-exports the shared runtime from `src/index.ts`.
+  The implementation remains a zero-internal-import module that resolves
+  identically under Node's native type stripping, tsx, and tsc.
 - Do not wrap what `@earendil-works/pi-tui` already exports
   (`wrapTextWithAnsi`, `truncateToWidth`, `visibleWidth`, `Key`,
   `matchesKey`, `isKeyRelease`) — consumers import those directly.

@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-utils",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Native /effort, /continue, /sessions (/recap) commands for pi — set thinking levels, resume interrupted steps, cross-session directory recap, and redirect git worktrees",
   "keywords": [
     "pi-package",
@@ -23,12 +23,13 @@
     "access": "public"
   },
   "files": [
+    "index.ts",
     "extensions",
     "README.md"
   ],
   "pi": {
     "extensions": [
-      "./extensions"
+      "./index.ts"
     ]
   },
   "peerDependencies": {

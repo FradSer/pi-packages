@@ -123,7 +123,7 @@ runtime.registerNativeProvider(vision.provider);
 const loader = new DefaultResourceLoader({
   cwd: process.cwd(),
   agentDir,
-  additionalExtensionPaths: [join(packageDir, "src", "index.ts")],
+  additionalExtensionPaths: [join(packageDir, "index.ts")],
 });
 await loader.reload();
 

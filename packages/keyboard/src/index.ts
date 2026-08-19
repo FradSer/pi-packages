@@ -7,7 +7,6 @@ import { fetchKeyboardStatus } from "./driver";
 import { KeyboardStateMachine } from "./state-machine";
 import {
   KEYBOARD_STATE_DEFINITIONS,
-  type KeyboardConfig,
   type KeyboardState,
   type KeyboardZone,
 } from "./types";
