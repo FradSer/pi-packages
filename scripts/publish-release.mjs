@@ -45,6 +45,8 @@ const unpublished = packages.filter((name) => {
   return published !== JSON.stringify(local.version) && published !== local.version;
 });
 
+const useProvenance = process.env.GITHUB_ACTIONS === "true";
+
 for (const name of unpublished) {
   const result = workspacePackages.get(name);
   console.log(`Publishing ${name}@${result.version}`);
@@ -52,7 +54,7 @@ for (const name of unpublished) {
     "publish",
     "--filter",
     name,
-    "--provenance",
+    ...(useProvenance ? ["--provenance"] : []),
     "--access",
     "public",
     "--no-git-checks",
