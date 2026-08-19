@@ -1,5 +1,14 @@
 # @fradser/pi-agent-teams
 
+## 0.5.2
+
+### Patch Changes
+
+- a1b37a0: Remove the `Console: /teammate` navigation hint from the `[teammate-update]` run summary follow-up message. The console affordance stays in the live widget, but the completion message no longer prompts the user to open the console.
+- Standardize runtime package entry points on package-root `index.ts` modules. The monitor status is also rendered through Pi's native footer so it appears below the directory and usage lines.
+- Updated dependencies
+  - @fradser/pi-kit@0.1.1
+
 ## 0.5.1
 
 ### Patch Changes

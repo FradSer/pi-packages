@@ -1,5 +1,11 @@
 # @fradser/pi-monitor
 
+## 2.0.3
+
+### Patch Changes
+
+- Standardize runtime package entry points on package-root `index.ts` modules. The monitor status is also rendered through Pi's native footer so it appears below the directory and usage lines.
+
 ## 2.0.2
 
 ### Patch Changes

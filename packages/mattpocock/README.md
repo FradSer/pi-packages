@@ -2,7 +2,7 @@
 
 BDD-first engineering and productivity skills adapted from the `mattpocock/skills` fork in `dotclaude`.
 
-**Package version:** 0.1.2
+**Package version:** 0.2.0
 
 **Upstream checked:** `mattpocock/skills` `84fdeffd` (`v1.2.3` plus the latest main documentation change)
 
