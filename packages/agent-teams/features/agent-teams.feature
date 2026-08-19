@@ -299,6 +299,12 @@ Feature: Agent Teams run-centric public API
       When the leader requests its graceful shutdown and observes SIGTERM close or timeout
       Then the node is retained as completed with the reported result
 
+    Scenario: A reported completion cancels the worker timeout before shutdown
+      Given a worker has reported completion before its timeout deadline
+      When the leader requests graceful shutdown
+      Then the child timeout is cancelled before the close wait begins
+      And the terminal result is not marked timed out
+
     Scenario: Completed run metadata is compacted safely
       Given a node run reached a final lifecycle outcome
       Then the leader persists the final state before removing its per-run outbox and replay metadata

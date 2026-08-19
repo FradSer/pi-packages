@@ -152,8 +152,62 @@ export class CancellationIntents {
 /** Live workers by teammate name — lets the panel interrupt/stop a running worker. */
 const workers = new Map<string, ReturnType<typeof spawn>>();
 
+export interface WorkerTimeoutHandle {
+  cancel(): void;
+  dispose(): void;
+  wasCancelled(): boolean;
+  didTimeout(): boolean;
+}
+
+const workerTimeouts = new WeakMap<ReturnType<typeof spawn>, WorkerTimeoutHandle>();
+
 function isChildRunning(child: ReturnType<typeof spawn>): boolean {
   return child.exitCode === null && child.signalCode === null;
+}
+
+export function registerWorkerTimeout(
+  child: ReturnType<typeof spawn>,
+  timeoutMs: number,
+): WorkerTimeoutHandle {
+  let cancelled = false;
+  let disposed = false;
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const handle: WorkerTimeoutHandle = {
+    cancel() {
+      if (disposed) return;
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      disposed = true;
+      workerTimeouts.delete(child);
+    },
+    dispose() {
+      if (disposed) return;
+      if (timer) clearTimeout(timer);
+      disposed = true;
+      workerTimeouts.delete(child);
+    },
+    wasCancelled: () => cancelled,
+    didTimeout: () => timedOut,
+  };
+
+  timer = setTimeout(() => {
+    if (disposed || cancelled) return;
+    if (!isChildRunning(child)) {
+      handle.dispose();
+      return;
+    }
+    timedOut = true;
+    child.kill("SIGKILL");
+  }, timeoutMs);
+  timer.unref?.();
+  workerTimeouts.set(child, handle);
+  return handle;
+}
+
+export function cancelWorkerTimeout(child: ReturnType<typeof spawn>): void {
+  workerTimeouts.get(child)?.cancel();
 }
 
 function waitForClose(child: ReturnType<typeof spawn>, timeoutMs: number): Promise<boolean> {
@@ -180,6 +234,7 @@ function waitForClose(child: ReturnType<typeof spawn>, timeoutMs: number): Promi
  * resolve only after a bounded wait observes the child `close` event.
  */
 export async function terminateChildProcess(child: ReturnType<typeof spawn>, graceMs = CANCEL_GRACE_MS): Promise<boolean> {
+  cancelWorkerTimeout(child);
   if (!isChildRunning(child)) return false;
 
   const closedAfterTerm = waitForClose(child, graceMs);
@@ -497,7 +552,7 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
   const stderrChunks: string[] = [];
   const streamState = createWorkerStreamState();
   let stdoutBuffer = "";
-  let timedOut = false;
+  let timeoutHandle: WorkerTimeoutHandle | undefined;
   let settled = false;
   const emitProgress = () => options.onUpdate?.({
     text: truncate(streamState.text, OUTPUT_CAP),
@@ -518,17 +573,12 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
   });
   child.stderr.on("data", (chunk: Buffer) => stderrChunks.push(chunk.toString()));
 
-  let timer: ReturnType<typeof setTimeout> | undefined;
   if (options.timeoutMs) {
-    timer = setTimeout(() => {
-      timedOut = true;
-      child.kill("SIGKILL");
-    }, options.timeoutMs);
-    timer.unref?.();
+    timeoutHandle = registerWorkerTimeout(child, options.timeoutMs);
   }
 
   child.on("error", (error) => {
-    if (timer) clearTimeout(timer);
+    timeoutHandle?.dispose();
     cleanupTempDir();
     settled = true;
     if (options.workerName && workers.get(options.workerName) === child) workers.delete(options.workerName);
@@ -536,7 +586,8 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
   });
 
   child.on("close", (code, signal) => {
-    if (timer) clearTimeout(timer);
+    const timedOut = timeoutHandle?.didTimeout() ?? false;
+    timeoutHandle?.dispose();
     cleanupTempDir();
     // A spawn failure already reported via onError (Node fires error then
     // close) — do not double-report through onExit, which would let a failed

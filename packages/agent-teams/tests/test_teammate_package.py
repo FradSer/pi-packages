@@ -122,6 +122,7 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Worker children run with only the agent-teams extension",
         "A normal worker exit completes its node",
         "An abnormal worker exit fails its node",
+        "A reported completion cancels the worker timeout before shutdown",
         "Completed run metadata is compacted safely",
         "Invalid tool operations surface as Pi failures",
         "Inline foreground gather remains the explicit sync option",
@@ -800,6 +801,28 @@ def test_cancellation_intent_defers_close_finalization_until_the_cancel_outcome_
         "outcomes": ["cancelled"],
         "pending": False,
     }
+
+
+def test_reported_worker_shutdown_cancels_timeout_before_waiting_for_close() -> None:
+    module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ spawn }} from "node:child_process";
+        import {{ registerWorkerTimeout, terminateChildProcess }} from "{module}";
+        const child = spawn(process.execPath, ["--eval", `
+          setTimeout(() => {{}}, 1_000);
+          process.on("SIGTERM", () => setTimeout(() => process.exit(0), 100));
+        `], {{ stdio: "ignore" }});
+        const timeout = registerWorkerTimeout(child, 250);
+        const started = Date.now();
+        const result = await terminateChildProcess(child, 500);
+        const elapsed = Date.now() - started;
+        console.log(JSON.stringify({{ result, elapsed, timeoutCancelled: timeout.wasCancelled() }}));
+        '''
+    )
+    assert payload["result"] is True
+    assert payload["timeoutCancelled"] is True
+    assert payload["elapsed"] < 250
 
 
 def test_sigterm_cooperative_worker_closes_with_exit_zero_before_termination_resolves() -> None:
