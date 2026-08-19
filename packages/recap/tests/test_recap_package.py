@@ -42,6 +42,8 @@ def test_feature_covers_recap_scenarios() -> None:
     assert "Scenario: Existing session restores persisted recap on startup across restarts" in feature
     assert "Scenario: Existing session without saved recap computes initial recap on startup" in feature
     assert "Scenario: Existing recap prevents redundant startup generation" in feature
+    assert "Scenario: Headless recap commands do not start generation" in feature
+    assert "Scenario: Background recap ignores stale session context failures" in feature
     assert "Scenario: Recap generation requests are deduplicated and cancellable" in feature
     assert "Scenario: Recap generation times out safely" in feature
     assert "Scenario: Recap ignores thinking-only provider output" in feature
@@ -224,6 +226,121 @@ def test_startup_regenerates_when_no_saved_recap_exists() -> None:
         """
     )
     assert result["completeCalls"] == 1
+
+
+def test_headless_session_does_not_start_recap_generation() -> None:
+    result = run_typescript(
+        f"""
+        import extensionModule from "{INDEX_URI}";
+        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+
+        let registeredEvents = {{}};
+        let completeCalls = 0;
+        const fakePi = {{
+          on(event, handler) {{ registeredEvents[event] = handler; }},
+          registerCommand() {{}},
+          appendEntry() {{}},
+        }};
+
+        initExtension(fakePi);
+        const fakeCtx = {{
+          mode: "json",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{
+            getBranch: () => [
+              {{ type: "message", message: {{ role: "user", content: "fix bug" }} }},
+              {{ type: "message", message: {{ role: "assistant", content: "bug fixed" }} }},
+            ],
+            getSessionFile: () => undefined,
+          }},
+          ui: {{ setWidget: () => {{}}, notify: () => {{}} }},
+          modelRegistry: {{
+            find: () => ({{ provider: "mock", id: "m1" }}),
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => {{ completeCalls++; return {{ role: "assistant", content: [{{ type: "text", text: "unexpected" }}] }}; }},
+          }},
+          model: {{ provider: "mock", id: "m1" }},
+        }};
+
+        await registeredEvents["session_start"]({{}}, fakeCtx);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        console.log(JSON.stringify({{ completeCalls }}));
+        """
+    )
+    assert result["completeCalls"] == 0
+
+
+def test_headless_recap_command_does_not_generate() -> None:
+    result = run_typescript(
+        f"""
+        import extensionModule from "{INDEX_URI}";
+        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        let registeredCommand;
+        let completeCalls = 0;
+        const fakePi = {{
+          on() {{}},
+          registerCommand(_name, command) {{ registeredCommand = command; }},
+          appendEntry() {{}},
+        }};
+        initExtension(fakePi);
+        const fakeCtx = {{
+          mode: "json",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{ getBranch: () => [
+            {{ type: "message", message: {{ role: "user", content: "fix bug" }} }},
+            {{ type: "message", message: {{ role: "assistant", content: "bug fixed" }} }},
+          ]}},
+          ui: {{ setWidget: () => {{}}, notify: () => {{}} }},
+          modelRegistry: {{
+            find: () => ({{ provider: "mock", id: "m1" }}),
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => {{ completeCalls++; return {{ role: "assistant", content: [{{ type: "text", text: "unexpected" }}] }}; }},
+          }},
+          model: {{ provider: "mock", id: "m1" }},
+        }};
+        await registeredCommand.handler("now", fakeCtx);
+        console.log(JSON.stringify({{ completeCalls }}));
+        """
+    )
+    assert result["completeCalls"] == 0
+
+
+def test_background_recap_handles_stale_append_without_unhandled_rejection() -> None:
+    result = run_typescript(
+        f"""
+        import extensionModule from "{INDEX_URI}";
+        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        let registeredEvents = {{}};
+        let unhandled = 0;
+        process.on("unhandledRejection", () => {{ unhandled++; }});
+        const fakePi = {{
+          on(event, handler) {{ registeredEvents[event] = handler; }},
+          registerCommand() {{}},
+          appendEntry() {{ throw new Error("This extension ctx is stale after session replacement or reload."); }},
+        }};
+        initExtension(fakePi);
+        const fakeCtx = {{
+          mode: "tui",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{ getBranch: () => [
+            {{ type: "message", message: {{ role: "user", content: "fix bug" }} }},
+            {{ type: "message", message: {{ role: "assistant", content: "bug fixed" }} }},
+          ]}},
+          ui: {{ setWidget: () => {{}}, notify: () => {{}} }},
+          modelRegistry: {{
+            find: () => ({{ provider: "mock", id: "m1" }}),
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => ({{ role: "assistant", content: [{{ type: "text", text: "updated recap" }}] }}),
+          }},
+          model: {{ provider: "mock", id: "m1" }},
+        }};
+        registeredEvents["input"]({{ source: "interactive" }});
+        await registeredEvents["agent_settled"]({{}}, fakeCtx);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        console.log(JSON.stringify({{ unhandled }}));
+        """
+    )
+    assert result["unhandled"] == 0
 
 
 def test_extension_appends_entry_when_recap_generated() -> None:
@@ -529,6 +646,20 @@ def test_clean_recap_text_caps_length() -> None:
 def test_extension_wraps_recap_text_responsively() -> None:
     extension = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
     assert "wrapTextWithAnsi" in extension
+
+
+def test_headless_sessions_skip_recap_widget_and_generation() -> None:
+    extension = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
+    assert "if (ctx.mode !== \"tui\") return;" in extension
+    assert 'if (ctx.mode === "tui" && config.enabled && !savedRecap)' in extension
+    assert 'if (ctx.mode !== "tui" || !config.enabled || !config.autoRecap)' in extension
+
+
+def test_widget_refresh_ignores_disposed_context() -> None:
+    extension = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
+    assert "function updateRecapWidget(ctx: ExtensionContext): void" in extension
+    assert "try {" in extension
+    assert 'error.message.includes("stale")' in extension
 
 
 def test_recap_marker_matches_native_working_spinner_indent() -> None:

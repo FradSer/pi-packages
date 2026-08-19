@@ -147,74 +147,82 @@ export default function (pi: ExtensionAPI) {
   }
 
   function updateRecapWidget(ctx: ExtensionContext): void {
-    if (ctx.mode !== "tui") return;
+    try {
+      if (ctx.mode !== "tui") return;
 
-    if (!config.enabled || (!currentRecap && !generatingRecap)) {
-      ctx.ui.setWidget("recap", undefined);
-      return;
-    }
+      if (!config.enabled || (!currentRecap && !generatingRecap)) {
+        ctx.ui.setWidget("recap", undefined);
+        return;
+      }
 
-    if (!generatingRecap && recapSpinnerTimer) {
-      clearInterval(recapSpinnerTimer);
-      recapSpinnerTimer = undefined;
-    }
+      if (!generatingRecap && recapSpinnerTimer) {
+        clearInterval(recapSpinnerTimer);
+        recapSpinnerTimer = undefined;
+      }
 
-    ctx.ui.setWidget(
-      "recap",
-      (tui, theme) => {
-        if (generatingRecap) {
-          recapSpinnerFrame = 0;
-          recapSpinnerTimer = setInterval(() => {
-            recapSpinnerFrame =
-              (recapSpinnerFrame + 1) % PI_SPINNER_FRAMES.length;
-            tui.requestRender();
-          }, 80);
-          recapSpinnerTimer.unref?.();
-        }
+      ctx.ui.setWidget(
+        "recap",
+        (tui, theme) => {
+          if (generatingRecap) {
+            recapSpinnerFrame = 0;
+            recapSpinnerTimer = setInterval(() => {
+              recapSpinnerFrame =
+                (recapSpinnerFrame + 1) % PI_SPINNER_FRAMES.length;
+              tui.requestRender();
+            }, 80);
+            recapSpinnerTimer.unref?.();
+          }
 
-        return {
-          render: (width: number) => {
-            if (!config.enabled || (!currentRecap && !generatingRecap))
-              return [];
-            const icon = theme.fg("accent", "✦");
-            const label = theme.fg("dim", "Recap:");
-            const firstPrefix = ` ${icon} ${label} `;
-            const prefixWidth = visibleWidth(firstPrefix);
-            const contentWidth = Math.max(15, width - prefixWidth);
-            const indent = " ".repeat(prefixWidth);
-            const lines: string[] = [];
+          return {
+            render: (width: number) => {
+              if (!config.enabled || (!currentRecap && !generatingRecap))
+                return [];
+              const icon = theme.fg("accent", "✦");
+              const label = theme.fg("dim", "Recap:");
+              const firstPrefix = ` ${icon} ${label} `;
+              const prefixWidth = visibleWidth(firstPrefix);
+              const contentWidth = Math.max(15, width - prefixWidth);
+              const indent = " ".repeat(prefixWidth);
+              const lines: string[] = [];
 
-            if (generatingRecap) {
-              const spinner = PI_SPINNER_FRAMES[recapSpinnerFrame];
-              lines.push(` ${theme.fg("accent", `${spinner} Recapping...`)}`);
-            }
-
-            if (currentRecap) {
-              const wrapped = wrapTextWithAnsi(currentRecap, contentWidth);
-              for (let i = 0; i < wrapped.length; i++) {
-                const prefix = i === 0 ? firstPrefix : indent;
-                lines.push(`${prefix}${theme.fg("muted", wrapped[i])}`);
+              if (generatingRecap) {
+                const spinner = PI_SPINNER_FRAMES[recapSpinnerFrame];
+                lines.push(` ${theme.fg("accent", `${spinner} Recapping...`)}`);
               }
-            }
 
-            return lines;
-          },
-          invalidate: () => {},
-          dispose: () => {
-            if (recapSpinnerTimer) {
-              clearInterval(recapSpinnerTimer);
-              recapSpinnerTimer = undefined;
-            }
-          },
-        };
-      },
-      { placement: "aboveEditor" },
-    );
+              if (currentRecap) {
+                const wrapped = wrapTextWithAnsi(currentRecap, contentWidth);
+                for (let i = 0; i < wrapped.length; i++) {
+                  const prefix = i === 0 ? firstPrefix : indent;
+                  lines.push(`${prefix}${theme.fg("muted", wrapped[i])}`);
+                }
+              }
+
+              return lines;
+            },
+            invalidate: () => {},
+            dispose: () => {
+              if (recapSpinnerTimer) {
+                clearInterval(recapSpinnerTimer);
+                recapSpinnerTimer = undefined;
+              }
+            },
+          };
+        },
+        { placement: "aboveEditor" },
+      );
+    } catch (error) {
+      if (error instanceof Error && !error.message.includes("stale")) {
+        throw error;
+      }
+    }
   }
 
   async function performRecap(
     ctx: ExtensionContext,
   ): Promise<string | undefined> {
+    if (ctx.mode !== "tui") return undefined;
+
     const model = resolveRecapModel(ctx);
     if (!model) return undefined;
 
@@ -467,8 +475,10 @@ export default function (pi: ExtensionAPI) {
       }
     }
     updateRecapWidget(ctx);
-    if (config.enabled && !savedRecap) {
-      void performRecap(ctx);
+    if (ctx.mode === "tui" && config.enabled && !savedRecap) {
+      void performRecap(ctx).catch(() => {
+        // Background recap must not create an unhandled rejection during teardown.
+      });
     }
   });
 
@@ -483,8 +493,10 @@ export default function (pi: ExtensionAPI) {
   pi.on("agent_settled", async (_event, ctx) => {
     if (!shouldRecap) return;
     shouldRecap = false;
-    if (!config.enabled || !config.autoRecap) return;
-    void performRecap(ctx);
+    if (ctx.mode !== "tui" || !config.enabled || !config.autoRecap) return;
+    void performRecap(ctx).catch(() => {
+      // Background recap must not create an unhandled rejection during teardown.
+    });
   });
 
   // /recap command — open management menu or execute subcommand
@@ -519,6 +531,10 @@ export default function (pi: ExtensionAPI) {
       }
 
       if (lower === "now" || lower === "generate") {
+        if (ctx.mode !== "tui") {
+          ctx.ui.notify("Recap generation requires the TUI", "warning");
+          return;
+        }
         ctx.ui.notify("Generating recap...", "info");
         const refreshed = await performRecap(ctx);
         if (refreshed) {

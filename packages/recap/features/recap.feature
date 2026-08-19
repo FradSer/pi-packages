@@ -110,3 +110,21 @@ Feature: Session Recap
     When an agent turn settles
     Then the recap generation runs asynchronously using the model registry
     And the user can continue typing immediately
+
+  Scenario: Headless child sessions do not start recap generation
+    Given a non-TUI child session is processing a consolidation prompt
+    When the agent turn settles
+    Then recap generation is not started
+    And the child can exit without a stale-widget error
+
+  Scenario: Headless recap commands do not start generation
+    Given a non-TUI session
+    When the user runs /recap now
+    Then recap generation is not started
+    And the user is told recap requires the TUI
+
+  Scenario: Background recap ignores stale session context failures
+    Given recap generation is running in a TUI session
+    When the session is replaced before generation finishes
+    Then the stale append failure is handled
+    And no unhandled rejection is emitted
