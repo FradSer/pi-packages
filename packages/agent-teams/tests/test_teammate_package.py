@@ -61,7 +61,7 @@ def run_node(script: str, *args: str) -> dict[str, object]:
 
 def test_manifest_declares_native_extension_package() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
-    assert manifest["name"] == "pi-agent-teams-fradser"
+    assert manifest["name"] == "@fradser/pi-agent-teams"
     assert "pi-package" in manifest["keywords"]
     assert manifest["pi"] == {"extensions": ["./src/index.ts"]}
     assert "skills" not in manifest["files"]
@@ -119,6 +119,7 @@ def test_bdd_contract_covers_target_resources() -> None:
         "The harness delivers one canonical terminal result per node",
         "Workers cannot access leader tools",
         "Worker process outcomes are authoritative",
+        "Worker children run with only the agent-teams extension",
         "A normal worker exit completes its node",
         "An abnormal worker exit fails its node",
         "Completed run metadata is compacted safely",
@@ -704,6 +705,9 @@ def test_worker_spawn_is_nonblocking_and_identity_bound() -> None:
     ext = source("run-machine.ts")
     spawner = source("spawner.ts")
     assert "spawnPiWorkerBlocking" not in ext
+    assert '"--no-extensions"' in spawner
+    assert '"--extension"' in spawner
+    assert 'path.resolve(path.dirname(fileURLToPath(import.meta.url)), "index.ts")' in spawner
     assert "spawnPiWorkerBlocking" not in spawner
     assert "Your worker key:" not in spawner
     assert "inboxMessages" not in spawner

@@ -431,7 +431,17 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
   // resolvePiCli always resolves (worst case a "pi" binary on PATH); a missing
   // binary surfaces later as a child "error" event through onError.
   const cli = resolvePiCli();
-  const args: string[] = [...cli.args, "--print", "--mode", "json", "--no-session"];
+  const workerExtension = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "index.ts");
+  const args: string[] = [
+    ...cli.args,
+    "--print",
+    "--mode",
+    "json",
+    "--no-session",
+    "--no-extensions",
+    "--extension",
+    workerExtension,
+  ];
   if (options.model) args.push("--model", options.model);
   // Capability tools cannot be removed; execution tools are selected by the
   // leader from the teammate's explicit configuration or role default.

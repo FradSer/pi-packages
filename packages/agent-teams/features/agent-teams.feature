@@ -281,6 +281,13 @@ Feature: Agent Teams run-centric public API
       Then the node is completed and its result is retained
       And ready downstream nodes start
 
+    Scenario: Worker children run with only the agent-teams extension
+      Given a worker is spawned for a task
+      When the child Pi process starts
+      Then unrelated session extensions are disabled
+      And the agent-teams worker extension is loaded explicitly
+      So extension startup failures cannot consume the worker timeout
+
     Scenario: An abnormal worker exit fails its node
       Given a worker did not report a completed result
       When the child exits non-zero, times out, or is terminated by a signal
