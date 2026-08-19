@@ -1,4 +1,4 @@
-# Monitor Pi Package
+# @fradser/pi-monitor
 
 Result-contract background monitoring for Pi. Run a non-interactive command,
 keep noisy progress output outside the model context, and wake the agent once
@@ -21,6 +21,21 @@ wakes the agent once when:
 - the command exits non-zero: `failure`
 - the command exits zero without matching: `result_missing`
 
+## Structure
+
+```
+monitor/
+├── index.ts           — Package-root extension entry point
+├── src/
+│   ├── monitor.ts     — MonitorManager with bounded log/output/tail
+│   ├── types.ts       — Parameter TypeBox schemas
+│   └── index.ts       — Pi hooks, tool/command registration, widget
+├── skills/using-monitor/SKILL.md
+├── features/          — BDD contract
+├── tests/             — Package E2E tests
+└── README.md
+```
+
 ### Tools and command
 
 | Tool / Command | Description |
@@ -32,7 +47,7 @@ wakes the agent once when:
 ## Installation
 
 ```bash
-pi install npm:pi-monitor-fradser
+pi install npm:@fradser/pi-monitor
 # or from this repository:
 pi install /path/to/pi-packages/packages/monitor
 ```

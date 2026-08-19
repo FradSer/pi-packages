@@ -1,0 +1,36 @@
+{
+  "name": "@fradser/pi-plan-mode",
+  "version": "0.1.0",
+  "description": "Minimal plan mode for Pi — read-only exploration and planning before implementation, with dedicated model support.",
+  "keywords": [
+    "pi-package",
+    "plan-mode",
+    "read-only",
+    "planning"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "dependencies": {
+    "@fradser/pi-kit": "workspace:*"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

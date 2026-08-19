@@ -2,11 +2,28 @@
 
 A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks or continuing based on recommendations, `/init` for creating or updating scoped `AGENTS.md` contributor guides, multi-session directory awareness (`/sessions`), plus a git worktree path redirect.
 
+## Structure
+
+```
+text
+utils/
+├── index.ts              — Package-root extension entry point
+├── extensions/
+│   ├── continue.ts       — /continue and continuation keyword interception
+│   ├── effort.ts         — /effort thinking-level menu
+│   ├── init.ts           — /init repository guide generation
+│   ├── sessions.ts       — /sessions directory awareness + listing tool
+│   └── worktree.ts       — git worktree add path redirect
+├── features/             — BDD contract
+├── tests/                — Package E2E tests
+└── README.md
+```
+
 ## Installation
 
 ```bash
 # published
-pi install npm:pi-utils-fradser
+pi install npm:@fradser/pi-utils
 # or from this repo: pi install /path/to/pi-packages/packages/utils
 ```
 

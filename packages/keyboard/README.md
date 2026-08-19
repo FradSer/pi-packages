@@ -29,6 +29,24 @@ Supports discrete control for keyboard lighting channels:
 
 ---
 
+## Structure
+
+```
+keyboard/
+├── index.ts           — Package-root extension entry point
+├── src/
+│   ├── config.ts      — Keyboard config read/write helpers
+│   ├── driver.ts      — via-rgb binary resolution & CLI execution
+│   ├── protocol.ts    — VIA RAW HID packet building
+│   ├── state-machine.ts — State transitions and LED apply logic
+│   ├── global-sessions.ts — Per-cwd session glow record registry
+│   ├── types.ts       — KeyboardState, KeyboardZone, KeyboardConfig
+│   └── index.ts       — Pi lifecycle hooks, /keyboard command
+├── features/          — BDD contract
+├── tests/             — Package E2E tests
+└── README.md
+```
+
 ## Installation
 
 Install from this monorepo or local path:
@@ -37,7 +55,7 @@ Install from this monorepo or local path:
 pi install ~/Developer/FradSer/pi-packages/packages/keyboard
 ```
 
-When published to npm:
+Published on npm:
 
 ```bash
 pi install npm:pi-keyboard

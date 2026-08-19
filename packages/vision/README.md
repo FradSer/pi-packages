@@ -1,4 +1,4 @@
-# pi-vision-fradser
+# @fradser/pi-vision
 
 A transparent image-to-text bridge for Pi sessions whose active model cannot read images.
 
@@ -9,6 +9,22 @@ For user prompts, it preserves the user's original text and image attachment as 
 For tool results, it intercepts the returned image attachment, runs visual analysis, cleans any model limitation notices, and enriches the tool result text with `<image-analysis>` while keeping the original image attachment intact.
 
 Pi's TUI saves clipboard images to a temporary file and inserts that file path into the editor. The extension handles both native image attachments and these TUI-inserted image paths, as well as tool-executed image reads.
+
+## Structure
+
+```
+text
+vision/
+├── index.ts              — Package-root extension entry point
+├── src/
+│   ├── bridge.ts         — Vision model request building and response parsing
+│   ├── config.ts         — Persisted configuration + environment variable overrides
+│   ├── index.ts          — Pi input/event hooks, image intercept logic
+│   └── input-images.ts   — Image file extraction and TUI paste detection
+├── features/             — BDD contract
+├── tests/                — Package E2E tests
+└── README.md
+```
 
 ## How it works
 
@@ -53,10 +69,8 @@ pi install /path/to/pi-packages/packages/vision
 When a version is available on npm, it can be installed with:
 
 ```bash
-pi install npm:pi-vision-fradser
+pi install npm:@fradser/pi-vision
 ```
-
-Check availability with `npm view pi-vision-fradser version` before relying on the npm command.
 
 ## Configure a vision model
 

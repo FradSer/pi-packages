@@ -1,11 +1,26 @@
-# pi-recap-fradser
+# @fradser/pi-recap
 
 Session recap for Pi — displays a concise, scannable summary of the current session above the TUI input box, inspired by Claude Code's `✦ Recap:` feature.
+
+## Structure
+
+```
+text
+recap/
+├── index.ts              — Package-root extension entry point
+├── extensions/
+│   ├── config.ts         — Configuration read/write + environment variable overrides
+│   ├── index.ts          — Pi lifecycle hooks, /recap command, widget setup
+│   └── recap.ts          — Generation logic, session-entry persistence
+├── features/             — BDD contract
+├── tests/                — Package E2E tests
+└── README.md
+```
 
 ## Install
 
 ```bash
-pi install npm:pi-recap-fradser
+pi install npm:@fradser/pi-recap
 ```
 
 ## Features
