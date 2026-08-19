@@ -11,13 +11,13 @@ Two locations must stay **identical** (idempotent):
 
 **Privacy:** `.memory/` is part of a public GitHub repo. Technical content only; user preferences, credentials, and personal information stay in harness memory only.
 
-**Version**: 0.2.1
+**Version**: 0.2.5
 
 ## Installation
 
 ```bash
 # published
-pi install npm:pi-memory-fradser
+pi install npm:@fradser/pi-memory
 # or from this repo: pi install /path/to/pi-packages/packages/memory
 ```
 
