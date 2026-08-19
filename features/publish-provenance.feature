@@ -12,3 +12,9 @@ Feature: Release publishing without local provenance assumptions
     Given the release script runs in GitHub Actions
     When it publishes an unpublished package
     Then it passes --provenance to pnpm publish
+
+  Scenario: The release workflow publishes versions after version commits
+    Given Changesets has already committed package versions and removed its changesets
+    When the release workflow finds no changesets to publish
+    Then it runs the explicit package release script
+    And the release script publishes versions missing from npm
