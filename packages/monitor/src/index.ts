@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionUIContext, Theme } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   MonitorManager,
@@ -17,10 +17,12 @@ const MONITOR_GUIDANCE = `
 
 export default function (pi: ExtensionAPI) {
   let requestRender: (() => void) | undefined;
+  let footerStatus: ((text: string | undefined) => void) | undefined;
 
   const manager = new MonitorManager({
     onTerminal(monitor, result) {
       requestRender?.();
+      updateFooterStatus();
       deliverTerminal(monitor, result);
     },
   });
@@ -41,25 +43,16 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
-  function widgetRows(theme: Theme, width: number): string[] {
-    const monitors = manager.list();
-    if (monitors.length === 0) return [];
-    const line = `${monitors.length} result monitor(s) waiting — /monitor to inspect`;
-    return [truncateToWidth(theme.fg("warning", line), Math.max(10, width - 1))];
+  function updateFooterStatus(): void {
+    if (!footerStatus) return;
+    const count = manager.list().length;
+    footerStatus(count === 0 ? undefined : `${count} result monitor(s) waiting — /monitor to inspect`);
   }
 
-  function setupMonitorWidget(ctx: { mode: string; ui: ExtensionUIContext }): void {
+  function setupMonitorFooter(ctx: { mode: string; ui: ExtensionUIContext }): void {
     if (ctx.mode !== "tui") return;
-    ctx.ui.setWidget("monitor", (tui, theme) => {
-      requestRender = () => tui.requestRender();
-      return {
-        render: (width) => widgetRows(theme, width),
-        invalidate: () => {},
-        dispose: () => {
-          requestRender = undefined;
-        },
-      };
-    }, { placement: "belowEditor" });
+    footerStatus = (text) => ctx.ui.setStatus("monitor", text);
+    updateFooterStatus();
   }
 
   function openMonitorConsole(ctx: { ui: ExtensionUIContext }): Promise<void> {
@@ -140,11 +133,12 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.on("session_start", async (_event, ctx) => {
-    setupMonitorWidget(ctx);
+    setupMonitorFooter(ctx);
     requestRender?.();
   });
 
   pi.on("session_shutdown", async () => {
+    footerStatus = undefined;
     await manager.stopAllOnShutdown();
   });
 
@@ -179,6 +173,7 @@ export default function (pi: ExtensionAPI) {
         cwd: ctx.cwd,
       });
       requestRender?.();
+      updateFooterStatus();
       const lifecycleNote = "until a result matches, the process exits, monitor_stop, or session shutdown";
       return {
         content: [{
@@ -206,6 +201,7 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params) {
       const result = manager.stop(params.monitor_id);
       requestRender?.();
+      updateFooterStatus();
       if (result.stopped.length === 0) {
         throw new Error(params.monitor_id
           ? `No active monitor with id "${params.monitor_id}".`
@@ -235,6 +231,7 @@ export default function (pi: ExtensionAPI) {
       }
       await openMonitorConsole(ctx);
       requestRender?.();
+      updateFooterStatus();
     },
   });
 

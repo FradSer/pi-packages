@@ -91,3 +91,10 @@ Feature: Result-contract background monitoring
     And x stops the selected active monitor and a stops all active monitors
     And the console renders bounded output without registering an output-reading tool
     And no global input listener is registered
+
+  Scenario: The monitor status is rendered after the native footer
+    Given one or more result monitors are waiting
+    When the TUI renders the footer
+    Then the working directory and token statistics appear first
+    And the monitor waiting status appears below the native footer lines
+    And the monitor status is not rendered above the editor

@@ -34,10 +34,11 @@ def test_manifest_declares_native_pi_package() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert "pi-package" in manifest["keywords"]
     assert manifest["pi"]["skills"] == ["./skills"]
-    assert manifest["pi"]["extensions"] == ["./src/index.ts"]
+    assert manifest["pi"]["extensions"] == ["./index.ts"]
 
 
 def test_extension_entry_points_exist() -> None:
+    assert (PACKAGE / "index.ts").is_file(), "Package-root extension entry index.ts is missing"
     for name in ("index.ts", "monitor.ts", "types.ts"):
         assert (SRC / name).is_file(), f"Extension source {name} is missing"
 
@@ -173,7 +174,7 @@ def test_monitor_start_terminates_the_current_agent_turn() -> None:
 def test_registered_monitor_tool_terminates_and_wakes_once() -> None:
     run_typescript(
         r'''
-        import * as extensionModule from "./packages/monitor/src/index.ts";
+        import * as extensionModule from "./packages/monitor/index.ts";
 
         const extension = extensionModule.default.default;
         const tools = new Map();
