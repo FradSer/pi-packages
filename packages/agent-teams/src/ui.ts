@@ -2,7 +2,7 @@
 
 import { truncateToWidth, Key, matchesKey } from "@earendil-works/pi-tui";
 import { createPiThemeStyle, PI_SPINNER_FRAMES, PI_SPINNER_INTERVAL_MS } from "@fradser/pi-kit";
-import type { ExtensionUIContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
+import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { truncateTail, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
 import {
   clampConsoleScroll, consoleScrollRange, maxConsoleBody, scrollConsoleDetail, wrapConsoleDetail,
@@ -19,18 +19,12 @@ function cap(text: string | undefined, maxBytes = DEFAULT_MAX_BYTES): string {
 }
 
 // ── Team UI: passive widget + full-screen console ──────────────────
-// The widget above the editor is DISPLAY-ONLY. ALL interaction happens in the
+// The widget below the editor is DISPLAY-ONLY. ALL interaction happens in the
 // full-screen Team Console (/teammate), which owns input via ctx.ui.custom.
 
-const TEAM_COLORS = ["accent", "success", "warning", "error", "toolTitle", "mdLink"] as const;
-const PANEL_IDLE_COLLAPSE_MS = 30_000;
-
-let panelRequestRender: (() => void) | undefined;
+const TEAM_COLORS = ["success", "warning", "error", "mdLink"] as const;
 let spinnerTimer: ReturnType<typeof setInterval> | undefined;
 let spinnerFrame = 0;
-let panelLastActivity = 0;
-let panelCollapseTimer: ReturnType<typeof setTimeout> | undefined;
-let widgetRegistered = false;
 
 /** Stable per-node color (independent of row order). */
 function hashName(name: string): number {
@@ -62,7 +56,7 @@ function runningTeammateLabel(node: Node): string {
       ? ` ${truncateToWidth(thinking, 48)}`
       : live
         ? ` ${truncateToWidth(live, 48)}`
-        : " working...";
+        : " Working...";
   return `${frame}${detail}`;
 }
 
@@ -71,7 +65,6 @@ function ensureSpinner(): void {
   if (running && !spinnerTimer) {
     spinnerTimer = setInterval(() => {
       spinnerFrame = (spinnerFrame + 1) % PI_SPINNER_FRAMES.length;
-      panelRequestRender?.();
     }, PI_SPINNER_INTERVAL_MS);
     spinnerTimer.unref?.();
   } else if (!running && spinnerTimer) {
@@ -80,79 +73,73 @@ function ensureSpinner(): void {
   }
 }
 
-function isPanelCollapsed(): boolean {
-  return Date.now() - panelLastActivity > PANEL_IDLE_COLLAPSE_MS;
-}
-
-function scheduleIdleCollapse(): void {
-  if (panelCollapseTimer) clearTimeout(panelCollapseTimer);
-  panelCollapseTimer = setTimeout(() => panelRequestRender?.(), PANEL_IDLE_COLLAPSE_MS);
-  panelCollapseTimer.unref?.();
-}
-
 export function stopUiTimers(): void {
   if (spinnerTimer) {
     clearInterval(spinnerTimer);
     spinnerTimer = undefined;
   }
-  if (panelCollapseTimer) {
-    clearTimeout(panelCollapseTimer);
-    panelCollapseTimer = undefined;
-  }
 }
 
 export function ensureTeamWidget(ctx?: { ui?: ExtensionUIContext; mode?: string }): void {
-  if (widgetRegistered || !ctx?.ui?.setWidget) return;
+  if (!ctx?.ui?.setWidget) return;
   if (ctx.mode && ctx.mode !== "tui") return;
-  try {
-    ctx.ui.setWidget("teammate", (tui, theme) => {
-      panelRequestRender = () => tui.requestRender();
-      ensureSpinner();
-      return {
-        render: (width) => panelRows(theme, width),
-        invalidate: () => {},
-        dispose: () => {
-          stopUiTimers();
-          panelRequestRender = undefined;
-          widgetRegistered = false;
-        },
-      };
-    });
-    widgetRegistered = true;
-  } catch {
-    // Best effort if widget registration is unavailable in the current mode.
+
+  const running = listNodes().filter((node) => node.status === "running");
+  if (running.length === 0) {
+    ctx.ui.setWidget("teammate", undefined);
+    return;
   }
+
+  ctx.ui.setWidget("teammate", (tui, theme) => {
+    const timer = setInterval(() => tui.requestRender(), PI_SPINNER_INTERVAL_MS);
+    timer.unref?.();
+    const style = createPiThemeStyle(theme);
+    const assignedColors = new Map<string, (typeof TEAM_COLORS)[number]>();
+    return {
+      placement: "belowEditor",
+      render: (width: number) => {
+        const running = listNodes().filter((n) => n.status === "running");
+        if (running.length === 0) return [];
+        const runningKeys = new Set(running.map((node) => node.workerKey));
+        for (const key of assignedColors.keys()) {
+          if (!runningKeys.has(key)) assignedColors.delete(key);
+        }
+        const usedColors = new Set(assignedColors.values());
+        for (const node of running) {
+          if (!assignedColors.has(node.workerKey)) {
+            const start = hashName(node.workerKey) % TEAM_COLORS.length;
+            const color = TEAM_COLORS.find((_, offset) => !usedColors.has(TEAM_COLORS[(start + offset) % TEAM_COLORS.length]));
+            assignedColors.set(node.workerKey, color ?? TEAM_COLORS[start]);
+            usedColors.add(color ?? TEAM_COLORS[start]);
+          }
+        }
+        const lines: string[] = [];
+        for (const node of running) {
+          const label = runningTeammateLabel(node);
+          const color = assignedColors.get(node.workerKey) ?? TEAM_COLORS[hashName(node.workerKey) % TEAM_COLORS.length];
+          const name = style.fg(color, node.id);
+          const role = style.dim(`(${node.agent})`);
+          const separator = label.indexOf(" ");
+          const spinner = separator === -1 ? label : label.slice(0, separator);
+          const activityText = separator === -1 ? "" : label.slice(separator + 1).trim();
+          const activity = activityText ? theme.bold(style.fg("accent", activityText)) : "";
+          const line = ` ${spinner} ${name} ${role}${activity ? ` · ${activity}` : ""}`;
+          lines.push(truncateToWidth(line, Math.max(10, width - 1)));
+        }
+        return lines;
+      },
+      invalidate: () => {},
+      dispose: () => clearInterval(timer),
+    };
+  });
 }
 
 export function refreshTeamUI(ctx?: { ui?: ExtensionUIContext; mode?: string }): void {
   ensureTeamWidget(ctx);
-  panelLastActivity = Date.now();
-  scheduleIdleCollapse();
   ensureLivePoll();
   ensureSpinner();
-  panelRequestRender?.();
 }
 
-/** Passive widget rows (display only — no selection, no key handling). */
-function panelRows(theme: Theme, width?: number): string[] {
-  const fg = (color: ThemeColor, s: string): string => theme.fg(color, s);
-  const bold = (s: string): string => theme.bold(s);
-  const fit = (line: string): string =>
-    typeof width === "number" && width > 0 ? truncateToWidth(line, Math.max(10, width - 1)) : line;
-  const running = listNodes().filter((node) => node.status === "running");
-  // Stay out of the way until a teammate is actually working.
-  if (running.length === 0) return [];
-  if (isPanelCollapsed()) {
-    return [` ${fit(fg("dim", `${running.length} teammate${running.length === 1 ? "" : "s"} working — /teammate`))}`];
-  }
-  const lines: string[] = [];
-  for (const node of running) {
-    const color = TEAM_COLORS[hashName(node.workerKey) % TEAM_COLORS.length];
-    lines.push(` ${fit(`${bold(fg(color, node.id))} ${fg("muted", `(${node.agent})`)} ${fg("warning", runningTeammateLabel(node))}`)}`);
-  }
-  lines.push(` ${fit(fg("dim", "/teammate — open console"))}`);
-  return lines;
-}
 
 /** Full content of a node as shown on its detail page: spawn lifecycle, live
  * worker text, captured output, result and error. */

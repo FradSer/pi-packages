@@ -12,7 +12,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { extractTextContent } from "@fradser/pi-kit";
+import { extractTextContent, resolvePiCli } from "@fradser/pi-kit";
 import type { WorkerUsage } from "./types";
 
 /**
@@ -26,9 +26,12 @@ export function buildAutonomousPrompt(opts: {
   role: string;
   prompt: string;
   taskId?: string;
-  timeoutSec: number;
+  timeoutSec?: number;
 }): string {
   const taskLine = `\nAssigned task: [${opts.taskId}].\nWhen finished, you MUST call teammate_message with status="completed" to submit your FULL final deliverable.`;
+  const deadlineLine = opts.timeoutSec
+    ? `4. The hard wall-clock cap is ${opts.timeoutSec}s — manage your time budget, avoid unnecessary exploration, and deliver your final message before the deadline.`
+    : `4. There is no wall-clock timeout — work until the task is complete. Do not rush or truncate your work.`;
 
   return `You are a FULLY AUTONOMOUS teammate named "${opts.name}" (agent: ${opts.role}) in a pi multi-agent team run.
 
@@ -40,7 +43,7 @@ YOUR ROLE IN THIS RUN:
 1. Work directly on your assigned scope and declared paths. DAG upstream results are ALREADY injected into this prompt below; do not poll for them.
 2. Report plans, progress, and blockers with teammate_message. When finished, call teammate_message with status="completed" and put your FULL deliverable in the body. If blocked or failed, use status="failed" and explain the error.
 3. There is no peer or leader-to-worker message channel. Make decisions within the assigned task and report blockers instead of waiting for a reply.
-4. The hard wall-clock cap is ${opts.timeoutSec}s — manage your time budget, avoid unnecessary exploration, and deliver your final message before the deadline.
+${deadlineLine}
 
 BOUND CAPABILITIES:
 - teammate_message reports progress or a final deliverable to the team leader.`;
@@ -425,61 +428,11 @@ function truncate(text: string, cap: number): string {
   return `${text.slice(0, cap)}\n... [truncated ${text.length - cap} chars]`;
 }
 
-export interface PiCliResolution {
-  /** Command to execute — either a runtime (node/bun) or a `pi` binary. */
-  command: string;
-  /** Leading args: the CLI script path when running via a runtime, else empty. */
-  args: string[];
-}
-
-/** Whether a file is the pi coding-agent CLI script (verified against its package manifest). */
-function isPiPackageScript(filePath: string): boolean {
-  try {
-    const resolved = fs.realpathSync(filePath);
-    if (!/\.(mjs|cjs|js)$/.test(resolved)) return false;
-    let dir = path.dirname(resolved);
-    while (dir !== path.dirname(dir)) {
-      const pkgPath = path.join(dir, "package.json");
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { name?: unknown };
-        return pkg.name === "@earendil-works/pi-coding-agent";
-      }
-      dir = path.dirname(dir);
-    }
-  } catch {
-    // Unreadable paths are simply not candidates.
-  }
-  return false;
-}
-
 /**
- * Resolve how to launch a worker Pi process.
- *
- * Resolution order:
- *   1. `process.argv[1]` — the current Pi process entry, verified against the
- *      package manifest (avoids mistaking unrelated scripts for the CLI).
- *   2. The installed `@earendil-works/pi-coding-agent` package's `dist/cli.js`.
- *   3. A `pi` binary on PATH (best effort).
+ * Resolve how to launch a Pi CLI process.
+ * Re-exported from pi-kit for backward compatibility.
  */
-export function resolvePiCli(): PiCliResolution {
-  const argv1 = process.argv[1];
-  if (argv1 && isPiPackageScript(argv1)) {
-    return { command: process.execPath, args: [path.resolve(argv1)] };
-  }
-
-  try {
-    const entry = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));
-    const packageRoot = path.dirname(path.dirname(entry));
-    const cliPath = path.join(packageRoot, "dist", "cli.js");
-    if (fs.existsSync(cliPath)) {
-      return { command: process.execPath, args: [cliPath] };
-    }
-  } catch {
-    // Package resolution is best-effort; fall through to PATH.
-  }
-
-  return { command: "pi", args: [] };
-}
+export { resolvePiCli } from "@fradser/pi-kit";
 
 /**
  * Spawn a child Pi process that executes the task description in

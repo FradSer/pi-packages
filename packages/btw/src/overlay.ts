@@ -26,7 +26,12 @@ import {
   truncateToWidth,
   visibleWidth,
 } from "@earendil-works/pi-tui";
-import type { PiThemeStyle } from "@fradser/pi-kit";
+import {
+  buildMarkdownThemeCallbacks,
+  maxBodyHeight,
+  padLine,
+  type PiThemeStyle,
+} from "@fradser/pi-kit";
 import type { BtwResult, BtwTurn, BtwUsage } from "./spawner";
 
 /** The shared pi-kit theme style language — btw's overlay style is that shape. */
@@ -76,27 +81,12 @@ type OverlayState = "loading" | "idle" | "error";
 
 /** Cap the answer body at ~40% of the terminal height (adaptive, scrollable). */
 export function maxAnswerBody(rows: number): number {
-  return Math.max(3, Math.floor(rows * 0.4));
+  return maxBodyHeight(rows, 0.4);
 }
 
 /** Build a MarkdownTheme from the overlay style callbacks. */
 function buildMarkdownTheme(style: BtwOverlayStyle): MarkdownTheme {
-  return {
-    heading: (t) => style.accent(t),
-    link: (t) => style.accent(t),
-    linkUrl: (t) => style.dim(t),
-    code: (t) => style.accent(t),
-    codeBlock: (t) => t,
-    codeBlockBorder: (t) => style.border(t),
-    quote: (t) => style.muted(t),
-    quoteBorder: (t) => style.border(t),
-    hr: () => "__BTW_CONVERSATION_SEPARATOR__",
-    listBullet: (t) => style.accent(t),
-    bold: (t) => style.accent(t),
-    italic: (t) => style.muted(t),
-    strikethrough: (t) => style.dim(t),
-    underline: (t) => t,
-  };
+  return buildMarkdownThemeCallbacks(style) as MarkdownTheme;
 }
 
 export function createBtwOverlay(
@@ -175,10 +165,7 @@ export function createBtwOverlay(
     }
   };
 
-  const pad = (line: string, width: number): string => {
-    const visible = visibleWidth(line);
-    return visible >= width ? line : line + " ".repeat(width - visible);
-  };
+  const pad = (line: string, width: number): string => padLine(line, width);
 
   const renderComposer = (width: number): string[] => {
     const lineWidth = Math.max(1, width);

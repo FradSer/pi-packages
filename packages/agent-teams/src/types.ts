@@ -174,7 +174,7 @@ export const RunTaskSpec = Type.Object({
   }),
   access: Type.Optional(NodeAccess),
   model: Type.Optional(Type.String({ description: "Optional per-node provider/model pin" })),
-  timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Optional per-node hard wall-clock cap before the worker is killed (default: 30 minutes; do not set overly short timeouts for multi-file or reasoning tasks)" })),
+  timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Optional per-node hard wall-clock cap before the worker is killed (default: no timeout — workers run until completion)" })),
 });
 
 /** Dispatch a dependency-aware task graph in one call. */
@@ -187,7 +187,7 @@ export const TeammateRunParams = Type.Object({
   concurrency: Type.Optional(Type.Integer({ minimum: 1, maximum: 32, description: "Max nodes running at once (default: 4)" })),
   worktree: Type.Optional(Type.Boolean({ description: "Run every node in its own git worktree (default: false)" })),
   background: Type.Optional(Type.Boolean({ default: true, description: "Return immediately and deliver one completion follow-up. Default: true — teammates always run in the background; workers message team-leader with deliverables upon completion." })),
-  timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Run-level hard wall-clock cap; the run fails when exceeded (default: none, nodes have their own caps)" })),
+  timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Run-level hard wall-clock cap; the run fails when exceeded (default: none)" })),
   summarize: Type.Optional(Type.Boolean({ description: "Append a __summary node after all leaf nodes. Default: true when the run has more than one user task, false for a single task." })),
   summaryAgent: Type.Optional(Type.String({ description: "Agent used for the summary node when summarize is on (default: observer)" })),
   cwd: Type.Optional(Type.String({ description: "Working directory for this run (default: the session cwd)" })),

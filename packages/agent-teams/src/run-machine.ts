@@ -27,7 +27,7 @@ export interface DispatchCtx {
 }
 
 export const MAX_SESSION_WORKERS = 8;
-const DEFAULT_NODE_TIMEOUT_MS = 30 * 60 * 1000;
+// No default node timeout — workers run until they complete or are cancelled.
 const LIVE_POLL_MS = 500;
 const cancellationIntents = new CancellationIntents();
 const reportedWorkerShutdowns = new Set<string>();
@@ -203,11 +203,8 @@ export function buildRunSummary(runId: string): string {
     acc[node.status] = (acc[node.status] ?? 0) + 1;
     return acc;
   }, {});
-  const lines = [
-    `## Run [${run.id}] ${run.status}`,
-    `${Object.keys(run.nodes).length} node(s): ${Object.entries(counts).map(([status, n]) => `${status} ${n}`).join(", ")}`,
-    "",
-  ];
+  const countsStr = Object.entries(counts).map(([status, n]) => `${status} ${n}`).join(", ");
+  const lines = [`Run [${run.id}] ${countsStr}`, ""];
   if (run.summary) {
     lines.push(run.summary, "");
   } else if (nodes.length === 1) {
@@ -221,9 +218,6 @@ export function buildRunSummary(runId: string): string {
         lines.push(`### [${node.id}] (${node.agent}):`, deliverable, "");
       }
     }
-  }
-  for (const node of nodes) {
-    lines.push(`- [${node.id}] ${node.status} (${node.agent})`);
   }
   return lines.join("\n");
 }
@@ -391,7 +385,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
     isolation: run.worktree ? "worktree" : "none",
   });
 
-  const timeoutMs = node.timeoutMs ?? DEFAULT_NODE_TIMEOUT_MS;
+  const timeoutMs = node.timeoutMs;
   const upstream = node.dependsOn
     .map((depId) => run.nodes[depId])
     .filter((dep): dep is NonNullable<typeof dep> => Boolean(dep))
@@ -405,7 +399,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
       role: node.agent,
       prompt: agent.prompt,
       taskId: nodeId,
-      timeoutSec: Math.round(timeoutMs / 1000),
+      timeoutSec: timeoutMs ? Math.round(timeoutMs / 1000) : undefined,
     }),
     "",
     "=== TASK ===",
@@ -458,7 +452,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
       error: ok
         ? undefined
         : result.timedOut
-          ? `Worker timed out after ${Math.round(timeoutMs / 1000)}s.`
+          ? `Worker timed out after ${Math.round((timeoutMs ?? 0) / 1000)}s.`
           : result.signal
             ? `Worker was terminated by ${result.signal}.`
             : workerReportedFailure

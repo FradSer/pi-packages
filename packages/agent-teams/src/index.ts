@@ -50,14 +50,17 @@ export default function (pi: ExtensionAPI) {
   registerLeaderTools(pi);
   registerTeamCommand(pi);
 
+  let leaderCtx: ExtensionContext | undefined;
+
   pi.on("session_start", async (_event, ctx) => {
     resetState();
+    leaderCtx = ctx;
     const dispatchCtx = dispatchContext(ctx);
     ensureTeamWidget(ctx);
     const stateFile = stateFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd || process.cwd());
     initRunMachine(dispatchCtx, stateFile, {
       sendUpdate: sendMainSessionUpdate,
-      notifyChange: () => refreshTeamUI(),
+      notifyChange: () => refreshTeamUI(leaderCtx),
     });
     ctx.ui.setStatus("teammate", undefined);
     refreshTeamUI(ctx);

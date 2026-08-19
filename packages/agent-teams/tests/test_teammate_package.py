@@ -169,8 +169,9 @@ def test_worker_surface_is_capability_bound() -> None:
 
 def test_idle_widget_stays_hidden_until_a_teammate_is_running() -> None:
     ext = source("ui.ts")
-    assert "if (running.length === 0) return [];" in ext
-    assert "Team idle" not in ext
+    # Widget is hidden when no teammates are running
+    assert 'if (running.length === 0) {' in ext
+    assert 'ctx.ui.setWidget("teammate", undefined);' in ext
     assert "runningTeammateLabel" in ext
     assert "runningNodeLabel" not in ext
 
@@ -179,10 +180,19 @@ def test_widget_rows_align_with_native_loader_and_show_live_activity() -> None:
     ext = source("ui.ts")
     spawner = source("spawner.ts")
     types = source("types.ts")
-    # Leading space before each widget row so spinner columns align with pi's
-    # native " ⠋ Working..." loader row.
-    assert '` ${fit(`${bold(fg(color, node.id))}' in ext
-    assert '` ${fit(fg("dim", "/teammate — open console"))}' in ext
+    # Widget uses theme colors via createPiThemeStyle
+    assert 'createPiThemeStyle(theme)' in ext
+    assert 'const TEAM_COLORS = ["success", "warning", "error", "mdLink"] as const;' in ext
+    assert 'assignedColors.set(node.workerKey, color ?? TEAM_COLORS[start]);' in ext
+    assert 'style.fg(color, node.id)' in ext
+    assert 'style.dim(`(${node.agent})`)' in ext
+    assert 'const spinner = separator === -1 ? label : label.slice(0, separator)' in ext
+    assert 'theme.bold(style.fg("accent", activityText))' in ext
+    # The pi-kit spinner is first, followed by the colored identity and bold activity.
+    assert 'const line = ` ${spinner} ${name} ${role}${activity ? ` · ${activity}` : ""}`' in ext
+    assert 'PI_SPINNER_FRAMES[spinnerFrame]' in ext
+    # Widget is placed belowEditor (under the input box)
+    assert 'placement: "belowEditor"' in ext
     # Live activity: current tool first, then reasoning, then text.
     assert "node.spawn?.activeTool" in ext and "liveThinking" in ext
     assert "liveThinking?: string" in types

@@ -342,7 +342,9 @@ Feature: Agent Teams run-centric public API
       And working rows display a spinner with the live activity (current tool, reasoning, or text)
       And long tool activity is truncated inline with an ellipsis
       And a teammate widget row never wraps a truncation notice onto a second line
-      And widget rows are left-padded to align with the native loader row
+      And widget rows start with one left-padded pi-kit spinner frame aligned with the native loader row
+      And each row shows the colored teammate identity before the separator and bold live activity after it
+      And each running teammate uses a visible stable distinct theme color (success, warning, error, or link) for its identity
       And the idle widget stays hidden until a teammate is running
       And it does not intercept global terminal input
 
