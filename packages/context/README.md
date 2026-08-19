@@ -38,7 +38,7 @@ The full workflow (target classification, per-method process, fallbacks, selecti
 | Git clone | Always | Pi `bash` + `read` |
 | Web fetch | Always | `curl`/HTTP via `bash` |
 
-All three retrieval tools are registered by this package's extension (`extensions/context-tools.ts`) and call the public REST APIs directly — no MCP servers needed.
+All three retrieval tools are registered by this package's root extension entry (`index.ts`) and call the public REST APIs directly — no MCP servers needed.
 
 ## Methods (summary)
 
@@ -58,6 +58,7 @@ If a native tool is unavailable or errors, fall back to clone/web. The `/context
 
 ```
 context/
+├── index.ts                     # Package-root extension entry point
 ├── extensions/
 │   ├── context-tools.ts         # Native pi tools: context_deepwiki / context_context7 / context_exa
 │   └── context-command.ts       # /context command + system-prompt guidance
