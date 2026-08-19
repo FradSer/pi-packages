@@ -22,3 +22,9 @@ def test_workflow_runs_publish_script_after_version_commits() -> None:
     workflow = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "publish: node scripts/publish-release.mjs" in workflow
     assert "NPM_CONFIG_PROVENANCE" in workflow
+
+
+def test_workflow_has_a_main_branch_publish_retry() -> None:
+    workflow = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "if: github.ref == 'refs/heads/main'" in workflow
+    assert "node scripts/publish-release.mjs" in workflow

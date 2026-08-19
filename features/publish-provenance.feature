@@ -18,3 +18,9 @@ Feature: Release publishing without local provenance assumptions
     When the release workflow finds no changesets to publish
     Then it runs the explicit package release script
     And the release script publishes versions missing from npm
+
+  Scenario: The main workflow retries versioned package publication
+    Given package versions on main are newer than npm
+    When the Changesets action has no pending changesets
+    Then a main-branch publish step still runs the explicit package release script
+    And already published versions are skipped safely
