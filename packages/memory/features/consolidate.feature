@@ -61,6 +61,12 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     Then the background consolidation run uses that provider and model
     And no follow-up message blocks the current session
 
+  Scenario: Background consolidation disables installed extensions
+    Given memory consolidation is manually started
+    When the child Pi process is launched in JSON print mode
+    Then it includes --no-session and --no-extensions
+    And installed recap extensions cannot run in the disposable child session
+
   Scenario: Shows a dreaming widget above the input editor while consolidating
     Given a consolidation run was just started
     Then ctx.ui.setWidget renders a "dreaming" indicator above the editor

@@ -446,9 +446,22 @@ async function spawnAsyncConsolidation(
   state: DreamState,
   opts: { pkgDir: string; cwd: string; sessionFile?: string; reason: string },
 ): Promise<void> {
-  const procedure = (
-    await fs.readFile(path.join(opts.pkgDir, "procedures", "consolidate.md"), "utf-8")
-  ).replaceAll("{{PKG_DIR}}", opts.pkgDir);
+  if (state.active) {
+    ctx.ui.notify("Memory consolidation is already running in background.", "info");
+    return;
+  }
+  state.active = true;
+
+  let procedure: string;
+  try {
+    procedure = (
+      await fs.readFile(path.join(opts.pkgDir, "procedures", "consolidate.md"), "utf-8")
+    ).replaceAll("{{PKG_DIR}}", opts.pkgDir);
+  } catch (err: unknown) {
+    state.active = false;
+    ctx.ui.notify(`Memory consolidation setup failed: ${(err as Error).message}`, "error");
+    return;
+  }
   const harnessDir = path.join(
     os.homedir(),
     CONFIG_DIR_NAME,
@@ -469,31 +482,41 @@ async function spawnAsyncConsolidation(
 
   const cli = resolvePiCli();
   if (!cli) {
+    state.active = false;
     ctx.ui.notify("Memory consolidation: could not resolve the Pi CLI", "error");
     return;
   }
 
-  const tempDir = nodeFs.mkdtempSync(path.join(os.tmpdir(), "memory-dream-"));
-  const taskFile = path.join(tempDir, "task.md");
-  nodeFs.writeFileSync(taskFile, taskText, { mode: 0o600 });
-
+  let tempDir: string | undefined;
   let child;
   try {
+    tempDir = nodeFs.mkdtempSync(path.join(os.tmpdir(), "memory-dream-"));
+    const taskFile = path.join(tempDir, "task.md");
+    nodeFs.writeFileSync(taskFile, taskText, { mode: 0o600 });
     const modelArgs = memoryConfig.provider && memoryConfig.model
       ? ["--model", `${memoryConfig.provider}/${memoryConfig.model}`]
       : [];
     child = spawn(
       cli.command,
-      [...cli.args, "--print", "--mode", "json", "--no-session", ...modelArgs, `@${taskFile}`],
+      [
+        ...cli.args,
+        "--print",
+        "--mode",
+        "json",
+        "--no-session",
+        "--no-extensions",
+        ...modelArgs,
+        `@${taskFile}`,
+      ],
       { cwd: opts.cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] },
     );
   } catch (err: unknown) {
-    nodeFs.rmSync(tempDir, { recursive: true, force: true });
+    state.active = false;
+    if (tempDir) nodeFs.rmSync(tempDir, { recursive: true, force: true });
     ctx.ui.notify(`Memory consolidation spawn failed: ${(err as Error).message}`, "error");
     return;
   }
 
-  state.active = true;
   setDreamingWidget(ctx);
 
   let stdoutBuffer = "";
@@ -549,7 +572,7 @@ async function spawnAsyncConsolidation(
     state.active = false;
     clearDreamingWidget(ctx);
     try {
-      nodeFs.rmSync(tempDir, { recursive: true, force: true });
+      if (tempDir) nodeFs.rmSync(tempDir, { recursive: true, force: true });
     } catch {
       // best effort
     }

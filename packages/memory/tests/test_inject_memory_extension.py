@@ -123,6 +123,7 @@ class TestManualConsolidation(unittest.TestCase):
         self.assertIn('"--mode"', content)
         self.assertIn('"json"', content)
         self.assertIn('"--no-session"', content)
+        self.assertIn('"--no-extensions"', content)
         self.assertIn("consolidate.md", content)
         self.assertIn("{{PKG_DIR}}", content)
 
@@ -205,6 +206,8 @@ class TestManualConsolidation(unittest.TestCase):
         content = self.ext_source()
         self.assertIn("dreaming", content)
         self.assertIn("active", content)
+        self.assertIn("if (state.active)", content)
+        self.assertIn("state.active = true;", content)
 
     def test_session_file_passed_to_child(self):
         """The child receives the current session file path for Step 0 capture,
