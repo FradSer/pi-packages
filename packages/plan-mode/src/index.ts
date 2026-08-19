@@ -13,48 +13,67 @@
  *   /plan status       Show current plan mode state
  */
 
+import * as crypto from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import type {
   ExtensionAPI,
   ExtensionCommandContext,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import {
+  createPiThemeStyle,
   enterModelFromInput,
   modelLabel,
   modelRef,
   parseModelRef,
-  selectModelFromMenu,
   sortModels,
 } from "@fradser/pi-kit";
 import { type PlanModeConfig, readPlanModeConfig, writePlanModeConfig } from "./config";
+import { runPlanWorker } from "./plan-worker";
+import { createPlanOverlay, type PlanAction } from "./plan-overlay";
 
 // ── Constants ───────────────────────────────────────────────────────
 
-const READ_ONLY_TOOLS = new Set(["read", "bash", "grep", "find", "ls"]);
-const PLAN_FILE = "PLAN.md";
+function planFilePath(sessionFile: string | undefined, cwd: string): string {
+  const key = crypto
+    .createHash("sha256")
+    .update(sessionFile ?? cwd)
+    .digest("hex")
+    .slice(0, 16);
+  return path.join(process.env.HOME ?? "~", CONFIG_DIR_NAME, "agent", "plans", `${key}.md`);
+}
 
-const PLAN_PROMPT = `# Plan Mode
+function getPlanPath(ctx: ExtensionContext): string {
+  return planFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd);
+}
+
+function buildPlanPrompt(planPath: string): string {
+  return `# Plan Mode
 
 You are in plan mode. Explore the codebase and design an implementation plan. DO NOT write or edit any files yet.
 
 ## Rules
 - Use ONLY read-only tools (read, grep, find, ls, and read-only bash commands)
-- DO NOT edit, write, or modify any files
+- DO NOT edit, write, or modify any files (except the plan file below)
 - Ask clarifying questions when requirements are ambiguous
-- Write your plan to ${PLAN_FILE} when ready
+- Write your plan to ${planPath} when ready
 
 ## Process
 1. **Explore**: Read relevant files, understand existing patterns and architecture
 2. **Clarify**: Ask questions about ambiguities before designing
 3. **Design**: Consider multiple approaches, identify trade-offs
-4. **Plan**: Write a concrete implementation plan to ${PLAN_FILE} with:
+4. **Plan**: Write a concrete implementation plan to ${planPath} with:
    - Context: why this change is needed
    - Approach: recommended solution with alternatives considered
    - Files to modify (specific paths)
    - Step-by-step implementation order
    - Verification: how to test the changes
 
-When the plan is ready, tell the user to review ${PLAN_FILE} and approve before implementation begins.`;
+When the plan is ready, tell the user to review ${planPath} and approve before implementation begins.`;
+}
 
 // ── State ───────────────────────────────────────────────────────────
 
@@ -65,7 +84,7 @@ let config: PlanModeConfig;
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-function getPlanModels(ctx: ExtensionContext): Model<any>[] {
+function getPlanModels(ctx: ExtensionContext): Model<Api>[] {
   const all = ctx.modelRegistry.getAvailable();
   return sortModels([...all]);
 }
@@ -78,7 +97,7 @@ function configuredModelLabel(): string {
 function isReadOnlyBash(command: string): boolean {
   const trimmed = command.trim();
   if (!trimmed) return true;
-  if (/[;|&`$]/.test(trimmed)) return false;
+  if (/[;|&`$>]/.test(trimmed)) return false;
   const tokens = trimmed.split(/\s+/);
   const cmd = tokens[0]?.replace(/^(\/[\w/]*)?/, "").split("/").pop() ?? "";
   const SAFE = new Set([
@@ -209,7 +228,7 @@ function showStatus(ctx: ExtensionContext): void {
     `Plan mode: ${planModeActive ? "active" : "off"}`,
     `Plan model: ${configuredModelLabel()}`,
     `Session model: ${ctx.model ? modelLabel(ctx.model) : "(none)"}`,
-    `Plan file: ${PLAN_FILE}`,
+    `Plan file: ${getPlanPath(ctx)}`,
   ];
   ctx.ui.notify(lines.join("\n"), "info");
 }
@@ -242,7 +261,8 @@ export default function planMode(extensionApi: ExtensionAPI): void {
   pi.registerCommand("plan", {
     description: "Plan mode — read-only exploration and planning before implementation",
     handler: async (args, ctx) => {
-      const sub = args.trim().toLowerCase();
+      const prompt = args.trim();
+      const sub = prompt.toLowerCase();
 
       if (!sub) {
         if (!ctx.hasUI) {
@@ -269,7 +289,7 @@ export default function planMode(extensionApi: ExtensionAPI): void {
       }
 
       if (sub === "model") {
-        const rest = args.trim().slice("model".length).trim();
+        const rest = prompt.slice("model".length).trim();
         if (rest) {
           const ref = parseModelRef(rest);
           if (!ref) {
@@ -294,18 +314,158 @@ export default function planMode(extensionApi: ExtensionAPI): void {
         return;
       }
 
-      ctx.ui.notify("Usage: /plan | /plan start | /plan exit | /plan model | /plan status", "error");
+      // /plan <prompt> — spawn parallel explore workers + plan writer
+      const planPath = getPlanPath(ctx);
+      ctx.ui.notify(`Starting plan workers... Plan will be written to ${planPath}`, "info");
+
+      // Enter plan mode (blocks mutating tools in main session)
+      await enterPlanMode(ctx);
+
+      // Spawn the plan workers in the background
+      const workerModel = config.model ? `${config.provider}/${config.model}` : undefined;
+      runPlanWorker({
+        prompt,
+        cwd: ctx.cwd,
+        planPath,
+        model: workerModel,
+        signal: ctx.signal,
+        onProgress: (msg) => ctx.ui.notify(msg, "info"),
+      }).then(async (result) => {
+        if (result.timedOut) {
+          ctx.ui.notify("Plan workers timed out", "error");
+          return;
+        }
+        if (result.exitCode !== 0) {
+          ctx.ui.notify(`Plan generation failed: ${result.stderr}`, "error");
+          return;
+        }
+
+        // Show usage summary
+        if (result.totalUsage) {
+          const { totalTokens, cost } = result.totalUsage;
+          ctx.ui.notify(
+            `Plan complete. ${result.exploreResults.length} explore workers + 1 plan writer. ${totalTokens} tokens, $${cost.toFixed(4)}`,
+            "info",
+          );
+        }
+
+        // Plan generated successfully — show plan overlay
+        if (!ctx.hasUI) {
+          ctx.ui.notify(`Plan written to ${planPath}`, "info");
+          return;
+        }
+
+        const planContent = fs.existsSync(planPath) ? fs.readFileSync(planPath, "utf-8") : "";
+        if (!planContent) {
+          ctx.ui.notify("Plan file is empty", "warning");
+          return;
+        }
+
+        // Show the plan overlay with action menu
+        const action = await ctx.ui.custom<PlanAction | undefined>((tui, theme, _kb, done) => {
+          const style = createPiThemeStyle(theme);
+          const overlay = createPlanOverlay(tui, style, {
+            planPath,
+            planContent,
+            onClose: () => done(undefined),
+            onAction: (action) => done(action),
+          });
+          return overlay;
+        }, {
+          overlay: true,
+          overlayOptions: {
+            anchor: "bottom-center",
+            width: "100%",
+            maxHeight: "80%",
+            margin: { bottom: 0 },
+          },
+        });
+
+        if (!action) return;
+
+        if (action === "implement-here") {
+          // Exit plan mode and send the plan as context
+          await exitPlanMode(ctx);
+          pi.sendUserMessage(
+            `The plan has been written to ${planPath}. Please implement it now.\n\n${planContent}`,
+          );
+        } else if (action === "implement-fresh") {
+          // Create a new session with the plan
+          await exitPlanMode(ctx);
+          
+          // Use newSession to create a fresh session
+          const commandCtx = ctx as ExtensionCommandContext;
+          if (typeof commandCtx.newSession === "function") {
+            const parentSession = ctx.sessionManager.getSessionFile();
+            await commandCtx.newSession({
+              parentSession,
+              withSession: async (newCtx) => {
+                // Send the plan as the first message in the new session
+                newCtx.ui.notify("Fresh implementation session started with plan context.", "info");
+                pi.sendUserMessage(
+                  `Implement this plan:\n\n${planContent}`,
+                );
+              },
+            });
+          } else {
+            ctx.ui.notify("Note: Fresh session creation not available in this context. Use 'Implement here' instead.", "warning");
+          }
+        } else if (action === "view-plan") {
+          // Show the full plan in a scrollable overlay
+          await ctx.ui.custom<void>((tui, theme, _kb, done) => {
+            const style = createPiThemeStyle(theme);
+            const overlay = createPlanOverlay(tui, style, {
+              planPath,
+              planContent,
+              onClose: () => done(undefined),
+              onAction: () => done(undefined),
+            });
+            return overlay;
+          }, {
+            overlay: true,
+            overlayOptions: {
+              anchor: "bottom-center",
+              width: "100%",
+              maxHeight: "90%",
+              margin: { bottom: 0 },
+            },
+          });
+        } else if (action === "stay") {
+          // Do nothing, stay in plan mode
+        } else if (action === "exit") {
+          await exitPlanMode(ctx);
+        }
+      }).catch((err) => {
+        ctx.ui.notify(`Plan worker error: ${err.message}`, "error");
+      });
     },
   });
 
-  // Block mutating tools in plan mode
-  pi.on("tool_call", async (event) => {
+  // Block mutating tools in plan mode (except the plan file)
+  pi.on("tool_call", async (event, ctx) => {
     if (!planModeActive) return;
 
-    if (event.toolName === "edit" || event.toolName === "write") {
+    const allowedPlanPath = getPlanPath(ctx);
+
+    if (event.toolName === "write") {
+      const input = event.input as { path?: string };
+      if (input.path && path.resolve(input.path) === path.resolve(allowedPlanPath)) {
+        return; // Allow writing to the plan file
+      }
       return {
         block: true,
-        reason: `Plan mode blocks ${event.toolName}. Write your plan to ${PLAN_FILE} instead.`,
+        reason: `Plan mode blocks write. Write your plan to ${allowedPlanPath} instead.`,
+      };
+    }
+
+    if (event.toolName === "edit") {
+      const input = event.input as { path?: string };
+      if (input.path && path.resolve(input.path) === path.resolve(allowedPlanPath)) {
+        return; // Allow editing the plan file
+      }
+      return {
+        block: true,
+        reason: `Plan mode blocks edit. Write your plan to ${allowedPlanPath} instead.`,
       };
     }
 
@@ -324,8 +484,9 @@ export default function planMode(extensionApi: ExtensionAPI): void {
   });
 
   // Inject planning prompt
-  pi.on("before_agent_start", async (event) => {
+  pi.on("before_agent_start", async (event, ctx) => {
     if (!planModeActive) return;
-    return { systemPrompt: `${event.systemPrompt}\n\n${PLAN_PROMPT}` };
+    const planPath = getPlanPath(ctx);
+    return { systemPrompt: `${event.systemPrompt}\n\n${buildPlanPrompt(planPath)}` };
   });
 }
