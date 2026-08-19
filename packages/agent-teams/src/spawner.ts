@@ -198,8 +198,12 @@ export function registerWorkerTimeout(
       handle.dispose();
       return;
     }
-    timedOut = true;
-    child.kill("SIGKILL");
+    try {
+      if (child.kill("SIGKILL")) timedOut = true;
+    } catch {
+      // A failed kill is not a timeout outcome; close/error will report the
+      // actual child result.
+    }
   }, timeoutMs);
   timer.unref?.();
   workerTimeouts.set(child, handle);

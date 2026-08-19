@@ -123,6 +123,7 @@ def test_bdd_contract_covers_target_resources() -> None:
         "A normal worker exit completes its node",
         "An abnormal worker exit fails its node",
         "A reported completion cancels the worker timeout before shutdown",
+        "A failed timeout kill is not reported as a timeout",
         "Completed run metadata is compacted safely",
         "Invalid tool operations surface as Pi failures",
         "Inline foreground gather remains the explicit sync option",
@@ -823,6 +824,22 @@ def test_reported_worker_shutdown_cancels_timeout_before_waiting_for_close() -> 
     assert payload["result"] is True
     assert payload["timeoutCancelled"] is True
     assert payload["elapsed"] < 250
+
+
+def test_failed_timeout_kill_does_not_mark_worker_as_timed_out() -> None:
+    module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ spawn }} from "node:child_process";
+        import {{ registerWorkerTimeout }} from "{module}";
+        const child = spawn(process.execPath, ["--eval", "process.exit(0)"], {{ stdio: "ignore" }});
+        await new Promise((resolve) => child.once("close", resolve));
+        const timeout = registerWorkerTimeout(child, 1);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        console.log(JSON.stringify({{ timedOut: timeout.didTimeout(), cancelled: timeout.wasCancelled() }}));
+        '''
+    )
+    assert payload == {"timedOut": False, "cancelled": False}
 
 
 def test_sigterm_cooperative_worker_closes_with_exit_zero_before_termination_resolves() -> None:

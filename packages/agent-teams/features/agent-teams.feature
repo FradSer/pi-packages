@@ -305,6 +305,11 @@ Feature: Agent Teams run-centric public API
       Then the child timeout is cancelled before the close wait begins
       And the terminal result is not marked timed out
 
+    Scenario: A failed timeout kill is not reported as a timeout
+      Given the timeout callback cannot kill an already closed worker
+      When the child close is observed
+      Then the terminal result is not marked timed out
+
     Scenario: Completed run metadata is compacted safely
       Given a node run reached a final lifecycle outcome
       Then the leader persists the final state before removing its per-run outbox and replay metadata
