@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import { Key, matchesKey, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { Box, Key, matchesKey, Text, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   MonitorManager,
   type Monitor,
@@ -32,7 +32,7 @@ export default function (pi: ExtensionAPI) {
       pi.sendMessage(
         {
           customType: "monitor-result",
-          content: formatTerminalMessage(monitor, result),
+          content: formatAgentMessage(formatTerminalMessage(monitor, result)),
           display: true,
           details: { monitorId: monitor.id, result },
         },
@@ -132,6 +132,21 @@ export default function (pi: ExtensionAPI) {
     });
   }
 
+  pi.registerMessageRenderer("monitor-result", (message, { expanded, outputPad }, theme) => {
+    const description = extractMonitorDescription(String(message.content));
+    const box = new Box(outputPad, 1, (text) => theme.bg("customMessageBg", text));
+    const eventLine = theme.fg("customMessageLabel", theme.bold(`⏺ Monitor event: "${description}"`));
+    if (!expanded) {
+      box.addChild(new Text(`${eventLine}${theme.fg("dim", " (Ctrl+O to expand)")}`, 0, 0));
+      return box;
+    }
+    box.addChild(new Text(eventLine, 0, 0));
+    for (const line of formatVisibleReport(String(message.content)).split("\n")) {
+      box.addChild(new Text(theme.fg("customMessageText", line), 0, 0));
+    }
+    return box;
+  });
+
   pi.on("session_start", async (_event, ctx) => {
     setupMonitorFooter(ctx);
     requestRender?.();
@@ -174,16 +189,10 @@ export default function (pi: ExtensionAPI) {
       });
       requestRender?.();
       updateFooterStatus();
-      const lifecycleNote = "until a result matches, the process exits, monitor_stop, or session shutdown";
       return {
         content: [{
           type: "text",
-          text: [
-            `Started result monitor ${monitor.id}: ${monitor.description}.`,
-            `Success contract: ${monitor.resultPattern}`,
-            monitor.failurePattern ? `Failure contract: ${monitor.failurePattern}` : "",
-            `Status: waiting (${lifecycleNote}). Progress output is retained outside model context.`,
-          ].filter(Boolean).join("\n"),
+          text: `Monitor started · ${monitor.id} · ${monitor.description}`,
         }],
         details: { monitorId: monitor.id },
         terminate: true,
@@ -251,6 +260,23 @@ export default function (pi: ExtensionAPI) {
     }
     return lines;
   }
+}
+
+function formatAgentMessage(body: string): string {
+  return `<agent-message from="monitor">\n${body}\n</agent-message>`;
+}
+
+function formatVisibleReport(content: string): string {
+  const body = content
+    .replace(/^<agent-message from="monitor">\n?/, "")
+    .replace(/\n?<\/agent-message>\s*$/, "");
+  return body.replace(/^\[monitor [^\]]+\] [^\n]+\n?/, "");
+}
+
+function extractMonitorDescription(content: string): string {
+  const match = content.match(/\[monitor [^\]]+\] ([^\n]+)/);
+  const description = match?.[1] ?? "result";
+  return compactValue(description).replaceAll('"', '\\"');
 }
 
 function formatTerminalMessage(monitor: Monitor, result: MonitorTerminalResult): string {

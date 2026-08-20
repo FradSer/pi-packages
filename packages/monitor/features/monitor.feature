@@ -14,6 +14,12 @@ Feature: Result-contract background monitoring
     And the agent remains idle until the terminal result arrives
     And ordinary stdout and stderr do not wake the agent
 
+  Scenario: Starting a monitor returns a concise startup message
+    Given monitor_start accepts a monitor description
+    When a monitor is started
+    Then the tool result contains `Monitor started · <monitor-id> · <description>`
+    And the tool result still terminates the current agent turn
+
   Scenario: A success pattern exposes one compact text result
     Given a monitor is running with a result pattern
     When a line from stdout or stderr matches the result pattern
@@ -54,6 +60,13 @@ Feature: Result-contract background monitoring
     Given a monitor reaches a terminal result
     When the terminal message is sent to the model
     Then the visible content is compact plain text
+    And the message details retain the full structured result object
+
+  Scenario: Terminal results use the agent-message report envelope
+    Given a monitor reaches a terminal result
+    When the result is sent back to the agent
+    Then the transport content is wrapped in an `<agent-message from="monitor">` marker
+    And the full compact terminal report appears inside the marker
     And the message details retain the full structured result object
 
   Scenario: Captured output is bounded

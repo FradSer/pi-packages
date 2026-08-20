@@ -71,12 +71,26 @@ contracts.
 - `result_missing`: the process exited successfully without satisfying the
   declared result contract.
 
-The monitor sends one compact plain-text terminal message with `triggerTurn:
-true`. It uses stable `key=value` fields and emits complex `result` data as one
-compact JSON value. The terminal message also includes a bounded source-labelled
-diagnostic tail, so ordinary stdout and stderr never create extra messages or
-turns and no output-reading tool is needed. The terminal message automatically
-wakes the agent once after the monitor reaches a terminal state.
+The monitor start tool returns a concise status with the monitor id and
+description, then terminates the current turn. When the command reaches a
+terminal state, the monitor sends one report with `triggerTurn: true`. Its
+transport content uses the Pi agent-message envelope:
+
+```text
+<agent-message from="monitor">
+[monitor monitor_1] test suite result
+status=success
+elapsed=8.4s
+</agent-message>
+```
+
+The transcript renders the report as a concise monitor event, such as
+`⏺ Monitor event: "test suite result"`; expanding it shows the terminal fields.
+The report uses stable `key=value` fields and emits complex `result` data as one
+compact JSON value. It also includes a bounded source-labelled diagnostic tail,
+so ordinary stdout and stderr never create extra messages or turns and no
+output-reading tool is needed. The terminal message automatically wakes the
+agent once after the monitor reaches a terminal state.
 
 ## Downstream filters must stay line-buffered
 

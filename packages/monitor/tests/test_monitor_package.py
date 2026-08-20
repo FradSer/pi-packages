@@ -151,6 +151,29 @@ def test_terminal_message_is_compact_plain_text() -> None:
     assert "output_truncated=true" in extension
 
 
+def test_terminal_report_uses_agent_message_envelope() -> None:
+    extension = (SRC / "index.ts").read_text(encoding="utf-8")
+    assert "function formatAgentMessage(body: string): string" in extension
+    assert 'return `<agent-message from="monitor">\\n${body}\\n</agent-message>`;' in extension
+    assert "content: formatAgentMessage(formatTerminalMessage(monitor, result))" in extension
+    assert "monitor-result" in extension
+
+
+def test_monitor_report_renderer_hides_transport_envelope() -> None:
+    extension = (SRC / "index.ts").read_text(encoding="utf-8")
+    assert 'registerMessageRenderer("monitor-result"' in extension
+    assert '⏺ Monitor event:' in extension
+    assert "expanded" in extension
+    assert '" (Ctrl+O to expand)"' in extension
+    assert "<agent-message from=\\\"monitor\\\">" not in extension.split('registerMessageRenderer("monitor-result"', 1)[1].split('registerTool', 1)[0]
+
+
+def test_monitor_start_returns_concise_status_line() -> None:
+    extension = (SRC / "index.ts").read_text(encoding="utf-8")
+    assert "Monitor started · ${monitor.id} · ${monitor.description}" in extension
+    assert "Success contract:" not in extension.split('name: "monitor_start"', 1)[1].split('name: "monitor_stop"', 1)[0]
+
+
 def test_monitor_status_uses_the_native_footer_and_console_owns_input() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     assert 'setStatus("monitor"' in extension
@@ -182,6 +205,7 @@ def test_registered_monitor_tool_terminates_and_wakes_once() -> None:
         const messages = [];
         const pi = {
           registerTool(tool) { tools.set(tool.name, tool); },
+          registerMessageRenderer() {},
           registerCommand() {},
           on(name, handler) {
             const current = handlers.get(name) ?? [];
@@ -210,7 +234,13 @@ def test_registered_monitor_tool_terminates_and_wakes_once() -> None:
         await new Promise((resolve) => setTimeout(resolve, 450));
         if (messages.length !== 1) throw new Error(JSON.stringify(messages));
         if (messages[0].options.triggerTurn !== true) throw new Error(JSON.stringify(messages));
+        if (!messages[0].message.content.includes('<agent-message from="monitor">')) {
+          throw new Error(JSON.stringify(messages));
+        }
         if (!messages[0].message.content.includes("status=success")) {
+          throw new Error(JSON.stringify(messages));
+        }
+        if (!messages[0].message.content.includes("</agent-message>")) {
           throw new Error(JSON.stringify(messages));
         }
         if (messages[0].message.content.includes("output=")) {

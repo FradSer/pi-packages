@@ -78,14 +78,30 @@ monitor_start
   failure_pattern="__PI_MONITOR_FAILURE__ (?<json>\\{.*\\})"
 ```
 
-A successful result wakes the agent once with compact text:
+A successful result wakes the agent once. In the transcript it is shown as a
+compact monitor event; expand it to inspect the terminal fields:
 
 ```text
-[monitor monitor_1] test suite result
+⏺ Monitor event: "test suite result"
+
 status=success
 elapsed=8.4s
 result={"status":"success"}
 ```
+
+The agent transport keeps the report in a Pi message envelope:
+
+```text
+<agent-message from="monitor">
+[monitor monitor_1] test suite result
+status=success
+elapsed=8.4s
+result={"status":"success"}
+</agent-message>
+```
+
+The envelope and internal monitor label are hidden by the transcript renderer;
+they are retained for the agent's context and structured message details.
 
 ## Matching existing command output
 
@@ -138,9 +154,13 @@ The retained history and terminal diagnostic tail are bounded:
 - Both stdout and stderr are scanned for `result_pattern` and `failure_pattern`.
 - The first terminal match wins and stops the process group.
 - Named regex captures are returned in `captures`.
-- The model-facing terminal message uses compact `key=value` text. A named
-  capture called `json` is parsed into `result` and emitted as compact JSON;
-  complete structured data remains in message `details` for extensions/UI.
+- The monitor start tool returns a concise status containing the monitor id
+  and description, then terminates the current turn.
+- The model-facing terminal report uses the Pi agent-message envelope
+  `<agent-message from="monitor">...</agent-message>` around compact
+  `key=value` text. A named capture called `json` is parsed into `result` and
+  emitted as compact JSON; complete structured data remains in message
+  `details` for extensions/UI.
 - A `json` capture is parsed when it contains valid JSON no larger than 32 KiB.
 - Completion waits for the child process `close` event so unterminated final
   output can still satisfy the contract.
