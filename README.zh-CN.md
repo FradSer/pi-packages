@@ -92,7 +92,7 @@ pi install npm:@fradser/pi-utils
 
 通过依赖关系任务图、并发限制、取消、重试和全屏控制台协调 Pi 子 worker。
 
-**工具：** `teammate_run`、`teammate_cancel`、`teammate_retry`、`teammate_message`
+**工具：** `teammate_run`、`teammate_fanout`、`teammate_message`、`teammate_cancel`、`teammate_retry`
 
 **命令：** `/teammate`
 

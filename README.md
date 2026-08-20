@@ -92,7 +92,7 @@ pi install npm:@fradser/pi-utils
 
 Coordinates child Pi workers through dependency-aware task graphs, bounded concurrency, cancellation, retries, and a full-screen console.
 
-**Tools:** `teammate_run`, `teammate_cancel`, `teammate_retry`, `teammate_message`
+**Tools:** `teammate_run`, `teammate_fanout`, `teammate_message`, `teammate_cancel`, `teammate_retry`
 
 **Command:** `/teammate`
 
