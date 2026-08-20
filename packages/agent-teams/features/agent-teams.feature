@@ -46,7 +46,7 @@ Feature: Agent Teams run-centric public API
       Then it injects the orchestration protocol and the discovered agent definitions
       And it embeds no run ids, node statuses, or other per-turn live state
       And the guidance is byte-identical across turns while agents and cwd are unchanged
-      And run awareness reaches the leader through tool results and completion follow-ups
+      And run awareness reaches the leader through tool results and teammate_message reports
 
   Rule: A run is a single-call DAG dispatch
 
@@ -54,6 +54,29 @@ Feature: Agent Teams run-centric public API
       When the leader dispatches a task with a turnBudget
       Then the worker receives the turn budget in its prompt
       And no wall-clock timeout or deadline dimension exists in the run API
+
+    Scenario: The default turn budget is high and only protects edge cases
+      When the leader dispatches a task without a turnBudget
+      Then the worker receives a default budget of at least 100 assistant turns
+      And the leader may still provide a lower explicit turnBudget
+
+    Scenario: Live tool execution remains visible between tool call and result events
+      Given a worker has emitted a tool execution start event with its name and arguments
+      When the worker progress parser processes the event stream
+      Then the active tool includes the tool name and useful arguments
+      And the active tool remains visible until the matching tool execution ends
+      And the active tool is cleared after the execution ends
+
+    Scenario: Parallel tool executions keep remaining activity visible
+      Given two tool execution start events are active at the same time
+      When one tool finishes before the other
+      Then the remaining tool stays visible as the active tool
+      And the active tool clears only after the final execution ends
+
+    Scenario: Live reasoning reflects the latest assistant turn
+      Given a worker has streamed reasoning in two assistant turns
+      When the worker progress parser processes both turns
+      Then the live reasoning contains the latest turn rather than the first turn
 
     Scenario: A completed worker may dynamically fan out child tasks
       Given a worker has published a bounded structured array output
@@ -116,7 +139,7 @@ Feature: Agent Teams run-centric public API
       When the leader dispatches without setting background
       Then the tool call returns immediately with the run id
       And workers message team-leader with deliverables upon completion
-      And one run-completion follow-up is delivered when the run settles
+      And one run-completion teammate_message report is delivered when the run settles
       When the leader dispatches with background=false
       Then the tool call blocks until the run reaches a terminal status and returns the node results
 
@@ -125,7 +148,7 @@ Feature: Agent Teams run-centric public API
       When the cap is exceeded
       Then the tool call returns with the run id instead of hanging the model turn
       And the run continues executing in the background
-      And it delivers one run-completion follow-up when it settles
+      And it delivers one run-completion teammate_message report when it settles
 
     Scenario: Multi-node runs synthesize a final summary by default
       Given a run is dispatched with more than one user task
@@ -135,10 +158,10 @@ Feature: Agent Teams run-centric public API
       When a run has exactly one user task
       Then no summary node is added unless summarize=true
 
-    Scenario: A collected run completion does not produce a duplicate follow-up
+    Scenario: A collected run completion does not produce a duplicate teammate_message report
       Given a background run reaches a terminal status
       When the leader gathers its results with background=false
-      Then the run-completion follow-up is suppressed for a gathered run
+      Then the run-completion teammate_message report is suppressed for a gathered run
 
     Scenario: Read nodes with overlapping paths may run concurrently
       Given two ready nodes declare overlapping paths with access=read
@@ -203,25 +226,71 @@ Feature: Agent Teams run-centric public API
       Then the temporary directory is removed
       And the node receives a failed terminal outcome instead of remaining running
 
+    Scenario: Pre-spawn setup failures notify the leader immediately
+      Given a background teammate cannot resolve its agent, state file, or worktree
+      When the scheduler rejects the teammate before spawning a child process
+      Then the leader receives one canonical terminal failure message
+      And the leader receives one immediate teammate_message report
+      And the run summary remains separate
+
   Rule: Run lifecycle is explicit
 
-    Scenario: The leader coordinates only through dispatch, cancel, and retry
+    Scenario: The leader coordinates through dispatch, runtime steer, cancel, and retry
       Given background tasks are running
       When the leader inspects available tools
-      Then no teammate_status, teammate_wait, teammate_message, or polling tool is registered for the leader
-      And the leader waits for the worker message follow-up
+      Then teammate_run, teammate_message, teammate_cancel, and teammate_retry are registered for the leader
+      And no teammate_status, teammate_wait, or polling tool is registered
+      And worker reports arrive through teammate_message
+
+    Scenario: Each completed teammate notifies the leader immediately
+      Given a background run has multiple working teammates
+      When any teammate submits a completed or failed terminal report
+      Then the worker's teammate_message report is delivered to the leader immediately
+      And the report contains the full final deliverable
+      And the remaining teammates continue running
+      And each teammate delivers at most one terminal report
+
+    Scenario: Automatic teammate follow-ups are serialized
+      Given multiple worker reports arrive while the leader is idle or processing
+      When the extension delivers reports to the leader
+      Then reports are queued in arrival order
+      And exactly one idle prompt reservation is active before agent start
+      And later reports use the follow-up queue instead of starting another prompt
+      And at most one user follow-up is submitted at a time
+      And no "Agent is already processing a prompt" runtime error is generated
+      When agent_settled fires
+      Then the next pending batch starts only once
+
+    Scenario: A failed automatic follow-up preserves reports and retries with backoff
+      Given an automatic teammate report is dispatched through the void Pi API
+      When the API fails before agent_start
+      Then the report batch is restored to the front of the queue
+      And the reservation is released
+      And retry scheduling uses a delay instead of a busy loop
+
+    Scenario: A delayed follow-up cannot cross a session boundary
+      Given an automatic teammate report has a pending dispatch timer
+      When the current session shuts down before the timer fires
+      Then the timer is cancelled or ignored
+      And the report is not delivered to the replacement session
 
     Scenario: Run completion is delivered automatically without a wait tool
       Given a background run is working
       When the run reaches a terminal status
-      Then the harness delivers one completion follow-up to the leader
-      And the follow-up includes the full final deliverable submitted by the worker
-      And a single-node run delivers its result directly in the follow-up
+      Then the worker's teammate_message reports are available to the leader
+      And each report includes the full final deliverable submitted by the worker
+      And a single-node run delivers its result directly through teammate_message
       And no teammate_wait or teammate_status tool exists
 
-    Scenario: The run summary follow-up carries no console navigation hint
+    Scenario: Automatic teammate follow-ups are readable to the leader
+      Given queued teammate reports contain internal run identifiers
+      When the reports are delivered as one follow-up
+      Then the follow-up omits run identifiers and protocol labels
+      And terminal reports identify the teammate node in natural language
+
+    Scenario: The run summary teammate_message carries no console navigation hint
       Given a run has settled
-      When the leader receives the completion follow-up
+      When the leader receives the completion teammate_message
       Then the summary covers status, nodes, and deliverables
       And the message does not include the /teammate console hint
 
@@ -286,6 +355,7 @@ Feature: Agent Teams run-centric public API
       When it calls teammate_message with status="completed" or status="failed"
       Then the leader applies the report only to that node's current spawn
       And the report is delivered to the team leader
+      And the leader receives the report through the native teammate_message follow-up
 
     Scenario: Intermediate worker communication does not interrupt the main session
       Given a worker sends a plan, progress report, or blocker to the team leader
@@ -361,6 +431,13 @@ Feature: Agent Teams run-centric public API
       When the user opens /teammate
       Then the full-screen console shows the teammate's live model text and current tool activity
       And working rows display a spinner with the live activity (current tool, reasoning, or text)
+
+    Scenario: Teammate widget rows use the task-name activity format
+      Given a teammate has a task name, role, and live activity
+      When the passive widget renders its row
+      Then the row is formatted as "task name (role) · current activity"
+      And the spinner and task name appear before the separator
+      And a worker without live activity shows "Working..." after the separator
       And long tool activity is truncated inline with an ellipsis
       And a teammate widget row never wraps a truncation notice onto a second line
       And widget rows start with one left-padded pi-kit spinner frame aligned with the native loader row
@@ -368,6 +445,18 @@ Feature: Agent Teams run-centric public API
       And each running teammate uses a visible stable distinct theme color (success, warning, error, or link) for its identity
       And the idle widget stays hidden until a teammate is running
       And it does not intercept global terminal input
+
+    Scenario: Finished tool activity does not remain the current activity
+      Given a worker has streamed a tool call followed by new thinking or text
+      When the live worker progress is rendered
+      Then the widget shows the new thinking or text instead of the finished tool label
+      And the detail view does not label the finished tool as current
+
+    Scenario: Detail scrolling reserves space for console chrome
+      Given a node detail has content longer than the terminal viewport
+      When the detail console calculates its body viewport
+      Then the top border, header, spacing, footer, and bottom border remain visible
+      And the viewport does not request more body lines than the terminal can render
 
     Scenario: Detail scrolling preserves every wrapped display line
       Given a node detail has content longer than the terminal viewport

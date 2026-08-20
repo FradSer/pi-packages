@@ -50,7 +50,8 @@ teammate_run({
 - `access` defaults to `read`; declare `write` explicitly.
 - `dependsOn` edges must form a DAG (duplicate ids, unknown references, and cycles are rejected before any worker starts).
 - `worktree: true` runs every node in its own git worktree and captures each diff for integration review.
-- `background` defaults to `true`: teammates always run in the background — the call returns the run id immediately, the model turn stays free, and workers report their deliverables through the worker-only `teammate_message` capability, delivered automatically as a follow-up turn. The team leader does not sleep or busy-wait while tasks execute. Pass `background=false` to block and gather inline (it detaches after 5 minutes so the turn is never hung).
+- `background` defaults to `true`: teammates always run in the background — the call returns the run id immediately, the model turn stays free, and each teammate's terminal outcome sends its full deliverable in an immediate follow-up while the remaining teammates continue. A final run-completion follow-up is sent after all nodes settle. The team leader does not sleep or busy-wait while tasks execute. Pass `background=false` to block and gather inline (it detaches after 5 minutes so the turn is never hung).
+- `turnBudget` defaults to a high safety cap of 100 assistant turns; use an explicit lower value only when a task needs tighter bounds. This protects against edge cases without interrupting normal work.
 - `timeoutMs` is a run-level hard cap: when exceeded, the run fails and live workers are terminated.
 - A session-wide cap of 8 worker processes applies in addition to each run's `concurrency` limit.
 - Multi-node runs append a `__summary` node by default (`summarize=false` to skip). Single-task runs stay compact unless `summarize=true`.

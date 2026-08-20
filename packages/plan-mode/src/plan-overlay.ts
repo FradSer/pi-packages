@@ -16,7 +16,6 @@ import {
 } from "@earendil-works/pi-tui";
 import {
   buildMarkdownThemeCallbacks,
-  maxBodyHeight,
   padLine,
   type PiThemeStyle,
 } from "@fradser/pi-kit";
@@ -49,9 +48,10 @@ const ACTIONS: { id: PlanAction; label: string }[] = [
   { id: "exit", label: "Exit plan mode" },
 ];
 
-/** Cap the plan body at ~60% of the terminal height. */
+/** Keep the plan body within the terminal while reserving the action menu. */
 function maxPlanBody(rows: number): number {
-  return maxBodyHeight(rows, 0.6);
+  // Border, header, spacing, prompt, five actions, footer, and border.
+  return Math.max(3, rows - 14);
 }
 
 function buildMarkdownTheme(style: PlanOverlayStyle): MarkdownTheme {

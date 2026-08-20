@@ -12,7 +12,7 @@ import {
   SUMMARY_NODE_ID, updateNodeSpawnProgress, updateNodeStatus, validateStructuredOutput,
 } from "./state";
 import {
-  CancellationIntents, buildAutonomousPrompt, finishReportedWorker, isCompletedWorkerExit,
+  CancellationIntents, buildAutonomousPrompt, DEFAULT_TURN_BUDGET, finishReportedWorker, isCompletedWorkerExit,
   POST_REPORT_GRACE_MS, spawnPiWorker, terminateWorker,
   type WorkerProcessResult,
 } from "./spawner";
@@ -78,6 +78,20 @@ function currentStateFile(): string {
   return liveStateFile;
 }
 
+function sendNodeFollowUp(run: import("./types").Run, node: import("./types").Node, subject: string, body: string): void {
+  if (!run.background || node.id === SUMMARY_NODE_ID || node.nodeFollowUpSent) return;
+  node.nodeFollowUpSent = true;
+  markStateDirty();
+  sendUpdate(`Teammate ${node.id} ${terminalVerb(subject)}`, body, run.id);
+}
+
+function terminalVerb(subject: string): string {
+  if (subject === "Node completed") return "completed";
+  if (subject === "Node failed") return "failed";
+  if (subject === "Node cancelled") return "was cancelled";
+  return subject.toLowerCase();
+}
+
 function flushStateSnapshot(): void {
   if (!liveStateFile || !isStateDirty()) return;
   try {
@@ -133,9 +147,11 @@ export function applyWorkerEvents(): void {
           if (event.status && !["completed", "failed", "cancelled"].includes(node.status)) {
             if (event.status === "completed") {
               updateNodeStatus(run.id, node.id, "completed", event.body, undefined);
+              sendNodeFollowUp(run, node, "Node completed", event.body);
               requestReportedWorkerShutdown(node.workerKey, spawnId);
             } else if (event.status === "failed") {
               updateNodeStatus(run.id, node.id, "failed", undefined, event.body);
+              sendNodeFollowUp(run, node, "Node failed", event.body);
               requestReportedWorkerShutdown(node.workerKey, spawnId);
             }
           }
@@ -352,10 +368,18 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
   if (!run || !node || node.status !== "pending") return;
   const agent = resolveAgent(node.agent, run.cwd);
   const stateFile = liveStateFile ?? (ctx.sessionManager ? stateFilePath(ctx.sessionManager.getSessionFile(), run.cwd) : "");
-  if (!agent || !stateFile) {
-    updateNodeStatus(runId, nodeId, "failed", undefined, agent ? "Shared state file unavailable." : `Agent "${node.agent}" not found.`);
+  const failBeforeSpawn = (error: string): void => {
+    updateNodeStatus(runId, nodeId, "failed", undefined, error);
+    const failedNode = getNode(runId, nodeId);
+    const subject = "Node failed";
+    const body = `Node [${runId}/${nodeId}] could not start.\nError: ${error}`;
+    deliverToLeader({ from: node.workerKey, subject, body, runId });
+    if (failedNode) sendNodeFollowUp(run, failedNode, subject, body);
     cancelBlockedDependents(runId, nodeId);
     scheduleRun(runId, ctx);
+  };
+  if (!agent || !stateFile) {
+    failBeforeSpawn(agent ? "Shared state file unavailable." : `Agent "${node.agent}" not found.`);
     return;
   }
 
@@ -367,9 +391,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
   if (run.worktree) {
     worktree = createWorktree(run.cwd, `${runId}-${nodeId}`);
     if ("error" in worktree) {
-      updateNodeStatus(runId, nodeId, "failed", undefined, `Cannot isolate node: ${worktree.error}`);
-      cancelBlockedDependents(runId, nodeId);
-      scheduleRun(runId, ctx);
+      failBeforeSpawn(`Cannot isolate node: ${worktree.error}`);
       return;
     }
   }
@@ -391,7 +413,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
     mode: node.mode,
   });
 
-  const turnBudget = node.turnBudget;
+  const turnBudget = node.turnBudget ?? DEFAULT_TURN_BUDGET;
   const bindingLines = node.inputBindings
     ? Object.entries(node.inputBindings).map(([name, source]) => `Input ${name}: ${resolveInputBinding(run, node, source)}`)
     : [];
@@ -413,7 +435,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
       role: node.agent,
       prompt: agent.prompt,
       taskId: nodeId,
-      turnBudget: node.turnBudget,
+      turnBudget,
     }),
     "",
     "=== TASK ===",
@@ -495,6 +517,8 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
       patchText,
     });
     deliverToLeader({ from: workerKey, subject: terminalSubject, body: terminalBody, runId: runId });
+    const settledNode = getNode(runId, nodeId);
+    if (!cancelled && settledNode) sendNodeFollowUp(run, settledNode, terminalSubject, terminalBody);
     if (cancelled) {
       // A cancelled node keeps its process outcome but not a misleading error.
       const cleared = getNode(runId, nodeId);
@@ -526,12 +550,11 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
       error: typeof error === "string" ? error : error.message,
     });
     reportedWorkerShutdowns.delete(spawnId);
-    deliverToLeader({
-      from: workerKey,
-            subject: "Node failed",
-      body: `Node [${runId}/${nodeId}] could not start.\nError: ${typeof error === "string" ? error : error.message}`,
-      runId: runId,
-    });
+    const subject = "Node failed";
+    const body = `Node [${runId}/${nodeId}] could not start.\nError: ${typeof error === "string" ? error : error.message}`;
+    deliverToLeader({ from: workerKey, subject, body, runId: runId });
+    const failedNode = getNode(runId, nodeId);
+    if (failedNode) sendNodeFollowUp(run, failedNode, subject, body);
     cancelBlockedDependents(runId, nodeId);
     compactFinishedNodeRun(stateFile, workerKey, spawnId);
     if (worktree && !("error" in worktree)) discardWorktree(worktree);

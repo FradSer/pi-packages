@@ -612,6 +612,7 @@ export function retryRun(runId: string, nodeIds?: string[]): { ok: boolean; rese
     node.errorMessage = undefined;
     node.completedAt = undefined;
     node.spawn = undefined;
+    node.nodeFollowUpSent = undefined;
     node.updatedAt = Date.now();
   }
   const reset = [...resetSet];

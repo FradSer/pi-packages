@@ -15,22 +15,16 @@ import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui";
 import { registerLeaderTools, registerTeamCommand } from "./tools";
 import { registerWorkerCapabilities, workerOutboxBinding } from "./worker";
 import { terminateAllWorkers } from "./spawner";
+import { FollowUpQueue } from "./follow-up-queue";
 
 const STATE_DIR_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 let leaderPi: ExtensionAPI | undefined;
+let leaderCtx: ExtensionContext | undefined;
+let followUpQueue: FollowUpQueue | undefined;
 
-function sendMainSessionUpdate(subject: string, body: string, runId?: string): void {
-  try {
-    leaderPi?.sendMessage({
-      customType: "teammate-update",
-      content: `Teammate update — ${subject}${runId ? ` [${runId}]` : ""}\n${body}`,
-      display: true,
-      details: { runId },
-    }, { triggerTurn: true, deliverAs: "followUp" });
-  } catch {
-    // Late run events must not prevent shutdown.
-  }
+function sendMainSessionFollowUp(subject: string, body: string, runId?: string): void {
+  followUpQueue?.enqueue({ subject, body, runId });
 }
 
 function dispatchContext(ctx: ExtensionContext): DispatchCtx {
@@ -50,16 +44,21 @@ export default function (pi: ExtensionAPI) {
   registerLeaderTools(pi);
   registerTeamCommand(pi);
 
-  let leaderCtx: ExtensionContext | undefined;
-
   pi.on("session_start", async (_event, ctx) => {
     resetState();
+    followUpQueue?.reset();
     leaderCtx = ctx;
+    const sessionQueue = new FollowUpQueue({
+      isIdle: () => Boolean(leaderCtx?.isIdle()),
+      dispatch: (content) => leaderPi?.sendUserMessage(content, { deliverAs: "followUp" }),
+      onFailure: (message) => leaderCtx?.ui.notify(message, "warning"),
+    });
+    followUpQueue = sessionQueue;
     const dispatchCtx = dispatchContext(ctx);
     ensureTeamWidget(ctx);
     const stateFile = stateFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd || process.cwd());
     initRunMachine(dispatchCtx, stateFile, {
-      sendUpdate: sendMainSessionUpdate,
+      sendUpdate: sendMainSessionFollowUp,
       notifyChange: () => refreshTeamUI(leaderCtx),
     });
     ctx.ui.setStatus("teammate", undefined);
@@ -67,16 +66,31 @@ export default function (pi: ExtensionAPI) {
     void cleanupExpiredStateDirs(STATE_DIR_MAX_AGE_MS);
   });
 
+  pi.on("before_agent_start", async (event, ctx) => {
+    followUpQueue?.onBeforeAgentStart(event.prompt);
+    return {
+      systemPrompt: event.systemPrompt + buildTeamLeaderGuidance(ctx?.cwd ?? process.cwd()),
+    };
+  });
+
+  pi.on("agent_start", async () => {
+    followUpQueue?.onAgentStart();
+  });
+
+  pi.on("agent_settled", async () => {
+    followUpQueue?.onAgentSettled();
+  });
+
   pi.on("session_shutdown", async (_event, ctx) => {
     stopUiTimers();
     await terminateAllWorkers();
     shutdownRunMachine();
     removeSessionStateDir(ctx.sessionManager.getSessionFile(), ctx.cwd || process.cwd());
+    followUpQueue?.reset();
+    followUpQueue = undefined;
     leaderPi = undefined;
+    leaderCtx = undefined;
     resetState();
   });
 
-  pi.on("before_agent_start", async (event, ctx) => ({
-    systemPrompt: event.systemPrompt + buildTeamLeaderGuidance(ctx?.cwd ?? process.cwd()),
-  }));
 }

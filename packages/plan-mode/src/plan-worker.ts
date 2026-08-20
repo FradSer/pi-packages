@@ -25,10 +25,11 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { runPiWorker, type PiWorkerUsage } from "@fradser/pi-kit";
-
-const DEFAULT_EXPLORE_TIMEOUT_MS = 120_000; // 2 minutes per explore
-const DEFAULT_PLAN_TIMEOUT_MS = 180_000; // 3 minutes for plan writing
+import {
+  runPiWorker,
+  type PiWorkerProgressUpdate,
+  type PiWorkerUsage,
+} from "@fradser/pi-kit";
 
 export interface WorkerUsage extends PiWorkerUsage {}
 
@@ -38,7 +39,6 @@ export interface ExploreResult {
   findings: string;
   diagnostics: string;
   usage?: WorkerUsage;
-  timedOut: boolean;
   exitCode: number;
 }
 
@@ -46,7 +46,6 @@ export interface PlanWorkerResult {
   exploreResults: ExploreResult[];
   planText: string;
   totalUsage?: WorkerUsage;
-  timedOut: boolean;
   exitCode: number;
   stderr: string;
 }
@@ -56,6 +55,18 @@ export interface ExploreTask {
   focus: string;
   /** Detailed instructions for this explore worker. */
   instructions: string;
+}
+
+export type PlanWorkerPhase = "explore" | "writer";
+export type PlanWorkerStatus = "pending" | "running" | "completed" | "failed";
+
+export interface PlanWorkerUpdate {
+  id: string;
+  phase: PlanWorkerPhase;
+  label: string;
+  status: PlanWorkerStatus;
+  activeTool?: string;
+  detail?: string;
 }
 
 export interface RunPlanWorkerOptions {
@@ -73,21 +84,22 @@ export interface RunPlanWorkerOptions {
   exploreTasks?: ExploreTask[];
   /** Progress callback for explore/plan status. */
   onProgress?: (message: string) => void;
+  /** Live worker state callback for the plan-mode status widget. */
+  onUpdate?: (update: PlanWorkerUpdate) => void;
 }
 
 /** Read-only builtin tools explore workers may use. */
-const EXPLORE_TOOLS = ["read", "grep", "find", "ls", "bash"];
+const EXPLORE_TOOLS = ["read", "grep", "find", "ls"];
 
-function formatWorkerDiagnostics(stderr: string, exitCode: number, timedOut: boolean): string {
+function formatWorkerDiagnostics(stderr: string, exitCode: number): string {
   const details = stderr.trim();
   if (details) return details;
-  if (timedOut) return "Worker timed out before producing a result.";
   if (exitCode !== 0) return `Worker exited with code ${exitCode}.`;
   return "Worker produced no structured result.";
 }
 
-/** Tools plan writer may use (read-only + write for plan file). */
-const PLAN_WRITER_TOOLS = ["read", "grep", "find", "ls", "bash", "write"];
+/** Plan writer returns content; the host owns the only plan-file write. */
+const PLAN_WRITER_TOOLS = ["read", "grep", "find", "ls"];
 
 /**
  * Generate a single explore task from a user prompt.
@@ -115,12 +127,15 @@ Be thorough but concise. Report facts, not recommendations.`,
  */
 async function runExploreWorker(
   task: ExploreTask,
+  workerId: string,
   cwd: string,
   model: string | undefined,
   signal: AbortSignal | undefined,
   onProgress?: (message: string) => void,
+  onUpdate?: (update: PlanWorkerUpdate) => void,
 ): Promise<ExploreResult> {
   onProgress?.(`Explore  ${task.focus}`);
+  onUpdate?.({ id: workerId, phase: "explore", label: task.focus, status: "running" });
 
   const prompt = `# Explore Worker
 
@@ -146,19 +161,25 @@ Be thorough but concise. Focus on facts, not recommendations.`;
     tools: EXPLORE_TOOLS,
     model,
     signal,
-    timeoutMs: DEFAULT_EXPLORE_TIMEOUT_MS,
     extraArgs: ["--no-extensions"],
+    onUpdate: (progress) => onUpdate?.(workerProgress(workerId, "explore", task.focus, progress)),
   });
   const findings = result.text.trim();
-  const status = result.exitCode === 0 && !result.timedOut && findings ? "completed" : "failed";
+  const status = result.exitCode === 0 && findings ? "completed" : "failed";
+  onUpdate?.({
+    id: workerId,
+    phase: "explore",
+    label: task.focus,
+    status,
+    detail: status === "completed" ? "Findings ready" : formatWorkerDiagnostics(result.stderr, result.exitCode),
+  });
 
   return {
     focus: task.focus,
     status,
     findings: findings || "(no findings)",
-    diagnostics: formatWorkerDiagnostics(result.stderr, result.exitCode, result.timedOut),
+    diagnostics: formatWorkerDiagnostics(result.stderr, result.exitCode),
     usage: result.usage,
-    timedOut: result.timedOut,
     exitCode: result.exitCode,
   };
 }
@@ -174,8 +195,10 @@ async function runPlanWriter(
   model: string | undefined,
   signal: AbortSignal | undefined,
   onProgress?: (message: string) => void,
-): Promise<{ planText: string; usage?: WorkerUsage; timedOut: boolean; exitCode: number; stderr: string }> {
+  onUpdate?: (update: PlanWorkerUpdate) => void,
+): Promise<{ planText: string; usage?: WorkerUsage; exitCode: number; stderr: string }> {
   onProgress?.("Writing plan");
+  onUpdate?.({ id: "plan-writer", phase: "writer", label: "plan writer", status: "running" });
 
   const exploreSummary = exploreResults
     .map((r) => `## Explore: ${r.focus} [${r.status}]\n\n${r.findings}\n\nDiagnostics: ${r.diagnostics}`)
@@ -193,9 +216,9 @@ ${userPrompt}
 ${exploreSummary}
 
 ## Instructions
-Write the plan to: ${planPath}
+Return the complete plan content as your final response. The host process will write it to the configured plan path: ${planPath}
 
-Use the write tool to create the plan file with this structure:
+Use this structure:
 
 # Plan: <title>
 
@@ -222,21 +245,46 @@ Be specific and actionable. The plan should be implementable without additional 
     tools: PLAN_WRITER_TOOLS,
     model,
     signal,
-    timeoutMs: DEFAULT_PLAN_TIMEOUT_MS,
+    extraArgs: ["--no-extensions"],
+    onUpdate: (progress) => onUpdate?.(workerProgress("plan-writer", "writer", "plan writer", progress)),
+  });
+  const planText = result.text.trim();
+  const valid = result.exitCode === 0 && planText.length > 0;
+  const stderr = valid ? result.stderr : result.stderr || formatWorkerDiagnostics(result.stderr, result.exitCode);
+  if (valid) fs.writeFileSync(planPath, `${planText}\n`, "utf8");
+  onUpdate?.({
+    id: "plan-writer",
+    phase: "writer",
+    label: "plan writer",
+    status: valid ? "completed" : "failed",
+    detail: valid ? "Plan file ready" : stderr,
   });
 
   return {
-    planText: result.text,
+    planText: valid ? planText : "",
     usage: result.usage,
-    timedOut: result.timedOut,
-    exitCode: result.exitCode,
-    stderr: result.stderr,
+    exitCode: valid ? 0 : result.exitCode || 1,
+    stderr,
   };
 }
 
 /**
  * Main entry point: run parallel explore workers, then plan writer.
  */
+function workerProgress(
+  id: string,
+  phase: PlanWorkerPhase,
+  label: string,
+  progress: PiWorkerProgressUpdate,
+): PlanWorkerUpdate {
+  const detail = progress.activeTool ?? firstProgressLine(progress.liveThinking) ?? firstProgressLine(progress.text);
+  return { id, phase, label, status: "running", activeTool: progress.activeTool, detail };
+}
+
+function firstProgressLine(text: string | undefined): string | undefined {
+  return text?.split("\n").map((line) => line.trim()).find((line) => line.length > 0);
+}
+
 export async function runPlanWorker(options: RunPlanWorkerOptions): Promise<PlanWorkerResult> {
   const {
     prompt,
@@ -246,6 +294,7 @@ export async function runPlanWorker(options: RunPlanWorkerOptions): Promise<Plan
     signal,
     exploreTasks: userTasks,
     onProgress,
+    onUpdate,
   } = options;
 
   // Ensure the plan directory exists
@@ -256,8 +305,8 @@ export async function runPlanWorker(options: RunPlanWorkerOptions): Promise<Plan
   // Phase 1: Parallel explore
   onProgress?.(`Starting ${exploreTasks.length} explore workers...`);
 
-  const explorePromises = exploreTasks.map((task) =>
-    runExploreWorker(task, cwd, model, signal, onProgress),
+  const explorePromises = exploreTasks.map((task, index) =>
+    runExploreWorker(task, `explore-${index + 1}`, cwd, model, signal, onProgress, onUpdate),
   );
   const exploreResults = await Promise.all(explorePromises);
 
@@ -270,7 +319,6 @@ export async function runPlanWorker(options: RunPlanWorkerOptions): Promise<Plan
     return {
       exploreResults,
       planText: "",
-      timedOut: exploreResults.every((r) => r.timedOut),
       exitCode: 1,
       stderr: `All explore workers failed. ${diagnostics}`,
     };
@@ -285,6 +333,7 @@ export async function runPlanWorker(options: RunPlanWorkerOptions): Promise<Plan
     model,
     signal,
     onProgress,
+    onUpdate,
   );
 
   // Aggregate usage
@@ -307,7 +356,6 @@ export async function runPlanWorker(options: RunPlanWorkerOptions): Promise<Plan
     exploreResults,
     planText: planResult.planText,
     totalUsage,
-    timedOut: planResult.timedOut,
     exitCode: planResult.exitCode,
     stderr: planResult.stderr,
   };

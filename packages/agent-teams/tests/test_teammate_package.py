@@ -81,6 +81,7 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Agent descriptions are injected into prompt guidance",
         "An unknown agent name fails the dispatch",
         "Workers use turn budgets instead of wall-clock timeouts",
+        "The default turn budget is high and only protects edge cases",
         "A completed worker may dynamically fan out child tasks",
         "Fanout rejects invalid source output before spawning",
         "Input bindings resolve only declared dependency data",
@@ -108,10 +109,17 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Reject malformed task graphs",
         "Reject ambiguous path ownership",
         "Run lifecycle is explicit",
-        "The leader coordinates only through dispatch, cancel, and retry",
+        "The leader coordinates through dispatch, runtime steer, cancel, and retry",
+        "Each completed teammate notifies the leader immediately",
+        "Automatic teammate follow-ups are serialized",
+        "exactly one idle prompt reservation is active before agent start",
+        "later reports use the follow-up queue instead of starting another prompt",
+        "When agent_settled fires",
+        "A failed automatic follow-up preserves reports and retries with backoff",
+        "A delayed follow-up cannot cross a session boundary",
         "Run completion is delivered automatically without a wait tool",
-        "follow-up includes the full final deliverable submitted by the worker",
-        "single-node run delivers its result directly in the follow-up",
+        "worker's teammate_message reports are available to the leader",
+        "single-node run delivers its result directly through teammate_message",
         "Cancel a run stops its running nodes",
         "Runs do not survive session restarts",
         "Messaging is capability-bound and leader-only",
@@ -194,22 +202,20 @@ def test_widget_rows_align_with_native_loader_and_show_live_activity() -> None:
     assert 'const spinner = separator === -1 ? label : label.slice(0, separator)' in ext
     assert 'theme.bold(style.fg("accent", activityText))' in ext
     # The pi-kit spinner is first, followed by the colored identity and bold activity.
-    assert 'const line = ` ${spinner} ${name} ${role}${activity ? ` · ${activity}` : ""}`' in ext
+    assert 'const line = ` ${spinner} ${name} ${role} · ${activity}`' in ext
+    assert 'const activityText = separator === -1 ? "Working..." : label.slice(separator + 1).trim();' in ext
     assert 'PI_SPINNER_FRAMES[spinnerFrame]' in ext
     # Widget is placed belowEditor (under the input box)
     assert 'placement: "belowEditor"' in ext
     # Live activity: current tool first, then reasoning, then text.
     assert "node.spawn?.activeTool" in ext and "liveThinking" in ext
     assert "liveThinking?: string" in types
-    # The JSON stream parser tracks tool calls via message_update subtypes
-    # (toolcall_start/delta/end) — the obsolete tool_execution_* events do not
-    # exist in pi's JSON mode output.
+    # The JSON stream parser tracks streamed tool calls and live execution events.
     assert '"toolcall_start"' in spawner and '"toolcall_delta"' in spawner and '"toolcall_end"' in spawner
-    assert "tool_execution_start" not in spawner
-    assert "tool_execution_end" not in spawner
-    # toolcall_end keeps the richer delta-derived label ("bash: echo hello")
-    # instead of overwriting it with the bare tool name.
-    assert "if (tc?.name && !state.activeTool)" in spawner
+    assert 'event.type === "tool_execution_start"' in spawner
+    assert 'event.type === "tool_execution_end"' in spawner
+    assert 'state.activeTool = undefined;' in spawner
+    assert 'case "toolcall_end":' in spawner
     # Reasoning deltas are accumulated for the activity line.
     assert '"thinking_delta"' in spawner
     # Tool labels are collapsed and truncated inline so a long command cannot
@@ -894,6 +900,123 @@ def test_worker_message_delivers_completed_and_failed_status() -> None:
     assert 'updateNodeStatus(run.id, node.id, "completed", event.body, undefined)' in machine
     assert 'updateNodeStatus(run.id, node.id, "failed", undefined, event.body)' in machine
     assert 'name: "teammate_report"' not in machine
+
+
+def test_leader_followups_use_a_lifecycle_aware_queue() -> None:
+    index = source("index.ts")
+    queue = source("follow-up-queue.ts")
+    assert 'import { FollowUpQueue } from "./follow-up-queue"' in index
+    assert "followUpQueue?.onBeforeAgentStart(event.prompt)" in index
+    assert "followUpQueue?.onAgentStart()" in index
+    assert "followUpQueue?.onAgentSettled()" in index
+    assert "followUpQueue?.reset()" in index
+    assert "agentStartTimeoutMs" in queue
+    assert "retryBaseDelayMs" in queue
+    assert "this.pending.unshift(...failed.reports)" in queue
+    assert "generation !== this.generation" in queue
+    assert "clearTimeout" in queue
+
+
+def test_follow_up_queue_requeues_failed_dispatch_with_backoff() -> None:
+    module = (SRC / "follow-up-queue.ts").as_uri()
+    payload = run_node(f'''\
+        import {{ FollowUpQueue }} from "{module}";
+        const failures = [];
+        const queue = new FollowUpQueue({{
+          isIdle: () => true,
+          dispatch: () => {{ throw new Error("preflight failed"); }},
+          onFailure: (message) => failures.push(message),
+          retryBaseDelayMs: 100000,
+          retryMaxDelayMs: 100000,
+        }});
+        queue.enqueue({{ subject: "A", body: "report" }});
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        const result = {{ pending: queue.pendingCount, failures: failures.length }};
+        queue.reset();
+        console.log(JSON.stringify(result));
+        ''')
+    assert payload == {"pending": 1, "failures": 1}
+
+
+def test_follow_up_queue_requeues_when_void_dispatch_never_starts() -> None:
+    module = (SRC / "follow-up-queue.ts").as_uri()
+    payload = run_node(f'''\
+        import {{ FollowUpQueue }} from "{module}";
+        const failures = [];
+        const queue = new FollowUpQueue({{
+          isIdle: () => true,
+          dispatch: () => {{}},
+          onFailure: (message) => failures.push(message),
+          agentStartTimeoutMs: 5,
+          retryBaseDelayMs: 100000,
+          retryMaxDelayMs: 100000,
+        }});
+        queue.enqueue({{ subject: "A", body: "report" }});
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        const result = {{ pending: queue.pendingCount, failures: failures.length }};
+        queue.reset();
+        console.log(JSON.stringify(result));
+        ''')
+    assert payload == {"pending": 1, "failures": 1}
+
+
+def test_follow_up_queue_ignores_stale_session_callbacks() -> None:
+    module = (SRC / "follow-up-queue.ts").as_uri()
+    payload = run_node(f'''\
+        import {{ FollowUpQueue }} from "{module}";
+        const sent = [];
+        const queue = new FollowUpQueue({{
+          isIdle: () => true,
+          dispatch: (content) => sent.push(content),
+          agentStartTimeoutMs: 100000,
+        }});
+        queue.enqueue({{ subject: "old", body: "report" }});
+        queue.reset();
+        await new Promise((resolve) => setImmediate(resolve));
+        console.log(JSON.stringify({{ sent: sent.length, pending: queue.pendingCount }}));
+        ''')
+    assert payload == {"sent": 0, "pending": 0}
+
+
+def test_follow_up_queue_waits_for_matching_start_and_settle() -> None:
+    module = (SRC / "follow-up-queue.ts").as_uri()
+    payload = run_node(f'''\
+        import {{ FollowUpQueue }} from "{module}";
+        const sent = [];
+        const queue = new FollowUpQueue({{
+          isIdle: () => true,
+          dispatch: (content) => sent.push(content),
+          agentStartTimeoutMs: 100000,
+        }});
+        queue.enqueue({{ subject: "A", body: "first" }});
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        queue.enqueue({{ subject: "B", body: "second" }});
+        queue.onAgentSettled();
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        const beforeStart = sent.length;
+        queue.onBeforeAgentStart("Teammate update: A\\nfirst");
+        queue.onAgentStart();
+        queue.onAgentSettled();
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        const result = {{ beforeStart, sent }};
+        queue.reset();
+        console.log(JSON.stringify(result));
+        ''')
+    assert payload == {"beforeStart": 1, "sent": ["Teammate update: A\nfirst", "Teammate update: B\nsecond"]}
+
+
+def test_follow_up_queue_removes_protocol_and_run_identifiers() -> None:
+    module = (SRC / "follow-up-queue.ts").as_uri()
+    payload = run_node(f'''\
+        import {{ FollowUpQueue }} from "{module}";
+        const sent = [];
+        const queue = new FollowUpQueue({{ isIdle: () => true, dispatch: (content) => sent.push(content) }});
+        queue.enqueue({{ subject: "Node completed", body: "result", runId: "run_6" }});
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        console.log(JSON.stringify(sent));
+        ''')
+    assert payload == ["Teammate update: Node completed\\nresult"]
+
 
 def test_dirty_state_tracking_and_session_worker_cap() -> None:
     state_module = (SRC / "state.ts").as_uri()

@@ -59,6 +59,8 @@ export interface Node {
   /** Bounded JSON output emitted through teammate_message for downstream data flow. */
   structuredOutput?: unknown;
   errorMessage?: string;
+  /** True once the terminal node follow-up has been delivered. */
+  nodeFollowUpSent?: boolean;
   /** Real child-process execution info when this node was spawned. */
   spawn?: SpawnInfo;
   createdAt: number;
@@ -188,7 +190,7 @@ export const RunTaskSpec = Type.Object({
   access: Type.Optional(NodeAccess),
   model: Type.Optional(Type.String({ description: "Optional per-node provider/model pin" })),
   mode: Type.Optional(Type.Union([Type.Literal("json"), Type.Literal("rpc")], { description: "Worker process mode; rpc enables runtime steering" })),
-  turnBudget: Type.Optional(Type.Integer({ minimum: 1, description: "Optional maximum assistant turns before the worker is stopped (default: no limit)" })),
+  turnBudget: Type.Optional(Type.Integer({ minimum: 1, description: "Optional maximum assistant turns before the worker is stopped (default: 100; high safety cap for edge cases)" })),
   forkContext: Type.Optional(Type.Array(Type.String(), { description: "Named upstream node ids whose results are included as fork context" })),
   inputBindings: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "Named inputs bound from dependency outputs using nodeId#/json/pointer" })),
 });

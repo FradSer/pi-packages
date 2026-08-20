@@ -43,8 +43,8 @@ ${agents}
 ### Dispatch a run in one call
 
 Use teammate_run with a tasks array: each task has id, agent, prompt, paths,
-access (read default, write explicit), optional dependsOn, model, turnBudget,
-forkContext, and inputBindings. Use teammate_fanout only from the leader after
+access (read default, write explicit), optional dependsOn, model, turnBudget
+(default 100 assistant turns), forkContext, and inputBindings. Use teammate_fanout only from the leader after
 validating a completed node's bounded structured array output. The scheduler
 starts root nodes immediately, bounds concurrency,
 defers overlapping shared-workspace writes — advisory coordination across all
@@ -54,13 +54,14 @@ scheduling only; a worker's real capabilities come from its agent definition's
 tools list.
 
 Teammates run in the background by default: the call returns the run id
-immediately, and the main session is free. When a teammate finishes, it sends
-its final deliverable to team-leader through its append-only outbox. The
-harness delivers the run completion automatically as a follow-up turn. Pass
-background=false only when you strictly need inline synchronous blocking (it
-detaches after 5 minutes so the turn is never hung). A session-wide cap of 8
-worker processes applies in addition to each run's concurrency. Multi-node runs
-append a __summary node by default; pass summarize=false to skip it.
+immediately, and the main session is free. When any teammate reaches a
+terminal outcome, its full final deliverable is sent in an immediate follow-up;
+the remaining teammates continue running. The harness also delivers one run
+completion follow-up after all nodes settle. Pass background=false only when
+you strictly need inline synchronous blocking (it detaches after 5 minutes so
+the turn is never hung). A session-wide cap of 8 worker processes applies in
+addition to each run's concurrency. Multi-node runs append a __summary node by
+default; pass summarize=false to skip it.
 
 ### DO NOT poll status
 

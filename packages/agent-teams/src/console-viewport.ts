@@ -2,7 +2,8 @@ import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 /** Leave room for the console borders, title, spacing, and footer. */
 export function maxConsoleBody(rows: number): number {
-  return Math.max(3, rows - 5);
+  // Detail chrome: border, header, spacer, spacer, footer, border.
+  return Math.max(3, rows - 7);
 }
 
 /** Wrap source records before calculating scroll positions. */

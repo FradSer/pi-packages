@@ -50,14 +50,10 @@ function runningTeammateLabel(node: Node): string {
   // Like the memory package's activity line: show what the worker is doing
   // right now — current tool when one is executing, else its live reasoning,
   // else the latest assistant text.
-  const detail = tool
-    ? ` ${tool}`
-    : thinking
-      ? ` ${truncateToWidth(thinking, 48)}`
-      : live
-        ? ` ${truncateToWidth(live, 48)}`
-        : " Working...";
-  return `${frame}${detail}`;
+  const activity = tool
+    ?? (thinking ? truncateToWidth(thinking, 48) : undefined)
+    ?? (live ? truncateToWidth(live, 48) : "Working...");
+  return `${frame} ${activity}`;
 }
 
 function ensureSpinner(): void {
@@ -121,9 +117,9 @@ export function ensureTeamWidget(ctx?: { ui?: ExtensionUIContext; mode?: string 
           const role = style.dim(`(${node.agent})`);
           const separator = label.indexOf(" ");
           const spinner = separator === -1 ? label : label.slice(0, separator);
-          const activityText = separator === -1 ? "" : label.slice(separator + 1).trim();
-          const activity = activityText ? theme.bold(style.fg("accent", activityText)) : "";
-          const line = ` ${spinner} ${name} ${role}${activity ? ` · ${activity}` : ""}`;
+          const activityText = separator === -1 ? "Working..." : label.slice(separator + 1).trim();
+          const activity = theme.bold(style.fg("accent", activityText));
+          const line = ` ${spinner} ${name} ${role} · ${activity}`;
           lines.push(truncateToWidth(line, Math.max(10, width - 1)));
         }
         return lines;

@@ -1,6 +1,6 @@
 # @fradser/pi-plan-mode
 
-Minimal plan mode for Pi. Parallel explore workers + plan writer, with dedicated model support.
+Minimal plan mode for Pi. The main session plans first; the agent automatically runs worker research only when the plan requires it.
 
 ## Install
 
@@ -13,7 +13,7 @@ pi install npm:@fradser/pi-plan-mode
 ```
 /plan              Toggle plan mode (interactive menu)
 /plan start        Enter plan mode (interactive planning in main session)
-/plan <prompt>     Spawn parallel explore workers + plan writer
+/plan <prompt>     Start read-only planning in the main session
 /plan exit         Leave plan mode
 /plan model        Set the dedicated planning model
 /plan model provider/model   Set model directly
@@ -27,55 +27,51 @@ pi install npm:@fradser/pi-plan-mode
       │
       ▼
 ┌─────────────────────────────────────────────┐
-│  Phase 1: Parallel Explore Workers          │
+│  Main Session — Plan First                   │
 │                                             │
-│  ┌─────────────┐  ┌─────────────┐          │
-│  │ Explore 1   │  │ Explore 2   │  ...     │
-│  │ (structure) │  │ (patterns)  │          │
-│  │ read/grep   │  │ read/grep   │          │
-│  │ find/ls/bash│  │ find/ls/bash│          │
-│  └──────┬──────┘  └──────┬──────┘          │
-│         │                │                  │
-│         └────────┬───────┘                  │
-│                  ▼                          │
-│         Explore Results                     │
+│  - Enters read-only plan mode               │
+│  - Explores the codebase directly           │
+│  - Writes plans/<key>.md                    │
+│  - Decides whether worker research helps    │
+└──────────────────┬──────────────────────────┘
+                   │ optional, explicit choice
+                   ▼
+┌─────────────────────────────────────────────┐
+│  Worker Research                             │
+│                                             │
+│  - Parallel explore workers when useful     │
+│  - Plan writer receives the existing plan   │
+│  - Live status is rendered above the input  │
 └──────────────────┬──────────────────────────┘
                    │
                    ▼
 ┌─────────────────────────────────────────────┐
-│  Phase 2: Plan Writer                       │
+│  Plan Review                                 │
 │                                             │
-│  ┌─────────────────────────────────────┐    │
-│  │ Plan Writer                         │    │
-│  │ - Receives all explore results      │    │
-│  │ - Writes plan to plans/<key>.md     │    │
-│  │ - Tools: read/grep/find/ls/bash/   │    │
-│  │         write (plan file only)      │    │
-│  └─────────────────────────────────────┘    │
-└──────────────────┬──────────────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────────────┐
-│  Plan Ready — Action Menu                   │
-│                                             │
-│  > Implement here (this session)            │
-│    Start fresh and implement (new session)  │
+│  > Implement here                           │
+│    Start fresh and implement                │
 │    View plan                                │
 │    Stay in plan mode                        │
 │    Exit plan mode                           │
 └─────────────────────────────────────────────┘
 ```
 
-### Phase 1: Parallel Explore
+### Main-session planning
 
-Explore workers run in parallel. By default, a single explore worker covers the full codebase. For complex tasks, multiple explore workers can be specified with different focus areas:
+`/plan <prompt>` never starts child workers immediately. It enters read-only mode and sends a follow-up to the current session. The main session decides whether the request is simple enough to plan directly. This avoids unnecessary worker cost and keeps the planning context in the current conversation.
+
+When the main-session plan is ready, use `/plan review` or the plan-mode menu to inspect it. The agent decides automatically whether worker research is required; users do not need to invoke a separate research command.
+
+### Automatic worker research
+
+When the plan marks worker research as required, explore workers run automatically. By default, a single explore worker covers the full codebase. For complex tasks, multiple explore workers can be specified with different focus areas:
 
 | Workers | When to Use |
 |---------|-------------|
 | **1** (default) | Simple tasks, known files, small changes |
 | **2-3** | Complex tasks, multiple areas, uncertain scope |
 
-Each worker runs in isolation (`--no-session`) with read-only tools only.
+Each worker runs in isolation (`--no-session`) with read-only tools only. While they are active, the live worker widget is rendered above the input editor, matching the agent-teams worker display.
 
 ### Phase 2: Plan Writer
 
@@ -115,7 +111,7 @@ Or via environment:
 export PI_PLAN_MODE_MODEL="anthropic/claude-3-5-haiku"
 ```
 
-The plan model is used for both explore workers and the plan writer.
+The plan model is used for the main planning session and, when the agent decides research is required, both explore workers and the plan writer. Worker processes have no wall-clock timeout; they stop when they exit or are aborted.
 
 ## Design Comparison
 

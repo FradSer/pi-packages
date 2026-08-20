@@ -16,6 +16,9 @@ import { fileURLToPath } from "node:url";
 import { extractTextContent, resolvePiCli } from "@fradser/pi-kit";
 import type { WorkerUsage } from "./types";
 
+/** High default safety cap; explicit task budgets can still be lower. */
+export const DEFAULT_TURN_BUDGET = 100;
+
 /**
  * Build the one-task execution prompt for a spawned worker.
  *
@@ -63,7 +66,7 @@ export interface SpawnPiWorkerOptions {
   env?: Record<string, string | undefined>;
   /** Working directory for the child (defaults to the parent's cwd). */
   cwd?: string;
-  /** Maximum assistant turns for this worker (undefined = no limit). */
+  /** Maximum assistant turns for this worker (defaults to DEFAULT_TURN_BUDGET). */
   turnBudget?: number;
   /** Output parsing mode. RPC keeps stdin available for runtime steering. */
   mode?: "json" | "rpc" | "text";
@@ -253,7 +256,9 @@ function appendCapped(chunks: string[], chunk: string, cap: number): void {
 
 type JsonEvent = {
   type?: string;
+  toolCallId?: string;
   toolName?: string;
+  args?: unknown;
   assistantMessageEvent?: {
     type?: string;
     delta?: string;
@@ -283,18 +288,53 @@ export function parseWorkerOutput(stdout: string): { text: string; usage?: Worke
   return { text: state.text.trim(), usage: state.usage };
 }
 
+/** Parse the latest live progress state from a worker JSON stream. */
+export function parseWorkerProgress(stdout: string): WorkerProgressUpdate {
+  const state = createWorkerStreamState();
+  for (const line of stdout.split("\n")) applyWorkerJsonLine(state, line);
+  return {
+    text: truncate(state.text, OUTPUT_CAP),
+    activeTool: state.activeTool,
+    liveThinking: truncate(state.thinking, OUTPUT_CAP),
+    turns: state.turns,
+    finalResponse: state.finalResponse,
+  };
+}
+
 interface WorkerStreamState {
   text: string;
   thinking: string;
   toolcallArgs: string;
   activeTool?: string;
+  activeToolCallId?: string;
+  activeTools: Map<string, string>;
   turns: number;
   finalResponse?: boolean;
   usage?: WorkerUsage;
 }
 
 function createWorkerStreamState(): WorkerStreamState {
-  return { text: "", thinking: "", toolcallArgs: "", turns: 0 };
+  return { text: "", thinking: "", toolcallArgs: "", activeTools: new Map(), turns: 0 };
+}
+
+function setActiveTool(state: WorkerStreamState, toolCallId: string | undefined, label: string): void {
+  const key = toolCallId ?? `tool-${state.activeTools.size}`;
+  state.activeTools.set(key, label);
+  state.activeToolCallId = key;
+  state.activeTool = label;
+}
+
+function clearActiveTool(state: WorkerStreamState, toolCallId: string | undefined): void {
+  if (toolCallId) state.activeTools.delete(toolCallId);
+  else state.activeTools.clear();
+  const next = [...state.activeTools.entries()].at(-1);
+  state.activeToolCallId = next?.[0];
+  state.activeTool = next?.[1];
+}
+
+function toolExecutionLabel(toolName: string | undefined, args: unknown): string {
+  const serialized = typeof args === "string" ? args : JSON.stringify(args ?? {});
+  return toolcallLabel(serialized) ?? toolName ?? "tool";
 }
 
 /** Human-readable label from a partially streamed tool-call argument JSON. */
@@ -325,9 +365,31 @@ function applyWorkerJsonLine(state: WorkerStreamState, line: string): boolean {
   } catch {
     return false;
   }
+  if (event.type === "message_start" && event.message?.role === "assistant") {
+    state.thinking = "";
+    state.activeTool = undefined;
+    state.activeToolCallId = undefined;
+    state.activeTools.clear();
+    return true;
+  }
+  if (event.type === "tool_execution_start") {
+    setActiveTool(state, event.toolCallId, toolExecutionLabel(event.toolName, event.args));
+    return true;
+  }
+  if (event.type === "tool_execution_end") {
+    if (!event.toolCallId || state.activeTools.has(event.toolCallId)) {
+      clearActiveTool(state, event.toolCallId);
+      return true;
+    }
+    return false;
+  }
   if (event.type !== "message_update") {
     if (event.type !== "message_end" || event.message?.role !== "assistant") return false;
     state.turns++;
+    state.activeTool = undefined;
+    state.activeToolCallId = undefined;
+    state.activeTools.clear();
+    state.thinking = "";
     if (event.message.stopReason === "stop") state.finalResponse = true;
     const parts = extractTextContent(event.message.content, "");
     if (parts.trim()) state.text = parts;
@@ -348,14 +410,18 @@ function applyWorkerJsonLine(state: WorkerStreamState, line: string): boolean {
   if (!sub) return false;
   switch (sub.type) {
     case "text_delta":
+      state.activeTool = undefined;
       state.text += sub.delta ?? "";
       return true;
     case "thinking_delta":
+      state.activeTool = undefined;
       state.thinking += sub.delta ?? "";
       return true;
     case "toolcall_start":
       state.toolcallArgs = "";
       state.activeTool = undefined;
+      state.activeToolCallId = undefined;
+      state.activeTools.clear();
       return true;
     case "toolcall_delta": {
       state.toolcallArgs += sub.delta ?? "";
@@ -363,14 +429,14 @@ function applyWorkerJsonLine(state: WorkerStreamState, line: string): boolean {
       if (label) state.activeTool = label;
       return true;
     }
-    case "toolcall_end": {
-      const tc = (sub as { toolCall?: { name?: string } }).toolCall;
-      // Prefer the richer delta-derived label (e.g. "bash: echo hello");
-      // fall back to the bare tool name only when no label could be parsed.
-      if (tc?.name && !state.activeTool) state.activeTool = tc.name;
+    case "toolcall_end":
+      // The tool call has been emitted; execution events now own the current
+      // activity label until the tool result arrives.
       state.toolcallArgs = "";
+      state.activeTool = undefined;
+      state.activeToolCallId = undefined;
+      state.activeTools.clear();
       return true;
-    }
     default:
       return false;
   }
