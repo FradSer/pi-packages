@@ -294,7 +294,7 @@ def test_failure_pattern_matches_stderr_and_returns_capture() -> None:
           resultPattern: "DEPLOY_COMPLETE",
           failurePattern: String.raw`deploy failed: (?<reason>.+)`,
         });
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 1500));
         if (terminals.length !== 1) throw new Error(`terminal count ${terminals.length}`);
         if (terminals[0].result.status !== "failure") throw new Error(JSON.stringify(terminals));
         if (terminals[0].result.captures.reason !== "broken config") {
@@ -303,6 +303,41 @@ def test_failure_pattern_matches_stderr_and_returns_capture() -> None:
         if (!terminals[0].result.output?.some((line) => line.startsWith("[stderr]"))) {
           throw new Error(JSON.stringify(terminals));
         }
+        ''',
+    )
+
+
+def test_drain_captures_lines_after_pattern_match_before_finalizing() -> None:
+    run_typescript(
+        r'''
+        import { MonitorManager } from "./packages/monitor/src/monitor.ts";
+
+        const terminals = [];
+        const manager = new MonitorManager({
+          onTerminal: (monitor, result) => terminals.push({ monitor, result }),
+        });
+        manager.start({
+          command: [
+            "printf 'CMake Error at project.cmake:789 (message):\\n'",
+            "printf '  Missing required dependency esp_hosted\\n'",
+            "printf '  Please update your sdkconfig\\n'",
+            "sleep 5",
+          ].join("; "),
+          description: "drain after failure",
+          resultPattern: "BUILD_SUCCESS",
+          failurePattern: "CMake Error",
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        if (terminals.length !== 1) throw new Error(`terminal count ${terminals.length}`);
+        const result = terminals[0].result;
+        if (result.status !== "failure") throw new Error(JSON.stringify(result));
+        const outputLines = result.output ?? [];
+        const hasErrorLine = outputLines.some((line) => line.includes("CMake Error at project.cmake:789"));
+        const hasDetailLine = outputLines.some((line) => line.includes("Missing required dependency esp_hosted"));
+        const hasSecondDetailLine = outputLines.some((line) => line.includes("Please update your sdkconfig"));
+        if (!hasErrorLine) throw new Error(`missing error line in: ${JSON.stringify(outputLines)}`);
+        if (!hasDetailLine) throw new Error(`missing detail line in: ${JSON.stringify(outputLines)}`);
+        if (!hasSecondDetailLine) throw new Error(`missing second detail line in: ${JSON.stringify(outputLines)}`);
         ''',
     )
 

@@ -10,6 +10,7 @@ export const MAX_RESULT_OUTPUT_BYTES = 32 * 1024;
 export const MAX_HISTORY = 20;
 export const MAX_RESULT_TEXT = 4096;
 export const MAX_RESULT_JSON_BYTES = 32 * 1024;
+export const DRAIN_GRACE_MS = 1000;
 
 export type MonitorStatus =
   | "running"
@@ -70,6 +71,8 @@ interface InternalMonitor extends Monitor {
   buffers: Record<MonitorLogSource, string>;
   logs: MonitorLogEntry[];
   logBytes: number;
+  pendingTerminal?: MonitorTerminalResult;
+  drainTimer?: ReturnType<typeof setTimeout>;
 }
 
 interface ArchivedMonitor {
@@ -121,6 +124,7 @@ export class MonitorManager {
       ? [this.active.get(id)].filter((monitor): monitor is InternalMonitor => monitor !== undefined)
       : [...this.active.values()];
     for (const monitor of monitors) {
+      this.clearDrain(monitor);
       this.complete(
         monitor,
         { status: "stopped", elapsedMs: this.elapsed(monitor), reason: "manual_stop" },
@@ -160,6 +164,7 @@ export class MonitorManager {
 
   async stopAllOnShutdown(): Promise<void> {
     const waits = [...this.active.values()].map((monitor) => {
+      this.clearDrain(monitor);
       this.complete(
         monitor,
         { status: "stopped", elapsedMs: this.elapsed(monitor), reason: "session_shutdown" },
@@ -170,6 +175,14 @@ export class MonitorManager {
       return monitor.killPromise;
     });
     await Promise.all(waits);
+  }
+
+  private clearDrain(monitor: InternalMonitor): void {
+    if (monitor.drainTimer) {
+      clearTimeout(monitor.drainTimer);
+      monitor.drainTimer = undefined;
+    }
+    monitor.pendingTerminal = undefined;
   }
 
   private createMonitor(
@@ -245,23 +258,31 @@ export class MonitorManager {
     if (monitor.status !== "running") return;
     this.appendLog(monitor, source, rawLine, continued);
 
+    // During drain, accumulate lines but do not check for further matches.
+    if (monitor.pendingTerminal) return;
+
     const failure = monitor.failureMatcher?.exec(rawLine);
     if (failure) {
-      this.complete(
-        monitor,
-        buildMatchedResult("failure", monitor, failure),
-        !processAlreadyClosed,
-      );
+      this.beginDrain(monitor, buildMatchedResult("failure", monitor, failure));
       return;
     }
     const success = monitor.resultMatcher.exec(rawLine);
     if (success) {
-      this.complete(
-        monitor,
-        buildMatchedResult("success", monitor, success),
-        !processAlreadyClosed,
-      );
+      this.beginDrain(monitor, buildMatchedResult("success", monitor, success));
     }
+  }
+
+  private beginDrain(monitor: InternalMonitor, terminal: MonitorTerminalResult): void {
+    monitor.pendingTerminal = terminal;
+    monitor.drainTimer = setTimeout(() => this.finalizeDrain(monitor), DRAIN_GRACE_MS);
+    monitor.drainTimer.unref();
+  }
+
+  private finalizeDrain(monitor: InternalMonitor): void {
+    if (!monitor.pendingTerminal || monitor.status !== "running") return;
+    this.drainFinalBuffers(monitor, true);
+    if (monitor.status !== "running") return;
+    this.complete(monitor, monitor.pendingTerminal, true);
   }
 
   private appendLog(
@@ -302,6 +323,16 @@ export class MonitorManager {
     if (monitor.status !== "running") return;
     this.drainFinalBuffers(monitor, true);
     if (monitor.status !== "running") return;
+
+    // If a pattern match is draining, finalize with the pending result now.
+    if (monitor.pendingTerminal) {
+      if (monitor.drainTimer) {
+        clearTimeout(monitor.drainTimer);
+        monitor.drainTimer = undefined;
+      }
+      this.complete(monitor, monitor.pendingTerminal, false);
+      return;
+    }
 
     if (code === 0) {
       this.complete(monitor, {

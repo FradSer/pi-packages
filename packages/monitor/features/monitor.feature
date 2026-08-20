@@ -28,6 +28,7 @@ Feature: Result-contract background monitoring
     Given a monitor is running with a failure pattern
     When a line from stdout or stderr matches the failure pattern
     Then the matched line and named captures are recorded
+    And the monitor drains trailing output for a brief grace period before finalizing
     And the process is stopped
     And the agent is woken exactly once with status "failure"
 
