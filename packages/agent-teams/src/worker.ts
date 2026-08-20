@@ -27,7 +27,9 @@ export function isWorkerEvent(value: unknown): value is WorkerEvent {
     && typeof event.spawnId === "string"
     && typeof event.subject === "string"
     && typeof event.body === "string"
-    && (event.status === undefined || ["in_progress", "completed", "failed"].includes(event.status));
+    && (event.status === undefined || ["in_progress", "completed", "failed"].includes(event.status))
+    && (event.data === undefined || typeof event.data === "object")
+    ;
 }
 
 export function registerWorkerCapabilities(pi: ExtensionAPI): void {
@@ -48,6 +50,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
         subject: params.subject,
         body: params.body,
         status: params.status,
+        data: params.data,
       });
       const statusNote = params.status ? ` with status "${params.status}"` : "";
       return { content: [{ type: "text", text: `Queued report to team-leader${statusNote}.` }], details: {} };

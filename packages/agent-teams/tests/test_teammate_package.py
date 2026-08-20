@@ -10,6 +10,7 @@ SRC = PACKAGE / "src"
 
 LEADER_TOOLS = {
     "teammate_run",
+    "teammate_message",
     "teammate_cancel",
     "teammate_retry",
 }
@@ -79,6 +80,13 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Agent frontmatter declares tools and model; the body is the role prompt",
         "Agent descriptions are injected into prompt guidance",
         "An unknown agent name fails the dispatch",
+        "Workers use turn budgets instead of wall-clock timeouts",
+        "A completed worker may dynamically fan out child tasks",
+        "Fanout rejects invalid source output before spawning",
+        "Input bindings resolve only declared dependency data",
+        "Structured output is bounded before entering run state",
+        "Named data flow and fork context stay explicit",
+        "Runtime steer is delivered only through teammate_message",
         "A run is a single-call DAG dispatch",
         "Dispatch a single task in one call",
         "Dispatch a dependency graph in one call",
@@ -86,7 +94,6 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Concurrency bounds simultaneous workers",
         "Teammates run in the background by default",
         "A long inline run detaches to background after the gather cap",
-        "A run-level timeout fails the whole run",
         "Cancel one node while the rest of the run continues",
         "Retry failed and cancelled nodes without re-running completed ones",
         "Workers report exclusively to the team leader",
@@ -112,7 +119,7 @@ def test_bdd_contract_covers_target_resources() -> None:
         "A session-wide cap bounds concurrent worker processes",
         "Long task prompts spill to a temporary file that is removed on close",
         "The shared state snapshot is persisted on transitions, not per stream delta",
-        "Background runs drain worker reports and enforce run timeouts",
+        "Background runs drain worker reports",
         "Worker setup failures clean temporary task files and settle the node",
         "A worker delivers its outcome via teammate_message",
         "Intermediate worker communication does not interrupt the main session",
@@ -122,8 +129,6 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Worker children run with only the agent-teams extension",
         "A normal worker exit completes its node",
         "An abnormal worker exit fails its node",
-        "A reported completion cancels the worker timeout before shutdown",
-        "A failed timeout kill is not reported as a timeout",
         "Completed run metadata is compacted safely",
         "Invalid tool operations surface as Pi failures",
         "Inline foreground gather remains the explicit sync option",
@@ -149,7 +154,7 @@ def test_leader_tool_surface_is_exact() -> None:
     ext = source("index.ts") + source("tools.ts")
     for tool in LEADER_TOOLS:
         assert f'name: "{tool}"' in ext
-    assert 'name: "teammate_message"' not in ext
+    assert 'name: "teammate_message"' in source("worker.ts")
     for tool in REMOVED_TOOLS | LEGACY_TOOLS:
         assert f'name: "{tool}"' not in ext
 
@@ -159,7 +164,7 @@ def test_worker_surface_is_capability_bound() -> None:
     worker = source("worker.ts")
     for tool in WORKER_TOOLS:
         assert f'name: "{tool}"' in worker
-    for tool in LEADER_TOOLS:
+    for tool in LEADER_TOOLS - WORKER_TOOLS:
         assert f'name: "{tool}"' not in worker
     assert "if (workerOutboxBinding())" in ext
     assert "registerWorkerCapabilities(pi);" in ext
@@ -228,11 +233,12 @@ def test_types_express_run_centric_surface() -> None:
     assert "TeammateStatusParams" not in types
     assert "TeammateReportParams" not in types
     assert "foregroundTimeoutMs" not in types
-    assert "timeoutMs" in types
+    assert "turnBudget" in types
+    assert "timeoutMs" not in types
+    assert "deadlineAt" not in types
     assert "nodeId: Type.Optional" in types
     assert "markRead" not in types
     assert "workerKey" in types
-    assert "deadlineAt" in types
     for old_schema in (
         "TeammateRegisterParams",
         "TeammateConfigureParams",
@@ -271,75 +277,8 @@ def test_workers_report_only_to_the_team_leader() -> None:
     assert "recipient" not in worker
     assert "=== UPSTREAM HANDOFF ===" in machine
     assert "PI_TEAMMATE_STATE_FILE" not in worker
-    message_schema = types[types.index("export const TeammateMessageParams"):]
+    message_schema = types[types.index("export const TeammateMessageParams"):types.index("/** Leader-only operation")]
     assert "to:" not in message_schema and "runId:" not in message_schema
-
-def test_run_timeout_and_retry_state_machine() -> None:
-    module = (SRC / "state.ts").as_uri()
-    payload = run_node(
-        f'''\
-        import {{ createRun, resetState, failRunTimeout, retryRun, setNodeSpawnInfo, getRun }} from "{module}";
-        resetState();
-        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false, summarize: false, timeoutMs: 5000,
-          nodes: [
-            {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
-            {{ id: "b", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: ["a"] }},
-          ] }});
-        const run = created.run;
-        const hasDeadline = Boolean(run.deadlineAt && run.timeoutMs === 5000);
-        setNodeSpawnInfo(run.id, "a", {{ spawnId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
-        const failed = failRunTimeout(run.id, "Run timed out after 5s.");
-        const afterFail = {{ status: run.status, running: failed.runningNodeIds.join(","), b: run.nodes.b.status, error: run.errorMessage }};
-        const retried = retryRun(run.id);
-        const afterRetry = {{ status: run.status, reset: retried.reset.join(","), a: run.nodes.a.status, b: run.nodes.b.status, notified: run.completionNotified }};
-        console.log(JSON.stringify({{ hasDeadline, afterFail, afterRetry }}));
-        '''
-    )
-    assert payload["hasDeadline"] is True
-    assert payload["afterFail"] == {"status": "failed", "running": "a", "b": "cancelled", "error": "Run timed out after 5s."}
-    assert payload["afterRetry"] == {"status": "running", "reset": "a,b", "a": "pending", "b": "pending", "notified": False}
-
-
-def test_retry_rearms_deadline_propagates_and_validates() -> None:
-    module = (SRC / "state.ts").as_uri()
-    payload = run_node(
-        f'''\
-        import {{ createRun, resetState, retryRun, updateNodeStatus, cancelBlockedDependents, settleRun }} from "{module}";
-        resetState();
-        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false, summarize: false, timeoutMs: 60000,
-          nodes: [
-            {{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
-            {{ id: "b", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: ["a"] }},
-            {{ id: "c", agent: "worker", prompt: "", paths: ["z"], access: "read", dependsOn: ["b"] }},
-          ] }});
-        const run = created.run;
-        // a fails -> finalizeNode cancels b and c as its dependents and settles the run.
-        updateNodeStatus(run.id, "a", "failed", undefined, "boom");
-        cancelBlockedDependents(run.id, "a");
-        settleRun(run.id);
-        // Unknown node ids are validated before any retry is attempted.
-        const unknown = retryRun(run.id, ["ghost"]);
-        // Simulate an expired run cap, then verify retry re-arms it to the future.
-        run.deadlineAt = Date.now() - 1000;
-        const oldDeadline = run.deadlineAt;
-        const retried = retryRun(run.id, ["a"]);
-        const rearmed = Boolean(run.deadlineAt && run.deadlineAt > Date.now());
-        const completed = retryRun(run.id, ["c"]);
-        console.log(JSON.stringify({{
-          ok: retried.ok, reset: retried.reset.join(","), rearmed,
-          a: run.nodes.a.status, b: run.nodes.b.status, c: run.nodes.c.status,
-          unknownOk: unknown.ok, unknownError: unknown.ok ? "" : unknown.error,
-          completedOk: completed.ok,
-        }}));
-        '''
-    )
-    assert payload["ok"] is True
-    assert payload["reset"] == "a,b,c"  # b and c propagated as cancelled dependents of a
-    assert payload["rearmed"] is True
-    assert payload["a"] == "pending" and payload["b"] == "pending" and payload["c"] == "pending"
-    assert payload["unknownOk"] is False and "ghost" in payload["unknownError"]
-    assert payload["completedOk"] is False
-
 
 def test_node_cancel_keeps_run_running() -> None:
     module = (SRC / "state.ts").as_uri()
@@ -780,7 +719,7 @@ def test_guidance_is_static_and_run_centric() -> None:
     assert "dependsOn" in guidance
     assert "Active background runs" not in guidance
     assert "listActiveRuns" not in guidance
-    assert "teammate_message" not in ext
+    assert 'name: "teammate_message"' not in ext
 
 def test_no_runtime_identity_registry_remains() -> None:
     state = source("state.ts")
@@ -812,44 +751,6 @@ def test_cancellation_intent_defers_close_finalization_until_the_cancel_outcome_
         "outcomes": ["cancelled"],
         "pending": False,
     }
-
-
-def test_reported_worker_shutdown_cancels_timeout_before_waiting_for_close() -> None:
-    module = (SRC / "spawner.ts").as_uri()
-    payload = run_node(
-        f'''\
-        import {{ spawn }} from "node:child_process";
-        import {{ registerWorkerTimeout, terminateChildProcess }} from "{module}";
-        const child = spawn(process.execPath, ["--eval", `
-          setTimeout(() => {{}}, 1_000);
-          process.on("SIGTERM", () => setTimeout(() => process.exit(0), 100));
-        `], {{ stdio: "ignore" }});
-        const timeout = registerWorkerTimeout(child, 250);
-        const started = Date.now();
-        const result = await terminateChildProcess(child, 500);
-        const elapsed = Date.now() - started;
-        console.log(JSON.stringify({{ result, elapsed, timeoutCancelled: timeout.wasCancelled() }}));
-        '''
-    )
-    assert payload["result"] is True
-    assert payload["timeoutCancelled"] is True
-    assert payload["elapsed"] < 250
-
-
-def test_failed_timeout_kill_does_not_mark_worker_as_timed_out() -> None:
-    module = (SRC / "spawner.ts").as_uri()
-    payload = run_node(
-        f'''\
-        import {{ spawn }} from "node:child_process";
-        import {{ registerWorkerTimeout }} from "{module}";
-        const child = spawn(process.execPath, ["--eval", "process.exit(0)"], {{ stdio: "ignore" }});
-        await new Promise((resolve) => child.once("close", resolve));
-        const timeout = registerWorkerTimeout(child, 1);
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        console.log(JSON.stringify({{ timedOut: timeout.didTimeout(), cancelled: timeout.wasCancelled() }}));
-        '''
-    )
-    assert payload == {"timedOut": False, "cancelled": False}
 
 
 def test_sigterm_cooperative_worker_closes_with_exit_zero_before_termination_resolves() -> None:
@@ -928,11 +829,11 @@ def test_spawner_prompt_focuses_on_direct_execution() -> None:
           role: "reviewer",
           prompt: "Review code",
           taskId: "task_1",
-          timeoutSec: 120,
+          turnBudget: 12,
         }});
         console.log(JSON.stringify({{
           hasTask: prompt.includes("task_1"),
-          hasTimeoutCap: prompt.includes("120s"),
+          hasTurnBudget: prompt.includes("12 assistant turn(s)"),
           hasDirectScope: prompt.includes("Work directly on your assigned scope"),
           hasDeliverInstruction: prompt.includes('status="completed"'),
         }}));
@@ -940,7 +841,7 @@ def test_spawner_prompt_focuses_on_direct_execution() -> None:
     )
     assert payload == {
         "hasTask": True,
-        "hasTimeoutCap": True,
+        "hasTurnBudget": True,
         "hasDirectScope": True,
         "hasDeliverInstruction": True,
     }
@@ -1020,8 +921,8 @@ def test_long_task_temp_directory_is_cleaned_on_worker_exit() -> None:
     assert "const cleanupTempDir = () =>" in spawner
     assert "fs.rmSync(tempDir, { recursive: true, force: true })" in spawner
     assert "cleanupTempDir();" in spawner
-    assert "try {\n    const taskText = `Task: ${options.description}`;" in spawner
-    assert "if (taskText.length > TASK_ARG_LIMIT)" in spawner
+    assert "let taskText = `Task: ${options.description}`;" in spawner
+    assert "taskText.length > TASK_ARG_LIMIT" in spawner
     assert "return setupError(error);" in spawner
 
 
@@ -1029,7 +930,7 @@ def test_background_runs_start_the_live_poll() -> None:
     machine = source("run-machine.ts")
     assert "export function ensureLivePoll()" in machine
     assert "ensureLivePoll();" in machine
-    assert "enforceRunTimeouts();" in machine
+    assert "applyWorkerEvents();" in machine
     assert "applyWorkerEvents();" in machine
 
 

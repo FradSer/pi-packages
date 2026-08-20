@@ -8,6 +8,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -26,12 +27,12 @@ export function buildAutonomousPrompt(opts: {
   role: string;
   prompt: string;
   taskId?: string;
-  timeoutSec?: number;
+  turnBudget?: number;
 }): string {
   const taskLine = `\nAssigned task: [${opts.taskId}].\nWhen finished, you MUST call teammate_message with status="completed" to submit your FULL final deliverable.`;
-  const deadlineLine = opts.timeoutSec
-    ? `4. The hard wall-clock cap is ${opts.timeoutSec}s — manage your time budget, avoid unnecessary exploration, and deliver your final message before the deadline.`
-    : `4. There is no wall-clock timeout — work until the task is complete. Do not rush or truncate your work.`;
+  const budgetLine = opts.turnBudget
+    ? `4. You have a maximum of ${opts.turnBudget} assistant turn(s) — manage your turn budget, avoid unnecessary exploration, and deliver your final message before the budget is exhausted.`
+    : `4. There is no turn budget — work until the task is complete. Do not rush or truncate your work.`;
 
   return `You are a FULLY AUTONOMOUS teammate named "${opts.name}" (agent: ${opts.role}) in a pi multi-agent team run.
 
@@ -43,7 +44,7 @@ YOUR ROLE IN THIS RUN:
 1. Work directly on your assigned scope and declared paths. DAG upstream results are ALREADY injected into this prompt below; do not poll for them.
 2. Report plans, progress, and blockers with teammate_message. When finished, call teammate_message with status="completed" and put your FULL deliverable in the body. If blocked or failed, use status="failed" and explain the error.
 3. There is no peer or leader-to-worker message channel. Make decisions within the assigned task and report blockers instead of waiting for a reply.
-${deadlineLine}
+${budgetLine}
 
 BOUND CAPABILITIES:
 - teammate_message reports progress or a final deliverable to the team leader.`;
@@ -62,10 +63,10 @@ export interface SpawnPiWorkerOptions {
   env?: Record<string, string | undefined>;
   /** Working directory for the child (defaults to the parent's cwd). */
   cwd?: string;
-  /** Kill the worker after this many milliseconds (undefined = no timeout). */
-  timeoutMs?: number;
-  /** Output parsing mode. "json" (default) parses usage from JSONL output. */
-  mode?: "json" | "text";
+  /** Maximum assistant turns for this worker (undefined = no limit). */
+  turnBudget?: number;
+  /** Output parsing mode. RPC keeps stdin available for runtime steering. */
+  mode?: "json" | "rpc" | "text";
   /** Called whenever JSON-mode worker output reveals live model or tool activity. */
   onUpdate?: (update: WorkerProgressUpdate) => void;
   /** Called once with the captured output when the child exits. */
@@ -81,7 +82,7 @@ export interface WorkerProcessResult {
   stdout: string;
   stderr: string;
   usage?: WorkerUsage;
-  timedOut: boolean;
+  turnBudgetExceeded?: boolean;
 }
 
 /** Live state extracted from a spawned worker's JSON-mode output. */
@@ -94,13 +95,13 @@ export interface WorkerProgressUpdate {
 }
 
 /** A worker only succeeds after a normal zero exit; signals are failures. */
-export function isSuccessfulWorkerExit(result: Pick<WorkerProcessResult, "exitCode" | "signal" | "timedOut">): boolean {
-  return result.exitCode === 0 && result.signal === null && !result.timedOut;
+export function isSuccessfulWorkerExit(result: Pick<WorkerProcessResult, "exitCode" | "signal">): boolean {
+  return result.exitCode === 0 && result.signal === null;
 }
 
-/** A reported completion remains successful when the harness closes it or teardown observes a signal/timeout. */
+/** A reported completion remains successful when the harness closes it or teardown observes a signal. */
 export function isCompletedWorkerExit(
-  result: Pick<WorkerProcessResult, "exitCode" | "signal" | "timedOut">,
+  result: Pick<WorkerProcessResult, "exitCode" | "signal">,
   reportedCompleted = false,
 ): boolean {
   return isSuccessfulWorkerExit(result) || reportedCompleted;
@@ -155,66 +156,16 @@ export class CancellationIntents {
 /** Live workers by teammate name — lets the panel interrupt/stop a running worker. */
 const workers = new Map<string, ReturnType<typeof spawn>>();
 
-export interface WorkerTimeoutHandle {
-  cancel(): void;
-  dispose(): void;
-  wasCancelled(): boolean;
-  didTimeout(): boolean;
+/** Send a steering message to an RPC worker without adding a peer mailbox. */
+export function sendWorkerSteer(name: string, message: string): boolean {
+  const child = workers.get(name);
+  if (!child?.stdin || child.stdin.destroyed || !child.stdin.writable) return false;
+  child.stdin.write(`${JSON.stringify({ type: "steer", message })}\n`);
+  return true;
 }
-
-const workerTimeouts = new WeakMap<ReturnType<typeof spawn>, WorkerTimeoutHandle>();
 
 function isChildRunning(child: ReturnType<typeof spawn>): boolean {
   return child.exitCode === null && child.signalCode === null;
-}
-
-export function registerWorkerTimeout(
-  child: ReturnType<typeof spawn>,
-  timeoutMs: number,
-): WorkerTimeoutHandle {
-  let cancelled = false;
-  let disposed = false;
-  let timedOut = false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  const handle: WorkerTimeoutHandle = {
-    cancel() {
-      if (disposed) return;
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      disposed = true;
-      workerTimeouts.delete(child);
-    },
-    dispose() {
-      if (disposed) return;
-      if (timer) clearTimeout(timer);
-      disposed = true;
-      workerTimeouts.delete(child);
-    },
-    wasCancelled: () => cancelled,
-    didTimeout: () => timedOut,
-  };
-
-  timer = setTimeout(() => {
-    if (disposed || cancelled) return;
-    if (!isChildRunning(child)) {
-      handle.dispose();
-      return;
-    }
-    try {
-      if (child.kill("SIGKILL")) timedOut = true;
-    } catch {
-      // A failed kill is not a timeout outcome; close/error will report the
-      // actual child result.
-    }
-  }, timeoutMs);
-  timer.unref?.();
-  workerTimeouts.set(child, handle);
-  return handle;
-}
-
-export function cancelWorkerTimeout(child: ReturnType<typeof spawn>): void {
-  workerTimeouts.get(child)?.cancel();
 }
 
 function waitForClose(child: ReturnType<typeof spawn>, timeoutMs: number): Promise<boolean> {
@@ -241,7 +192,6 @@ function waitForClose(child: ReturnType<typeof spawn>, timeoutMs: number): Promi
  * resolve only after a bounded wait observes the child `close` event.
  */
 export async function terminateChildProcess(child: ReturnType<typeof spawn>, graceMs = CANCEL_GRACE_MS): Promise<boolean> {
-  cancelWorkerTimeout(child);
   if (!isChildRunning(child)) return false;
 
   const closedAfterTerm = waitForClose(child, graceMs);
@@ -291,6 +241,15 @@ export async function terminateAllWorkers(graceMs = CANCEL_GRACE_MS): Promise<vo
 
 const TASK_ARG_LIMIT = 8000;
 const OUTPUT_CAP = 16_000;
+
+function appendCapped(chunks: string[], chunk: string, cap: number): void {
+  chunks.push(chunk);
+  let total = chunks.reduce((sum, value) => sum + value.length, 0);
+  while (total > cap && chunks.length > 1) {
+    total -= chunks.shift()?.length ?? 0;
+  }
+  if (total > cap && chunks.length === 1) chunks[0] = chunks[0].slice(-cap);
+}
 
 type JsonEvent = {
   type?: string;
@@ -444,11 +403,10 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
   // binary surfaces later as a child "error" event through onError.
   const cli = resolvePiCli();
   const workerExtension = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "index.ts");
+  const mode = options.mode ?? "json";
   const args: string[] = [
     ...cli.args,
-    "--print",
-    "--mode",
-    "json",
+    ...(mode === "rpc" ? ["--mode", "rpc"] : ["--print", "--mode", mode]),
     "--no-session",
     "--no-extensions",
     "--extension",
@@ -477,14 +435,14 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
     error: error instanceof Error ? error.message : String(error),
   });
 
+  let taskText = `Task: ${options.description}`;
   try {
-    const taskText = `Task: ${options.description}`;
-    if (taskText.length > TASK_ARG_LIMIT) {
+    if (mode !== "rpc" && taskText.length > TASK_ARG_LIMIT) {
       tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "teammate-"));
       const taskFile = path.join(tempDir, "task.md");
       fs.writeFileSync(taskFile, taskText, { mode: 0o600 });
       args.push(`@${taskFile}`);
-    } else {
+    } else if (mode !== "rpc") {
       args.push(taskText);
     }
   } catch (error) {
@@ -497,7 +455,7 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
     child = spawn(cli.command, args, {
       cwd: options.cwd,
       env: { ...process.env, ...options.env },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [mode === "rpc" ? "pipe" : "ignore", "pipe", "pipe"],
     });
   } catch (error) {
     cleanupTempDir();
@@ -505,12 +463,16 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
   }
   if (options.workerName) workers.set(options.workerName, child);
 
+  if (mode === "rpc") {
+    child.stdin?.write(`${JSON.stringify({ type: "prompt", id: randomUUID(), message: taskText })}\n`);
+  }
+
   const stdoutChunks: string[] = [];
   const stderrChunks: string[] = [];
   const streamState = createWorkerStreamState();
   let stdoutBuffer = "";
-  let timeoutHandle: WorkerTimeoutHandle | undefined;
   let settled = false;
+  let turnBudgetExceeded = false;
   const emitProgress = () => options.onUpdate?.({
     text: truncate(streamState.text, OUTPUT_CAP),
     activeTool: streamState.activeTool,
@@ -518,24 +480,25 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
     turns: streamState.turns,
     finalResponse: streamState.finalResponse,
   });
-  child.stdout.on("data", (chunk: Buffer) => {
+  child.stdout?.on("data", (chunk: Buffer) => {
     const text = chunk.toString();
-    stdoutChunks.push(text);
+    appendCapped(stdoutChunks, text, OUTPUT_CAP * 2);
     stdoutBuffer += text;
     const lines = stdoutBuffer.split("\n");
     stdoutBuffer = lines.pop() ?? "";
     let changed = false;
-    for (const line of lines) changed = applyWorkerJsonLine(streamState, line) || changed;
+    for (const line of lines) {
+      changed = applyWorkerJsonLine(streamState, line) || changed;
+      if (options.turnBudget && streamState.turns >= options.turnBudget && !streamState.finalResponse && !turnBudgetExceeded) {
+        turnBudgetExceeded = true;
+        void terminateChildProcess(child);
+      }
+    }
     if (changed) emitProgress();
   });
-  child.stderr.on("data", (chunk: Buffer) => stderrChunks.push(chunk.toString()));
-
-  if (options.timeoutMs) {
-    timeoutHandle = registerWorkerTimeout(child, options.timeoutMs);
-  }
+  child.stderr?.on("data", (chunk: Buffer) => appendCapped(stderrChunks, chunk.toString(), OUTPUT_CAP * 2));
 
   child.on("error", (error) => {
-    timeoutHandle?.dispose();
     cleanupTempDir();
     settled = true;
     if (options.workerName && workers.get(options.workerName) === child) workers.delete(options.workerName);
@@ -543,8 +506,6 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
   });
 
   child.on("close", (code, signal) => {
-    const timedOut = timeoutHandle?.didTimeout() ?? false;
-    timeoutHandle?.dispose();
     cleanupTempDir();
     // A spawn failure already reported via onError (Node fires error then
     // close) — do not double-report through onExit, which would let a failed
@@ -552,12 +513,12 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
     if (settled) return;
     if (options.workerName && workers.get(options.workerName) === child) workers.delete(options.workerName);
     const rawStdout = stdoutChunks.join("");
-    const parsed = (options.mode ?? "json") === "json"
-      ? parseWorkerOutput(rawStdout)
-      : { text: rawStdout.trim(), usage: undefined };
+    const parsed = mode === "text"
+      ? { text: rawStdout.trim(), usage: undefined }
+      : parseWorkerOutput(rawStdout);
     const stdout = truncate(parsed.text, OUTPUT_CAP);
     const stderr = truncate(stderrChunks.join("").trim(), OUTPUT_CAP);
-    options.onExit({ pid: child.pid ?? 0, exitCode: code, signal, stdout, stderr, usage: parsed.usage, timedOut });
+    options.onExit({ pid: child.pid ?? 0, exitCode: code, signal, stdout, stderr, usage: parsed.usage, turnBudgetExceeded });
   });
 
   return { pid: child.pid ?? 0 };

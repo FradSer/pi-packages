@@ -50,6 +50,45 @@ Feature: Agent Teams run-centric public API
 
   Rule: A run is a single-call DAG dispatch
 
+    Scenario: Workers use turn budgets instead of wall-clock timeouts
+      When the leader dispatches a task with a turnBudget
+      Then the worker receives the turn budget in its prompt
+      And no wall-clock timeout or deadline dimension exists in the run API
+
+    Scenario: A completed worker may dynamically fan out child tasks
+      Given a worker has published a bounded structured array output
+      When the leader dispatches a bounded fanout
+      Then each item becomes a separate validated child task
+      And the fanout operation is registered for the leader
+
+    Scenario: Fanout rejects invalid source output before spawning
+      Given a completed node has no structured array output or exceeds the item limit
+      When the leader calls teammate_fanout
+      Then the operation fails before any child run is created
+
+    Scenario: Input bindings resolve only declared dependency data
+      Given a task binds an input from a dependency with an RFC-6901 JSON pointer
+      When the dependent worker starts
+      Then the named input is injected into its prompt
+      And a binding to a non-dependency is rejected before spawning
+
+    Scenario: Structured output is bounded before entering run state
+      Given a worker reports structured output through teammate_message
+      When the output exceeds the size or depth limit
+      Then the output is rejected with a leader diagnostic
+      And no unbounded value is stored on the node
+
+    Scenario: Named data flow and fork context stay explicit
+      Given a task declares named fork context from upstream nodes
+      When the dependent worker starts
+      Then only the declared upstream data is injected
+
+    Scenario: Runtime steer is delivered only through teammate_message
+      Given a worker is running in RPC mode
+      When the leader calls teammate_message with its run-qualified worker target and a body
+      Then the message is written to the worker's steering stream
+      And an ambiguous node id is rejected
+
     Scenario: Dispatch a single task in one call
       When the leader calls teammate_run with one task
       Then a run with one node is created
@@ -95,13 +134,6 @@ Feature: Agent Teams run-centric public API
       And the tool return shows that summary rather than per-node process text
       When a run has exactly one user task
       Then no summary node is added unless summarize=true
-
-    Scenario: A run-level timeout fails the whole run
-      Given a run declares a timeoutMs hard cap
-      When the cap is exceeded while nodes are still running or pending
-      Then the run is marked failed with a timeout error
-      And pending nodes are cancelled
-      And live workers are terminated
 
     Scenario: A collected run completion does not produce a duplicate follow-up
       Given a background run reaches a terminal status
@@ -159,12 +191,11 @@ Feature: Agent Teams run-centric public API
       Then writes happen only when state actually changed since the last write
       And a poll tick with no changes performs no write
 
-    Scenario: Background runs drain worker reports and enforce run timeouts
-      Given a background run has a live worker and a run-level timeout
+    Scenario: Background runs drain worker reports
+      Given a background run has a live worker
       When the scheduler starts the first worker
       Then the live poll starts without a foreground gather
       And worker outboxes are drained while the run is active
-      And the run timeout terminates live workers and marks the run failed
 
     Scenario: Worker setup failures clean temporary task files and settle the node
       Given a long task prompt needs a temporary task file
@@ -199,6 +230,7 @@ Feature: Agent Teams run-centric public API
       When the leader calls teammate_cancel with its run id
       Then running workers receive SIGTERM with a SIGKILL escalation after a bounded grace period
       And pending nodes are marked cancelled
+      And the run remains non-terminal until every running worker closes
       And the run is marked cancelled only after its workers close
 
     Scenario: Cancel one node while the rest of the run continues
@@ -286,7 +318,7 @@ Feature: Agent Teams run-centric public API
       When the child Pi process starts
       Then unrelated session extensions are disabled
       And the agent-teams worker extension is loaded explicitly
-      So extension startup failures cannot consume the worker timeout
+      So extension startup failures cannot consume the worker turn budget
 
     Scenario: An abnormal worker exit fails its node
       Given a worker did not report a completed result
@@ -294,21 +326,10 @@ Feature: Agent Teams run-centric public API
       Then the node is failed unless the leader cancelled it
       And downstream nodes are not started
 
-    Scenario: A reported completion does not become a hard-timeout failure
+    Scenario: A reported completion remains completed during graceful shutdown
       Given a worker reported completion but remains alive
-      When the leader requests its graceful shutdown and observes SIGTERM close or timeout
+      When the leader requests its graceful shutdown and observes SIGTERM close
       Then the node is retained as completed with the reported result
-
-    Scenario: A reported completion cancels the worker timeout before shutdown
-      Given a worker has reported completion before its timeout deadline
-      When the leader requests graceful shutdown
-      Then the child timeout is cancelled before the close wait begins
-      And the terminal result is not marked timed out
-
-    Scenario: A failed timeout kill is not reported as a timeout
-      Given the timeout callback cannot kill an already closed worker
-      When the child close is observed
-      Then the terminal result is not marked timed out
 
     Scenario: Completed run metadata is compacted safely
       Given a node run reached a final lifecycle outcome

@@ -10,8 +10,9 @@ import {
   scheduleRun,
   type DispatchCtx,
 } from "./run-machine";
-import { createRun, getRun, getSummary, markRunCompletionDelivered, retryRun } from "./state";
-import { TeammateCancelParams, TeammateRetryParams, TeammateRunParams } from "./types";
+import { createRun, getRun, getSummary, listNodes, markRunCompletionDelivered, retryRun, MAX_FANOUT_ITEMS } from "./state";
+import { TeammateCancelParams, TeammateFanoutParams, TeammateLeaderMessageParams, TeammateRetryParams, TeammateRunParams } from "./types";
+import { sendWorkerSteer } from "./spawner";
 import { ensureTeamWidget, openTeamConsole, refreshTeamUI } from "./ui";
 
 function dispatchContext(ctx: ExtensionContext): DispatchCtx {
@@ -48,6 +49,10 @@ async function gatherForeground(runId: string, signal: AbortSignal | undefined):
   return buildRunSummary(runId);
 }
 
+function resolveTargetNode(target: string): { node: import("./types").Node } | undefined {
+  return listNodes().map((node) => ({ node })).find(({ node }) => node.id === target || node.workerKey === target);
+}
+
 export function registerLeaderTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "teammate_run",
@@ -71,7 +76,6 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
         concurrency: params.concurrency ?? 4,
         worktree: params.worktree ?? false,
         background: params.background ?? true,
-        timeoutMs: params.timeoutMs,
         summarize: params.summarize,
         summaryAgent: params.summaryAgent,
         nodes: params.tasks.map((task) => ({
@@ -81,7 +85,10 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
           paths: task.paths,
           access: task.access ?? "read",
           model: task.model,
-          timeoutMs: task.timeoutMs,
+          mode: task.mode,
+          turnBudget: task.turnBudget,
+          forkContext: task.forkContext,
+          inputBindings: task.inputBindings,
           dependsOn: task.dependsOn ?? [],
         })),
       });
@@ -98,6 +105,58 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
         };
       }
       return { content: [{ type: "text", text: await gatherForeground(run.id, signal) }], details: {} };
+    },
+  });
+
+  pi.registerTool({
+    name: "teammate_fanout",
+    promptSnippet: "Fan out a completed node's structured array output",
+    label: "Fan Out Tasks",
+    description: "Leader-only bounded fanout. Validates a completed structured array before creating a separate child run.",
+    parameters: TeammateFanoutParams,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const source = getRun(params.runId)?.nodes[params.nodeId];
+      if (!source || source.status !== "completed") throw new Error("Fanout source must be a completed node.");
+      if (!Array.isArray(source.structuredOutput)) throw new Error("Fanout source must be a structured array.");
+      if (source.structuredOutput.length > MAX_FANOUT_ITEMS) throw new Error(`Fanout is limited to ${MAX_FANOUT_ITEMS} items.`);
+      const cwd = ctx.cwd ?? process.cwd();
+      const dctx = dispatchContext(ctx);
+      ensureRunContext(dctx);
+      const tasks = source.structuredOutput.map((item, index) => ({
+        id: `${params.nodeId}-${index + 1}`,
+        agent: params.agent,
+        prompt: `${params.prompt}\n\nFanout item:\n${JSON.stringify(item)}`,
+        paths: params.paths,
+        access: params.access ?? "read" as const,
+        model: params.model,
+        mode: "json" as const,
+        turnBudget: params.turnBudget,
+        dependsOn: [],
+      }));
+      if (!resolveAgent(params.agent, cwd)) throw new Error(`Agent "${params.agent}" not found.`);
+      const created = createRun({ cwd, concurrency: params.concurrency ?? 4, worktree: false, background: params.background ?? true, summarize: true, nodes: tasks });
+      if (!created.ok) throw new Error(created.error ?? "Failed to create fanout run.");
+      publishStateSnapshot();
+      scheduleRun(created.run.id, dctx);
+      return { content: [{ type: "text", text: `Started fanout run [${created.run.id}] with ${tasks.length} item(s).` }], details: {} };
+    },
+  });
+
+  pi.registerTool({
+    name: "teammate_message",
+    promptSnippet: "Send a runtime steer to a running RPC teammate",
+    label: "Message Teammate",
+    description: "Leader-only runtime steer. Sends through the existing teammate_message protocol to a running RPC worker; no message is available for JSON-mode workers.",
+    parameters: TeammateLeaderMessageParams,
+    async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
+      if (!params.target.includes(":")) throw new Error("Target must be a run-qualified worker key.");
+      const target = resolveTargetNode(params.target);
+      if (!target?.node.spawn || target.node.status !== "running" || target.node.spawn.mode !== "rpc") {
+        throw new Error("Target worker is not a running RPC teammate.");
+      }
+      const sent = sendWorkerSteer(target.node.workerKey, params.body);
+      if (!sent) throw new Error("Target worker steering stream is unavailable.");
+      return { content: [{ type: "text", text: `Steer sent to ${target.node.workerKey}.` }], details: {} };
     },
   });
 

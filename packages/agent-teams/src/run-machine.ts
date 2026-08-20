@@ -6,10 +6,10 @@ import { resolveAgent } from "./agents";
 import { isWorkerEvent } from "./worker";
 import {
   cancelBlockedDependents, cancelNode, cancelRun, clearWorkerRunEvents, clearStateDirty, isStateDirty,
-  deliverToLeader, failRunTimeout, findSharedWorkspaceWriteConflict, getNode,
+  deliverToLeader, findSharedWorkspaceWriteConflict, getNode,
   getRun, getState, listNodes, listRuns, markNodeRunning, markStateDirty,
   readyPendingNodes, receiveWorkerMessage, runningNodeCount, settleRun, setNodeSpawnInfo,
-  SUMMARY_NODE_ID, updateNodeSpawnProgress, updateNodeStatus,
+  SUMMARY_NODE_ID, updateNodeSpawnProgress, updateNodeStatus, validateStructuredOutput,
 } from "./state";
 import {
   CancellationIntents, buildAutonomousPrompt, finishReportedWorker, isCompletedWorkerExit,
@@ -27,25 +27,21 @@ export interface DispatchCtx {
 }
 
 export const MAX_SESSION_WORKERS = 8;
-// No default node timeout — workers run until they complete or are cancelled.
 const LIVE_POLL_MS = 500;
 const cancellationIntents = new CancellationIntents();
 const reportedWorkerShutdowns = new Set<string>();
 let liveStateFile: string | undefined;
 let livePollTimer: ReturnType<typeof setInterval> | undefined;
-let machineCtx: DispatchCtx | undefined;
 let sendUpdate: (subject: string, body: string, runId?: string) => void = () => {};
 let notifyChange: () => void = () => {};
 
-export function initRunMachine(ctx: DispatchCtx, stateFile: string, hooks: { sendUpdate: typeof sendUpdate; notifyChange: () => void }): void {
-  machineCtx = ctx;
+export function initRunMachine(_ctx: DispatchCtx, stateFile: string, hooks: { sendUpdate: typeof sendUpdate; notifyChange: () => void }): void {
   liveStateFile = stateFile;
   sendUpdate = hooks.sendUpdate;
   notifyChange = hooks.notifyChange;
 }
 
 export function ensureRunContext(ctx: DispatchCtx): void {
-  machineCtx = ctx;
   if (!liveStateFile && ctx.sessionManager) {
     liveStateFile = stateFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd ?? process.cwd());
   }
@@ -55,9 +51,26 @@ export function shutdownRunMachine(): void {
   if (livePollTimer) clearInterval(livePollTimer);
   livePollTimer = undefined;
   liveStateFile = undefined;
-  machineCtx = undefined;
   sendUpdate = () => {};
   notifyChange = () => {};
+}
+
+function resolveInputBinding(run: import("./types").Run, node: import("./types").Node, source: string): string {
+  const separator = source.indexOf("#");
+  const dependencyId = separator >= 0 ? source.slice(0, separator) : source;
+  if (!node.dependsOn.includes(dependencyId)) return "(rejected: source is not a dependency)";
+  const dependency = run.nodes[dependencyId];
+  if (!dependency) return "(rejected: dependency not found)";
+  const value = dependency.structuredOutput ?? dependency.namedOutputs ?? dependency.result;
+  if (separator < 0) return JSON.stringify(value);
+  const pointer = source.slice(separator + 1).replace(/^\/json/, "");
+  if (!pointer || pointer === "") return JSON.stringify(value);
+  let current: unknown = value;
+  for (const part of pointer.split("/").filter(Boolean).map((item) => item.replaceAll("~1", "/").replaceAll("~0", "~"))) {
+    if (!current || typeof current !== "object") return "(missing)";
+    current = (current as Record<string, unknown>)[part];
+  }
+  return JSON.stringify(current);
 }
 
 function currentStateFile(): string {
@@ -106,7 +119,17 @@ export function applyWorkerEvents(): void {
             type: "message",
             subject: event.subject,
             body: event.body,
+            status: event.status,
+            data: event.data,
           });
+          if (event.data?.kind === "named_output" && event.data.name && typeof event.data.value === "string") {
+            node.namedOutputs = { ...node.namedOutputs, [event.data.name]: event.data.value };
+            markStateDirty();
+          }
+          if (event.data?.kind === "output" && event.data.output !== undefined && !validateStructuredOutput(event.data.output)) {
+            node.structuredOutput = event.data.output;
+            markStateDirty();
+          }
           if (event.status && !["completed", "failed", "cancelled"].includes(node.status)) {
             if (event.status === "completed") {
               updateNodeStatus(run.id, node.id, "completed", event.body, undefined);
@@ -156,7 +179,6 @@ export function ensureLivePoll(): void {
     livePollTimer = setInterval(() => {
       try {
         applyWorkerEvents();
-        enforceRunTimeouts();
         flushStateSnapshot();
         notifyChange();
         ensureLivePoll();
@@ -169,26 +191,6 @@ export function ensureLivePoll(): void {
     livePollTimer = undefined;
   }
 }
-
-/** Fail runs whose run-level hard wall-clock cap was exceeded. */
-function enforceRunTimeouts(): void {
-  for (const run of listRuns()) {
-    if (run.status !== "running" || !run.deadlineAt || Date.now() < run.deadlineAt) continue;
-    const failed = failRunTimeout(run.id, `Run timed out after ${Math.round((run.timeoutMs ?? 0) / 1000)}s.`);
-    if (!failed.ok) continue;
-    for (const nodeId of failed.runningNodeIds) {
-      // Spawn was cleared by failRunTimeout, so terminate by the stable workerKey
-      // (a no-op when the child already closed).
-      const node = getNode(run.id, nodeId);
-      if (node) void terminateWorker(node.workerKey).catch(() => false);
-    }
-    onRunSettled(run.id);
-    // failRunTimeout clears spawns, so those nodes' close events skip their
-    // finalize path — release write-deferred nodes in OTHER runs here.
-    if (machineCtx) scheduleAllRuns(machineCtx);
-  }
-}
-
 
 // ── Run dispatch machinery ────────────────────────────────────────
 
@@ -320,9 +322,6 @@ export async function cancelRunAndTerminate(
   if (run.status !== "running") return { ok: false, error: `Run "${runId}" is already ${run.status}.` };
   const cancellation = cancelRun(runId);
   if (!cancellation.ok) return { ok: false, error: cancellation.error ?? "Failed to cancel run." };
-  run.status = "cancelled";
-  run.finishedAt = Date.now();
-  run.updatedAt = Date.now();
   run.completionNotified = true;
   markStateDirty();
   for (const nodeId of cancellation.runningNodeIds) {
@@ -333,7 +332,13 @@ export async function cancelRunAndTerminate(
     cancellationIntents.resolve(spawnId, terminated);
   }
   publishStateSnapshot();
-  onRunSettled(runId);
+  if (!cancellation.runningNodeIds.some((nodeId) => getNode(runId, nodeId)?.status === "running")) {
+    run.status = "cancelled";
+    run.finishedAt = Date.now();
+    run.updatedAt = Date.now();
+    markStateDirty();
+    onRunSettled(runId);
+  }
   scheduleAllRuns(ctx);
   notifyChange();
   return { ok: true };
@@ -383,15 +388,24 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
     status: "running",
     startedAt: Date.now(),
     isolation: run.worktree ? "worktree" : "none",
+    mode: node.mode,
   });
 
-  const timeoutMs = node.timeoutMs;
+  const turnBudget = node.turnBudget;
+  const bindingLines = node.inputBindings
+    ? Object.entries(node.inputBindings).map(([name, source]) => `Input ${name}: ${resolveInputBinding(run, node, source)}`)
+    : [];
   const upstream = node.dependsOn
     .map((depId) => run.nodes[depId])
     .filter((dep): dep is NonNullable<typeof dep> => Boolean(dep))
+    .filter((dep) => !node.forkContext || node.forkContext.includes(dep.id))
     .map((dep) => {
       const body = dep.result?.trim() || dep.errorMessage?.trim() || `${dep.status} with no written result.`;
-      return `--- ${dep.id} (${dep.agent}, ${dep.status}) ---\n${body}`;
+      const named = dep.namedOutputs && Object.keys(dep.namedOutputs).length > 0
+        ? `\nNamed outputs: ${JSON.stringify(dep.namedOutputs)}`
+        : "";
+      const structured = dep.structuredOutput === undefined ? "" : `\nStructured output: ${JSON.stringify(dep.structuredOutput)}`;
+      return `--- ${dep.id} (${dep.agent}, ${dep.status}) ---\n${body}${named}${structured}`;
     });
   const description = [
     buildAutonomousPrompt({
@@ -399,7 +413,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
       role: node.agent,
       prompt: agent.prompt,
       taskId: nodeId,
-      timeoutSec: timeoutMs ? Math.round(timeoutMs / 1000) : undefined,
+      turnBudget: node.turnBudget,
     }),
     "",
     "=== TASK ===",
@@ -407,6 +421,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
     `Paths: ${node.paths.join(", ")}`,
     node.prompt,
     ...(upstream.length > 0 ? ["", "=== UPSTREAM HANDOFF ===", ...upstream] : []),
+    ...(bindingLines.length > 0 ? ["", "=== NAMED INPUTS ===", ...bindingLines] : []),
   ].join("\n");
 
   const finalizeNode = (result: WorkerProcessResult, cancelled = false) => {
@@ -432,7 +447,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
     const completedAfterFinalResponse = nodeNow?.spawn?.finalResponse === true;
     const workerReportedFailure = reportedTerminalStatus === "failed";
     const completedAfterShutdown = (reportedTerminalStatus === "completed" || completedAfterFinalResponse)
-      && (result.signal === "SIGTERM" || result.exitCode === 128 + 15 || result.timedOut);
+      && result.signal === "SIGTERM";
     const ok = isCompletedWorkerExit(
       result,
       reportedTerminalStatus === "completed" || completedAfterFinalResponse,
@@ -447,12 +462,11 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
       stdout: (result.stdout + patchText).trim() ? result.stdout + patchText : undefined,
       stderr: ok ? undefined : result.stderr,
       usage: result.usage,
-      timedOut: result.timedOut,
       isolation: run.worktree ? "worktree" : "none",
       error: ok
         ? undefined
-        : result.timedOut
-          ? `Worker timed out after ${Math.round((timeoutMs ?? 0) / 1000)}s.`
+        : result.turnBudgetExceeded
+          ? `Worker exceeded its turn budget of ${turnBudget} turn(s).`
           : result.signal
             ? `Worker was terminated by ${result.signal}.`
             : workerReportedFailure
@@ -473,7 +487,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
       runId,
       nodeId,
       agent: node.agent,
-      result,
+      result: { ...result, timedOut: result.turnBudgetExceeded ?? false },
       nodeResult: nodeNow?.result,
       nodeError: nodeNow?.errorMessage,
       cancelled,
@@ -527,12 +541,13 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
 
   const started = spawnPiWorker({
     workerName: workerKey,
+    mode: node.mode,
     description,
     model: node.model ?? agent.model,
     tools: agent.tools,
     cwd: workerCwd,
     env: workerEnv,
-    timeoutMs,
+    turnBudget,
     onUpdate: (progress) => {
       updateNodeSpawnProgress(runId, nodeId, spawnId, {
         liveText: progress.text,
@@ -559,6 +574,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
     status: "running",
     startedAt: node.spawn?.startedAt ?? Date.now(),
     isolation: run.worktree ? "worktree" : "none",
+    mode: node.mode,
   });
   ensureLivePoll();
   publishStateSnapshot();

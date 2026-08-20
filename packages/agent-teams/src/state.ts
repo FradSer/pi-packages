@@ -84,6 +84,28 @@ export function normalizeNodePaths(paths: string[]): { ok: true; paths: string[]
 
 // ── Run creation ──────────────────────────────────────────────────
 
+export const MAX_STRUCTURED_OUTPUT_BYTES = 64 * 1024;
+export const MAX_STRUCTURED_OUTPUT_DEPTH = 8;
+export const MAX_FANOUT_ITEMS = 32;
+
+export function structuredOutputSize(value: unknown): number {
+  return Buffer.byteLength(JSON.stringify(value), "utf8");
+}
+
+export function structuredOutputDepth(value: unknown): number {
+  if (!value || typeof value !== "object") return 0;
+  if (Array.isArray(value)) return 1 + Math.max(0, ...value.map(structuredOutputDepth));
+  return 1 + Math.max(0, ...Object.values(value as Record<string, unknown>).map(structuredOutputDepth));
+}
+
+export function validateStructuredOutput(value: unknown): string | undefined {
+  let serialized: string;
+  try { serialized = JSON.stringify(value); } catch { return "Structured output must be JSON-serializable."; }
+  if (Buffer.byteLength(serialized, "utf8") > MAX_STRUCTURED_OUTPUT_BYTES) return `Structured output exceeds ${MAX_STRUCTURED_OUTPUT_BYTES} bytes.`;
+  if (structuredOutputDepth(value) > MAX_STRUCTURED_OUTPUT_DEPTH) return `Structured output exceeds depth ${MAX_STRUCTURED_OUTPUT_DEPTH}.`;
+  return undefined;
+}
+
 export interface RunNodeInput {
   id: string;
   agent: string;
@@ -91,7 +113,10 @@ export interface RunNodeInput {
   paths: string[];
   access: Node["access"];
   model?: string;
-  timeoutMs?: number;
+  mode?: Node["mode"];
+  turnBudget?: number;
+  forkContext?: string[];
+  inputBindings?: Record<string, string>;
   dependsOn: string[];
 }
 
@@ -122,7 +147,6 @@ export function createRun(
     concurrency: number;
     worktree: boolean;
     background?: boolean;
-    timeoutMs?: number;
     summarize?: boolean;
     summaryAgent?: string;
     nodes: RunNodeInput[];
@@ -146,6 +170,15 @@ export function createRun(
         return { ok: false, error: `Node "${node.id}" depends on unknown node "${dep}".` };
       }
     }
+    for (const source of Object.values(node.inputBindings ?? {})) {
+      const dependencyId = source.split("#", 1)[0];
+      if (!node.dependsOn.includes(dependencyId)) {
+        return { ok: false, error: `Node "${node.id}" input binding must reference a dependency: "${source}".` };
+      }
+    }
+    if (node.forkContext?.some((dependencyId) => !node.dependsOn.includes(dependencyId))) {
+      return { ok: false, error: `Node "${node.id}" forkContext must reference dependencies only.` };
+    }
     normalized.push({
       id: node.id,
       workerKey: "", // filled after the run id is assigned
@@ -154,7 +187,10 @@ export function createRun(
       paths: normalizedPaths.paths,
       access: node.access,
       model: node.model,
-      timeoutMs: node.timeoutMs,
+      mode: node.mode,
+      turnBudget: node.turnBudget,
+      forkContext: node.forkContext ? [...new Set(node.forkContext)] : undefined,
+      inputBindings: node.inputBindings ? { ...node.inputBindings } : undefined,
       dependsOn: [...new Set(node.dependsOn)],
       status: "pending",
       createdAt: Date.now(),
@@ -208,8 +244,6 @@ export function createRun(
     concurrency: input.concurrency,
     worktree: input.worktree,
     background: input.background ?? true,
-    timeoutMs: input.timeoutMs,
-    deadlineAt: input.timeoutMs ? Date.now() + input.timeoutMs : undefined,
     nodes: {},
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -527,40 +561,6 @@ export function cancelNode(runId: string, nodeId: string): { ok: boolean; runnin
 }
 
 /**
- * Fail a run for exceeding its hard wall-clock cap: pending nodes are
- * cancelled and the run is marked failed; live workers must be terminated by
- * the caller.
- */
-export function failRunTimeout(runId: string, errorMessage: string): { ok: boolean; runningNodeIds: string[]; error?: string } {
-  const run = state.runs[runId];
-  if (!run) return { ok: false, runningNodeIds: [], error: `Run "${runId}" not found.` };
-  if (run.status !== "running") return { ok: false, runningNodeIds: [], error: `Run "${runId}" is already ${run.status}.` };
-  const runningNodeIds: string[] = [];
-  for (const node of Object.values(run.nodes)) {
-    if (node.status === "running") {
-      // The node's worker is terminated by the caller; clearing the spawn means
-      // its late close event cannot pollute a retried (reset) node.
-      node.status = "failed";
-      node.errorMessage = errorMessage;
-      node.completedAt = Date.now();
-      node.spawn = undefined;
-      node.updatedAt = Date.now();
-      runningNodeIds.push(node.id);
-    } else if (node.status === "pending") {
-      node.status = "cancelled";
-      node.completedAt = Date.now();
-      node.updatedAt = Date.now();
-    }
-  }
-  run.status = "failed";
-  run.errorMessage = errorMessage;
-  run.finishedAt = Date.now();
-  run.updatedAt = Date.now();
-  markStateDirty();
-  return { ok: true, runningNodeIds };
-}
-
-/**
  * Reset failed and cancelled nodes of a settled run back to pending so the
  * run can be re-dispatched. Completed nodes are retained. The run returns to
  * running; callers must scheduleRun afterwards.
@@ -620,9 +620,6 @@ export function retryRun(runId: string, nodeIds?: string[]): { ok: boolean; rese
   run.finishedAt = undefined;
   run.completionNotified = false;
   run.settledMessageSent = false;
-  // Re-arm the run-level cap: a stale deadline would re-fail the retried run
-  // on the very next poll.
-  run.deadlineAt = run.timeoutMs ? Date.now() + run.timeoutMs : undefined;
   run.updatedAt = Date.now();
   markStateDirty();
   return { ok: true, reset };

@@ -43,8 +43,10 @@ ${agents}
 ### Dispatch a run in one call
 
 Use teammate_run with a tasks array: each task has id, agent, prompt, paths,
-access (read default, write explicit), optional dependsOn, model, and
-timeoutMs. The scheduler starts root nodes immediately, bounds concurrency,
+access (read default, write explicit), optional dependsOn, model, turnBudget,
+forkContext, and inputBindings. Use teammate_fanout only from the leader after
+validating a completed node's bounded structured array output. The scheduler
+starts root nodes immediately, bounds concurrency,
 defers overlapping shared-workspace writes — advisory coordination across all
 runs, not file-access isolation — unless worktree=true, and auto-starts
 downstream nodes when their dependencies complete. access and paths coordinate
