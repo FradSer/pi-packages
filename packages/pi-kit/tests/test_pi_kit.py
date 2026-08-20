@@ -46,6 +46,7 @@ def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
     assert "Scenario: Model label is formatted from a model object" in feature
     assert "Scenario: A model is selected from the interactive menu" in feature
     assert "Scenario: Pi workers inherit their working directory without an unsupported flag" in feature
+    assert "Scenario: Pi workers have no wall-clock timeout" in feature
     assert "Scenario: pi-kit stays a pure runtime dependency" in feature
 
 
@@ -89,7 +90,7 @@ def test_run_pi_worker_uses_child_cwd_without_unsupported_cwd_flag() -> None:
         process.env.PATH = `${{bin}}:${{process.env.PATH ?? ""}}`;
         process.env.PI_CAPTURE = capture;
         const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
-        const worker = await runPiWorker({{ prompt: "inspect", cwd, timeoutMs: 5000 }});
+        const worker = await runPiWorker({{ prompt: "inspect", cwd }});
         const args = fs.readFileSync(capture, "utf8").split(String.fromCharCode(10));
         fs.rmSync(root, {{ recursive: true, force: true }});
         console.log(JSON.stringify({{ text: worker.text, exitCode: worker.exitCode, args }}));

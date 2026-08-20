@@ -78,6 +78,12 @@ Feature: Shared pi-kit runtime helpers
     When pi-kit builds the non-interactive Pi command
     Then it does not pass the unsupported --cwd option
 
+  Scenario: Pi workers have no wall-clock timeout
+    Given a worker is launched from pi-kit
+    When the child process is running
+    Then the worker API does not accept timeoutMs
+    And the child remains alive until it exits or is aborted
+
   Scenario: pi-kit stays a pure runtime dependency
     Given the pi-kit package manifest
     Then it declares no pi manifest, no dependencies, and no peer dependencies

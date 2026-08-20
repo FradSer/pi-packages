@@ -150,9 +150,16 @@ export interface PiWorkerUsage {
 export interface PiWorkerResult {
   text: string;
   usage?: PiWorkerUsage;
-  timedOut: boolean;
   exitCode: number;
   stderr: string;
+}
+
+/** Live state extracted from a spawned worker's JSON-mode output. */
+export interface PiWorkerProgressUpdate {
+  text: string;
+  activeTool?: string;
+  liveThinking?: string;
+  turns: number;
 }
 
 /** Options for running a Pi worker. */
@@ -167,12 +174,12 @@ export interface RunPiWorkerOptions {
   model?: string;
   /** Abort signal to cancel the worker. */
   signal?: AbortSignal;
-  /** Timeout in milliseconds. */
-  timeoutMs?: number;
   /** Additional environment variables. */
   env?: Record<string, string | undefined>;
   /** Additional CLI arguments. */
   extraArgs?: string[];
+  /** Called when JSON-mode output reveals live worker activity. */
+  onUpdate?: (update: PiWorkerProgressUpdate) => void;
 }
 
 /**
@@ -223,7 +230,7 @@ function isPiPackageScript(filePath: string): boolean {
  * Parses the JSONL output to extract the final text and usage stats.
  */
 export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorkerResult> {
-  const { prompt, cwd, tools, model, signal, timeoutMs, env, extraArgs } = options;
+  const { prompt, cwd, tools, model, signal, env, extraArgs, onUpdate } = options;
   const cli = resolvePiCli();
 
   const args = [...cli.args, "--print", "--mode", "json", "--no-session"];
@@ -238,7 +245,14 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
   return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
-    let timedOut = false;
+    let stdoutBuffer = "";
+    const progress = createPiWorkerProgress();
+    const emitProgress = () => onUpdate?.({
+      text: progress.text,
+      activeTool: progress.activeTool,
+      liveThinking: progress.thinking,
+      turns: progress.turns,
+    });
 
     const child = spawn(cli.command, args, {
       cwd,
@@ -246,18 +260,18 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
       env: { ...process.env, ...env },
     });
 
-    const timeout = timeoutMs
-      ? setTimeout(() => {
-          timedOut = true;
-          child.kill("SIGTERM");
-        }, timeoutMs)
-      : null;
-
     const abortHandler = () => child.kill("SIGTERM");
     signal?.addEventListener("abort", abortHandler, { once: true });
 
     child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
+      const text = chunk.toString();
+      stdout += text;
+      stdoutBuffer += text;
+      const lines = stdoutBuffer.split("\n");
+      stdoutBuffer = lines.pop() ?? "";
+      let changed = false;
+      for (const line of lines) changed = applyPiWorkerProgress(progress, line) || changed;
+      if (changed) emitProgress();
     });
 
     child.stderr.on("data", (chunk) => {
@@ -265,25 +279,21 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
     });
 
     child.on("close", (code) => {
-      if (timeout) clearTimeout(timeout);
       signal?.removeEventListener("abort", abortHandler);
 
       const { text, usage } = parsePiWorkerOutput(stdout);
       resolve({
         text,
         usage,
-        timedOut,
         exitCode: code ?? 1,
         stderr,
       });
     });
 
     child.on("error", (err) => {
-      if (timeout) clearTimeout(timeout);
       signal?.removeEventListener("abort", abortHandler);
       resolve({
         text: "",
-        timedOut: false,
         exitCode: 1,
         stderr: err.message,
       });
@@ -377,11 +387,86 @@ export async function terminateChildProcess(
   return closedAfterKill;
 }
 
-function waitForClose(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+interface PiWorkerProgressState {
+  text: string;
+  thinking: string;
+  toolcallArgs: string;
+  activeTool?: string;
+  turns: number;
+}
+
+function createPiWorkerProgress(): PiWorkerProgressState {
+  return { text: "", thinking: "", toolcallArgs: "", turns: 0 };
+}
+
+function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): boolean {
+  if (!line.trim()) return false;
+  let event: {
+    type?: string;
+    assistantMessageEvent?: { type?: string; delta?: string; toolCall?: { name?: string } };
+    message?: { role?: string; content?: Array<{ type?: string; text?: string }> };
+  };
+  try {
+    event = JSON.parse(line) as typeof event;
+  } catch {
+    return false;
+  }
+  if (event.type === "message_end" && event.message?.role === "assistant") {
+    state.turns++;
+    const text = extractTextContent(event.message.content, "");
+    if (text.trim()) state.text = text;
+    return true;
+  }
+  if (event.type !== "message_update" || !event.assistantMessageEvent) return false;
+  const update = event.assistantMessageEvent;
+  switch (update.type) {
+    case "text_delta":
+      state.activeTool = undefined;
+      state.text += update.delta ?? "";
+      return true;
+    case "thinking_delta":
+      state.activeTool = undefined;
+      state.thinking += update.delta ?? "";
+      return true;
+    case "toolcall_start":
+      state.toolcallArgs = "";
+      state.activeTool = undefined;
+      return true;
+    case "toolcall_delta":
+      state.toolcallArgs += update.delta ?? "";
+      state.activeTool = toolcallLabel(state.toolcallArgs) ?? state.activeTool;
+      return true;
+    case "toolcall_end":
+      state.activeTool = undefined;
+      state.toolcallArgs = "";
+      return true;
+    default:
+      return false;
+  }
+}
+
+function toolcallLabel(rawArgs: string): string | undefined {
+  try {
+    const args = JSON.parse(rawArgs) as Record<string, unknown>;
+    if (typeof args.command === "string" && args.command.trim()) return `bash: ${truncateInline(args.command, 40)}`;
+    if (typeof args.path === "string" && args.path.trim()) return `file: ${path.basename(args.path.trim())}`;
+    if (typeof args.query === "string" && args.query.trim()) return `search: ${truncateInline(args.query, 40)}`;
+  } catch {
+    // Tool-call arguments are incomplete while they stream.
+  }
+  return undefined;
+}
+
+function truncateInline(text: string, cap: number): string {
+  const oneLine = text.replace(/\s+/g, " ").trim();
+  return oneLine.length <= cap ? oneLine : `${oneLine.slice(0, cap).trimEnd()} ...`;
+}
+
+function waitForClose(child: ChildProcess, graceMs: number): Promise<boolean> {
   return new Promise((resolve) => {
     let settled = false;
     const onClose = () => finish(true);
-    const timer = setTimeout(() => finish(false), timeoutMs);
+    const timer = setTimeout(() => finish(false), graceMs);
     timer.unref?.();
 
     function finish(closed: boolean): void {
