@@ -261,6 +261,11 @@ interface ChildJsonEvent {
     role?: string;
     content?: unknown;
   };
+  assistantMessageEvent?: {
+    type?: string;
+    delta?: string;
+    content?: string;
+  };
 }
 
 export interface ConsolidationEvidence {
@@ -269,6 +274,7 @@ export interface ConsolidationEvidence {
   gatesReported: boolean;
   lastJsonError: string;
   toolArgsByCallId: Map<string, Record<string, unknown>>;
+  accumulatedAssistantText: string;
 }
 
 export function createConsolidationEvidence(): ConsolidationEvidence {
@@ -278,6 +284,7 @@ export function createConsolidationEvidence(): ConsolidationEvidence {
     gatesReported: false,
     lastJsonError: "",
     toolArgsByCallId: new Map(),
+    accumulatedAssistantText: "",
   };
 }
 
@@ -320,11 +327,36 @@ export function recordConsolidationEvent(
     evidence.completedToolWork = true;
     const args = event.toolCallId ? evidence.toolArgsByCallId.get(event.toolCallId) : undefined;
     if (isFullValidatorPass({ ...event, args })) evidence.fullValidatorPassed = true;
+    // Tool results may contain gate report text (e.g. cat of a report file)
+    const resultText = textFromJson(event.result);
+    if (resultText) {
+      evidence.accumulatedAssistantText += "\n" + resultText + "\n";
+      if (hasCompletedGateReport(evidence.accumulatedAssistantText)) {
+        evidence.gatesReported = true;
+      }
+    }
+  }
+
+  // Accumulate streamed assistant text from message_update sub-events
+  if (event.type === "message_update" && event.assistantMessageEvent) {
+    const sub = event.assistantMessageEvent;
+    if (sub.type === "text_delta" && sub.delta) {
+      evidence.accumulatedAssistantText += sub.delta;
+    } else if (sub.type === "text_end" && sub.content) {
+      evidence.accumulatedAssistantText += sub.content;
+    }
+    if (hasCompletedGateReport(evidence.accumulatedAssistantText)) {
+      evidence.gatesReported = true;
+    }
   }
 
   if (event.type === "message_end" && event.message?.role === "assistant") {
-    if (hasCompletedGateReport(textFromJson(event.message.content))) {
-      evidence.gatesReported = true;
+    const messageText = textFromJson(event.message.content);
+    if (messageText) {
+      evidence.accumulatedAssistantText += "\n" + messageText + "\n";
+      if (hasCompletedGateReport(evidence.accumulatedAssistantText)) {
+        evidence.gatesReported = true;
+      }
     }
   }
 }

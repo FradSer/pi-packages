@@ -185,6 +185,30 @@ class TestManualConsolidation(unittest.TestCase):
         )
         self.assertEqual(json.loads(result.stdout), [])
 
+    def test_streamed_gates_detected_from_text_deltas(self):
+        """Gates arriving via message_update text_delta events (not message_end)
+        are detected through accumulated assistant text."""
+        harness = os.path.join(MEMORY_PKG_DIR, "tests", "consolidation_evidence_harness.ts")
+        result = subprocess.run(
+            ["bun", harness, "streamed-gates"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(json.loads(result.stdout), [])
+
+    def test_gates_detected_in_tool_result(self):
+        """Gates appearing in a tool_execution_end result (e.g. cat of a report
+        file) are detected through accumulated text."""
+        harness = os.path.join(MEMORY_PKG_DIR, "tests", "consolidation_evidence_harness.ts")
+        result = subprocess.run(
+            ["bun", harness, "gates-in-tool-result"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(json.loads(result.stdout), [])
+
     def test_empty_jsonl_evidence_is_diagnostic(self):
         """A zero-exit child with no JSONL work yields every missing proof rather
         than allowing the success notification."""
