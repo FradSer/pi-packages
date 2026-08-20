@@ -1,95 +1,77 @@
 # Memory Plugin
 
-Native pi `/memory` command — no skill surface. Provides an instructions editor
-menu, memory folder access, auto-memory guidance toggle, manual consolidation,
-and a dedicated `/consolidate` command.
+Native pi `/memory` command for bounded project memory injection and parent-owned consolidation. It has no skill surface and honors Pi's configured agent directory.
 
-Two locations must stay **identical** (idempotent):
+Memory roots:
 
-1. **`~/.pi/agent/memory/<escaped-cwd>/`** — harness, loaded by pi, written first
-2. **`.memory/`** — canonical, git-tracked, written second
+1. `<agent-dir>/memory/<sha256(canonical-project-cwd)>/` — private harness memory, written first
+2. `<project>/.memory/` — safe, git-tracked mirror written only for explicitly safe files
 
-**Privacy:** `.memory/` is part of a public GitHub repo. Technical content only; user preferences, credentials, and personal information stay in harness memory only.
+`<agent-dir>` is resolved through Pi's `getAgentDir()` and may be overridden with `PI_CODING_AGENT_DIR`. The hashed project scope prevents punctuation-based path collisions. Private memories, credentials, and personal information never enter the public mirror.
 
 **Version**: 0.2.5
 
 ## Installation
 
 ```bash
-# published
 pi install npm:@fradser/pi-memory
-# or from this repo: pi install /path/to/pi-packages/packages/memory
+# or from this repository
+pi install /path/to/pi-packages/packages/memory
 ```
 
 ## Usage
 
-Type `/memory` to open the management menu (native pi select dialog). Type
-`/consolidate` to skip the menu and start consolidation immediately.
+Type `/memory` to open the management menu. Type `/consolidate` to start a background run without opening the menu.
 
-```
+```text
 Auto-memory: on
 
-❯ 1. Consolidate memory now
-  2. Edit user instructions        (~/.pi/agent/AGENTS.md)
-  3. Edit project instructions     (./AGENTS.md — or ./CLAUDE.md if that exists)
-  4. Open memory folder
-  5. Toggle auto-memory (currently on)
+1. Select memory model
+2. Enter provider/model manually
+3. Consolidate memory now
+4. Edit user instructions
+5. Edit project instructions
+6. Open memory folder
+7. Toggle auto-memory
 ```
 
-- **Auto-memory on** (default): `before_agent_start` injects prompt guidance that
-  instructs the LLM to actively capture durable decisions, preferences, and lessons
-  into memory during the session as needed. Off = no prompt guidance; existing
-  memories are still injected into the system prompt.
-- **Consolidate memory now**: runs the full fail-closed consolidation procedure
-  (`procedures/consolidate.md`) in the background without blocking the active
-  session. A "Memory: dreaming" widget shows progress above the input editor.
-  The completion notice says memory was consolidated only after the required
-  tool work, validator, and `G1 passed` through `G8 passed` evidence is present;
-  an unverified run gets a diagnostic warning instead.
-- **Memory model**: choose an available Pi model from the `/memory` menu, or
-  enter `provider/model` manually. The selection is persisted in
-  `~/.pi/agent/memory.json` and used for future consolidation runs. Environment
-  variables `PI_MEMORY_PROVIDER` and `PI_MEMORY_MODEL` provide initial fallback
-  configuration.
-- **`/consolidate`**: a dedicated one-shot trigger for the same consolidation,
-  sitting as a sibling of `/memory` — no menu, starts it immediately
-  (single-flight: a running consolidation blocks a second one). It runs in the
-  background, so the active session stays responsive while the "Memory:
-  dreaming" widget shows progress.
+- **Auto-memory** is on by default. It adds bounded capture guidance; existing memory is injected independently of the toggle.
+- **Memory model** accepts one complete `provider/model` reference. Menu selection and manual input use the same allowlist. Invalid persisted configuration is preserved and surfaced instead of being overwritten.
+- **Consolidate memory now** starts a single-flight parent-owned transaction. `/consolidate no-context` intentionally disables session-context capture.
+- **Instructions** use Pi's resolved context resource when available, including overrides and ancestor files.
+- **Open memory folder** opens the configured harness directory, not a hard-coded home path.
 
-## How it works
+## Consolidation transaction
 
-- **System prompt injection**: active project memories in `.memory/` and the
-  harness directory are loaded and formatted into the system prompt before each turn.
-  When auto-memory is enabled, guidance for active memory capture is also appended.
-- **Consolidation** — menu item 3 or `/consolidate`. Fail-closed pipeline:
-  1. Capture durable content from the current session, then select related memories
-  2. Read the selected related files + inventory (mutation freeze until planning artifacts exist)
-  3. Theme-cluster covering the selected non-index files (merge bias default)
-  4. Staleness rubric (practical expiry, not calendar age alone)
-  5. **Machine check** `scripts/validate-consolidate.py --check=cluster,staleness` (exit 0 lifts freeze)
-  6. Ground-truth verify against the current tree with cited paths
-  7. Merge / prune / rewrite
-  8. Independent adversarial pass when any multi-file cluster, count ≥ 8, or uncertainty
-  9. Rebuild **split** indexes (harness full; `.memory/` safe-only) + scrub stale private copies from `.memory/`
-  10. Full `validate-consolidate.py` (cluster+staleness+report+privacy) exit 0 + G1–G8 report
+The parent extension owns the run from start to finish:
 
-Cosmetic-only runs (frontmatter + index rewrite while thematic duplicates remain) are invalid.
+1. Acquire a cross-process project lock and create a private `0700` run directory.
+2. Capture an immutable branch/context snapshot before launching the worker. `no-context` writes an explicit disabled-context manifest.
+3. Launch a no-extension, read-only worker with only `read`, `grep`, `find`, and `ls` tools. The worker receives run paths and metadata, never provider credentials or a live session file.
+4. Accept exactly one bounded structured JSON plan. Progress, prose, `PASSED` text, and validator-like output are not evidence.
+5. Run `validate-consolidate.py` before mutation. The parent applies only selected, validated operations with atomic writes; unrelated files are untouched.
+6. Rebuild the scoped indexes, run full post-apply validation, and write a receipt bound to the run, scope, exact plan artifact bytes, selected files, and final hashes.
+7. Report success only after the parent-owned receipt and privacy/mirror checks verify the resulting state. Timeout, shutdown, spawn failure, stale identity, lock contention, and validation failure release the run without success notification.
+
+An empty selected scope is a verified no-op. Global public-mirror repair is not part of scoped consolidation and requires a separate explicit confirmation.
+
+## Memory loading limits
+
+Only direct regular Markdown files with a strict lower-case `.md` basename are loaded. Symlinked roots/files and non-regular entries are rejected. Loading is deterministic, harness memory shadows a public duplicate, and injection is bounded by file count, per-file size, and total size. Injected content is labeled untrusted reference data and must not be treated as instructions.
 
 ## Files
 
-```
+```text
 memory/
-├── index.ts                     # Package-root extension entry point
-├── extensions/inject-memory.ts   # /memory + /consolidate commands, memory injection, auto-memory guidance
-├── procedures/
-│   └── consolidate.md            # inline background consolidation procedure, not a skill
+├── index.ts
+├── extensions/inject-memory.ts
+├── extensions/consolidation-run.ts
+├── extensions/memory-files.ts
+├── extensions/memory-paths.ts
+├── extensions/config.ts
+├── procedures/consolidate.md
 ├── scripts/validate-consolidate.py
-├── features/validate-consolidate.feature
 ├── features/consolidate.feature
-├── tests/test_validate_consolidate.py
-├── tests/test_inject_memory_extension.py
-├── tests/consolidation_evidence_harness.ts
-└── README.md
-.memory/                         # per-project canonical git-tracked memory data
+├── features/validate-consolidate.feature
+└── tests/
 ```

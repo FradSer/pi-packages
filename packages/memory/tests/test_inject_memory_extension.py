@@ -1,263 +1,506 @@
+from __future__ import annotations
+
 import json
 import os
 import subprocess
-import unittest
+import tempfile
+from pathlib import Path
 
-MEMORY_PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-class TestInjectMemoryExtension(unittest.TestCase):
-    def ext_source(self) -> str:
-        with open(os.path.join(MEMORY_PKG_DIR, "extensions", "inject-memory.ts"), "r", encoding="utf-8") as f:
-            return f.read()
-
-    def test_extension_file_exists(self):
-        """Verify extensions/inject-memory.ts exists and has correct exports."""
-        ext_path = os.path.join(MEMORY_PKG_DIR, "extensions", "inject-memory.ts")
-        self.assertTrue(os.path.exists(ext_path))
-        content = self.ext_source()
-        self.assertIn("loadAndDeduplicateMemories", content)
-        self.assertIn("formatMemoriesBlock", content)
-        self.assertIn("before_agent_start", content)
-        self.assertIn('registerCommand("memory"', content)
-        self.assertIn('registerCommand("consolidate"', content)
-
-    def test_auto_memory_guidance_present_without_auto_consolidation_text(self):
-        """Auto-memory guidance is injected for the LLM to actively capture durable facts,
-        but it must NOT contain auto-consolidation threshold instructions."""
-        content = self.ext_source()
-        self.assertIn("AUTO_MEMORY_GUIDANCE", content)
-        self.assertIn("autoMemory", content)
-        self.assertIn("readSettings", content)
-        self.assertIn("writeSettings", content)
-        self.assertIn("settings.json", content)
-        # Guidance should tell LLM to capture durable facts
-        self.assertIn("You maintain a durable project memory", content)
-        # Guidance must NOT reference automatic consolidation triggers or fractions
-        self.assertNotIn("consolidateAtContextFraction", content)
-        self.assertNotIn("consolidates memory automatically", content)
-        self.assertNotIn("40%", content)
-
-    def test_no_auto_consolidation_hooks(self):
-        """Auto-consolidation hooks (agent_settled, input tracking, context fraction) are removed."""
-        content = self.ext_source()
-        self.assertNotIn('pi.on("agent_settled"', content)
-        self.assertNotIn("getContextUsage", content)
-        self.assertNotIn("consolidateAtContextFraction", content)
-        self.assertNotIn("lastTriggeredTier", content)
-        self.assertNotIn("userTurnSeen", content)
-
-    def test_memory_model_configuration_is_available(self):
-        content = self.ext_source()
-        self.assertIn('"./config"', content)
-        self.assertIn("availableMemoryModels", content)
-        self.assertIn("chooseMemoryModel", content)
-        self.assertIn("enterMemoryModel", content)
-        self.assertIn("memoryConfigPath", content)
-        self.assertIn('"--model"', content)
-        with open(
-            os.path.join(MEMORY_PKG_DIR, "extensions", "config.ts"),
-            encoding="utf-8",
-        ) as f:
-            self.assertIn("PI_MEMORY_MODEL", f.read())
-
-    def test_menu_options_contain_auto_memory_toggle(self):
-        """The /memory menu provides auto-memory toggle and memory management."""
-        content = self.ext_source()
-        self.assertIn('"Consolidate memory now"', content)
-        self.assertIn("Select memory model", content)
-        self.assertIn("Enter provider/model manually", content)
-        self.assertIn('"Edit user instructions (~/.pi/agent/AGENTS.md)"', content)
-        self.assertIn('"Open memory folder"', content)
-        self.assertIn("Toggle auto-memory", content)
-        self.assertIn("Auto-memory: ${status}", content)
-
-    def test_consolidate_procedure_is_inline_not_a_skill(self):
-        """Consolidate runs via procedures/consolidate.md, not via a skill doc path lookup."""
-        content = self.ext_source()
-        self.assertNotIn("skills/consolidate", content)
-        self.assertNotIn("SKILL.md", content)
-        self.assertIn("procedures", content)
-        self.assertIn("consolidate.md", content)
-
-    def test_consolidate_procedure_doc_exists(self):
-        """The inline procedure document ships under procedures/ with the
-        validator path placeholder."""
-        proc_path = os.path.join(MEMORY_PKG_DIR, "procedures", "consolidate.md")
-        self.assertTrue(os.path.exists(proc_path))
-        with open(proc_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        self.assertIn("{{PKG_DIR}}", content)
-        self.assertIn("staleness rubric", content.lower())
-        self.assertIn("validate-consolidate.py", content)
-        self.assertFalse(os.path.exists(os.path.join(MEMORY_PKG_DIR, "skills")))
-
-    def test_package_json_manifest(self):
-        """Verify package.json registers extensions."""
-        manifest_path = os.path.join(MEMORY_PKG_DIR, "package.json")
-        self.assertTrue(os.path.exists(manifest_path))
-        with open(manifest_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.assertIn("pi", data)
-        self.assertIn("extensions", data["pi"])
-        # The entry is the explicit factory file; config.ts is a helper module,
-        # never a directory glob (pi would otherwise try to load config.ts as an extension).
-        self.assertEqual(data["pi"]["extensions"], ["./index.ts"])
-        self.assertTrue(os.path.isfile(os.path.join(MEMORY_PKG_DIR, "index.ts")))
+MEMORY_PKG_DIR = Path(__file__).resolve().parents[1]
+REPO = MEMORY_PKG_DIR.parents[1]
 
 
-class TestManualConsolidation(unittest.TestCase):
-    """Memory consolidation runs on-demand in the background
-    (features/consolidate.feature)."""
+def run_bun(source: str) -> dict[str, object] | list[object]:
+    result = subprocess.run(
+        ["bun", "-e", source],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout.strip().splitlines()[-1])
 
-    def ext_source(self) -> str:
-        with open(os.path.join(MEMORY_PKG_DIR, "extensions", "inject-memory.ts"), "r", encoding="utf-8") as f:
-            return f.read()
 
-    def test_triggers_async_consolidation(self):
-        """Triggering consolidation starts a non-interactive background run
-        (--print --mode json --no-session) instead of blocking the session."""
-        content = self.ext_source()
-        self.assertIn("node:child_process", content)
-        self.assertIn("spawn", content)
-        self.assertIn('"--print"', content)
-        self.assertIn('"--mode"', content)
-        self.assertIn('"json"', content)
-        self.assertIn('"--no-session"', content)
-        self.assertIn('"--no-extensions"', content)
-        self.assertIn("consolidate.md", content)
-        self.assertIn("{{PKG_DIR}}", content)
+def source() -> str:
+    return (MEMORY_PKG_DIR / "extensions" / "inject-memory.ts").read_text(encoding="utf-8")
 
-    def test_dreaming_widget_above_editor(self):
-        """A "dreaming" widget is shown above the input editor while the child runs
-        and cleared when it exits."""
-        content = self.ext_source()
-        self.assertIn("setWidget", content)
-        self.assertIn("dreaming", content)
-        self.assertIn('"memory-dreaming"', content)
 
-    def test_result_never_returned_to_session(self):
-        """The dreaming child's stdout is parsed for live progress events and never
-        returned to the main session conversation."""
-        content = self.ext_source()
-        self.assertIn('stdio: ["ignore", "pipe", "pipe"]', content)
-        self.assertIn("child.stdout", content)
-        self.assertIn("tool_execution_start", content)
+def test_extension_registers_memory_and_consolidate_commands() -> None:
+    content = source()
+    assert 'registerCommand("memory"' in content
+    assert 'registerCommand("consolidate"' in content
+    assert "before_agent_start" in content
+    assert "loadAndDeduplicateMemories" in content
 
-    def test_resolves_procedure_relative_to_extension_module(self):
-        """An npm, git, or local install finds its shipped procedure from the
-        extension module rather than Pi settings strings or the project cwd."""
-        content = self.ext_source()
-        self.assertIn('fileURLToPath(import.meta.url)', content)
-        self.assertIn('path.resolve(extensionDir, "..")', content)
-        self.assertNotIn('"settings.json"', content[content.index("function resolvePackageDir"):content.index("// ── background consolidation")])
-        self.assertNotIn('process.cwd()', content[content.index("function resolvePackageDir"):content.index("// ── background consolidation")])
 
-    def test_success_requires_tool_validator_and_gate_report_evidence(self):
-        """A zero exit is not consolidation proof. Success requires completed tool
-        work, a passing full validator, and the child report's G1–G8 evidence."""
-        content = self.ext_source()
-        self.assertIn("tool_execution_start", content)
-        self.assertIn("tool_execution_end", content)
-        self.assertIn("toolArgsByCallId", content)
-        self.assertIn("validate-consolidate.py", content)
-        self.assertIn("G1", content)
-        self.assertIn("G8", content)
-        self.assertIn('"cluster", "staleness", "report", "privacy"', content)
-        self.assertIn("Memory dreaming complete — memory consolidated.", content)
+def test_consolidation_contract_is_parent_owned() -> None:
+    content = source()
+    assert "createConsolidationRun" in content
+    assert "applyConsolidationPlan" in content
+    assert "createConsolidationReceipt" in content
+    assert "releaseConsolidationRun" in content
+    assert "parent-owned validation receipt" in content
+    assert "getSessionFile" not in content
+    assert "G1" not in content
+    assert "G8" not in content
 
-    def test_zero_exit_without_evidence_is_diagnostic_not_success(self):
-        """A provider failure can exit zero with no work. The completion branch
-        must report missing proof and avoid the success wording."""
-        content = self.ext_source()
-        self.assertIn("Memory dreaming finished without verified consolidation", content)
-        self.assertIn("missing", content)
-        self.assertIn('`Memory dreaming finished without verified consolidation: missing ${missing.join(", ")}', content)
 
-    def test_verified_jsonl_evidence_allows_success(self):
-        """A real TypeScript harness verifies the JSONL correlation: validator
-        args are recorded at start and recognized at tool completion."""
-        harness = os.path.join(MEMORY_PKG_DIR, "tests", "consolidation_evidence_harness.ts")
-        result = subprocess.run(
-            ["bun", harness, "verified"],
-            capture_output=True,
-            text=True,
-            check=True,
+def test_procedure_is_read_only_and_structured() -> None:
+    content = (MEMORY_PKG_DIR / "procedures" / "consolidate.md").read_text(encoding="utf-8")
+    assert "{{PKG_DIR}}" in content
+    assert "{{RUN_ID}}" in content
+    assert "{{SNAPSHOT_PATH}}" in content
+    assert "read-only" in content.lower()
+    assert "exactly one JSON object" in content
+    assert "validate-consolidate.py" in content
+    assert "G1–G8" not in content
+
+
+def test_forged_validator_text_does_not_prove_a_plan() -> None:
+    result = run_bun(
+        """
+        import { createConsolidationEvidence, recordConsolidationEvent, missingConsolidationEvidence } from './packages/memory/extensions/inject-memory.ts';
+        const evidence = createConsolidationEvidence();
+        recordConsolidationEvent(evidence, { type: 'message_end', message: { role: 'assistant', content: 'PASSED checks=all G1 passed' } });
+        console.log(JSON.stringify(missingConsolidationEvidence(evidence)));
+        """
+    )
+    assert "exactly one schema-valid consolidation plan" in result
+    assert "a parent-owned validation receipt" in result
+
+
+def test_valid_plan_is_parsed_but_not_self_attested_as_complete() -> None:
+    result = run_bun(
+        """
+        import { createConsolidationEvidence, recordConsolidationEvent, missingConsolidationEvidence } from './packages/memory/extensions/inject-memory.ts';
+        const evidence = createConsolidationEvidence();
+        recordConsolidationEvent(evidence, { type: 'message_end', message: { role: 'assistant', content: '{"schemaVersion":1,"runId":"r","scopeKey":"s","snapshotDigest":"d","selected":[]}' } });
+        console.log(JSON.stringify(missingConsolidationEvidence(evidence)));
+        """
+    )
+    assert result == ["completed tool work", "a parent-owned validation receipt"]
+
+
+def test_bounded_jsonl_parser_ignores_terminal_newline() -> None:
+    result = run_bun(
+        """
+        import { extractChildPlan } from './packages/memory/extensions/consolidation-run.ts';
+        const event = { type: 'message_end', message: { role: 'assistant', content: '{"kind":"memory-consolidation-plan"}' } };
+        console.log(JSON.stringify(extractChildPlan(JSON.stringify(event) + '\\n', { maxLines: 1 })));
+        """
+    )
+    assert result["ok"] is True
+
+
+def test_structured_plan_event_rejects_array_wrapper_payload() -> None:
+    result = run_bun(
+        """
+        import { extractChildPlan } from './packages/memory/extensions/consolidation-run.ts';
+        console.log(JSON.stringify(extractChildPlan(JSON.stringify({ type: 'consolidation_plan', plan: [] }))));
+        """
+    )
+    assert result["ok"] is False
+
+
+def test_bounded_jsonl_parser_rejects_overlong_line() -> None:
+    result = run_bun(
+        """
+        import { extractChildPlan } from './packages/memory/extensions/consolidation-run.ts';
+        const line = JSON.stringify({ type: 'message_end', message: { role: 'assistant', content: '{}' } });
+        console.log(JSON.stringify(extractChildPlan(line, { maxLineBytes: line.length - 1 })));
+        """
+    )
+    assert result["ok"] is False
+    assert "line" in result["error"]
+
+
+def test_child_plan_extraction_handles_output_exceeding_legacy_256k_bound() -> None:
+    result = run_bun(
+        """
+        import { extractChildPlan, MAX_STDOUT_BYTES } from './packages/memory/extensions/consolidation-run.ts';
+        const delta = JSON.stringify({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', delta: 'x'.repeat(100) } }) + '\\n';
+        // Generate > 300 KB of streaming delta lines
+        const lines = delta.repeat(3000);
+        const planEvent = JSON.stringify({
+          type: 'message_end',
+          message: {
+            role: 'assistant',
+            content: JSON.stringify({
+              kind: 'memory-consolidation-plan',
+              version: 1,
+              runId: 'r1',
+              scopeDigest: 'd1',
+              artifactHash: 'h1',
+            }),
+          },
+        }) + '\\n';
+        const fullOutput = lines + planEvent;
+        console.log(JSON.stringify({
+          totalBytes: fullOutput.length,
+          extracted: extractChildPlan(fullOutput, {
+            expectedIdentity: { runId: 'r1', scopeDigest: 'd1', artifactHash: 'h1' },
+          }),
+        }));
+        """
+    )
+    assert result["totalBytes"] > 300_000
+    assert result["extracted"]["ok"] is True
+    assert result["extracted"]["plan"]["runId"] == "r1"
+
+
+def test_child_plan_extraction_handles_markdown_code_fenced_json() -> None:
+    result = run_bun(
+        """
+        import { extractChildPlan } from './packages/memory/extensions/consolidation-run.ts';
+        const event = {
+          type: 'message_end',
+          message: {
+            role: 'assistant',
+            content: '```json\\n' + JSON.stringify({
+              kind: 'memory-consolidation-plan',
+              version: 1,
+              runId: 'r1',
+              scopeDigest: 'd1',
+              artifactHash: 'h1',
+            }, null, 2) + '\\n```',
+          },
+        };
+        console.log(JSON.stringify(extractChildPlan(JSON.stringify(event) + '\\n', {
+          expectedIdentity: { runId: 'r1', scopeDigest: 'd1', artifactHash: 'h1' },
+        })));
+        """
+    )
+    assert result["ok"] is True
+    assert result["plan"]["kind"] == "memory-consolidation-plan"
+    assert result["plan"]["runId"] == "r1"
+
+
+def test_consolidation_snapshot_handles_large_context_payload() -> None:
+    result = run_bun(
+        """
+        import { mkdtemp } from 'node:fs/promises';
+        import { tmpdir } from 'node:os';
+        import { join } from 'node:path';
+        import { captureConsolidationSnapshot, resolveConsolidationRunPaths } from './packages/memory/extensions/consolidation-run.ts';
+        const agentDir = await mkdtemp(join(tmpdir(), 'pi-memory-agent-'));
+        const repoDir = await mkdtemp(join(tmpdir(), 'pi-memory-repo-'));
+        const paths = resolveConsolidationRunPaths(repoDir, undefined, agentDir);
+        // Create 2 MB of context entries
+        const largeEntry = { role: 'user', content: 'y'.repeat(100_000) };
+        const largeEntries = Array(20).fill(largeEntry);
+        const ctx = {
+          sessionManager: {
+            getBranch: () => largeEntries,
+          },
+        };
+        const captured = await captureConsolidationSnapshot(ctx, paths);
+        console.log(JSON.stringify({
+          entryCount: captured.manifest.entryCount,
+          digest: captured.digest,
+        }));
+        """
+    )
+    assert result["entryCount"] == 20
+    assert len(result["digest"]) == 64
+
+
+def test_empty_first_run_apply_creates_only_verifiable_indexes() -> None:
+    result = run_bun(
+        """
+        import { mkdtemp, access, readFile } from 'node:fs/promises';
+        import { join } from 'node:path';
+        import { applyConsolidationPlan, digest } from './packages/memory/extensions/consolidation-run.ts';
+        const root = await mkdtemp('/tmp/pi-memory-empty-');
+        const harness = join(root, 'harness');
+        const publicDir = join(root, 'public');
+        const run = {
+          manifest: {
+            runId: 'run_test', scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
+            harnessDir: harness, publicDir, sourceHashes: { harness: {}, public: {} },
+          },
+          paths: {}, released: false,
+        };
+        await applyConsolidationPlan(run, {
+          runId: 'run_test', scopeDigest: 'b'.repeat(64), artifactHash: 'a'.repeat(64), selected: [],
+        });
+        await access(join(harness, 'MEMORY.md'));
+        await access(join(publicDir, 'MEMORY.md'));
+        console.log(JSON.stringify({
+          harness: await readFile(join(harness, 'MEMORY.md'), 'utf8'),
+          public: await readFile(join(publicDir, 'MEMORY.md'), 'utf8'),
+          digest: digest({ harness: {}, public: {} }),
+        }));
+        """
+    )
+    assert result["harness"] == "# Memory Index\n\n"
+    assert result["public"] == "# Memory Index\n\n"
+
+
+def test_no_context_snapshot_digest_matches_exact_snapshot_bytes() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        repo = root / "repo"
+        agent = root / "agent"
+        repo.mkdir()
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            const {{ createHash }} = await import('node:crypto');
+            const {{ readFile }} = await import('node:fs/promises');
+            const {{ createConsolidationRun, releaseConsolidationRun }} = await import('./packages/memory/extensions/consolidation-run.ts');
+            const run = await createConsolidationRun({{}}, {json.dumps(str(repo))}, true);
+            const bytes = await readFile(run.manifest.snapshotPath);
+            const actual = createHash('sha256').update(bytes).digest('hex');
+            const result = {{ advertised: run.manifest.snapshotDigest, actual }};
+            await releaseConsolidationRun(run);
+            console.log(JSON.stringify(result));
+            """
         )
-        self.assertEqual(json.loads(result.stdout), [])
+        assert result["advertised"] == result["actual"]
 
-    def test_streamed_gates_detected_from_text_deltas(self):
-        """Gates arriving via message_update text_delta events (not message_end)
-        are detected through accumulated assistant text."""
-        harness = os.path.join(MEMORY_PKG_DIR, "tests", "consolidation_evidence_harness.ts")
-        result = subprocess.run(
-            ["bun", harness, "streamed-gates"],
-            capture_output=True,
-            text=True,
-            check=True,
+
+def test_cancelled_apply_rolls_back_harness_and_public_bytes() -> None:
+    result = run_bun(
+        """
+        import { mkdir, readFile, writeFile } from 'node:fs/promises';
+        import { join } from 'node:path';
+        import { tmpdir } from 'node:os';
+        import { applyConsolidationPlan } from './packages/memory/extensions/consolidation-run.ts';
+        const root = join(tmpdir(), `pi-memory-rollback-${Date.now()}`);
+        const harness = join(root, 'harness');
+        const publicDir = join(root, 'public');
+        await mkdir(harness, { recursive: true });
+        await mkdir(publicDir, { recursive: true });
+        await writeFile(join(harness, 'project.md'), 'old\\n');
+        await writeFile(join(publicDir, 'project.md'), 'old\\n');
+        await writeFile(join(harness, 'MEMORY.md'), '- [project.md](project.md)\\n');
+        await writeFile(join(publicDir, 'MEMORY.md'), '- [project.md](project.md)\\n');
+        const crypto = await import('node:crypto');
+        const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
+        const run = {
+          manifest: {
+            runId: 'run_test', scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
+            harnessDir: harness, publicDir,
+            sourceHashes: {
+              harness: { 'MEMORY.md': hash('- [project.md](project.md)\\n'), 'project.md': hash('old\\n') },
+              public: { 'MEMORY.md': hash('- [project.md](project.md)\\n'), 'project.md': hash('old\\n') },
+            },
+          },
+          paths: {}, released: false,
+        };
+        let checks = 0;
+        let rejected = false;
+        try {
+          await applyConsolidationPlan(run, {
+            runId: 'run_test', scopeDigest: 'b'.repeat(64), artifactHash: 'a'.repeat(64),
+            selected: ['project.md'],
+            operations: [{ name: 'project.md', kind: 'rewrite', classification: 'safe', content: 'new\\n' }],
+          }, () => ++checks < 3);
+        } catch {
+          rejected = true;
+        }
+        console.log(JSON.stringify({
+          rejected,
+          harness: await readFile(join(harness, 'project.md'), 'utf8'),
+          public: await readFile(join(publicDir, 'project.md'), 'utf8'),
+        }));
+        """
+    )
+    assert result == {"rejected": True, "harness": "old\n", "public": "old\n"}
+
+
+def test_later_operation_failure_rolls_back_earlier_writes() -> None:
+    result = run_bun(
+        """
+        import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+        import { join } from 'node:path';
+        import { tmpdir } from 'node:os';
+        import { createHash } from 'node:crypto';
+        import { applyConsolidationPlan } from './packages/memory/extensions/consolidation-run.ts';
+        const root = join(tmpdir(), `pi-memory-late-failure-${Date.now()}`);
+        const harness = join(root, 'harness');
+        const publicDir = join(root, 'public');
+        const index = '# Memory Index\\n\\n';
+        await mkdir(harness, { recursive: true });
+        await mkdir(publicDir, { recursive: true });
+        await writeFile(join(harness, 'MEMORY.md'), index);
+        await writeFile(join(publicDir, 'MEMORY.md'), index);
+        const hash = (value) => createHash('sha256').update(value).digest('hex');
+        const run = {
+          manifest: {
+            runId: 'run_test', scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
+            harnessDir: harness, publicDir,
+            sourceHashes: {
+              harness: { 'MEMORY.md': hash(index) },
+              public: { 'MEMORY.md': hash(index) },
+            },
+          },
+          paths: {}, released: false,
+        };
+        let rejected = false;
+        try {
+          await applyConsolidationPlan(run, {
+            runId: 'run_test', scopeDigest: 'b'.repeat(64), artifactHash: 'a'.repeat(64),
+            selected: ['first.md', 'second.md'],
+            inventory: [
+              { name: 'first.md', classification: 'safe' },
+              { name: 'second.md', classification: 'safe' },
+            ],
+            operations: [
+              { name: 'first.md', kind: 'create', classification: 'safe', content: 'first\\n' },
+              { name: 'second.md', kind: 'create', classification: 'safe', content: 'x'.repeat(64_001) },
+            ],
+          });
+        } catch {
+          rejected = true;
+        }
+        console.log(JSON.stringify({
+          rejected,
+          harness: await readdir(harness),
+          public: await readdir(publicDir),
+          harnessIndex: await readFile(join(harness, 'MEMORY.md'), 'utf8'),
+          publicIndex: await readFile(join(publicDir, 'MEMORY.md'), 'utf8'),
+        }));
+        """,
+    )
+    assert result == {
+        "rejected": True,
+        "harness": ["MEMORY.md"],
+        "public": ["MEMORY.md"],
+        "harnessIndex": "# Memory Index" + chr(10) + chr(10),
+        "publicIndex": "# Memory Index" + chr(10) + chr(10),
+    }
+
+
+def test_receipt_writer_rejects_phase_path_mismatch() -> None:
+    result = run_bun(
+        """
+        import { mkdtemp, access } from 'node:fs/promises';
+        import { tmpdir } from 'node:os';
+        import { join } from 'node:path';
+        import { createPreApplyReceipt, writeConsolidationReceipt } from './packages/memory/extensions/consolidation-run.ts';
+        const directory = await mkdtemp(join(tmpdir(), 'pi-memory-receipt-'));
+        const receipt = createPreApplyReceipt({
+          runId: 'run_test',
+          scopeDigest: 'b'.repeat(64),
+          artifactHash: 'a'.repeat(64),
+          selected: [],
+          sourceHashes: { harness: {}, public: {} },
+        });
+        const run = {
+          manifest: {},
+          paths: {
+            preReceiptFile: join(directory, 'pre-receipt.json'),
+            postReceiptFile: join(directory, 'post-receipt.json'),
+          },
+          lockPath: join(directory, 'lock'),
+          released: false,
+        };
+        try {
+          await writeConsolidationReceipt(run, receipt, 'post');
+          console.log(JSON.stringify({ rejected: false }));
+        } catch (error) {
+          let created = true;
+          try { await access(run.paths.postReceiptFile); } catch { created = false; }
+          console.log(JSON.stringify({ rejected: true, created }));
+        }
+        """
+    )
+    assert result == {"rejected": True, "created": False}
+
+
+def test_shutdown_waits_for_and_invalidates_async_completion() -> None:
+    content = source()
+    assert "state.completion = completion" in content
+    assert "if (completion) await completion" in content
+    assert "const ownsCurrentRun = (): boolean" in content
+    assert "applyConsolidationPlan(run, plan, ownsCurrentRun)" in content
+    assert "if (!ownsCurrentRun()) return" in content
+
+
+def test_project_instruction_resolution_uses_pi_context_resource_objects() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        cwd = root / "repo" / "nested"
+        cwd.mkdir(parents=True)
+        global_file = root / "global" / "AGENTS.md"
+        ancestor_file = root / "repo" / "AGENTS.md"
+        override_file = cwd / "AGENTS.override.md"
+        result = run_bun(
+            f"""
+            import {{ resolveProjectInstructionsFile }} from './packages/memory/extensions/inject-memory.ts';
+            const cwd = {json.dumps(str(cwd))};
+            const result = await resolveProjectInstructionsFile(cwd, {{
+              getSystemPromptOptions: () => ({{ contextFiles: [
+                {{ path: {json.dumps(str(global_file))}, content: 'global' }},
+                {{ path: {json.dumps(str(ancestor_file))}, content: 'ancestor' }},
+                {{ path: {json.dumps(str(override_file))}, content: 'override' }},
+              ] }})
+            }});
+            console.log(JSON.stringify(result));
+            """
         )
-        self.assertEqual(json.loads(result.stdout), [])
-
-    def test_gates_detected_in_tool_result(self):
-        """Gates appearing in a tool_execution_end result (e.g. cat of a report
-        file) are detected through accumulated text."""
-        harness = os.path.join(MEMORY_PKG_DIR, "tests", "consolidation_evidence_harness.ts")
-        result = subprocess.run(
-            ["bun", harness, "gates-in-tool-result"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        self.assertEqual(json.loads(result.stdout), [])
-
-    def test_empty_jsonl_evidence_is_diagnostic(self):
-        """A zero-exit child with no JSONL work yields every missing proof rather
-        than allowing the success notification."""
-        harness = os.path.join(MEMORY_PKG_DIR, "tests", "consolidation_evidence_harness.ts")
-        result = subprocess.run(
-            ["bun", harness, "empty"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        self.assertEqual(
-            json.loads(result.stdout),
-            ["completed tool work", "a passing full validator", "a G1–G8 passed gate report"],
-        )
-
-    def test_single_flight(self):
-        """Only one dreaming consolidation runs at a time — a running child blocks
-        a second spawn."""
-        content = self.ext_source()
-        self.assertIn("dreaming", content)
-        self.assertIn("active", content)
-        self.assertIn("if (state.active)", content)
-        self.assertIn("state.active = true;", content)
-
-    def test_session_file_passed_to_child(self):
-        """The child receives the current session file path for Step 0 capture,
-        plus the project cwd and harness memory dir."""
-        content = self.ext_source()
-        self.assertIn("getSessionFile", content)
-        self.assertIn("harness", content)
-
-    def test_menu_triggers_async_consolidation(self):
-        """The /memory menu item 'Consolidate memory now' triggers async consolidation
-        via the background consolidation runner."""
-        content = self.ext_source()
-        self.assertIn('choice.startsWith("Consolidate memory now")', content)
-        self.assertIn("spawnAsyncConsolidation", content)
-        self.assertNotIn("sendUserMessage", content)
-
-    def test_dedicated_consolidate_command_is_sibling_of_memory(self):
-        """A dedicated /consolidate command exists alongside /memory and triggers the
-        same background runner without going through the management menu."""
-        content = self.ext_source()
-        self.assertIn('registerCommand("consolidate"', content)
-        self.assertIn("spawnAsyncConsolidation", content)
-        self.assertIn('"consolidate"', content)
-        # The /memory menu itself must stay unchanged: only one registerCommand("memory")
-        self.assertEqual(content.count('registerCommand("memory"'), 1)
+        assert result == {"path": str(override_file), "display": "AGENTS.override.md"}
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_no_context_command_contract_is_present() -> None:
+    content = source()
+    assert 'args !== "" && args !== "no-context"' in content
+    assert 'noContext: args === "no-context"' in content
+    assert '"--no-extensions"' in content
+    assert '"read,grep,find,ls"' in content
+
+
+def test_child_output_uses_streaming_utf8_and_byte_bounded_diagnostics() -> None:
+    content = source()
+    assert 'new TextDecoder("utf-8")' in content
+    assert 'decode(chunk, { stream: true })' in content
+    assert "Buffer.byteLength" in content
+    assert "MAX_STDERR_BYTES" in content
+
+
+def test_child_output_limits_terminate_before_more_jsonl_work() -> None:
+    content = source()
+    assert "stdoutCaptureOverflowed" in content
+    assert "MAX_JSONL_LINES" in content
+    assert "MAX_JSONL_LINE_BYTES" in content
+    assert "terminateConsolidationChild(child, 5_000)" in content
+    assert "return; // child output limit exceeded" in content
+
+
+def test_stale_finish_cannot_clear_replacement_state_or_cleanup() -> None:
+    content = source()
+    assert "const ownsCurrentRun" in content
+    assert "if (ownsCurrentRun())" in content
+    assert "const cleanup = state.cleanup" in content
+    assert "if (!ownsCurrentRun()) return" in content
+
+
+def test_selected_scope_is_parent_bound_before_receipt() -> None:
+    content = source()
+    assert "normalizeSelectedScope" in content
+    assert "sourceHashes" in content
+    assert "expected-selected" in content
+
+
+def test_selected_aliases_normalize_to_one_canonical_scope() -> None:
+    result = run_bun(
+        """
+        import { normalizeSelectedScope } from './packages/memory/extensions/inject-memory.ts';
+        console.log(JSON.stringify(normalizeSelectedScope({
+          selected: [{ file: 'z.md' }, { filename: 'a.md' }],
+        })));
+        """
+    )
+    assert result == ["a.md", "z.md"]
+
+
+def test_worker_environment_is_an_explicit_non_credential_allowlist() -> None:
+    content = source()
+    assert "const workerEnv = Object.fromEntries" in content
+    assert "process.env.PATH" in content
+    assert "process.env.HOME" in content
+    assert "process.env.PI_CODING_AGENT_DIR" in content
+    assert "process.env.ANTHROPIC_API_KEY" not in content
+    assert "env: { ...process.env" not in content

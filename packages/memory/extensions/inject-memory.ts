@@ -22,8 +22,9 @@
 
 import fs from "fs/promises";
 import path from "path";
-import os from "os";
-import { spawn } from "node:child_process";
+import { execFile } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
+import { promisify } from "node:util";
 import * as nodeFs from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -32,89 +33,42 @@ import {
   modelRef,
   parseModelRef,
   PI_SPINNER_FRAMES,
+  PI_SPINNER_INTERVAL_MS,
+  resolvePiCli,
   selectModelFromMenu,
   sortModels,
+  spawnPiChild,
 } from "@fradser/pi-kit";
-import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
   memoryConfigPath,
-  readMemoryConfig,
+  readMemoryConfigState,
   writeMemoryConfig,
   type MemoryConfig,
 } from "./config";
+import { formatMemoriesBlock, loadAndDeduplicateMemories } from "./memory-files";
+import { resolveMemoryPaths } from "./memory-paths";
+import {
+  applyConsolidationPlan,
+  sha256Digest,
+  terminateConsolidationChild,
+  createConsolidationReceipt,
+  createPreApplyReceipt,
+  createConsolidationRun,
+  extractChildPlan,
+  MAX_JSONL_LINE_BYTES,
+  MAX_JSONL_LINES,
+  MAX_PLAN_BYTES,
+  MAX_STDOUT_BYTES,
+  MAX_STDERR_BYTES,
+  releaseConsolidationRun,
+  writeConsolidationReceipt,
+  writeFileAtomic,
+  type ConsolidationRun,
+} from "./consolidation-run";
 
-export function getEscapedCwd(cwd: string): string {
-  return cwd.replace(/\//g, "-");
-}
-
-export interface MemoryEntry {
-  filename: string;
-  source: "harness" | "public";
-  content: string;
-}
-
-export async function loadAndDeduplicateMemories(cwd: string): Promise<MemoryEntry[]> {
-  const escaped = getEscapedCwd(cwd);
-  const homeDir = os.homedir();
-
-  // Pi harness memory location (project-scoped, includes private files)
-  const harnessDir = path.join(homeDir, CONFIG_DIR_NAME, "agent", "memory", escaped);
-  const publicDir = path.join(cwd, ".memory");
-  const memoriesMap = new Map<string, MemoryEntry>();
-
-  // 1. Read public .memory/ first
-  try {
-    const files = await fs.readdir(publicDir);
-    for (const file of files) {
-      if (file.endsWith(".md") && file.toLowerCase() !== "memory.md") {
-        const filePath = path.join(publicDir, file);
-        const content = await fs.readFile(filePath, "utf-8");
-        memoriesMap.set(file, {
-          filename: file,
-          source: "public",
-          content,
-        });
-      }
-    }
-  } catch (err: unknown) {
-    // ENOENT (dir missing) and other errors: skip silently
-    void err;
-  }
-
-  // 2. Read harness location (takes precedence, includes private files)
-  try {
-    const files = await fs.readdir(harnessDir);
-    for (const file of files) {
-      if (file.endsWith(".md") && file.toLowerCase() !== "memory.md") {
-        const filePath = path.join(harnessDir, file);
-        const content = await fs.readFile(filePath, "utf-8");
-        memoriesMap.set(file, {
-          filename: file,
-          source: "harness",
-          content,
-        });
-      }
-    }
-  } catch (err: unknown) {
-    // ENOENT (dir missing) and other errors: skip silently
-    void err;
-  }
-
-  return Array.from(memoriesMap.values());
-}
-
-export function formatMemoriesBlock(memories: MemoryEntry[]): string {
-  if (memories.length === 0) return "";
-
-  const lines = ["# Active Project Memories\n"];
-  for (const item of memories) {
-    lines.push(`## Memory: ${item.filename}`);
-    lines.push(item.content.trim());
-    lines.push("");
-  }
-
-  return lines.join("\n");
-}
+export { formatMemoriesBlock, loadAndDeduplicateMemories, type MemoryEntry } from "./memory-files";
+export { projectScopeKey, resolveMemoryPaths } from "./memory-paths";
 
 // ── auto-memory settings (user-level, persisted) ───────────────────
 
@@ -122,29 +76,28 @@ interface MemorySettings {
   autoMemory: boolean;
 }
 
-let memoryConfig: MemoryConfig = readMemoryConfig();
+let memoryConfigState = readMemoryConfigState();
+let memoryConfig: MemoryConfig = memoryConfigState.config;
 
-function settingsFilePath(): string {
-  return path.join(os.homedir(), CONFIG_DIR_NAME, "agent", "memory", "settings.json");
+function settingsFilePath(cwd = process.cwd()): string {
+  return resolveMemoryPaths(cwd).settingsFile;
 }
 
-async function readSettings(): Promise<MemorySettings> {
+async function readSettings(cwd = process.cwd()): Promise<MemorySettings> {
   try {
-    const raw = await fs.readFile(settingsFilePath(), "utf-8");
+    const raw = await fs.readFile(settingsFilePath(cwd), "utf-8");
     const parsed = JSON.parse(raw) as Partial<MemorySettings>;
     return {
-      autoMemory: parsed.autoMemory ?? true,
+      autoMemory: parsed.autoMemory === false ? false : true,
     };
   } catch {
-    return {
-      autoMemory: true,
-    };
+    return { autoMemory: true };
   }
 }
 
-async function writeSettings(s: MemorySettings): Promise<void> {
-  await fs.mkdir(path.dirname(settingsFilePath()), { recursive: true });
-  await fs.writeFile(settingsFilePath(), JSON.stringify(s, null, 2) + "\n", "utf-8");
+async function writeSettings(s: MemorySettings, cwd = process.cwd()): Promise<void> {
+  const file = settingsFilePath(cwd);
+  await writeFileAtomic(file, `${JSON.stringify(s, null, 2)}\n`, 0o600);
 }
 
 // ── auto-memory guidance (injected when enabled) ───────────────────
@@ -167,27 +120,56 @@ Run \`/memory\` to review, edit, or consolidate memory at any time.
 
 // ── locate this package (consolidate procedure doc) ────────────────
 
-async function pathExists(p: string): Promise<boolean> {
-  try {
-    await fs.access(p);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
- * Project instructions live in AGENTS.md (pi-native) or CLAUDE.md (Claude Code
- * convention) — pi loads either from cwd, so they are the same concept under
- * two names. Prefer AGENTS.md, fall back to CLAUDE.md, default to AGENTS.md.
+ * Resolve the exact project instruction resource already selected by Pi. A
+ * conventional AGENTS.md fallback is safe only when the context API is absent.
  */
-async function resolveProjectInstructionsFile(
+export async function resolveProjectInstructionsFile(
   cwd: string,
+  ctx?: ExtensionContext,
 ): Promise<{ path: string; display: string }> {
-  const agents = path.join(cwd, "AGENTS.md");
-  const claude = path.join(cwd, "CLAUDE.md");
-  if (await pathExists(agents)) return { path: agents, display: "./AGENTS.md" };
-  if (await pathExists(claude)) return { path: claude, display: "./CLAUDE.md" };
+  const contextProvider = ctx as (ExtensionContext & {
+    getSystemPromptOptions?: () => { contextFiles?: unknown };
+  }) | undefined;
+  const getOptions = contextProvider?.getSystemPromptOptions;
+  let resources: unknown;
+  let apiAvailable = typeof getOptions === "function";
+  if (apiAvailable) {
+    try {
+      resources = getOptions?.().contextFiles;
+    } catch {
+      apiAvailable = false;
+    }
+  }
+  const resolvedCwd = path.resolve(cwd);
+  const candidates = Array.isArray(resources)
+    ? resources.flatMap((resource, index) => {
+        if (!resource || typeof resource !== "object") return [];
+        const resourcePath = (resource as { path?: unknown }).path;
+        if (typeof resourcePath !== "string") return [];
+        const resolved = path.resolve(resolvedCwd, resourcePath);
+        const basename = path.basename(resolved);
+        if (!/^(?:AGENTS(?:\.override)?|CLAUDE)\.md$/i.test(basename)) return [];
+        const relative = path.relative(path.dirname(resolved), resolvedCwd);
+        if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return [];
+        const distance = relative === "" ? 0 : relative.split(path.sep).length;
+        const priority = basename.toLowerCase() === "agents.override.md"
+          ? 3
+          : basename.toLowerCase() === "agents.md"
+            ? 2
+            : 1;
+        return [{ path: resolved, index, distance, priority }];
+      })
+        .sort((left, right) => left.distance - right.distance || right.priority - left.priority || right.index - left.index)
+    : [];
+  const candidate = candidates[0];
+  if (candidate) {
+    return { path: candidate.path, display: path.relative(resolvedCwd, candidate.path) || path.basename(candidate.path) };
+  }
+  if (apiAvailable) {
+    return { path: "", display: "Pi did not expose a project instruction file" };
+  }
+  const agents = path.join(resolvedCwd, "AGENTS.md");
   return { path: agents, display: "./AGENTS.md" };
 }
 
@@ -203,50 +185,14 @@ function resolvePackageDir(): string {
 
 // ── background consolidation ("dreaming") ─────────────────────────
 
-function isPiPackageScript(filePath: string): boolean {
-  try {
-    const resolved = nodeFs.realpathSync(filePath);
-    if (!/\.(mjs|cjs|js)$/.test(resolved)) return false;
-    let dir = path.dirname(resolved);
-    while (dir !== path.dirname(dir)) {
-      const pkgPath = path.join(dir, "package.json");
-      if (nodeFs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(nodeFs.readFileSync(pkgPath, "utf-8")) as { name?: unknown };
-        return pkg.name === "@earendil-works/pi-coding-agent";
-      }
-      dir = path.dirname(dir);
-    }
-  } catch {
-    // Unreadable paths are not candidates
-  }
-  return false;
-}
-
-/**
- * Resolve the Pi CLI for child-process spawning: the current process entry
- * (verified against the package manifest), the installed package's
- * dist/cli.js, or a `pi` binary on PATH (best effort).
- */
-function resolvePiCli(): { command: string; args: string[] } | undefined {
-  const argv1 = process.argv[1];
-  if (argv1 && isPiPackageScript(argv1)) {
-    return { command: process.execPath, args: [path.resolve(argv1)] };
-  }
-  try {
-    const entry = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));
-    const packageRoot = path.dirname(path.dirname(entry));
-    const cliPath = path.join(packageRoot, "dist", "cli.js");
-    if (nodeFs.existsSync(cliPath)) {
-      return { command: process.execPath, args: [cliPath] };
-    }
-  } catch {
-    // best effort — fall through to PATH
-  }
-  return { command: "pi", args: [] };
-}
-
 interface DreamState {
   active: boolean;
+  generation: number;
+  cancelled: boolean;
+  child?: ChildProcess;
+  run?: ConsolidationRun;
+  cleanup?: () => void;
+  completion?: Promise<void>;
 }
 
 interface ChildJsonEvent {
@@ -268,104 +214,99 @@ interface ChildJsonEvent {
   };
 }
 
+const MEMORY_FILENAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*\.md$/;
+
+/**
+ * Normalize the child-facing selected scope using the same alias precedence as
+ * the apply path. The parent receipt only ever receives this canonical list.
+ */
+export function normalizeSelectedScope(plan: unknown): string[] {
+  if (!plan || typeof plan !== "object" || Array.isArray(plan)) {
+    throw new Error("Consolidation plan must be an object");
+  }
+  const value = plan as Record<string, unknown>;
+  if (!Array.isArray(value.selected)) {
+    throw new Error("Consolidation plan must declare canonical selected scope");
+  }
+  const names = value.selected.map((entry, index) => {
+    const name = typeof entry === "string"
+      ? entry
+      : entry && typeof entry === "object" && !Array.isArray(entry)
+        ? (entry as { name?: unknown; file?: unknown; filename?: unknown }).name
+          ?? (entry as { file?: unknown }).file
+          ?? (entry as { filename?: unknown }).filename
+        : undefined;
+    if (typeof name !== "string" || !MEMORY_FILENAME_RE.test(name) || name.toLowerCase() === "memory.md") {
+      throw new Error(`Consolidation plan selected[${index}] is not a canonical memory filename`);
+    }
+    return name;
+  });
+  const seen = new Set<string>();
+  for (const name of names) {
+    const key = name.toLowerCase();
+    if (seen.has(key)) throw new Error(`Consolidation plan selects duplicate memory name: ${name}`);
+    seen.add(key);
+  }
+  return names.sort();
+}
+
+function parentSelectedScope(run: ConsolidationRun, noContext: boolean): string[] {
+  if (noContext) return [];
+  const names = new Map<string, string>();
+  const sourceHashes = run.manifest.sourceHashes;
+  for (const name of [...Object.keys(sourceHashes.harness), ...Object.keys(sourceHashes.public)].sort()) {
+    if (!MEMORY_FILENAME_RE.test(name) || name.toLowerCase() === "memory.md") continue;
+    names.set(name.toLowerCase(), names.get(name.toLowerCase()) ?? name);
+  }
+  return [...names.values()].sort();
+}
+
+function appendBoundedUtf8Text(current: string, text: string, maxBytes: number): string {
+  if (!text) return current;
+  const bytes = Buffer.concat([Buffer.from(current, "utf8"), Buffer.from(text, "utf8")]);
+  if (bytes.byteLength <= maxBytes) return bytes.toString("utf8");
+  return bytes.subarray(bytes.byteLength - maxBytes).toString("utf8");
+}
+
 export interface ConsolidationEvidence {
   completedToolWork: boolean;
-  fullValidatorPassed: boolean;
-  gatesReported: boolean;
+  parentReceiptVerified: boolean;
+  planCount: number;
   lastJsonError: string;
-  toolArgsByCallId: Map<string, Record<string, unknown>>;
-  accumulatedAssistantText: string;
+  finalPlan?: unknown;
 }
 
 export function createConsolidationEvidence(): ConsolidationEvidence {
-  return {
-    completedToolWork: false,
-    fullValidatorPassed: false,
-    gatesReported: false,
-    lastJsonError: "",
-    toolArgsByCallId: new Map(),
-    accumulatedAssistantText: "",
-  };
+  return { completedToolWork: false, parentReceiptVerified: false, planCount: 0, lastJsonError: "" };
 }
 
-function textFromJson(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) return value.map(textFromJson).join("\n");
-  if (value && typeof value === "object") {
-    return Object.values(value as Record<string, unknown>).map(textFromJson).join("\n");
-  }
-  return "";
+function parseFinalPlan(event: ChildJsonEvent): unknown {
+  const serialized = JSON.stringify(event);
+  if (!serialized) return undefined;
+  const result = extractChildPlan(`${serialized}\n`, {
+    maxOutputBytes: MAX_STDOUT_BYTES,
+    maxLines: 1,
+    maxLineBytes: MAX_JSONL_LINE_BYTES,
+    maxPlanBytes: MAX_PLAN_BYTES,
+  });
+  return result.ok ? result.plan : undefined;
 }
 
-function isFullValidatorPass(event: ChildJsonEvent): boolean {
-  const command = typeof event.args?.command === "string" ? event.args.command : "";
-  if (!command.includes("validate-consolidate.py") || event.isError) return false;
-
-  const match = /PASSED\s+checks=([a-z,]+)/i.exec(textFromJson(event.result));
-  if (!match) return false;
-  const checks = new Set(match[1].split(","));
-  return ["cluster", "staleness", "report", "privacy"].every((check) => checks.has(check));
-}
-
-function hasCompletedGateReport(text: string): boolean {
-  return Array.from({ length: 8 }, (_, index) => index + 1).every((gate) =>
-    new RegExp(`\\bG${gate}\\b[^\\n]{0,120}\\b(?:pass|passed|complete|completed)\\b`, "i").test(text),
-  );
-}
-
-export function recordConsolidationEvent(
-  evidence: ConsolidationEvidence,
-  event: ChildJsonEvent,
-): void {
-  if (typeof event.error === "string") evidence.lastJsonError = event.error;
-
-  if (event.type === "tool_execution_start" && event.toolCallId && event.args) {
-    evidence.toolArgsByCallId.set(event.toolCallId, event.args);
-  }
-
-  if (event.type === "tool_execution_end" && !event.isError) {
-    evidence.completedToolWork = true;
-    const args = event.toolCallId ? evidence.toolArgsByCallId.get(event.toolCallId) : undefined;
-    if (isFullValidatorPass({ ...event, args })) evidence.fullValidatorPassed = true;
-    // Tool results may contain gate report text (e.g. cat of a report file)
-    const resultText = textFromJson(event.result);
-    if (resultText) {
-      evidence.accumulatedAssistantText += "\n" + resultText + "\n";
-      if (hasCompletedGateReport(evidence.accumulatedAssistantText)) {
-        evidence.gatesReported = true;
-      }
-    }
-  }
-
-  // Accumulate streamed assistant text from message_update sub-events
-  if (event.type === "message_update" && event.assistantMessageEvent) {
-    const sub = event.assistantMessageEvent;
-    if (sub.type === "text_delta" && sub.delta) {
-      evidence.accumulatedAssistantText += sub.delta;
-    } else if (sub.type === "text_end" && sub.content) {
-      evidence.accumulatedAssistantText += sub.content;
-    }
-    if (hasCompletedGateReport(evidence.accumulatedAssistantText)) {
-      evidence.gatesReported = true;
-    }
-  }
-
-  if (event.type === "message_end" && event.message?.role === "assistant") {
-    const messageText = textFromJson(event.message.content);
-    if (messageText) {
-      evidence.accumulatedAssistantText += "\n" + messageText + "\n";
-      if (hasCompletedGateReport(evidence.accumulatedAssistantText)) {
-        evidence.gatesReported = true;
-      }
-    }
+export function recordConsolidationEvent(evidence: ConsolidationEvidence, event: ChildJsonEvent): void {
+  if (typeof event.error === "string") evidence.lastJsonError = event.error.slice(-2_000);
+  if (event.type === "tool_execution_end" && !event.isError) evidence.completedToolWork = true;
+  const plan = parseFinalPlan(event);
+  if (plan !== undefined) {
+    evidence.planCount += 1;
+    evidence.finalPlan = plan;
   }
 }
 
 export function missingConsolidationEvidence(evidence: ConsolidationEvidence): string[] {
   const missing: string[] = [];
   if (!evidence.completedToolWork) missing.push("completed tool work");
-  if (!evidence.fullValidatorPassed) missing.push("a passing full validator");
-  if (!evidence.gatesReported) missing.push("a G1–G8 passed gate report");
+  if (evidence.planCount !== 1) missing.push("exactly one schema-valid consolidation plan");
+  if (!evidence.parentReceiptVerified) missing.push("a parent-owned validation receipt");
   return missing;
 }
 
@@ -387,7 +328,7 @@ function setDreamingWidget(ctx: ExtensionContext): void {
     dreamingTimer = setInterval(() => {
       frameIndex++;
       tui.requestRender();
-    }, 80);
+    }, PI_SPINNER_INTERVAL_MS);
     dreamingTimer.unref?.();
 
     return {
@@ -421,13 +362,18 @@ function availableMemoryModels(ctx: ExtensionContext) {
   return sortModels(models);
 }
 
+function isAllowedMemoryModel(ctx: ExtensionContext, provider: string, model: string): boolean {
+  return availableMemoryModels(ctx).some((candidate) => candidate.provider === provider && candidate.id === model);
+}
+
 function configuredMemoryModel(): string {
   return modelRef(memoryConfig) ?? "(not configured)";
 }
 
 function saveMemoryConfig(next: MemoryConfig): void {
+  writeMemoryConfig(next);
   memoryConfig = next;
-  writeMemoryConfig(memoryConfig);
+  memoryConfigState = { config: next, present: true };
 }
 
 async function chooseMemoryModel(ctx: ExtensionContext): Promise<void> {
@@ -445,6 +391,10 @@ async function chooseMemoryModel(ctx: ExtensionContext): Promise<void> {
 async function enterMemoryModel(ctx: ExtensionContext): Promise<void> {
   const result = await enterModelFromInput(ctx.ui, ctx.modelRegistry, modelRef(memoryConfig), { label: "Memory model" });
   if (!result) return;
+  if (!isAllowedMemoryModel(ctx, result.provider, result.model)) {
+    ctx.ui.notify(`Model ${result.provider}/${result.model} is not allowed for memory workers`, "error");
+    return;
+  }
   saveMemoryConfig(result);
   ctx.ui.notify(`Memory model set to ${result.provider}/${result.model}`, "info");
 }
@@ -455,8 +405,8 @@ async function setMemoryModel(value: string, ctx: ExtensionContext): Promise<voi
     ctx.ui.notify("Enter a model in provider/model format", "error");
     return;
   }
-  if (!ctx.modelRegistry.find(ref.provider, ref.model)) {
-    ctx.ui.notify(`Model ${ref.provider}/${ref.model} was not found in the model registry`, "error");
+  if (!isAllowedMemoryModel(ctx, ref.provider, ref.model)) {
+    ctx.ui.notify(`Model ${ref.provider}/${ref.model} is not allowed for memory workers`, "error");
     return;
   }
   saveMemoryConfig(ref);
@@ -468,6 +418,39 @@ function clearDreamingWidget(ctx: ExtensionContext): void {
   if (ctx.mode === "tui") ctx.ui.setWidget("memory-dreaming", undefined);
 }
 
+const execFileAsync = promisify(execFile);
+
+async function runConsolidationValidator(
+  pkgDir: string,
+  run: ConsolidationRun,
+  planPath: string,
+  check: string,
+  expectedSelected: readonly string[],
+  receiptPath?: string,
+): Promise<Record<string, unknown>> {
+  const args = [
+    path.join(pkgDir, "scripts", "validate-consolidate.py"),
+    "--plan", planPath,
+    "--repo-root", run.manifest.cwd,
+    "--expected-run-id", run.manifest.runId,
+    "--expected-scope-key", run.manifest.scopeKey,
+    "--expected-scope-digest", run.manifest.scopeDigest,
+    "--expected-artifact-hash", run.manifest.snapshotDigest,
+    "--expected-selected", JSON.stringify([...expectedSelected].sort()),
+    "--check", check,
+  ];
+  if (receiptPath) args.push("--receipt", receiptPath, "--harness", run.manifest.harnessDir, "--public", run.manifest.publicDir, "--expected-receipt-phase", "post");
+  const result = await execFileAsync("python3", args, { maxBuffer: 10 * 1024 * 1024 });
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(result.stdout.trim()) as Record<string, unknown>;
+  } catch {
+    throw new Error("Consolidation validator returned invalid JSON");
+  }
+  if (parsed.ok !== true) throw new Error(`Consolidation validator rejected the plan: ${result.stdout.trim().slice(-800)}`);
+  return parsed;
+}
+
 /**
  * Run the consolidation procedure in the background so the current session
  * stays responsive. The configured memory model is passed to the background
@@ -476,13 +459,21 @@ function clearDreamingWidget(ctx: ExtensionContext): void {
 async function spawnAsyncConsolidation(
   ctx: ExtensionContext,
   state: DreamState,
-  opts: { pkgDir: string; cwd: string; sessionFile?: string; reason: string },
+  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string },
 ): Promise<void> {
   if (state.active) {
     ctx.ui.notify("Memory consolidation is already running in background.", "info");
     return;
   }
+  if (memoryConfigState.invalid) {
+    ctx.ui.notify(`Memory consolidation is blocked: ${memoryConfigState.invalid}`, "error");
+    return;
+  }
   state.active = true;
+  const generation = state.generation + 1;
+  state.generation = generation;
+  state.cancelled = false;
+  const isGenerationCurrent = (): boolean => !state.cancelled && generation === state.generation;
 
   let procedure: string;
   try {
@@ -490,45 +481,88 @@ async function spawnAsyncConsolidation(
       await fs.readFile(path.join(opts.pkgDir, "procedures", "consolidate.md"), "utf-8")
     ).replaceAll("{{PKG_DIR}}", opts.pkgDir);
   } catch (err: unknown) {
-    state.active = false;
-    ctx.ui.notify(`Memory consolidation setup failed: ${(err as Error).message}`, "error");
+    if (isGenerationCurrent()) {
+      state.active = false;
+      ctx.ui.notify(`Memory consolidation setup failed: ${(err as Error).message}`, "error");
+    }
     return;
   }
-  const harnessDir = path.join(
-    os.homedir(),
-    CONFIG_DIR_NAME,
-    "agent",
-    "memory",
-    getEscapedCwd(opts.cwd),
-  );
+  const memoryPaths = resolveMemoryPaths(opts.cwd);
+  const harnessDir = memoryPaths.harnessDir;
+  let run: ConsolidationRun;
+  try {
+    run = await createConsolidationRun(ctx, opts.cwd, opts.noContext);
+  } catch (err: unknown) {
+    if (isGenerationCurrent()) {
+      state.active = false;
+      ctx.ui.notify(`Memory consolidation setup failed: ${(err as Error).message}`, "error");
+    }
+    return;
+  }
+  if (!isGenerationCurrent()) {
+    await releaseConsolidationRun(run);
+    return;
+  }
+  state.run = run;
+
+  procedure = procedure
+    .replaceAll("{{RUN_ID}}", run.manifest.runId)
+    .replaceAll("{{SCOPE_DIGEST}}", run.manifest.scopeDigest)
+    .replaceAll("{{SCOPE_KEY}}", run.manifest.scopeKey)
+    .replaceAll("{{ARTIFACT_HASH}}", run.manifest.snapshotDigest)
+    .replaceAll("{{SNAPSHOT_DIGEST}}", run.manifest.snapshotDigest)
+    .replaceAll("{{RUN_DIR}}", run.manifest.runDir)
+    .replaceAll("{{SNAPSHOT_PATH}}", run.manifest.snapshotPath)
+    .replaceAll("{{HARNESS_DIR}}", run.manifest.harnessDir)
+    .replaceAll("{{PUBLIC_DIR}}", run.manifest.publicDir)
+    .replaceAll("{{REPO_ROOT}}", run.manifest.cwd);
 
   const taskText = [
-    `Task: run the memory consolidation procedure below for the project at ${opts.cwd}.`,
+    `Task: produce a read-only structured consolidation plan for the project at ${opts.cwd}.`,
     `- Reason: ${opts.reason}`,
-    `- Session file (Step 0: capture durable content from its tail): ${opts.sessionFile ?? "none"}`,
+    `- Run ID: ${run.manifest.runId}`,
+    `- Scope key: ${run.manifest.scopeKey}`,
+    `- Scope digest: ${run.manifest.scopeDigest}`,
+    `- Artifact/snapshot digest: ${run.manifest.snapshotDigest}`,
+    `- Run directory: ${run.manifest.runDir}`,
+    `- Context mode: ${opts.noContext ? "no-context (do not capture session context)" : "parent-provided immutable snapshot"}`,
+    `- Immutable manifest: ${path.join(run.manifest.runDir, "manifest.json")}`,
+    `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
     `- Harness memory dir: ${harnessDir}`,
-    `- Public memory dir: ${opts.cwd}/.memory`,
+    `- Public memory dir: ${run.manifest.publicDir}`,
+    "- Do not write to either memory directory.",
+    "- Your final assistant message must be one JSON object containing schemaVersion, runId, scopeKey, snapshotDigest, selected, and operations.",
     "",
     procedure,
   ].join("\n");
 
   const cli = resolvePiCli();
   if (!cli) {
-    state.active = false;
-    ctx.ui.notify("Memory consolidation: could not resolve the Pi CLI", "error");
+    if (isGenerationCurrent()) {
+      state.active = false;
+      ctx.ui.notify("Memory consolidation: could not resolve the Pi CLI", "error");
+    }
+    await releaseConsolidationRun(run);
     return;
   }
 
-  let tempDir: string | undefined;
-  let child;
+  let child: ChildProcess;
   try {
-    tempDir = nodeFs.mkdtempSync(path.join(os.tmpdir(), "memory-dream-"));
-    const taskFile = path.join(tempDir, "task.md");
+    const taskFile = path.join(run.manifest.runDir, "task.md");
     nodeFs.writeFileSync(taskFile, taskText, { mode: 0o600 });
     const modelArgs = memoryConfig.provider && memoryConfig.model
       ? ["--model", `${memoryConfig.provider}/${memoryConfig.model}`]
       : [];
-    child = spawn(
+    const workerEnv = Object.fromEntries(
+      Object.entries({
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR,
+        LANG: process.env.LANG,
+        TERM: process.env.TERM,
+      }).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+    );
+    child = spawnPiChild(
       cli.command,
       [
         ...cli.args,
@@ -537,22 +571,41 @@ async function spawnAsyncConsolidation(
         "json",
         "--no-session",
         "--no-extensions",
+        "--tools",
+        "read,grep,find,ls",
         ...modelArgs,
         `@${taskFile}`,
       ],
-      { cwd: opts.cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] },
+      { cwd: opts.cwd, env: workerEnv, stdio: ["ignore", "pipe", "pipe"] },
     );
   } catch (err: unknown) {
-    state.active = false;
-    if (tempDir) nodeFs.rmSync(tempDir, { recursive: true, force: true });
-    ctx.ui.notify(`Memory consolidation spawn failed: ${(err as Error).message}`, "error");
+    if (isGenerationCurrent()) state.active = false;
+    await releaseConsolidationRun(run);
+    if (isGenerationCurrent()) ctx.ui.notify(`Memory consolidation spawn failed: ${(err as Error).message}`, "error");
     return;
   }
 
+  state.child = child;
   setDreamingWidget(ctx);
+  state.cleanup = () => clearDreamingWidget(ctx);
 
   let stdoutBuffer = "";
+  let stdoutCapture = "";
+  let stdoutCaptureBytes = 0;
+  let stdoutLineCount = 0;
+  let stdoutCaptureOverflowed = false;
+  let outputLimitError = "";
+  const stdoutDecoder = new TextDecoder("utf-8");
+  const stderrDecoder = new TextDecoder("utf-8");
   const evidence = createConsolidationEvidence();
+  const stopForOutputLimit = (reason: string): void => {
+    if (stdoutCaptureOverflowed) return;
+    stdoutCaptureOverflowed = true;
+    outputLimitError = reason;
+    stdoutBuffer = "";
+    stdoutCapture = "";
+    void terminateConsolidationChild(child, 5_000).catch(() => {});
+  };
   const handleJsonLine = (line: string): void => {
     if (!line.trim()) return;
     try {
@@ -580,58 +633,182 @@ async function spawnAsyncConsolidation(
       // ignore non-JSON output
     }
   };
+  const handleJsonLineWithinBounds = (line: string): void => {
+    if (!line.trim()) return;
+    stdoutLineCount += 1;
+    if (stdoutLineCount > MAX_JSONL_LINES) {
+      stopForOutputLimit(`child JSONL exceeded ${MAX_JSONL_LINES} records`);
+      return;
+    }
+    if (Buffer.byteLength(line, "utf8") > MAX_JSONL_LINE_BYTES) {
+      stopForOutputLimit(`child JSONL line exceeded ${MAX_JSONL_LINE_BYTES} bytes`);
+      return;
+    }
+    handleJsonLine(line);
+  };
+  const consumeStdoutText = (text: string): void => {
+    if (stdoutCaptureOverflowed) return; // child output limit exceeded
+    if (!text) return;
+    stdoutBuffer += text;
+    let newline = stdoutBuffer.indexOf("\n");
+    while (newline >= 0) {
+      const line = stdoutBuffer.slice(0, newline);
+      stdoutBuffer = stdoutBuffer.slice(newline + 1);
+      handleJsonLineWithinBounds(line);
+      if (stdoutCaptureOverflowed) return;
+      newline = stdoutBuffer.indexOf("\n");
+    }
+    if (Buffer.byteLength(stdoutBuffer, "utf8") > MAX_JSONL_LINE_BYTES) {
+      stopForOutputLimit(`child JSONL line exceeded ${MAX_JSONL_LINE_BYTES} bytes`);
+    }
+  };
   child.stdout?.on("data", (chunk: Buffer) => {
-    stdoutBuffer += chunk.toString();
-    const lines = stdoutBuffer.split("\n");
-    stdoutBuffer = lines.pop() || "";
-    for (const line of lines) handleJsonLine(line);
+    if (stdoutCaptureOverflowed) return; // child output limit exceeded
+    stdoutCaptureBytes += chunk.byteLength;
+    if (stdoutCaptureBytes > MAX_STDOUT_BYTES) {
+      stopForOutputLimit(`child stdout exceeded ${MAX_STDOUT_BYTES} bytes`);
+      return;
+    }
+    const text = stdoutDecoder.decode(chunk, { stream: true });
+    stdoutCapture += text;
+    if (Buffer.byteLength(stdoutCapture, "utf8") > MAX_STDOUT_BYTES) {
+      stopForOutputLimit(`child stdout exceeded ${MAX_STDOUT_BYTES} bytes`);
+      return;
+    }
+    consumeStdoutText(text);
   });
 
   let stderr = "";
-  child.stderr.on("data", (c: Buffer) => {
-    stderr += c.toString();
+  child.stderr?.on("data", (chunk: Buffer) => {
+    const text = stderrDecoder.decode(chunk, { stream: true });
+    stderr = appendBoundedUtf8Text(stderr, text, MAX_STDERR_BYTES);
   });
 
-  const timer = setTimeout(() => child.kill("SIGKILL"), DREAM_TIMEOUT_MS);
+  const timer = setTimeout(() => {
+    void terminateConsolidationChild(child, 5_000);
+  }, DREAM_TIMEOUT_MS);
   timer.unref?.();
 
+  let resolveCompletion!: () => void;
+  const completion = new Promise<void>((resolve) => { resolveCompletion = resolve; });
+  state.completion = completion;
   let finished = false;
-  const finish = (code: number | null, error?: Error): void => {
+  const finish = async (code: number | null, error?: Error): Promise<void> => {
     if (finished) return;
     finished = true;
-    if (stdoutBuffer) handleJsonLine(stdoutBuffer);
     clearTimeout(timer);
-    state.active = false;
-    clearDreamingWidget(ctx);
-    try {
-      if (tempDir) nodeFs.rmSync(tempDir, { recursive: true, force: true });
-    } catch {
-      // best effort
-    }
-    if (error) {
-      ctx.ui.notify(`Memory dreaming failed to start: ${error.message}`, "error");
-    } else if (code === 0) {
-      const missing = missingConsolidationEvidence(evidence);
-      if (missing.length === 0) {
-        ctx.ui.notify("Memory dreaming complete — memory consolidated.", "info");
-      } else {
-        const detail = stderr.trim() || evidence.lastJsonError;
-        ctx.ui.notify(
-          `Memory dreaming finished without verified consolidation: missing ${missing.join(", ")}${detail ? ` (${detail.slice(-300)})` : ""}`,
-          "warning",
-        );
+    const ownsCurrentRun = (): boolean => !state.cancelled && generation === state.generation && state.run === run;
+    if (ownsCurrentRun()) {
+      const stdoutTail = stdoutDecoder.decode();
+      if (stdoutTail) {
+        stdoutCapture += stdoutTail;
+        consumeStdoutText(stdoutTail);
       }
-    } else {
-      const errReason = stderr.trim() || evidence.lastJsonError || `exit code ${code}`;
-      ctx.ui.notify(
-        `Memory dreaming failed: ${errReason.slice(-300)}`,
-        "error",
-      );
+      if (!stdoutCaptureOverflowed && stdoutBuffer) {
+        handleJsonLineWithinBounds(stdoutBuffer);
+        stdoutBuffer = "";
+      }
+    }
+    stderr = appendBoundedUtf8Text(stderr, stderrDecoder.decode(), MAX_STDERR_BYTES);
+    const cleanup = state.cleanup;
+    if (ownsCurrentRun()) {
+      if (state.child === child) state.child = undefined;
+      state.active = false;
+      state.cleanup = undefined;
+      cleanup?.();
+    }
+    try {
+      if (!ownsCurrentRun()) return;
+      if (error) {
+        ctx.ui.notify(`Memory dreaming failed to start: ${error.message}`, "error");
+      } else if (code === 0) {
+        const extracted = stdoutCaptureOverflowed
+          ? { ok: false as const, error: `child stdout exceeded ${MAX_STDOUT_BYTES} bytes` }
+          : extractChildPlan(stdoutCapture, {
+              expectedIdentity: {
+                runId: run.manifest.runId,
+                scopeDigest: run.manifest.scopeDigest,
+                artifactHash: run.manifest.snapshotDigest,
+              },
+              maxOutputBytes: MAX_STDOUT_BYTES,
+              maxLines: MAX_JSONL_LINES,
+              maxLineBytes: MAX_JSONL_LINE_BYTES,
+              maxPlanBytes: MAX_PLAN_BYTES,
+            });
+        if (!extracted.ok) {
+          evidence.finalPlan = undefined;
+          evidence.planCount = 0;
+          evidence.lastJsonError = extracted.error;
+        } else {
+          evidence.finalPlan = extracted.plan;
+          evidence.planCount = 1;
+        }
+        if (!ownsCurrentRun()) return;
+        const plan = evidence.finalPlan;
+        if (!plan || evidence.planCount !== 1) {
+          const detail = stderr.trim() || evidence.lastJsonError;
+          ctx.ui.notify(
+            `Memory dreaming finished without verified consolidation: missing exactly one schema-valid consolidation plan${detail ? ` (${detail.slice(-300)})` : ""}`,
+            "warning",
+          );
+        } else {
+          const planPath = path.join(run.manifest.runDir, "plan.json");
+          const planText = `${JSON.stringify(plan, null, 2)}\n`;
+          const planDigest = sha256Digest(planText);
+          const preSelected = normalizeSelectedScope(plan);
+          const expectedSelected = parentSelectedScope(run, Boolean(opts.noContext));
+          if (JSON.stringify(preSelected) !== JSON.stringify(expectedSelected)) {
+            throw new Error("Consolidation plan selected scope does not match the parent snapshot scope");
+          }
+          await fs.writeFile(planPath, planText, { encoding: "utf8", mode: 0o600 });
+          if (!ownsCurrentRun()) return;
+          await runConsolidationValidator(opts.pkgDir, run, planPath, "plan", expectedSelected);
+          if (!ownsCurrentRun()) return;
+          const preReceipt = createPreApplyReceipt({
+            runId: run.manifest.runId,
+            scopeDigest: run.manifest.scopeDigest,
+            artifactHash: run.manifest.snapshotDigest,
+            selected: preSelected,
+            sourceHashes: run.manifest.sourceHashes,
+            planDigest,
+          });
+          if (!ownsCurrentRun()) return;
+          await writeConsolidationReceipt(run, preReceipt, "pre");
+          if (!ownsCurrentRun()) return;
+          const applied = await applyConsolidationPlan(run, plan, ownsCurrentRun);
+          if (!ownsCurrentRun()) return;
+          const receipt = createConsolidationReceipt(run.manifest, applied.selected, applied.finalState, planDigest);
+          const receiptPath = await writeConsolidationReceipt(run, receipt);
+          if (!ownsCurrentRun()) return;
+          await runConsolidationValidator(opts.pkgDir, run, planPath, "plan,receipt,privacy", preSelected, receiptPath);
+          if (!ownsCurrentRun()) return;
+          evidence.parentReceiptVerified = true;
+          const missing = missingConsolidationEvidence(evidence);
+          if (missing.length === 0) {
+            ctx.ui.notify("Memory dreaming complete — memory consolidated.", "info");
+          } else {
+            ctx.ui.notify(`Memory dreaming finished without verified consolidation: missing ${missing.join(", ")}`, "warning");
+          }
+        }
+      } else {
+        const errReason = stderr.trim() || evidence.lastJsonError || `exit code ${code}`;
+        ctx.ui.notify(`Memory dreaming failed: ${errReason.slice(-300)}`, "error");
+      }
+    } catch (finishError: unknown) {
+      if (ownsCurrentRun()) ctx.ui.notify(`Memory consolidation verification failed: ${(finishError as Error).message}`, "error");
+    } finally {
+      try {
+        if (generation === state.generation && state.run === run) state.run = undefined;
+        await releaseConsolidationRun(run);
+      } finally {
+        resolveCompletion();
+        if (state.completion === completion) state.completion = undefined;
+      }
     }
   };
 
-  child.on("error", (err) => finish(null, err));
-  child.on("close", (code) => finish(code));
+  child.on("error", (err) => { void finish(null, err); });
+  child.on("close", (code) => { void finish(code); });
   child.unref();
 }
 
@@ -643,7 +820,7 @@ async function editInstructions(ctx: ExtensionCommandContext, filePath: string):
     // new file — start empty
   }
 
-  if (ctx.mode !== "tui") {
+  if (typeof ctx.ui.editor !== "function") {
     ctx.ui.notify(`Instructions file: ${filePath}`, "info");
     return;
   }
@@ -659,17 +836,35 @@ async function editInstructions(ctx: ExtensionCommandContext, filePath: string):
 // ── extension ──────────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
-  const dreamState: DreamState = { active: false };
+  const dreamState: DreamState = { active: false, generation: 0, cancelled: false };
 
   // Inject existing memories + auto-memory guidance before every turn
   pi.on("session_start", () => {
-    memoryConfig = readMemoryConfig();
+    memoryConfigState = readMemoryConfigState();
+    memoryConfig = memoryConfigState.config;
+  });
+
+  pi.on("session_shutdown", async () => {
+    dreamState.cancelled = true;
+    dreamState.generation += 1;
+    dreamState.active = false;
+    const cleanup = dreamState.cleanup;
+    dreamState.cleanup = undefined;
+    cleanup?.();
+    const child = dreamState.child;
+    if (child) await terminateConsolidationChild(child, 5_000);
+    const completion = dreamState.completion;
+    if (completion) await completion;
+    const run = dreamState.run;
+    dreamState.run = undefined;
+    if (run) await releaseConsolidationRun(run);
+    dreamState.completion = undefined;
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
     const cwd = ctx.cwd || process.cwd();
     const memories = await loadAndDeduplicateMemories(cwd);
-    const settings = await readSettings();
+    const settings = await readSettings(cwd);
 
     if (memories.length === 0 && !settings.autoMemory) return;
 
@@ -703,21 +898,21 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      const settings = await readSettings();
-      const status = settings.autoMemory ? "on" : "off";
       const cwd = ctx.cwd || process.cwd();
-      const escaped = getEscapedCwd(cwd);
-      const harnessDir = path.join(os.homedir(), CONFIG_DIR_NAME, "agent", "memory", escaped);
-      const home = os.homedir();
+      const settings = await readSettings(cwd);
+      const status = settings.autoMemory ? "on" : "off";
+      const memoryPaths = resolveMemoryPaths(cwd);
+      const harnessDir = memoryPaths.harnessDir;
+      const home = getAgentDir();
       const pkgDir = await resolvePackageDir();
       const procedureFile = path.join(pkgDir, "procedures", "consolidate.md");
-      const projectInstructions = await resolveProjectInstructionsFile(cwd);
+      const projectInstructions = await resolveProjectInstructionsFile(cwd, ctx);
 
       const options = [
         `Select memory model (current: ${configuredMemoryModel()})`,
         "Enter provider/model manually",
         "Consolidate memory now",
-        "Edit user instructions (~/.pi/agent/AGENTS.md)",
+        `Edit user instructions (${path.join(home, "AGENTS.md")})`,
         `Edit project instructions (${projectInstructions.display})`,
         "Open memory folder",
         `Toggle auto-memory (currently ${status})`,
@@ -753,13 +948,17 @@ export default function (pi: ExtensionAPI) {
         await spawnAsyncConsolidation(ctx, dreamState, {
           pkgDir,
           cwd,
-          sessionFile: ctx.sessionManager?.getSessionFile(),
+          noContext: false,
           reason: "Consolidate the project memory now (user-invoked via /memory menu).",
         });
       } else if (choice.startsWith("Edit user instructions")) {
-        await editInstructions(ctx, path.join(home, CONFIG_DIR_NAME, "agent", "AGENTS.md"));
+        await editInstructions(ctx, path.join(home, "AGENTS.md"));
       } else if (choice.startsWith("Edit project instructions")) {
-        await editInstructions(ctx, projectInstructions.path);
+        if (!projectInstructions.path) {
+          ctx.ui.notify("Pi did not expose a project instruction file", "warning");
+        } else {
+          await editInstructions(ctx, projectInstructions.path);
+        }
       } else if (choice.startsWith("Open memory folder")) {
         await fs.mkdir(harnessDir, { recursive: true });
         if (ctx.mode === "tui" && process.platform === "darwin") {
@@ -770,7 +969,7 @@ export default function (pi: ExtensionAPI) {
         }
       } else if (choice.startsWith("Toggle auto-memory")) {
         const next = { ...settings, autoMemory: !settings.autoMemory };
-        await writeSettings(next);
+        await writeSettings(next, cwd);
         ctx.ui.notify(`Auto-memory: ${next.autoMemory ? "on" : "off"}`, "info");
       }
     },
@@ -782,7 +981,12 @@ export default function (pi: ExtensionAPI) {
   // background, so the active session remains responsive.
   pi.registerCommand("consolidate", {
     description: "Consolidate project memory now",
-    handler: async (_args, ctx) => {
+    handler: async (rawArgs, ctx) => {
+      const args = rawArgs.trim();
+      if (args !== "" && args !== "no-context") {
+        ctx.ui.notify("Usage: /consolidate [no-context]", "error");
+        return;
+      }
       const cwd = ctx.cwd || process.cwd();
       const pkgDir = await resolvePackageDir();
       const procedureFile = path.join(pkgDir, "procedures", "consolidate.md");
@@ -801,7 +1005,7 @@ export default function (pi: ExtensionAPI) {
       await spawnAsyncConsolidation(ctx, dreamState, {
         pkgDir,
         cwd,
-        sessionFile: ctx.sessionManager?.getSessionFile(),
+        noContext: args === "no-context",
         reason: "Consolidate the project memory now (user-invoked via /consolidate command).",
       });
     },
