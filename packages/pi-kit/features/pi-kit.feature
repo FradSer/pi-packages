@@ -73,6 +73,11 @@ Feature: Shared pi-kit runtime helpers
     When enterModelFromInput is called
     Then it notifies with an error and returns undefined
 
+  Scenario: Pi workers inherit their working directory without an unsupported flag
+    Given a worker is launched with cwd set on the child process
+    When pi-kit builds the non-interactive Pi command
+    Then it does not pass the unsupported --cwd option
+
   Scenario: pi-kit stays a pure runtime dependency
     Given the pi-kit package manifest
     Then it declares no pi manifest, no dependencies, and no peer dependencies

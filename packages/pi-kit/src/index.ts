@@ -226,7 +226,7 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
   const { prompt, cwd, tools, model, signal, timeoutMs, env, extraArgs } = options;
   const cli = resolvePiCli();
 
-  const args = [...cli.args, "--print", "--mode", "json", "--no-session", "--cwd", cwd];
+  const args = [...cli.args, "--print", "--mode", "json", "--no-session"];
   if (model) args.push("--model", model);
   if (tools) {
     const toolStr = Array.isArray(tools) ? tools.join(",") : tools;

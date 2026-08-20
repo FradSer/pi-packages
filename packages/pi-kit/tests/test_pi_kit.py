@@ -45,7 +45,13 @@ def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
     assert "Scenario: Model reference is formatted from config" in feature
     assert "Scenario: Model label is formatted from a model object" in feature
     assert "Scenario: A model is selected from the interactive menu" in feature
+    assert "Scenario: Pi workers inherit their working directory without an unsupported flag" in feature
     assert "Scenario: pi-kit stays a pure runtime dependency" in feature
+
+
+def test_worker_command_does_not_pass_unsupported_cwd_flag() -> None:
+    source = (SRC / "index.ts").read_text(encoding="utf-8")
+    assert '"--cwd", cwd' not in source
 
 
 def test_spinner_constants_match_pi_native_loader() -> None:
@@ -57,6 +63,42 @@ def test_spinner_constants_match_pi_native_loader() -> None:
     )
     assert result["frames"] == ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     assert result["interval"] == 120
+
+
+def test_run_pi_worker_uses_child_cwd_without_unsupported_cwd_flag() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-kit-worker-"));
+        const bin = path.join(root, "bin");
+        const capture = path.join(root, "args.txt");
+        const cwd = path.join(root, "workspace");
+        fs.mkdirSync(bin);
+        fs.mkdirSync(cwd);
+        const fakePi = path.join(bin, "pi");
+        fs.writeFileSync(
+          fakePi,
+          "#!/usr/bin/env node\\n" +
+            "import * as fs from 'node:fs';\\n" +
+            "fs.writeFileSync(process.env.PI_CAPTURE, process.argv.slice(2).join('\\\\n'));\\n" +
+            "console.log(JSON.stringify({{ type: 'message_end', message: {{ role: 'assistant', content: [{{ type: 'text', text: 'ok' }}] }} }}));\\n",
+          {{ mode: 0o755 }},
+        );
+        process.env.PATH = `${{bin}}:${{process.env.PATH ?? ""}}`;
+        process.env.PI_CAPTURE = capture;
+        const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const worker = await runPiWorker({{ prompt: "inspect", cwd, timeoutMs: 5000 }});
+        const args = fs.readFileSync(capture, "utf8").split(String.fromCharCode(10));
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        console.log(JSON.stringify({{ text: worker.text, exitCode: worker.exitCode, args }}));
+        """
+    )
+    assert result["text"] == "ok"
+    assert result["exitCode"] == 0
+    assert "--no-session" in result["args"]
+    assert "--cwd" not in result["args"]
 
 
 def test_theme_style_maps_shared_style_language() -> None:
