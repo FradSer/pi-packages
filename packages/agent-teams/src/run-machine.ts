@@ -17,6 +17,7 @@ import {
   type WorkerProcessResult,
 } from "./spawner";
 import { buildNodeTerminalResult } from "./terminal";
+import type { FollowUpReport } from "./follow-up-queue";
 import { captureWorktreeDiff, cleanupWorktree, createWorktree, discardWorktree } from "./worktree";
 import { readWorkerEvents, removeWorkerOutbox, stateFilePath, workerOutboxPath, writeStateFile } from "./statefile";
 
@@ -33,7 +34,7 @@ const reportedWorkerShutdowns = new Set<string>();
 let liveStateFile: string | undefined;
 let livePollTimer: ReturnType<typeof setInterval> | undefined;
 let runMachineGeneration = 0;
-let sendUpdate: (subject: string, body: string, runId?: string) => void = () => {};
+let sendUpdate: (report: FollowUpReport) => void = () => {};
 let notifyChange: () => void = () => {};
 
 export function initRunMachine(_ctx: DispatchCtx, stateFile: string, hooks: { sendUpdate: typeof sendUpdate; notifyChange: () => void }): void {
@@ -63,18 +64,11 @@ function currentStateFile(): string {
   return liveStateFile;
 }
 
-function sendNodeFollowUp(run: import("./types").Run, node: import("./types").Node, subject: string, body: string): void {
+function sendNodeFollowUp(run: import("./types").Run, node: import("./types").Node, _subject: string, body: string): void {
   if (!run.background || node.id === SUMMARY_NODE_ID || node.nodeFollowUpSent) return;
   node.nodeFollowUpSent = true;
   markStateDirty();
-  sendUpdate(`Teammate ${node.id} ${terminalVerb(subject)}`, body, run.id);
-}
-
-function terminalVerb(subject: string): string {
-  if (subject === "Node completed") return "completed";
-  if (subject === "Node failed") return "failed";
-  if (subject === "Node cancelled") return "was cancelled";
-  return subject.toLowerCase();
+  sendUpdate({ teammate: node.id, agent: node.agent, body, finished: true, runId: run.id });
 }
 
 function flushStateSnapshot(): void {
@@ -262,13 +256,6 @@ export function onRunSettled(runId: string): void {
   markStateDirty();
   const summary = buildRunSummary(runId);
   deliverToLeader({ from: run.id, subject: `Run ${run.status}`, body: summary, runId: runId });
-  if (run.background && !run.completionNotified) {
-    // One follow-up only when no other delivery path (wait/foreground gather)
-    // has already consumed the run's completion.
-    run.completionNotified = true;
-    markStateDirty();
-    sendUpdate(`Run ${run.status}`, summary, runId);
-  }
   compactTerminalRuns();
   publishStateSnapshot();
   notifyChange();

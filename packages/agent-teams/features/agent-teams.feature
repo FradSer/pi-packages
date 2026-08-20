@@ -158,6 +158,12 @@ Feature: Agent Teams run-centric orchestration and messaging contract
       When the leader dispatches with background=false
       Then the tool call blocks until the run reaches a terminal status and returns the node results
 
+    Scenario: Background teammate_run suppresses startup text in tool return
+      Given a task graph is dispatched in background mode
+      When teammate_run executes
+      Then the tool result suppresses the startup notice text
+      And child workers are dispatched and report through follow-up messages
+
     Scenario: A long inline run detaches to background after the gather cap
       Given a background=false run is still executing after the foreground gather cap
       When the cap is exceeded
@@ -284,6 +290,12 @@ Feature: Agent Teams run-centric orchestration and messaging contract
       When agent_settled fires
       Then the next pending batch starts only once
 
+    Scenario: An unrelated agent start does not consume a queued teammate report
+      Given an automatic teammate report is waiting for its matching before_agent_start event
+      When an unrelated agent_start event fires
+      Then the teammate report remains active and is not dropped
+      And the report is released only after its matching before_agent_start and agent_start events
+
     Scenario: A failed automatic follow-up preserves reports and retries with backoff
       Given an automatic teammate report is dispatched through the void Pi API
       When the API fails before agent_start
@@ -328,7 +340,24 @@ Feature: Agent Teams run-centric orchestration and messaging contract
       Given queued teammate reports contain internal run identifiers
       When the reports are delivered as one follow-up
       Then the follow-up omits run identifiers and protocol labels
-      And terminal reports identify the teammate node in natural language
+      And each worker report is wrapped in an `<agent-message from="<teammate>">` marker
+      And the teammate identity is used instead of the shared agent role name
+      And the worker's full report appears inside that marker
+      And canonical terminal bodies omit internal run and node prefixes
+      And each worker report's transport content contains only its `<agent-message from="<agent>">` wrapper and full deliverable
+      And the worker report transport content does not include a `Run [<run>]` summary
+      And the worker report transport content does not include "Teammate @<teammate> finished."
+      And each terminal worker report renders a separate system completion line "Teammate @<teammate> finished."
+      And only the agent name in the marker is rendered with the stable theme color
+
+    Scenario: Agent reports use a distinct transcript renderer
+      Given an automatic agent report is delivered as a custom message
+      When the transcript renders the report in its collapsed state
+      Then it shows a bold [agent-message] label followed by `from @<teammate>`
+      And it shows an expand hint instead of the full report body
+      When the report is expanded
+      Then the full report body is rendered with the custom message text style
+      And the completion notice is rendered separately from the report body
 
     Scenario: The run summary teammate_message carries no console navigation hint
       Given a run has settled
@@ -550,19 +579,38 @@ Feature: Agent Teams run-centric orchestration and messaging contract
       Then the full-screen console shows the teammate's live model text and current tool activity
       And working rows display a spinner with the live activity (current tool, reasoning, or text)
 
-    Scenario: Teammate widget rows use the task-name activity format
-      Given a teammate has a task name, role, and live activity
+    Scenario: Teammate widget rows use the agent-name activity format
+      Given a teammate has a task name, agent name, and live activity
       When the passive widget renders its row
-      Then the row is formatted as "task name (role) · current activity"
-      And the spinner and task name appear before the separator
+      Then the row is formatted as "agent name · current activity"
+      And the task id is not rendered in the passive row
+      And the spinner and agent name appear before the separator
       And a worker without live activity shows "Working..." after the separator
       And long tool activity is truncated inline with an ellipsis
       And a teammate widget row never wraps a truncation notice onto a second line
       And widget rows start with one left-padded pi-kit spinner frame aligned with the native loader row
-      And each row shows the colored teammate identity before the separator and bold live activity after it
-      And each running teammate uses a visible stable distinct theme color (success, warning, error, or link) for its identity
+      And each row shows the colored agent identity before the separator and bold live activity after it
+      And each running agent uses a visible stable theme color (success, warning, error, or link) for its identity
       And the idle widget stays hidden until a teammate is running
       And it does not intercept global terminal input
+
+    Scenario: Teammate activity adapts to the available widget width
+      Given a teammate has a long tool command and a narrow or wide widget
+      When the passive widget renders its row
+      Then the full live activity is retained until the renderer applies the available width
+      And the activity truncation width accounts for the spinner, agent name, and separator
+      And the row remains a single line at every supported width
+      And a narrow widget truncates the agent identity before sacrificing the activity label
+      And a missing activity shows "Working..." only when no live tool, reasoning, or text exists
+
+    Scenario: Teammate widget adapts live activity to available width without wrapping
+      Given a running teammate has active tool, thinking, or text activity
+      When the passive widget renders with wide or narrow terminal width
+      Then the activity text adapts to the remaining line width instead of a fixed character cap
+      And active tool execution takes priority over live thinking and live text
+      And live thinking or text falls back to the latest non-empty content
+      And a worker without any live activity shows "Working..."
+      And each teammate row is strictly a single line without wrapping even in narrow terminals
 
     Scenario: Finished tool activity does not remain the current activity
       Given a worker has streamed a tool call followed by new thinking or text
@@ -581,3 +629,17 @@ Feature: Agent Teams run-centric orchestration and messaging contract
       When the user scrolls up, down, by page, jumps to either end, or uses the mouse wheel
       Then the viewport moves over wrapped display lines without omitting content
       And the footer shows the visible display-line range and available navigation keys
+
+  Rule: Shared worker runtime owns process identity and configured user paths
+
+    Scenario: User-scoped agent state honors the configured Pi agent directory
+      Given PI_CODING_AGENT_DIR points to a custom agent directory
+      When the leader discovers user agents or writes run state
+      Then it reads and writes below that configured directory
+      And it does not reconstruct ~/.pi/agent directly
+
+    Scenario: Worker cancellation observes close before finalizing a run
+      Given a worker ignores the first termination signal
+      When the leader cancels the worker
+      Then termination escalates only after the grace period
+      And run finalization waits for the worker close event

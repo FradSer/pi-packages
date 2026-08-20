@@ -1,12 +1,18 @@
+export const TEAMMATE_REPORT_MESSAGE_TYPE = "agent-teams-report";
+
 export interface FollowUpReport {
-  subject: string;
+  teammate?: string;
+  agent?: string;
   body: string;
+  finished?: boolean;
   runId?: string;
 }
 
 export interface FollowUpQueueOptions {
   isIdle: () => boolean;
-  dispatch: (content: string) => void;
+  dispatch: (reports: FollowUpReport[], content: string) => void;
+  /** Set when dispatch itself starts the agent run without before_agent_start. */
+  prepareOnDispatch?: boolean;
   onFailure?: (message: string) => void;
   agentStartTimeoutMs?: number;
   retryBaseDelayMs?: number;
@@ -39,6 +45,7 @@ export class FollowUpQueue {
   private readonly isIdle: FollowUpQueueOptions["isIdle"];
   private readonly dispatch: FollowUpQueueOptions["dispatch"];
   private readonly onFailure: (message: string) => void;
+  private readonly prepareOnDispatch: boolean;
   private readonly agentStartTimeoutMs: number;
   private readonly retryBaseDelayMs: number;
   private readonly retryMaxDelayMs: number;
@@ -55,6 +62,7 @@ export class FollowUpQueue {
     this.isIdle = options.isIdle;
     this.dispatch = options.dispatch;
     this.onFailure = options.onFailure ?? (() => {});
+    this.prepareOnDispatch = options.prepareOnDispatch ?? false;
     this.agentStartTimeoutMs = options.agentStartTimeoutMs ?? 30_000;
     this.retryBaseDelayMs = options.retryBaseDelayMs ?? 1_000;
     this.retryMaxDelayMs = options.retryMaxDelayMs ?? 30_000;
@@ -72,7 +80,7 @@ export class FollowUpQueue {
     this.active.prepared = true;
   }
 
-  /** Mark the matching dispatch started after before_agent_start completes. */
+  /** Mark the matching dispatch started after Pi accepts the message. */
   onAgentStart(): void {
     if (!this.active || !this.active.prepared || this.active.started) return;
     this.active.started = true;
@@ -129,7 +137,7 @@ export class FollowUpQueue {
       reports,
       content,
       attempts: first.attempts,
-      prepared: queuedIntoActiveRun,
+      prepared: queuedIntoActiveRun || this.prepareOnDispatch,
       started: queuedIntoActiveRun,
     };
     const generation = this.generation;
@@ -141,7 +149,7 @@ export class FollowUpQueue {
       this.watchdogTimer.unref?.();
     }
     try {
-      this.dispatch(content);
+      this.dispatch(reports, content);
     } catch (error) {
       this.failActive(generation, error instanceof Error ? error.message : String(error));
     }
@@ -184,8 +192,15 @@ export class FollowUpQueue {
   }
 }
 
-function formatReports(reports: FollowUpReport[]): string {
+export function formatReports(reports: FollowUpReport[]): string {
   return reports
-    .map(({ subject, body }) => `Teammate update: ${subject}\n${body}`)
+    .map(({ teammate, agent, body }) => {
+      const name = teammate ?? "teammate";
+      return `<agent-message from="${escapeAttribute(name)}">\n${body}\n</agent-message>`;
+    })
     .join("\n\n");
+}
+
+function escapeAttribute(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }

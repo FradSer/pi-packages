@@ -12,9 +12,8 @@
 
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
-import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { TeammateState, WorkerEvent } from "./types";
 
 const MAX_WORKER_EVENT_BYTES = 64 * 1024;
@@ -26,7 +25,7 @@ export function sessionStateDir(sessionFile: string | undefined, cwd: string): s
     .update(sessionFile ?? cwd)
     .digest("hex")
     .slice(0, 16);
-  return path.join(os.homedir(), CONFIG_DIR_NAME, "agent", "teammate", key);
+  return path.join(getAgentDir(), "teammate", key);
 }
 
 export function stateFilePath(sessionFile: string | undefined, cwd: string): string {
@@ -107,7 +106,7 @@ export function readWorkerEvents(file: string, byteOffset: number): { events: un
 
 /** Root of all per-session teammate state dirs (`~/.pi/agent/teammate/`). */
 export function stateDirsRoot(): string {
-  return path.join(os.homedir(), CONFIG_DIR_NAME, "agent", "teammate");
+  return path.join(getAgentDir(), "teammate");
 }
 
 /** Remove the current session's state dir (called on session_shutdown). */

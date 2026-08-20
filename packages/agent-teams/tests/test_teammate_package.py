@@ -96,6 +96,7 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Downstream nodes auto-start after their dependencies complete",
         "Concurrency bounds simultaneous workers",
         "Teammates run in the background by default",
+        "Background teammate_run suppresses startup text in tool return",
         "A long inline run detaches to background after the gather cap",
         "Cancel one node while the rest of the run continues",
         "Retry failed and cancelled nodes without re-running completed ones",
@@ -153,6 +154,10 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Legitimate empty and terminal data remains a normal result",
         "Console is a user interface, not an agent tool substitute",
         "Console shows live teammate activity without intercepting global input",
+        "Teammate widget adapts live activity to available width without wrapping",
+        "activity text adapts to the remaining line width instead of a fixed character cap",
+        "active tool execution takes priority over live thinking and live text",
+        "each teammate row is strictly a single line without wrapping even in narrow terminals",
         "long tool activity is truncated inline with an ellipsis",
         "a teammate widget row never wraps a truncation notice onto a second line",
         "the idle widget stays hidden until a teammate is running",
@@ -219,18 +224,22 @@ def test_widget_rows_align_with_native_loader_and_show_live_activity() -> None:
     assert 'createPiThemeStyle(theme)' in ext
     assert 'const TEAM_COLORS = ["success", "warning", "error", "mdLink"] as const;' in ext
     assert 'assignedColors.set(node.workerKey, color ?? TEAM_COLORS[start]);' in ext
-    assert 'style.fg(color, node.id)' in ext
-    assert 'style.dim(`(${node.agent})`)' in ext
-    assert 'const spinner = separator === -1 ? label : label.slice(0, separator)' in ext
-    assert 'theme.bold(style.fg("accent", activityText))' in ext
-    # The pi-kit spinner is first, followed by the colored identity and bold activity.
-    assert 'const line = ` ${spinner} ${name} ${role} · ${activity}`' in ext
-    assert 'const activityText = separator === -1 ? "Working..." : label.slice(separator + 1).trim();' in ext
+    assert 'style.fg(color, node.agent)' in ext
+    assert 'const role = style.dim(`(${node.agent})`)' not in ext
+    assert 'visibleWidth' in ext or 'visibleWidth' in source("activity.ts")
+    assert 'runningTeammateActivity' in ext or 'runningTeammateActivity' in source("activity.ts")
+    assert 'runningTeammateLabel' in ext
+    assert 'const spinner = PI_SPINNER_FRAMES[spinnerFrame];' in ext
+    assert 'fitTeammateRow' in ext
+    assert 'formatTeammateLabel' in ext
+    assert 'const line = fitTeammateRow(' in ext
     assert 'PI_SPINNER_FRAMES[spinnerFrame]' in ext
+    assert 'truncateToWidth(thinking, 48)' not in ext
+    assert 'truncateToWidth(live, 48)' not in ext
     # Widget is placed belowEditor (under the input box)
     assert 'placement: "belowEditor"' in ext
     # Live activity: current tool first, then reasoning, then text.
-    assert "node.spawn?.activeTool" in ext and "liveThinking" in ext
+    assert "node.spawn?.activeTool" in source("activity.ts") and "liveThinking" in source("activity.ts")
     assert "liveThinking?: string" in types
     # The JSON stream parser tracks streamed tool calls and live execution events.
     assert '"toolcall_start"' in spawner and '"toolcall_delta"' in spawner and '"toolcall_end"' in spawner
@@ -242,10 +251,275 @@ def test_widget_rows_align_with_native_loader_and_show_live_activity() -> None:
     assert '"thinking_delta"' in spawner
     # Tool labels are collapsed and truncated inline so a long command cannot
     # add a visible "[truncated N chars]" row to the passive widget.
-    assert 'function truncateInline' in spawner
+    assert 'function normalizeInline' in spawner
     assert 'text.replace(/\\s+/g, " ").trim()' in spawner
-    assert 'return `${oneLine.slice(0, cap).trimEnd()} ...`' in spawner
-    assert 'bash: ${truncateInline(command, 40)}' in spawner
+    assert 'bash: ${normalizeInline(command)}' in spawner
+
+
+def test_running_teammate_activity_priority_and_fallback() -> None:
+    ext = source("ui.ts")
+    activity = source("activity.ts")
+    assert "export function runningTeammateActivity" in activity
+    assert "export function formatTeammateLabel" in activity
+    assert "extractLatestLine" in activity
+    payload = run_node(
+        '''
+        import { visibleWidth, truncateToWidth } from "@earendil-works/pi-tui";
+        import { PI_SPINNER_FRAMES } from "@fradser/pi-kit";
+
+        let spinnerFrame = 0;
+        function extractLatestLine(text) {
+          if (!text) return undefined;
+          const lines = text.split("\\n");
+          for (let i = lines.length - 1; i >= 0; i--) {
+            const trimmed = lines[i].replace(/\\s+/g, " ").trim();
+            if (trimmed.length > 0 && !trimmed.startsWith("... [truncated") && !trimmed.startsWith("…[truncated")) {
+              return trimmed;
+            }
+          }
+          return undefined;
+        }
+
+        function runningTeammateActivity(node) {
+          const tool = node.spawn?.activeTool?.replace(/\\s+/g, " ").trim();
+          if (tool) return tool;
+
+          const thinking = extractLatestLine(node.spawn?.liveThinking);
+          if (thinking) return thinking;
+
+          const live = extractLatestLine(node.spawn?.liveText);
+          if (live) return live;
+
+          return "Working...";
+        }
+
+        function runningTeammateLabel(node, maxActivityWidth) {
+          const frame = PI_SPINNER_FRAMES[spinnerFrame];
+          const rawActivity = runningTeammateActivity(node);
+          if (maxActivityWidth !== undefined) {
+            if (maxActivityWidth <= 0) return frame;
+            return `${frame} ${truncateToWidth(rawActivity, maxActivityWidth)}`;
+          }
+          return `${frame} ${rawActivity}`;
+        }
+
+        const baseNode = (spawn) => ({
+          id: "w1", agent: "worker", workerKey: "run_1:w1", status: "running", prompt: "", paths: [], access: "read", dependsOn: [], spawn,
+        });
+        const withTool = runningTeammateActivity(baseNode({ activeTool: "bash: pnpm test", liveThinking: "thinking line 1\\nthinking line 2", liveText: "live line" }));
+        const withThinking = runningTeammateActivity(baseNode({ liveThinking: "thinking line 1\\nthinking line 2\\n\\n", liveText: "live line" }));
+        const withLiveText = runningTeammateActivity(baseNode({ liveThinking: "  \\n  ", liveText: "line 1\\nline 2\\n" }));
+        const withNothing = runningTeammateActivity(baseNode({ liveThinking: "", liveText: "" }));
+        const withoutSpawn = runningTeammateActivity(baseNode(undefined));
+        const truncatedThinking = runningTeammateActivity(baseNode({ liveThinking: "real thought\\n... [truncated 100 chars]" }));
+        const labelFull = runningTeammateLabel(baseNode({ activeTool: "bash: long-command-with-many-arguments-and-flags" }));
+        const labelCapped = runningTeammateLabel(baseNode({ activeTool: "bash: long-command-with-many-arguments-and-flags" }), 15);
+        console.log(JSON.stringify({
+          withTool,
+          withThinking,
+          withLiveText,
+          withNothing,
+          withoutSpawn,
+          truncatedThinking,
+          labelFull,
+          labelCapped,
+        }));
+        '''
+    )
+    assert payload["withTool"] == "bash: pnpm test"
+    assert payload["withThinking"] == "thinking line 2"
+    assert payload["withLiveText"] == "line 2"
+    assert payload["withNothing"] == "Working..."
+    assert payload["withoutSpawn"] == "Working..."
+    assert payload["truncatedThinking"] == "real thought"
+    assert payload["labelFull"].endswith("bash: long-command-with-many-arguments-and-flags")
+    assert "..." in payload["labelCapped"]
+
+
+def test_widget_and_console_responsive_width_rendering() -> None:
+    ext = source("ui.ts")
+    assert "fitTeammateRow" in ext
+    assert "teammateRowWidths" in source("activity.ts")
+    payload = run_node(
+        '''
+        import { visibleWidth, truncateToWidth } from "@earendil-works/pi-tui";
+        import { PI_SPINNER_FRAMES } from "@fradser/pi-kit";
+
+        let spinnerFrame = 0;
+        const TEAM_COLORS = ["success", "warning", "error", "mdLink"];
+        function hashName(name) {
+          let h = 0;
+          for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+          return Math.abs(h);
+        }
+
+        function extractLatestLine(text) {
+          if (!text) return undefined;
+          const lines = text.split("\\n");
+          for (let i = lines.length - 1; i >= 0; i--) {
+            const trimmed = lines[i].replace(/\\s+/g, " ").trim();
+            if (trimmed.length > 0 && !trimmed.startsWith("... [truncated") && !trimmed.startsWith("…[truncated")) {
+              return trimmed;
+            }
+          }
+          return undefined;
+        }
+
+        function runningTeammateActivity(node) {
+          const tool = node.spawn?.activeTool?.replace(/\\s+/g, " ").trim();
+          if (tool) return tool;
+
+          const thinking = extractLatestLine(node.spawn?.liveThinking);
+          if (thinking) return thinking;
+
+          const live = extractLatestLine(node.spawn?.liveText);
+          if (live) return live;
+
+          return "Working...";
+        }
+
+        function runningTeammateLabel(node, maxActivityWidth) {
+          const frame = PI_SPINNER_FRAMES[spinnerFrame];
+          const rawActivity = runningTeammateActivity(node);
+          if (maxActivityWidth !== undefined) {
+            if (maxActivityWidth <= 0) return frame;
+            return `${frame} ${truncateToWidth(rawActivity, maxActivityWidth)}`;
+          }
+          return `${frame} ${rawActivity}`;
+        }
+
+        function renderRow(node, width) {
+          const maxLineWidth = Math.max(10, width - 1);
+          const color = TEAM_COLORS[hashName(node.workerKey) % TEAM_COLORS.length];
+          const name = node.agent;
+          const spinner = PI_SPINNER_FRAMES[spinnerFrame];
+          const prefix = ` ${spinner} ${name} · `;
+          const prefixWidth = visibleWidth(prefix);
+          const availableWidth = Math.max(0, maxLineWidth - prefixWidth);
+          const rawActivity = runningTeammateActivity(node);
+          const activityText = availableWidth > 0 ? truncateToWidth(rawActivity, availableWidth) : "";
+          const line = availableWidth > 0 ? `${prefix}${activityText}` : prefix.trimEnd();
+          return truncateToWidth(line, maxLineWidth);
+        }
+
+        const longTool = "bash: pytest packages/agent-teams/tests/test_teammate_package.py -v --capture=no";
+        const node = {
+          id: "w", agent: "specialist", workerKey: "run_1:w", status: "running", prompt: "", paths: ["x"], access: "read", dependsOn: [],
+          spawn: {
+            spawnId: "s1", pid: 1, status: "running", processClosed: false, startedAt: 1, isolation: "none",
+            activeTool: longTool,
+          },
+        };
+
+        const renderWide = renderRow(node, 120);
+        const renderMed = renderRow(node, 50);
+        const renderNarrow = renderRow(node, 15);
+        const renderTiny = renderRow(node, 10);
+        const consoleLabelWide = runningTeammateLabel(node, 100);
+        const consoleLabelNarrow = runningTeammateLabel(node, 10);
+
+        console.log(JSON.stringify({
+          wideLine: renderWide,
+          wideWidth: visibleWidth(renderWide),
+          medLine: renderMed,
+          medWidth: visibleWidth(renderMed),
+          narrowLine: renderNarrow,
+          narrowWidth: visibleWidth(renderNarrow),
+          tinyLine: renderTiny,
+          tinyWidth: visibleWidth(renderTiny),
+          noWrappingWide: !renderWide.includes("\\n"),
+          noWrappingNarrow: !renderNarrow.includes("\\n"),
+          widePreservedFull: renderWide.includes(longTool),
+          consoleLabelWideHasFull: consoleLabelWide.includes(longTool),
+          consoleLabelNarrowTruncated: consoleLabelNarrow.includes("..."),
+        }));
+        '''
+    )
+    assert payload["noWrappingWide"] is True
+    assert payload["noWrappingNarrow"] is True
+    assert payload["widePreservedFull"] is True
+    assert payload["wideWidth"] <= 120
+    assert payload["medWidth"] <= 50
+    assert payload["narrowWidth"] <= 15
+    assert payload["tinyWidth"] <= 10
+    assert payload["consoleLabelWideHasFull"] is True
+    assert payload["consoleLabelNarrowTruncated"] is True
+
+
+def test_follow_up_reports_use_direct_colored_teammate_format() -> None:
+    queue = source("follow-up-queue.ts")
+    index = source("index.ts")
+    assert 'return `<agent-message from="${escapeAttribute(name)}">' in queue
+    assert 'Teammate @${name} finished.' not in queue
+    assert 'function escapeAttribute' in queue
+    assert 'TEAMMATE_REPORT_MESSAGE_TYPE' in index
+    assert 'registerMessageRenderer(TEAMMATE_REPORT_MESSAGE_TYPE' in index
+    assert 'theme.fg(reportColor(teammate), `@${teammate}`)' in index
+    assert 'customMessageLabel' in index
+    assert 'Ctrl+O to expand' in index
+    assert 'const label = theme.fg("customMessageLabel", theme.bold("[agent-message]"));' in index
+    assert 'Teammate @${name} finished.' in index
+    assert 'TEAMMATE_FINISHED_ENTRY_TYPE' in index
+    assert 'registerEntryRenderer(TEAMMATE_FINISHED_ENTRY_TYPE' in index
+    assert 'pi.appendEntry(TEAMMATE_FINISHED_ENTRY_TYPE' in index
+    assert 'theme.fg("text", "</agent-message>")' not in index
+
+
+def test_agent_report_renderer_uses_skill_style_collapsed_and_expanded_states() -> None:
+    index = source("index.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert 'theme.fg("customMessageLabel", theme.bold("[agent-message]"))' in index
+    assert 'theme.fg("customMessageText", "from")' in index
+    assert 'theme.fg(reportColor(teammate), `@${teammate}`)' in index
+    assert 'Ctrl+O to expand' in index
+    assert 'expanded' in index
+    assert 'color: (text) => theme.fg("customMessageText", text)' in index
+    assert "Agent reports use a distinct transcript renderer" in feature
+
+
+def test_follow_up_queue_does_not_consume_unrelated_agent_start() -> None:
+    module = (SRC / "follow-up-queue.ts").as_uri()
+    payload = run_node(f'''\
+        import {{ FollowUpQueue }} from "{module}";
+        const sent = [];
+        const queue = new FollowUpQueue({{
+          isIdle: () => true,
+          dispatch: (_reports, content) => sent.push(content),
+          agentStartTimeoutMs: 100000,
+        }});
+        queue.enqueue({{ teammate: "worker", agent: "worker", body: "result", finished: true }});
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        queue.onAgentStart();
+        queue.onAgentSettled();
+        const beforeMatch = {{ sent: sent.length, pending: queue.pendingCount }};
+        queue.onBeforeAgentStart("<agent-message from=\\\"worker\\\">\\nresult\\n</agent-message>");
+        queue.onAgentStart();
+        queue.onAgentSettled();
+        console.log(JSON.stringify({{ beforeMatch, pending: queue.pendingCount }}));
+        ''')
+    assert payload == {"beforeMatch": {"sent": 1, "pending": 1}, "pending": 0}
+
+
+def test_follow_up_report_content_includes_full_body_and_finished_notice() -> None:
+    module = (SRC / "follow-up-queue.ts").as_uri()
+    payload = run_node(f'''\
+        import {{ formatReports }} from "{module}";
+        console.log(JSON.stringify(formatReports([{{ teammate: "synthesize", agent: "worker", body: "result", finished: true }}])));
+        ''')
+    assert payload == "<agent-message from=\"synthesize\">\nresult\n</agent-message>"
+
+
+def test_terminal_result_omits_internal_node_prefix() -> None:
+    module = (SRC / "terminal.ts").as_uri()
+    payload = run_node(f'''\
+        import {{ buildNodeTerminalResult }} from "{module}";
+        console.log(JSON.stringify(buildNodeTerminalResult({{
+          runId: "run_2", nodeId: "synthesize", agent: "worker",
+          result: {{ stdout: "", stderr: "", signal: null, timedOut: false }},
+          nodeResult: "worker result", cancelled: false, patchText: "",
+        }})));
+        ''')
+    assert payload == "worker result"
 
 
 def test_paths_and_access_contract_is_advisory_metadata() -> None:
@@ -815,7 +1089,7 @@ def test_run_dispatch_is_single_call_with_scheduler() -> None:
     assert "findSharedWorkspaceWriteConflict(runId, node.id)" in machine
     assert "startNode(runId, node.id, ctx)" in machine
     assert "onRunSettled(runId)" in machine
-    assert "run.background && !run.completionNotified" in machine
+    assert "run.background && !run.completionNotified" not in machine
     assert "markRunCompletionDelivered(runId)" in ext
     assert "background: params.background ?? true" in ext
     assert "reports to team-leader" in source("ui.ts")
@@ -828,6 +1102,7 @@ def test_tool_returns_are_compact_and_summary_is_synthesized() -> None:
     assert "buildRunSummary" in machine
     assert "Console: /teammate" not in machine
     assert "buildRunSummary(runId)" in source("tools.ts")
+    assert "sendUpdate({ kind: \"summary\"" not in machine
     assert "nodeHeadline" not in machine
     assert "SUMMARY_NODE_ID" in machine
     assert "summarize" in types
@@ -1292,7 +1567,7 @@ def test_finalize_handles_worktree_and_shutdown_diagnostics() -> None:
 def test_leader_followups_use_a_lifecycle_aware_queue() -> None:
     index = source("index.ts")
     queue = source("follow-up-queue.ts")
-    assert 'import { FollowUpQueue } from "./follow-up-queue"' in index
+    assert 'FollowUpQueue' in index
     assert "followUpQueue?.onBeforeAgentStart(event.prompt)" in index
     assert "followUpQueue?.onAgentStart()" in index
     assert "followUpQueue?.onAgentSettled()" in index
@@ -1316,7 +1591,7 @@ def test_follow_up_queue_requeues_failed_dispatch_with_backoff() -> None:
           retryBaseDelayMs: 100000,
           retryMaxDelayMs: 100000,
         }});
-        queue.enqueue({{ subject: "A", body: "report" }});
+        queue.enqueue({{ teammate: "A", agent: "worker", body: "report" }});
         await new Promise((resolve) => setTimeout(resolve, 10));
         const result = {{ pending: queue.pendingCount, failures: failures.length }};
         queue.reset();
@@ -1338,7 +1613,7 @@ def test_follow_up_queue_requeues_when_void_dispatch_never_starts() -> None:
           retryBaseDelayMs: 100000,
           retryMaxDelayMs: 100000,
         }});
-        queue.enqueue({{ subject: "A", body: "report" }});
+        queue.enqueue({{ teammate: "A", agent: "worker", body: "report" }});
         await new Promise((resolve) => setTimeout(resolve, 20));
         const result = {{ pending: queue.pendingCount, failures: failures.length }};
         queue.reset();
@@ -1354,9 +1629,9 @@ def test_follow_up_queue_retry_budget_is_per_report_batch() -> None:
         const sent = [];
         const failures = [];
         const queue = new FollowUpQueue({{ isIdle: () => true, dispatch: () => {{ throw new Error("failed"); }}, onFailure: (message) => failures.push(message), maxAttempts: 2, retryBaseDelayMs: 1, retryMaxDelayMs: 1 }});
-        queue.enqueue({{ subject: "first", body: "report" }});
+        queue.enqueue({{ teammate: "first", agent: "worker", body: "report" }});
         await new Promise((resolve) => setTimeout(resolve, 10));
-        queue.enqueue({{ subject: "second", body: "report" }});
+        queue.enqueue({{ teammate: "second", agent: "worker", body: "report" }});
         await new Promise((resolve) => setTimeout(resolve, 15));
         console.log(JSON.stringify({{ deadLetter: queue.deadLetterCount, failures: failures.length, pending: queue.pendingCount, sent: sent.length }}));
         '''
@@ -1377,7 +1652,7 @@ def test_follow_up_queue_dead_letters_after_max_attempts_without_timer() -> None
           retryBaseDelayMs: 1,
           retryMaxDelayMs: 1,
         }});
-        queue.enqueue({{ subject: "A", body: "report" }});
+        queue.enqueue({{ teammate: "A", agent: "worker", body: "report" }});
         await new Promise((resolve) => setTimeout(resolve, 25));
         console.log(JSON.stringify({{ pending: queue.pendingCount, deadLetter: queue.deadLetterCount, failures: failures.length }}));
         '''
@@ -1402,7 +1677,7 @@ def test_follow_up_queue_cleans_timers_at_lifecycle_boundaries() -> None:
           retryBaseDelayMs: 100000,
           retryMaxDelayMs: 100000,
         }});
-        resetQueue.enqueue({{ subject: "retry", body: "report" }});
+        resetQueue.enqueue({{ teammate: "retry", agent: "worker", body: "report" }});
         await new Promise((resolve) => setTimeout(resolve, 20));
         resetQueue.reset();
 
@@ -1410,7 +1685,7 @@ def test_follow_up_queue_cleans_timers_at_lifecycle_boundaries() -> None:
         let settledQueue;
         settledQueue = new FollowUpQueue({{
           isIdle: () => true,
-          dispatch: (content) => {{
+          dispatch: (_reports, content) => {{
             sent.push(content);
             settledQueue.onBeforeAgentStart(content);
             settledQueue.onAgentStart();
@@ -1418,7 +1693,7 @@ def test_follow_up_queue_cleans_timers_at_lifecycle_boundaries() -> None:
           }},
           agentStartTimeoutMs: 100000,
         }});
-        settledQueue.enqueue({{ subject: "success", body: "report" }});
+        settledQueue.enqueue({{ teammate: "success", agent: "worker", body: "report" }});
         await new Promise((resolve) => setTimeout(resolve, 20));
         console.log(JSON.stringify({{
           resetPending: resetQueue.pendingCount,
@@ -1451,10 +1726,10 @@ def test_follow_up_queue_ignores_stale_session_callbacks() -> None:
         const sent = [];
         const queue = new FollowUpQueue({{
           isIdle: () => true,
-          dispatch: (content) => sent.push(content),
+          dispatch: (_reports, content) => sent.push(content),
           agentStartTimeoutMs: 100000,
         }});
-        queue.enqueue({{ subject: "old", body: "report" }});
+        queue.enqueue({{ teammate: "old", agent: "worker", body: "report" }});
         queue.reset();
         await new Promise((resolve) => setImmediate(resolve));
         console.log(JSON.stringify({{ sent: sent.length, pending: queue.pendingCount }}));
@@ -1469,16 +1744,16 @@ def test_follow_up_queue_waits_for_matching_start_and_settle() -> None:
         const sent = [];
         const queue = new FollowUpQueue({{
           isIdle: () => true,
-          dispatch: (content) => sent.push(content),
+          dispatch: (_reports, content) => sent.push(content),
           agentStartTimeoutMs: 100000,
         }});
-        queue.enqueue({{ subject: "A", body: "first" }});
+        queue.enqueue({{ teammate: "A", agent: "worker", body: "first" }});
         await new Promise((resolve) => setTimeout(resolve, 10));
-        queue.enqueue({{ subject: "B", body: "second" }});
+        queue.enqueue({{ teammate: "B", agent: "worker", body: "second" }});
         queue.onAgentSettled();
         await new Promise((resolve) => setTimeout(resolve, 10));
         const beforeStart = sent.length;
-        queue.onBeforeAgentStart("Teammate update: A\\nfirst");
+        queue.onBeforeAgentStart("<agent-message from=\\\"A\\\">\\nfirst\\n</agent-message>");
         queue.onAgentStart();
         queue.onAgentSettled();
         await new Promise((resolve) => setTimeout(resolve, 10));
@@ -1486,7 +1761,7 @@ def test_follow_up_queue_waits_for_matching_start_and_settle() -> None:
         queue.reset();
         console.log(JSON.stringify(result));
         ''')
-    assert payload == {"beforeStart": 1, "sent": ["Teammate update: A\nfirst", "Teammate update: B\nsecond"]}
+    assert payload == {"beforeStart": 1, "sent": ["<agent-message from=\"A\">\nfirst\n</agent-message>", "<agent-message from=\"B\">\nsecond\n</agent-message>"]}
 
 
 def test_follow_up_queue_removes_protocol_and_run_identifiers() -> None:
@@ -1494,13 +1769,13 @@ def test_follow_up_queue_removes_protocol_and_run_identifiers() -> None:
     payload = run_node(f'''\
         import {{ FollowUpQueue }} from "{module}";
         const sent = [];
-        const queue = new FollowUpQueue({{ isIdle: () => true, dispatch: (content) => sent.push(content) }});
-        queue.enqueue({{ subject: "Node completed", body: "result", runId: "run_6" }});
+        const queue = new FollowUpQueue({{ isIdle: () => true, dispatch: (_reports, content) => sent.push(content) }});
+        queue.enqueue({{ teammate: "synthesize", agent: "worker", body: "result", finished: true, runId: "run_6" }});
         await new Promise((resolve) => setTimeout(resolve, 10));
         queue.reset();
         console.log(JSON.stringify(sent));
         ''')
-    assert payload == ["Teammate update: Node completed\nresult"]
+    assert payload == ["<agent-message from=\"synthesize\">\nresult\n</agent-message>"]
 
 
 def test_dirty_state_tracking_and_session_worker_cap() -> None:
@@ -1592,3 +1867,10 @@ def test_end_to_end_worker_message_flow_is_leader_only() -> None:
     )
     assert payload == {"messages": "Artifact", "ready": True, "settled": "completed"}
 
+
+def test_background_run_suppresses_startup_notice_text() -> None:
+    tools_src = source("tools.ts")
+    assert "if (run.background)" in tools_src
+    assert "content: []" in tools_src
+    assert "Started run [" not in tools_src
+    assert "gatherForeground(run.id, signal)" in tools_src

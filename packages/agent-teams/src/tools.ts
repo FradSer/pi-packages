@@ -100,7 +100,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
 
       if (run.background) {
         return {
-          content: [{ type: "text", text: `Started run [${run.id}] "${Object.keys(run.nodes).length} node(s)" — background.\nConcurrency: ${run.concurrency} | Worktree: ${run.worktree ? "yes" : "no"}\n\nWorkers will report their deliverables through the automatic completion follow-up. Do not sleep to wait.` }],
+          content: [],
           details: {},
         };
       }

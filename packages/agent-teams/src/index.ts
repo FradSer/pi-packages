@@ -6,6 +6,7 @@
  * run-machine.ts; the passive widget and console live in ui.ts.
  */
 
+import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildTeamLeaderGuidance, WORKER_GUIDANCE } from "./guidance";
 import { initRunMachine, shutdownRunMachine, type DispatchCtx } from "./run-machine";
@@ -15,7 +16,8 @@ import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui";
 import { registerLeaderTools, registerTeamCommand } from "./tools";
 import { registerWorkerCapabilities, workerOutboxBinding } from "./worker";
 import { terminateAllWorkers } from "./spawner";
-import { FollowUpQueue } from "./follow-up-queue";
+import { FollowUpQueue, TEAMMATE_REPORT_MESSAGE_TYPE, type FollowUpReport } from "./follow-up-queue";
+import { Box, Markdown, Text } from "@earendil-works/pi-tui";
 
 const STATE_DIR_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -23,8 +25,17 @@ let leaderPi: ExtensionAPI | undefined;
 let leaderCtx: ExtensionContext | undefined;
 let followUpQueue: FollowUpQueue | undefined;
 
-function sendMainSessionFollowUp(subject: string, body: string, runId?: string): void {
-  followUpQueue?.enqueue({ subject, body, runId });
+const REPORT_COLORS = ["success", "warning", "error", "mdLink"] as const;
+export const TEAMMATE_FINISHED_ENTRY_TYPE = "agent-teams-teammate-finished";
+
+function reportColor(name: string): (typeof REPORT_COLORS)[number] {
+  let hash = 0;
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return REPORT_COLORS[Math.abs(hash) % REPORT_COLORS.length];
+}
+
+function sendMainSessionFollowUp(report: FollowUpReport): void {
+  followUpQueue?.enqueue(report);
 }
 
 function dispatchContext(ctx: ExtensionContext): DispatchCtx {
@@ -41,8 +52,65 @@ export default function (pi: ExtensionAPI) {
   }
 
   leaderPi = pi;
+  pi.registerEntryRenderer(TEAMMATE_FINISHED_ENTRY_TYPE, (entry, _options, theme) => {
+    const data = entry.data as { teammate?: string; agent?: string } | undefined;
+    const name = data?.teammate ?? data?.agent ?? "teammate";
+    return new Text(theme.fg("success", `Teammate @${name} finished.`), 0, 0);
+  });
+  pi.registerMessageRenderer(TEAMMATE_REPORT_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) => {
+    const details = message.details as FollowUpReport | { reports?: FollowUpReport[] } | undefined;
+    const reports = details && "reports" in details && Array.isArray(details.reports)
+      ? details.reports
+      : details && "teammate" in details
+        ? [details]
+        : [];
+    const box = new Box(outputPad, 1, (text) => theme.bg("customMessageBg", text));
+    if (reports.length === 0) {
+      box.addChild(new Markdown(String(message.content), 0, 0, getMarkdownTheme()));
+      return box;
+    }
+    if (!expanded) {
+      const label = theme.fg("customMessageLabel", theme.bold("[agent-message]"));
+      const names = reports
+        .map((report) => report.teammate ?? report.agent ?? "teammate")
+        .map((teammate) => theme.fg(reportColor(teammate), `@${teammate}`))
+        .join(theme.fg("customMessageText", ", "));
+      const from = theme.fg("customMessageText", "from");
+      const hint = theme.fg("dim", " (Ctrl+O to expand)");
+      box.addChild(new Text(`${label} ${from} ${names}${hint}`, 0, 0));
+      return box;
+    }
+    for (const [index, report] of reports.entries()) {
+      const teammate = report.teammate ?? report.agent ?? "teammate";
+      const label = theme.fg("customMessageLabel", theme.bold("[agent-message]"));
+      const name = theme.fg(reportColor(teammate), `@${teammate}`);
+      box.addChild(new Text(`${label} ${theme.fg("customMessageText", "from")} ${name}`, 0, 0));
+      box.addChild(new Markdown(report.body, 0, 0, getMarkdownTheme(), {
+        color: (text) => theme.fg("customMessageText", text),
+      }));
+      if (index < reports.length - 1) box.addChild(new Text("", 0, 0));
+    }
+    return box;
+  });
   registerLeaderTools(pi);
   registerTeamCommand(pi);
+
+  pi.on("message_end", async (event) => {
+    if (event.message.role !== "custom" || event.message.customType !== TEAMMATE_REPORT_MESSAGE_TYPE) return;
+    const details = event.message.details as FollowUpReport | { reports?: FollowUpReport[] } | undefined;
+    const reports = details && "reports" in details && Array.isArray(details.reports)
+      ? details.reports
+      : details && "teammate" in details
+        ? [details]
+        : [];
+    for (const report of reports) {
+      if (!report.finished) continue;
+      pi.appendEntry(TEAMMATE_FINISHED_ENTRY_TYPE, {
+        teammate: report.teammate ?? report.agent,
+        agent: report.agent,
+      });
+    }
+  });
 
   pi.on("session_start", async (_event, ctx) => {
     resetState();
@@ -50,7 +118,13 @@ export default function (pi: ExtensionAPI) {
     leaderCtx = ctx;
     const sessionQueue = new FollowUpQueue({
       isIdle: () => Boolean(leaderCtx?.isIdle()),
-      dispatch: (content) => leaderPi?.sendUserMessage(content, { deliverAs: "followUp" }),
+      prepareOnDispatch: true,
+      dispatch: (reports, content) => leaderPi?.sendMessage({
+        customType: TEAMMATE_REPORT_MESSAGE_TYPE,
+        content,
+        display: true,
+        details: reports.length === 1 ? reports[0] : { reports },
+      }, { triggerTurn: true, deliverAs: "followUp" }),
       onFailure: (message) => leaderCtx?.ui.notify(message, "warning"),
     });
     followUpQueue = sessionQueue;

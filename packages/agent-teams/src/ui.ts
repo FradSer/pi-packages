@@ -9,7 +9,10 @@ import {
 } from "./console-viewport";
 import { getNodeByWorkerKey, getState, listNodes } from "./state";
 import { cancelNodeAndTerminate, ensureLivePoll } from "./run-machine";
+import { fitTeammateRow, formatTeammateLabel, runningTeammateActivity } from "./activity";
 import type { Node } from "./types";
+
+export { runningTeammateActivity } from "./activity";
 
 function cap(text: string | undefined, maxBytes = DEFAULT_MAX_BYTES): string {
   if (!text) return "";
@@ -42,18 +45,8 @@ function buildPanelRows(): PanelRow[] {
   return listNodes().map((node) => ({ key: node.workerKey }));
 }
 
-function runningTeammateLabel(node: Node): string {
-  const frame = PI_SPINNER_FRAMES[spinnerFrame];
-  const tool = node.spawn?.activeTool;
-  const thinking = (node.spawn?.liveThinking ?? "").split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
-  const live = (node.spawn?.liveText ?? "").split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
-  // Like the memory package's activity line: show what the worker is doing
-  // right now — current tool when one is executing, else its live reasoning,
-  // else the latest assistant text.
-  const activity = tool
-    ?? (thinking ? truncateToWidth(thinking, 48) : undefined)
-    ?? (live ? truncateToWidth(live, 48) : "Working...");
-  return `${frame} ${activity}`;
+export function runningTeammateLabel(node: Node, maxActivityWidth?: number): string {
+  return formatTeammateLabel(PI_SPINNER_FRAMES[spinnerFrame], runningTeammateActivity(node), maxActivityWidth);
 }
 
 function ensureSpinner(): void {
@@ -111,16 +104,16 @@ export function ensureTeamWidget(ctx?: { ui?: ExtensionUIContext; mode?: string 
         }
         const lines: string[] = [];
         for (const node of running) {
-          const label = runningTeammateLabel(node);
+          const spinner = PI_SPINNER_FRAMES[spinnerFrame];
           const color = assignedColors.get(node.workerKey) ?? TEAM_COLORS[hashName(node.workerKey) % TEAM_COLORS.length];
-          const name = style.fg(color, node.id);
-          const role = style.dim(`(${node.agent})`);
-          const separator = label.indexOf(" ");
-          const spinner = separator === -1 ? label : label.slice(0, separator);
-          const activityText = separator === -1 ? "Working..." : label.slice(separator + 1).trim();
-          const activity = theme.bold(style.fg("accent", activityText));
-          const line = ` ${spinner} ${name} ${role} · ${activity}`;
-          lines.push(truncateToWidth(line, Math.max(10, width - 1)));
+          const line = fitTeammateRow(
+            spinner,
+            style.fg(color, node.agent),
+            runningTeammateActivity(node),
+            width,
+            (activity) => theme.bold(style.fg("accent", activity)),
+          );
+          lines.push(line);
         }
         return lines;
       },
@@ -253,6 +246,7 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
     const renderList = (width: number): string[] => {
       const rows = buildPanelRows();
       if (selected >= rows.length) selected = Math.max(0, rows.length - 1);
+      const maxLineWidth = Math.max(10, width - 1);
       const border = style.border("─".repeat(Math.max(1, width)));
       const lines: string[] = [
         border,
@@ -265,20 +259,25 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
         const entry = getNodeByWorkerKey(row.key);
         if (!entry) continue;
         const { node } = entry;
-        const color = TEAM_COLORS[hashName(node.workerKey) % TEAM_COLORS.length];
-        const name = theme.bold(theme.fg(color, node.id));
-        const role = style.muted(`(${node.agent})`);
-        const status = node.status === "running"
-          ? theme.fg("warning", runningTeammateLabel(node))
-          : node.status === "completed"
-            ? style.success("✓ completed")
-            : node.status === "failed"
-              ? style.error("✗ failed")
-              : style.dim(`○ ${node.status}`);
-        lines.push(`${marker}${name} ${role} ${status}`);
+        const color = TEAM_COLORS[hashName(node.agent) % TEAM_COLORS.length];
+        const name = theme.bold(theme.fg(color, node.agent));
+        let status: string;
+        if (node.status === "running") {
+          const prefix = `${marker}${name} `;
+          const spinner = PI_SPINNER_FRAMES[spinnerFrame];
+          const availableActivityWidth = Math.max(0, maxLineWidth - prefix.length - spinner.length - 1);
+          status = theme.fg("warning", runningTeammateLabel(node, availableActivityWidth));
+        } else if (node.status === "completed") {
+          status = style.success("✓ completed");
+        } else if (node.status === "failed") {
+          status = style.error("✗ failed");
+        } else {
+          status = style.dim(`○ ${node.status}`);
+        }
+        lines.push(`${marker}${name} ${status}`);
       }
       lines.push("", style.dim("↑↓ select · enter open · esc/q close · x cancel"), border);
-      return lines.map((l) => truncateToWidth(l, Math.max(10, width - 1)));
+      return lines.map((l) => truncateToWidth(l, maxLineWidth));
     };
 
     const renderDetail = (width: number): string[] => {

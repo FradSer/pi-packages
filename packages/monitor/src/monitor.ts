@@ -253,7 +253,7 @@ export class MonitorManager {
     source: MonitorLogSource,
     rawLine: string,
     continued: boolean,
-    processAlreadyClosed = false,
+    _processAlreadyClosed = false,
   ): void {
     if (monitor.status !== "running") return;
     this.appendLog(monitor, source, rawLine, continued);

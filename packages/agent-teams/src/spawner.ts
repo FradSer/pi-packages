@@ -7,13 +7,19 @@
  * so the board can record the outcome on the task.
  */
 
-import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { extractTextContent, resolvePiCli } from "@fradser/pi-kit";
+import {
+  DEFAULT_TERMINATION_GRACE_MS,
+  extractTextContent,
+  resolvePiCli,
+  spawnPiChild,
+  terminateChildProcess,
+} from "@fradser/pi-kit";
+import type { ChildProcess } from "node:child_process";
 import type { WorkerUsage } from "./types";
 
 /** High default safety cap; explicit task budgets can still be lower. */
@@ -114,8 +120,6 @@ export interface SpawnedWorker {
   pid: number;
 }
 
-/** Bounded grace period before a cancellation escalates from SIGTERM to SIGKILL. */
-const CANCEL_GRACE_MS = 5_000;
 /** Give a terminally reported worker a short chance to exit cleanly. */
 export const POST_REPORT_GRACE_MS = 10_000;
 
@@ -198,11 +202,11 @@ export class CancellationIntents {
 }
 
 /** Live workers by teammate name — lets the panel interrupt/stop a running worker. */
-const workers = new Map<string, ReturnType<typeof spawn>>();
-const closedWorkers = new WeakSet<ReturnType<typeof spawn>>();
-const closedWorkersByName = new Map<string, ReturnType<typeof spawn>>();
+const workers = new Map<string, ChildProcess>();
+const closedWorkers = new WeakSet<ChildProcess>();
+const closedWorkersByName = new Map<string, ChildProcess>();
 
-function observeWorkerClose(name: string, child: ReturnType<typeof spawn>): void {
+function observeWorkerClose(name: string, child: ChildProcess): void {
   child.once("close", () => {
     closedWorkers.add(child);
     closedWorkersByName.set(name, child);
@@ -210,7 +214,7 @@ function observeWorkerClose(name: string, child: ReturnType<typeof spawn>): void
 }
 
 /** True only after Node has emitted the child process close event. */
-export function isWorkerCloseObserved(child: ReturnType<typeof spawn>): boolean {
+export function isWorkerCloseObserved(child: ChildProcess): boolean {
   return closedWorkers.has(child);
 }
 
@@ -220,12 +224,12 @@ export function isWorkerCloseObservedByName(name: string): boolean {
 }
 
 /** Attach close tracking to a child used by a shutdown or lifecycle test. */
-export function watchWorkerClose(child: ReturnType<typeof spawn>): void {
+export function watchWorkerClose(child: ChildProcess): void {
   observeWorkerClose(`pid:${child.pid ?? 0}`, child);
 }
 
 /** Send a leader steering message to a running RPC worker; no peer mailbox, broadcast, or worker inbox is created. */
-export function sendWorkerSteerToChild(child: ReturnType<typeof spawn>, message: string): boolean {
+export function sendWorkerSteerToChild(child: ChildProcess, message: string): boolean {
   if (!child.stdin || child.stdin.destroyed || !child.stdin.writable) return false;
   child.stdin.write(`${JSON.stringify({ type: "steer", message })}\n`);
   return true;
@@ -236,62 +240,11 @@ export function sendWorkerSteer(name: string, message: string): boolean {
   return child ? sendWorkerSteerToChild(child, message) : false;
 }
 
-function isChildRunning(child: ReturnType<typeof spawn>): boolean {
-  return child.exitCode === null && child.signalCode === null;
-}
-
-function waitForClose(child: ReturnType<typeof spawn>, timeoutMs: number): Promise<boolean> {
-  if (isWorkerCloseObserved(child)) return Promise.resolve(true);
-  return new Promise((resolve) => {
-    let settled = false;
-    const onClose = () => {
-      closedWorkers.add(child);
-      finish(true);
-    };
-    const timer = setTimeout(() => finish(false), timeoutMs);
-    timer.unref?.();
-
-    function finish(closed: boolean): void {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      child.off("close", onClose);
-      resolve(closed);
-    }
-
-    child.once("close", onClose);
-  });
-}
-
-/**
- * Request a graceful child shutdown, escalate to SIGKILL when it resists, and
- * resolve only after a bounded wait observes the child `close` event.
- */
-export async function terminateChildProcess(child: ReturnType<typeof spawn>, graceMs = CANCEL_GRACE_MS): Promise<boolean> {
-  if (isWorkerCloseObserved(child)) return true;
-
-  const closedAfterTerm = waitForClose(child, graceMs);
-  if (!isChildRunning(child)) return closedAfterTerm;
-
-  try {
-    if (!child.kill("SIGTERM")) return closedAfterTerm;
-  } catch {
-    return closedAfterTerm;
-  }
-  if (await closedAfterTerm) return true;
-  if (!isChildRunning(child)) return false;
-
-  const closedAfterKill = waitForClose(child, graceMs);
-  try {
-    if (!child.kill("SIGKILL")) return closedAfterKill;
-  } catch {
-    return closedAfterKill;
-  }
-  return closedAfterKill;
-}
+/** Use the shared close-observing process termination primitive. */
+export { terminateChildProcess };
 
 /** Terminate a live worker and wait until its child process has closed. */
-export async function terminateWorker(name: string, graceMs = CANCEL_GRACE_MS): Promise<boolean> {
+export async function terminateWorker(name: string, graceMs = DEFAULT_TERMINATION_GRACE_MS): Promise<boolean> {
   const child = workers.get(name);
   if (!child) return false;
   return terminateChildProcess(child, graceMs);
@@ -309,8 +262,8 @@ export interface WorkerShutdownResult {
 }
 
 export async function terminateWorkerEntries(
-  children: Array<[string, ReturnType<typeof spawn>]>,
-  graceMs = CANCEL_GRACE_MS,
+  children: Array<[string, ChildProcess]>,
+  graceMs = DEFAULT_TERMINATION_GRACE_MS,
 ): Promise<WorkerShutdownResult[]> {
   return Promise.all(children.map(async ([name, child]) => ({
     name,
@@ -318,7 +271,7 @@ export async function terminateWorkerEntries(
   })));
 }
 
-export async function terminateAllWorkers(graceMs = CANCEL_GRACE_MS): Promise<WorkerShutdownResult[]> {
+export async function terminateAllWorkers(graceMs = DEFAULT_TERMINATION_GRACE_MS): Promise<WorkerShutdownResult[]> {
   const children = [...workers.entries()];
   const results = await terminateWorkerEntries(children, graceMs);
   for (const result of results) {
@@ -430,13 +383,13 @@ function toolcallLabel(rawArgs: string): string | undefined {
   try {
     const args = JSON.parse(trimmed) as Record<string, unknown>;
     const command = args.command;
-    if (typeof command === "string" && command.trim()) return `bash: ${truncateInline(command, 40)}`;
+    if (typeof command === "string" && command.trim()) return `bash: ${normalizeInline(command)}`;
     const filePath = args.path;
-    if (typeof filePath === "string" && filePath.trim()) return `file: ${path.basename(filePath.trim())}`;
+    if (typeof filePath === "string" && filePath.trim()) return `file: ${normalizeInline(path.basename(filePath.trim()))}`;
     const subject = args.subject;
-    if (typeof subject === "string" && subject.trim()) return `message: ${truncateInline(subject, 40)}`;
+    if (typeof subject === "string" && subject.trim()) return `message: ${normalizeInline(subject)}`;
     const query = args.query;
-    if (typeof query === "string" && query.trim()) return `search: ${truncateInline(query, 40)}`;
+    if (typeof query === "string" && query.trim()) return `search: ${normalizeInline(query)}`;
   } catch {
     // Incomplete JSON mid-stream — retry on the next delta.
   }
@@ -528,10 +481,8 @@ function applyWorkerJsonLine(state: WorkerStreamState, line: string): boolean {
   }
 }
 
-function truncateInline(text: string, cap: number): string {
-  const oneLine = text.replace(/\s+/g, " ").trim();
-  if (oneLine.length <= cap) return oneLine;
-  return `${oneLine.slice(0, cap).trimEnd()} ...`;
+function normalizeInline(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
 }
 
 function truncate(text: string, cap: number): string {
@@ -604,7 +555,7 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
 
   let child;
   try {
-    child = spawn(cli.command, args, {
+    child = spawnPiChild(cli.command, args, {
       cwd: options.cwd,
       env: { ...process.env, ...options.env },
       stdio: [mode === "rpc" ? "pipe" : "ignore", "pipe", "pipe"],

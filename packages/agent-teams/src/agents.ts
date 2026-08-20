@@ -15,9 +15,9 @@
  */
 
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 export interface AgentDefinition {
   name: string;
@@ -36,8 +36,7 @@ const BUNDLED_AGENTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.u
 
 function agentsDir(scope: "user" | "project", cwd?: string): string {
   if (scope === "user") {
-    const base = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
-    return path.join(base, "agents");
+    return path.join(getAgentDir(), "agents");
   }
   return path.join(cwd || process.cwd(), ".pi", "agents");
 }

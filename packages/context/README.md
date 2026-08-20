@@ -1,6 +1,6 @@
 # Context Pi Package
 
-**Version:** 0.5.0
+**Version:** 0.5.1
 
 Retrieve code context for any repo, library, or natural-language query via 5 methods: DeepWiki, Context7, Exa, git clone, and web search+fetch.
 
