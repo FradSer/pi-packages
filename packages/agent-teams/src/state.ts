@@ -87,6 +87,8 @@ export function normalizeNodePaths(paths: string[]): { ok: true; paths: string[]
 export const MAX_STRUCTURED_OUTPUT_BYTES = 64 * 1024;
 export const MAX_STRUCTURED_OUTPUT_DEPTH = 8;
 export const MAX_FANOUT_ITEMS = 32;
+export const MAX_LEADER_MAILBOX_MESSAGES = 4096;
+export const MAX_TERMINAL_RUNS = 256;
 
 export function structuredOutputSize(value: unknown): number {
   return Buffer.byteLength(JSON.stringify(value), "utf8");
@@ -94,16 +96,67 @@ export function structuredOutputSize(value: unknown): number {
 
 export function structuredOutputDepth(value: unknown): number {
   if (!value || typeof value !== "object") return 0;
-  if (Array.isArray(value)) return 1 + Math.max(0, ...value.map(structuredOutputDepth));
-  return 1 + Math.max(0, ...Object.values(value as Record<string, unknown>).map(structuredOutputDepth));
+  const stack: Array<{ value: object; depth: number }> = [{ value, depth: 1 }];
+  const seen = new WeakSet<object>();
+  let maximum = 0;
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (seen.has(current.value)) continue;
+    seen.add(current.value);
+    maximum = Math.max(maximum, current.depth);
+    const children = Array.isArray(current.value)
+      ? current.value
+      : Object.values(current.value as Record<string, unknown>);
+    for (const child of children) {
+      if (!child || typeof child !== "object") continue;
+      if (current.depth >= MAX_STRUCTURED_OUTPUT_DEPTH) return current.depth + 1;
+      stack.push({ value: child, depth: current.depth + 1 });
+    }
+  }
+  return maximum;
 }
 
 export function validateStructuredOutput(value: unknown): string | undefined {
+  const depth = structuredOutputDepth(value);
+  if (depth > MAX_STRUCTURED_OUTPUT_DEPTH) return `Structured output exceeds depth ${MAX_STRUCTURED_OUTPUT_DEPTH}.`;
   let serialized: string;
   try { serialized = JSON.stringify(value); } catch { return "Structured output must be JSON-serializable."; }
   if (Buffer.byteLength(serialized, "utf8") > MAX_STRUCTURED_OUTPUT_BYTES) return `Structured output exceeds ${MAX_STRUCTURED_OUTPUT_BYTES} bytes.`;
-  if (structuredOutputDepth(value) > MAX_STRUCTURED_OUTPUT_DEPTH) return `Structured output exceeds depth ${MAX_STRUCTURED_OUTPUT_DEPTH}.`;
   return undefined;
+}
+
+export function resolveInputBinding(run: Run, node: Node, source: string): string {
+  const separator = source.indexOf("#");
+  const dependencyId = separator >= 0 ? source.slice(0, separator) : source;
+  if (!node.dependsOn.includes(dependencyId)) return "(rejected: source is not a dependency)";
+  const dependency = run.nodes[dependencyId];
+  if (!dependency) return "(rejected: dependency not found)";
+  const value = dependency.structuredOutput ?? dependency.namedOutputs ?? dependency.result;
+  if (separator < 0) return JSON.stringify(value);
+  const pointer = source.slice(separator + 1).replace(/^\/json/, "");
+  if (!pointer) return JSON.stringify(value);
+  let current: unknown = value;
+  for (const part of pointer.split("/").filter(Boolean).map((item) => item.replaceAll("~1", "/").replaceAll("~0", "~"))) {
+    if (!current || typeof current !== "object") return "(missing)";
+    current = (current as Record<string, unknown>)[part];
+  }
+  return JSON.stringify(current);
+}
+
+/** Render only the explicitly selected dependency results for a node prompt. */
+export function buildForkContext(run: Run, node: Node): string[] {
+  return node.dependsOn
+    .map((depId) => run.nodes[depId])
+    .filter((dep): dep is Node => Boolean(dep))
+    .filter((dep) => !node.forkContext || node.forkContext.includes(dep.id))
+    .map((dep) => {
+      const body = dep.result?.trim() || dep.errorMessage?.trim() || `${dep.status} with no written result.`;
+      const named = dep.namedOutputs && Object.keys(dep.namedOutputs).length > 0
+        ? `\nNamed outputs: ${JSON.stringify(dep.namedOutputs)}`
+        : "";
+      const structured = dep.structuredOutput === undefined ? "" : `\nStructured output: ${JSON.stringify(dep.structuredOutput)}`;
+      return `--- ${dep.id} (${dep.agent}, ${dep.status}) ---\n${body}${named}${structured}`;
+    });
 }
 
 export interface RunNodeInput {
@@ -241,6 +294,7 @@ export function createRun(
     id: runId,
     cwd: input.cwd,
     status: "running",
+    cancelRequested: false,
     concurrency: input.concurrency,
     worktree: input.worktree,
     background: input.background ?? true,
@@ -283,10 +337,22 @@ export function listActiveRuns(): Run[] {
   return listRuns().filter((run) => run.status === "running");
 }
 
+/** Compact oldest terminal runs while preserving active runs and recent history. */
+export function compactTerminalRuns(): string[] {
+  const terminal = listRuns()
+    .filter((run) => isRunTerminal(run) && run.settledMessageSent)
+    .sort((left, right) => left.updatedAt - right.updatedAt);
+  const removeCount = Math.max(0, terminal.length - MAX_TERMINAL_RUNS);
+  const removed = terminal.slice(0, removeCount).map((run) => run.id);
+  for (const runId of removed) delete state.runs[runId];
+  if (removed.length > 0) markStateDirty();
+  return removed;
+}
+
 export function runningNodeCount(runId: string): number {
   const run = state.runs[runId];
   if (!run) return 0;
-  return Object.values(run.nodes).filter((node) => node.status === "running").length;
+  return Object.values(run.nodes).filter((node) => node.spawn?.status === "running" && !node.spawn.processClosed).length;
 }
 
 export function isRunTerminal(run: Run): boolean {
@@ -328,6 +394,19 @@ export function updateNodeStatus(
 ): { ok: boolean; node?: Node; error?: string } {
   const node = getNode(runId, nodeId);
   if (!node) return { ok: false, error: `Node "${nodeId}" not found.` };
+  if ((status === "completed" || status === "failed" || status === "cancelled")
+    && node.spawn?.status === "running" && !node.spawn.processClosed) {
+    if (status === "completed" || status === "failed") {
+      node.spawn.logicalTerminalReport = status;
+      node.spawn.terminalReportAccepted = true;
+      if (result !== undefined) node.result = result;
+      if (errorMessage !== undefined) node.errorMessage = errorMessage;
+    }
+    node.updatedAt = Date.now();
+    state.runs[runId].updatedAt = Date.now();
+    markStateDirty();
+    return { ok: true, node };
+  }
   node.status = status;
   node.updatedAt = Date.now();
   if (result !== undefined) node.result = result;
@@ -347,27 +426,55 @@ export function updateNodeStatus(
 export function setNodeSpawnInfo(runId: string, nodeId: string, info: SpawnInfo): { ok: boolean; node?: Node; error?: string } {
   const node = getNode(runId, nodeId);
   if (!node) return { ok: false, error: `Node "${nodeId}" not found.` };
-  node.spawn = info;
+  const previous = node.spawn?.spawnId === info.spawnId ? node.spawn : undefined;
+  // exitCode/signalCode and a terminal status can arrive before Node emits
+  // close. Only an explicit close observation may release process resources.
+  const processClosed = info.processClosed ?? previous?.processClosed ?? false;
+  const status = processClosed ? info.status : (previous?.status ?? "running");
+  node.spawn = { ...previous, ...info, status, processClosed };
   node.updatedAt = Date.now();
   state.runs[runId].updatedAt = Date.now();
-
   if (info.status === "running") {
     // A live spawn implies the node is running (idempotent with markNodeRunning).
     if (node.status === "pending") node.status = "running";
-  } else if (info.status === "completed" && node.status !== "cancelled") {
-    node.status = "completed";
+  } else if (processClosed && node.status !== "cancelled") {
+    const cancelled = runIsCancellationRequested(runId);
+    node.status = cancelled ? "cancelled" : info.status;
     node.completedAt = Date.now();
     if (info.stdout && node.result === undefined) node.result = info.stdout;
-  } else if (info.status === "failed" && node.status !== "cancelled") {
-    node.status = "failed";
-    node.completedAt = Date.now();
-    node.errorMessage = info.error ?? info.stderr ?? `Child process exited with code ${info.exitCode ?? "unknown"}.`;
+    if (info.status === "failed" && !cancelled) {
+      node.errorMessage = info.error ?? info.stderr ?? `Child process exited with code ${info.exitCode ?? "unknown"}.`;
+    }
   }
   markStateDirty();
   return { ok: true, node };
 }
 
 /** Merge a streaming child-process update into its matching running node. */
+export function acceptTerminalReport(
+  runId: string,
+  nodeId: string,
+  spawnId: string,
+  status: "completed" | "failed",
+  body: string,
+): boolean {
+  const node = getNode(runId, nodeId);
+  if (!node || node.spawn?.spawnId !== spawnId || node.spawn.processClosed) return false;
+  if (node.spawn.terminalReportAccepted) return false;
+  node.spawn.terminalReportAccepted = true;
+  node.spawn.logicalTerminalReport = status;
+  if (status === "completed") node.result = body;
+  else node.errorMessage = body;
+  node.updatedAt = Date.now();
+  state.runs[runId].updatedAt = Date.now();
+  markStateDirty();
+  return true;
+}
+
+function runIsCancellationRequested(runId: string): boolean {
+  return state.runs[runId]?.cancelRequested === true;
+}
+
 export function updateNodeSpawnProgress(
   runId: string,
   nodeId: string,
@@ -392,9 +499,12 @@ export function updateNodeSpawnProgress(
 
 // ── Dependency readiness ──────────────────────────────────────────
 
-/** A node is ready when every dependency has completed. */
+/** A node is ready when every dependency has completed and its process closed. */
 export function nodeIsReady(run: Run, node: Node): boolean {
-  return node.dependsOn.every((dep) => run.nodes[dep]?.status === "completed");
+  return node.dependsOn.every((dep) => {
+    const dependency = run.nodes[dep];
+    return dependency?.status === "completed" && (!dependency.spawn || dependency.spawn.processClosed);
+  });
 }
 
 /** Nodes that are pending, have no unmet dependencies, and are not yet spawned. */
@@ -421,6 +531,7 @@ export function findSharedWorkspaceWriteConflict(runId: string, nodeId: string):
       if (
         other.status === "running"
         && other.spawn?.status === "running"
+        && !other.spawn.processClosed
         && other.spawn.isolation !== "worktree"
         && other.access === "write"
         && node.paths.some((path) => other.paths.some((otherPath) => pathsOverlap(path, otherPath)))
@@ -468,9 +579,12 @@ export function settleRun(runId: string): RunStatus | undefined {
   if (!run) return undefined;
   if (run.status !== "running") return run.status;
   const nodes = Object.values(run.nodes);
-  const anyActive = nodes.some((node) => node.status === "running" || node.status === "pending");
+  const anyOpenProcess = nodes.some((node) => node.spawn?.status === "running" && !node.spawn.processClosed);
+  const anyActive = anyOpenProcess || nodes.some((node) => node.status === "running" || node.status === "pending");
   if (anyActive) return "running";
-  if (nodes.some((node) => node.status === "failed")) {
+  if (run.cancelRequested) {
+    run.status = "cancelled";
+  } else if (nodes.some((node) => node.status === "failed")) {
     run.status = "failed";
   } else if (nodes.every((node) => node.status === "cancelled")) {
     run.status = "cancelled";
@@ -493,6 +607,7 @@ export function cancelRun(runId: string): { ok: boolean; runningNodeIds: string[
   const run = state.runs[runId];
   if (!run) return { ok: false, runningNodeIds: [], error: `Run "${runId}" not found.` };
   if (isRunTerminal(run)) return { ok: false, runningNodeIds: [], error: `Run "${runId}" is already ${run.status}.` };
+  run.cancelRequested = true;
   const runningNodeIds: string[] = [];
   for (const node of Object.values(run.nodes)) {
     if (node.status === "running") {
@@ -621,6 +736,7 @@ export function retryRun(runId: string, nodeIds?: string[]): { ok: boolean; rese
   run.finishedAt = undefined;
   run.completionNotified = false;
   run.settledMessageSent = false;
+  run.cancelRequested = false;
   run.updatedAt = Date.now();
   markStateDirty();
   return { ok: true, reset };
@@ -646,6 +762,9 @@ export function deliverToLeader(msg: Omit<MailboxMessage, "id" | "timestamp">): 
     timestamp: Date.now(),
   };
   state.leaderMailbox.push(full);
+  if (state.leaderMailbox.length > MAX_LEADER_MAILBOX_MESSAGES) {
+    state.leaderMailbox.splice(0, state.leaderMailbox.length - MAX_LEADER_MAILBOX_MESSAGES);
+  }
   markStateDirty();
   return full;
 }
@@ -663,6 +782,9 @@ export function receiveWorkerMessage(event: WorkerMessageEvent): boolean {
     runId: sender.run.id,
     timestamp: Date.now(),
   });
+  if (state.leaderMailbox.length > MAX_LEADER_MAILBOX_MESSAGES) {
+    state.leaderMailbox.splice(0, state.leaderMailbox.length - MAX_LEADER_MAILBOX_MESSAGES);
+  }
   markStateDirty();
   return true;
 }

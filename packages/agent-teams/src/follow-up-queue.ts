@@ -11,11 +11,19 @@ export interface FollowUpQueueOptions {
   agentStartTimeoutMs?: number;
   retryBaseDelayMs?: number;
   retryMaxDelayMs?: number;
+  maxAttempts?: number;
+}
+
+interface PendingBatch {
+  reports: FollowUpReport[];
+  attempts: number;
+  retrying: boolean;
 }
 
 interface PendingDispatch {
   reports: FollowUpReport[];
   content: string;
+  attempts: number;
   prepared: boolean;
   started: boolean;
 }
@@ -34,13 +42,14 @@ export class FollowUpQueue {
   private readonly agentStartTimeoutMs: number;
   private readonly retryBaseDelayMs: number;
   private readonly retryMaxDelayMs: number;
-  private pending: FollowUpReport[] = [];
+  private readonly maxAttempts: number;
+  private pending: PendingBatch[] = [];
   private active: PendingDispatch | undefined;
   private pumpScheduled = false;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private watchdogTimer: ReturnType<typeof setTimeout> | undefined;
   private generation = 0;
-  private failureCount = 0;
+  private deadLetter: FollowUpReport[] = [];
 
   constructor(options: FollowUpQueueOptions) {
     this.isIdle = options.isIdle;
@@ -49,10 +58,11 @@ export class FollowUpQueue {
     this.agentStartTimeoutMs = options.agentStartTimeoutMs ?? 30_000;
     this.retryBaseDelayMs = options.retryBaseDelayMs ?? 1_000;
     this.retryMaxDelayMs = options.retryMaxDelayMs ?? 30_000;
+    this.maxAttempts = Math.max(1, options.maxAttempts ?? 5);
   }
 
   enqueue(report: FollowUpReport): void {
-    this.pending.push(report);
+    this.pending.push({ reports: [report], attempts: 0, retrying: false });
     this.schedulePump();
   }
 
@@ -67,16 +77,12 @@ export class FollowUpQueue {
     if (!this.active || !this.active.prepared || this.active.started) return;
     this.active.started = true;
     this.clearWatchdog();
-    this.failureCount = 0;
   }
 
   /** Release a completed dispatch; unrelated settled events are ignored. */
   onAgentSettled(): void {
     if (this.active && !this.active.started) return;
-    if (this.active) {
-      this.active = undefined;
-      this.failureCount = 0;
-    }
+    if (this.active) this.active = undefined;
     this.schedulePump();
   }
 
@@ -84,15 +90,20 @@ export class FollowUpQueue {
   reset(): void {
     this.generation++;
     this.pending = [];
+    this.deadLetter = [];
     this.active = undefined;
     this.pumpScheduled = false;
-    this.failureCount = 0;
     this.clearRetryTimer();
     this.clearWatchdog();
   }
 
   get pendingCount(): number {
-    return this.pending.length + (this.active?.reports.length ?? 0);
+    return this.pending.reduce((count, batch) => count + batch.reports.length, 0)
+      + (this.active?.reports.length ?? 0);
+  }
+
+  get deadLetterCount(): number {
+    return this.deadLetter.length;
   }
 
   private schedulePump(): void {
@@ -108,27 +119,31 @@ export class FollowUpQueue {
 
   private pump(): void {
     if (this.active || this.retryTimer || this.pending.length === 0 || !this.isIdle()) return;
-    const reports = this.pending.splice(0);
+    const first = this.pending.shift();
+    if (!first) return;
+    const batches = first.retrying ? [first] : [first, ...this.pending.splice(0)];
+    const reports = batches.flatMap((batch) => batch.reports);
     const content = formatReports(reports);
     const queuedIntoActiveRun = !this.isIdle();
     this.active = {
       reports,
       content,
+      attempts: first.attempts,
       prepared: queuedIntoActiveRun,
       started: queuedIntoActiveRun,
     };
     const generation = this.generation;
-    try {
-      this.dispatch(content);
-    } catch (error) {
-      this.failActive(generation, error instanceof Error ? error.message : String(error));
-      return;
-    }
     if (!queuedIntoActiveRun) {
       this.watchdogTimer = setTimeout(() => {
         if (generation !== this.generation || !this.active || this.active.started) return;
         this.failActive(generation, "Pi did not start the automatic teammate follow-up.");
       }, this.agentStartTimeoutMs);
+      this.watchdogTimer.unref?.();
+    }
+    try {
+      this.dispatch(content);
+    } catch (error) {
+      this.failActive(generation, error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -136,18 +151,24 @@ export class FollowUpQueue {
     if (generation !== this.generation || !this.active) return;
     const failed = this.active;
     this.active = undefined;
-    this.pending.unshift(...failed.reports);
     this.clearWatchdog();
-    this.failureCount++;
+    failed.attempts++;
+    if (failed.attempts >= this.maxAttempts) {
+      this.deadLetter.push(...failed.reports);
+      this.onFailure(`${message} Maximum retry attempts (${this.maxAttempts}) exhausted; report moved to dead letter.`);
+      return;
+    }
+    this.pending.unshift({ reports: failed.reports, attempts: failed.attempts, retrying: true });
     const delay = Math.min(
       this.retryMaxDelayMs,
-      this.retryBaseDelayMs * 2 ** Math.max(0, this.failureCount - 1),
+      this.retryBaseDelayMs * 2 ** Math.max(0, failed.attempts - 1),
     );
     this.onFailure(`${message} Retrying in ${Math.ceil(delay / 1000)}s.`);
     this.retryTimer = setTimeout(() => {
       this.retryTimer = undefined;
       if (generation === this.generation) this.schedulePump();
     }, delay);
+    this.retryTimer.unref?.();
   }
 
   private clearRetryTimer(): void {

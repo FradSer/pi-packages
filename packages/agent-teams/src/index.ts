@@ -83,7 +83,13 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_shutdown", async (_event, ctx) => {
     stopUiTimers();
-    await terminateAllWorkers();
+    const shutdownResults = await terminateAllWorkers();
+    for (const result of shutdownResults) {
+      if (!result.confirmedClosed) {
+        const message = `Worker ${result.name} could not be confirmed closed before session shutdown.`;
+        ctx.ui.notify(message, "warning");
+      }
+    }
     shutdownRunMachine();
     removeSessionStateDir(ctx.sessionManager.getSessionFile(), ctx.cwd || process.cwd());
     followUpQueue?.reset();

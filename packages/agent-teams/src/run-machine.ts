@@ -9,7 +9,7 @@ import {
   deliverToLeader, findSharedWorkspaceWriteConflict, getNode,
   getRun, getState, listNodes, listRuns, markNodeRunning, markStateDirty,
   readyPendingNodes, receiveWorkerMessage, runningNodeCount, settleRun, setNodeSpawnInfo,
-  SUMMARY_NODE_ID, updateNodeSpawnProgress, updateNodeStatus, validateStructuredOutput,
+  acceptTerminalReport, buildForkContext, compactTerminalRuns, resolveInputBinding, SUMMARY_NODE_ID, updateNodeSpawnProgress, updateNodeStatus, validateStructuredOutput,
 } from "./state";
 import {
   CancellationIntents, buildAutonomousPrompt, DEFAULT_TURN_BUDGET, finishReportedWorker, isCompletedWorkerExit,
@@ -32,10 +32,12 @@ const cancellationIntents = new CancellationIntents();
 const reportedWorkerShutdowns = new Set<string>();
 let liveStateFile: string | undefined;
 let livePollTimer: ReturnType<typeof setInterval> | undefined;
+let runMachineGeneration = 0;
 let sendUpdate: (subject: string, body: string, runId?: string) => void = () => {};
 let notifyChange: () => void = () => {};
 
 export function initRunMachine(_ctx: DispatchCtx, stateFile: string, hooks: { sendUpdate: typeof sendUpdate; notifyChange: () => void }): void {
+  runMachineGeneration++;
   liveStateFile = stateFile;
   sendUpdate = hooks.sendUpdate;
   notifyChange = hooks.notifyChange;
@@ -48,29 +50,12 @@ export function ensureRunContext(ctx: DispatchCtx): void {
 }
 
 export function shutdownRunMachine(): void {
+  runMachineGeneration++;
   if (livePollTimer) clearInterval(livePollTimer);
   livePollTimer = undefined;
   liveStateFile = undefined;
   sendUpdate = () => {};
   notifyChange = () => {};
-}
-
-function resolveInputBinding(run: import("./types").Run, node: import("./types").Node, source: string): string {
-  const separator = source.indexOf("#");
-  const dependencyId = separator >= 0 ? source.slice(0, separator) : source;
-  if (!node.dependsOn.includes(dependencyId)) return "(rejected: source is not a dependency)";
-  const dependency = run.nodes[dependencyId];
-  if (!dependency) return "(rejected: dependency not found)";
-  const value = dependency.structuredOutput ?? dependency.namedOutputs ?? dependency.result;
-  if (separator < 0) return JSON.stringify(value);
-  const pointer = source.slice(separator + 1).replace(/^\/json/, "");
-  if (!pointer || pointer === "") return JSON.stringify(value);
-  let current: unknown = value;
-  for (const part of pointer.split("/").filter(Boolean).map((item) => item.replaceAll("~1", "/").replaceAll("~0", "~"))) {
-    if (!current || typeof current !== "object") return "(missing)";
-    current = (current as Record<string, unknown>)[part];
-  }
-  return JSON.stringify(current);
 }
 
 function currentStateFile(): string {
@@ -118,41 +103,67 @@ export function applyWorkerEvents(): void {
       const spawnId = spawn.spawnId;
       const outboxKey = `${node.workerKey}:${spawnId}`;
       const outbox = workerOutboxPath(stateFile, node.workerKey, spawnId);
-      const { events, nextOffset } = readWorkerEvents(outbox, state.workerEventOffsets[outboxKey] ?? 0);
+      const { events, nextOffset, diagnostics } = readWorkerEvents(outbox, state.workerEventOffsets[outboxKey] ?? 0);
       state.workerEventOffsets[outboxKey] = nextOffset;
+      for (const diagnostic of diagnostics) {
+        deliverToLeader({
+          from: node.workerKey,
+          subject: "Worker outbox diagnostic",
+          body: `Node [${run.id}/${node.id}] ${diagnostic}`,
+          runId: run.id,
+        });
+      }
       for (const value of events) {
         if (!isWorkerEvent(value) || state.workerEventIds[`${spawnId}:${value.id}`]) continue;
         const event = value;
         if (event.worker !== node.workerKey || event.spawnId !== spawnId) continue;
         if (event.type === "message") {
           state.workerEventIds[`${spawnId}:${event.id}`] = spawnId;
-          receiveWorkerMessage({
-            id: event.id,
-            worker: node.workerKey,
-            spawnId,
-            type: "message",
-            subject: event.subject,
-            body: event.body,
-            status: event.status,
-            data: event.data,
-          });
+          let acceptedTerminal = true;
+          if (event.status === "completed" || event.status === "failed") {
+            acceptedTerminal = acceptTerminalReport(run.id, node.id, spawnId, event.status, event.body);
+          }
+          if (acceptedTerminal) {
+            receiveWorkerMessage({
+              id: event.id,
+              worker: node.workerKey,
+              spawnId,
+              type: "message",
+              subject: event.subject,
+              body: event.body,
+              status: event.status,
+              data: event.data,
+            });
+          }
           if (event.data?.kind === "named_output" && event.data.name && typeof event.data.value === "string") {
             node.namedOutputs = { ...node.namedOutputs, [event.data.name]: event.data.value };
             markStateDirty();
           }
-          if (event.data?.kind === "output" && event.data.output !== undefined && !validateStructuredOutput(event.data.output)) {
-            node.structuredOutput = event.data.output;
-            markStateDirty();
+          if (event.data?.kind === "output" && event.data.output !== undefined) {
+            const structuredError = validateStructuredOutput(event.data.output);
+            if (structuredError) {
+              deliverToLeader({
+                from: node.workerKey,
+                subject: "Worker outbox diagnostic",
+                body: `Node [${run.id}/${node.id}] rejected structured output: ${structuredError}`,
+                runId: run.id,
+              });
+            } else {
+              node.structuredOutput = event.data.output;
+              markStateDirty();
+            }
           }
-          if (event.status && !["completed", "failed", "cancelled"].includes(node.status)) {
-            if (event.status === "completed") {
-              updateNodeStatus(run.id, node.id, "completed", event.body, undefined);
-              sendNodeFollowUp(run, node, "Node completed", event.body);
+          if (event.status === "completed" || event.status === "failed") {
+            if (acceptedTerminal) {
+              sendNodeFollowUp(run, node, event.status === "completed" ? "Node completed" : "Node failed", event.body);
               requestReportedWorkerShutdown(node.workerKey, spawnId);
-            } else if (event.status === "failed") {
-              updateNodeStatus(run.id, node.id, "failed", undefined, event.body);
-              sendNodeFollowUp(run, node, "Node failed", event.body);
-              requestReportedWorkerShutdown(node.workerKey, spawnId);
+            } else {
+              deliverToLeader({
+                from: node.workerKey,
+                subject: "Discarded stale terminal report",
+                body: `Node [${run.id}/${node.id}] discarded a second ${event.status} report for spawn ${spawnId}.`,
+                runId: run.id,
+              });
             }
           }
           continue;
@@ -258,6 +269,7 @@ export function onRunSettled(runId: string): void {
     markStateDirty();
     sendUpdate(`Run ${run.status}`, summary, runId);
   }
+  compactTerminalRuns();
   publishStateSnapshot();
   notifyChange();
 }
@@ -319,8 +331,9 @@ export async function cancelNodeAndTerminate(
     if (!node?.spawn) continue;
     const spawnId = node.spawn.spawnId;
     if (cancellationIntents.begin(spawnId)) {
+      cancellationIntents.request(spawnId);
       const terminated = await terminateWorker(node.workerKey);
-      cancellationIntents.resolve(spawnId, terminated);
+      if (terminated) cancellationIntents.close(spawnId);
     }
   }
   publishStateSnapshot();
@@ -344,8 +357,9 @@ export async function cancelRunAndTerminate(
     const node = getNode(runId, nodeId);
     const spawnId = node?.spawn?.spawnId;
     if (!node?.spawn || !spawnId || !cancellationIntents.begin(spawnId)) continue;
+    cancellationIntents.request(spawnId);
     const terminated = await terminateWorker(node.workerKey);
-    cancellationIntents.resolve(spawnId, terminated);
+    if (terminated) cancellationIntents.close(spawnId);
   }
   publishStateSnapshot();
   if (!cancellation.runningNodeIds.some((nodeId) => getNode(runId, nodeId)?.status === "running")) {
@@ -363,6 +377,7 @@ export async function cancelRunAndTerminate(
 /** Spawn one node's worker process. Always asynchronous; the node settles via
  * finalizeNode when the child closes. */
 export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void {
+  const generation = runMachineGeneration;
   const run = getRun(runId);
   const node = run?.nodes[nodeId];
   if (!run || !node || node.status !== "pending") return;
@@ -409,6 +424,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
     pid: 0,
     status: "running",
     startedAt: Date.now(),
+    processClosed: false,
     isolation: run.worktree ? "worktree" : "none",
     mode: node.mode,
   });
@@ -417,18 +433,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
   const bindingLines = node.inputBindings
     ? Object.entries(node.inputBindings).map(([name, source]) => `Input ${name}: ${resolveInputBinding(run, node, source)}`)
     : [];
-  const upstream = node.dependsOn
-    .map((depId) => run.nodes[depId])
-    .filter((dep): dep is NonNullable<typeof dep> => Boolean(dep))
-    .filter((dep) => !node.forkContext || node.forkContext.includes(dep.id))
-    .map((dep) => {
-      const body = dep.result?.trim() || dep.errorMessage?.trim() || `${dep.status} with no written result.`;
-      const named = dep.namedOutputs && Object.keys(dep.namedOutputs).length > 0
-        ? `\nNamed outputs: ${JSON.stringify(dep.namedOutputs)}`
-        : "";
-      const structured = dep.structuredOutput === undefined ? "" : `\nStructured output: ${JSON.stringify(dep.structuredOutput)}`;
-      return `--- ${dep.id} (${dep.agent}, ${dep.status}) ---\n${body}${named}${structured}`;
-    });
+  const upstream = buildForkContext(run, node);
   const description = [
     buildAutonomousPrompt({
       name: `${runId}/${nodeId} (${node.agent})`,
@@ -447,7 +452,11 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
   ].join("\n");
 
   const finalizeNode = (result: WorkerProcessResult, cancelled = false) => {
-    // A stale close from an older spawn must not affect this node's newer spawn.
+    // A stale close from an older session or spawn must not affect current state.
+    if (generation !== runMachineGeneration) {
+      if (worktree && !("error" in worktree)) cleanupWorktree(worktree);
+      return;
+    }
     if (getNode(runId, nodeId)?.spawn?.spawnId !== spawnId) {
       if (worktree && !("error" in worktree)) cleanupWorktree(worktree);
       return;
@@ -455,17 +464,28 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
     // Drain validated worker events before recording the final process outcome.
     applyWorkerEvents();
     let patchText = "";
+    let worktreeError: string | undefined;
+    let cleanupError: string | undefined;
     if (worktree && !("error" in worktree)) {
-      const diff = captureWorktreeDiff(worktree);
-      if (diff.patch.trim()) {
-        patchText = `\n\n=== Worktree changes ===\n${diff.diffStat}\n\n${diff.patch}`;
+      try {
+        const captured = captureWorktreeDiff(worktree);
+        if (!captured.ok) {
+          worktreeError = captured.error;
+        } else if (captured.diff.patch.trim()) {
+          patchText = `\n\n=== Worktree changes ===\n${captured.diff.diffStat}\n\n${captured.diff.patch}`;
+        }
+      } finally {
+        try {
+          const cleanup = cleanupWorktree(worktree);
+          if (!cleanup.ok) cleanupError = cleanup.error;
+        } catch (error) {
+          cleanupError = error instanceof Error ? error.message : String(error);
+        }
       }
-      cleanupWorktree(worktree);
     }
     const nodeNow = getNode(runId, nodeId);
-    const reportedTerminalStatus = nodeNow?.status === "completed" || nodeNow?.status === "failed"
-      ? nodeNow.status
-      : undefined;
+    if (nodeNow?.spawn?.terminalResultEmitted) return;
+    const reportedTerminalStatus = nodeNow?.spawn?.logicalTerminalReport;
     const completedAfterFinalResponse = nodeNow?.spawn?.finalResponse === true;
     const workerReportedFailure = reportedTerminalStatus === "failed";
     const completedAfterShutdown = (reportedTerminalStatus === "completed" || completedAfterFinalResponse)
@@ -473,28 +493,38 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
     const ok = isCompletedWorkerExit(
       result,
       reportedTerminalStatus === "completed" || completedAfterFinalResponse,
-    ) && !workerReportedFailure && !cancelled;
+    ) && !workerReportedFailure && !cancelled && !worktreeError && !cleanupError;
     setNodeSpawnInfo(runId, nodeId, {
       spawnId: spawnId,
       pid: result.pid,
       status: ok ? "completed" : "failed",
+      processClosed: true,
       startedAt: nodeNow?.spawn?.startedAt ?? Date.now(),
       finishedAt: Date.now(),
       exitCode: result.exitCode ?? undefined,
       stdout: (result.stdout + patchText).trim() ? result.stdout + patchText : undefined,
-      stderr: ok ? undefined : result.stderr,
+      stderr: ok ? undefined : [result.stderr, cleanupError].filter(Boolean).join("\n"),
       usage: result.usage,
       isolation: run.worktree ? "worktree" : "none",
       error: ok
         ? undefined
-        : result.turnBudgetExceeded
-          ? `Worker exceeded its turn budget of ${turnBudget} turn(s).`
-          : result.signal
-            ? `Worker was terminated by ${result.signal}.`
-            : workerReportedFailure
-              ? nodeNow?.errorMessage ?? "Worker reported task failure."
-              : `Worker exited with code ${result.exitCode ?? "unknown"}.`,
+        : worktreeError
+          ? `Worktree capture failed: ${worktreeError}`
+          : cleanupError
+            ? `Worktree cleanup failed: ${cleanupError}`
+            : result.turnBudgetExceeded
+              ? `Worker exceeded its turn budget of ${turnBudget} turn(s).`
+              : result.signal
+                ? `Worker was terminated by ${result.signal}.`
+                : workerReportedFailure
+                  ? nodeNow?.errorMessage ?? "Worker reported task failure."
+                  : `Worker exited with code ${result.exitCode ?? "unknown"}.`,
     });
+    const emittedNode = getNode(runId, nodeId);
+    if (emittedNode?.spawn) {
+      emittedNode.spawn.terminalResultEmitted = true;
+      markStateDirty();
+    }
     reportedWorkerShutdowns.delete(spawnId);
     // A successful summary node becomes the run's headline result.
     if (ok && node.id === SUMMARY_NODE_ID) {
@@ -528,18 +558,23 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
       // A failed node cancels its not-yet-started transitive dependents.
       cancelBlockedDependents(runId, nodeId);
     }
-    compactFinishedNodeRun(stateFile, workerKey, spawnId);
+      compactFinishedNodeRun(stateFile, workerKey, spawnId);
     scheduleAllRuns(ctx);
     notifyChange();
   };
 
   const finish = (result: WorkerProcessResult) => {
-    if (cancellationIntents.defer(spawnId, (cancelled) => finalizeNode(result, cancelled))) return;
+    if (cancellationIntents.defer(spawnId, (cancelled) => finalizeNode(result, cancelled))) {
+      // This callback is reached from the child's close event, so cancellation
+      // remains authoritative even when terminateWorker saw no live process.
+      cancellationIntents.close(spawnId);
+      return;
+    }
     finalizeNode(result);
   };
 
   const spawnFailure = (error: Error | string) => {
-    if (getNode(runId, nodeId)?.spawn?.spawnId !== spawnId) return;
+    if (generation !== runMachineGeneration || getNode(runId, nodeId)?.spawn?.spawnId !== spawnId) return;
     setNodeSpawnInfo(runId, nodeId, {
       spawnId: spawnId,
       pid: 0,
@@ -547,6 +582,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
       startedAt: node.spawn?.startedAt ?? Date.now(),
       finishedAt: Date.now(),
       isolation: run.worktree ? "worktree" : "none",
+      processClosed: true,
       error: typeof error === "string" ? error : error.message,
     });
     reportedWorkerShutdowns.delete(spawnId);
@@ -595,6 +631,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
     spawnId: spawnId,
     pid: started.pid,
     status: "running",
+    processClosed: false,
     startedAt: node.spawn?.startedAt ?? Date.now(),
     isolation: run.worktree ? "worktree" : "none",
     mode: node.mode,

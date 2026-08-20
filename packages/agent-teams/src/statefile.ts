@@ -62,7 +62,7 @@ export function appendWorkerEvent(file: string, event: WorkerEvent): void {
 }
 
 /** Read a bounded batch of complete JSONL records after byteOffset. */
-export function readWorkerEvents(file: string, byteOffset: number): { events: unknown[]; nextOffset: number } {
+export function readWorkerEvents(file: string, byteOffset: number): { events: unknown[]; nextOffset: number; diagnostics: string[] } {
   let fd: number | undefined;
   try {
     fd = fs.openSync(file, "r");
@@ -70,7 +70,7 @@ export function readWorkerEvents(file: string, byteOffset: number): { events: un
     // A truncated/recreated outbox starts at zero; event IDs make replay safe.
     const offset = byteOffset > size ? 0 : Math.max(0, byteOffset);
     const toRead = Math.min(MAX_OUTBOX_READ_BYTES, size - offset);
-    if (toRead === 0) return { events: [], nextOffset: offset };
+    if (toRead === 0) return { events: [], nextOffset: offset, diagnostics: [] };
     const raw = Buffer.allocUnsafe(toRead);
     const bytesRead = fs.readSync(fd, raw, 0, toRead, offset);
     const unread = raw.subarray(0, bytesRead);
@@ -78,21 +78,26 @@ export function readWorkerEvents(file: string, byteOffset: number): { events: un
     if (lastNewline < 0) {
       // A line larger than the batch cap is malformed for this protocol; skip
       // this chunk so one worker cannot block event draining indefinitely.
-      return { events: [], nextOffset: bytesRead === MAX_OUTBOX_READ_BYTES ? offset + bytesRead : offset };
+      return {
+        events: [],
+        nextOffset: bytesRead === MAX_OUTBOX_READ_BYTES ? offset + bytesRead : offset,
+        diagnostics: ["malformed or unterminated worker outbox record was consumed"],
+      };
     }
     const complete = unread.subarray(0, lastNewline).toString("utf-8");
     const events: unknown[] = [];
+    const diagnostics: string[] = [];
     for (const line of complete.split("\n")) {
       if (!line.trim()) continue;
       try {
         events.push(JSON.parse(line));
       } catch {
-        // Malformed records are consumed, not retried forever.
+        diagnostics.push("malformed worker outbox JSON record was consumed");
       }
     }
-    return { events, nextOffset: offset + lastNewline + 1 };
+    return { events, nextOffset: offset + lastNewline + 1, diagnostics };
   } catch {
-    return { events: [], nextOffset: 0 };
+    return { events: [], nextOffset: 0, diagnostics: [] };
   } finally {
     if (fd !== undefined) fs.closeSync(fd);
   }

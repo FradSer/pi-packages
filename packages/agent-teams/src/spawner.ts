@@ -46,7 +46,7 @@ ${taskLine}
 YOUR ROLE IN THIS RUN:
 1. Work directly on your assigned scope and declared paths. DAG upstream results are ALREADY injected into this prompt below; do not poll for them.
 2. Report plans, progress, and blockers with teammate_message. When finished, call teammate_message with status="completed" and put your FULL deliverable in the body. If blocked or failed, use status="failed" and explain the error.
-3. There is no peer or leader-to-worker message channel. Make decisions within the assigned task and report blockers instead of waiting for a reply.
+3. There are no peer mailboxes, broadcasts, or worker inboxes. The leader may steer this worker through teammate_message in RPC mode; make decisions within the assigned task and report blockers instead of waiting for peers.
 ${budgetLine}
 
 BOUND CAPABILITIES:
@@ -124,47 +124,116 @@ export const POST_REPORT_GRACE_MS = 10_000;
  * A run ID is unique to one child process, so an old close event cannot affect
  * a later task run.
  */
+interface CancellationIntent {
+  cancellationRequested: boolean;
+  closeObserved: boolean;
+  closeCancelled: boolean;
+  finalizers: Array<(cancelled: boolean) => void>;
+}
+
 export class CancellationIntents {
-  private readonly finalizers = new Map<string, Array<(cancelled: boolean) => void>>();
+  private readonly intents = new Map<string, CancellationIntent>();
 
   begin(spawnId: string): boolean {
-    if (this.finalizers.has(spawnId)) return false;
-    this.finalizers.set(spawnId, []);
+    if (this.intents.has(spawnId)) return false;
+    this.intents.set(spawnId, {
+      cancellationRequested: false,
+      closeObserved: false,
+      closeCancelled: false,
+      finalizers: [],
+    });
     return true;
   }
 
   has(spawnId: string): boolean {
-    return this.finalizers.has(spawnId);
+    return this.intents.has(spawnId);
+  }
+
+  /** Record cancellation before termination; the close event still owns finalization. */
+  request(spawnId: string): boolean {
+    const intent = this.intents.get(spawnId);
+    if (!intent) return false;
+    intent.cancellationRequested = true;
+    return true;
   }
 
   defer(spawnId: string, finalize: (cancelled: boolean) => void): boolean {
-    const pending = this.finalizers.get(spawnId);
-    if (!pending) return false;
-    pending.push(finalize);
+    const intent = this.intents.get(spawnId);
+    if (!intent) return false;
+    intent.finalizers.push(finalize);
+    this.finalizeIfClosed(spawnId, intent);
     return true;
   }
 
+  /** Resolve a known close outcome (kept for direct callers and unit tests). */
   resolve(spawnId: string, cancelled: boolean): boolean {
-    const pending = this.finalizers.get(spawnId);
-    if (!pending) return false;
-    try {
-      for (const finalize of pending) finalize(cancelled);
-    } finally {
-      this.finalizers.delete(spawnId);
-    }
+    const intent = this.intents.get(spawnId);
+    if (!intent) return false;
+    intent.closeObserved = true;
+    intent.closeCancelled ||= cancelled;
+    this.finalizeIfClosed(spawnId, intent);
     return true;
+  }
+
+  /** Finalize only after the child close event has been observed. */
+  close(spawnId: string): boolean {
+    const intent = this.intents.get(spawnId);
+    if (!intent) return false;
+    // The close observer can run before the run-machine onExit callback. Keep
+    // the intent until defer() registers that callback's finalizer.
+    intent.closeObserved = true;
+    this.finalizeIfClosed(spawnId, intent);
+    return true;
+  }
+
+  private finalizeIfClosed(spawnId: string, intent: CancellationIntent): void {
+    if (!intent.closeObserved || intent.finalizers.length === 0) return;
+    const authoritativeCancellation = intent.cancellationRequested || intent.closeCancelled;
+    try {
+      for (const finalize of intent.finalizers) finalize(authoritativeCancellation);
+    } finally {
+      this.intents.delete(spawnId);
+    }
   }
 }
 
 /** Live workers by teammate name — lets the panel interrupt/stop a running worker. */
 const workers = new Map<string, ReturnType<typeof spawn>>();
+const closedWorkers = new WeakSet<ReturnType<typeof spawn>>();
+const closedWorkersByName = new Map<string, ReturnType<typeof spawn>>();
 
-/** Send a steering message to an RPC worker without adding a peer mailbox. */
-export function sendWorkerSteer(name: string, message: string): boolean {
-  const child = workers.get(name);
-  if (!child?.stdin || child.stdin.destroyed || !child.stdin.writable) return false;
+function observeWorkerClose(name: string, child: ReturnType<typeof spawn>): void {
+  child.once("close", () => {
+    closedWorkers.add(child);
+    closedWorkersByName.set(name, child);
+  });
+}
+
+/** True only after Node has emitted the child process close event. */
+export function isWorkerCloseObserved(child: ReturnType<typeof spawn>): boolean {
+  return closedWorkers.has(child);
+}
+
+export function isWorkerCloseObservedByName(name: string): boolean {
+  const child = closedWorkersByName.get(name);
+  return child !== undefined && closedWorkers.has(child);
+}
+
+/** Attach close tracking to a child used by a shutdown or lifecycle test. */
+export function watchWorkerClose(child: ReturnType<typeof spawn>): void {
+  observeWorkerClose(`pid:${child.pid ?? 0}`, child);
+}
+
+/** Send a leader steering message to a running RPC worker; no peer mailbox, broadcast, or worker inbox is created. */
+export function sendWorkerSteerToChild(child: ReturnType<typeof spawn>, message: string): boolean {
+  if (!child.stdin || child.stdin.destroyed || !child.stdin.writable) return false;
   child.stdin.write(`${JSON.stringify({ type: "steer", message })}\n`);
   return true;
+}
+
+export function sendWorkerSteer(name: string, message: string): boolean {
+  const child = workers.get(name);
+  return child ? sendWorkerSteerToChild(child, message) : false;
 }
 
 function isChildRunning(child: ReturnType<typeof spawn>): boolean {
@@ -172,9 +241,13 @@ function isChildRunning(child: ReturnType<typeof spawn>): boolean {
 }
 
 function waitForClose(child: ReturnType<typeof spawn>, timeoutMs: number): Promise<boolean> {
+  if (isWorkerCloseObserved(child)) return Promise.resolve(true);
   return new Promise((resolve) => {
     let settled = false;
-    const onClose = () => finish(true);
+    const onClose = () => {
+      closedWorkers.add(child);
+      finish(true);
+    };
     const timer = setTimeout(() => finish(false), timeoutMs);
     timer.unref?.();
 
@@ -195,30 +268,24 @@ function waitForClose(child: ReturnType<typeof spawn>, timeoutMs: number): Promi
  * resolve only after a bounded wait observes the child `close` event.
  */
 export async function terminateChildProcess(child: ReturnType<typeof spawn>, graceMs = CANCEL_GRACE_MS): Promise<boolean> {
-  if (!isChildRunning(child)) return false;
+  if (isWorkerCloseObserved(child)) return true;
 
   const closedAfterTerm = waitForClose(child, graceMs);
+  if (!isChildRunning(child)) return closedAfterTerm;
+
   try {
-    if (!child.kill("SIGTERM")) {
-      void closedAfterTerm;
-      return false;
-    }
+    if (!child.kill("SIGTERM")) return closedAfterTerm;
   } catch {
-    void closedAfterTerm;
-    return false;
+    return closedAfterTerm;
   }
   if (await closedAfterTerm) return true;
   if (!isChildRunning(child)) return false;
 
   const closedAfterKill = waitForClose(child, graceMs);
   try {
-    if (!child.kill("SIGKILL")) {
-      void closedAfterKill;
-      return false;
-    }
+    if (!child.kill("SIGKILL")) return closedAfterKill;
   } catch {
-    void closedAfterKill;
-    return false;
+    return closedAfterKill;
   }
   return closedAfterKill;
 }
@@ -236,10 +303,29 @@ export async function finishReportedWorker(name: string, graceMs = POST_REPORT_G
 }
 
 /** Stop every live child before the leader discards the current session board. */
-export async function terminateAllWorkers(graceMs = CANCEL_GRACE_MS): Promise<void> {
-  const children = [...workers.values()];
-  await Promise.all(children.map((child) => (isChildRunning(child) ? terminateChildProcess(child, graceMs) : undefined)));
-  workers.clear();
+export interface WorkerShutdownResult {
+  name: string;
+  confirmedClosed: boolean;
+}
+
+export async function terminateWorkerEntries(
+  children: Array<[string, ReturnType<typeof spawn>]>,
+  graceMs = CANCEL_GRACE_MS,
+): Promise<WorkerShutdownResult[]> {
+  return Promise.all(children.map(async ([name, child]) => ({
+    name,
+    confirmedClosed: isWorkerCloseObserved(child) || await terminateChildProcess(child, graceMs),
+  })));
+}
+
+export async function terminateAllWorkers(graceMs = CANCEL_GRACE_MS): Promise<WorkerShutdownResult[]> {
+  const children = [...workers.entries()];
+  const results = await terminateWorkerEntries(children, graceMs);
+  for (const result of results) {
+    const child = workers.get(result.name);
+    if (result.confirmedClosed && child) workers.delete(result.name);
+  }
+  return results;
 }
 
 const TASK_ARG_LIMIT = 8000;
@@ -527,6 +613,7 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
     cleanupTempDir();
     return setupError(error);
   }
+  observeWorkerClose(options.workerName ?? `pid:${child.pid ?? 0}`, child);
   if (options.workerName) workers.set(options.workerName, child);
 
   if (mode === "rpc") {
@@ -567,17 +654,18 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
   child.on("error", (error) => {
     cleanupTempDir();
     settled = true;
-    if (options.workerName && workers.get(options.workerName) === child) workers.delete(options.workerName);
+    // Keep the registry entry until close is observed; shutdown diagnostics must
+    // distinguish an error/exit code from a confirmed close event.
     options.onError?.(error);
   });
 
   child.on("close", (code, signal) => {
     cleanupTempDir();
+    if (options.workerName && workers.get(options.workerName) === child) workers.delete(options.workerName);
     // A spawn failure already reported via onError (Node fires error then
     // close) — do not double-report through onExit, which would let a failed
     // spawn look like a successful 0-exit run.
     if (settled) return;
-    if (options.workerName && workers.get(options.workerName) === child) workers.delete(options.workerName);
     const rawStdout = stdoutChunks.join("");
     const parsed = mode === "text"
       ? { text: rawStdout.trim(), usage: undefined }

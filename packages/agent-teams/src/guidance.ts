@@ -11,9 +11,10 @@ team leader:
   terminal status. For the final deliverable, use status="completed"; for a
   blocked or failed task, use status="failed" and explain the error. The
   final report MUST contain the full deliverable.
-- There is no peer or leader-to-worker message channel. DAG upstream results
-  are already injected into your task prompt. Make decisions within the
-  assigned task and report blockers instead of waiting for a reply.
+- There are no peer mailboxes, broadcasts, or worker inboxes. DAG upstream results
+  are already injected into your task prompt. The leader may steer a running RPC
+  worker through leader teammate_message; make decisions within the assigned task
+  and report blockers instead of waiting for a reply.
 
 Do not use leader coordination tools, claim new tasks, or overwrite files
 outside your assigned scope.

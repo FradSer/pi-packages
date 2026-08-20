@@ -27,6 +27,8 @@ export interface WorktreeDiff {
   diffStat: string;
 }
 
+export type WorktreeDiffResult = { ok: true; diff: WorktreeDiff } | { ok: false; error: string };
+
 function runGit(cwd: string, args: string[]): { status: number | null; stdout: string; stderr: string } {
   const result = spawnSync("git", ["-C", cwd, ...args], { encoding: "utf-8" });
   return {
@@ -81,14 +83,24 @@ export function createWorktree(
  * Capture the worker's changes in the worktree as a patch against the base
  * commit. The worktree is left untouched; call cleanupWorktree afterwards.
  */
-export function captureWorktreeDiff(setup: WorktreeSetup): WorktreeDiff {
-  execFileSync("git", ["-C", setup.path, "add", "-A"], { stdio: "ignore" });
-  const stat = runGit(setup.path, ["diff", "--cached", "--stat", setup.baseCommit]);
-  const patch = runGit(setup.path, ["diff", "--cached", setup.baseCommit]);
-  return {
-    patch: patch.stdout ?? "",
-    diffStat: stat.stdout?.trim() ?? "",
-  };
+export function captureWorktreeDiff(setup: WorktreeSetup): WorktreeDiffResult {
+  try {
+    execFileSync("git", ["-C", setup.path, "add", "-A"], { stdio: "ignore" });
+    const stat = runGit(setup.path, ["diff", "--cached", "--stat", setup.baseCommit]);
+    const patch = runGit(setup.path, ["diff", "--cached", setup.baseCommit]);
+    if (stat.status !== 0 || patch.status !== 0) {
+      return { ok: false, error: patch.stderr.trim() || stat.stderr.trim() || "git diff failed" };
+    }
+    return {
+      ok: true,
+      diff: {
+        patch: patch.stdout ?? "",
+        diffStat: stat.stdout?.trim() ?? "",
+      },
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 /**

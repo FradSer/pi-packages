@@ -10,6 +10,7 @@ SRC = PACKAGE / "src"
 
 LEADER_TOOLS = {
     "teammate_run",
+    "teammate_fanout",
     "teammate_message",
     "teammate_cancel",
     "teammate_retry",
@@ -74,6 +75,7 @@ def test_manifest_declares_native_extension_package() -> None:
 def test_bdd_contract_covers_target_resources() -> None:
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     for phrase in (
+        "Feature: Agent Teams run-centric orchestration and messaging contract",
         "Agents are declarative Markdown files",
         "Discover agents from bundled, user, and project scopes",
         "Project agents override user and bundled agents with the same name",
@@ -98,7 +100,9 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Cancel one node while the rest of the run continues",
         "Retry failed and cancelled nodes without re-running completed ones",
         "Workers report exclusively to the team leader",
-        "No peer or leader-to-worker channels exist",
+        "No peer mailboxes, broadcasts, or worker inboxes exist",
+        "no peer mailbox, broadcast, or worker inbox operation is available",
+        "leader can steer a running RPC worker through teammate_message",
         "Completing a node injects its result into downstream prompts",
         "Messages carry no read receipts",
         "Multi-node runs synthesize a final summary by default",
@@ -108,6 +112,11 @@ def test_bdd_contract_covers_target_resources() -> None:
         "A failed node fails the run and downstream nodes are not started",
         "Reject malformed task graphs",
         "Reject ambiguous path ownership",
+        "Paths and access are scheduling metadata, not enforcement",
+        "paths and access are scheduling and prompt metadata only",
+        "shared-workspace protection is advisory write/write coordination",
+        "paths and access provide no OS or container sandbox",
+        "paths and access provide no true read/write enforcement",
         "Run lifecycle is explicit",
         "The leader coordinates through dispatch, runtime steer, cancel, and retry",
         "Each completed teammate notifies the leader immediately",
@@ -116,6 +125,7 @@ def test_bdd_contract_covers_target_resources() -> None:
         "later reports use the follow-up queue instead of starting another prompt",
         "When agent_settled fires",
         "A failed automatic follow-up preserves reports and retries with backoff",
+        "Follow-up watchdog and retry timers are cleaned up at lifecycle boundaries",
         "A delayed follow-up cannot cross a session boundary",
         "Run completion is delivered automatically without a wait tool",
         "worker's teammate_message reports are available to the leader",
@@ -147,6 +157,18 @@ def test_bdd_contract_covers_target_resources() -> None:
         "a teammate widget row never wraps a truncation notice onto a second line",
         "the idle widget stays hidden until a teammate is running",
         "Detail scrolling preserves every wrapped display line",
+        "Terminal session state is bounded without removing active runs",
+        "Deeply nested structured output cannot break event draining",
+        "Worktree finalization failures still settle the node",
+        "Shutdown preserves diagnostics for unconfirmed workers",
+        "Malformed worker output becomes a leader diagnostic",
+        "Follow-up retries stop at a bounded attempt count",
+        "Follow-up retry attempts are scoped to each report batch",
+        "Cancellation intent wins when termination sees an exited child",
+        "Close observation before onExit preserves node-only cancellation",
+        "Late close callbacks are harmless after shutdown",
+        "Shutdown confirms workers only after close is observed",
+        "confirmed closed means the child close event was observed",
     ):
         assert phrase in feature
 
@@ -226,6 +248,32 @@ def test_widget_rows_align_with_native_loader_and_show_live_activity() -> None:
     assert 'bash: ${truncateInline(command, 40)}' in spawner
 
 
+def test_paths_and_access_contract_is_advisory_metadata() -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    types = source("types.ts")
+    assert "No peer mailboxes, broadcasts, or worker inboxes exist" in feature
+    assert "leader can steer a running RPC worker through teammate_message" in feature
+    assert "no peer mailbox, broadcast, or worker inbox operation is available" in feature
+    assert "Scheduling and prompt metadata only" in types
+    assert "advisory shared-workspace write/write coordination" in types
+    assert "does not enforce filesystem permissions or provide an OS/container sandbox" in types
+    assert "not a permission boundary" in types
+    assert "paths do not enforce read/write access or provide an OS/container sandbox" in types
+    fanout_schema = types[types.index("export const TeammateFanoutParams"):types.index("/** Leader-only runtime steer")]
+    assert "Scheduling and prompt metadata only" in fanout_schema
+    assert "do not enforce filesystem permissions" in fanout_schema
+
+
+def test_guidance_and_description_use_one_way_worker_messages() -> None:
+    guidance = source("guidance.ts")
+    spawner = source("spawner.ts")
+    manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
+    assert "no peer mailboxes, broadcasts, or worker inboxes" in guidance
+    assert "leader may steer a running RPC" in guidance
+    assert "no peer mailbox, broadcast, or worker inbox" in spawner
+    assert "one-way worker messages" in manifest["description"]
+
+
 def test_types_express_run_centric_surface() -> None:
     types = source("types.ts")
     for schema in (
@@ -299,8 +347,8 @@ def test_node_cancel_keeps_run_running() -> None:
             {{ id: "c", agent: "worker", prompt: "", paths: ["z"], access: "read", dependsOn: ["b"] }},
           ] }});
         const run = created.run;
-        setNodeSpawnInfo(run.id, "b", {{ spawnId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
-        setNodeSpawnInfo(run.id, "c", {{ spawnId: "s2", pid: 2, status: "running", startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "b", {{ spawnId: "s1", pid: 1, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "c", {{ spawnId: "s2", pid: 2, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
         const cancelled = cancelNode(run.id, "b");
         console.log(JSON.stringify({{ ok: cancelled.ok, running: cancelled.runningNodeIds.join(","), b: run.nodes.b.status, c: run.nodes.c.status, a: run.nodes.a.status, runStatus: run.status }}));
         '''
@@ -486,7 +534,7 @@ def test_worker_report_is_leader_only_and_deduplicated() -> None:
         const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: false, summarize: false,
           nodes: [{{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }}] }});
         const run = created.run;
-        run.nodes.a.spawn = {{ spawnId: "spawn-1", pid: 1, status: "running", startedAt: 1, isolation: "none" }};
+        run.nodes.a.spawn = {{ spawnId: "spawn-1", pid: 1, status: "running", processClosed: false, startedAt: 1, isolation: "none" }};
         const event = {{ id: "evt-1", worker: run.nodes.a.workerKey, spawnId: "spawn-1", type: "message", subject: "Plan", body: "ready" }};
         const first = receiveWorkerMessage(event);
         const duplicate = receiveWorkerMessage(event);
@@ -591,15 +639,97 @@ def test_write_conflict_detection_is_run_scoped() -> None:
             {{ id: "r", agent: "reviewer", prompt: "", paths: ["packages/a"], access: "read", dependsOn: [] }},
           ] }});
         const run = created.run;
-        setNodeSpawnInfo(run.id, "w1", {{ spawnId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "w1", {{ spawnId: "s1", pid: 1, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
         const writeOverlap = findSharedWorkspaceWriteConflict(run.id, "w2")?.id ?? null;
         const readOverlap = findSharedWorkspaceWriteConflict(run.id, "r")?.id ?? null;
-        setNodeSpawnInfo(run.id, "w2", {{ spawnId: "s2", pid: 2, status: "running", startedAt: 1, isolation: "worktree" }});
+        setNodeSpawnInfo(run.id, "w2", {{ spawnId: "s2", pid: 2, status: "running", processClosed: false, startedAt: 1, isolation: "worktree" }});
         const isolated = findSharedWorkspaceWriteConflict(run.id, "w1")?.id ?? null;
         console.log(JSON.stringify({{ writeOverlap, readOverlap, isolated }}));
         '''
     )
     assert payload == {"writeOverlap": "w1", "readOverlap": None, "isolated": None}
+
+
+def test_partial_run_cancellation_wins_over_completed_nodes() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, cancelRun, setNodeSpawnInfo, settleRun }} from "{module}";
+        resetState();
+        const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: true, summarize: false,
+          nodes: [
+            {{ id: "done", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }},
+            {{ id: "live", agent: "worker", prompt: "", paths: ["y"], access: "read", dependsOn: [] }},
+          ] }});
+        const run = created.run;
+        setNodeSpawnInfo(run.id, "done", {{ spawnId: "s1", pid: 1, status: "completed", processClosed: true, startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "live", {{ spawnId: "s2", pid: 2, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
+        const cancellation = cancelRun(run.id);
+        const whileLive = settleRun(run.id);
+        setNodeSpawnInfo(run.id, "live", {{ spawnId: "s2", pid: 2, status: "failed", processClosed: true, startedAt: 1, isolation: "none" }});
+        const afterClose = settleRun(run.id);
+        console.log(JSON.stringify({{ cancelRequested: run.cancelRequested, runningNodeIds: cancellation.runningNodeIds, whileLive, afterClose, done: run.nodes.done.status, live: run.nodes.live.status }}));
+        '''
+    )
+    assert payload == {
+        "cancelRequested": True,
+        "runningNodeIds": ["live"],
+        "whileLive": "running",
+        "afterClose": "cancelled",
+        "done": "completed",
+        "live": "cancelled",
+    }
+
+
+def test_terminal_report_does_not_release_process_lifecycle_resources() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, acceptTerminalReport, setNodeSpawnInfo, runningNodeCount, findSharedWorkspaceWriteConflict, nodeIsReady }} from "{module}";
+        resetState();
+        const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: true, summarize: false,
+          nodes: [
+            {{ id: "a", agent: "worker", prompt: "", paths: ["src"], access: "write", dependsOn: [] }},
+            {{ id: "b", agent: "worker", prompt: "", paths: ["src/lib"], access: "write", dependsOn: [] }},
+            {{ id: "downstream", agent: "worker", prompt: "", paths: ["out"], access: "read", dependsOn: ["a"] }},
+          ] }});
+        const run = created.run;
+        setNodeSpawnInfo(run.id, "a", {{ spawnId: "s1", pid: 1, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "b", {{ spawnId: "s2", pid: 2, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
+        const accepted = acceptTerminalReport(run.id, "a", "s1", "completed", "done");
+        const beforeClose = {{ accepted, status: run.nodes.a.status, running: runningNodeCount(run.id), conflict: findSharedWorkspaceWriteConflict(run.id, "b")?.id ?? null, ready: nodeIsReady(run, run.nodes.downstream) }};
+        setNodeSpawnInfo(run.id, "a", {{ spawnId: "s1", pid: 1, status: "completed", processClosed: true, startedAt: 1, isolation: "none" }});
+        const afterClose = {{ status: run.nodes.a.status, running: runningNodeCount(run.id), conflict: findSharedWorkspaceWriteConflict(run.id, "b")?.id ?? null, ready: nodeIsReady(run, run.nodes.downstream) }};
+        console.log(JSON.stringify({{ beforeClose, afterClose }}));
+        '''
+    )
+    assert payload == {
+        "beforeClose": {"accepted": True, "status": "running", "running": 2, "conflict": "a", "ready": False},
+        "afterClose": {"status": "completed", "running": 1, "conflict": None, "ready": True},
+    }
+
+
+def test_each_spawn_accepts_only_one_terminal_report() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, acceptTerminalReport, setNodeSpawnInfo }} from "{module}";
+        resetState();
+        const created = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: true, summarize: false,
+          nodes: [{{ id: "a", agent: "worker", prompt: "", paths: ["src"], access: "read", dependsOn: [] }}] }});
+        const run = created.run;
+        setNodeSpawnInfo(run.id, "a", {{ spawnId: "s1", pid: 1, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
+        const first = acceptTerminalReport(run.id, "a", "s1", "completed", "done");
+        const second = acceptTerminalReport(run.id, "a", "s1", "failed", "late failure");
+        console.log(JSON.stringify({{ first, second, report: run.nodes.a.spawn?.logicalTerminalReport, result: run.nodes.a.result, error: run.nodes.a.errorMessage }}));
+        '''
+    )
+    assert payload == {
+        "first": True,
+        "second": False,
+        "report": "completed",
+        "result": "done",
+    }
 
 
 def test_cancel_run_marks_pending_and_returns_running_nodes() -> None:
@@ -615,7 +745,7 @@ def test_cancel_run_marks_pending_and_returns_running_nodes() -> None:
             {{ id: "c", agent: "worker", prompt: "", paths: ["z"], access: "read", dependsOn: ["a"] }},
           ] }});
         const run = created.run;
-        setNodeSpawnInfo(run.id, "a", {{ spawnId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "a", {{ spawnId: "s1", pid: 1, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
         const cancelled = cancelRun(run.id);
         const terminal = isRunTerminal(run);
         console.log(JSON.stringify({{
@@ -648,7 +778,7 @@ def test_mailbox_is_leader_only_without_receipts() -> None:
           nodes: [{{ id: "a", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }}] }});
         const run = created.run;
         deliverToLeader({{ from: "run_1:a", subject: "harness", body: "hello", runId: run.id }});
-        run.nodes.a.spawn = {{ spawnId: "s1", pid: 1, status: "running", startedAt: 1, isolation: "none" }};
+        run.nodes.a.spawn = {{ spawnId: "s1", pid: 1, status: "running", processClosed: false, startedAt: 1, isolation: "none" }};
         const event = {{ id: "evt-1", worker: run.nodes.a.workerKey, spawnId: "s1", type: "message", subject: "plan", body: "p" }};
         const delivered = receiveWorkerMessage(event);
         const duplicate = receiveWorkerMessage(event);
@@ -759,6 +889,144 @@ def test_cancellation_intent_defers_close_finalization_until_the_cancel_outcome_
     }
 
 
+def test_cancellation_remains_authoritative_when_child_exit_precedes_close() -> None:
+    module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ CancellationIntents }} from "{module}";
+        const intents = new CancellationIntents();
+        const outcomes = [];
+        intents.begin("spawn-1");
+        intents.request("spawn-1");
+        intents.defer("spawn-1", (cancelled) => outcomes.push(cancelled ? "cancelled" : "normal"));
+        const childExited = intents.resolve("spawn-1", false);
+        console.log(JSON.stringify({{ childExited, outcomes, pending: intents.has("spawn-1") }}));
+        '''
+    )
+    assert payload == {"childExited": True, "outcomes": ["cancelled"], "pending": False}
+
+
+def test_close_before_on_exit_keeps_cancellation_until_deferred_finalizer() -> None:
+    module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ CancellationIntents }} from "{module}";
+        const intents = new CancellationIntents();
+        const outcomes = [];
+        intents.begin("spawn-1");
+        intents.request("spawn-1");
+        const observed = intents.close("spawn-1");
+        const beforeOnExit = {{ outcomes: [...outcomes], pending: intents.has("spawn-1") }};
+        const deferred = intents.defer("spawn-1", (cancelled) => outcomes.push(cancelled ? "cancelled" : "normal"));
+        console.log(JSON.stringify({{ observed, deferred, beforeOnExit, outcomes, pending: intents.has("spawn-1") }}));
+        '''
+    )
+    assert payload == {
+        "observed": True,
+        "deferred": True,
+        "beforeOnExit": {"outcomes": [], "pending": True},
+        "outcomes": ["cancelled"],
+        "pending": False,
+    }
+
+
+def test_close_before_on_exit_node_cancellation_does_not_cancel_other_nodes() -> None:
+    state_module = (SRC / "state.ts").as_uri()
+    spawner_module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, cancelNode, setNodeSpawnInfo, settleRun, updateNodeStatus }} from "{state_module}";
+        import {{ CancellationIntents }} from "{spawner_module}";
+        resetState();
+        const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, summarize: false, nodes: [
+          {{ id: "cancelled", agent: "worker", prompt: "", paths: ["a"], access: "read", dependsOn: [] }},
+          {{ id: "other", agent: "worker", prompt: "", paths: ["b"], access: "read", dependsOn: [] }},
+        ] }});
+        const run = created.run;
+        setNodeSpawnInfo(run.id, "cancelled", {{ spawnId: "s1", pid: 1, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "other", {{ spawnId: "s2", pid: 2, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
+        const cancellation = cancelNode(run.id, "cancelled");
+        const intents = new CancellationIntents();
+        intents.begin("s1");
+        intents.request("s1");
+        intents.close("s1");
+        setNodeSpawnInfo(run.id, "cancelled", {{ spawnId: "s1", pid: 1, status: "completed", processClosed: true, startedAt: 1, isolation: "none" }});
+        let finalized = "";
+        intents.defer("s1", (cancelled) => {{
+          finalized = cancelled ? "cancelled" : "normal";
+          if (cancelled) updateNodeStatus(run.id, "cancelled", "cancelled");
+        }});
+        const status = settleRun(run.id);
+        console.log(JSON.stringify({{ finalized, cancellation: cancellation.runningNodeIds, cancelled: run.nodes.cancelled.status, other: run.nodes.other.status, runStatus: status }}));
+        '''
+    )
+    assert payload == {
+        "finalized": "cancelled",
+        "cancellation": ["cancelled"],
+        "cancelled": "cancelled",
+        "other": "running",
+        "runStatus": "running",
+    }
+
+
+def test_late_close_after_shutdown_is_guarded_by_generation() -> None:
+    machine = source("run-machine.ts")
+    shutdown = machine[machine.index("export function shutdownRunMachine"):machine.index("function currentStateFile")]
+    assert "runMachineGeneration++" in shutdown
+    assert "if (generation !== runMachineGeneration)" in machine
+    assert "if (generation !== runMachineGeneration || getNode(runId, nodeId)?.spawn?.spawnId !== spawnId) return;" in machine
+
+
+def test_shutdown_does_not_treat_exit_code_as_observed_close() -> None:
+    module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ EventEmitter }} from "node:events";
+        import {{ terminateWorkerEntries }} from "{module}";
+        const child = Object.assign(new EventEmitter(), {{ exitCode: 0, signalCode: null, pid: 1, kill: () => false }});
+        const keepAlive = setTimeout(() => {{}}, 50);
+        const results = await terminateWorkerEntries([["worker-1", child]], 5);
+        clearTimeout(keepAlive);
+        console.log(JSON.stringify(results[0]));
+        '''
+    )
+    assert payload == {"name": "worker-1", "confirmedClosed": False}
+
+
+def test_shutdown_requires_observed_close_before_confirming_worker() -> None:
+    module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ spawn }} from "node:child_process";
+        import {{ isWorkerCloseObserved, terminateWorkerEntries, watchWorkerClose }} from "{module}";
+        const child = spawn(process.execPath, ["--eval", `process.exit(0)`], {{ stdio: ["ignore", "ignore", "ignore"] }});
+        watchWorkerClose(child);
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        const results = await terminateWorkerEntries([["worker-1", child]], 10);
+        console.log(JSON.stringify({{ result: results[0], closeObserved: isWorkerCloseObserved(child) }}));
+        '''
+    )
+    assert payload["result"] == {"name": "worker-1", "confirmedClosed": True}
+    assert payload["closeObserved"] is True
+
+
+def test_exit_code_without_close_does_not_release_node_resources() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, setNodeSpawnInfo, runningNodeCount }} from "{module}";
+        resetState();
+        const run = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, summarize: false, nodes: [{{ id: "a", agent: "worker", prompt: "", paths: ["src"], access: "read", dependsOn: [] }}] }}).run;
+        setNodeSpawnInfo(run.id, "a", {{ spawnId: "s1", pid: 1, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
+        setNodeSpawnInfo(run.id, "a", {{ spawnId: "s1", pid: 1, status: "completed", exitCode: 0, startedAt: 1, isolation: "none" }});
+        const beforeClose = {{ processClosed: run.nodes.a.spawn?.processClosed, status: run.nodes.a.status, running: runningNodeCount(run.id) }};
+        setNodeSpawnInfo(run.id, "a", {{ spawnId: "s1", pid: 1, status: "completed", processClosed: true, exitCode: 0, startedAt: 1, isolation: "none" }});
+        console.log(JSON.stringify({{ beforeClose, afterClose: {{ processClosed: run.nodes.a.spawn?.processClosed, status: run.nodes.a.status, running: runningNodeCount(run.id) }} }}));
+        '''
+    )
+    assert payload == {"beforeClose": {"processClosed": False, "status": "running", "running": 1}, "afterClose": {"processClosed": True, "status": "completed", "running": 0}}
+
+
 def test_sigterm_cooperative_worker_closes_with_exit_zero_before_termination_resolves() -> None:
     module = (SRC / "spawner.ts").as_uri()
     payload = run_node(
@@ -825,6 +1093,35 @@ def test_is_completed_worker_exit_semantics() -> None:
     }
 
 
+def test_rpc_steering_writes_to_child_stdin() -> None:
+    module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ spawn }} from "node:child_process";
+        import {{ sendWorkerSteerToChild }} from "{module}";
+        const child = spawn(process.execPath, ["--eval", `process.stdin.on("data", (chunk) => {{ process.stdout.write(chunk); process.exit(0); }});`], {{ stdio: ["pipe", "pipe", "ignore"] }});
+        let output = "";
+        const done = new Promise((resolve) => child.stdout.on("data", (chunk) => {{ output += chunk.toString(); }}).on("close", resolve));
+        const sent = sendWorkerSteerToChild(child, "adjust scope");
+        await done;
+        console.log(JSON.stringify({{ sent, message: JSON.parse(output).message, type: JSON.parse(output).type }}));
+        '''
+    )
+    assert payload == {"sent": True, "message": "adjust scope", "type": "steer"}
+
+
+def test_worker_prompt_allows_rpc_leader_steering_without_peer_mailboxes() -> None:
+    module = (SRC / "spawner.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ buildAutonomousPrompt }} from "{module}";
+        const prompt = buildAutonomousPrompt({{ name: "worker", role: "worker", prompt: "task" }});
+        console.log(JSON.stringify({{ steer: prompt.includes("leader may steer this worker through teammate_message in RPC mode"), noPeers: prompt.includes("no peer mailboxes, broadcasts, or worker inboxes") }}));
+        '''
+    )
+    assert payload == {"steer": True, "noPeers": True}
+
+
 def test_spawner_prompt_focuses_on_direct_execution() -> None:
     module = (SRC / "spawner.ts").as_uri()
     payload = run_node(
@@ -851,6 +1148,28 @@ def test_spawner_prompt_focuses_on_direct_execution() -> None:
         "hasDirectScope": True,
         "hasDeliverInstruction": True,
     }
+
+
+def test_input_binding_and_fork_context_helpers_are_dependency_scoped() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, resolveInputBinding, buildForkContext }} from "{module}";
+        resetState();
+        const run = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, summarize: false, nodes: [
+          {{ id: "a", agent: "worker", prompt: "", paths: ["src"], access: "read", dependsOn: [] }},
+          {{ id: "b", agent: "worker", prompt: "", paths: ["src"], access: "read", dependsOn: ["a"] }},
+          {{ id: "c", agent: "worker", prompt: "", paths: ["src"], access: "read", dependsOn: ["a", "b"], forkContext: ["a"] }},
+        ] }}).run;
+        run.nodes.a.result = "raw";
+        run.nodes.a.structuredOutput = {{ value: "bound" }};
+        run.nodes.b.result = "other";
+        console.log(JSON.stringify({{ binding: resolveInputBinding(run, run.nodes.b, "a#/json/value"), rejected: resolveInputBinding(run, run.nodes.b, "ghost"), fork: buildForkContext(run, run.nodes.c) }}));
+        '''
+    )
+    assert payload["binding"] == '"bound"'
+    assert payload["rejected"] == "(rejected: source is not a dependency)"
+    assert payload["fork"] == ['--- a (worker, pending) ---\nraw\nStructured output: {"value":"bound"}']
 
 
 def test_teammates_run_in_background_by_default() -> None:
@@ -897,9 +1216,77 @@ def test_worker_message_delivers_completed_and_failed_status() -> None:
     machine = source("run-machine.ts")
     types = source("types.ts")
     assert 'status?: "in_progress" | "completed" | "failed"' in types
-    assert 'updateNodeStatus(run.id, node.id, "completed", event.body, undefined)' in machine
-    assert 'updateNodeStatus(run.id, node.id, "failed", undefined, event.body)' in machine
+    assert "acceptTerminalReport" in machine
+    assert "terminalReportAccepted" in types
+    assert "processClosed" in types
     assert 'name: "teammate_report"' not in machine
+
+
+def test_deep_structured_output_validation_is_non_throwing() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ validateStructuredOutput }} from "{module}";
+        let value = {{}};
+        for (let index = 0; index < 5000; index++) value = {{ child: value }};
+        let diagnostic = "";
+        try {{ diagnostic = validateStructuredOutput(value) ?? ""; }} catch (error) {{ diagnostic = `threw: ${{error}}`; }}
+        console.log(JSON.stringify({{ diagnostic, threw: diagnostic.startsWith("threw:") }}));
+        '''
+    )
+    assert payload["threw"] is False
+    assert "depth" in payload["diagnostic"]
+
+
+def test_terminal_run_compaction_preserves_active_and_recent_runs() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState, compactTerminalRuns, getState, MAX_TERMINAL_RUNS, deliverToLeader }} from "{module}";
+        resetState();
+        const first = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: true, summarize: false, nodes: [{{ id: "first", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }}] }}).run;
+        first.status = "completed"; first.settledMessageSent = true; first.updatedAt = 1;
+        const active = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: true, summarize: false, nodes: [{{ id: "active", agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }}] }}).run;
+        for (let i = 0; i < MAX_TERMINAL_RUNS + 1; i++) {{
+          const run = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, background: true, summarize: false, nodes: [{{ id: `n-${{i}}`, agent: "worker", prompt: "", paths: ["x"], access: "read", dependsOn: [] }}] }}).run;
+          run.status = "completed"; run.settledMessageSent = true; run.updatedAt = i + 2;
+          deliverToLeader({{ from: run.id, subject: run.id, body: "message", runId: run.id }});
+        }}
+        const removed = compactTerminalRuns();
+        console.log(JSON.stringify({{ removed: removed.length, terminalRuns: Object.values(getState().runs).filter((run) => run.status !== "running").length, hasActive: Boolean(getState().runs[active.id]), mailbox: getState().leaderMailbox.length }}));
+        '''
+    )
+    assert payload["removed"] >= 1
+    assert payload["hasActive"] is True
+    assert payload["terminalRuns"] <= 256
+
+
+def test_worktree_capture_failure_returns_structured_error() -> None:
+    module = (SRC / "worktree.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ captureWorktreeDiff }} from "{module}";
+        const result = captureWorktreeDiff({{ path: "/tmp/agent-teams-missing-worktree", repoRoot: "/tmp", cwd: "/tmp", branch: "missing", baseCommit: "HEAD" }});
+        console.log(JSON.stringify({{ ok: result.ok, hasError: !result.ok && result.error.length > 0 }}));
+        '''
+    )
+    assert payload == {"ok": False, "hasError": True}
+
+
+def test_finalize_handles_worktree_and_shutdown_diagnostics() -> None:
+    machine = source("run-machine.ts")
+    worktree = source("worktree.ts")
+    index = source("index.ts")
+    spawner = source("spawner.ts")
+    assert "try {" in machine and "captureWorktreeDiff(worktree)" in machine
+    assert "finally" in machine and "cleanupWorktree(worktree)" in machine
+    assert "Worktree capture failed" in machine
+    assert "terminateAllWorkers" in index
+    assert "confirmedClosed" in spawner
+    assert "shutdown" in index.lower()
+    assert "cleanupError" in machine
+    assert "captureWorktreeDiff" in worktree
+    assert "WorktreeDiffResult" in worktree
 
 
 def test_leader_followups_use_a_lifecycle_aware_queue() -> None:
@@ -912,7 +1299,7 @@ def test_leader_followups_use_a_lifecycle_aware_queue() -> None:
     assert "followUpQueue?.reset()" in index
     assert "agentStartTimeoutMs" in queue
     assert "retryBaseDelayMs" in queue
-    assert "this.pending.unshift(...failed.reports)" in queue
+    assert "this.pending.unshift({ reports: failed.reports" in queue
     assert "generation !== this.generation" in queue
     assert "clearTimeout" in queue
 
@@ -958,6 +1345,103 @@ def test_follow_up_queue_requeues_when_void_dispatch_never_starts() -> None:
         console.log(JSON.stringify(result));
         ''')
     assert payload == {"pending": 1, "failures": 1}
+
+
+def test_follow_up_queue_retry_budget_is_per_report_batch() -> None:
+    module = (SRC / "follow-up-queue.ts").as_uri()
+    payload = run_node(f'''\
+        import {{ FollowUpQueue }} from "{module}";
+        const sent = [];
+        const failures = [];
+        const queue = new FollowUpQueue({{ isIdle: () => true, dispatch: () => {{ throw new Error("failed"); }}, onFailure: (message) => failures.push(message), maxAttempts: 2, retryBaseDelayMs: 1, retryMaxDelayMs: 1 }});
+        queue.enqueue({{ subject: "first", body: "report" }});
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        queue.enqueue({{ subject: "second", body: "report" }});
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        console.log(JSON.stringify({{ deadLetter: queue.deadLetterCount, failures: failures.length, pending: queue.pendingCount, sent: sent.length }}));
+        '''
+    )
+    assert payload == {"deadLetter": 2, "failures": 4, "pending": 0, "sent": 0}
+
+
+def test_follow_up_queue_dead_letters_after_max_attempts_without_timer() -> None:
+    module = (SRC / "follow-up-queue.ts").as_uri()
+    script = f'''\
+        import {{ FollowUpQueue }} from "{module}";
+        const failures = [];
+        const queue = new FollowUpQueue({{
+          isIdle: () => true,
+          dispatch: () => {{ throw new Error("preflight failed"); }},
+          onFailure: (message) => failures.push(message),
+          maxAttempts: 2,
+          retryBaseDelayMs: 1,
+          retryMaxDelayMs: 1,
+        }});
+        queue.enqueue({{ subject: "A", body: "report" }});
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        console.log(JSON.stringify({{ pending: queue.pendingCount, deadLetter: queue.deadLetterCount, failures: failures.length }}));
+        '''
+    result = subprocess.run(
+        ["node", "--input-type=module", "--eval", textwrap.dedent(script)],
+        cwd=PACKAGE,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=1,
+    )
+    assert json.loads(result.stdout) == {"pending": 0, "deadLetter": 1, "failures": 2}
+
+
+def test_follow_up_queue_cleans_timers_at_lifecycle_boundaries() -> None:
+    module = (SRC / "follow-up-queue.ts").as_uri()
+    script = f'''\
+        import {{ FollowUpQueue }} from "{module}";
+        const resetQueue = new FollowUpQueue({{
+          isIdle: () => true,
+          dispatch: () => {{ throw new Error("preflight failed"); }},
+          retryBaseDelayMs: 100000,
+          retryMaxDelayMs: 100000,
+        }});
+        resetQueue.enqueue({{ subject: "retry", body: "report" }});
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        resetQueue.reset();
+
+        const sent = [];
+        let settledQueue;
+        settledQueue = new FollowUpQueue({{
+          isIdle: () => true,
+          dispatch: (content) => {{
+            sent.push(content);
+            settledQueue.onBeforeAgentStart(content);
+            settledQueue.onAgentStart();
+            settledQueue.onAgentSettled();
+          }},
+          agentStartTimeoutMs: 100000,
+        }});
+        settledQueue.enqueue({{ subject: "success", body: "report" }});
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        console.log(JSON.stringify({{
+          resetPending: resetQueue.pendingCount,
+          settledPending: settledQueue.pendingCount,
+          sent: sent.length,
+        }}));
+        '''
+    try:
+        result = subprocess.run(
+            ["node", "--input-type=module", "--eval", textwrap.dedent(script)],
+            cwd=PACKAGE,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=1,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise AssertionError("follow-up queue left a timer keeping the child alive") from error
+    assert json.loads(result.stdout) == {
+        "resetPending": 0,
+        "settledPending": 0,
+        "sent": 1,
+    }
 
 
 def test_follow_up_queue_ignores_stale_session_callbacks() -> None:
@@ -1013,9 +1497,10 @@ def test_follow_up_queue_removes_protocol_and_run_identifiers() -> None:
         const queue = new FollowUpQueue({{ isIdle: () => true, dispatch: (content) => sent.push(content) }});
         queue.enqueue({{ subject: "Node completed", body: "result", runId: "run_6" }});
         await new Promise((resolve) => setTimeout(resolve, 10));
+        queue.reset();
         console.log(JSON.stringify(sent));
         ''')
-    assert payload == ["Teammate update: Node completed\\nresult"]
+    assert payload == ["Teammate update: Node completed\nresult"]
 
 
 def test_dirty_state_tracking_and_session_worker_cap() -> None:
@@ -1077,7 +1562,7 @@ def test_end_to_end_worker_message_flow_is_leader_only() -> None:
         import * as fs from "node:fs";
         import * as path from "node:path";
         import * as os from "node:os";
-        import {{ createRun, resetState, getState, setNodeSpawnInfo, receiveWorkerMessage, updateNodeStatus, nodeIsReady, settleRun }} from "{state_module}";
+        import {{ createRun, resetState, getState, setNodeSpawnInfo, receiveWorkerMessage, acceptTerminalReport, nodeIsReady, settleRun }} from "{state_module}";
         import {{ appendWorkerEvent, readWorkerEvents, workerOutboxPath }} from "{statefile_module}";
         resetState();
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "test-agent-teams-e2e-"));
@@ -1089,17 +1574,18 @@ def test_end_to_end_worker_message_flow_is_leader_only() -> None:
           ] }});
         const run = created.run;
         const spawnId = "spawn-a-1";
-        setNodeSpawnInfo(run.id, "node_a", {{ spawnId, pid: 1001, status: "running", startedAt: Date.now(), isolation: "none" }});
+        setNodeSpawnInfo(run.id, "node_a", {{ spawnId, pid: 1001, status: "running", processClosed: false, startedAt: Date.now(), isolation: "none" }});
         const outbox = workerOutboxPath(stateFile, run.nodes.node_a.workerKey, spawnId);
         appendWorkerEvent(outbox, {{ id: "evt-a-1", type: "message", worker: run.nodes.node_a.workerKey, spawnId, subject: "Artifact", body: "Architecture", status: "completed" }});
         const {{ events }} = readWorkerEvents(outbox, 0);
         for (const event of events) {{
           if (event.type !== "message") continue;
           receiveWorkerMessage(event);
-          updateNodeStatus(run.id, "node_a", event.status, event.body, undefined);
+          acceptTerminalReport(run.id, "node_a", spawnId, event.status, event.body);
         }}
+        setNodeSpawnInfo(run.id, "node_a", {{ spawnId, pid: 1001, status: "completed", processClosed: true, startedAt: Date.now(), isolation: "none" }});
         const ready = nodeIsReady(run, run.nodes.node_b);
-        updateNodeStatus(run.id, "node_b", "completed", "Implementation", undefined);
+        setNodeSpawnInfo(run.id, "node_b", {{ spawnId: "spawn-b-1", pid: 1002, status: "completed", processClosed: true, startedAt: Date.now(), isolation: "none" }});
         const settled = settleRun(run.id);
         console.log(JSON.stringify({{ messages: getState().leaderMailbox.map((m) => m.subject).join(","), ready, settled }}));
         '''

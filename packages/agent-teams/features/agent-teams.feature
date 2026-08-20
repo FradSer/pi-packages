@@ -1,10 +1,11 @@
-Feature: Agent Teams run-centric public API
+Feature: Agent Teams run-centric orchestration and messaging contract
   Agent Teams dispatches dependency-aware task graphs in a single call.
   Agents are declarative Markdown files (bundled, user, and project scopes);
   each run is a bounded set of child-process nodes reporting through one
   leader inbox fed by validated append-only worker outboxes. There are no
-  peer mailboxes, no worker inboxes, and no leader-to-worker channel:
-  upstream context travels through the DAG prompt at spawn time.
+  peer mailboxes, broadcasts, or worker inboxes, while the leader can steer
+  a running RPC worker through teammate_message. Upstream context travels
+  through the DAG prompt at spawn time.
 
   Background:
     Given the pi-agent-teams-fradser extension is loaded
@@ -89,6 +90,12 @@ Feature: Agent Teams run-centric public API
       When the leader calls teammate_fanout
       Then the operation fails before any child run is created
 
+    Scenario: Fanout paths are advisory scheduling metadata
+      Given a leader fans out child tasks with repository-relative paths
+      When the child runs are created
+      Then paths are scheduling and prompt metadata only
+      And paths do not enforce read/write access or provide an OS or container sandbox
+
     Scenario: Input bindings resolve only declared dependency data
       Given a task binds an input from a dependency with an RFC-6901 JSON pointer
       When the dependent worker starts
@@ -101,6 +108,12 @@ Feature: Agent Teams run-centric public API
       Then the output is rejected with a leader diagnostic
       And no unbounded value is stored on the node
 
+    Scenario: Deeply nested structured output cannot break event draining
+      Given a worker emits valid JSON deeper than the JavaScript call stack
+      When the leader validates the structured output
+      Then validation returns a bounded-output diagnostic instead of throwing
+      And event draining continues normally
+
     Scenario: Named data flow and fork context stay explicit
       Given a task declares named fork context from upstream nodes
       When the dependent worker starts
@@ -111,6 +124,8 @@ Feature: Agent Teams run-centric public API
       When the leader calls teammate_message with its run-qualified worker target and a body
       Then the message is written to the worker's steering stream
       And an ambiguous node id is rejected
+      And the generated worker prompt permits leader steering in RPC mode
+      And the prompt excludes peer mailboxes, broadcasts, and worker inboxes
 
     Scenario: Dispatch a single task in one call
       When the leader calls teammate_run with one task
@@ -194,6 +209,14 @@ Feature: Agent Teams run-centric public API
       When the leader dispatches a node with a POSIX or Windows absolute path, parent traversal, glob, empty path list, or duplicate path
       Then the run is rejected before any worker starts
 
+    Scenario: Paths and access are scheduling metadata, not enforcement
+      Given a task declares repository-relative paths and read or write access
+      When the scheduler and worker prompt use those fields
+      Then paths and access are scheduling and prompt metadata only
+      And shared-workspace protection is advisory write/write coordination
+      And paths and access provide no OS or container sandbox
+      And paths and access provide no true read/write enforcement
+
   Rule: Session resources are bounded
 
     Scenario: A session-wide cap bounds concurrent worker processes
@@ -268,6 +291,25 @@ Feature: Agent Teams run-centric public API
       And the reservation is released
       And retry scheduling uses a delay instead of a busy loop
 
+    Scenario: Follow-up retries stop at a bounded attempt count
+      Given an automatic teammate report repeatedly fails before agent_start
+      When the configured maximum retry attempts are exhausted
+      Then the report is moved to a dead-letter result
+      And no further retry timer is scheduled
+
+    Scenario: Follow-up retry attempts are scoped to each report batch
+      Given one automatic teammate report exhausts its retry attempts
+      When an unrelated later report is dispatched
+      Then the later report receives its own maximum retry attempt budget
+
+    Scenario: Follow-up watchdog and retry timers are cleaned up at lifecycle boundaries
+      Given an automatic teammate report is dispatched through the void Pi API
+      When the queue is reset before a retry delay expires
+      Then the retry timer is cancelled and cannot keep the child process alive
+      When another report reaches agent_start and agent_settled during dispatch
+      Then no watchdog timer remains armed after successful settlement
+      And the child process can exit without waiting for the watchdog delay
+
     Scenario: A delayed follow-up cannot cross a session boundary
       Given an automatic teammate report has a pending dispatch timer
       When the current session shuts down before the timer fires
@@ -302,6 +344,48 @@ Feature: Agent Teams run-centric public API
       And the run remains non-terminal until every running worker closes
       And the run is marked cancelled only after its workers close
 
+    Scenario: Partial cancellation cannot be overwritten by completed nodes
+      Given one node has reported completion while another node is still running
+      When the leader cancels the run
+      Then cancelRequested is recorded before any worker close is finalized
+      And the run remains non-terminal while the running child is open
+      And the final run status is cancelled rather than completed
+
+    Scenario: Cancellation intent wins when termination sees an exited child
+      Given cancellation has begun for a worker whose exit code is set before its close event
+      When terminateWorker reports that no signal was sent
+      Then the pending close finalizer still records cancellation
+      And normal close finalization cannot overwrite the cancelled node or run
+
+    Scenario: Close observation before onExit preserves node-only cancellation
+      Given a node cancellation request is recorded before the child close event
+      When the close-observation listener runs before the run-machine onExit callback
+      Then CancellationIntents.close retains the requested cancellation until the deferred finalizer is registered
+      And the node settles as cancelled rather than completed or failed
+      And a node-only cancellation does not cancel the rest of the run
+
+    Scenario: Late close callbacks are harmless after shutdown
+      Given shutdown invalidates the current run-machine generation before a worker close callback runs
+      When the late close callback is delivered
+      Then the callback cannot mutate cleared run-machine state
+      And shutdown diagnostics retain any worker that was not confirmed closed
+
+    Scenario: A terminal worker report does not release process resources early
+      Given a worker has sent a completed or failed report but its child process is still open
+      When the leader schedules the run
+      Then the worker still consumes a session worker slot
+      And overlapping shared-workspace writes remain blocked
+      And downstream dependencies do not start
+      When the child process close is observed
+      Then the slot and write conflict are released
+      And downstream dependencies may start
+
+    Scenario: Each worker spawn accepts only one terminal report
+      Given a worker spawn has accepted a completed or failed report
+      When the same spawn sends another terminal report with a different event id
+      Then the later terminal report is discarded as a stale diagnostic
+      And it does not create another terminal mailbox delivery
+
     Scenario: Cancel one node while the rest of the run continues
       Given a run has multiple working nodes
       When the leader calls teammate_cancel with a node id
@@ -324,6 +408,39 @@ Feature: Agent Teams run-centric public API
       Then it starts with no runs
       And shutdown reports any worker that could not be confirmed closed before shared state is removed
 
+    Scenario: Shutdown confirms workers only after close is observed
+      Given a worker has an exit code or signal but no observed close event
+      When the session shuts down
+      Then the worker is not reported as confirmed closed
+      And confirmed closed means the child close event was observed
+      And its registry entry is retained until close is observed
+      And a late close callback cannot mutate cleared run-machine state
+
+    Scenario: Terminal session state is bounded without removing active runs
+      Given the session has more terminal runs than the retention limit and one active run
+      When terminal state compaction runs
+      Then the oldest terminal runs are removed
+      And the newest terminal runs are retained
+      And the active run remains present
+      And the leader mailbox retains only its newest bounded messages
+
+    Scenario: Worktree finalization failures still settle the node
+      Given a worker process has closed in an isolated worktree
+      When capturing the worktree diff raises an error
+      Then the node receives a failed terminal outcome with the capture diagnostic
+      And worktree cleanup runs in a finally path
+
+    Scenario: Shutdown preserves diagnostics for unconfirmed workers
+      Given shutdown cannot confirm that a worker child closed
+      When the session state is removed
+      Then the leader receives a shutdown diagnostic naming that worker
+
+    Scenario: Malformed worker output becomes a leader diagnostic
+      Given a worker outbox contains malformed structured output
+      When the leader drains the outbox
+      Then the malformed output is consumed once
+      And a diagnostic is delivered to the leader
+
   Rule: Messaging is capability-bound and leader-only
 
     Scenario: Workers report exclusively to the team leader
@@ -334,11 +451,12 @@ Feature: Agent Teams run-centric public API
       And the message is delivered to the single leader inbox
       And no recipient addressing exists on the worker tool
 
-    Scenario: No peer or leader-to-worker channels exist
+    Scenario: No peer mailboxes, broadcasts, or worker inboxes exist
       When the shared state is inspected
       Then nodes carry no inbox and no sent-message transcript
-      And the leader has no tool to message or broadcast to a worker
-      And a worker's only inbound context is its task prompt with the DAG upstream handoff
+      And no peer mailbox, broadcast, or worker inbox operation is available
+      And the leader can steer a running RPC worker through teammate_message
+      And a worker's only other inbound context is its task prompt with the DAG upstream handoff
 
     Scenario: Completing a node injects its result into downstream prompts
       Given a run has a node that other nodes depend on

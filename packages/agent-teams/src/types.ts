@@ -90,6 +90,8 @@ export interface Run {
   settledMessageSent?: boolean;
   /** Synthesized final summary produced by the optional __summary node. */
   summary?: string;
+  /** True once run cancellation has been requested; it wins over node outcomes. */
+  cancelRequested?: boolean;
 }
 
 // ── Spawn ─────────────────────────────────────────────────────────
@@ -137,6 +139,14 @@ export interface SpawnInfo {
   timedOut?: boolean;
   /** Whether this spawn owns a dedicated Git worktree. */
   isolation?: "worktree" | "none";
+  /** Terminal report accepted from the worker before process close. */
+  logicalTerminalReport?: "completed" | "failed";
+  /** True after the first terminal report for this spawn is accepted. */
+  terminalReportAccepted?: boolean;
+  /** True only after the child process close event has been observed. */
+  processClosed: boolean;
+  /** True after the harness emits the canonical terminal result. */
+  terminalResultEmitted?: boolean;
 }
 
 // ── Mailbox ───────────────────────────────────────────────────────
@@ -174,7 +184,7 @@ export type WorkerEvent = WorkerMessageEvent;
 
 const NodeAccess = Type.Union(
   [Type.Literal("read"), Type.Literal("write")],
-  { description: "read permits overlapping analysis; write protects overlapping shared-workspace changes. Default: read." },
+  { description: "Scheduling and prompt metadata only: read/write intent guides advisory shared-workspace write/write coordination; it does not enforce filesystem permissions or provide an OS/container sandbox. Default: read." },
 );
 
 /** One task inside teammate_run. */
@@ -183,9 +193,9 @@ export const RunTaskSpec = Type.Object({
   agent: Type.String({ description: "Agent definition name (bundled, user, or project scope)" }),
   prompt: Type.String({ minLength: 1, description: "The specific task text handed to this worker" }),
   dependsOn: Type.Optional(Type.Array(Type.String(), { description: "Node ids that must complete before this node starts" })),
-  paths: Type.Array(Type.String({ description: "Repository-relative path this node may inspect or modify" }), {
+  paths: Type.Array(Type.String({ description: "Repository-relative path included in scheduling overlap checks and the worker prompt; not a permission boundary" }), {
     minItems: 1,
-    description: "Repository-relative paths used to coordinate this node",
+    description: "Scheduling and prompt metadata only for advisory shared-workspace write/write coordination; paths do not enforce read/write access or provide an OS/container sandbox",
   }),
   access: Type.Optional(NodeAccess),
   model: Type.Optional(Type.String({ description: "Optional per-node provider/model pin" })),
@@ -240,7 +250,7 @@ export const TeammateFanoutParams = Type.Object({
   nodeId: Type.String({ description: "Completed source node whose structured output is an array" }),
   agent: Type.String({ description: "Agent to run for each item" }),
   prompt: Type.String({ minLength: 1, description: "Task prompt; each item is appended as JSON" }),
-  paths: Type.Array(Type.String(), { minItems: 1, description: "Repository-relative paths for each child run" }),
+  paths: Type.Array(Type.String({ description: "Scheduling and prompt metadata only: repository-relative paths guide advisory shared-workspace write/write coordination; they do not enforce filesystem permissions or provide an OS/container sandbox" }), { minItems: 1, description: "Scheduling and prompt metadata only for each child run; paths do not enforce read/write access or provide an OS/container sandbox" }),
   access: Type.Optional(NodeAccess),
   model: Type.Optional(Type.String()),
   turnBudget: Type.Optional(Type.Integer({ minimum: 1 })),
