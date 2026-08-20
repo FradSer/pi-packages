@@ -126,7 +126,8 @@ export function computeScrollWindow(
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 /** Result of resolving how to launch a Pi CLI process. */
 export interface PiCliResolution {
@@ -182,17 +183,31 @@ export interface RunPiWorkerOptions {
   onUpdate?: (update: PiWorkerProgressUpdate) => void;
 }
 
+/** Bounded grace period before a cancellation escalates from SIGTERM to SIGKILL. */
+export const DEFAULT_TERMINATION_GRACE_MS = 5_000;
+
+const processGroupChildren = new WeakSet<ChildProcess>();
+const closedChildren = new WeakSet<ChildProcess>();
+
+/** Spawn a Pi child in its own process group where the platform supports it. */
+export function spawnPiChild(command: string, args: string[], options: SpawnOptions = {}): ChildProcess {
+  const child = spawn(command, args, {
+    ...options,
+    detached: process.platform === "win32" ? false : true,
+  });
+  if (process.platform !== "win32") processGroupChildren.add(child);
+  child.once("close", () => closedChildren.add(child));
+  return child;
+}
+
 /**
  * Resolve how to launch a Pi CLI process.
  *
  * Resolution order:
  *   1. `process.argv[1]` — the current Pi process entry, verified against the
- *      package manifest (avoids mistaking unrelated scripts for the CLI).
- *   2. A `pi` binary on PATH (best effort).
- *
- * Note: This function does not attempt to resolve the pi-coding-agent package
- * directly, as that would create a dependency on pi core. Callers that need
- * package resolution should implement it themselves.
+ *      exact coding-agent package manifest.
+ *   2. The installed coding-agent package's `dist/cli.js`.
+ *   3. A `pi` binary on PATH (best effort).
  */
 export function resolvePiCli(): PiCliResolution {
   const argv1 = process.argv[1];
@@ -200,7 +215,9 @@ export function resolvePiCli(): PiCliResolution {
     return { command: process.execPath, args: [path.resolve(argv1)] };
   }
 
-  // Fall back to PATH lookup
+  const installed = resolveInstalledPiCli();
+  if (installed) return installed;
+
   return { command: "pi", args: [] };
 }
 
@@ -213,7 +230,7 @@ function isPiPackageScript(filePath: string): boolean {
       const pkgPath = path.join(dir, "package.json");
       if (fs.existsSync(pkgPath)) {
         const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { name?: unknown };
-        return typeof pkg.name === "string" && pkg.name.includes("pi");
+        return pkg.name === "@earendil-works/pi-coding-agent";
       }
       dir = path.dirname(dir);
     }
@@ -221,6 +238,18 @@ function isPiPackageScript(filePath: string): boolean {
     // Unreadable paths are simply not candidates.
   }
   return false;
+}
+
+function resolveInstalledPiCli(): PiCliResolution | undefined {
+  try {
+    const entry = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));
+    const packageRoot = path.dirname(path.dirname(entry));
+    const cliPath = path.join(packageRoot, "dist", "cli.js");
+    if (fs.existsSync(cliPath)) return { command: process.execPath, args: [cliPath] };
+  } catch {
+    // Package resolution is best-effort; fall through to PATH.
+  }
+  return undefined;
 }
 
 /**
@@ -254,16 +283,19 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
       turns: progress.turns,
     });
 
-    const child = spawn(cli.command, args, {
+    const child = spawnPiChild(cli.command, args, {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ...env },
     });
 
-    const abortHandler = () => child.kill("SIGTERM");
+    let termination: Promise<boolean> | undefined;
+    const abortHandler = () => {
+      termination ??= terminateChildProcess(child);
+    };
     signal?.addEventListener("abort", abortHandler, { once: true });
 
-    child.stdout.on("data", (chunk) => {
+    child.stdout?.on("data", (chunk) => {
       const text = chunk.toString();
       stdout += text;
       stdoutBuffer += text;
@@ -274,7 +306,7 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
       if (changed) emitProgress();
     });
 
-    child.stderr.on("data", (chunk) => {
+    child.stderr?.on("data", (chunk) => {
       stderr += chunk.toString();
     });
 
@@ -353,38 +385,42 @@ export function parsePiWorkerOutput(stdout: string): { text: string; usage?: PiW
 
 /**
  * Terminate a child process gracefully, escalating to SIGKILL if needed.
- * Returns true if the process was terminated, false if it was already dead.
+ * Resolution is based on the child's close event, not only its exit code.
  */
 export async function terminateChildProcess(
   child: ChildProcess,
-  graceMs = 5000,
+  graceMs = DEFAULT_TERMINATION_GRACE_MS,
 ): Promise<boolean> {
-  if (child.exitCode !== null || child.signalCode !== null) return false;
-
   const closedAfterTerm = waitForClose(child, graceMs);
-  try {
-    if (!child.kill("SIGTERM")) {
-      void closedAfterTerm;
-      return false;
-    }
-  } catch {
-    void closedAfterTerm;
-    return false;
-  }
+  if (!isChildRunning(child)) return closedAfterTerm;
+
+  if (!signalChild(child, "SIGTERM")) return closedAfterTerm;
   if (await closedAfterTerm) return true;
-  if (child.exitCode !== null || child.signalCode !== null) return false;
+  if (!isChildRunning(child)) return false;
 
   const closedAfterKill = waitForClose(child, graceMs);
-  try {
-    if (!child.kill("SIGKILL")) {
-      void closedAfterKill;
-      return false;
+  if (!signalChild(child, "SIGKILL")) return closedAfterKill;
+  return closedAfterKill;
+}
+
+function isChildRunning(child: ChildProcess): boolean {
+  return child.exitCode === null && child.signalCode === null;
+}
+
+function signalChild(child: ChildProcess, signal: NodeJS.Signals): boolean {
+  if (process.platform !== "win32" && child.pid && processGroupChildren.has(child)) {
+    try {
+      process.kill(-child.pid, signal);
+      return true;
+    } catch {
+      // Fall through to the direct child signal when the process group is gone.
     }
+  }
+  try {
+    return child.kill(signal);
   } catch {
-    void closedAfterKill;
     return false;
   }
-  return closedAfterKill;
 }
 
 interface PiWorkerProgressState {
@@ -463,9 +499,13 @@ function truncateInline(text: string, cap: number): string {
 }
 
 function waitForClose(child: ChildProcess, graceMs: number): Promise<boolean> {
+  if (closedChildren.has(child)) return Promise.resolve(true);
   return new Promise((resolve) => {
     let settled = false;
-    const onClose = () => finish(true);
+    const onClose = () => {
+      closedChildren.add(child);
+      finish(true);
+    };
     const timer = setTimeout(() => finish(false), graceMs);
     timer.unref?.();
 

@@ -89,3 +89,17 @@ Feature: Shared pi-kit runtime helpers
     Then it declares no pi manifest, no dependencies, and no peer dependencies
     And consumer packages declare it under dependencies with the workspace protocol
     And the publish allowlist orders pi-kit before its consumers
+
+  Scenario: Pi CLI resolution accepts only the coding-agent package
+    Given the current process entry or installed package is inspected
+    When pi-kit resolves a child CLI
+    Then an exact @earendil-works/pi-coding-agent package match is accepted
+    And an unrelated package whose name merely contains pi is rejected
+    And the resolver falls back to a PATH pi executable only after package resolution
+
+  Scenario: Child termination observes close and escalates once
+    Given a worker ignores SIGTERM
+    When pi-kit terminates the worker
+    Then it waits for close during the grace period
+    And it escalates to SIGKILL only after the grace period
+    And it resolves only after close is observed

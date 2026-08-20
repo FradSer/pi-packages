@@ -48,6 +48,8 @@ def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
     assert "Scenario: Pi workers inherit their working directory without an unsupported flag" in feature
     assert "Scenario: Pi workers have no wall-clock timeout" in feature
     assert "Scenario: pi-kit stays a pure runtime dependency" in feature
+    assert "Scenario: Pi CLI resolution accepts only the coding-agent package" in feature
+    assert "Scenario: Child termination observes close and escalates once" in feature
 
 
 def test_worker_command_does_not_pass_unsupported_cwd_flag() -> None:
@@ -78,7 +80,10 @@ def test_run_pi_worker_uses_child_cwd_without_unsupported_cwd_flag() -> None:
         const cwd = path.join(root, "workspace");
         fs.mkdirSync(bin);
         fs.mkdirSync(cwd);
-        const fakePi = path.join(bin, "pi");
+        const fakePackage = path.join(root, "fake-package");
+        fs.mkdirSync(fakePackage);
+        fs.writeFileSync(path.join(fakePackage, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const fakePi = path.join(fakePackage, "cli.mjs");
         fs.writeFileSync(
           fakePi,
           "#!/usr/bin/env node\\n" +
@@ -89,9 +94,12 @@ def test_run_pi_worker_uses_child_cwd_without_unsupported_cwd_flag() -> None:
         );
         process.env.PATH = `${{bin}}:${{process.env.PATH ?? ""}}`;
         process.env.PI_CAPTURE = capture;
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = fakePi;
         const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
         const worker = await runPiWorker({{ prompt: "inspect", cwd }});
         const args = fs.readFileSync(capture, "utf8").split(String.fromCharCode(10));
+        process.argv[1] = originalArgv1;
         fs.rmSync(root, {{ recursive: true, force: true }});
         console.log(JSON.stringify({{ text: worker.text, exitCode: worker.exitCode, args }}));
         """
@@ -100,6 +108,48 @@ def test_run_pi_worker_uses_child_cwd_without_unsupported_cwd_flag() -> None:
     assert result["exitCode"] == 0
     assert "--no-session" in result["args"]
     assert "--cwd" not in result["args"]
+
+
+def test_pi_cli_resolver_rejects_unrelated_process_entry() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-kit-resolver-"));
+        const unrelated = path.join(root, "unrelated");
+        fs.mkdirSync(unrelated);
+        fs.writeFileSync(path.join(unrelated, "package.json"), JSON.stringify({{ name: "unrelated-pi-wrapper" }}));
+        const entry = path.join(unrelated, "cli.mjs");
+        fs.writeFileSync(entry, "");
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = entry;
+        const {{ resolvePiCli }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const cli = resolvePiCli();
+        process.argv[1] = originalArgv1;
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        console.log(JSON.stringify({{ cli, unrelated: cli.args.some((arg) => arg.includes("unrelated")) }}));
+        """
+    )
+    assert result["unrelated"] is False
+    assert result["cli"]["args"][-1].endswith("dist/cli.js")
+
+
+def test_shared_termination_escalates_after_close_grace_period() -> None:
+    result = run_typescript(
+        f"""
+        import {{ spawnPiChild, terminateChildProcess }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const child = spawnPiChild(process.execPath, ["--eval", `
+          process.on("SIGTERM", () => {{}});
+          setInterval(() => {{}}, 1_000);
+        `], {{ stdio: "ignore" }});
+        let closed = false;
+        child.once("close", () => {{ closed = true; }});
+        const terminated = await terminateChildProcess(child, 25);
+        console.log(JSON.stringify({{ terminated, closed }}));
+        """
+    )
+    assert result == {"terminated": True, "closed": True}
 
 
 def test_theme_style_maps_shared_style_language() -> None:
@@ -316,7 +366,7 @@ def test_pi_kit_has_no_consumer_imports() -> None:
         text = source.read_text(encoding="utf-8")
         for name in consumer_names:
             assert name not in text, f"{source.name} must not import consumer package {name}"
-        assert "@earendil-works" not in text, f"{source.name} must stay free of pi core imports"
+        assert 'from "@earendil-works/pi-coding-agent"' not in text, f"{source.name} must not import pi core"
 
 
 def test_consumers_declare_pi_kit_as_workspace_dependency() -> None:
