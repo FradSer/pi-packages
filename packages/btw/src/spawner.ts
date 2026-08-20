@@ -8,11 +8,11 @@
  * are explicitly excluded.
  */
 
-import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
+import type { ChildProcess } from "node:child_process";
+import { spawnPiChild, terminateChildProcess, resolvePiCli } from "@fradser/pi-kit";
 
 /** Read-only builtin tools the side question may use. */
 export const READ_ONLY_TOOLS = ["read", "grep", "find", "ls"];
@@ -120,55 +120,6 @@ function truncate(text: string, cap: number): string {
   return `${text.slice(0, cap)}\n... [truncated ${text.length - cap} chars]`;
 }
 
-/** Whether a file is the pi coding-agent CLI script (verified against its package manifest). */
-function isPiPackageScript(filePath: string): boolean {
-  try {
-    const resolved = fs.realpathSync(filePath);
-    if (!/\.(mjs|cjs|js)$/.test(resolved)) return false;
-    let dir = path.dirname(resolved);
-    while (dir !== path.dirname(dir)) {
-      const pkgPath = path.join(dir, "package.json");
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { name?: unknown };
-        return pkg.name === "@earendil-works/pi-coding-agent";
-      }
-      dir = path.dirname(dir);
-    }
-  } catch {
-    // Unreadable paths are simply not candidates.
-  }
-  return false;
-}
-
-/**
- * Resolve how to launch the side-question Pi process.
- *
- * Resolution order:
- *   1. `process.argv[1]` — the current Pi process entry, verified against the
- *      package manifest (avoids mistaking unrelated scripts for the CLI).
- *   2. The installed `@earendil-works/pi-coding-agent` package's `dist/cli.js`.
- *   3. A `pi` binary on PATH (best effort).
- */
-export function resolvePiCli(): { command: string; args: string[] } | undefined {
-  const argv1 = process.argv[1];
-  if (argv1 && isPiPackageScript(argv1)) {
-    return { command: process.execPath, args: [path.resolve(argv1)] };
-  }
-
-  try {
-    const entry = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));
-    const packageRoot = path.dirname(path.dirname(entry));
-    const cliPath = path.join(packageRoot, "dist", "cli.js");
-    if (fs.existsSync(cliPath)) {
-      return { command: process.execPath, args: [cliPath] };
-    }
-  } catch {
-    // Package resolution is best-effort; fall through to PATH.
-  }
-
-  return { command: "pi", args: [] };
-}
-
 /** Compose the prompt for the side-question child: instructions + context + history + question. */
 export function buildBtwPrompt(
   question: string,
@@ -210,16 +161,6 @@ export function buildBtwPrompt(
 export function runBtw(options: RunBtwOptions): Promise<BtwResult> {
   return new Promise<BtwResult>((resolve) => {
     const cli = resolvePiCli();
-    if (!cli) {
-      resolve({
-        text: "",
-        timedOut: false,
-        exitCode: 1,
-        stderr: "Could not resolve the Pi CLI. Install @earendil-works/pi-coding-agent.",
-      });
-      return;
-    }
-
     const args: string[] = [
       ...cli.args,
       "--print",
@@ -265,9 +206,9 @@ export function runBtw(options: RunBtwOptions): Promise<BtwResult> {
       return;
     }
 
-    let child: ReturnType<typeof spawn> | undefined;
+    let child: ChildProcess | undefined;
     try {
-      child = spawn(cli.command, args, {
+      child = spawnPiChild(cli.command, args, {
         cwd: options.cwd,
         env: process.env,
         stdio: ["ignore", "pipe", "pipe"],
@@ -288,6 +229,11 @@ export function runBtw(options: RunBtwOptions): Promise<BtwResult> {
     let timedOut = false;
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let termination: Promise<boolean> | undefined;
+    const terminate = () => {
+      if (!child) return;
+      termination ??= terminateChildProcess(child);
+    };
     const settle = (result: BtwResult) => {
       if (settled) return;
       settled = true;
@@ -320,13 +266,13 @@ export function runBtw(options: RunBtwOptions): Promise<BtwResult> {
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGKILL");
+      terminate();
     }, timeoutMs);
     timer.unref?.();
 
     if (options.signal) {
-      if (options.signal.aborted) child.kill("SIGTERM");
-      else options.signal.addEventListener("abort", () => child.kill("SIGTERM"), { once: true });
+      if (options.signal.aborted) terminate();
+      else options.signal.addEventListener("abort", terminate, { once: true });
     }
   });
 }

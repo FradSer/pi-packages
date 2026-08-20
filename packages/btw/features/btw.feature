@@ -75,3 +75,13 @@ Feature: Read-only side questions
     When the JSONL output is parsed
     Then the displayed answer is capped at 6000 characters
 
+  Scenario: Side-question cancellation observes child close
+    Given a side-question child is still running
+    When the abort signal or timeout fires
+    Then the child receives graceful termination before escalation
+    And the prompt directory is removed only after the child closes
+
+  Scenario: Side-question CLI resolution rejects unrelated packages
+    Given the current process entry belongs to an unrelated package whose name contains pi
+    When the child CLI is resolved
+    Then btw ignores that entry and uses an installed coding-agent CLI or PATH pi
