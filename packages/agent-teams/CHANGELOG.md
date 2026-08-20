@@ -37,34 +37,15 @@
   
   Breaking tool-surface change (replaces the teammate-registry model):
   
-  - New: `teammate_run` dispatches a dependency-aware task graph in one call
-    (tasks with `dependsOn`, per-node `access`/`model`/`timeoutMs`, `concurrency`,
-    `worktree`, `background`). Root nodes start immediately; downstream nodes
-    auto-start when dependencies complete; overlapping shared-workspace writes
-    are deferred unless worktree-isolated.
-  - New leader tools (5): `teammate_run` (dispatches a dependency-aware task
-    graph in one call), `teammate_status` (agents + run overview, or run/node
-    detail), `teammate_cancel` (cancel a run or one node while the rest
-    continues), `teammate_retry` (re-run failed/cancelled nodes),
-    `teammate_message` (message team leader, a node, or broadcast).
-  - Worker capability tools (2): `teammate_message` (message `team-leader` or a
-    same-run peer) and `teammate_report` (submit progress or final deliverable).
-  - Removed: `teammate_wait` (replaced by automatic completion follow-ups and
-    inline gather), `teammate_cleanup`, `teammate_inbox`, and the legacy
-    registry tools (`teammate_register`, `teammate_list`, `teammate_configure`,
-    `teammate_remove`, `teammate_create_task`, `teammate_list_tasks`,
-    `teammate_start_task`, `teammate_cancel_task`).
-  - Agents are now declarative Markdown files (bundled `agents/`, user
-    `~/.pi/agent/agents/`, project `.pi/agents/`; project > user > bundled).
-  - Mailbox is a best-effort snapshot: workers send via `teammate_message` and
-    `teammate_report`. Incoming messages are delivered into the shared state
-    snapshot; DAG handoffs inject upstream results into downstream prompts
-    (`=== UPSTREAM HANDOFF ===`).
-  - Advisory write-conflict coordination spans all runs in the session:
-    overlapping shared-workspace write nodes are deferred unless worktree-isolated.
+  - `teammate_run` dispatches a dependency-aware task graph in one call. Tasks support `dependsOn`, per-node `access`/`model`/`turnBudget`, `concurrency`, `worktree`, and `background`; root nodes start immediately, downstream nodes auto-start when dependencies complete, and overlapping shared-workspace writes are deferred through advisory scheduling coordination.
+  - The leader surface is `teammate_run`, `teammate_fanout`, `teammate_message` (for steering a running RPC worker), `teammate_cancel`, and `teammate_retry`.
+  - The worker capability is `teammate_message` (progress, blockers, and final deliverables to the leader). There is no peer delivery, worker inbox, leader broadcast, or separate worker report capability.
+  - Removed: `teammate_wait` (replaced by automatic completion follow-ups and inline gather), `teammate_cleanup`, `teammate_inbox`, and the legacy registry tools (`teammate_register`, `teammate_list`, `teammate_configure`, `teammate_remove`, `teammate_create_task`, `teammate_list_tasks`, `teammate_start_task`, `teammate_cancel_task`).
+  - Agents are now declarative Markdown files (bundled `agents/`, user `~/.pi/agent/agents/`, project `.pi/agents/`; project > user > bundled).
+  - Messages are validated through per-worker append-only outboxes and collected in one leader inbox; DAG handoffs inject upstream results into downstream prompts (`=== UPSTREAM HANDOFF ===`).
+  - Advisory write-conflict coordination spans all runs in the session: overlapping shared-workspace write nodes are deferred unless worktree-isolated. `paths` and `access` are scheduling and prompt metadata, not filesystem permissions; there is no OS or container sandbox and no true read/write enforcement.
   - Full-screen `/teammate` console with live activity stream and mouse-wheel scrolling.
-  - Worker protocol kept: per-spawn identity validation, one canonical terminal
-    result per node, SIGTERM->SIGKILL cancellation.
+  - Worker protocol keeps per-spawn identity validation, one canonical terminal result per node, SIGTERM->SIGKILL cancellation.
 
 ## 0.3.0
 
@@ -74,21 +55,11 @@
   
   Breaking tool-surface change (replaces the teammate-registry model):
   
-  - New: `teammate_run` dispatches a dependency-aware task graph in one call
-    (tasks with `dependsOn`, per-node `access`/`model`/`timeoutMs`, `concurrency`,
-    `worktree`, `background`). Root nodes start immediately; downstream nodes
-    auto-start when dependencies complete; overlapping shared-workspace writes
-    are deferred unless worktree-isolated.
-  - New: automatic completion follow-ups for background runs, foreground
-    gather with bounded detachment, `teammate_cancel`, `teammate_retry`, and
-    `teammate_message`.
-  - Removed: `teammate_register`, `teammate_list`, `teammate_configure`,
-    `teammate_remove`, `teammate_create_task`, `teammate_list_tasks`,
-    `teammate_start_task`, `teammate_cancel_task`.
-  - Agents are now declarative Markdown files (bundled `agents/`, user
-    `~/.pi/agent/agents/`, project `.pi/agents/`; project > user > bundled).
+  - `teammate_run` dispatches a dependency-aware task graph in one call with `dependsOn`, per-node `access`/`model`/`turnBudget`, `concurrency`, `worktree`, and `background`. Root nodes start immediately; downstream nodes auto-start after dependencies complete; overlapping shared-workspace writes are deferred through advisory scheduling coordination.
+  - Automatic completion follow-ups for background runs, bounded inline gather, `teammate_fanout`, `teammate_cancel`, `teammate_retry`, and leader-side RPC steering through `teammate_message` provide the run lifecycle surface.
+  - Removed: `teammate_register`, `teammate_list`, `teammate_configure`, `teammate_remove`, `teammate_create_task`, `teammate_list_tasks`, `teammate_start_task`, and `teammate_cancel_task`.
+  - Agents are now declarative Markdown files (bundled `agents/`, user `~/.pi/agent/agents/`, project `.pi/agents/`; project > user > bundled).
   - Read-receipt protocol removed: messages have no read flags or receipt events.
-  - Worker protocol kept: per-spawn identity validation, `teammate_message`
-    capability, one leader inbox, per-node leader inbox entries, push-only node
-    sent transcripts, DAG prompt handoffs, one canonical terminal result per
-    node, SIGTERM->SIGKILL cancellation.
+  - Workers use the worker-only `teammate_message` capability for progress and final deliverables. Messages have one destination: the leader's inbox; there are no peer mailboxes, worker inboxes, leader broadcasts, or separate report capability. DAG prompt handoffs provide upstream results to dependent workers.
+  - `paths` and `access` coordinate scheduling and prompt context only. Shared-workspace protection is advisory write/write coordination; it is not true read/write enforcement and does not provide an OS or container sandbox.
+  - Worker protocol keeps per-spawn identity validation, one leader inbox, one canonical terminal result per node, SIGTERM->SIGKILL cancellation.
