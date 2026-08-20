@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import textwrap
 from pathlib import Path
@@ -19,6 +20,15 @@ def run_typescript(script: str) -> dict[str, object]:
     assert result.returncode == 0, f"stderr: {result.stderr}"
     import json
     return json.loads(result.stdout)
+
+
+def test_plan_mode_feature_covers_worker_compatibility_and_diagnostics():
+    feature = (PACKAGE / "features" / "plan-mode.feature").read_text(encoding="utf-8")
+    assert "Feature: Plan worker diagnostics and CLI compatibility" in feature
+    assert "Scenario: Explore workers avoid unsupported CLI options" in feature
+    assert "Scenario: Failed explore workers expose status and diagnostics" in feature
+    assert "Scenario: Empty successful output is not reported as completed" in feature
+    assert "Scenario: Plan writer receives structured explore status" in feature
 
 
 def test_is_read_only_bash_allows_safe_commands():
@@ -132,6 +142,112 @@ def test_is_read_only_bash_blocks_shell_operators():
         console.log(JSON.stringify(results));
     """)
     assert all(v is False for v in result.values()), f"Expected all false: {result}"
+
+
+def test_plan_mode_restricts_git_to_read_only_subcommands():
+    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
+    assert '"git",' not in source
+    assert '"status", "log", "diff", "show"' in source
+    assert '"reset"' not in source
+    assert '"push"' not in source
+
+
+def test_plan_worker_does_not_pass_unsupported_cwd_flag():
+    kit = (REPO / "packages" / "pi-kit" / "src" / "index.ts").read_text(encoding="utf-8")
+    assert '"--cwd", cwd' not in kit
+
+
+def test_plan_worker_uses_named_structured_explore_results():
+    worker = (PACKAGE / "src" / "plan-worker.ts").read_text(encoding="utf-8")
+    assert "status: \"completed\" | \"failed\"" in worker
+    assert "exploreResults" in worker
+    assert "diagnostics: string" in worker
+    assert "--no-extensions" in worker
+
+
+def test_failed_explores_report_status_diagnostics_and_compatible_cli_args():
+    result = run_typescript(f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        import {{ runPlanWorker }} from {json.dumps((PACKAGE / "src" / "plan-worker.ts").as_uri())};
+
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "plan-mode-worker-"));
+        const bin = path.join(root, "bin");
+        const capture = path.join(root, "args.json");
+        const cwd = path.join(root, "workspace");
+        fs.mkdirSync(bin);
+        fs.mkdirSync(cwd);
+        const fakePi = path.join(bin, "pi");
+        fs.writeFileSync(fakePi, `#!/usr/bin/env node
+const fs = require("node:fs");
+fs.writeFileSync(process.env.PI_CAPTURE, JSON.stringify(process.argv.slice(2)));
+process.stderr.write("provider rejected worker request");
+process.exit(7);
+`, {{ mode: 0o755 }});
+        process.env.PATH = `${{bin}}:${{process.env.PATH ?? ""}}`;
+        process.env.PI_CAPTURE = capture;
+
+        const result = await runPlanWorker({{
+          prompt: "inspect the project",
+          cwd,
+          planPath: path.join(root, "plan.md"),
+          exploreTasks: [{{ focus: "tests", instructions: "inspect tests" }}],
+        }});
+        const args = JSON.parse(fs.readFileSync(capture, "utf8"));
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        console.log(JSON.stringify({{
+          result: {{
+            status: result.exploreResults[0].status,
+            diagnostics: result.exploreResults[0].diagnostics,
+            timedOut: result.exploreResults[0].timedOut,
+            exitCode: result.exploreResults[0].exitCode,
+            aggregate: result.stderr,
+          }},
+          args,
+        }}));
+    """)
+    worker = result["result"]
+    assert worker["status"] == "failed"
+    assert worker["diagnostics"] == "provider rejected worker request"
+    assert worker["timedOut"] is False
+    assert worker["exitCode"] == 7
+    assert "tests: provider rejected worker request" in worker["aggregate"]
+    assert "--no-extensions" in result["args"]
+    assert "--cwd" not in result["args"]
+
+
+def test_empty_explore_output_reports_actionable_diagnostic():
+    result = run_typescript(f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        import {{ runPlanWorker }} from {json.dumps((PACKAGE / "src" / "plan-worker.ts").as_uri())};
+
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "plan-mode-empty-"));
+        const bin = path.join(root, "bin");
+        const cwd = path.join(root, "workspace");
+        fs.mkdirSync(bin);
+        fs.mkdirSync(cwd);
+        const fakePi = path.join(bin, "pi");
+        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\nprocess.exit(0);\\n", {{ mode: 0o755 }});
+        process.env.PATH = `${{bin}}:${{process.env.PATH ?? ""}}`;
+        const result = await runPlanWorker({{
+          prompt: "inspect the project",
+          cwd,
+          planPath: path.join(root, "plan.md"),
+          exploreTasks: [{{ focus: "structure", instructions: "inspect structure" }}],
+        }});
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        console.log(JSON.stringify({{
+          status: result.exploreResults[0].status,
+          diagnostics: result.exploreResults[0].diagnostics,
+          aggregate: result.stderr,
+        }}));
+    """)
+    assert result["status"] == "failed"
+    assert result["diagnostics"] == "Worker produced no structured result."
+    assert "structure: Worker produced no structured result." in result["aggregate"]
 
 
 def test_parse_model_ref():

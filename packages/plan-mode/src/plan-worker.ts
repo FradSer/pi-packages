@@ -34,7 +34,9 @@ export interface WorkerUsage extends PiWorkerUsage {}
 
 export interface ExploreResult {
   focus: string;
+  status: "completed" | "failed";
   findings: string;
+  diagnostics: string;
   usage?: WorkerUsage;
   timedOut: boolean;
   exitCode: number;
@@ -75,6 +77,14 @@ export interface RunPlanWorkerOptions {
 
 /** Read-only builtin tools explore workers may use. */
 const EXPLORE_TOOLS = ["read", "grep", "find", "ls", "bash"];
+
+function formatWorkerDiagnostics(stderr: string, exitCode: number, timedOut: boolean): string {
+  const details = stderr.trim();
+  if (details) return details;
+  if (timedOut) return "Worker timed out before producing a result.";
+  if (exitCode !== 0) return `Worker exited with code ${exitCode}.`;
+  return "Worker produced no structured result.";
+}
 
 /** Tools plan writer may use (read-only + write for plan file). */
 const PLAN_WRITER_TOOLS = ["read", "grep", "find", "ls", "bash", "write"];
@@ -137,11 +147,16 @@ Be thorough but concise. Focus on facts, not recommendations.`;
     model,
     signal,
     timeoutMs: DEFAULT_EXPLORE_TIMEOUT_MS,
+    extraArgs: ["--no-extensions"],
   });
+  const findings = result.text.trim();
+  const status = result.exitCode === 0 && !result.timedOut && findings ? "completed" : "failed";
 
   return {
     focus: task.focus,
-    findings: result.text || "(no findings)",
+    status,
+    findings: findings || "(no findings)",
+    diagnostics: formatWorkerDiagnostics(result.stderr, result.exitCode, result.timedOut),
     usage: result.usage,
     timedOut: result.timedOut,
     exitCode: result.exitCode,
@@ -163,7 +178,7 @@ async function runPlanWriter(
   onProgress?.("Writing plan");
 
   const exploreSummary = exploreResults
-    .map((r) => `## Explore: ${r.focus}\n\n${r.findings}`)
+    .map((r) => `## Explore: ${r.focus} [${r.status}]\n\n${r.findings}\n\nDiagnostics: ${r.diagnostics}`)
     .join("\n\n---\n\n");
 
   const prompt = `# Plan Writer
@@ -247,14 +262,17 @@ export async function runPlanWorker(options: RunPlanWorkerOptions): Promise<Plan
   const exploreResults = await Promise.all(explorePromises);
 
   // Check if any explore succeeded
-  const successfulExplores = exploreResults.filter((r) => r.exitCode === 0 && !r.timedOut);
+  const successfulExplores = exploreResults.filter((r) => r.status === "completed");
   if (successfulExplores.length === 0) {
+    const diagnostics = exploreResults
+      .map((result) => `${result.focus}: ${result.diagnostics}`)
+      .join(" | ");
     return {
       exploreResults,
       planText: "",
       timedOut: exploreResults.every((r) => r.timedOut),
       exitCode: 1,
-      stderr: "All explore workers failed",
+      stderr: `All explore workers failed. ${diagnostics}`,
     };
   }
 

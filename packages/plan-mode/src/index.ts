@@ -105,14 +105,18 @@ function isReadOnlyBash(command: string): boolean {
     "grep", "egrep", "fgrep", "rg",
     "find", "fd",
     "ls", "dir", "tree", "pwd",
-    "git",
     "echo", "printf",
     "sort", "uniq", "diff",
     "jq", "yq",
     "which", "type",
     "date", "uptime",
   ]);
-  return SAFE.has(cmd);
+  if (cmd !== "git") return SAFE.has(cmd);
+  const gitSubcommand = tokens[1]?.replace(/^--[^ ]+$/, "");
+  return new Set([
+    "status", "log", "diff", "show", "branch", "ls-files", "rev-parse",
+    "describe", "remote", "tag", "blame", "grep", "shortlog",
+  ]).has(gitSubcommand ?? "");
 }
 
 async function switchToPlanModel(ctx: ExtensionContext): Promise<void> {
@@ -322,7 +326,7 @@ export default function planMode(extensionApi: ExtensionAPI): void {
       await enterPlanMode(ctx);
 
       // Spawn the plan workers in the background
-      const workerModel = config.model ? `${config.provider}/${config.model}` : undefined;
+      const workerModel = modelRef(config) ?? (ctx.model ? modelLabel(ctx.model) : undefined);
       runPlanWorker({
         prompt,
         cwd: ctx.cwd,
