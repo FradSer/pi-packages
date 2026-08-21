@@ -152,6 +152,22 @@ def test_shared_termination_escalates_after_close_grace_period() -> None:
     assert result == {"terminated": True, "closed": True}
 
 
+def test_tool_event_labels_share_the_compact_monitor_pattern() -> None:
+    result = run_typescript(
+        f"""
+        import {{ formatToolEventLabel }} from {json.dumps((SRC / "index.ts").as_uri())};
+        console.log(JSON.stringify({{
+          started: formatToolEventLabel("started", "运行 monitor 包测试"),
+          event: formatToolEventLabel("event", "运行 monitor 包测试"),
+        }}));
+        """
+    )
+    assert result == {
+        "started": "[monitor] started · 运行 monitor 包测试",
+        "event": "[monitor] event · 运行 monitor 包测试",
+    }
+
+
 def test_agent_display_helpers_share_labels_and_message_counts() -> None:
     result = run_typescript(
         f"""

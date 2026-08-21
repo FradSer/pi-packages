@@ -34,6 +34,15 @@ export function formatAgentTaskName(prompt: string, fallback: string, maxLength 
   return normalized.length <= maxLength ? normalized : `${normalized.slice(0, maxLength - 3)}...`;
 }
 
+/** Format the compact two-row tool event label used by background operations. */
+export function formatToolEventLabel(
+  kind: "started" | "event",
+  description: string,
+  tool = "monitor",
+): string {
+  return `[${tool}] ${kind} · ${description}`;
+}
+
 /** Format the colored-prefix portion of an incoming or outgoing message label. */
 export function formatAgentMessagePrefix(direction: "from" | "to", count = 1): string {
   const label = count === 1 ? "message" : `${count} messages`;

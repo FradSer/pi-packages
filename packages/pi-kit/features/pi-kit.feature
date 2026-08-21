@@ -16,6 +16,12 @@ Feature: Shared pi-kit runtime helpers
     Then accent, muted, dim, border, success, and error callbacks map to theme fg colors
     And the fg callback passes arbitrary colors through
 
+  Scenario: Compact tool event labels share pi-kit formatting
+    Given a monitor tool description
+    When a tool event label is formatted
+    Then started is `[monitor] started · <description>`
+    And terminal events are `[monitor] event · <description>`
+
   Scenario: Agent task and message labels share pi-kit formatting
     Given an agent task and a teammate name
     When the shared display helpers format them
