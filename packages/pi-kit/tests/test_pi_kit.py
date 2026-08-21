@@ -152,6 +152,28 @@ def test_shared_termination_escalates_after_close_grace_period() -> None:
     assert result == {"terminated": True, "closed": True}
 
 
+def test_agent_display_helpers_share_labels_and_message_counts() -> None:
+    result = run_typescript(
+        f"""
+        import {{ formatAgentTaskLabel, formatAgentMessageLabel, formatAgentTaskName }} from {json.dumps((SRC / "index.ts").as_uri())};
+        console.log(JSON.stringify({{
+          task: formatAgentTaskLabel("Agent Alpha - research", "calc-1", "task-namexxxx"),
+          message: formatAgentMessageLabel("calc-1"),
+          messages: formatAgentMessageLabel("calc-1", "from", 2),
+          outgoing: formatAgentMessageLabel("calc-1", "to"),
+          taskName: formatAgentTaskName("  inspect   authentication  ", "fallback"),
+        }}));
+        """
+    )
+    assert result == {
+        "task": "Agent (Agent Alpha - research) · @calc-1 · task-namexxxx",
+        "message": "[message] from @calc-1",
+        "messages": "[2 messages] from @calc-1",
+        "outgoing": "[message] to @calc-1",
+        "taskName": "inspect authentication",
+    }
+
+
 def test_theme_style_maps_shared_style_language() -> None:
     result = run_typescript(
         f"""

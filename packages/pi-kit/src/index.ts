@@ -23,6 +23,28 @@ export interface PiThemeLike {
   fg(color: string, text: string): string;
 }
 
+/** Format the shared label shown when a teammate task starts. */
+export function formatAgentTaskLabel(agentDescription: string, teammate: string, taskName: string): string {
+  return `Agent (${agentDescription}) · @${teammate} · ${taskName}`;
+}
+
+/** Normalize a task prompt into the compact name shown in the TUI. */
+export function formatAgentTaskName(prompt: string, fallback: string, maxLength = 80): string {
+  const normalized = prompt.replace(/\s+/g, " ").trim() || fallback;
+  return normalized.length <= maxLength ? normalized : `${normalized.slice(0, maxLength - 3)}...`;
+}
+
+/** Format the colored-prefix portion of an incoming or outgoing message label. */
+export function formatAgentMessagePrefix(direction: "from" | "to", count = 1): string {
+  const label = count === 1 ? "message" : `${count} messages`;
+  return `[${label}] ${direction} `;
+}
+
+/** Format a compact teammate message label. */
+export function formatAgentMessageLabel(teammate: string, direction: "from" | "to" = "from", count = 1): string {
+  return `${formatAgentMessagePrefix(direction, count)}@${teammate}`;
+}
+
 /** Style callbacks shared by overlay/console UIs (the btw style language). */
 export interface PiThemeStyle {
   accent: (s: string) => string;

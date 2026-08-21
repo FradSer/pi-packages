@@ -16,6 +16,14 @@ Feature: Shared pi-kit runtime helpers
     Then accent, muted, dim, border, success, and error callbacks map to theme fg colors
     And the fg callback passes arbitrary colors through
 
+  Scenario: Agent task and message labels share pi-kit formatting
+    Given an agent task and a teammate name
+    When the shared display helpers format them
+    Then the task label is "Agent (Agent Alpha - research) · @calc-1 · task-namexxxx"
+    And a single incoming message label is "[message] from @calc-1"
+    And multiple messages from one teammate are "[2 messages] from @calc-1"
+    And outgoing messages can use "[message] to @calc-1"
+
   Scenario: Plain text is extracted from string message content
     Given message content that is a plain string
     When text content is extracted
