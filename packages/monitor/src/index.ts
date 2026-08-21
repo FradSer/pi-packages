@@ -3,7 +3,7 @@ import {
   type ExtensionAPI,
   type ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
-import { Box, isKeyRelease, Key, matchesKey, Text, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { Box, Container, isKeyRelease, Key, matchesKey, Text, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   MonitorManager,
   type Monitor,
@@ -206,15 +206,9 @@ export default function (pi: ExtensionAPI) {
         0,
       );
     },
-    renderResult(_result, { isPartial }, theme, context) {
-      const description = safeDisplayText(context.args.description);
-      return new Text(
-        theme.fg(isPartial ? "warning" : "customMessageLabel", `[monitor] event · ${description}`),
-        0,
-        0,
-      );
+    renderResult() {
+      return new Container();
     },
-
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (!params.command.trim()) throw new Error("monitor_start requires a non-empty command.");
       const monitor = manager.start({
@@ -227,11 +221,8 @@ export default function (pi: ExtensionAPI) {
       requestRender?.();
       updateFooterStatus();
       return {
-        content: [{
-          type: "text",
-          text: `[monitor] event · ${safeDisplayText(monitor.description)}`,
-        }],
-        details: {},
+        content: [],
+        details: { description: monitor.description },
         terminate: true,
       };
     },

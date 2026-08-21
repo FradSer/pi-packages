@@ -40,7 +40,8 @@ Feature: Result-contract background monitoring
     Given monitor_start accepts a monitor description
     When a monitor is started
     Then the tool call row contains `[monitor] started · <description>`
-    And the tool result contains `[monitor] event · <description>`
+    And the tool result contains no visible monitor status
+    And the tool result does not render a duplicate monitor event
     And the tool result does not contain an internal monitor id
     And the tool result still terminates the current agent turn
 
@@ -99,6 +100,7 @@ Feature: Result-contract background monitoring
     And the collapsed line uses the configured tool expansion key hint
     And the collapsed line does not hard-code `Ctrl+O`
     And the collapsed line does not start with `⏺`
+    And the collapsed line is the only rendered monitor event
 
   Scenario: Captured output is bounded
     Given a monitor is running

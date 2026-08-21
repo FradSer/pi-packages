@@ -193,10 +193,11 @@ def test_monitor_start_uses_compact_event_style() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     start_tool = extension.split('name: "monitor_start"', 1)[1].split('name: "monitor_stop"', 1)[0]
     assert '[monitor] started · ' in start_tool
-    assert '[monitor] event · ${safeDisplayText(monitor.description)}' in extension
-    assert 'renderShell: "self"' in start_tool
+    assert '[monitor] event · ${safeDisplayText(monitor.description)}' not in start_tool
+    assert 'content: []' in start_tool
     assert 'renderCall(args, theme)' in start_tool
-    assert 'renderResult(_result, { isPartial }, theme, context)' in start_tool
+    assert 'renderResult()' in start_tool
+    assert 'renderShell: "self"' in start_tool
     assert "monitor.id" not in start_tool
     assert "Success contract:" not in start_tool
 
