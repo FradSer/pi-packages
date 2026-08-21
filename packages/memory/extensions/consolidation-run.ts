@@ -244,6 +244,20 @@ export interface SnapshotSessionManager {
   getSessionFile?: () => string | undefined;
 }
 
+function normalizeSnapshotEntries(value: unknown): unknown[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return entry;
+    const record = entry as Record<string, unknown>;
+    const message = record.message;
+    if (!message || typeof message !== "object" || Array.isArray(message)) return entry;
+    const messageRecord = message as Record<string, unknown>;
+    const content = messageRecord.content;
+    if (!Array.isArray(content)) return entry;
+    return { ...record, message: { ...messageRecord, content: content.map((block) => cloneJson(block)) } };
+  });
+}
+
 export interface ConsolidationSnapshotContext { cwd?: string; sessionManager?: SnapshotSessionManager }
 export type SnapshotSource = "context" | "branch" | "empty";
 
@@ -439,11 +453,11 @@ export async function captureConsolidationSnapshot(
 ): Promise<{ snapshot: ConsolidationSnapshot; manifest: ContextManifest; digest: string }> {
   await ensureConsolidationRunDir(paths);
   const manager = ctx.sessionManager;
-  const branch = manager?.getBranch ? cloneJson(manager.getBranch(), maxBytes) as unknown[] : undefined;
+  const branch = manager?.getBranch ? normalizeSnapshotEntries(cloneJson(manager.getBranch(), maxBytes)) : undefined;
   let contextEntries: unknown[] | undefined;
   if (manager?.buildContextEntries) {
     try {
-      contextEntries = cloneJson(manager.buildContextEntries(), maxBytes) as unknown[];
+      contextEntries = normalizeSnapshotEntries(cloneJson(manager.buildContextEntries(), maxBytes));
     } catch (error) {
       if (error instanceof SnapshotLimitError) throw error;
       contextEntries = undefined;
@@ -856,15 +870,16 @@ async function hashMemoryRoot(root: string): Promise<MemoryHashes> {
   if (!opened) return result;
   try {
     await assertMemoryRootStable(root, opened.identity);
+    const canonicalRoot = await fsp.realpath(root);
     let count = 0;
-    for await (const entry of await fsp.opendir(root)) {
+    for await (const entry of await fsp.opendir(canonicalRoot)) {
       count += 1;
       if (count > MAX_MEMORY_FILES) throw new Error(`Memory root contains more than ${MAX_MEMORY_FILES} entries: ${root}`);
       await assertMemoryRootStable(root, opened.identity);
       if (entry.isSymbolicLink()) throw new Error(`Memory entry is a symlink: ${path.join(root, entry.name)}`);
       if (!entry.isFile()) continue;
       if (entry.name.toLowerCase() !== "memory.md" && !isMemoryFilename(entry.name)) continue;
-      const file = path.join(root, entry.name);
+      const file = path.join(canonicalRoot, entry.name);
       const key = entry.name.toLowerCase() === "memory.md" ? "MEMORY.md" : entry.name;
       if (Object.keys(result).some((name) => name.toLowerCase() === key.toLowerCase())) {
         throw new Error(`Memory root contains duplicate case-insensitive names: ${file}`);
@@ -883,15 +898,24 @@ async function writeMemoryFile(file: string, content: string): Promise<void> {
   await writeFileAtomic(file, content, 0o600);
 }
 
-async function updateMemoryIndex(root: string, privateNames: Set<string>): Promise<void> {
+async function updateMemoryIndex(root: string, privateNames: Set<string>, isActive?: () => void): Promise<void> {
   const rootIdentity = await assertMemoryRootStable(root);
   const hashes = await hashMemoryRoot(root);
   const names = Object.keys(hashes).filter((name) => name.toLowerCase() !== "memory.md").sort((a, b) => a.localeCompare(b));
+  const nameKeys = new Set(names.map((name) => name.toLowerCase()));
+  for (const name of privateNames) {
+    if (!nameKeys.has(name.toLowerCase())) throw new Error(`Memory index marks a missing private file: ${name}`);
+  }
   const lines = ["# Memory Index", ""];
   for (const name of names) lines.push(`- [${name}](${name})${privateNames.has(name.toLowerCase()) ? " (harness only)" : ""}`);
   await assertMemoryRootStable(root, rootIdentity);
+  isActive?.();
   await writeMemoryFile(path.join(root, "MEMORY.md"), `${lines.join("\n")}\n`);
   await assertMemoryRootStable(root, rootIdentity);
+  const indexed = await readPrivateIndexNames(root);
+  if (indexed.size !== privateNames.size || [...indexed].some((name) => !privateNames.has(name))) {
+    throw new Error(`Memory index private classification drifted: ${root}`);
+  }
 }
 
 async function ensureMemoryIndex(root: string, privateNames: Set<string>): Promise<void> {
@@ -1059,6 +1083,9 @@ export async function applyConsolidationPlan(
   const inventoryEntries = hasInventory ? scopeEntries(rawInventory, "inventory") : undefined;
   const rawSelected = value.selected;
   if (hasInventory && rawSelected === undefined) throw new Error("Consolidation plan has no parent-bound selected scope");
+  if (!hasInventory && Array.isArray(rawSelected) && rawSelected.length > 0) {
+    throw new Error("Consolidation plan must bind selected scope to inventory");
+  }
   const selectedEntries = rawSelected === undefined ? inventoryEntries ?? [] : scopeEntries(rawSelected, "selected scope");
   const selectedByKey = new Map<string, string>();
   for (const entry of selectedEntries) {
@@ -1147,9 +1174,9 @@ export async function applyConsolidationPlan(
         }
       }
       ensureActive();
-      await updateMemoryIndex(run.manifest.harnessDir, privateNames);
+      await updateMemoryIndex(run.manifest.harnessDir, privateNames, ensureActive);
       ensureActive();
-      await updateMemoryIndex(run.manifest.publicDir, new Set());
+      await updateMemoryIndex(run.manifest.publicDir, new Set(), ensureActive);
     }
     ensureActive();
     return {

@@ -41,7 +41,7 @@ VERDICTS = frozenset(
 MEMORY_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*\.md$")
 INDEX_NAME = "memory.md"
 HASH_RE = re.compile(r"^(?:sha256:)?[0-9a-fA-F]{64}$")
-PRIVATE_MARKER_RE = re.compile(r"\(\s*harness\s+only\s*\)", re.IGNORECASE)
+PRIVATE_MARKER_RE = re.compile(r"\(\s*harness[\s_-]+only\s*\)", re.IGNORECASE)
 LINK_RE = re.compile(r"\[[^\]]*\.md\]\(([^)]+)\)", re.IGNORECASE)
 TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9][A-Za-z0-9_.-]*\.md)", re.IGNORECASE)
 
@@ -357,8 +357,16 @@ def validate_grounding(value: Any, inventory: list[str], repo_root: Path | None)
             reason = field(record, "reason", "explanation", "details")
             if not isinstance(reason, str) or not reason.strip():
                 raise ValidationError("grounding", f"grounding: {name} requires a reason for {status}")
-        if name.startswith("project_") and not paths and status_key not in {"N/A", "N/A (NO REPO)", "NO REPO", "UNVERIFIABLE"}:
-            raise ValidationError("grounding", f"grounding: {name} missing repository observation")
+        no_repository_status = {"N/A", "N/A (NO REPO)", "NO REPO", "UNVERIFIABLE"}
+        if name.startswith("project_") and status_key not in no_repository_status:
+            if not paths:
+                raise ValidationError("grounding", f"grounding: {name} missing repository observation")
+            if not any(
+                isinstance(field(observation, "status", "state"), str)
+                and field(observation, "status", "state").strip().lower() in {"found", "missing", "updated"}
+                for observation in paths
+            ):
+                raise ValidationError("grounding", f"grounding: {name} requires a found, missing, or updated observation")
         for index, observation in enumerate(paths):
             path = field(observation, "path", "repoPath")
             if repo_root is not None:
@@ -366,9 +374,9 @@ def validate_grounding(value: Any, inventory: list[str], repo_root: Path | None)
             elif isinstance(path, str) and (Path(path).is_absolute() or ".." in Path(path).parts):
                 raise ValidationError("containment", f"grounding: path {path!r} is not repository-relative")
             path_status = field(observation, "status", "state")
-            if path_status is not None and str(path_status).lower() not in {"found", "missing", "updated", "verified", "present", "absent"}:
-                raise ValidationError("grounding", f"grounding: {name} has invalid path status {path_status!r}")
-            if repo_root is not None and isinstance(path_status, str) and path_status.strip().lower() in {"found", "updated", "verified", "present"}:
+            if not isinstance(path_status, str) or path_status.strip().lower() not in {"found", "missing", "updated"}:
+                raise ValidationError("grounding", f"grounding: {name} observation status must be found, missing, or updated")
+            if repo_root is not None and path_status.strip().lower() in {"found", "updated"}:
                 candidate = (repo_root.resolve() / Path(path)).resolve(strict=False)
                 if not candidate.is_file():
                     raise ValidationError("grounding", f"grounding: {name} observation path {path!r} does not exist as a file")
@@ -883,6 +891,8 @@ def parse_expected(args: argparse.Namespace) -> dict[str, Any]:
         "scopeKey": args.expected_scope_key,
         "scopeDigest": args.expected_scope_digest,
         "artifactHash": args.expected_artifact_hash,
+        "runDir": args.expected_run_dir,
+        "receiptAfter": args.expected_receipt_after,
         "receiptPhase": args.expected_receipt_phase,
         "selected": parse_expected_selected(args.expected_selected),
     }
@@ -919,6 +929,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--expected-scope-key", "--scope-key", dest="expected_scope_key")
     parser.add_argument("--expected-scope-digest", "--scope-digest", dest="expected_scope_digest")
     parser.add_argument("--expected-artifact-hash", "--artifact-hash", dest="expected_artifact_hash")
+    parser.add_argument("--expected-run-dir", type=Path, dest="expected_run_dir")
+    parser.add_argument("--expected-receipt-after", type=float, dest="expected_receipt_after")
     parser.add_argument(
         "--expected-selected",
         dest="expected_selected",
@@ -980,10 +992,16 @@ def main(argv: list[str] | None = None) -> int:
                 expected_path = f"{expected['receiptPhase']}-receipt.json"
                 if args.receipt.name != expected_path:
                     raise ValidationError("binding", f"receipt: path must be {expected_path}")
+                expected_run_dir = expected.get("runDir")
+                if expected_run_dir is not None and args.plan.resolve(strict=False).parent != expected_run_dir.resolve(strict=False):
+                    raise ValidationError("binding", "plan: path must be in the exact expected run directory")
                 expected_receipt_path = (args.plan.parent / expected_path).resolve(strict=False)
                 if args.receipt.resolve(strict=False) != expected_receipt_path:
                     raise ValidationError("binding", "receipt: path must be in the exact plan run directory")
                 lstat_regular(args.receipt, "receipt")
+                receipt_after = expected.get("receiptAfter")
+                if receipt_after is not None and args.receipt.stat().st_mtime < receipt_after:
+                    raise ValidationError("binding", "receipt: post receipt is stale and predates mutation")
                 receipt = load_json(args.receipt, "receipt")
                 if plan_bytes is None:
                     raise ValidationError("usage", "usage: plan bytes are required for receipt validation")
@@ -1007,6 +1025,15 @@ def main(argv: list[str] | None = None) -> int:
                 details["receiptVerified"] = True
             except ValidationError as error:
                 errors.append(error)
+    if not errors:
+        expected = parse_expected(args)
+        details["binding"] = {
+            "runId": expected.get("runId") or (plan or {}).get("runId"),
+            "scopeDigest": expected.get("scopeDigest") or (plan or {}).get("scopeDigest"),
+            "artifactHash": expected.get("artifactHash") or (plan or {}).get("artifactHash"),
+            "runDir": str(expected["runDir"].resolve(strict=False)) if expected.get("runDir") else str(args.plan.parent.resolve(strict=False)) if args.plan else None,
+            "receiptPath": str(args.receipt.resolve(strict=False)) if args.receipt else None,
+        }
     output = result(not errors, sorted(checks), errors, details)
     print(json.dumps(output, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
     if errors:
