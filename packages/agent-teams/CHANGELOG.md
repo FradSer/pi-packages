@@ -1,5 +1,13 @@
 # @fradser/pi-agent-teams
 
+## 0.5.3
+
+### Patch Changes
+
+- 1503fdb: Use `teammate_message` for teammate completion and run notifications instead of the legacy `teammate-update` custom message type.
+- Updated dependencies [50c45ff]
+  - @fradser/pi-kit@0.2.0
+
 ## 0.5.2
 
 ### Patch Changes
