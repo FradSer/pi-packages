@@ -1,5 +1,19 @@
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Markdown, type MarkdownTheme, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { buildMarkdownThemeCallbacks, createPiThemeStyle } from "@fradser/pi-kit";
 import type { Node } from "./types";
+
+const ACTIVITY_THEME: MarkdownTheme = {
+  ...buildMarkdownThemeCallbacks(createPiThemeStyle({
+    fg: (_color, text) => text,
+  })),
+  hr: () => "---",
+};
+
+/** Render streamed activity as one compact Markdown line for the passive widget. */
+export function renderActivityMarkdown(text: string, theme: MarkdownTheme = ACTIVITY_THEME): string {
+  const markdown = new Markdown(text, 0, 0, theme);
+  return markdown.render(Math.max(1, visibleWidth(text) + 1)).join(" ").replace(/\s+/g, " ").trim();
+}
 
 function extractLatestLine(text: string | undefined): string | undefined {
   if (!text) return undefined;
@@ -49,17 +63,23 @@ export function fitTeammateRow(
   activity: string,
   width: number,
   formatActivity: (text: string) => string = (text) => text,
+  markdownTheme: MarkdownTheme = ACTIVITY_THEME,
 ): string {
   const sizes = teammateRowWidths(spinner, agent, width);
   const nameText = truncateToWidth(agent, sizes.nameWidth);
-  const activityText = formatActivity(truncateToWidth(activity, sizes.activityWidth));
+  const activityText = formatActivity(truncateToWidth(renderActivityMarkdown(activity, markdownTheme), sizes.activityWidth));
   const line = ` ${spinner} ${nameText} · ${activityText}`;
   return truncateToWidth(line, sizes.lineWidth);
 }
 
 /** Fit a console status label to the requested activity width. */
-export function formatTeammateLabel(spinner: string, activity: string, maxActivityWidth?: number): string {
-  if (maxActivityWidth === undefined) return `${spinner} ${activity}`;
+export function formatTeammateLabel(
+  spinner: string,
+  activity: string,
+  maxActivityWidth?: number,
+  markdownTheme: MarkdownTheme = ACTIVITY_THEME,
+): string {
+  if (maxActivityWidth === undefined) return `${spinner} ${renderActivityMarkdown(activity, markdownTheme)}`;
   if (maxActivityWidth <= 0) return spinner;
-  return `${spinner} ${truncateToWidth(activity, maxActivityWidth)}`;
+  return `${spinner} ${truncateToWidth(renderActivityMarkdown(activity, markdownTheme), maxActivityWidth)}`;
 }

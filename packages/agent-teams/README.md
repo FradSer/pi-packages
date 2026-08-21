@@ -6,9 +6,9 @@ Run-centric multi-agent system for Pi: declarative agents, single-call DAG dispa
 
 ## What This Package Does
 
-Agents are declarative Markdown files (bundled, user, and project scopes). A run is a dependency-aware task graph dispatched in **one call**: root nodes start immediately, concurrency is bounded, overlapping shared-workspace writes are deferred through advisory coordination across all runs in the session, and downstream nodes auto-start when their dependencies complete. Each node is a bounded child Pi process with per-spawn identity validation.
+Agents are declarative Markdown files (bundled, user, and project scopes). A run is a dependency-aware task graph dispatched in **one call**: root nodes start immediately, concurrency is bounded, and downstream nodes auto-start when their dependencies complete. Multiple teammates may operate on the same paths concurrently and coordinate through `teammate_message`. Each node is a bounded child Pi process with per-spawn identity validation.
 
-`paths` and `access` are scheduling and prompt metadata. `paths` identifies the repository-relative area used for overlap checks and included in the worker prompt; `access` declares read or write intent. They do not enforce filesystem permissions or provide true read/write isolation. Shared-workspace protection is advisory write/write coordination only. There is no OS or container sandbox. A worker's actual capabilities come from the `tools` list in its resolved agent definition. Set `worktree: true` for Git worktree separation and diff capture, not as a substitute for an OS sandbox.
+`paths` and `access` are scheduling and prompt metadata. `paths` identifies the repository-relative area included in the worker prompt; `access` declares read or write intent. They do not enforce filesystem permissions or provide true read/write isolation. Multiple teammates may operate on the same paths concurrently and coordinate through `teammate_message`; `worktree: true` provides Git worktree separation when needed. There is no OS or container sandbox. A worker's actual capabilities come from the `tools` list in its resolved agent definition.
 
 ## Install
 
@@ -78,7 +78,7 @@ Messaging is deliberately one-way: workers append validated messages to their ow
 - **Per-spawn identity validation**: every worker event must match the node's current spawn id; stale events from an older process cannot affect a newer spawn.
 - **One-way message storage**: worker event ids and per-spawn identities are validated and deduplicated; every accepted message lands in the single leader inbox. The harness does not maintain read receipts or per-worker inbound state.
 - **One canonical terminal result per node**: built by the harness from node state and captured output after the child closes; a worker message alone is not final delivery.
-- **Advisory write-conflict coordination (session-wide)**: the scheduler never starts a shared-workspace write node while another shared-workspace write node with overlapping paths is running, checked across **all runs in the session**, not just the same run. This is scheduling-level coordination, not file-access isolation.
+- **Concurrent same-path execution**: teammates that share paths run in parallel and coordinate through `teammate_message` (e.g. announcing intent, negotiating file ownership). `worktree: true` is opt-in for Git-level isolation, not scheduling enforcement.
 - **Metadata is not enforcement**: `access` and `paths` drive conflict scheduling and prompt context. A worker whose agent definition has write-capable tools can still write even when a node declares `access: "read"`. Use a restricted agent tool list for capability limits, and use `worktree: true` for Git tree separation.
 - **Failure semantics**: a failed node cancels its not-yet-started transitive dependents and fails the run; other nodes finish. Cancelling a run or node returns the outcome in the tool call itself.
 

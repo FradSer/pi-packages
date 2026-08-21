@@ -107,15 +107,14 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Completing a node injects its result into downstream prompts",
         "Messages carry no read receipts",
         "Multi-node runs synthesize a final summary by default",
-        "Read nodes with overlapping paths may run concurrently",
-        "Write nodes with overlapping paths are blocked without worktree isolation",
+        "Nodes with overlapping paths run concurrently and coordinate through messaging",
         "Worktree isolation allows parallel write experiments",
         "A failed node fails the run and downstream nodes are not started",
         "Reject malformed task graphs",
         "Reject ambiguous path ownership",
         "Paths and access are scheduling metadata, not enforcement",
         "paths and access are scheduling and prompt metadata only",
-        "shared-workspace protection is advisory write/write coordination",
+        "teammates that share paths coordinate through teammate_message",
         "paths and access provide no OS or container sandbox",
         "paths and access provide no true read/write enforcement",
         "Run lifecycle is explicit",
@@ -214,6 +213,39 @@ def test_idle_widget_stays_hidden_until_a_teammate_is_running() -> None:
     assert 'ctx.ui.setWidget("teammate", undefined);' in ext
     assert "runningTeammateLabel" in ext
     assert "runningNodeLabel" not in ext
+
+
+def test_live_activity_renders_markdown_without_literal_emphasis_markers() -> None:
+    ext = source("activity.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Markdown in live teammate activity is rendered instead of shown literally" in feature
+    assert "renderActivityMarkdown" in ext
+    payload = run_node(
+        f'''\
+        import {{ fitTeammateRow, renderActivityMarkdown }} from "{(SRC / "activity.ts").as_uri()}";
+        import {{ visibleWidth }} from "@earendil-works/pi-tui";
+        const emphasis = renderActivityMarkdown("**Inspecting unused variable in report code**");
+        const rule = renderActivityMarkdown("---");
+        const row = fitTeammateRow("⠼", "reviewer", "**Inspecting unused variable in report code**", 48);
+        console.log(JSON.stringify({{
+          emphasis,
+          rule,
+          row,
+          emphasisHasMarkers: emphasis.includes("**"),
+          ruleHasSentinel: rule.includes("__OVERLAY_SEPARATOR__"),
+          rowHasMarkers: row.includes("**"),
+          rowIsSingleLine: !row.includes("\\n"),
+          rowFitsWidth: visibleWidth(row) <= 47,
+        }}));
+        '''
+    )
+    assert payload["emphasis"] == "Inspecting unused variable in report code"
+    assert payload["rule"] == "---"
+    assert payload["emphasisHasMarkers"] is False
+    assert payload["ruleHasSentinel"] is False
+    assert payload["rowHasMarkers"] is False
+    assert payload["rowIsSingleLine"] is True
+    assert payload["rowFitsWidth"] is True
 
 
 def test_widget_rows_align_with_native_loader_and_show_live_activity() -> None:
@@ -457,7 +489,7 @@ def test_follow_up_reports_use_direct_colored_teammate_format() -> None:
     assert 'theme.fg(reportColor(teammate), `@${teammate}`)' in index
     assert 'customMessageLabel' in index
     assert 'Ctrl+O to expand' in index
-    assert 'const label = theme.fg("customMessageLabel", theme.bold("[agent-message]"));' in index
+    assert 'const label = theme.fg("customMessageLabel", theme.bold("[Agent message]"));' in index
     assert 'Teammate @${name} finished.' in index
     assert 'TEAMMATE_FINISHED_ENTRY_TYPE' in index
     assert 'registerEntryRenderer(TEAMMATE_FINISHED_ENTRY_TYPE' in index
@@ -468,7 +500,7 @@ def test_follow_up_reports_use_direct_colored_teammate_format() -> None:
 def test_agent_report_renderer_uses_skill_style_collapsed_and_expanded_states() -> None:
     index = source("index.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
-    assert 'theme.fg("customMessageLabel", theme.bold("[agent-message]"))' in index
+    assert 'theme.fg("customMessageLabel", theme.bold("[Agent message]"))' in index
     assert 'theme.fg("customMessageText", "from")' in index
     assert 'theme.fg(reportColor(teammate), `@${teammate}`)' in index
     assert 'Ctrl+O to expand' in index
@@ -529,7 +561,7 @@ def test_paths_and_access_contract_is_advisory_metadata() -> None:
     assert "leader can steer a running RPC worker through teammate_message" in feature
     assert "no peer mailbox, broadcast, or worker inbox operation is available" in feature
     assert "Scheduling and prompt metadata only" in types
-    assert "advisory shared-workspace write/write coordination" in types
+    assert "coordinate through teammate_message" in types
     assert "does not enforce filesystem permissions or provide an OS/container sandbox" in types
     assert "not a permission boundary" in types
     assert "paths do not enforce read/write access or provide an OS/container sandbox" in types
@@ -900,28 +932,24 @@ def test_dependency_readiness_and_settlement() -> None:
     assert payload["after"]["settled"] == "failed"
 
 
-def test_write_conflict_detection_is_run_scoped() -> None:
+def test_same_path_teammates_run_concurrently_and_coordinate_via_messaging() -> None:
     module = (SRC / "state.ts").as_uri()
     payload = run_node(
         f'''\
-        import {{ createRun, resetState, findSharedWorkspaceWriteConflict, setNodeSpawnInfo }} from "{module}";
+        import {{ createRun, resetState, setNodeSpawnInfo, runningNodeCount }} from "{module}";
         resetState();
-        const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false,
+        const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: false, summarize: false,
           nodes: [
-            {{ id: "w1", agent: "worker", prompt: "", paths: ["packages/a"], access: "write", dependsOn: [] }},
-            {{ id: "w2", agent: "worker", prompt: "", paths: ["packages/a/lib"], access: "write", dependsOn: [] }},
-            {{ id: "r", agent: "reviewer", prompt: "", paths: ["packages/a"], access: "read", dependsOn: [] }},
+            {{ id: "w1", agent: "worker", prompt: "edit a.ts", paths: ["packages/a"], access: "write", dependsOn: [] }},
+            {{ id: "w2", agent: "worker", prompt: "edit a.ts too", paths: ["packages/a"], access: "write", dependsOn: [] }},
           ] }});
         const run = created.run;
         setNodeSpawnInfo(run.id, "w1", {{ spawnId: "s1", pid: 1, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
-        const writeOverlap = findSharedWorkspaceWriteConflict(run.id, "w2")?.id ?? null;
-        const readOverlap = findSharedWorkspaceWriteConflict(run.id, "r")?.id ?? null;
-        setNodeSpawnInfo(run.id, "w2", {{ spawnId: "s2", pid: 2, status: "running", processClosed: false, startedAt: 1, isolation: "worktree" }});
-        const isolated = findSharedWorkspaceWriteConflict(run.id, "w1")?.id ?? null;
-        console.log(JSON.stringify({{ writeOverlap, readOverlap, isolated }}));
+        setNodeSpawnInfo(run.id, "w2", {{ spawnId: "s2", pid: 2, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
+        console.log(JSON.stringify({{ w1: run.nodes.w1.status, w2: run.nodes.w2.status, running: runningNodeCount(run.id) }}));
         '''
     )
-    assert payload == {"writeOverlap": "w1", "readOverlap": None, "isolated": None}
+    assert payload == {"w1": "running", "w2": "running", "running": 2}
 
 
 def test_partial_run_cancellation_wins_over_completed_nodes() -> None:
@@ -955,11 +983,11 @@ def test_partial_run_cancellation_wins_over_completed_nodes() -> None:
     }
 
 
-def test_terminal_report_does_not_release_process_lifecycle_resources() -> None:
+def test_terminal_report_keeps_lifecycle_resources_until_close() -> None:
     module = (SRC / "state.ts").as_uri()
     payload = run_node(
         f'''\
-        import {{ createRun, resetState, acceptTerminalReport, setNodeSpawnInfo, runningNodeCount, findSharedWorkspaceWriteConflict, nodeIsReady }} from "{module}";
+        import {{ createRun, resetState, acceptTerminalReport, setNodeSpawnInfo, runningNodeCount, nodeIsReady }} from "{module}";
         resetState();
         const created = createRun({{ cwd: "/tmp", concurrency: 2, worktree: false, background: true, summarize: false,
           nodes: [
@@ -971,15 +999,15 @@ def test_terminal_report_does_not_release_process_lifecycle_resources() -> None:
         setNodeSpawnInfo(run.id, "a", {{ spawnId: "s1", pid: 1, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
         setNodeSpawnInfo(run.id, "b", {{ spawnId: "s2", pid: 2, status: "running", processClosed: false, startedAt: 1, isolation: "none" }});
         const accepted = acceptTerminalReport(run.id, "a", "s1", "completed", "done");
-        const beforeClose = {{ accepted, status: run.nodes.a.status, running: runningNodeCount(run.id), conflict: findSharedWorkspaceWriteConflict(run.id, "b")?.id ?? null, ready: nodeIsReady(run, run.nodes.downstream) }};
+        const beforeClose = {{ accepted, status: run.nodes.a.status, running: runningNodeCount(run.id), ready: nodeIsReady(run, run.nodes.downstream) }};
         setNodeSpawnInfo(run.id, "a", {{ spawnId: "s1", pid: 1, status: "completed", processClosed: true, startedAt: 1, isolation: "none" }});
-        const afterClose = {{ status: run.nodes.a.status, running: runningNodeCount(run.id), conflict: findSharedWorkspaceWriteConflict(run.id, "b")?.id ?? null, ready: nodeIsReady(run, run.nodes.downstream) }};
+        const afterClose = {{ status: run.nodes.a.status, running: runningNodeCount(run.id), ready: nodeIsReady(run, run.nodes.downstream) }};
         console.log(JSON.stringify({{ beforeClose, afterClose }}));
         '''
     )
     assert payload == {
-        "beforeClose": {"accepted": True, "status": "running", "running": 2, "conflict": "a", "ready": False},
-        "afterClose": {"status": "completed", "running": 1, "conflict": None, "ready": True},
+        "beforeClose": {"accepted": True, "status": "running", "running": 2, "ready": False},
+        "afterClose": {"status": "completed", "running": 1, "ready": True},
     }
 
 
@@ -1086,7 +1114,7 @@ def test_run_dispatch_is_single_call_with_scheduler() -> None:
     assert "readyPendingNodes(run)" in machine
     assert "run.concurrency - runningNodeCount(runId)" in machine
     assert "MAX_SESSION_WORKERS" in machine
-    assert "findSharedWorkspaceWriteConflict(runId, node.id)" in machine
+    assert "coordinate through" in machine or "same-path" in machine
     assert "startNode(runId, node.id, ctx)" in machine
     assert "onRunSettled(runId)" in machine
     assert "run.background && !run.completionNotified" not in machine

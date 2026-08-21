@@ -68,6 +68,15 @@ export interface Node {
   completedAt?: number;
 }
 
+/** Ephemeral agent declared inline for a single run (does not persist to disk). */
+export interface EphemeralAgent {
+  name: string;
+  description: string;
+  tools: string[];
+  model?: string;
+  prompt: string;
+}
+
 /** A dispatched dependency-aware task graph. */
 export interface Run {
   id: string;
@@ -92,6 +101,8 @@ export interface Run {
   summary?: string;
   /** True once run cancellation has been requested; it wins over node outcomes. */
   cancelRequested?: boolean;
+  /** Ephemeral agents scoped to this run only. */
+  ephemeralAgents?: Record<string, EphemeralAgent>;
 }
 
 // ── Spawn ─────────────────────────────────────────────────────────
@@ -184,7 +195,7 @@ export type WorkerEvent = WorkerMessageEvent;
 
 const NodeAccess = Type.Union(
   [Type.Literal("read"), Type.Literal("write")],
-  { description: "Scheduling and prompt metadata only: read/write intent guides advisory shared-workspace write/write coordination; it does not enforce filesystem permissions or provide an OS/container sandbox. Default: read." },
+  { description: "Scheduling and prompt metadata only: read/write intent is included in the worker prompt; teammates that share paths run concurrently and coordinate through teammate_message. It does not enforce filesystem permissions or provide an OS/container sandbox. Default: read." },
 );
 
 /** One task inside teammate_run. */
@@ -193,9 +204,9 @@ export const RunTaskSpec = Type.Object({
   agent: Type.String({ description: "Agent definition name (bundled, user, or project scope)" }),
   prompt: Type.String({ minLength: 1, description: "The specific task text handed to this worker" }),
   dependsOn: Type.Optional(Type.Array(Type.String(), { description: "Node ids that must complete before this node starts" })),
-  paths: Type.Array(Type.String({ description: "Repository-relative path included in scheduling overlap checks and the worker prompt; not a permission boundary" }), {
+  paths: Type.Array(Type.String({ description: "Repository-relative path included in the worker prompt; not a permission boundary" }), {
     minItems: 1,
-    description: "Scheduling and prompt metadata only for advisory shared-workspace write/write coordination; paths do not enforce read/write access or provide an OS/container sandbox",
+    description: "Scheduling and prompt metadata only; paths do not enforce read/write access or provide an OS/container sandbox. Teammates that share paths run concurrently and coordinate through teammate_message",
   }),
   access: Type.Optional(NodeAccess),
   model: Type.Optional(Type.String({ description: "Optional per-node provider/model pin" })),
@@ -203,6 +214,14 @@ export const RunTaskSpec = Type.Object({
   turnBudget: Type.Optional(Type.Integer({ minimum: 1, description: "Optional maximum assistant turns before the worker is stopped (default: 100; high safety cap for edge cases)" })),
   forkContext: Type.Optional(Type.Array(Type.String(), { description: "Named upstream node ids whose results are included as fork context" })),
   inputBindings: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "Named inputs bound from dependency outputs using nodeId#/json/pointer" })),
+});
+
+export const EphemeralAgentSpec = Type.Object({
+  name: Type.String({ minLength: 1, description: "Ephemeral agent name, unique within the run" }),
+  prompt: Type.String({ minLength: 1, description: "Role prompt (Markdown body) for this ephemeral agent" }),
+  description: Type.Optional(Type.String({ description: "Routing hint for when to choose this ephemeral agent" })),
+  tools: Type.Optional(Type.Array(Type.String(), { description: "Pi tool ids for this ephemeral agent" })),
+  model: Type.Optional(Type.String({ description: "Optional provider/model pin for this ephemeral agent" })),
 });
 
 /** Dispatch a dependency-aware task graph in one call. */
@@ -218,6 +237,10 @@ export const TeammateRunParams = Type.Object({
   summarize: Type.Optional(Type.Boolean({ description: "Append a __summary node after all leaf nodes. Default: true when the run has more than one user task, false for a single task." })),
   summaryAgent: Type.Optional(Type.String({ description: "Agent used for the summary node when summarize is on (default: observer)" })),
   cwd: Type.Optional(Type.String({ description: "Working directory for this run (default: the session cwd)" })),
+  ephemeralAgents: Type.Optional(Type.Array(EphemeralAgentSpec, {
+    maxItems: 8,
+    description: "Ephemeral agents defined for this run only; they override bundled agents by name for this run and do not persist to disk",
+  })),
 });
 
 /** Explicit cancel of a run or single node. */
@@ -250,7 +273,7 @@ export const TeammateFanoutParams = Type.Object({
   nodeId: Type.String({ description: "Completed source node whose structured output is an array" }),
   agent: Type.String({ description: "Agent to run for each item" }),
   prompt: Type.String({ minLength: 1, description: "Task prompt; each item is appended as JSON" }),
-  paths: Type.Array(Type.String({ description: "Scheduling and prompt metadata only: repository-relative paths guide advisory shared-workspace write/write coordination; they do not enforce filesystem permissions or provide an OS/container sandbox" }), { minItems: 1, description: "Scheduling and prompt metadata only for each child run; paths do not enforce read/write access or provide an OS/container sandbox" }),
+  paths: Type.Array(Type.String({ description: "Scheduling and prompt metadata only: repository-relative paths are included in the worker prompt; they do not enforce filesystem permissions or provide an OS/container sandbox" }), { minItems: 1, description: "Scheduling and prompt metadata only for each child run; paths do not enforce read/write access or provide an OS/container sandbox" }),
   access: Type.Optional(NodeAccess),
   model: Type.Optional(Type.String()),
   turnBudget: Type.Optional(Type.Integer({ minimum: 1 })),

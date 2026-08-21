@@ -120,6 +120,25 @@ export function hasAgent(name: string, cwd?: string): boolean {
   return resolveAgent(name, cwd) !== undefined;
 }
 
+/** Ephemeral agents are run-scoped and shadow bundled/user/project agents for that run. */
+export function resolveAgentForRun(
+  name: string,
+  cwd: string | undefined,
+  ephemeralAgents: Record<string, import("./types").EphemeralAgent> | undefined,
+): import("./types").EphemeralAgent | AgentDefinition | undefined {
+  const ephemeral = ephemeralAgents?.[name];
+  if (ephemeral) return ephemeral;
+  return resolveAgent(name, cwd);
+}
+
+export function isEphemeralAgent(
+  value: import("./types").EphemeralAgent | AgentDefinition | undefined,
+): value is import("./types").EphemeralAgent {
+  if (!value) return false;
+  // Ephemeral agents have prompt as role prompt but no scope/source; use presence of scope to distinguish.
+  return !("scope" in value);
+}
+
 /**
  * Format discovered agents as Markdown for prompt injection in before_agent_start.
  */

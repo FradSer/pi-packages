@@ -2,11 +2,11 @@
 
 import { randomUUID } from "node:crypto";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { resolveAgent } from "./agents";
+import { resolveAgentForRun } from "./agents";
 import { isWorkerEvent } from "./worker";
 import {
   cancelBlockedDependents, cancelNode, cancelRun, clearWorkerRunEvents, clearStateDirty, isStateDirty,
-  deliverToLeader, findSharedWorkspaceWriteConflict, getNode,
+  deliverToLeader, getNode,
   getRun, getState, listNodes, listRuns, markNodeRunning, markStateDirty,
   readyPendingNodes, receiveWorkerMessage, runningNodeCount, settleRun, setNodeSpawnInfo,
   acceptTerminalReport, buildForkContext, compactTerminalRuns, resolveInputBinding, SUMMARY_NODE_ID, updateNodeSpawnProgress, updateNodeStatus, validateStructuredOutput,
@@ -280,10 +280,9 @@ export function scheduleRun(runId: string, ctx: DispatchCtx): void {
   let started = 0;
   for (const node of ready) {
     if (started >= budget) break;
-    if (!run.worktree) {
-      const conflict = findSharedWorkspaceWriteConflict(runId, node.id);
-      if (conflict) continue; // deferred until the overlapping writer finishes
-    }
+    // Same-path writes run concurrently — teammates coordinate through
+    // teammate_message rather than scheduler-level path blocking. Worktree
+    // isolation remains opt-in for Git-level separation.
     startNode(runId, node.id, ctx);
     started++;
   }
@@ -368,7 +367,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
   const run = getRun(runId);
   const node = run?.nodes[nodeId];
   if (!run || !node || node.status !== "pending") return;
-  const agent = resolveAgent(node.agent, run.cwd);
+  const agent = resolveAgentForRun(node.agent, run.cwd, run.ephemeralAgents);
   const stateFile = liveStateFile ?? (ctx.sessionManager ? stateFilePath(ctx.sessionManager.getSessionFile(), run.cwd) : "");
   const failBeforeSpawn = (error: string): void => {
     updateNodeStatus(runId, nodeId, "failed", undefined, error);

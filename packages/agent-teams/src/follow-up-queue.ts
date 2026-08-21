@@ -194,7 +194,7 @@ export class FollowUpQueue {
 
 export function formatReports(reports: FollowUpReport[]): string {
   return reports
-    .map(({ teammate, agent, body }) => {
+    .map(({ teammate, body }) => {
       const name = teammate ?? "teammate";
       return `<agent-message from="${escapeAttribute(name)}">\n${body}\n</agent-message>`;
     })

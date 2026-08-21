@@ -70,7 +70,7 @@ export default function (pi: ExtensionAPI) {
       return box;
     }
     if (!expanded) {
-      const label = theme.fg("customMessageLabel", theme.bold("[agent-message]"));
+      const label = theme.fg("customMessageLabel", theme.bold("[Agent message]"));
       const names = reports
         .map((report) => report.teammate ?? report.agent ?? "teammate")
         .map((teammate) => theme.fg(reportColor(teammate), `@${teammate}`))
@@ -82,7 +82,7 @@ export default function (pi: ExtensionAPI) {
     }
     for (const [index, report] of reports.entries()) {
       const teammate = report.teammate ?? report.agent ?? "teammate";
-      const label = theme.fg("customMessageLabel", theme.bold("[agent-message]"));
+      const label = theme.fg("customMessageLabel", theme.bold("[Agent message]"));
       const name = theme.fg(reportColor(teammate), `@${teammate}`);
       box.addChild(new Text(`${label} ${theme.fg("customMessageText", "from")} ${name}`, 0, 0));
       box.addChild(new Markdown(report.body, 0, 0, getMarkdownTheme(), {

@@ -194,6 +194,31 @@ function summaryNodePrompt(): string {
  * any worker starts. When summarize=true, appends a reserved summary node that
  * depends on every leaf node.
  */
+export function normalizeEphemeralAgents(
+  agents: Array<{ name: string; prompt: string; description?: string; tools?: string[]; model?: string }> | undefined,
+): { ok: true; agents: Record<string, import("./types").EphemeralAgent> } | { ok: false; error: string } {
+  if (!agents || agents.length === 0) return { ok: true, agents: {} };
+  const seen = new Set<string>();
+  const normalized: Record<string, import("./types").EphemeralAgent> = {};
+  for (const agent of agents) {
+    const name = agent.name.trim();
+    const prompt = agent.prompt.trim();
+    if (!name) return { ok: false, error: "Ephemeral agent name must not be empty." };
+    if (!prompt) return { ok: false, error: `Ephemeral agent "${name}" prompt must not be empty.` };
+    if (name === "__summary") return { ok: false, error: `Ephemeral agent name "${name}" is reserved.` };
+    if (seen.has(name)) return { ok: false, error: `Duplicate ephemeral agent name: "${name}".` };
+    seen.add(name);
+    normalized[name] = {
+      name,
+      description: (agent.description ?? "").trim(),
+      tools: [...(agent.tools ?? [])].map((tool) => tool.trim()).filter(Boolean),
+      model: agent.model?.trim() || undefined,
+      prompt,
+    };
+  }
+  return { ok: true, agents: normalized };
+}
+
 export function createRun(
   input: {
     cwd: string;
@@ -202,6 +227,7 @@ export function createRun(
     background?: boolean;
     summarize?: boolean;
     summaryAgent?: string;
+    ephemeralAgents?: Record<string, import("./types").EphemeralAgent>;
     nodes: RunNodeInput[];
   },
 ): { ok: true; run: Run } | { ok: false; error: string } {
@@ -293,6 +319,7 @@ export function createRun(
   const run: Run = {
     id: runId,
     cwd: input.cwd,
+    ephemeralAgents: input.ephemeralAgents && Object.keys(input.ephemeralAgents).length > 0 ? input.ephemeralAgents : undefined,
     status: "running",
     cancelRequested: false,
     concurrency: input.concurrency,

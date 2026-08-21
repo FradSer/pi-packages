@@ -39,6 +39,17 @@ Feature: Agent Teams run-centric orchestration and messaging contract
       When the leader dispatches a task to an agent name that no scope defines
       Then the run is rejected before any worker starts and available agents are listed
 
+    Scenario: A run can define and use an ephemeral reviewer agent
+      Given the leader dispatches with ephemeralAgents containing name, prompt, tools, and optional model
+      When a task refers to that ephemeral agent name
+      Then the run is created and the task starts without writing any agent file
+      And the worker receives the ephemeral prompt as its role prompt
+      And the worker receives exactly the ephemeral tools plus its capability tools
+      And an ephemeral agent shadows a bundled agent of the same name only for that run
+      And a later run without that ephemeralAgents entry no longer resolves that name unless a file scope defines it
+      And available-agents errors include ephemeral names when they exist
+      And duplicate or reserved ephemeral agent names are rejected before any worker starts
+
   Rule: Leader prompt guidance is static per project
 
     Scenario: Prompt guidance does not embed live run status
@@ -184,16 +195,11 @@ Feature: Agent Teams run-centric orchestration and messaging contract
       When the leader gathers its results with background=false
       Then the run-completion teammate_message report is suppressed for a gathered run
 
-    Scenario: Read nodes with overlapping paths may run concurrently
-      Given two ready nodes declare overlapping paths with access=read
+    Scenario: Nodes with overlapping paths run concurrently and coordinate through messaging
+      Given two ready nodes declare overlapping paths
       When the run dispatches them
-      Then both nodes run in parallel
-
-    Scenario: Write nodes with overlapping paths are blocked without worktree isolation
-      Given a running write node declares a repo-relative path
-      When the scheduler would start another write node with an equal, parent, or child path in the shared workspace
-      Then that node is deferred until the overlapping node finishes
-      And no two shared-workspace write nodes with overlapping paths run concurrently
+      Then both nodes run in parallel regardless of access
+      And teammates coordinate shared-path access through teammate_message
 
     Scenario: Worktree isolation allows parallel write experiments
       Given a run with worktree=true
@@ -219,7 +225,7 @@ Feature: Agent Teams run-centric orchestration and messaging contract
       Given a task declares repository-relative paths and read or write access
       When the scheduler and worker prompt use those fields
       Then paths and access are scheduling and prompt metadata only
-      And shared-workspace protection is advisory write/write coordination
+      And teammates that share paths coordinate through teammate_message
       And paths and access provide no OS or container sandbox
       And paths and access provide no true read/write enforcement
 
@@ -353,7 +359,7 @@ Feature: Agent Teams run-centric orchestration and messaging contract
     Scenario: Agent reports use a distinct transcript renderer
       Given an automatic agent report is delivered as a custom message
       When the transcript renders the report in its collapsed state
-      Then it shows a bold [agent-message] label followed by `from @<teammate>`
+      Then it shows a bold [Agent message] label followed by `from @<teammate>`
       And it shows an expand hint instead of the full report body
       When the report is expanded
       Then the full report body is rendered with the custom message text style
@@ -602,6 +608,12 @@ Feature: Agent Teams run-centric orchestration and messaging contract
       And the row remains a single line at every supported width
       And a narrow widget truncates the agent identity before sacrificing the activity label
       And a missing activity shows "Working..." only when no live tool, reasoning, or text exists
+
+    Scenario: Markdown in live teammate activity is rendered instead of shown literally
+      Given a teammate's live activity is `**Inspecting unused variable in report code**`
+      When the passive widget renders the teammate row
+      Then Markdown emphasis is rendered in the activity
+      And the row does not show literal `**` markers
 
     Scenario: Teammate widget adapts live activity to available width without wrapping
       Given a running teammate has active tool, thinking, or text activity

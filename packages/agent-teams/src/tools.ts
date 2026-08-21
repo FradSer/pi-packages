@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { discoverAgents, resolveAgent } from "./agents";
+import { normalizeEphemeralAgents } from "./state";
 import {
   applyWorkerEvents,
   buildRunSummary,
@@ -14,6 +15,7 @@ import { createRun, getRun, getSummary, listNodes, markRunCompletionDelivered, r
 import { TeammateCancelParams, TeammateFanoutParams, TeammateLeaderMessageParams, TeammateRetryParams, TeammateRunParams } from "./types";
 import { sendWorkerSteer } from "./spawner";
 import { ensureTeamWidget, openTeamConsole, refreshTeamUI } from "./ui";
+import { Text } from "@earendil-works/pi-tui";
 
 function dispatchContext(ctx: ExtensionContext): DispatchCtx {
   return { ui: ctx.ui, sessionManager: ctx.sessionManager, cwd: ctx.cwd };
@@ -53,6 +55,30 @@ function resolveTargetNode(target: string): { node: import("./types").Node } | u
   return listNodes().map((node) => ({ node })).find(({ node }) => node.id === target || node.workerKey === target);
 }
 
+const BUILTIN_AGENT_DISPLAY: Record<string, string> = {
+  worker: "Worker - Execute",
+  reviewer: "Reviewer - Correctness & Security",
+  specialist: "Specialist - Domain",
+  observer: "Observer - Monitor",
+};
+
+export function formatAgentDisplay(agent: string, ephemeral?: { description?: string }): string {
+  const ephemeralLabel = ephemeral?.description?.trim();
+  if (ephemeralLabel) return `Agent(${ephemeralLabel})`;
+  const builtinLabel = BUILTIN_AGENT_DISPLAY[agent];
+  if (builtinLabel) return `Agent(${builtinLabel})`;
+  return `Agent(${agent})`;
+}
+
+export function teammateRunDisplayText(params: { tasks: Array<{ id: string; agent: string }>; ephemeralAgents?: Array<{ name: string; description?: string }> }): string {
+  if (params.tasks.length === 1) {
+    const task = params.tasks[0];
+    const ephemeral = (params.ephemeralAgents ?? []).find((a) => a.name === task.agent);
+    return formatAgentDisplay(task.agent, ephemeral);
+  }
+  return `${params.tasks.length} tasks`;
+}
+
 export function registerLeaderTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "teammate_run",
@@ -60,15 +86,46 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     label: "Run Tasks",
     description: "Dispatch a dependency-aware task graph in one call. Root nodes start immediately; downstream nodes auto-start after dependencies complete. Concurrency is bounded per run and across the session. Teammates run in the background by default and deliver completion through a follow-up. Do not sleep to wait.",
     parameters: TeammateRunParams,
+    renderCall(args, theme) {
+      const params = args as { tasks: Array<{ id: string; agent: string }>; ephemeralAgents?: Array<{ name: string; description?: string }> };
+      const line = teammateRunDisplayText(params);
+      return new Text(theme.fg("toolTitle", theme.bold(line)), 0, 0);
+    },
+    renderResult(result, { expanded }, theme) {
+      const text = result.content[0]?.type === "text" ? (result.content[0] as { type: string; text: string }).text : "";
+      if ((result as { isError?: boolean }).isError) {
+        return new Text(theme.fg("error", text.split("\n")[0] || "Failed to dispatch run."), 0, 0);
+      }
+      if (!text.trim()) {
+        // Background run: content is empty and results arrive via follow-up.
+        return new Text(theme.fg("dim", "Dispatched — workers will message team-leader upon completion."), 0, 0);
+      }
+      const firstLine = text.split("\n")[0];
+      let out = theme.fg("success", firstLine);
+      if (expanded && text.split("\n").length > 1) {
+        out += `\n${theme.fg("dim", text.split("\n").slice(1, 12).join("\n"))}`;
+      }
+      return new Text(out, 0, 0);
+    },
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const cwd = params.cwd ?? ctx.cwd ?? process.cwd();
       const dctx = dispatchContext(ctx);
       ensureRunContext(dctx);
       ensureTeamWidget(ctx);
+      const normalizedEphemeral = normalizeEphemeralAgents((params.ephemeralAgents as Array<{ name: string; prompt: string; description?: string; tools?: string[]; model?: string }> | undefined));
+      if (!normalizedEphemeral.ok) throw new Error(normalizedEphemeral.error);
+      const ephemeralAgents = normalizedEphemeral.agents;
+      const availableForError = [...discoverAgents(cwd).keys(), ...Object.keys(ephemeralAgents)];
       for (const task of params.tasks) {
-        if (!resolveAgent(task.agent, cwd)) {
-          const available = [...discoverAgents(cwd).keys()].join(", ");
-          throw new Error(`Agent "${task.agent}" not found in any scope. Available agents: ${available || "(none)"}.`);
+        const ephemeral = ephemeralAgents[task.agent];
+        if (!ephemeral && !resolveAgent(task.agent, cwd)) {
+          throw new Error(`Agent "${task.agent}" not found in any scope. Available agents: ${availableForError.join(", ") || "(none)"}.`);
+        }
+      }
+      if (params.summaryAgent) {
+        const summaryEphemeral = ephemeralAgents[params.summaryAgent];
+        if (!summaryEphemeral && !resolveAgent(params.summaryAgent, cwd)) {
+          throw new Error(`Agent "${params.summaryAgent}" not found in any scope. Available agents: ${availableForError.join(", ") || "(none)"}.`);
         }
       }
       const created = createRun({
@@ -78,6 +135,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
         background: params.background ?? true,
         summarize: params.summarize,
         summaryAgent: params.summaryAgent,
+        ephemeralAgents,
         nodes: params.tasks.map((task) => ({
           id: task.id,
           agent: task.agent,
