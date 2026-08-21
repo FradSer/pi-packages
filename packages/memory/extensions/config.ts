@@ -49,8 +49,23 @@ function lstatIfPresent(pathname: string): ReturnType<typeof lstatSync> | undefi
 
 function assertNoSymlinkComponents(pathname: string): void {
   const absolute = resolve(pathname);
-  const stat = lstatIfPresent(absolute);
-  if (stat?.isSymbolicLink()) throw new Error(`Memory config path is symlinked: ${absolute}`);
+  // Walk every component so an intermediate symlink cannot route the agent
+  // directory outside its lexical location (e.g. PI_CODING_AGENT_DIR
+  // = /tmp/link/subdir where /tmp/link -> /tmp/outside). Existing OS
+  // top-level symlinks such as /var -> private/var and /tmp -> private/tmp
+  // on macOS are expected and must not be rejected.
+  const parts = absolute.split("/").filter(Boolean);
+  let current = "/";
+  for (const part of parts) {
+    current = join(current, part);
+    if (current === "/var" || current === "/tmp") {
+      const stat = lstatIfPresent(current);
+      if (stat?.isSymbolicLink()) continue;
+    }
+    const stat = lstatIfPresent(current);
+    if (stat?.isSymbolicLink()) throw new Error(`Memory config path is symlinked: ${current}`);
+    if (stat !== undefined) continue;
+  }
 }
 
 function assertSafeAgentDir(create: boolean): string {
@@ -115,8 +130,8 @@ function readEnvironmentConfig(): MemoryConfigState {
 }
 
 export function readMemoryConfigState(): MemoryConfigState {
-  const file = configPath();
   try {
+    const file = configPath();
     const root = assertSafeAgentDir(false);
     const target = join(root, "memory.json");
     if (!lstatIfPresent(target)) return readEnvironmentConfig();

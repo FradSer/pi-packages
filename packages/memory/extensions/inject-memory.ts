@@ -8,7 +8,7 @@
  *     1. Select memory model
  *     2. Enter provider/model manually
  *     3. Consolidate memory now        (inline procedure from procedures/consolidate.md)
- *     4. Edit user instructions        (~/.pi/agent/AGENTS.md)
+ *     4. Edit user instructions        (getAgentDir()/AGENTS.md)
  *     5. Edit project instructions     (./AGENTS.md or ./CLAUDE.md — whichever exists)
  *     6. Open memory folder
  *     7. Toggle auto-memory
@@ -76,7 +76,15 @@ interface MemorySettings {
   autoMemory: boolean;
 }
 
-let memoryConfigState = readMemoryConfigState();
+function safelyReadMemoryConfigState(): ReturnType<typeof readMemoryConfigState> {
+  try {
+    return readMemoryConfigState();
+  } catch {
+    return { config: {}, invalid: "memory.json could not be read safely", present: true };
+  }
+}
+
+let memoryConfigState = safelyReadMemoryConfigState();
 let memoryConfig: MemoryConfig = memoryConfigState.config;
 
 function settingsFilePath(cwd = process.cwd()): string {
@@ -294,7 +302,9 @@ function parseFinalPlan(event: ChildJsonEvent): unknown {
 
 export function recordConsolidationEvent(evidence: ConsolidationEvidence, event: ChildJsonEvent): void {
   if (typeof event.error === "string") evidence.lastJsonError = event.error.slice(-2_000);
-  if (event.type === "tool_execution_end" && !event.isError) evidence.completedToolWork = true;
+  if (event.type === "tool_execution_end" && event.isError) {
+    evidence.lastJsonError = evidence.lastJsonError || "child tool execution failed";
+  }
   const plan = parseFinalPlan(event);
   if (plan !== undefined) {
     evidence.planCount += 1;
@@ -427,6 +437,7 @@ async function runConsolidationValidator(
   check: string,
   expectedSelected: readonly string[],
   receiptPath?: string,
+  receiptAfterMs?: number,
 ): Promise<Record<string, unknown>> {
   const args = [
     path.join(pkgDir, "scripts", "validate-consolidate.py"),
@@ -436,18 +447,55 @@ async function runConsolidationValidator(
     "--expected-scope-key", run.manifest.scopeKey,
     "--expected-scope-digest", run.manifest.scopeDigest,
     "--expected-artifact-hash", run.manifest.snapshotDigest,
+    "--expected-run-dir", run.manifest.runDir,
     "--expected-selected", JSON.stringify([...expectedSelected].sort()),
     "--check", check,
   ];
-  if (receiptPath) args.push("--receipt", receiptPath, "--harness", run.manifest.harnessDir, "--public", run.manifest.publicDir, "--expected-receipt-phase", "post");
-  const result = await execFileAsync("python3", args, { maxBuffer: 10 * 1024 * 1024 });
+  if (receiptPath) {
+    args.push("--receipt", receiptPath, "--harness", run.manifest.harnessDir, "--public", run.manifest.publicDir, "--expected-receipt-phase", "post");
+    if (receiptAfterMs !== undefined) args.push("--expected-receipt-after", String(receiptAfterMs / 1000));
+  }
+  let rawStdout: string;
+  try {
+    const result = await execFileAsync("python3", args, { maxBuffer: 10 * 1024 * 1024 });
+    rawStdout = result.stdout;
+  } catch (err: unknown) {
+    const maybe = err as { stdout?: string; stderr?: string; message?: string };
+    rawStdout = typeof maybe.stdout === "string" ? maybe.stdout : "";
+    if (!rawStdout.trim()) {
+      throw new Error(`Consolidation validator failed: ${maybe.message ?? String(err)}${maybe.stderr ? ` — ${maybe.stderr.slice(0, 800)}` : ""}`);
+    }
+  }
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(result.stdout.trim()) as Record<string, unknown>;
+    parsed = JSON.parse(rawStdout.trim()) as Record<string, unknown>;
   } catch {
-    throw new Error("Consolidation validator returned invalid JSON");
+    throw new Error(`Consolidation validator returned invalid JSON: ${rawStdout.trim().slice(0, 800)}`);
   }
-  if (parsed.ok !== true) throw new Error(`Consolidation validator rejected the plan: ${result.stdout.trim().slice(-800)}`);
+  if (parsed.ok !== true) {
+    const errs = Array.isArray((parsed as { errors?: unknown }).errors)
+      ? (parsed.errors as Array<{ code?: string; message?: string }>).map((e) => `${e.code ?? "error"}: ${e.message ?? JSON.stringify(e)}`).join("; ")
+      : rawStdout.trim().slice(0, 1200);
+    throw new Error(`Consolidation validator rejected the plan: ${errs}`);
+  }
+  const binding = parsed.details && typeof parsed.details === "object" && !Array.isArray(parsed.details)
+    ? (parsed.details as Record<string, unknown>).binding
+    : undefined;
+  if (!binding || typeof binding !== "object" || Array.isArray(binding)) {
+    throw new Error("Consolidation validator omitted its structured parent binding");
+  }
+  const bindingRecord = binding as Record<string, unknown>;
+  if (
+    bindingRecord.runId !== run.manifest.runId ||
+    bindingRecord.scopeDigest !== run.manifest.scopeDigest ||
+    bindingRecord.artifactHash !== run.manifest.snapshotDigest ||
+    bindingRecord.runDir !== path.resolve(run.manifest.runDir)
+  ) {
+    throw new Error("Consolidation validator returned an unrelated structured binding");
+  }
+  if (receiptPath && bindingRecord.receiptPath !== path.resolve(receiptPath)) {
+    throw new Error("Consolidation validator receipt binding mismatch");
+  }
   return parsed;
 }
 
@@ -594,14 +642,12 @@ async function spawnAsyncConsolidation(
   let stdoutCaptureBytes = 0;
   let stdoutLineCount = 0;
   let stdoutCaptureOverflowed = false;
-  let outputLimitError = "";
   const stdoutDecoder = new TextDecoder("utf-8");
   const stderrDecoder = new TextDecoder("utf-8");
   const evidence = createConsolidationEvidence();
-  const stopForOutputLimit = (reason: string): void => {
+  const stopForOutputLimit = (_reason: string): void => {
     if (stdoutCaptureOverflowed) return;
     stdoutCaptureOverflowed = true;
-    outputLimitError = reason;
     stdoutBuffer = "";
     stdoutCapture = "";
     void terminateConsolidationChild(child, 5_000).catch(() => {});
@@ -775,13 +821,15 @@ async function spawnAsyncConsolidation(
           if (!ownsCurrentRun()) return;
           await writeConsolidationReceipt(run, preReceipt, "pre");
           if (!ownsCurrentRun()) return;
+          const mutationStartedAt = Date.now();
           const applied = await applyConsolidationPlan(run, plan, ownsCurrentRun);
           if (!ownsCurrentRun()) return;
           const receipt = createConsolidationReceipt(run.manifest, applied.selected, applied.finalState, planDigest);
           const receiptPath = await writeConsolidationReceipt(run, receipt);
           if (!ownsCurrentRun()) return;
-          await runConsolidationValidator(opts.pkgDir, run, planPath, "plan,receipt,privacy", preSelected, receiptPath);
+          await runConsolidationValidator(opts.pkgDir, run, planPath, "plan,receipt,privacy", preSelected, receiptPath, mutationStartedAt);
           if (!ownsCurrentRun()) return;
+          evidence.completedToolWork = true;
           evidence.parentReceiptVerified = true;
           const missing = missingConsolidationEvidence(evidence);
           if (missing.length === 0) {
@@ -840,7 +888,7 @@ export default function (pi: ExtensionAPI) {
 
   // Inject existing memories + auto-memory guidance before every turn
   pi.on("session_start", () => {
-    memoryConfigState = readMemoryConfigState();
+    memoryConfigState = safelyReadMemoryConfigState();
     memoryConfig = memoryConfigState.config;
   });
 

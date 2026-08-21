@@ -65,7 +65,7 @@ async function openSafeRoot(root: string): Promise<SafeRootHandle | undefined> {
       handle = undefined;
       return undefined;
     }
-    const safeRoot = { handle, device: stat.dev, inode: stat.ino };
+    const safeRoot: SafeRootHandle = { handle, rootPath: root, device: stat.dev, inode: stat.ino };
     handle = undefined;
     return safeRoot;
   } catch {
