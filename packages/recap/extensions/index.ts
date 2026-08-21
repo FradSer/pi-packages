@@ -17,8 +17,15 @@ import type {
   ExtensionCommandContext,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
+  Markdown,
+  type MarkdownTheme,
+  visibleWidth,
+  wrapTextWithAnsi,
+} from "@earendil-works/pi-tui";
+import {
+  buildMarkdownThemeCallbacks,
+  createPiThemeStyle,
   enterModelFromInput,
   modelRef,
   parseModelRef,
@@ -191,10 +198,18 @@ export default function (pi: ExtensionAPI) {
               }
 
               if (currentRecap) {
-                const wrapped = wrapTextWithAnsi(currentRecap, contentWidth);
-                for (let i = 0; i < wrapped.length; i++) {
+                const style = createPiThemeStyle(theme);
+                const mdTheme = buildMarkdownThemeCallbacks(style) as MarkdownTheme;
+                const markdown = new Markdown(currentRecap, 0, 0, mdTheme);
+                void wrapTextWithAnsi(currentRecap, contentWidth);
+                const mdLines = markdown.render(contentWidth);
+                for (let i = 0; i < mdLines.length; i++) {
+                  const raw = mdLines[i];
+                  const content = raw === "__OVERLAY_SEPARATOR__"
+                    ? style.dim("─".repeat(Math.max(1, contentWidth)))
+                    : raw;
                   const prefix = i === 0 ? firstPrefix : indent;
-                  lines.push(`${prefix}${theme.fg("muted", wrapped[i])}`);
+                  lines.push(`${prefix}${content}`);
                 }
               }
 
