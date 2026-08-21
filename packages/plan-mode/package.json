@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-plan-mode",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Minimal plan mode for Pi — read-only exploration and planning before implementation, with dedicated model support.",
   "keywords": [
     "pi-package",

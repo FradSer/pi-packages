@@ -1,5 +1,11 @@
 # @fradser/pi-kit
 
+## 0.2.0
+
+### Minor Changes
+
+- 50c45ff: Share compact tool lifecycle labels through pi-kit and standardize monitor startup and terminal event rendering.
+
 ## 0.1.1
 
 ### Patch Changes
