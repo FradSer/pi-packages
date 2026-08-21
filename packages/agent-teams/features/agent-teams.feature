@@ -218,8 +218,15 @@ Feature: Agent Teams run-centric orchestration and messaging contract
       Then the run is rejected before any worker starts
 
     Scenario: Reject ambiguous path ownership
-      When the leader dispatches a node with a POSIX or Windows absolute path, parent traversal, glob, empty path list, or duplicate path
+      When the leader dispatches a node with a POSIX or Windows absolute path, parent traversal, glob, or duplicate path
       Then the run is rejected before any worker starts
+
+    Scenario: Paths are optional task metadata
+      Given a task omits paths
+      When the leader dispatches the task
+      Then the run is accepted
+      And the worker prompt omits the Paths line
+      And the task has no declared path conflict scope
 
     Scenario: Paths and access are scheduling metadata, not enforcement
       Given a task declares repository-relative paths and read or write access
@@ -359,7 +366,8 @@ Feature: Agent Teams run-centric orchestration and messaging contract
     Scenario: Agent reports use a distinct transcript renderer
       Given an automatic agent report is delivered as a custom message
       When the transcript renders the report in its collapsed state
-      Then it shows a bold [Agent message] label followed by `from @<teammate>`
+      Then it shows a bold [message] label followed by `from @<teammate>`
+      And the `Ctrl+O to expand` hint appears on the same line as the message header
       And it shows an expand hint instead of the full report body
       When the report is expanded
       Then the full report body is rendered with the custom message text style
@@ -476,6 +484,15 @@ Feature: Agent Teams run-centric orchestration and messaging contract
       Then the malformed output is consumed once
       And a diagnostic is delivered to the leader
 
+  Rule: Leader task dispatch is visible per agent
+
+    Scenario: Multiple dispatched tasks render one line per agent
+      Given the leader starts three tasks with required working paths
+      When the teammate_run call is rendered
+      Then it shows three agent lines
+      And each line identifies the agent, teammate, and task name, such as "Agent (Agent Alpha - research) · @calc-1 · task-namexxxx"
+      And it does not collapse the call to a task count
+
   Rule: Messaging is capability-bound and leader-only
 
     Scenario: Workers report exclusively to the team leader
@@ -502,6 +519,29 @@ Feature: Agent Teams run-centric orchestration and messaging contract
     Scenario: Messages carry no read receipts
       Given messages are delivered
       Then no message stores a read flag and no read receipt is exchanged
+
+    Scenario: Leader steering identifies the recipient clearly in the transcript
+      Given the leader calls teammate_message for a running RPC worker
+      When the tool call is rendered
+      Then it is labeled "[message] to @worker-name"
+      And the recipient name remains colorized
+
+    Scenario: Agent reports identify the sender clearly in the transcript
+      Given a worker report is delivered to the leader
+      When the report is rendered in the collapsed transcript
+      Then it is labeled "[message] from @worker-name"
+      And the sender name remains colorized
+
+    Scenario: Reports from different agents stay in separate transcript messages
+      Given reports from @calc-1, @calc-3, and @calc-2 are delivered
+      When the reports are rendered in the transcript
+      Then each report has its own message header
+      And no combined "[3 messages]" header is shown
+
+    Scenario: Multiple reports from one agent collapse under one header
+      Given two reports are delivered from the same agent
+      When the reports are rendered in the collapsed transcript
+      Then it is labeled "[2 messages] from @worker-one"
 
     Scenario: A worker delivers its outcome via teammate_message
       Given a node is working

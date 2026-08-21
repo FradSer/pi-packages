@@ -478,6 +478,25 @@ def test_widget_and_console_responsive_width_rendering() -> None:
     assert payload["consoleLabelNarrowTruncated"] is True
 
 
+def test_multiple_teammate_tasks_render_each_agent_line() -> None:
+    tools = source("tools.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert '.map((task) => {' in tools
+    assert 'return formatAgentTaskLabel(formatAgentDescription(task.agent, ephemeral), taskId, taskName);' in tools
+    assert 'formatAgentTaskName(task.prompt ?? "", taskId)' in tools
+    assert 'lines.join("\\n")' in tools
+    assert 'does not collapse the call to a task count' in feature
+
+
+def test_leader_message_renderer_identifies_recipient() -> None:
+    tools = source("tools.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "function teammateNameFromTarget" in tools
+    assert 'formatAgentMessagePrefix("to")' in tools
+    assert 'theme.fg("accent", `@${name}`)' in tools
+    assert 'labeled "[message] to @worker-name"' in feature
+
+
 def test_follow_up_reports_use_direct_colored_teammate_format() -> None:
     queue = source("follow-up-queue.ts")
     index = source("index.ts")
@@ -488,8 +507,8 @@ def test_follow_up_reports_use_direct_colored_teammate_format() -> None:
     assert 'registerMessageRenderer(TEAMMATE_REPORT_MESSAGE_TYPE' in index
     assert 'theme.fg(reportColor(teammate), `@${teammate}`)' in index
     assert 'customMessageLabel' in index
-    assert 'Ctrl+O to expand' in index
-    assert 'const label = theme.fg("customMessageLabel", theme.bold("[Agent message]"));' in index
+    assert 'const hint = theme.fg("dim", " · Ctrl+O to expand");' in index
+    assert 'formatAgentMessagePrefix("from")' in index
     assert 'Teammate @${name} finished.' in index
     assert 'TEAMMATE_FINISHED_ENTRY_TYPE' in index
     assert 'registerEntryRenderer(TEAMMATE_FINISHED_ENTRY_TYPE' in index
@@ -497,11 +516,23 @@ def test_follow_up_reports_use_direct_colored_teammate_format() -> None:
     assert 'theme.fg("text", "</agent-message>")' not in index
 
 
+def test_batched_agent_reports_group_by_sender() -> None:
+    index = source("index.ts")
+    queue = source("follow-up-queue.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "groupReportsByTeammate" in index
+    assert "groupReportsByTeammate" in queue
+    assert 'formatAgentMessagePrefix("from", group.reports.length)' in index
+    assert "remainingGroups" in queue
+    assert 'labeled "[2 messages] from @worker-one"' in feature
+    assert 'no combined "[3 messages]" header is shown' in feature
+
+
 def test_agent_report_renderer_uses_skill_style_collapsed_and_expanded_states() -> None:
     index = source("index.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
-    assert 'theme.fg("customMessageLabel", theme.bold("[Agent message]"))' in index
-    assert 'theme.fg("customMessageText", "from")' in index
+    assert 'formatAgentMessagePrefix("from")' in index
+    assert 'formatAgentMessagePrefix("from")' in index
     assert 'theme.fg(reportColor(teammate), `@${teammate}`)' in index
     assert 'Ctrl+O to expand' in index
     assert 'expanded' in index
@@ -561,12 +592,13 @@ def test_paths_and_access_contract_is_advisory_metadata() -> None:
     assert "leader can steer a running RPC worker through teammate_message" in feature
     assert "no peer mailbox, broadcast, or worker inbox operation is available" in feature
     assert "Scheduling and prompt metadata only" in types
+    assert "Optional scheduling and prompt metadata" in types
     assert "coordinate through teammate_message" in types
     assert "does not enforce filesystem permissions or provide an OS/container sandbox" in types
     assert "not a permission boundary" in types
     assert "paths do not enforce read/write access or provide an OS/container sandbox" in types
     fanout_schema = types[types.index("export const TeammateFanoutParams"):types.index("/** Leader-only runtime steer")]
-    assert "Scheduling and prompt metadata only" in fanout_schema
+    assert "Optional scheduling and prompt metadata" in fanout_schema
     assert "do not enforce filesystem permissions" in fanout_schema
 
 
@@ -848,6 +880,20 @@ def test_worker_report_is_leader_only_and_deduplicated() -> None:
         '''
     )
     assert payload == {"first": True, "duplicate": False, "messages": "Plan", "runId": "run_1"}
+
+def test_run_creation_accepts_tasks_without_paths() -> None:
+    module = (SRC / "state.ts").as_uri()
+    payload = run_node(
+        f'''\
+        import {{ createRun, resetState }} from "{module}";
+        resetState();
+        const result = createRun({{ cwd: "/tmp", concurrency: 1, worktree: false, summarize: false,
+          nodes: [{{ id: "a", agent: "worker", prompt: "do it", access: "read", dependsOn: [] }}] }});
+        console.log(JSON.stringify({{ ok: result.ok, paths: result.ok ? result.run.nodes.a.paths : [] }}));
+        '''
+    )
+    assert payload == {"ok": True, "paths": []}
+
 
 def test_run_creation_rejects_malformed_graphs() -> None:
     module = (SRC / "state.ts").as_uri()
@@ -1765,6 +1811,33 @@ def test_follow_up_queue_ignores_stale_session_callbacks() -> None:
     assert payload == {"sent": 0, "pending": 0}
 
 
+def test_follow_up_queue_batches_reports_by_sender() -> None:
+    module = (SRC / "follow-up-queue.ts").as_uri()
+    payload = run_node(f'''\
+        import {{ FollowUpQueue }} from "{module}";
+        const sent = [];
+        const queue = new FollowUpQueue({{
+          isIdle: () => true,
+          dispatch: (_reports, content) => sent.push(content),
+          agentStartTimeoutMs: 100000,
+        }});
+        queue.enqueue({{ teammate: "calc-1", body: "one" }});
+        queue.enqueue({{ teammate: "calc-3", body: "three" }});
+        queue.enqueue({{ teammate: "calc-1", body: "two" }});
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        queue.onBeforeAgentStart("<agent-message from=\\\"calc-1\\\">\\none\\n</agent-message>\\n\\n<agent-message from=\\\"calc-1\\\">\\ntwo\\n</agent-message>");
+        queue.onAgentStart();
+        queue.onAgentSettled();
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        console.log(JSON.stringify(sent));
+        queue.reset();
+        ''')
+    assert payload == [
+        '<agent-message from="calc-1">\none\n</agent-message>\n\n<agent-message from="calc-1">\ntwo\n</agent-message>',
+        '<agent-message from="calc-3">\nthree\n</agent-message>',
+    ]
+
+
 def test_follow_up_queue_waits_for_matching_start_and_settle() -> None:
     module = (SRC / "follow-up-queue.ts").as_uri()
     payload = run_node(f'''\
@@ -1899,6 +1972,6 @@ def test_end_to_end_worker_message_flow_is_leader_only() -> None:
 def test_background_run_suppresses_startup_notice_text() -> None:
     tools_src = source("tools.ts")
     assert "if (run.background)" in tools_src
-    assert "content: []" in tools_src
+    assert 'content: [{ type: "text", text: teammateRunDisplayText(params) }]' in tools_src
     assert "Started run [" not in tools_src
     assert "gatherForeground(run.id, signal)" in tools_src

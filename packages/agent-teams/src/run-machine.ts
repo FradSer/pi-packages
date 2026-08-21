@@ -431,7 +431,7 @@ export function startNode(runId: string, nodeId: string, ctx: DispatchCtx): void
     "",
     "=== TASK ===",
     `Access: ${node.access}`,
-    `Paths: ${node.paths.join(", ")}`,
+    ...(node.paths.length > 0 ? [`Paths: ${node.paths.join(", ")}`] : []),
     node.prompt,
     ...(upstream.length > 0 ? ["", "=== UPSTREAM HANDOFF ===", ...upstream] : []),
     ...(bindingLines.length > 0 ? ["", "=== NAMED INPUTS ===", ...bindingLines] : []),

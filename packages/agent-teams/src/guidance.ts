@@ -47,7 +47,7 @@ ${agents}
 
 ### Dispatch a run in one call
 
-Use teammate_run with a tasks array: each task has id, agent, prompt, paths,
+Use teammate_run with a tasks array: each task has id, agent, prompt, optional paths,
 access (read default, write explicit), optional dependsOn, model, turnBudget
 (default 100 assistant turns), forkContext, and inputBindings. Use teammate_fanout only from the leader after
 validating a completed node's bounded structured array output. The scheduler

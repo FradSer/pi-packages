@@ -16,7 +16,8 @@ import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui";
 import { registerLeaderTools, registerTeamCommand } from "./tools";
 import { registerWorkerCapabilities, workerOutboxBinding } from "./worker";
 import { terminateAllWorkers } from "./spawner";
-import { FollowUpQueue, TEAMMATE_REPORT_MESSAGE_TYPE, type FollowUpReport } from "./follow-up-queue";
+import { formatAgentMessagePrefix } from "@fradser/pi-kit";
+import { FollowUpQueue, groupReportsByTeammate, TEAMMATE_REPORT_MESSAGE_TYPE, type FollowUpReport } from "./follow-up-queue";
 import { Box, Markdown, Text } from "@earendil-works/pi-tui";
 
 const STATE_DIR_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -70,21 +71,20 @@ export default function (pi: ExtensionAPI) {
       return box;
     }
     if (!expanded) {
-      const label = theme.fg("customMessageLabel", theme.bold("[Agent message]"));
-      const names = reports
-        .map((report) => report.teammate ?? report.agent ?? "teammate")
-        .map((teammate) => theme.fg(reportColor(teammate), `@${teammate}`))
-        .join(theme.fg("customMessageText", ", "));
-      const from = theme.fg("customMessageText", "from");
-      const hint = theme.fg("dim", " (Ctrl+O to expand)");
-      box.addChild(new Text(`${label} ${from} ${names}${hint}`, 0, 0));
+      const groups = groupReportsByTeammate(reports);
+      const hint = theme.fg("dim", " · Ctrl+O to expand");
+      for (const group of groups) {
+        const prefix = theme.fg("customMessageLabel", theme.bold(formatAgentMessagePrefix("from", group.reports.length)));
+        const name = theme.fg(reportColor(group.teammate), `@${group.teammate}`);
+        box.addChild(new Text(`${prefix}${name}${hint}`, 0, 0));
+      }
       return box;
     }
     for (const [index, report] of reports.entries()) {
       const teammate = report.teammate ?? report.agent ?? "teammate";
-      const label = theme.fg("customMessageLabel", theme.bold("[Agent message]"));
+      const prefix = theme.fg("customMessageLabel", theme.bold(formatAgentMessagePrefix("from")));
       const name = theme.fg(reportColor(teammate), `@${teammate}`);
-      box.addChild(new Text(`${label} ${theme.fg("customMessageText", "from")} ${name}`, 0, 0));
+      box.addChild(new Text(`${prefix}${name}`, 0, 0));
       box.addChild(new Markdown(report.body, 0, 0, getMarkdownTheme(), {
         color: (text) => theme.fg("customMessageText", text),
       }));

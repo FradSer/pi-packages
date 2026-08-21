@@ -36,7 +36,7 @@ export interface Node {
   agent: string;
   /** The specific task text handed to the worker. */
   prompt: string;
-  /** Repository-relative paths used to coordinate this node. */
+  /** Optional repository-relative paths used to coordinate this node. */
   paths: string[];
   /** Read nodes may overlap; write nodes need shared-workspace conflict protection. */
   access: "read" | "write";
@@ -204,10 +204,10 @@ export const RunTaskSpec = Type.Object({
   agent: Type.String({ description: "Agent definition name (bundled, user, or project scope)" }),
   prompt: Type.String({ minLength: 1, description: "The specific task text handed to this worker" }),
   dependsOn: Type.Optional(Type.Array(Type.String(), { description: "Node ids that must complete before this node starts" })),
-  paths: Type.Array(Type.String({ description: "Repository-relative path included in the worker prompt; not a permission boundary" }), {
+  paths: Type.Optional(Type.Array(Type.String({ description: "Optional repository-relative path used for scheduling metadata; not a permission boundary" }), {
     minItems: 1,
-    description: "Scheduling and prompt metadata only; paths do not enforce read/write access or provide an OS/container sandbox. Teammates that share paths run concurrently and coordinate through teammate_message",
-  }),
+    description: "Optional scheduling and prompt metadata; paths do not enforce read/write access or provide an OS/container sandbox. Teammates that share paths may coordinate through teammate_message",
+  })),
   access: Type.Optional(NodeAccess),
   model: Type.Optional(Type.String({ description: "Optional per-node provider/model pin" })),
   mode: Type.Optional(Type.Union([Type.Literal("json"), Type.Literal("rpc")], { description: "Worker process mode; rpc enables runtime steering" })),
@@ -273,7 +273,7 @@ export const TeammateFanoutParams = Type.Object({
   nodeId: Type.String({ description: "Completed source node whose structured output is an array" }),
   agent: Type.String({ description: "Agent to run for each item" }),
   prompt: Type.String({ minLength: 1, description: "Task prompt; each item is appended as JSON" }),
-  paths: Type.Array(Type.String({ description: "Scheduling and prompt metadata only: repository-relative paths are included in the worker prompt; they do not enforce filesystem permissions or provide an OS/container sandbox" }), { minItems: 1, description: "Scheduling and prompt metadata only for each child run; paths do not enforce read/write access or provide an OS/container sandbox" }),
+  paths: Type.Optional(Type.Array(Type.String({ description: "Optional scheduling and prompt metadata: repository-relative paths are included in the worker prompt when provided; they do not enforce filesystem permissions or provide an OS/container sandbox" }), { minItems: 1, description: "Optional scheduling and prompt metadata; paths do not enforce read/write access or provide an OS/container sandbox" })),
   access: Type.Optional(NodeAccess),
   model: Type.Optional(Type.String()),
   turnBudget: Type.Optional(Type.Integer({ minimum: 1 })),

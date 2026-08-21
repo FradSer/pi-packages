@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { formatAgentMessagePrefix, formatAgentTaskLabel, formatAgentTaskName } from "@fradser/pi-kit";
 import { discoverAgents, resolveAgent } from "./agents";
 import { normalizeEphemeralAgents } from "./state";
 import {
@@ -16,6 +17,11 @@ import { TeammateCancelParams, TeammateFanoutParams, TeammateLeaderMessageParams
 import { sendWorkerSteer } from "./spawner";
 import { ensureTeamWidget, openTeamConsole, refreshTeamUI } from "./ui";
 import { Text } from "@earendil-works/pi-tui";
+
+function teammateNameFromTarget(target: string): string {
+  const separator = target.indexOf(":");
+  return separator >= 0 ? target.slice(separator + 1) : target;
+}
 
 function dispatchContext(ctx: ExtensionContext): DispatchCtx {
   return { ui: ctx.ui, sessionManager: ctx.sessionManager, cwd: ctx.cwd };
@@ -62,21 +68,24 @@ const BUILTIN_AGENT_DISPLAY: Record<string, string> = {
   observer: "Observer - Monitor",
 };
 
-export function formatAgentDisplay(agent: string, ephemeral?: { description?: string }): string {
+export function formatAgentDescription(agent: string, ephemeral?: { description?: string }): string {
   const ephemeralLabel = ephemeral?.description?.trim();
-  if (ephemeralLabel) return `Agent(${ephemeralLabel})`;
+  if (ephemeralLabel) return ephemeralLabel;
   const builtinLabel = BUILTIN_AGENT_DISPLAY[agent];
-  if (builtinLabel) return `Agent(${builtinLabel})`;
-  return `Agent(${agent})`;
+  if (builtinLabel) return builtinLabel;
+  return agent;
 }
 
-export function teammateRunDisplayText(params: { tasks: Array<{ id: string; agent: string }>; ephemeralAgents?: Array<{ name: string; description?: string }> }): string {
-  if (params.tasks.length === 1) {
-    const task = params.tasks[0];
-    const ephemeral = (params.ephemeralAgents ?? []).find((a) => a.name === task.agent);
-    return formatAgentDisplay(task.agent, ephemeral);
-  }
-  return `${params.tasks.length} tasks`;
+export function teammateRunDisplayText(params: { tasks: Array<{ id: string; agent: string; prompt?: string; paths?: string[] }>; ephemeralAgents?: Array<{ name: string; description?: string }> }): string {
+  const ephemeralAgents = params.ephemeralAgents ?? [];
+  return params.tasks
+    .map((task) => {
+      const ephemeral = ephemeralAgents.find((agent) => agent.name === task.agent);
+      const taskId = task.id.trim() || task.agent;
+      const taskName = formatAgentTaskName(task.prompt ?? "", taskId);
+      return formatAgentTaskLabel(formatAgentDescription(task.agent, ephemeral), taskId, taskName);
+    })
+    .join("\n");
 }
 
 export function registerLeaderTools(pi: ExtensionAPI): void {
@@ -86,26 +95,26 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     label: "Run Tasks",
     description: "Dispatch a dependency-aware task graph in one call. Root nodes start immediately; downstream nodes auto-start after dependencies complete. Concurrency is bounded per run and across the session. Teammates run in the background by default and deliver completion through a follow-up. Do not sleep to wait.",
     parameters: TeammateRunParams,
-    renderCall(args, theme) {
-      const params = args as { tasks: Array<{ id: string; agent: string }>; ephemeralAgents?: Array<{ name: string; description?: string }> };
-      const line = teammateRunDisplayText(params);
-      return new Text(theme.fg("toolTitle", theme.bold(line)), 0, 0);
-    },
-    renderResult(result, { expanded }, theme) {
+    renderShell: "self",
+    renderCall: () => new Text("", 0, 0),
+    renderResult(result, _options, theme, context) {
       const text = result.content[0]?.type === "text" ? (result.content[0] as { type: string; text: string }).text : "";
       if ((result as { isError?: boolean }).isError) {
         return new Text(theme.fg("error", text.split("\n")[0] || "Failed to dispatch run."), 0, 0);
       }
-      if (!text.trim()) {
-        // Background run: keep the tool row minimal — the header already shows Agent(...).
-        return new Text("", 0, 0);
-      }
-      const firstLine = text.split("\n")[0];
-      let out = theme.fg("success", firstLine);
-      if (expanded && text.split("\n").length > 1) {
-        out += `\n${theme.fg("dim", text.split("\n").slice(1, 12).join("\n"))}`;
-      }
-      return new Text(out, 0, 0);
+      if (!text.trim()) return new Text("", 0, 0);
+      const details = result.details as { startup?: boolean } | undefined;
+      if (!details?.startup) return new Text(text, 0, 0);
+      const params = context.args as { tasks: Array<{ id: string; agent: string; prompt?: string }>; ephemeralAgents?: Array<{ name: string; description?: string }> };
+      const ephemeralAgents = params.ephemeralAgents ?? [];
+      const lines = params.tasks.map((task) => {
+        const ephemeral = ephemeralAgents.find((agent) => agent.name === task.agent);
+        const description = formatAgentDescription(task.agent, ephemeral);
+        const taskId = task.id.trim() || task.agent;
+        const taskName = formatAgentTaskName(task.prompt ?? "", taskId);
+        return `${theme.fg("toolTitle", theme.bold(`Agent (${description})`))} ${theme.fg("dim", "·")} ${theme.fg("accent", `@${taskId}`)} ${theme.fg("dim", "·")} ${theme.fg("customMessageText", taskName)}`;
+      });
+      return new Text(lines.join("\n"), 0, 0);
     },
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const cwd = params.cwd ?? ctx.cwd ?? process.cwd();
@@ -140,7 +149,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
           id: task.id,
           agent: task.agent,
           prompt: task.prompt,
-          paths: task.paths,
+          paths: task.paths ?? [],
           access: task.access ?? "read",
           model: task.model,
           mode: task.mode,
@@ -158,8 +167,8 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
 
       if (run.background) {
         return {
-          content: [],
-          details: {},
+          content: [{ type: "text", text: teammateRunDisplayText(params) }],
+          details: { startup: true },
         };
       }
       return { content: [{ type: "text", text: await gatherForeground(run.id, signal) }], details: {} };
@@ -184,7 +193,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
         id: `${params.nodeId}-${index + 1}`,
         agent: params.agent,
         prompt: `${params.prompt}\n\nFanout item:\n${JSON.stringify(item)}`,
-        paths: params.paths,
+        paths: params.paths ?? [],
         access: params.access ?? "read" as const,
         model: params.model,
         mode: "json" as const,
@@ -205,6 +214,12 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     promptSnippet: "Send a runtime steer to a running RPC teammate",
     label: "Message Teammate",
     description: "Leader-only runtime steer. Sends through the existing teammate_message protocol to a running RPC worker; no message is available for JSON-mode workers.",
+    renderCall(args, theme) {
+      const name = teammateNameFromTarget(String(args.target));
+      const prefix = theme.fg("toolTitle", theme.bold(formatAgentMessagePrefix("to")));
+      const recipient = theme.fg("accent", `@${name}`);
+      return new Text(`${prefix}${recipient}`, 0, 0);
+    },
     parameters: TeammateLeaderMessageParams,
     async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
       if (!params.target.includes(":")) throw new Error("Target must be a run-qualified worker key.");

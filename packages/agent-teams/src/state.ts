@@ -60,8 +60,8 @@ export function pathsOverlap(left: string, right: string): boolean {
   return left === "." || right === "." || left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
 }
 
-export function normalizeNodePaths(paths: string[]): { ok: true; paths: string[] } | { ok: false; error: string } {
-  if (paths.length === 0) return { ok: false, error: "Provide at least one node path." };
+export function normalizeNodePaths(paths?: string[]): { ok: true; paths: string[] } | { ok: false; error: string } {
+  if (!paths || paths.length === 0) return { ok: true, paths: [] };
   const normalized: string[] = [];
   for (const rawPath of paths) {
     const candidate = rawPath.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "");
@@ -163,7 +163,7 @@ export interface RunNodeInput {
   id: string;
   agent: string;
   prompt: string;
-  paths: string[];
+  paths?: string[];
   access: Node["access"];
   model?: string;
   mode?: Node["mode"];

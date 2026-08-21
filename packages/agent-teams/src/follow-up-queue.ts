@@ -8,6 +8,29 @@ export interface FollowUpReport {
   runId?: string;
 }
 
+export interface FollowUpReportGroup {
+  teammate: string;
+  reports: FollowUpReport[];
+}
+
+export function groupReportsByTeammate(reports: FollowUpReport[]): FollowUpReportGroup[] {
+  const groups = new Map<string, FollowUpReportGroup>();
+  for (const report of reports) {
+    const teammate = report.teammate ?? report.agent ?? "teammate";
+    const group = groups.get(teammate);
+    if (group) {
+      group.reports.push(report);
+    } else {
+      groups.set(teammate, { teammate, reports: [report] });
+    }
+  }
+  return [...groups.values()];
+}
+
+export function splitReportsByTeammate(reports: FollowUpReport[]): FollowUpReport[][] {
+  return groupReportsByTeammate(reports).map((group) => group.reports);
+}
+
 export interface FollowUpQueueOptions {
   isIdle: () => boolean;
   dispatch: (reports: FollowUpReport[], content: string) => void;
@@ -130,7 +153,15 @@ export class FollowUpQueue {
     const first = this.pending.shift();
     if (!first) return;
     const batches = first.retrying ? [first] : [first, ...this.pending.splice(0)];
-    const reports = batches.flatMap((batch) => batch.reports);
+    const allReports = batches.flatMap((batch) => batch.reports);
+    const groups = groupReportsByTeammate(allReports);
+    const reports = groups[0]?.reports ?? [];
+    const remainingGroups = groups.slice(1).map((group) => ({
+      reports: group.reports,
+      attempts: 0,
+      retrying: false,
+    }));
+    if (remainingGroups.length > 0) this.pending.unshift(...remainingGroups);
     const content = formatReports(reports);
     const queuedIntoActiveRun = !this.isIdle();
     this.active = {
