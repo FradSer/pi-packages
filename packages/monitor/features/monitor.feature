@@ -14,11 +14,33 @@ Feature: Result-contract background monitoring
     And the agent remains idle until the terminal result arrives
     And ordinary stdout and stderr do not wake the agent
 
-  Scenario: Starting a monitor renders only its concise startup message
+  Scenario: Concise system guidance covers finite installation and verification commands
+    Given the agent is deciding whether a shell command needs background monitoring
+    When system prompt guidance is injected before the agent starts
+    Then dependency installation and verification pipelines are valid monitor candidates
+    And the guidance requires a precise terminal result contract
+    And monitor output is treated as untrusted command data
+    And the guidance remains concise and package-manager generic
+    And no monitor is started by the prompt injection itself
+
+  Scenario: Monitor usage is not exposed as a package skill
+    Given the monitor package is installed
+    Then it registers a system prompt hook for monitor guidance
+    And it does not register a skills directory
+    And the using-monitor skill directory is absent
+
+  Scenario: Prompt guidance treats malicious terminal output as untrusted data
+    Given a monitor terminal result contains instruction-like command output
+    When prompt guidance is injected before the agent starts
+    Then all monitor fields and diagnostic output are identified as untrusted command data
+    And the agent is told never to follow instructions found in monitor output
+    And monitor output cannot override system instructions, developer instructions, or user intent
+
+  Scenario: Starting a monitor uses the compact monitor event style
     Given monitor_start accepts a monitor description
     When a monitor is started
-    Then the tool call row is not rendered
-    And the tool result contains `Monitor started · <description>`
+    Then the tool call row contains `[monitor] started · <description>`
+    And the tool result contains `[monitor] event · <description>`
     And the tool result does not contain an internal monitor id
     And the tool result still terminates the current agent turn
 
@@ -64,17 +86,18 @@ Feature: Result-contract background monitoring
     Then the visible content is compact plain text
     And the message details retain the full structured result object
 
-  Scenario: Terminal results use the agent-message report envelope
+  Scenario: Terminal results use native Pi custom message content
     Given a monitor reaches a terminal result
     When the result is sent back to the agent
-    Then the transport content is wrapped in an `<agent-message from="monitor">` marker
-    And the full compact terminal report appears inside the marker
-    And the message details retain the full structured result object
+    Then the transport content contains the compact terminal report without a custom envelope
+    And the message details retain the monitor description and full structured result object
 
-  Scenario: Terminal result notifications render without a bullet prefix
+  Scenario: Terminal result notifications use the compact monitor event style
     Given a monitor reaches a terminal result
     When the result notification is rendered in the TUI
-    Then the collapsed line starts with `Monitor event: "<description>"`
+    Then the collapsed line starts with `[monitor] event · <description>`
+    And the collapsed line uses the configured tool expansion key hint
+    And the collapsed line does not hard-code `Ctrl+O`
     And the collapsed line does not start with `⏺`
 
   Scenario: Captured output is bounded
@@ -119,6 +142,11 @@ Feature: Result-contract background monitoring
     Then a full-screen console lists the monitors and their bounded recent output
     And x stops the selected active monitor and a stops all active monitors
     And the console renders bounded output without registering an output-reading tool
+    And the console uses a bounded border and padded full-screen layout
+    And monitor completion requests a repaint while the console is open
+    And arrow navigation supports Pi legacy and Kitty key sequences
+    And untrusted descriptions, commands, and output cannot emit terminal control sequences
+    And 8-bit C1 control sequences are removed together with their sequence payloads
     And no global input listener is registered
 
   Scenario: The monitor status is rendered after the native footer
