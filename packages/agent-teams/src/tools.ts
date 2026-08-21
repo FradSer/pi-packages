@@ -97,8 +97,8 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
         return new Text(theme.fg("error", text.split("\n")[0] || "Failed to dispatch run."), 0, 0);
       }
       if (!text.trim()) {
-        // Background run: content is empty and results arrive via follow-up.
-        return new Text(theme.fg("dim", "Dispatched — workers will message team-leader upon completion."), 0, 0);
+        // Background run: keep the tool row minimal — the header already shows Agent(...).
+        return new Text("", 0, 0);
       }
       const firstLine = text.split("\n")[0];
       let out = theme.fg("success", firstLine);
