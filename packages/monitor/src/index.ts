@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import { Box, Key, matchesKey, Text, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { Box, Container, Key, matchesKey, Text, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   MonitorManager,
   type Monitor,
@@ -34,7 +34,7 @@ export default function (pi: ExtensionAPI) {
           customType: "monitor-result",
           content: formatAgentMessage(formatTerminalMessage(monitor, result)),
           display: true,
-          details: { monitorId: monitor.id, result },
+          details: { result },
         },
         { deliverAs: "steer", triggerTurn: true },
       );
@@ -75,7 +75,7 @@ export default function (pi: ExtensionAPI) {
           const monitor = monitors[index];
           const marker = index === selected ? theme.fg("accent", "❯ ") : "  ";
           lines.push(truncateToWidth(
-            `${marker}${theme.fg(statusColor(monitor.status), monitor.id)} — ${monitor.description} (${monitor.status})`,
+            `${marker}${theme.fg(statusColor(monitor.status), monitor.description)} (${monitor.status}) [${monitor.id}]`,
             Math.max(10, width - 1),
           ));
         }
@@ -135,7 +135,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerMessageRenderer("monitor-result", (message, { expanded, outputPad }, theme) => {
     const description = extractMonitorDescription(String(message.content));
     const box = new Box(outputPad, 1, (text) => theme.bg("customMessageBg", text));
-    const eventLine = theme.fg("customMessageLabel", theme.bold(`⏺ Monitor event: "${description}"`));
+    const eventLine = theme.fg("customMessageLabel", theme.bold(`Monitor event: "${description}"`));
     if (!expanded) {
       box.addChild(new Text(`${eventLine}${theme.fg("dim", " (Ctrl+O to expand)")}`, 0, 0));
       return box;
@@ -177,6 +177,12 @@ export default function (pi: ExtensionAPI) {
       "Wait for the terminal notification; it includes a bounded diagnostic tail without a polling step.",
     ],
     parameters: MonitorStartParams,
+    renderShell: "self",
+    renderCall: () => new Container(),
+    renderResult(result) {
+      const text = result.content.find((part) => part.type === "text")?.text ?? "";
+      return new Text(text, 0, 0);
+    },
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (!params.command.trim()) throw new Error("monitor_start requires a non-empty command.");
@@ -192,9 +198,9 @@ export default function (pi: ExtensionAPI) {
       return {
         content: [{
           type: "text",
-          text: `Monitor started · ${monitor.id} · ${monitor.description}`,
+          text: `Monitor started · ${monitor.description}`,
         }],
-        details: { monitorId: monitor.id },
+        details: {},
         terminate: true,
       };
     },
@@ -213,12 +219,12 @@ export default function (pi: ExtensionAPI) {
       updateFooterStatus();
       if (result.stopped.length === 0) {
         throw new Error(params.monitor_id
-          ? `No active monitor with id "${params.monitor_id}".`
+          ? `No active monitor with id ${params.monitor_id}.`
           : "No active monitors.");
       }
       return {
-        content: [{ type: "text", text: `Stopped ${result.stopped.length} monitor(s): ${result.stopped.join(", ")}.` }],
-        details: { stopped: result.stopped },
+        content: [{ type: "text", text: `Stopped ${result.stopped.length} monitor(s).` }],
+        details: { stopped: result.stopped.length },
       };
     },
   });
@@ -230,7 +236,7 @@ export default function (pi: ExtensionAPI) {
         const monitors = manager.list();
         ctx.ui.notify(monitors.length === 0
           ? "No active result monitors."
-          : `${monitors.length} result monitor(s) waiting: ${monitors.map((monitor) => monitor.id).join(", ")}`,
+          : `${monitors.length} result monitor(s) waiting.`,
         "info");
         return;
       }
@@ -246,7 +252,7 @@ export default function (pi: ExtensionAPI) {
 
   function monitorDetails(monitor: Monitor, showOutput: boolean): string[] {
     const lines = [
-      `Selected: ${monitor.id}`,
+      `Monitor: ${monitor.description}`,
       `status: ${monitor.status}`,
       `command: ${monitor.command}`,
       `success: ${monitor.resultPattern}`,
@@ -270,18 +276,18 @@ function formatVisibleReport(content: string): string {
   const body = content
     .replace(/^<agent-message from="monitor">\n?/, "")
     .replace(/\n?<\/agent-message>\s*$/, "");
-  return body.replace(/^\[monitor [^\]]+\] [^\n]+\n?/, "");
+  return body.replace(/^Monitor: [^\n]+\n?/, "");
 }
 
 function extractMonitorDescription(content: string): string {
-  const match = content.match(/\[monitor [^\]]+\] ([^\n]+)/);
+  const match = content.match(/Monitor: ([^\n]+)/);
   const description = match?.[1] ?? "result";
   return compactValue(description).replaceAll('"', '\\"');
 }
 
 function formatTerminalMessage(monitor: Monitor, result: MonitorTerminalResult): string {
   const lines = [
-    `[monitor ${monitor.id}] ${monitor.description}`,
+    `Monitor: ${monitor.description}`,
     `status=${result.status}`,
     `elapsed=${formatElapsed(result.elapsedMs)}`,
   ];

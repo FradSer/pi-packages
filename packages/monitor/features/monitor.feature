@@ -9,15 +9,17 @@ Feature: Result-contract background monitoring
   Scenario: Starting a monitor requires a success result contract
     When monitor_start runs with a command, description, and result pattern
     Then a background process is spawned for the command
-    And the tool returns a monitor id immediately without blocking
+    And the tool returns immediately without blocking
     And the tool result terminates the current agent turn
     And the agent remains idle until the terminal result arrives
     And ordinary stdout and stderr do not wake the agent
 
-  Scenario: Starting a monitor returns a concise startup message
+  Scenario: Starting a monitor renders only its concise startup message
     Given monitor_start accepts a monitor description
     When a monitor is started
-    Then the tool result contains `Monitor started · <monitor-id> · <description>`
+    Then the tool call row is not rendered
+    And the tool result contains `Monitor started · <description>`
+    And the tool result does not contain an internal monitor id
     And the tool result still terminates the current agent turn
 
   Scenario: A success pattern exposes one compact text result
@@ -69,6 +71,12 @@ Feature: Result-contract background monitoring
     And the full compact terminal report appears inside the marker
     And the message details retain the full structured result object
 
+  Scenario: Terminal result notifications render without a bullet prefix
+    Given a monitor reaches a terminal result
+    When the result notification is rendered in the TUI
+    Then the collapsed line starts with `Monitor event: "<description>"`
+    And the collapsed line does not start with `⏺`
+
   Scenario: Captured output is bounded
     Given a monitor is running
     When the command writes oversized lines or a large output burst
@@ -77,10 +85,16 @@ Feature: Result-contract background monitoring
 
   Scenario: Stopping a monitor manually
     Given a monitor is running
+    And the /monitor console exposes its monitor id
     When monitor_stop runs with its monitor id
     Then the process group receives SIGTERM followed by SIGKILL after the grace period
     And a SIGTERM-resistant descendant still receives SIGKILL escalation after the shell child closes
     And no terminal result notification is sent
+
+  Scenario: Stopping an unknown monitor reports the requested id
+    Given active monitors exist
+    When monitor_stop runs with an unknown monitor id
+    Then the tool reports `No active monitor with id <id>.`
 
   Scenario: Monitor tool surface excludes polling and output-reading tools
     Given the extension tools are registered

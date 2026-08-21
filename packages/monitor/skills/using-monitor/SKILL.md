@@ -71,14 +71,14 @@ contracts.
 - `result_missing`: the process exited successfully without satisfying the
   declared result contract.
 
-The monitor start tool returns a concise status with the monitor id and
-description, then terminates the current turn. When the command reaches a
+The monitor start tool returns a concise status with the description, then
+terminates the current turn. Internal monitor ids are not exposed. When the command reaches a
 terminal state, the monitor sends one report with `triggerTurn: true`. Its
 transport content uses the Pi agent-message envelope:
 
 ```text
 <agent-message from="monitor">
-[monitor monitor_1] test suite result
+Monitor: test suite result
 status=success
 elapsed=8.4s
 </agent-message>

@@ -93,15 +93,15 @@ The agent transport keeps the report in a Pi message envelope:
 
 ```text
 <agent-message from="monitor">
-[monitor monitor_1] test suite result
+Monitor: test suite result
 status=success
 elapsed=8.4s
 result={"status":"success"}
 </agent-message>
 ```
 
-The envelope and internal monitor label are hidden by the transcript renderer;
-they are retained for the agent's context and structured message details.
+The envelope is hidden by the transcript renderer; structured result details
+remain available to the extension.
 
 ## Matching existing command output
 
@@ -154,8 +154,8 @@ The retained history and terminal diagnostic tail are bounded:
 - Both stdout and stderr are scanned for `result_pattern` and `failure_pattern`.
 - The first terminal match wins and stops the process group.
 - Named regex captures are returned in `captures`.
-- The monitor start tool returns a concise status containing the monitor id
-  and description, then terminates the current turn.
+- The monitor start tool returns a concise status containing the description,
+  then terminates the current turn. Internal monitor ids are not exposed.
 - The model-facing terminal report uses the Pi agent-message envelope
   `<agent-message from="monitor">...</agent-message>` around compact
   `key=value` text. A named capture called `json` is parsed into `result` and

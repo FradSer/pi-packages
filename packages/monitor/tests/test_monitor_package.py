@@ -81,6 +81,7 @@ def test_extension_registers_result_contract_tools_without_polling_or_reading() 
     assert 'name: "monitor_read"' not in extension
     assert 'name: "monitor_list"' not in extension
     assert 'registerCommand("monitor"' in extension
+    assert "monitor.id" in extension.split('function openMonitorConsole', 1)[1].split('pi.registerMessageRenderer', 1)[0]
 
 
 def test_start_schema_requires_result_pattern_and_has_optional_failure_pattern() -> None:
@@ -157,12 +158,14 @@ def test_terminal_report_uses_agent_message_envelope() -> None:
     assert 'return `<agent-message from="monitor">\\n${body}\\n</agent-message>`;' in extension
     assert "content: formatAgentMessage(formatTerminalMessage(monitor, result))" in extension
     assert "monitor-result" in extension
+    assert "monitor.id" not in extension.split("function formatTerminalMessage", 1)[1]
 
 
 def test_monitor_report_renderer_hides_transport_envelope() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     assert 'registerMessageRenderer("monitor-result"' in extension
-    assert '⏺ Monitor event:' in extension
+    assert 'Monitor event:' in extension
+    assert '⏺ Monitor event:' not in extension
     assert "expanded" in extension
     assert '" (Ctrl+O to expand)"' in extension
     assert "<agent-message from=\\\"monitor\\\">" not in extension.split('registerMessageRenderer("monitor-result"', 1)[1].split('registerTool', 1)[0]
@@ -170,8 +173,12 @@ def test_monitor_report_renderer_hides_transport_envelope() -> None:
 
 def test_monitor_start_returns_concise_status_line() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
-    assert "Monitor started · ${monitor.id} · ${monitor.description}" in extension
-    assert "Success contract:" not in extension.split('name: "monitor_start"', 1)[1].split('name: "monitor_stop"', 1)[0]
+    start_tool = extension.split('name: "monitor_start"', 1)[1].split('name: "monitor_stop"', 1)[0]
+    assert "Monitor started · ${monitor.description}" in extension
+    assert 'renderShell: "self"' in start_tool
+    assert "renderCall: () => new Container()" in start_tool
+    assert "monitor.id" not in start_tool
+    assert "Success contract:" not in start_tool
 
 
 def test_monitor_status_uses_the_native_footer_and_console_owns_input() -> None:
@@ -183,6 +190,13 @@ def test_monitor_status_uses_the_native_footer_and_console_owns_input() -> None:
     assert "ctx.ui.custom" in extension
     assert "handleInput" in extension
     assert "updateFooterStatus" in extension
+
+
+def test_monitor_stop_reports_unknown_ids_precisely() -> None:
+    extension = (SRC / "index.ts").read_text(encoding="utf-8")
+    stop_tool = extension.split('name: "monitor_stop"', 1)[1].split('name: "monitor"', 1)[0]
+    assert "No active monitor with id ${params.monitor_id}." in stop_tool
+    assert "No active monitors." in stop_tool
 
 
 def test_monitor_start_terminates_the_current_agent_turn() -> None:
