@@ -199,15 +199,13 @@ export default function (pi: ExtensionAPI) {
     ],
     parameters: MonitorStartParams,
     renderShell: "self",
-    renderCall(args, theme) {
+    renderCall: () => new Container(),
+    renderResult(_result, _options, theme, context) {
       return new Text(
-        theme.fg("toolTitle", theme.bold(formatToolEventLabel("started", safeDisplayText(args.description)))),
+        theme.fg("toolTitle", theme.bold(formatToolEventLabel("started", safeDisplayText(context.args.description)))),
         0,
         0,
       );
-    },
-    renderResult() {
-      return new Container();
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (!params.command.trim()) throw new Error("monitor_start requires a non-empty command.");
