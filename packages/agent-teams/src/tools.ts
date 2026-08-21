@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { formatAgentMessagePrefix, formatAgentTaskLabel, formatAgentTaskName } from "@fradser/pi-kit";
+import { formatAgentMessagePrefix, formatAgentTaskName, formatToolEventLabel } from "@fradser/pi-kit";
 import { discoverAgents, resolveAgent } from "./agents";
 import { normalizeEphemeralAgents } from "./state";
 import {
@@ -16,7 +16,7 @@ import { createRun, getRun, getSummary, listNodes, markRunCompletionDelivered, r
 import { TeammateCancelParams, TeammateFanoutParams, TeammateLeaderMessageParams, TeammateRetryParams, TeammateRunParams } from "./types";
 import { sendWorkerSteer } from "./spawner";
 import { ensureTeamWidget, openTeamConsole, refreshTeamUI } from "./ui";
-import { Text } from "@earendil-works/pi-tui";
+import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 
 function teammateNameFromTarget(target: string): string {
   const separator = target.indexOf(":");
@@ -61,29 +61,12 @@ function resolveTargetNode(target: string): { node: import("./types").Node } | u
   return listNodes().map((node) => ({ node })).find(({ node }) => node.id === target || node.workerKey === target);
 }
 
-const BUILTIN_AGENT_DISPLAY: Record<string, string> = {
-  worker: "Worker - Execute",
-  reviewer: "Reviewer - Correctness & Security",
-  specialist: "Specialist - Domain",
-  observer: "Observer - Monitor",
-};
-
-export function formatAgentDescription(agent: string, ephemeral?: { description?: string }): string {
-  const ephemeralLabel = ephemeral?.description?.trim();
-  if (ephemeralLabel) return ephemeralLabel;
-  const builtinLabel = BUILTIN_AGENT_DISPLAY[agent];
-  if (builtinLabel) return builtinLabel;
-  return agent;
-}
-
 export function teammateRunDisplayText(params: { tasks: Array<{ id: string; agent: string; prompt?: string; paths?: string[] }>; ephemeralAgents?: Array<{ name: string; description?: string }> }): string {
-  const ephemeralAgents = params.ephemeralAgents ?? [];
   return params.tasks
     .map((task) => {
-      const ephemeral = ephemeralAgents.find((agent) => agent.name === task.agent);
       const taskId = task.id.trim() || task.agent;
       const taskName = formatAgentTaskName(task.prompt ?? "", taskId);
-      return formatAgentTaskLabel(formatAgentDescription(task.agent, ephemeral), taskId, taskName);
+      return `${formatToolEventLabel("started", "", "agent").trimEnd()} @${taskId} · ${taskName}`;
     })
     .join("\n");
 }
@@ -105,16 +88,17 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       if (!text.trim()) return new Text("", 0, 0);
       const details = result.details as { startup?: boolean } | undefined;
       if (!details?.startup) return new Text(text, 0, 0);
-      const params = context.args as { tasks: Array<{ id: string; agent: string; prompt?: string }>; ephemeralAgents?: Array<{ name: string; description?: string }> };
-      const ephemeralAgents = params.ephemeralAgents ?? [];
+      const params = context.args as { tasks: Array<{ id: string; agent: string; prompt?: string }> };
       const lines = params.tasks.map((task) => {
-        const ephemeral = ephemeralAgents.find((agent) => agent.name === task.agent);
-        const description = formatAgentDescription(task.agent, ephemeral);
         const taskId = task.id.trim() || task.agent;
         const taskName = formatAgentTaskName(task.prompt ?? "", taskId);
-        return `${theme.fg("toolTitle", theme.bold(`Agent (${description})`))} ${theme.fg("dim", "·")} ${theme.fg("accent", `@${taskId}`)} ${theme.fg("dim", "·")} ${theme.fg("customMessageText", taskName)}`;
+        const taskLabel = `${theme.fg("accent", `@${taskId}`)} ${theme.fg("dim", "·")} ${theme.fg("customMessageText", taskName)}`;
+        return `${theme.fg("toolTitle", theme.bold(formatToolEventLabel("started", "", "agent").trimEnd()))} ${taskLabel}`;
       });
-      return new Text(lines.join("\n"), 0, 0);
+      return {
+        render: (width: number) => lines.map((line) => truncateToWidth(line, Math.max(1, width))),
+        invalidate: () => {},
+      };
     },
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const cwd = params.cwd ?? ctx.cwd ?? process.cwd();

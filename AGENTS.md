@@ -1,19 +1,21 @@
 # Repository Guidelines
 
 This is a pnpm monorepo of native Pi packages. Each directory under `packages/`
-is independently installable and follows Pi package conventions.
+has its own manifest and tests; follow the nearest scoped guide, including
+`packages/context/AGENTS.md`.
 
 ## Project Structure & Module Organization
 
-- `packages/<name>/` contains the ten published packages: `agent-teams`, `btw`,
-  `context`, `keyboard`, `mattpocock`, `memory`, `monitor`, `recap`, `utils`, and
-  `vision`. Shared runtime code belongs in the internal `pi-kit` package when
-  that workspace package is available.
-- Package code lives in `src/` or `extensions/`; distributable skills,
-  procedures, and agents use their corresponding directories.
-- BDD scenarios are in `features/`; executable tests are in `tests/`.
-- Root release metadata lives in `.changeset/` and `.github/workflows/`.
-  `README.md` and `README.zh-CN.md` document the published package surface.
+- Workspace packages currently include `agent-teams`, `btw`, `context`,
+  `keyboard`, `mattpocock`, `memory`, `monitor`, `pi-kit`, `plan-mode`,
+  `recap`, `utils`, and `vision`.
+- Extension code lives in `src/`, `extensions/`, or a package-root `index.ts`;
+  skills, procedures, references, and bundled agents use their named folders.
+- BDD scenarios are in each package's `features/`; executable tests are in
+  `tests/`. Release metadata lives in `.changeset/` and `.github/workflows/`.
+- `pi-kit` is the shared runtime and intentionally has no Pi manifest. `plan-mode`
+  is a workspace package but is not in the current `scripts/publish-release.mjs`
+  allowlist; check that script before changing release behavior.
 
 ## Build, Test, and Development Commands
 
@@ -23,18 +25,22 @@ pnpm test
 npx tsc --noEmit -p tsconfig.extensions.json
 ```
 
-`pnpm test` runs the Python test suite across `packages/`; run a single package
-with `python3 -m pytest packages/<name>/tests/`. Use `pnpm pack --dry-run`
-inside a package to inspect its published contents. There is no separate build
-step; Pi loads the TypeScript extensions and packaged resources directly.
+`pnpm test` runs pytest across `packages/`; run one package with
+`python3 -m pytest packages/<name>/tests/ -q`. Some packages also document a
+strict per-file TypeScript command in their README. There is no separate build
+step: Pi loads the TypeScript extensions and packaged resources directly.
+Use `pnpm --dir packages/<name> pack --dry-run` to inspect package contents;
+`pnpm pack --dry-run` at the root packs the private workspace root instead.
+For the SDK example, run `pnpm example:sdk`.
 
 ## Coding Style & Naming Conventions
 
-Use ESM TypeScript targeting Node 20 or newer, follow the surrounding file's
-indentation, and keep package names and command/tool names explicit and stable.
-Manifests need the `pi-package` keyword, a `pi` resource declaration, complete
-`files` entries, and Pi core packages as peer dependencies. Do not add Claude
-Code plugin artifacts or Claude-only skill frontmatter. Use package-manager
+Use ESM TypeScript targeting Node 20 or newer, follow surrounding indentation,
+and keep package, command, and tool names explicit and stable. Pi package
+manifests use the `pi-package` keyword, an explicit `pi` resource declaration
+when applicable, and complete `files` entries; imported Pi core packages are
+peer dependencies. `pi-kit` has no `pi` field or runtime dependencies. Do not
+add Claude Code plugin artifacts or Claude-only skill frontmatter. Use pnpm
 commands such as `pnpm add` instead of hand-editing dependency manifests.
 
 ## Shared Runtime: pi-kit
@@ -53,9 +59,11 @@ when pi-kit is introduced or changed.
 ## Testing Guidelines
 
 Write or update a `.feature` scenario before behavior changes, then add tests
-under the package's `tests/` directory. Python tests use `pytest`; test modules
-follow `test_*.py`. Run the affected package tests and the strict TypeScript
-check before opening a pull request.
+under the package's `tests/` directory. Python tests use pytest and modules
+follow `test_*.py`; runtime TypeScript harnesses belong under `tests/`, not the
+repository root. Run affected package tests, `pnpm test`, and the strict
+TypeScript check before opening a pull request. Include package dry-run output
+when changing manifests or published files.
 
 ## Pi UI and Extension Rules
 
@@ -92,12 +100,13 @@ Interactive extension UI mirrors `packages/btw/src/overlay.ts`:
 
 ## Commits & Pull Requests
 
-Use the Conventional Commit style established in history, such as
-`feat:`, `fix(scope):`, `docs:`, `test(scope):`, `refactor:`, and
-`chore(release):`. Keep commits focused. Add a Changeset for a published
-package change. Pull requests should describe the affected packages, behavior
-and verification commands, and any release or migration impact. Update both
-root READMEs when the public package list or install commands change.
+Use the Conventional Commit style established in history, including
+`feat(packages):`, `fix(packages):`, `docs(packages):`, `refactor:`, and
+`chore(release):`. Keep commits focused. Add a Changeset for every published
+package change; keep `scripts/publish-release.mjs` and package metadata aligned
+when release scope changes. Pull requests should identify affected packages,
+behavior, verification commands, release impact, and any README changes.
+Update both root READMEs when the public package list or install commands change.
 
 ## Constraints
 

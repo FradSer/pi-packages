@@ -6,7 +6,7 @@
  * run-machine.ts; the passive widget and console live in ui.ts.
  */
 
-import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import { getMarkdownTheme, keyHint } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildTeamLeaderGuidance, WORKER_GUIDANCE } from "./guidance";
 import { initRunMachine, shutdownRunMachine, type DispatchCtx } from "./run-machine";
@@ -72,7 +72,7 @@ export default function (pi: ExtensionAPI) {
     }
     if (!expanded) {
       const groups = groupReportsByTeammate(reports);
-      const hint = theme.fg("dim", " · Ctrl+O to expand");
+      const hint = theme.fg("dim", ` · ${keyHint("app.tools.expand", "to expand")}`);
       for (const group of groups) {
         const prefix = theme.fg("customMessageLabel", theme.bold(formatAgentMessagePrefix("from", group.reports.length)));
         const name = theme.fg(reportColor(group.teammate), `@${group.teammate}`);

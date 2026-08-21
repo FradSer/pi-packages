@@ -490,7 +490,9 @@ Feature: Agent Teams run-centric orchestration and messaging contract
       Given the leader starts three tasks with required working paths
       When the teammate_run call is rendered
       Then it shows three agent lines
-      And each line identifies the agent, teammate, and task name, such as "Agent (Agent Alpha - research) · @calc-1 · task-namexxxx"
+      And each line identifies the teammate and task name, such as `[agent] started · @calc-1 · task-namexxxx`
+      And startup lines do not include the agent description
+      And each startup line stays on one terminal-width-fitting line
       And it does not collapse the call to a task count
 
   Rule: Messaging is capability-bound and leader-only
@@ -529,7 +531,8 @@ Feature: Agent Teams run-centric orchestration and messaging contract
     Scenario: Agent reports identify the sender clearly in the transcript
       Given a worker report is delivered to the leader
       When the report is rendered in the collapsed transcript
-      Then it is labeled "[message] from @worker-name"
+      Then it is labeled `[message] from @worker-name`
+      And the configured tool expansion hint appears on the same line
       And the sender name remains colorized
 
     Scenario: Reports from different agents stay in separate transcript messages
@@ -541,7 +544,8 @@ Feature: Agent Teams run-centric orchestration and messaging contract
     Scenario: Multiple reports from one agent collapse under one header
       Given two reports are delivered from the same agent
       When the reports are rendered in the collapsed transcript
-      Then it is labeled "[2 messages] from @worker-one"
+      Then it is labeled `[2 messages] from @worker-one`
+      And the configured tool expansion hint appears on the same line
 
     Scenario: A worker delivers its outcome via teammate_message
       Given a node is working

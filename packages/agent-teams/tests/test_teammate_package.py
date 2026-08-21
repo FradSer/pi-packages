@@ -482,9 +482,10 @@ def test_multiple_teammate_tasks_render_each_agent_line() -> None:
     tools = source("tools.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert '.map((task) => {' in tools
-    assert 'return formatAgentTaskLabel(formatAgentDescription(task.agent, ephemeral), taskId, taskName);' in tools
+    assert 'formatToolEventLabel("started", "", "agent")' in tools
     assert 'formatAgentTaskName(task.prompt ?? "", taskId)' in tools
-    assert 'lines.join("\\n")' in tools
+    assert 'Agent ()' not in tools
+    assert 'lines.map((line) => truncateToWidth(line' in tools
     assert 'does not collapse the call to a task count' in feature
 
 
@@ -507,7 +508,7 @@ def test_follow_up_reports_use_direct_colored_teammate_format() -> None:
     assert 'registerMessageRenderer(TEAMMATE_REPORT_MESSAGE_TYPE' in index
     assert 'theme.fg(reportColor(teammate), `@${teammate}`)' in index
     assert 'customMessageLabel' in index
-    assert 'const hint = theme.fg("dim", " · Ctrl+O to expand");' in index
+    assert 'keyHint("app.tools.expand", "to expand")' in index
     assert 'formatAgentMessagePrefix("from")' in index
     assert 'Teammate @${name} finished.' in index
     assert 'TEAMMATE_FINISHED_ENTRY_TYPE' in index
@@ -524,7 +525,7 @@ def test_batched_agent_reports_group_by_sender() -> None:
     assert "groupReportsByTeammate" in queue
     assert 'formatAgentMessagePrefix("from", group.reports.length)' in index
     assert "remainingGroups" in queue
-    assert 'labeled "[2 messages] from @worker-one"' in feature
+    assert 'labeled `[2 messages] from @worker-one`' in feature
     assert 'no combined "[3 messages]" header is shown' in feature
 
 
@@ -532,9 +533,8 @@ def test_agent_report_renderer_uses_skill_style_collapsed_and_expanded_states() 
     index = source("index.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert 'formatAgentMessagePrefix("from")' in index
-    assert 'formatAgentMessagePrefix("from")' in index
     assert 'theme.fg(reportColor(teammate), `@${teammate}`)' in index
-    assert 'Ctrl+O to expand' in index
+    assert 'keyHint("app.tools.expand", "to expand")' in index
     assert 'expanded' in index
     assert 'color: (text) => theme.fg("customMessageText", text)' in index
     assert "Agent reports use a distinct transcript renderer" in feature
