@@ -106,3 +106,15 @@ Feature: /continue recovery for incomplete and failed turns
     When the user runs /continue
     Then a visible continuation user message is sent
     And that message is included in the model context
+
+  Scenario: The active session view lags the session file on disk
+    Given the session file on disk ends with entries beyond the active leaf
+    When the user runs /continue
+    Then the same session file is reloaded before the continuation starts
+    And the continuation extends the latest persisted history instead of creating a sibling branch
+
+  Scenario: Continuation keyword input uses the same recovery path while idle
+    Given the agent is idle and the latest assistant message has stopReason "error"
+    When the user types "continue"
+    Then the continuation request runs through the internal continue command
+    And a hidden continuation marker may trigger the request without a user message

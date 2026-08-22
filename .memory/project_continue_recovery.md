@@ -19,4 +19,5 @@ A model/API outage can finish an assistant message with `stopReason: "error"`, w
 
 ## Related
 
+[[project_continue_stale_session_rebase]]
 [[project_pi_package_conventions]]

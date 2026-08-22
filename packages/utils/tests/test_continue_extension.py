@@ -79,10 +79,36 @@ class TestContinueExtension(unittest.TestCase):
         self.assertIn("included in the model context", feature)
         self.assertIn('stopReason "stop"', feature)
 
+    def test_feature_file_covers_stale_session_recovery(self) -> None:
+        feature = (UTILS_PKG_DIR / "features" / "continue.feature").read_text(encoding="utf-8")
+        self.assertIn("The active session view lags the session file on disk", feature)
+        self.assertIn("the same session file is reloaded before the continuation starts", feature)
+        self.assertIn("instead of creating a sibling branch", feature)
+
     def test_feature_file_is_mirrored_in_project_memory(self) -> None:
         memory = (UTILS_PKG_DIR.parent.parent / ".memory" / "project_continue_recovery.md").read_text(encoding="utf-8")
         self.assertIn('stopReason: "error"', memory)
         self.assertIn("packages/utils/extensions/continue.ts", memory)
+
+    def test_continuation_rebases_stale_session_onto_disk_tip(self) -> None:
+        content = self.ext_source()
+        # Disk tip detection: read the session file and compare its last entry with the leaf.
+        self.assertIn("readDiskTipEntryId", content)
+        self.assertIn('readFileSync(sessionFile, "utf8")', content)
+        self.assertIn("getLeafId()", content)
+        self.assertIn("getSessionFile()", content)
+        # Recovery: reload the same session file so continuation inherits full history.
+        self.assertIn("switchSession(sessionFile", content)
+        self.assertIn("withSession", content)
+        # The shared continuation runs from the recovered session context.
+        self.assertIn("performContinuation", content)
+
+    def test_continuation_keyword_routes_through_internal_command(self) -> None:
+        content = self.ext_source()
+        self.assertIn('CONTINUE_INTERNAL_COMMAND = "__continue"', content)
+        self.assertIn('registerCommand(CONTINUE_INTERNAL_COMMAND', content)
+        self.assertIn("expandPromptTemplates: true", content)
+        self.assertIn("isIdle()", content)
 
     def test_package_json_registers_extensions(self) -> None:
         manifest = json.loads((UTILS_PKG_DIR / "package.json").read_text(encoding="utf-8"))

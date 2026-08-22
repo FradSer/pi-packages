@@ -6,13 +6,16 @@
  * Behavior matrix:
  *   - Interrupted, provider/API-failed, or truncated turn -> Direct continuation without adding continuation text to LLM context.
  *   - Normal completed turn -> Visible user message so the transcript and LLM context include the continuation request.
+ *   - Active session view lags the session file on disk -> Reload the same session file first so the
+ *     continuation extends the latest persisted history instead of forking a sibling branch.
  *
  * Usage:
  *   /continue [optional extra prompt]
  *   or simply reply "continue" or "继续" in conversation.
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import fs from "node:fs";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { extractTextContent } from "@fradser/pi-kit";
 
 export interface ContinuationTarget {
@@ -23,6 +26,7 @@ export interface ContinuationTarget {
 
 const CONTINUE_SET = new Set(["continue", "继续", "繼續"]);
 const CONTINUATION_MESSAGE_TYPE = "continue-extension";
+const CONTINUE_INTERNAL_COMMAND = "__continue";
 const TRANSIENT_PROVIDER_ERROR_PATTERN =
   /overloaded|rate.?limit|too many requests|\b429\b|\b5(?:00|02|03|04|24)\b|service.?unavailable|server.?error|internal.?error|provider.?returned.?error|network.?error|connection.?error|connection.?refused|connection.?lost|other side closed|fetch failed|getaddrinfo|ENOTFOUND|EAI_AGAIN|upstream.?connect|reset before headers|ECONNRESET|socket hang up|socket connection was closed|timed? out|timeout|terminated|websocket.?closed|websocket.?error|ended without|stream ended before|http2 request did not get a response|retry delay|you can retry your request|try your request again|please retry your request|ResourceExhausted/i;
 
@@ -334,6 +338,33 @@ function isDirectContinuationMarker(message: { role: string; customType?: string
   return message.role === "custom" && message.customType === CONTINUATION_MESSAGE_TYPE;
 }
 
+/**
+ * Read the id of the last entry persisted in the session file on disk, skipping the header.
+ * Returns null when the file is missing or unreadable.
+ */
+export function readDiskTipEntryId(sessionFile: string | undefined): string | null {
+  if (!sessionFile) return null;
+  let content: string;
+  try {
+    content = fs.readFileSync(sessionFile, "utf8");
+  } catch {
+    return null;
+  }
+  const lines = content.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    try {
+      const entry = JSON.parse(line) as { id?: unknown; type?: unknown };
+      if (typeof entry.id !== "string" || !entry.id || entry.type === "session") continue;
+      return entry.id;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 function isIncompleteAssistant(message: { role: string; stopReason?: string }): boolean {
   return message.role === "assistant" && message.stopReason !== "stop";
 }
@@ -353,8 +384,8 @@ export function stripDirectContinuationMessages<T extends { role: string; custom
   return filtered;
 }
 
-function sendDirectContinuation(pi: ExtensionAPI): void {
-  pi.sendMessage(
+function sendDirectContinuation(host: ContinuationHost): void {
+  host.sendMessage(
     {
       customType: CONTINUATION_MESSAGE_TYPE,
       content: "",
@@ -364,6 +395,62 @@ function sendDirectContinuation(pi: ExtensionAPI): void {
       triggerTurn: true,
     },
   );
+}
+
+/** Minimal send surface shared by the global pi API and a replaced-session context. */
+interface ContinuationHost {
+  sendMessage(
+    message: { customType: string; content: string; display: boolean },
+    options?: { triggerTurn?: boolean },
+  ): void | Promise<void>;
+  sendUserMessage(
+    content: string,
+    options?: { deliverAs?: "steer" | "followUp" },
+  ): void | Promise<void>;
+}
+
+async function performContinuation(args: string | undefined, ctx: ExtensionContext, host: ContinuationHost): Promise<void> {
+  const target = resolveContinuation(ctx, args);
+  const { promptText, isDirectContinuation } = target;
+
+  if (target.requiresUserAction) {
+    ctx.ui.notify(promptText, "error");
+    return;
+  }
+
+  if (isDirectContinuation) {
+    // Incomplete turn: direct continuation without a user message.
+    sendDirectContinuation(host);
+  } else {
+    // Normal completion: visible user message
+    await host.sendUserMessage(promptText);
+  }
+}
+
+async function runContinuation(args: string, ctx: ExtensionCommandContext, pi: ExtensionAPI): Promise<void> {
+  await ctx.waitForIdle();
+  const preflightError = await resolvePreflightFailure(ctx);
+  if (preflightError) {
+    ctx.ui.notify(preflightError, "error");
+    return;
+  }
+
+  // The marker/user message lands at the active leaf. When the session view lags
+  // the file on disk (parallel writer or rewound leaf), that append would fork a
+  // sibling branch instead of inheriting the latest history. Reload the same
+  // session file first so the continuation extends the true tip.
+  const sessionFile = ctx.sessionManager.getSessionFile();
+  const diskTipEntryId = readDiskTipEntryId(sessionFile);
+  if (sessionFile && diskTipEntryId && diskTipEntryId !== ctx.sessionManager.getLeafId()) {
+    await ctx.switchSession(sessionFile, {
+      withSession: async (replacedCtx) => {
+        await performContinuation(args, replacedCtx, replacedCtx);
+      },
+    });
+    return;
+  }
+
+  await performContinuation(args, ctx, pi);
 }
 
 export default function (pi: ExtensionAPI) {
@@ -382,55 +469,36 @@ export default function (pi: ExtensionAPI) {
         return { action: "handled" };
       }
 
-      const target = resolveContinuation(ctx);
-      const { promptText, isDirectContinuation } = target;
-
-      if (target.requiresUserAction) {
-        ctx.ui.notify(target.promptText, "error");
+      if (ctx.isIdle()) {
+        // Route through the internal command so the handler runs with the full
+        // command context and can recover a stale session view before continuing.
+        // sendUserMessage forwards expandPromptTemplates to the prompt pipeline at
+        // runtime, but the published ExtensionAPI type omits the flag.
+        type SendOptions = Parameters<ExtensionAPI["sendUserMessage"]>[1];
+        const expandOptions = { expandPromptTemplates: true } as SendOptions & { expandPromptTemplates?: boolean };
+        await pi.sendUserMessage(`/${CONTINUE_INTERNAL_COMMAND}`, expandOptions);
         return { action: "handled" };
       }
 
-      if (isDirectContinuation) {
-        // Direct continuation: trigger a model request without adding a user message.
-        sendDirectContinuation(pi);
-        return { action: "handled" };
-      }
-
-      // A normally completed turn is a new user request and remains visible.
-      return {
-        action: "transform",
-        text: promptText,
-      };
+      // While streaming, steer a hidden marker; this live process's leaf is current.
+      sendDirectContinuation(pi);
+      return { action: "handled" };
     }
     return { action: "continue" };
   });
 
   // 2. Register /continue slash command
+  const handleContinuation = async (args: string, ctx: ExtensionCommandContext): Promise<void> => {
+    await runContinuation(args, ctx, pi);
+  };
   pi.registerCommand("continue", {
     description: "Resume incomplete work directly; continue completed work with a visible request",
-    handler: async (args, ctx) => {
-      await ctx.waitForIdle();
-      const preflightError = await resolvePreflightFailure(ctx);
-      if (preflightError) {
-        ctx.ui.notify(preflightError, "error");
-        return;
-      }
+    handler: handleContinuation,
+  });
 
-      const target = resolveContinuation(ctx, args);
-      const { promptText, isDirectContinuation } = target;
-
-      if (target.requiresUserAction) {
-        ctx.ui.notify(promptText, "error");
-        return;
-      }
-
-      if (isDirectContinuation) {
-        // Incomplete turn: direct continuation without a user message.
-        sendDirectContinuation(pi);
-      } else {
-        // Normal completion: visible user message
-        pi.sendUserMessage(promptText);
-      }
-    },
+  // Internal entry point for keyword interception; not meant for direct use.
+  pi.registerCommand(CONTINUE_INTERNAL_COMMAND, {
+    description: "Internal continuation entry point",
+    handler: handleContinuation,
   });
 }

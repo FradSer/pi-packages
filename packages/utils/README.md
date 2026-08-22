@@ -71,6 +71,7 @@ Behavior:
 4. **Truncated Response Recovery**: If the response ends with `stopReason: "length"`, resumes from the last completed step without repeating completed work. Empty-output truncation is treated as possible context exhaustion.
 5. **Incomplete Tool Recovery**: Handles pending/tool-use turns and tool results caused by truncated arguments, invalid tool calls, permission blocks, or execution failures.
 6. **Suggestion Continuation**: Only after a normally completed assistant turn does `/continue` become a visible user request, allowing the continuation instruction to remain in the transcript and model context.
+7. **Stale Session Recovery**: Before continuing, the session file on disk is compared with the active leaf. When the view lags the file (a parallel writer appended, or the leaf was rewound), the same session file is reloaded first so the continuation extends the latest persisted history instead of creating a sibling branch in the session tree.
 
 ### `effort` — set the thinking level
 

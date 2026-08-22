@@ -10,6 +10,7 @@
 - [feedback_skills_host_agnostic.md](feedback_skills_host_agnostic.md)
 - [feedback_stale_session_skill_paths.md](feedback_stale_session_skill_paths.md)
 - [project_continue_recovery.md](project_continue_recovery.md)
+- [project_continue_stale_session_rebase.md](project_continue_stale_session_rebase.md)
 - [project_git_agent_session_context.md](project_git_agent_session_context.md)
 - [project_git_github_menu_conversion.md](project_git_github_menu_conversion.md)
 - [project_keyboard_orphaned_unread_cleanup.md](project_keyboard_orphaned_unread_cleanup.md)
