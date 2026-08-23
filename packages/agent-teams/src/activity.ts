@@ -1,6 +1,7 @@
-import { Markdown, type MarkdownTheme, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Markdown, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import type { MarkdownTheme } from "@earendil-works/pi-tui";
 import { buildMarkdownThemeCallbacks, createPiThemeStyle } from "@fradser/pi-kit";
-import type { Node } from "./types";
+import type { Teammate } from "./types.ts";
 
 const ACTIVITY_THEME: MarkdownTheme = {
   ...buildMarkdownThemeCallbacks(createPiThemeStyle({
@@ -9,7 +10,7 @@ const ACTIVITY_THEME: MarkdownTheme = {
   hr: () => "---",
 };
 
-/** Render streamed activity as one compact Markdown line for the passive widget. */
+/** Render streamed activity as one compact Markdown line for the widget. */
 export function renderActivityMarkdown(text: string, theme: MarkdownTheme = ACTIVITY_THEME): string {
   const markdown = new Markdown(text, 0, 0, theme);
   return markdown.render(Math.max(1, visibleWidth(text) + 1)).join(" ").replace(/\s+/g, " ").trim();
@@ -27,13 +28,13 @@ function extractLatestLine(text: string | undefined): string | undefined {
   return undefined;
 }
 
-/** Extract the current worker activity without imposing a display width. */
-export function runningTeammateActivity(node: Node): string {
-  const tool = node.spawn?.activeTool?.replace(/\s+/g, " ").trim();
+/** Extract the current teammate activity without imposing a display width. */
+export function runningTeammateActivity(teammate: Teammate): string {
+  const tool = teammate.activeTool?.replace(/\s+/g, " ").trim();
   if (tool) return tool;
 
-  return extractLatestLine(node.spawn?.liveThinking)
-    ?? extractLatestLine(node.spawn?.liveText)
+  return extractLatestLine(teammate.liveThinking)
+    ?? extractLatestLine(teammate.liveText)
     ?? "Working...";
 }
 

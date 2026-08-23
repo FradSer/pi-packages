@@ -1,62 +1,48 @@
-/** Passive teammate widget and interactive full-screen console. */
+/** Passive team widget and interactive full-screen console (roster + board). */
 
 import { truncateToWidth, Key, matchesKey } from "@earendil-works/pi-tui";
 import { createPiThemeStyle, PI_SPINNER_FRAMES, PI_SPINNER_INTERVAL_MS } from "@fradser/pi-kit";
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import { truncateTail, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
 import {
   clampConsoleScroll, consoleScrollRange, maxConsoleBody, scrollConsoleDetail, wrapConsoleDetail,
-} from "./console-viewport";
-import { getNodeByWorkerKey, getState, listNodes } from "./state";
-import { cancelNodeAndTerminate, ensureLivePoll } from "./run-machine";
-import { fitTeammateRow, formatTeammateLabel, runningTeammateActivity } from "./activity";
-import type { Node } from "./types";
-
-export { runningTeammateActivity } from "./activity";
-
-function cap(text: string | undefined, maxBytes = DEFAULT_MAX_BYTES): string {
-  if (!text) return "";
-  if (text.length <= maxBytes) return text;
-  const t = truncateTail(text, { maxLines: DEFAULT_MAX_LINES, maxBytes });
-  return `${t.content}\n…[truncated ${text.length - t.content.length} chars]`;
-}
-
-// ── Team UI: passive widget + full-screen console ──────────────────
-// The widget below the editor is DISPLAY-ONLY. ALL interaction happens in the
-// full-screen Team Console (/teammate), which owns input via ctx.ui.custom.
+} from "./console-viewport.ts";
+import { fitTeammateRow, formatTeammateLabel, runningTeammateActivity } from "./activity.ts";
+import { getState, getTeammate, listTasks, listTeammates, livingTeammates } from "./state.ts";
+import {
+  ensureLivePoll,
+  formatSilenceDuration,
+  runtimeDirPath,
+  shutdownTeammate,
+  STALL_NOTICE_MS,
+  stallSilenceMs,
+} from "./team-machine.ts";
+import type { Teammate } from "./types.ts";
+import { inboxPath } from "./statefile.ts";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 const TEAM_COLORS = ["success", "warning", "error", "mdLink"] as const;
 let spinnerTimer: ReturnType<typeof setInterval> | undefined;
 let spinnerFrame = 0;
 
-/** Stable per-node color (independent of row order). */
 function hashName(name: string): number {
   let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(0) + i * 7) | 0;
   return Math.abs(h);
 }
 
-interface PanelRow {
-  key: string;
-}
-
-/** Console/widget rows contain node status and leader-report access. */
-function buildPanelRows(): PanelRow[] {
-  return listNodes().map((node) => ({ key: node.workerKey }));
-}
-
-export function runningTeammateLabel(node: Node, maxActivityWidth?: number): string {
-  return formatTeammateLabel(PI_SPINNER_FRAMES[spinnerFrame], runningTeammateActivity(node), maxActivityWidth);
+function colorFor(name: string): (typeof TEAM_COLORS)[number] {
+  return TEAM_COLORS[hashName(name) % TEAM_COLORS.length];
 }
 
 function ensureSpinner(): void {
-  const running = listNodes().some((node) => node.status === "running");
-  if (running && !spinnerTimer) {
+  const working = livingTeammates().some((t) => t.status === "working" || t.status === "starting");
+  if (working && !spinnerTimer) {
     spinnerTimer = setInterval(() => {
       spinnerFrame = (spinnerFrame + 1) % PI_SPINNER_FRAMES.length;
     }, PI_SPINNER_INTERVAL_MS);
     spinnerTimer.unref?.();
-  } else if (!running && spinnerTimer) {
+  } else if (!working && spinnerTimer) {
     clearInterval(spinnerTimer);
     spinnerTimer = undefined;
   }
@@ -73,8 +59,7 @@ export function ensureTeamWidget(ctx?: { ui?: ExtensionUIContext; mode?: string 
   if (!ctx?.ui?.setWidget) return;
   if (ctx.mode && ctx.mode !== "tui") return;
 
-  const running = listNodes().filter((node) => node.status === "running");
-  if (running.length === 0) {
+  if (livingTeammates().filter(isWorking).length === 0) {
     ctx.ui.setWidget("teammate", undefined);
     return;
   }
@@ -83,37 +68,22 @@ export function ensureTeamWidget(ctx?: { ui?: ExtensionUIContext; mode?: string 
     const timer = setInterval(() => tui.requestRender(), PI_SPINNER_INTERVAL_MS);
     timer.unref?.();
     const style = createPiThemeStyle(theme);
-    const assignedColors = new Map<string, (typeof TEAM_COLORS)[number]>();
     return {
       placement: "belowEditor",
       render: (width: number) => {
-        const running = listNodes().filter((n) => n.status === "running");
-        if (running.length === 0) return [];
-        const runningKeys = new Set(running.map((node) => node.workerKey));
-        for (const key of assignedColors.keys()) {
-          if (!runningKeys.has(key)) assignedColors.delete(key);
-        }
-        const usedColors = new Set(assignedColors.values());
-        for (const node of running) {
-          if (!assignedColors.has(node.workerKey)) {
-            const start = hashName(node.workerKey) % TEAM_COLORS.length;
-            const color = TEAM_COLORS.find((_, offset) => !usedColors.has(TEAM_COLORS[(start + offset) % TEAM_COLORS.length]));
-            assignedColors.set(node.workerKey, color ?? TEAM_COLORS[start]);
-            usedColors.add(color ?? TEAM_COLORS[start]);
-          }
-        }
+        // Only WORKING teammates appear above the input box; idle and
+        // stopped teammates stay in the /teammate console instead.
+        const working = livingTeammates().filter(isWorking);
+        if (working.length === 0) return [];
         const lines: string[] = [];
-        for (const node of running) {
-          const spinner = PI_SPINNER_FRAMES[spinnerFrame];
-          const color = assignedColors.get(node.workerKey) ?? TEAM_COLORS[hashName(node.workerKey) % TEAM_COLORS.length];
-          const line = fitTeammateRow(
-            spinner,
-            style.fg(color, node.agent),
-            runningTeammateActivity(node),
+        for (const teammate of working) {
+          lines.push(fitTeammateRow(
+            PI_SPINNER_FRAMES[spinnerFrame],
+            style.fg(colorFor(teammate.name), teammate.name),
+            runningTeammateActivity(teammate) + stallSuffix(teammate),
             width,
             (activity) => theme.bold(style.fg("accent", activity)),
-          );
-          lines.push(line);
+          ));
         }
         return lines;
       },
@@ -123,95 +93,167 @@ export function ensureTeamWidget(ctx?: { ui?: ExtensionUIContext; mode?: string 
   });
 }
 
+function isWorking(teammate: { status: string }): boolean {
+  return teammate.status === "working" || teammate.status === "starting";
+}
+
+/** Silence marker appended once a working teammate passes the stall notice threshold. */
+function stallSuffix(teammate: Teammate): string {
+  if (!isWorking(teammate)) return "";
+  const silence = stallSilenceMs(teammate);
+  return silence !== undefined && STALL_NOTICE_MS > 0 && silence >= STALL_NOTICE_MS
+    ? ` · stalled for ${formatSilenceDuration(silence)}`
+    : "";
+}
+
 export function refreshTeamUI(ctx?: { ui?: ExtensionUIContext; mode?: string }): void {
   ensureTeamWidget(ctx);
   ensureLivePoll();
   ensureSpinner();
 }
 
+function cap(text: string | undefined, maxBytes = 2000): string {
+  if (!text) return "";
+  return text.length <= maxBytes ? text : `${text.slice(0, maxBytes)}\n…[truncated ${text.length - maxBytes} chars]`;
+}
 
-/** Full content of a node as shown on its detail page: spawn lifecycle, live
- * worker text, captured output, result and error. */
-function buildNodeSection(node: Node): string[] {
-  const lines: string[] = [`- [${node.id}] ${node.status}: ${node.agent}`];
-  if (node.prompt) lines.push(`  Task: ${cap(node.prompt, 2000)}`);
-  lines.push(`  Access: ${node.access} | Paths: ${node.paths.join(", ")}`);
-  if (node.dependsOn.length > 0) lines.push(`  Depends on: ${node.dependsOn.join(", ")}`);
+// ── Detail builders ───────────────────────────────────────────────
 
-  const spawn = node.spawn;
-  if (spawn) {
-    const stateLabel = spawn.status === "running" ? `running (pid ${spawn.pid})` : spawn.status;
-    lines.push(`  Spawn: ${stateLabel} | Isolation: ${spawn.isolation ?? "none"}`);
-    if (spawn.startedAt) lines.push(`  Started: ${new Date(spawn.startedAt).toLocaleString()}`);
-    if (spawn.finishedAt) lines.push(`  Finished: ${new Date(spawn.finishedAt).toLocaleString()}`);
-    if (spawn.exitCode !== undefined) lines.push(`  Exit code: ${spawn.exitCode}`);
-    if (spawn.timedOut) lines.push("  Timed out: yes");
-    if (spawn.usage) {
-      const u = spawn.usage;
-      lines.push(`  Usage: ${u.totalTokens} tokens (in ${u.input} / out ${u.output}) | cost $${u.cost}`);
+interface PeerMailLine {
+  direction: "sent" | "received";
+  counterpart: string;
+  subject: string;
+  body: string;
+  timestamp: number;
+}
+
+function readPeerMail(teammateName: string): PeerMailLine[] {
+  const runtimeDir = runtimeDirPath();
+  if (!runtimeDir) return [];
+  const mailDirPath = path.dirname(inboxPath(path.join(runtimeDir, "state.json"), teammateName));
+  let entries: string[] = [];
+  try {
+    entries = fs.readdirSync(mailDirPath).filter((name) => name.startsWith("inbox-") && name.endsWith(".jsonl"));
+  } catch {
+    return [];
+  }
+  const lines: PeerMailLine[] = [];
+  for (const entry of entries) {
+    const recipient = decodeURIComponent(entry.slice("inbox-".length, -".jsonl".length));
+    let raw = "";
+    try {
+      raw = fs.readFileSync(path.join(mailDirPath, entry), "utf-8");
+    } catch {
+      continue;
     }
-    if (spawn.turns) lines.push(`  Worker turns: ${spawn.turns}`);
-    if (spawn.activeTool) lines.push(`  Current tool: ${spawn.activeTool}`);
-    if (spawn.error) lines.push(`  Spawn error: ${spawn.error}`);
-    if (spawn.status === "running") {
-      lines.push("  --- Live worker activity ---");
-      const activity = [
-        ...(spawn.liveThinking?.trim() ? spawn.liveThinking.split("\n").map((l) => `  ${l}`) : []),
-        ...(spawn.liveText?.trim() ? spawn.liveText.split("\n").map((l) => `  ${l}`) : []),
-      ];
-      lines.push(...(activity.length > 0 ? activity : ["  Waiting for the worker's first response…"]));
-    }
-    if (spawn.stdout) {
-      lines.push("  --- Worker output ---");
-      lines.push(...spawn.stdout.split("\n"));
-    }
-    if (spawn.stderr) {
-      lines.push("  --- Worker stderr ---");
-      lines.push(...spawn.stderr.split("\n"));
+    for (const line of raw.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const message = JSON.parse(line) as { id?: string; from?: string; subject?: string; body?: string; timestamp?: number };
+        if (!message.id || !message.from || !message.subject) continue;
+        if (message.from !== teammateName && recipient !== teammateName) continue;
+        lines.push({
+          direction: message.from === teammateName ? "sent" : "received",
+          counterpart: message.from === teammateName ? recipient : message.from,
+          subject: message.subject,
+          body: message.body ?? "",
+          timestamp: message.timestamp ?? 0,
+        });
+      } catch {
+        continue;
+      }
     }
   }
-
-  if (node.result && node.result !== spawn?.stdout) lines.push(`  Result: ${node.result}`);
-  if (node.errorMessage) lines.push(`  Error: ${node.errorMessage}`);
-  return lines;
+  return lines.sort((a, b) => a.timestamp - b.timestamp);
 }
 
-/** Node detail: node section + reports this node sent to team-leader. */
-function buildNodeDetail(workerKey: string): string[] {
-  const entry = getNodeByWorkerKey(workerKey);
-  if (!entry) return ["(removed)"];
-  const { run, node } = entry;
-  const outgoing = getState().leaderMailbox.filter((message) => message.from === workerKey);
+function indent(text: string): string[] {
+  return text.split("\n").map((line) => `  ${line}`);
+}
 
+function buildTeammateDetail(name: string): string[] {
+  const teammate = getTeammate(name);
+  if (!teammate) return ["(teammate removed from the roster)"];
+  const reports = getState().leaderMailbox.filter((message) => message.from === name);
   const lines: string[] = [
-    `${node.workerKey} (${node.agent}) [${node.status}] — run ${run.status}`,
+    `@${teammate.name} (${teammate.agent}) [${teammate.status}]`,
     "",
-    "== node ==",
-    ...buildNodeSection(node),
-    "",
-    `== reports to team-leader (${outgoing.length}) ==`,
-    ...(outgoing.length === 0
-      ? ["(none)"]
-      : outgoing.flatMap((m) => {
-          const time = new Date(m.timestamp).toLocaleString();
-          return [
-            `→ [${m.id}] ${m.subject} | ${time}`,
-            m.runId ? `  run ${m.runId}` : "",
-            m.body,
-            "",
-          ];
-        })),
+    "== teammate ==",
+    `  Status: ${teammate.status}${teammate.currentTaskId ? ` | Task: ${teammate.currentTaskId}` : ""}`,
+    `  Spawn: ${teammate.pid > 0 ? `pid ${teammate.pid}` : "pid unknown"} | Isolation: ${teammate.isolation}`,
+    `  Created: ${new Date(teammate.createdAt).toLocaleString()}`,
   ];
+  if (teammate.stoppedAt) lines.push(`  Stopped: ${new Date(teammate.stoppedAt).toLocaleString()}`);
+  if (isWorking(teammate) && teammate.lastOutputAt !== undefined) {
+    const silence = stallSilenceMs(teammate);
+    if (silence !== undefined) {
+      lines.push(`  Last output: ${new Date(teammate.lastOutputAt).toLocaleString()} (${formatSilenceDuration(silence)} ago${stallSuffix(teammate) ? " — stalled" : ""})`);
+    }
+  }
+  if (teammate.usage) lines.push(`  Usage: ${teammate.usage.totalTokens} tokens | $${teammate.usage.cost.toFixed(4)}`);
+  if (teammate.error) lines.push(`  Error: ${teammate.error}`);
+
+  lines.push("", `== reports to leader (${reports.length}) ==`);
+  if (reports.length === 0) lines.push("  (none)");
+  for (const report of reports) {
+    lines.push(`  -> [${report.subject}] ${new Date(report.timestamp).toLocaleString()}`, ...indent(cap(report.body)), "");
+  }
+
+  const peer = readPeerMail(name);
+  lines.push(`== peer mail (${peer.length}) ==`);
+  if (peer.length === 0) lines.push("  (none)");
+  for (const mail of peer) {
+    const arrow = mail.direction === "sent" ? `to @${mail.counterpart}` : `from @${mail.counterpart}`;
+    lines.push(`  ${arrow} [${mail.subject}] ${new Date(mail.timestamp).toLocaleString()}`, ...indent(cap(mail.body)), "");
+  }
   return lines;
 }
 
-/** Full-screen Team Console — owns input via ctx.ui.custom, so ↑/↓ and Enter
- * are safe in here and nothing is intercepted globally. Modes: list / detail. */
+function buildTaskDetail(taskId: string): string[] {
+  const tasks = listTasks();
+  const task = tasks.find((candidate) => candidate.id === taskId);
+  if (!task) return ["(task not on the board)"];
+  const byId = new Map(tasks.map((candidate) => [candidate.id, candidate]));
+  return [
+    `[${task.id}] ${task.subject}`,
+    "",
+    "== task ==",
+    `  Status: ${task.status}${task.claimedBy ? ` (@${task.claimedBy})` : ""}`,
+    ...(task.description ? [`  Description:`, ...indent(cap(task.description))] : []),
+    ...(task.dependsOn.length > 0
+      ? [`  Depends on: ${task.dependsOn.join(", ")} (${task.dependsOn.every((dep) => byId.get(dep)?.status === "completed") ? "met" : "unmet"})`]
+      : []),
+    `  Verify: ${task.verify ?? "(none)"}`,
+    ...(task.result ? ["  Result:", ...indent(cap(task.result))] : []),
+    ...(task.errorMessage ? ["  Error:", ...indent(cap(task.errorMessage))] : []),
+    `  Created: ${new Date(task.createdAt).toLocaleString()}`,
+    ...(task.completedAt ? [`  Completed: ${new Date(task.completedAt).toLocaleString()}`] : []),
+  ];
+}
+
+// ── Full-screen console ───────────────────────────────────────────
+
+type ConsolePage = "roster" | "board";
+
+interface RosterRow {
+  key: string;
+  kind: "teammate";
+}
+interface BoardRow {
+  key: string;
+  kind: "task";
+}
+type ConsoleRow = RosterRow | BoardRow;
+
+/** Full-screen Team Console — owns input via ctx.ui.custom. Pages: roster /
+ * board; each row opens a scrolling detail view. */
 export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> {
   return ctx.ui.custom<void>((tui, theme, _keybindings, done) => {
+    let page: ConsolePage = "roster";
     let mode: "list" | "detail" = "list";
-    let selected = 0;
-    let detailKey = "";
+    let selectedRoster = 0;
+    let selectedBoard = 0;
+    let detailTitle = "";
     let offset = 0;
     let closed = false;
     let renderTimer: ReturnType<typeof setInterval> | undefined;
@@ -230,8 +272,13 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
     };
     startLiveRefresh();
 
-    // btw-style callbacks (same accent/muted/dim/border/success/error language as pi-btw-fradser).
     const style = createPiThemeStyle(theme);
+
+    const currentRows = (): ConsoleRow[] =>
+      page === "roster"
+        // The console is the full roster: idle and stopped stay visible here.
+        ? listTeammates().map((t) => ({ key: t.name, kind: "teammate" as const }))
+        : listTasks().map((task) => ({ key: task.id, kind: "task" as const }));
 
     const windowLines = (full: string[], width: number): { lines: string[]; range: string } => {
       const wrapped = wrapConsoleDetail(full, width);
@@ -243,50 +290,66 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
       };
     };
 
+    const headerLine = (): string => {
+      const alive = livingTeammates();
+      const tasks = listTasks();
+      return `team  ${alive.length} alive · board ${tasks.filter((task) => task.status === "pending").length}p/${tasks.filter((task) => task.status === "claimed").length}c/${tasks.filter((task) => task.status === "completed").length}d · ${page}`;
+    };
+
     const renderList = (width: number): string[] => {
-      const rows = buildPanelRows();
-      if (selected >= rows.length) selected = Math.max(0, rows.length - 1);
-      const maxLineWidth = Math.max(10, width - 1);
+      const rows = currentRows();
       const border = style.border("─".repeat(Math.max(1, width)));
-      const lines: string[] = [
-        border,
-        style.accent(truncateToWidth(`teammate  ${listNodes().filter((n) => n.status === "running").length} working / ${listNodes().length} teammate(s)`, width)),
-        "",
-      ];
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const marker = i === selected ? style.accent("❯ ") : "  ";
-        const entry = getNodeByWorkerKey(row.key);
-        if (!entry) continue;
-        const { node } = entry;
-        const color = TEAM_COLORS[hashName(node.agent) % TEAM_COLORS.length];
-        const name = theme.bold(theme.fg(color, node.agent));
-        let status: string;
-        if (node.status === "running") {
-          const prefix = `${marker}${name} `;
-          const spinner = PI_SPINNER_FRAMES[spinnerFrame];
-          const availableActivityWidth = Math.max(0, maxLineWidth - prefix.length - spinner.length - 1);
-          status = theme.fg("warning", runningTeammateLabel(node, availableActivityWidth));
-        } else if (node.status === "completed") {
-          status = style.success("✓ completed");
-        } else if (node.status === "failed") {
-          status = style.error("✗ failed");
-        } else {
-          status = style.dim(`○ ${node.status}`);
-        }
-        lines.push(`${marker}${name} ${status}`);
+      const lines = [border, style.accent(truncateToWidth(headerLine(), width)), ""];
+      if (rows.length === 0) {
+        lines.push(style.dim(page === "roster"
+          ? "No living teammates. Spawn one with teammate_spawn."
+          : "The task board is empty. Create tasks with task_create."));
       }
-      lines.push("", style.dim("↑↓ select · enter open · esc/q close · x cancel"), border);
-      return lines.map((l) => truncateToWidth(l, maxLineWidth));
+      rows.forEach((row, index) => {
+        const marker = index === currentPageSelection(rows.length) ? style.accent("❯ ") : "  ";
+        if (row.kind === "teammate") {
+          const teammate = getTeammate(row.key)!;
+          const name = theme.bold(theme.fg(colorFor(teammate.name), `@${teammate.name}`));
+          let status: string;
+          if (teammate.status === "working" || teammate.status === "starting") {
+            const prefix = `${marker}${name} `;
+            const available = Math.max(0, width - prefix.length - PI_SPINNER_FRAMES[spinnerFrame].length - 2);
+            status = theme.fg("warning", formatTeammateLabel(PI_SPINNER_FRAMES[spinnerFrame], runningTeammateActivity(teammate) + stallSuffix(teammate), available));
+          } else if (teammate.status === "idle") {
+            status = style.dim(`○ idle${teammate.currentTaskId ? ` · ${teammate.currentTaskId}` : ""}`);
+          } else {
+            status = theme.fg("warning", "■ stopped");
+          }
+          lines.push(`${marker}${name} ${status}`);
+        } else {
+          const task = listTasks().find((candidate) => candidate.id === row.key)!;
+          const label = theme.fg(colorFor(task.id), `[${task.id}]`);
+          const holder = task.claimedBy ? style.dim(` @${task.claimedBy}`) : "";
+          const statusText = task.status === "completed"
+            ? style.success("✓")
+            : task.status === "claimed"
+              ? theme.fg("warning", "◐ claimed")
+              : style.dim("○ pending");
+          lines.push(truncateToWidth(`${marker}${label} ${statusText} ${theme.fg("customMessageText", task.subject)}${holder}`, Math.max(10, width - 1)));
+        }
+      });
+      lines.push("", style.dim("↑↓ select · enter open · tab page · x shutdown · esc/q close"), border);
+      return lines.map((l) => truncateToWidth(l, Math.max(10, width - 1)));
+    };
+
+    const currentPageSelection = (rowCount: number): number => {
+      const selection = page === "roster" ? selectedRoster : selectedBoard;
+      return rowCount === 0 ? 0 : Math.min(selection, rowCount - 1);
     };
 
     const renderDetail = (width: number): string[] => {
       const border = style.border("─".repeat(Math.max(1, width)));
-      const detail = windowLines(buildNodeDetail(detailKey), width);
+      const source = detailSource();
+      const detail = windowLines(source, width);
       const footer = style.dim(`  ${detail.range} · ↑↓ scroll · pgup/pgdn page · home/end jump · esc back · q close`);
       const lines = [
         border,
-        style.accent(truncateToWidth(`agent-teams  ${detailKey}`, width)),
+        style.accent(truncateToWidth(`agent-teams  ${detailTitle}`, width)),
         "",
         ...detail.lines.map((line) => `  ${line}`),
         "",
@@ -296,90 +359,104 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
       return lines.map((line) => truncateToWidth(line, Math.max(10, width - 1)));
     };
 
-    return {
-      render: (width) =>
-        mode === "list" ? renderList(width) : renderDetail(width),
-      handleInput: (data: string) => {
-        // Detail mode: Esc returns to the list, q closes.
-        if (mode !== "list") {
-          if (matchesKey(data, Key.escape)) {
-            mode = "list";
-            offset = 0;
-            return;
-          }
-          if (data === "q" || data === "Q") {
-            closed = true;
-            stopLiveRefresh();
-            done();
-            return;
-          }
-          const detail = wrapConsoleDetail(buildNodeDetail(detailKey), tui.terminal.columns);
-          const viewport = maxConsoleBody(tui.terminal.rows);
-          // Mouse-wheel scrolling (SGR wheel events, same as pi-btw-fradser).
-          const sgrWheel = /^\x1b\[<(\d+);(\d+);(\d+)[Mm]$/.exec(data);
-          if (sgrWheel) {
-            const button = Number.parseInt(sgrWheel[1], 10);
-            if ((button & 64) !== 0) {
-              const direction = button & 3;
-              if (direction === 0) offset = scrollConsoleDetail(offset, -3, detail.length, viewport);
-              else if (direction === 1) offset = scrollConsoleDetail(offset, 3, detail.length, viewport);
-            }
-            return;
-          }
-          if (matchesKey(data, Key.up)) offset = scrollConsoleDetail(offset, -1, detail.length, viewport);
-          else if (matchesKey(data, Key.down)) offset = scrollConsoleDetail(offset, 1, detail.length, viewport);
-          else if (matchesKey(data, Key.pageUp)) offset = scrollConsoleDetail(offset, -Math.max(1, viewport - 1), detail.length, viewport);
-          else if (matchesKey(data, Key.pageDown)) offset = scrollConsoleDetail(offset, Math.max(1, viewport - 1), detail.length, viewport);
-          else if (matchesKey(data, Key.home)) offset = 0;
-          else if (matchesKey(data, Key.end)) offset = clampConsoleScroll(Number.MAX_SAFE_INTEGER, detail.length, viewport);
-          return;
-        }
+    const detailSource = (): string[] =>
+      detailTitle.startsWith("[")
+        ? buildTaskDetail(detailTitle.slice(1, detailTitle.indexOf("]")))
+        : buildTeammateDetail(detailTitle.replace(/^@/, ""));
 
-        // List mode — the console owns input, so ↑/↓/Enter are safe here.
-        const rows = buildPanelRows();
-        if (matchesKey(data, Key.down)) selected = Math.min(selected + 1, rows.length - 1);
-        if (matchesKey(data, Key.up)) selected = Math.max(selected - 1, 0);
-        if (matchesKey(data, Key.enter)) {
-          const row = rows[Math.min(selected, rows.length - 1)];
-          if (row?.key) {
-            mode = "detail";
-            detailKey = row.key;
-            offset = 0;
-          }
+    return {
+      render: (width) => (mode === "list" ? renderList(width) : renderDetail(width)),
+      handleInput: (data: string) => {
+        if (mode !== "list") {
+          handleDetailInput(data);
           return;
         }
-        if (matchesKey(data, Key.escape) || data === "q" || data === "Q") {
-          closed = true;
-          stopLiveRefresh();
-          done();
+        const rows = currentRows();
+        if (matchesKey(data, Key.tab)) {
+          page = page === "roster" ? "board" : "roster";
+          return;
+        }
+        if (matchesKey(data, Key.down)) bumpSelection(1, rows.length);
+        if (matchesKey(data, Key.up)) bumpSelection(-1, rows.length);
+        if (matchesKey(data, Key.enter)) {
+          const selection = currentPageSelection(rows.length);
+          const row = rows[selection];
+          if (row) {
+            mode = "detail";
+            offset = 0;
+            detailTitle = row.kind === "teammate" ? `@${row.key}` : `[${row.key}]`;
+          }
           return;
         }
         if (data === "x" || data === "X") {
-          // Same node-cancel path as teammate_cancel nodeId: SIGTERM→SIGKILL,
-          // dependents cancelled, the rest of the run continues.
-          const row = rows[Math.min(selected, rows.length - 1)];
-          const entry = row?.key ? getNodeByWorkerKey(row.key) : undefined;
-          if (entry && (entry.node.status === "running" || entry.node.status === "pending")) {
-            const runId = entry.run.id;
-            const nodeId = entry.node.id;
-            void cancelNodeAndTerminate(runId, nodeId, { ui: ctx.ui })
-              .then((result) => {
-                if (result.ok) ctx.ui.notify(`Cancelled node [${runId}/${nodeId}] — the rest of the run continues.`, "info");
-                else ctx.ui.notify(result.error, "error");
-              })
-              .catch(() => false);
-          }
+          const selection = currentPageSelection(rows.length);
+          const row = rows[selection];
+          if (page === "roster" && row?.kind === "teammate") void shutdownFromConsole(ctx, row.key);
+          return;
+        }
+        if (matchesKey(data, Key.escape) || data === "q" || data === "Q") {
+          closeConsole(done);
           return;
         }
       },
-      invalidate: () => {
-        requestRender();
-      },
+      invalidate: () => requestRender(),
       dispose: () => {
         closed = true;
         stopLiveRefresh();
       },
     };
+
+    function closeConsole(doneFn: () => void): void {
+      closed = true;
+      stopLiveRefresh();
+      doneFn();
+    }
+
+    function bumpSelection(delta: number, rowCount: number): void {
+      if (rowCount === 0) return;
+      if (page === "roster") selectedRoster = clampIndex(selectedRoster + delta, rowCount);
+      else selectedBoard = clampIndex(selectedBoard + delta, rowCount);
+    }
+
+    function handleDetailInput(data: string): void {
+      const source = detailSource();
+      const viewport = maxConsoleBody(tui.terminal.rows);
+      if (matchesKey(data, Key.escape)) {
+        mode = "list";
+        offset = 0;
+        return;
+      }
+      if (data === "q" || data === "Q") {
+        closeConsole(done);
+        return;
+      }
+      const total = wrapConsoleDetail(source, tui.terminal.columns).length;
+      const sgrWheel = /^\x1b\[<(\d+);(\d+);(\d+)[Mm]$/.exec(data);
+      if (sgrWheel) {
+        const button = Number.parseInt(sgrWheel[1], 10);
+        if ((button & 64) !== 0) {
+          const direction = button & 3;
+          if (direction === 0) offset = scrollConsoleDetail(offset, -3, total, viewport);
+          else if (direction === 1) offset = scrollConsoleDetail(offset, 3, total, viewport);
+        }
+        return;
+      }
+      if (matchesKey(data, Key.up)) offset = scrollConsoleDetail(offset, -1, total, viewport);
+      else if (matchesKey(data, Key.down)) offset = scrollConsoleDetail(offset, 1, total, viewport);
+      else if (matchesKey(data, Key.pageUp)) offset = scrollConsoleDetail(offset, -Math.max(1, viewport - 1), total, viewport);
+      else if (matchesKey(data, Key.pageDown)) offset = scrollConsoleDetail(offset, Math.max(1, viewport - 1), total, viewport);
+      else if (matchesKey(data, Key.home)) offset = 0;
+      else if (matchesKey(data, Key.end)) offset = clampConsoleScroll(Number.MAX_SAFE_INTEGER, total, viewport);
+    }
   });
 }
 
+async function shutdownFromConsole(ctx: { ui: ExtensionUIContext }, name: string): Promise<void> {
+  const result = await shutdownTeammate(name);
+  if (result.ok) ctx.ui.notify(result.body, "info");
+  else ctx.ui.notify(result.error, "error");
+}
+
+function clampIndex(index: number, rowCount: number): number {
+  return Math.max(0, Math.min(rowCount - 1, index));
+}

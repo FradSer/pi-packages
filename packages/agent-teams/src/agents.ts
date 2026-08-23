@@ -2,15 +2,18 @@
  * Declarative agent definitions: Markdown files with YAML-style frontmatter.
  *
  * Discovery scopes (later scopes override earlier ones for the same name):
- *   1. bundled  — agents shipped with this package (agents/)
- *   2. user     — ~/.pi/agent/agents/  (respects PI_CODING_AGENT_DIR)
- *   3. project  — <cwd>/.pi/agents/
+ *   1. bundled       — agents shipped with this package (agents/)
+ *   2. user          — ~/.pi/agent/agents/ (respects PI_CODING_AGENT_DIR)
+ *   3. project       — <cwd>/.pi/agents/<name>.md
+ *   4. project-local — <cwd>/.pi/agents/<name>.local.md (personal override)
  *
  * Frontmatter fields:
  *   name        — unique agent id (required)
  *   description — routing contract: when the leader should choose this agent
  *   tools       — comma-separated list or YAML list of Pi tool ids
  *   model       — optional provider/model pin
+ *   verify      — optional role-default completion gate command (zero exit passes)
+ *   worktree    — optional role-default Git worktree isolation (true/false)
  * The Markdown body is the worker's role prompt.
  */
 
@@ -19,20 +22,34 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
+export type AgentScope = "bundled" | "user" | "project" | "project-local";
+
 export interface AgentDefinition {
   name: string;
   description: string;
   tools: string[];
   model?: string;
-  /** The Markdown body, trimmed; used as the worker role prompt. */
+  /** Role-default completion gate; task-level verify overrides this. */
+  verify?: string;
+  /** Whether this role always receives a dedicated Git worktree. */
+  worktree: boolean;
+  /** The Markdown body, trimmed; used as the teammate's role prompt. */
   prompt: string;
-  /** Scope that supplied this definition ("bundled" | "user" | "project"). */
-  scope: "bundled" | "user" | "project";
+  /** Scope that supplied this definition (precedence: project-local > project > user > bundled). */
+  scope: AgentScope;
+  /** True only for the shared project scope that is expected to be git-managed.
+   * user and project-local definitions are machine/personal by definition. */
+  gitManaged: boolean;
   /** Absolute path of the definition file. */
   source: string;
 }
 
 const BUNDLED_AGENTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "agents");
+
+/** Files named `xxx.local.md` in the project agents directory are personal
+ * overrides: same teammate name as `xxx.md`, project-local scope, never git-
+ * managed by convention. */
+export const LOCAL_DEFINITION_SUFFIX = ".local.md";
 
 function agentsDir(scope: "user" | "project", cwd?: string): string {
   if (scope === "user") {
@@ -65,14 +82,20 @@ function parseFrontmatter(raw: string): { fields: Record<string, string | string
   return { fields, body: match[2].trim() };
 }
 
-function loadDir(scope: "bundled" | "user" | "project", dir: string, agents: Map<string, AgentDefinition>): void {
+function loadDir(baseScope: AgentScope, dir: string, agents: Map<string, AgentDefinition>): void {
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
   } catch {
     return; // A missing agents directory is not an error.
   }
-  for (const entry of entries) {
+  // Dedup by name within the directory: plain .md first so a same-name
+  // xxx.local.md (personal override) overwrites it in the map.
+  const ordered = [...entries].sort((left, right) =>
+    Number(left.name.endsWith(LOCAL_DEFINITION_SUFFIX)) - Number(right.name.endsWith(LOCAL_DEFINITION_SUFFIX))
+    || left.name.localeCompare(right.name),
+  );
+  for (const entry of ordered) {
     if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
     const source = path.join(dir, entry.name);
     let raw: string;
@@ -82,25 +105,35 @@ function loadDir(scope: "bundled" | "user" | "project", dir: string, agents: Map
       continue;
     }
     const { fields, body } = parseFrontmatter(raw);
-    const name = typeof fields.name === "string" ? fields.name : entry.name.replace(/\.md$/, "");
+    const isLocal = baseScope === "project" && entry.name.endsWith(LOCAL_DEFINITION_SUFFIX);
+    const baseName = isLocal
+      ? entry.name.slice(0, -LOCAL_DEFINITION_SUFFIX.length)
+      : entry.name.replace(/\.md$/, "");
+    const name = typeof fields.name === "string" ? fields.name : baseName;
     if (!name || !body) continue;
-    const tools = Array.isArray(fields.tools) ? fields.tools : [];
-    const model = typeof fields.model === "string" && fields.model ? fields.model : undefined;
     agents.set(name, {
       name,
       description: typeof fields.description === "string" ? fields.description : "",
-      tools,
-      model,
+      tools: Array.isArray(fields.tools) ? fields.tools : [],
+      model: typeof fields.model === "string" && fields.model ? fields.model : undefined,
+      verify: typeof fields.verify === "string" && fields.verify ? fields.verify : undefined,
+      worktree: fields.worktree === "true",
       prompt: body,
-      scope,
+      scope: isLocal ? "project-local" : baseScope,
+      gitManaged: scopeIsGitManaged(isLocal ? "project-local" : baseScope),
       source,
     });
   }
 }
 
+/** Only the shared project layer is expected to be git-managed. */
+function scopeIsGitManaged(scope: AgentScope): boolean {
+  return scope === "project";
+}
+
 /**
  * Resolve all agent definitions visible from the given cwd, with later scopes
- * overriding earlier ones per name: project > user > bundled.
+ * overriding earlier ones per name: project-local > project > user > bundled.
  */
 export function discoverAgents(cwd?: string): Map<string, AgentDefinition> {
   const agents = new Map<string, AgentDefinition>();
@@ -120,37 +153,23 @@ export function hasAgent(name: string, cwd?: string): boolean {
   return resolveAgent(name, cwd) !== undefined;
 }
 
-/** Ephemeral agents are run-scoped and shadow bundled/user/project agents for that run. */
-export function resolveAgentForRun(
-  name: string,
-  cwd: string | undefined,
-  ephemeralAgents: Record<string, import("./types").EphemeralAgent> | undefined,
-): import("./types").EphemeralAgent | AgentDefinition | undefined {
-  const ephemeral = ephemeralAgents?.[name];
-  if (ephemeral) return ephemeral;
-  return resolveAgent(name, cwd);
-}
-
-export function isEphemeralAgent(
-  value: import("./types").EphemeralAgent | AgentDefinition | undefined,
-): value is import("./types").EphemeralAgent {
-  if (!value) return false;
-  // Ephemeral agents have prompt as role prompt but no scope/source; use presence of scope to distinguish.
-  return !("scope" in value);
-}
-
 /**
  * Format discovered agents as Markdown for prompt injection in before_agent_start.
  */
 export function formatAgentGuidance(cwd?: string): string {
   const agents = discoverAgents(cwd);
-  if (agents.size === 0) return "(none found in bundled, user, or project scopes)";
+  if (agents.size === 0) return "(none found in bundled, user, project, or project-local scopes)";
   const lines: string[] = [];
   for (const agent of agents.values()) {
-    const model = agent.model ? ` | Model: ${agent.model}` : "";
+    const extras = [
+      agent.model ? `Model: ${agent.model}` : "",
+      agent.verify ? `Verify: ${agent.verify}` : "",
+      agent.worktree ? "Worktree: true" : "",
+      agent.gitManaged ? "git-managed" : "local",
+    ].filter(Boolean);
     lines.push(`- **${agent.name}** (${agent.scope})`);
     if (agent.description) lines.push(`  ${agent.description}`);
-    lines.push(`  Tools: ${agent.tools.join(", ") || "(role defaults)"}${model}`);
+    lines.push(`  Tools: ${agent.tools.join(", ") || "(role defaults)"}${extras.length > 0 ? ` | ${extras.join(" | ")}` : ""}`);
   }
   return lines.join("\n");
 }

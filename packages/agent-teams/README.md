@@ -1,14 +1,14 @@
 # Agent Teams Pi Package
 
-Run-centric multi-agent system for Pi: declarative agents, single-call DAG dispatch, bounded child-process nodes, and one-way worker messages to the leader.
+Claude-Code-style collaborative agent teams for Pi: named resident teammates, a shared local task board with self-claim, and direct peer-to-peer messaging.
 
 **Display Name**: Agent Teams
 
 ## What This Package Does
 
-Agents are declarative Markdown files (bundled, user, and project scopes). A run is a dependency-aware task graph dispatched in **one call**: root nodes start immediately, concurrency is bounded, and downstream nodes auto-start when their dependencies complete. Multiple teammates may operate on the same paths concurrently and coordinate through `teammate_message`. Each node is a bounded child Pi process with per-spawn identity validation.
+The team leader (your Pi session) spawns named teammates as long-lived child Pi processes in RPC mode. Each teammate has an isolated context, a peer inbox, and access to a shared task board. The harness—not the leader model—polls for activity: it drains leader reports, routes peer mail, applies task claims and submissions, runs deterministic verify gates, and wakes idle teammates only when work or mail exists.
 
-`paths` and `access` are scheduling and prompt metadata. `paths` identifies the repository-relative area included in the worker prompt; `access` declares read or write intent. They do not enforce filesystem permissions or provide true read/write isolation. Multiple teammates may operate on the same paths concurrently and coordinate through `teammate_message`; `worktree: true` provides Git worktree separation when needed. There is no OS or container sandbox. A worker's actual capabilities come from the `tools` list in its resolved agent definition.
+The message surface is deliberately singular: `send_message` is the only messaging primitive. Workers report with `to: "leader"`; teammates address peers by name; the leader addresses teammates by name. The routing implementation varies by destination (outbox, inbox, or control stream), but callers use one schema.
 
 ## Install
 
@@ -20,95 +20,129 @@ Then run `/reload` in Pi.
 
 ## Agents Are Declarative Files
 
-Agent definitions are Markdown files with frontmatter; the body is the worker's role prompt.
+Agent definitions are Markdown files with frontmatter; the body is the role prompt.
 
 ```markdown
 ---
-name: security-auditor
-description: Read-only security reviewer; use after security-sensitive edits
+name: isolated-security-auditor
+description: Read-only security reviewer in an isolated worktree
 tools: read,bash
-model: provider/model   # optional
+model: provider/model       # optional
+verify: npm test            # optional role-default completion gate
+worktree: true              # optional role-default Git isolation
 ---
 Review the assigned scope for exploitable security problems. Do not edit files.
 ```
 
-Discovery precedence per name: **project `.pi/agents/` > user `~/.pi/agent/agents/` > bundled package `agents/`**. Bundled agents: `worker`, `reviewer`, `specialist`, `observer`. Available agents are dynamically injected into prompt guidance via `before_agent_start`.
+Discovery precedence per name (later overrides earlier):
 
-## Dispatch a Run in One Call
+| Scope | Location | Git semantics |
+|---|---|---|
+| bundled | package `agents/` | shipped with the package |
+| user | `~/.pi/agent/agents/*.md` | system-level, never committed |
+| project | `<cwd>/.pi/agents/<name>.md` | **git-managed** — commit for the team |
+| project-local | `<cwd>/.pi/agents/<name>.local.md` | **local** — personal override, gitignore by convention |
+
+A teammate definition is just a Markdown file you own. Shared roles live in `.pi/agents/<name>.md`; a personal tweak to that exact role is `<name>.local.md` in the SAME directory — same teammate name, local scope wins, and discovery deduplicates the pair into one entry (never two). `resolveAgent` reports each definition's `scope` and `gitManaged`; guidance lists both so the leader knows provenance.
+
+## Build a Team
 
 ```text
-teammate_run({
-  tasks: [
-    { id: "inspect", agent: "reviewer", prompt: "Review the auth middleware", paths: ["packages/api/src"], access: "read" },
-    { id: "fix", agent: "worker", prompt: "Apply the review findings", paths: ["packages/api"], access: "write", dependsOn: ["inspect"] },
-    { id: "verify", agent: "reviewer", prompt: "Verify the fix", paths: ["packages/api"], access: "read", dependsOn: ["fix"] },
-  ],
-  concurrency: 2,
-  worktree: false,
-  background: true
+teammate_spawn({
+  name: "security",
+  agent: "reviewer",
+  prompt: "Review the auth middleware"
+})
+
+teammate_spawn({ name: "backend", agent: "worker" })
+```
+
+- Spawn has exactly three parameters: `name`, `agent`, and optional kickoff `prompt`.
+- Without a kickoff prompt, the teammate idles until messaged or until claimable work appears.
+- Teammates stay alive between tasks and consume no model tokens while idle.
+- A session-wide cap of 8 living teammates applies.
+- An agent declaring `worktree: true` gets its own Git worktree; its diff is captured at shutdown.
+- `teammate_shutdown({ name })` stops one teammate and releases its claimed task back to the board.
+
+## Coordinate Through One Message Primitive and the Board
+
+```text
+send_message({
+  to: "security",
+  message: "Please challenge the backend finding against the current middleware."
+})
+
+task_create({
+  subject: "Fix auth middleware findings",
+  description: "Address the confirmed security findings in packages/api/src/auth.ts",
+  dependsOn: ["t_1"],
+  verify: "npm test"
 })
 ```
 
-- `access` defaults to `read`; declare `write` explicitly. This is scheduling and prompt metadata, not a capability boundary.
-- `dependsOn` edges must form a DAG (duplicate ids, unknown references, and cycles are rejected before any worker starts).
-- `worktree: true` runs every node in its own Git worktree and captures each diff for integration review. It does not create an OS or container sandbox.
-- `background` defaults to `true`: teammates run in the background, the call returns the run id immediately, and each teammate's terminal outcome sends its full deliverable in an immediate follow-up while the remaining teammates continue. A final run-completion follow-up is sent after all nodes settle. Pass `background=false` to gather inline; a long gather detaches to the background so the model turn is not left hanging.
-- `turnBudget` is the optional per-node maximum assistant-turn budget and defaults to a high safety cap of 100 turns. There is no run-level or node-level wall-clock deadline field.
-- A session-wide cap of 8 worker processes applies in addition to each run's `concurrency` limit.
-- Multi-node runs append a `__summary` node by default (`summarize=false` to skip). Single-task runs stay compact unless `summarize=true`.
-- Completing a node hands its result to pending dependents through the spawned worker prompt. Workers receive only the context supplied by their task, including the DAG handoff.
+`send_message` has one schema everywhere:
+
+```text
+send_message({ to, message, status? })
+```
+
+- Worker report: `to: "leader"`; use optional `status: "completed" | "failed"` for a terminal report.
+- Peer mail: `to: "<teammate-name>"`; `status` is invalid.
+- Leader steering or direct assignment: `to: "<teammate-name>"`; a working recipient gets a control-stream steer, an idle recipient wakes with the message.
+- The first non-empty line of `message` becomes the console title.
+- Peer traffic never enters the leader model context; inspect it in `/teammate` instead.
+
+Only the leader creates tasks. Idle teammates self-claim pending tasks whose dependencies are met. A task-level `verify` command overrides the claiming agent's frontmatter `verify`; zero exit completes the task, while failure returns stderr to the claimer for fix-and-resubmit.
 
 ## Tools
 
-| Tool | Description |
-|---|---|
-| `teammate_run` | Dispatch a dependency-aware task graph in one call |
-| `teammate_fanout` | Leader-only bounded fanout from a completed node's structured array output |
-| `teammate_message` | Worker capability for one-way progress and final deliverables to the leader; leader-side runtime steering for a running RPC worker |
-| `teammate_cancel` | Cancel a run, or one node (`nodeId`) while the rest continues |
-| `teammate_retry` | Re-run only the failed or cancelled nodes of a settled run |
-| `/teammate` | Full-screen console: run/node lifecycle, node detail, worker messages, and node cancellation |
+| Tool / command | Side | Description |
+|---|---|---|
+| `teammate_spawn(name, agent, prompt?)` | Leader | Start one named resident teammate; model/worktree come from agent frontmatter |
+| `teammate_shutdown(name)` | Leader | Stop one teammate and release its claimed work |
+| `send_message(to, message, status?)` | Both | The only messaging primitive; `to: "leader"` is reserved for worker reports |
+| `task_create(subject, description?, dependsOn?, verify?)` | Leader | Add a shared board task |
+| `task_list()` | Both | One shared board-view definition; leader view also includes the roster |
+| `task_claim(taskId?)` | Worker | Atomically self-claim a pending, unblocked task |
+| `task_submit(taskId, status, result?)` | Worker | Submit a claimed task outcome; completion passes through verify |
+| `/teammate` | User | Full-screen roster and board console, message/task details, shutdown |
 
-The worker-side `teammate_message` accepts a subject, body, optional lifecycle status, and optional structured data. It always delivers to the team leader. The leader-side operation uses the same tool name only to steer a running RPC worker; it does not create a mailbox.
-
-Messaging is deliberately one-way: workers append validated messages to their own outbox, and the leader drains them into one leader inbox. Dependency results are delivered through the DAG prompt (`=== UPSTREAM HANDOFF ===`) when the dependent starts.
+That is **7 unique tool names**. There are no `teammate_run`, `teammate_fanout`, `teammate_cancel`, `teammate_retry`, or `teammate_message` tools.
 
 ## Reliability Protocol
 
-- **Per-spawn identity validation**: every worker event must match the node's current spawn id; stale events from an older process cannot affect a newer spawn.
-- **One-way message storage**: worker event ids and per-spawn identities are validated and deduplicated; every accepted message lands in the single leader inbox. The harness does not maintain read receipts or per-worker inbound state.
-- **One canonical terminal result per node**: built by the harness from node state and captured output after the child closes; a worker message alone is not final delivery.
-- **Concurrent same-path execution**: teammates that share paths run in parallel and coordinate through `teammate_message` (e.g. announcing intent, negotiating file ownership). `worktree: true` is opt-in for Git-level isolation, not scheduling enforcement.
-- **Metadata is not enforcement**: `access` and `paths` drive conflict scheduling and prompt context. A worker whose agent definition has write-capable tools can still write even when a node declares `access: "read"`. Use a restricted agent tool list for capability limits, and use `worktree: true` for Git tree separation.
-- **Failure semantics**: a failed node cancels its not-yet-started transitive dependents and fails the run; other nodes finish. Cancelling a run or node returns the outcome in the tool call itself.
+- **Per-spawn identity validation**: every leader report must match the teammate's current spawn id; stale callbacks and events cannot affect a replacement with the same name.
+- **Sent means written**: peer `send_message` succeeds only after the recipient inbox write succeeds. The harness owns delivery into a recipient turn.
+- **One writer per state file**: only the leader process writes runtime and board snapshots (atomic tmp+rename). Workers append leader reports to their outbox, peer mail to recipient inboxes, and task intent via exclusive-create marker files.
+- **Completion is gated, not self-reported**: a task completes only after its effective verify gate passes when one exists; no gate means the submission itself completes it.
+- **Turn budgets, never wall-clock**: each wake-up sequence has a 100-turn default cap. The API has no deadline dimension.
+- **Stall watchdog**: a wedged child (for example, blocked forever in a provider request) produces no RPC output, so the harness tracks silence per working teammate. After 30 minutes of total silence (`PI_TEAMMATE_STALL_NOTICE_MS`, 0 disables) the leader gets one actionable notice per episode; after 2 hours (`PI_TEAMMATE_STALL_SHUTDOWN_MS`, 0 disables) the child is reclaimed through the normal shutdown path with the reason in the report. Any output or prompt delivery re-arms it, and steering a silent teammate warns that delivery is uncertain.
+- **Failure semantics**: an unexpected crash marks the teammate stopped, reports a diagnostic, and releases its claimed tasks.
 
 ## State and Sessions
 
-State is session-scoped and dies with the session (`~/.pi/agent/teammate/<sessionKey>/`); runs do not survive restarts. Background runs notify through automatic follow-ups; worker messages and node outcomes are recorded in the leader transcript and visible in `/teammate`. Agents, by contrast, live in files and survive across sessions: they are the persistent layer.
+Runtime state lives in `~/.pi/agent/teammate/<sessionKey>/` and dies with the session (`state.json`, report outboxes, peer inboxes, roster). The task board lives in `~/.pi/agent/tasks/<sessionKey>/board.json` and persists for later inspection; nothing auto-deletes it. Claims held by dead teammates return to pending on reload.
 
 ## Structure
 
 ```
 agent-teams/
-├── index.ts           — package-root extension entry point
-├── package.json       — Pi package manifest
-├── agents/            — bundled agent definitions (worker/reviewer/specialist/observer)
+├── index.ts              — package-root extension entry point
+├── agents/               — bundled declarative agent definitions
 ├── src/
-│   ├── index.ts       — composition root: Pi hooks and session lifecycle
-│   ├── tools.ts       — leader tools and /teammate command registration
-│   ├── run-machine.ts — DAG scheduler, worker lifecycle, persistence, session cap
-│   ├── ui.ts          — passive widget and /teammate console
-│   ├── worker.ts      — worker identity binding and message capability
-│   ├── guidance.ts    — static leader/worker protocol guidance
-│   ├── agents.ts      — declarative agent discovery (frontmatter parsing, scope precedence)
-│   ├── state.ts       — runs/nodes state machine, leader inbox, dirty tracking
-│   ├── spawner.ts     — child Pi worker spawner (JSON-mode, usage accounting)
-│   ├── statefile.ts   — leader snapshot + worker outbox IO
-│   ├── worktree.ts    — Git worktree isolation
-│   ├── console-viewport.ts — console viewport math (wrap, scroll clamp, ranges)
-│   └── terminal.ts    — canonical per-node terminal result builder
-├── features/          — BDD contract
-└── tests/             — package E2E tests
+│   ├── index.ts          — composition root and session lifecycle
+│   ├── tools.ts          — leader tools and /teammate command
+│   ├── worker.ts         — worker tools plus the shared task_list registration
+│   ├── team-machine.ts   — resident lifecycle, mail routing, intents, verify, wake-ups
+│   ├── state.ts          — roster, board, leader inbox state machine
+│   ├── spawner.ts        — resident RPC process spawner and turn budgets
+│   ├── agents.ts         — agent discovery and frontmatter parsing
+│   ├── statefile.ts      — runtime/board/mail IO and marker-file intents
+│   ├── ui.ts             — passive widget and /teammate console
+│   ├── guidance.ts       — static leader and worker protocols
+│   └── follow-up-queue.ts — serialized automatic report delivery
+├── features/             — BDD contract
+└── tests/                — package tests
 ```
 
 ## License

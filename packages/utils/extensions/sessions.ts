@@ -13,7 +13,9 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { keyHint, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { Box, Container, Text } from "@earendil-works/pi-tui";
+import { formatAgentTaskName, formatToolEventLabel, safeDisplayText } from "@fradser/pi-kit";
 import { Type } from "typebox";
 
 export interface SessionInfo {
@@ -98,6 +100,26 @@ export function removeSessionInfo(cwd: string, sessionId: string): void {
   }
 }
 
+/** Known session statuses; registry JSON is not type-checked at rest. */
+const SESSION_STATUSES: readonly SessionInfo["status"][] = ["running", "idle", "settled", "exited"];
+
+/**
+ * Coerces an untrusted registry record into the SessionInfo contract: numeric
+ * pid/timestamps, known status. Registry JSON is not type-checked at rest.
+ */
+function normalizeSessionRecord(raw: SessionInfo): SessionInfo {
+  const pid = Math.trunc(Number(raw.pid));
+  return {
+    ...raw,
+    sessionId: typeof raw.sessionId === "string" ? raw.sessionId : "",
+    pid: Number.isFinite(pid) && pid > 0 ? pid : 0,
+    cwd: typeof raw.cwd === "string" ? raw.cwd : "",
+    startedAt: Number(raw.startedAt) || 0,
+    updatedAt: Number(raw.updatedAt) || 0,
+    status: SESSION_STATUSES.includes(raw.status) ? raw.status : "exited",
+  };
+}
+
 /**
  * Reads, cleans up dead PIDs, and returns all registered sessions for a directory.
  */
@@ -124,10 +146,11 @@ export function cleanAndListDirectorySessions(
     const filePath = path.join(dir, file);
     try {
       const raw = fs.readFileSync(filePath, "utf-8");
-      const info: SessionInfo = JSON.parse(raw);
+      const info = normalizeSessionRecord(JSON.parse(raw));
 
-      // Exclude self if requested
-      if (excludeSessionId && info.sessionId === excludeSessionId) {
+      // Exclude self by id or by owning process (registry records from
+      // multiple writers use different id conventions for the same session).
+      if ((excludeSessionId && info.sessionId === excludeSessionId) || info.pid === process.pid) {
         continue;
       }
 
@@ -162,13 +185,54 @@ export function cleanAndListDirectorySessions(
     }
   }
 
-  // Sort by updatedAt descending (most recent first)
-  sessions.sort((a, b) => b.updatedAt - a.updatedAt);
-  return sessions;
+  // One logical session per owning process: registry records come from
+  // multiple writers (extension state and glow state) with different ids.
+  const merged = mergeSessionsByPid(sessions);
+  merged.sort((a, b) => b.updatedAt - a.updatedAt);
+  return merged;
+}
+
+/**
+ * Collapses registry records that share an owning process into one record.
+ * The newest record wins mutable scalars; optional detail fields are filled
+ * from the other record when missing.
+ */
+function mergeSessionsByPid(sessions: SessionInfo[]): SessionInfo[] {
+  const byPid = new Map<number, SessionInfo>();
+  for (const session of sessions) {
+    const existing = byPid.get(session.pid);
+    byPid.set(session.pid, existing ? mergeSessionPair(existing, session) : session);
+  }
+  return Array.from(byPid.values());
+}
+
+function mergeSessionPair(a: SessionInfo, b: SessionInfo): SessionInfo {
+  const [primary, secondary] = a.updatedAt >= b.updatedAt ? [a, b] : [b, a];
+  return {
+    ...primary,
+    startedAt: primary.startedAt > 0 ? primary.startedAt : secondary.startedAt,
+    sessionName: primary.sessionName ?? secondary.sessionName,
+    latestGoal: primary.latestGoal ?? secondary.latestGoal,
+    recap: primary.recap ?? secondary.recap,
+    modifiedFiles: primary.modifiedFiles?.length ? primary.modifiedFiles : secondary.modifiedFiles,
+  };
+}
+
+/**
+ * Formats a relative age label like "5s ago", "5m ago", or "3h ago".
+ */
+export function formatSessionAge(updatedAt: number, now: number = Date.now()): string {
+  const ageSec = Math.max(0, Math.round((now - updatedAt) / 1000));
+  if (ageSec < 60) return `${ageSec}s ago`;
+  const ageMin = Math.round(ageSec / 60);
+  if (ageMin < 60) return `${ageMin}m ago`;
+  return `${Math.round(ageMin / 60)}h ago`;
 }
 
 /**
  * Formats a list of sessions into a concise markdown recap for prompt injection or display.
+ * All variable fields are sanitized — registry values are untrusted and this text reaches
+ * both the terminal (/sessions) and the model system prompt.
  */
 export function formatCrossSessionRecap(sessions: SessionInfo[]): string {
   if (sessions.length === 0) {
@@ -186,23 +250,18 @@ export function formatCrossSessionRecap(sessions: SessionInfo[]): string {
 
   for (const s of cappedSessions) {
     const name = s.sessionName ? `"${s.sessionName}"` : `Session [${s.sessionId.slice(0, 8)}]`;
-    const ageSec = Math.max(0, Math.round((now - s.updatedAt) / 1000));
-    let timeAgo = `${ageSec}s ago`;
-    if (ageSec >= 60) {
-      const ageMin = Math.round(ageSec / 60);
-      timeAgo = `${ageMin}m ago`;
-    }
+    const timeAgo = formatSessionAge(s.updatedAt, now);
 
     const statusLabel = s.status.toUpperCase();
-    lines.push(`- **${name}** (PID ${s.pid}, status: ${statusLabel}, updated ${timeAgo}):`);
+    lines.push(`- **${safeDisplayText(name)}** (PID ${s.pid}, status: ${statusLabel}, updated ${timeAgo}):`);
     if (s.latestGoal) {
-      lines.push(`  - **Goal**: ${s.latestGoal}`);
+      lines.push(`  - **Goal**: ${safeDisplayText(s.latestGoal)}`);
     }
     if (s.recap) {
-      lines.push(`  - **Recap**: ${s.recap}`);
+      lines.push(`  - **Recap**: ${safeDisplayText(s.recap)}`);
     }
     if (s.modifiedFiles && s.modifiedFiles.length > 0) {
-      lines.push(`  - **Recent files**: ${s.modifiedFiles.slice(0, 5).join(", ")}`);
+      lines.push(`  - **Recent files**: ${s.modifiedFiles.slice(0, 5).map((file) => safeDisplayText(file)).join(", ")}`);
     }
   }
 
@@ -336,6 +395,39 @@ export default function (pi: ExtensionAPI) {
         Type.String({ description: "Target directory path (defaults to current working directory)" })
       ),
     }),
+    renderShell: "self",
+    renderCall: () => new Container(),
+    // Pi passes only { content, details } here; liveness comes from context.isError.
+    renderResult(result, options, theme, context) {
+      if (context.isError) {
+        const firstLine = textOf(result).split("\n")[0] || "Failed to list directory sessions.";
+        return new Text(theme.fg("error", safeDisplayText(firstLine)), 0, 0);
+      }
+      const details = result.details as { sessions?: SessionInfo[]; cwd?: string } | undefined;
+      const sessions = details?.sessions ?? [];
+      const summary = sessionListSummary(sessions, path.basename(safeDisplayText(details?.cwd ?? "")));
+      const title = theme.fg("customMessageLabel", theme.bold(formatToolEventLabel("listed", summary, "sessions")));
+      const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
+      if (sessions.length === 0) {
+        box.addChild(new Text(title, 0, 0));
+        return box;
+      }
+      if (!options.expanded) {
+        const hint = theme.fg("dim", ` (${keyHint("app.tools.expand", "to expand")})`);
+        box.addChild(new Text(`${title}${hint}`, 0, 0));
+        return box;
+      }
+      box.addChild(new Text(title, 0, 0));
+      const shown = sessions.slice(0, MAX_DISPLAY_SESSIONS);
+      for (const session of shown) {
+        box.addChild(new Text(theme.fg("customMessageText", formatSessionRow(session)), 0, 0));
+      }
+      const hidden = sessions.length - shown.length;
+      if (hidden > 0) {
+        box.addChild(new Text(theme.fg("customMessageText", `  ... +${hidden} more not shown`), 0, 0));
+      }
+      return box;
+    },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const targetCwd = params.cwd ? path.resolve(params.cwd) : ctx.cwd;
       const sessions = cleanAndListDirectorySessions(targetCwd, currentSessionId);
@@ -356,4 +448,57 @@ export default function (pi: ExtensionAPI) {
       };
     },
   });
+}
+
+/** Extracts the first text block of a tool result. */
+function textOf(result: { content: Array<{ type: string; text?: string }> }): string {
+  return result.content.find((block) => block.type === "text")?.text ?? "";
+}
+
+const MAX_DISPLAY_SESSIONS = 10;
+const MAX_RECAP_LENGTH = 120;
+const MAX_FILES_SHOWN = 4;
+
+function firstLine(text: string): string {
+  return text.split("\n", 1)[0]?.trim() ?? "";
+}
+
+function truncatePlain(text: string, maxLength: number): string {
+  return text.length <= maxLength ? text : `${text.slice(0, maxLength - 3)}...`;
+}
+
+function sessionListSummary(sessions: SessionInfo[], dirName: string): string {
+  const dir = truncatePlain(safeDisplayText(dirName), 40);
+  if (sessions.length === 0) return `no other sessions in ${dir}`;
+  const noun = sessions.length === 1 ? "other session" : "other sessions";
+  return `${sessions.length} ${noun} in ${dir}`;
+}
+
+/**
+ * Builds the bounded detail block shown for one session in the expanded view:
+ * identity header plus Goal / Recap / Files lines when the data exists.
+ * All fields are sanitized and truncated — registry values are untrusted.
+ */
+function buildSessionLines(session: SessionInfo): string[] {
+  const rawName = session.sessionName ? `"${session.sessionName}"` : `Session [${session.sessionId.slice(0, 8)}]`;
+  const name = truncatePlain(safeDisplayText(rawName), 60);
+  const lines = [`  ${name} · ${session.status.toUpperCase()} · pid ${session.pid} · ${formatSessionAge(session.updatedAt)}`];
+  if (session.latestGoal) {
+    lines.push(`    Goal  ${formatAgentTaskName(safeDisplayText(firstLine(session.latestGoal)), "")}`);
+  }
+  if (session.recap) {
+    lines.push(`    Recap ${truncatePlain(safeDisplayText(firstLine(session.recap)), MAX_RECAP_LENGTH)}`);
+  }
+  if (session.modifiedFiles?.length) {
+    const shown = session.modifiedFiles
+      .slice(0, MAX_FILES_SHOWN)
+      .map((file) => truncatePlain(safeDisplayText(file), 80));
+    const rest = session.modifiedFiles.length - shown.length;
+    lines.push(`    Files ${shown.join(", ")}${rest > 0 ? ` (+${rest} more)` : ""}`);
+  }
+  return lines;
+}
+
+function formatSessionRow(session: SessionInfo): string {
+  return buildSessionLines(session).join("\n");
 }

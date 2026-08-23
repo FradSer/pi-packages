@@ -1,18 +1,19 @@
 ---
 name: continue-stale-session-rebase
-description: /continue compares the session leaf with the session file on disk and reloads the same file when the view lags, so continuation never forks a sibling branch
+description: /continue reloads only genuinely unseen persisted entries while preserving a user-selected session-tree leaf
 type: project
 
 ## Why
 
-Session analysis across 153 real pi sessions showed 103 `continue-extension` markers persisted as siblings of the failed turn instead of extending it: the fork point was always the last entry before the failed turn's first error. `pi.sendMessage` appends at `sessionManager.leafId`, so whenever the live view lags the file on disk (a parallel writer appended, or the leaf was rewound), the hidden marker lands on a new branch and the conversation history splits instead of being fully inherited.
+The original disk-tip rebase fixed stale views that missed entries written by another process, but it also treated deliberate tree navigation as stale. After the user selected an earlier node, the append-only session file still contained the abandoned failed branch; reopening the file reset the leaf to its physical last entry and made `/continue` resume the abandoned failure instead of the selected node.
 
 ## How to apply
 
-- In `packages/utils/extensions/continue.ts`, before any direct or visible continuation, read the session file's last non-header entry id (`readDiskTipEntryId`) and compare it with `ctx.sessionManager.getLeafId()`.
-- On divergence, call `ctx.switchSession(sessionFile, { withSession })` to reopen the same file; the fresh `SessionManager` puts the leaf at the true tip, and the shared `performContinuation` runs from the recovered context.
-- Only command contexts expose `switchSession`; route idle keyword input ("continue"/"继续") through the internal `__continue` command via `pi.sendUserMessage(..., { expandPromptTemplates: true })` (runtime honors the flag even though 0.84.x published types omit it). While streaming, keep steering the marker directly because a live streaming process owns a current leaf.
-- Keep both entry points on the shared `runContinuation`/`performContinuation` path so recovery applies to `/continue`, keyword input, and custom follow-up prompts alike.
+- In `packages/utils/extensions/continue.ts`, read the last valid persisted entry id with `readDiskTipEntryId`.
+- Call `needsSessionReload(ctx.sessionManager, diskTipEntryId)`, which reloads only when `getEntry(diskTipEntryId) === undefined`. An unknown tip means another process appended history that the active session has never loaded.
+- If the disk tip is already known, do not compare it to `getLeafId()` and do not reload. A known tip with a different leaf is a deliberate tree selection; the selected leaf is authoritative and the next append creates the continuation branch there.
+- Keep idle keyword input routed through the public `/continue` command via `pi.sendUserMessage("/continue", { expandPromptTemplates: true })`. While streaming, send the direct marker against the live session.
+- The continuation classifier uses only the active `getBranch()` path, so abandoned branches cannot determine what gets resumed.
 
 ## Related
 

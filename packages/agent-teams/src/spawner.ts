@@ -1,15 +1,16 @@
 /**
- * Teammate spawner — spawns real child Pi processes as workers.
+ * Teammate spawner — spawns named resident child Pi processes in RPC mode.
  *
- * A teammate becomes "real" by running its assigned task in a fresh,
- * non-interactive Pi CLI process (`--print`), with its own model and tool
- * scope. stdout/stderr are captured and reported back through the callback
- * so the board can record the outcome on the task.
+ * A teammate is a long-lived worker: it receives prompts on its control
+ * stream (stdin), streams JSON events on stdout, and suspends between wake
+ * ups without consuming tokens. The harness delivers new prompts via
+ * deliverPrompt (idle wake-up) and steering lines via sendWorkerSteer
+ * (mid-turn delivery). Turn budgets bound each wake-up sequence, never
+ * wall-clock time.
  */
 
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -20,69 +21,12 @@ import {
   terminateChildProcess,
 } from "@fradser/pi-kit";
 import type { ChildProcess } from "node:child_process";
-import type { WorkerUsage } from "./types";
+import type { WorkerUsage } from "./types.ts";
 
-/** High default safety cap; explicit task budgets can still be lower. */
+/** High default safety cap per wake-up sequence; explicit budgets can be lower. */
 export const DEFAULT_TURN_BUDGET = 100;
 
-/**
- * Build the one-task execution prompt for a spawned worker.
- *
- * A worker executes one bounded task run. It reports to the leader throughout
- * the run and then exits. The parent independently drains the worker outbox.
- */
-export function buildAutonomousPrompt(opts: {
-  name: string;
-  role: string;
-  prompt: string;
-  taskId?: string;
-  turnBudget?: number;
-}): string {
-  const taskLine = `\nAssigned task: [${opts.taskId}].\nWhen finished, you MUST call teammate_message with status="completed" to submit your FULL final deliverable.`;
-  const budgetLine = opts.turnBudget
-    ? `4. You have a maximum of ${opts.turnBudget} assistant turn(s) — manage your turn budget, avoid unnecessary exploration, and deliver your final message before the budget is exhausted.`
-    : `4. There is no turn budget — work until the task is complete. Do not rush or truncate your work.`;
-
-  return `You are a FULLY AUTONOMOUS teammate named "${opts.name}" (agent: ${opts.role}) in a pi multi-agent team run.
-
-=== ROLE PROMPT ===
-${opts.prompt}
-${taskLine}
-
-YOUR ROLE IN THIS RUN:
-1. Work directly on your assigned scope and declared paths. DAG upstream results are ALREADY injected into this prompt below; do not poll for them.
-2. Report plans, progress, and blockers with teammate_message. When finished, call teammate_message with status="completed" and put your FULL deliverable in the body. If blocked or failed, use status="failed" and explain the error.
-3. There are no peer mailboxes, broadcasts, or worker inboxes. The leader may steer this worker through teammate_message in RPC mode; make decisions within the assigned task and report blockers instead of waiting for peers.
-${budgetLine}
-
-BOUND CAPABILITIES:
-- teammate_message reports progress or a final deliverable to the team leader.`;
-}
-
-export interface SpawnPiWorkerOptions {
-  /** Worker identity — used to register the child so the panel can interrupt/stop it. */
-  workerName?: string;
-  /** Task description — the actual work the worker executes. */
-  description: string;
-  /** Optional model pattern for the child (e.g. "anthropic/claude-sonnet-4"). */
-  model?: string;
-  /** Optional execution-tool allowlist for the child. Capability tools are always appended. */
-  tools?: string[];
-  /** Environment additions bound to this worker process. */
-  env?: Record<string, string | undefined>;
-  /** Working directory for the child (defaults to the parent's cwd). */
-  cwd?: string;
-  /** Maximum assistant turns for this worker (defaults to DEFAULT_TURN_BUDGET). */
-  turnBudget?: number;
-  /** Output parsing mode. RPC keeps stdin available for runtime steering. */
-  mode?: "json" | "rpc" | "text";
-  /** Called whenever JSON-mode worker output reveals live model or tool activity. */
-  onUpdate?: (update: WorkerProgressUpdate) => void;
-  /** Called once with the captured output when the child exits. */
-  onExit: (result: WorkerProcessResult) => void;
-  /** Called when the child could not be spawned at all. */
-  onError?: (error: Error) => void;
-}
+const OUTPUT_CAP = 16_000;
 
 export interface WorkerProcessResult {
   pid: number;
@@ -94,204 +38,101 @@ export interface WorkerProcessResult {
   turnBudgetExceeded?: boolean;
 }
 
-/** Live state extracted from a spawned worker's JSON-mode output. */
+/** Live state extracted from a teammate's RPC output stream. */
 export interface WorkerProgressUpdate {
   text: string;
   activeTool?: string;
   liveThinking?: string;
+  /** Assistant turns observed in the current wake-up sequence. */
   turns: number;
+  /** True after the current sequence's final response. */
   finalResponse?: boolean;
 }
 
-/** A worker only succeeds after a normal zero exit; signals are failures. */
-export function isSuccessfulWorkerExit(result: Pick<WorkerProcessResult, "exitCode" | "signal">): boolean {
+/** A crashed teammate is one that closed without a normal zero exit. */
+export function isCleanExit(result: Pick<WorkerProcessResult, "exitCode" | "signal">): boolean {
   return result.exitCode === 0 && result.signal === null;
 }
 
-/** A reported completion remains successful when the harness closes it or teardown observes a signal. */
-export function isCompletedWorkerExit(
-  result: Pick<WorkerProcessResult, "exitCode" | "signal">,
-  reportedCompleted = false,
-): boolean {
-  return isSuccessfulWorkerExit(result) || reportedCompleted;
-}
+// ── Process registry ──────────────────────────────────────────────
 
-export interface SpawnedWorker {
-  pid: number;
-}
-
-/** Give a terminally reported worker a short chance to exit cleanly. */
-export const POST_REPORT_GRACE_MS = 10_000;
-
-/**
- * Defers a close finalizer while the leader confirms a cancellation request.
- * A run ID is unique to one child process, so an old close event cannot affect
- * a later task run.
- */
-interface CancellationIntent {
-  cancellationRequested: boolean;
-  closeObserved: boolean;
-  closeCancelled: boolean;
-  finalizers: Array<(cancelled: boolean) => void>;
-}
-
-export class CancellationIntents {
-  private readonly intents = new Map<string, CancellationIntent>();
-
-  begin(spawnId: string): boolean {
-    if (this.intents.has(spawnId)) return false;
-    this.intents.set(spawnId, {
-      cancellationRequested: false,
-      closeObserved: false,
-      closeCancelled: false,
-      finalizers: [],
-    });
-    return true;
-  }
-
-  has(spawnId: string): boolean {
-    return this.intents.has(spawnId);
-  }
-
-  /** Record cancellation before termination; the close event still owns finalization. */
-  request(spawnId: string): boolean {
-    const intent = this.intents.get(spawnId);
-    if (!intent) return false;
-    intent.cancellationRequested = true;
-    return true;
-  }
-
-  defer(spawnId: string, finalize: (cancelled: boolean) => void): boolean {
-    const intent = this.intents.get(spawnId);
-    if (!intent) return false;
-    intent.finalizers.push(finalize);
-    this.finalizeIfClosed(spawnId, intent);
-    return true;
-  }
-
-  /** Resolve a known close outcome (kept for direct callers and unit tests). */
-  resolve(spawnId: string, cancelled: boolean): boolean {
-    const intent = this.intents.get(spawnId);
-    if (!intent) return false;
-    intent.closeObserved = true;
-    intent.closeCancelled ||= cancelled;
-    this.finalizeIfClosed(spawnId, intent);
-    return true;
-  }
-
-  /** Finalize only after the child close event has been observed. */
-  close(spawnId: string): boolean {
-    const intent = this.intents.get(spawnId);
-    if (!intent) return false;
-    // The close observer can run before the run-machine onExit callback. Keep
-    // the intent until defer() registers that callback's finalizer.
-    intent.closeObserved = true;
-    this.finalizeIfClosed(spawnId, intent);
-    return true;
-  }
-
-  private finalizeIfClosed(spawnId: string, intent: CancellationIntent): void {
-    if (!intent.closeObserved || intent.finalizers.length === 0) return;
-    const authoritativeCancellation = intent.cancellationRequested || intent.closeCancelled;
-    try {
-      for (const finalize of intent.finalizers) finalize(authoritativeCancellation);
-    } finally {
-      this.intents.delete(spawnId);
-    }
-  }
-}
-
-/** Live workers by teammate name — lets the panel interrupt/stop a running worker. */
+/** Live children by teammate name — powers steering, prompting, and shutdown. */
 const workers = new Map<string, ChildProcess>();
 const closedWorkers = new WeakSet<ChildProcess>();
-const closedWorkersByName = new Map<string, ChildProcess>();
 
 function observeWorkerClose(name: string, child: ChildProcess): void {
   child.once("close", () => {
     closedWorkers.add(child);
-    closedWorkersByName.set(name, child);
+    if (workers.get(name) === child) workers.delete(name);
   });
 }
 
 /** True only after Node has emitted the child process close event. */
-export function isWorkerCloseObserved(child: ChildProcess): boolean {
-  return closedWorkers.has(child);
-}
-
-export function isWorkerCloseObservedByName(name: string): boolean {
-  const child = closedWorkersByName.get(name);
-  return child !== undefined && closedWorkers.has(child);
-}
-
-/** Attach close tracking to a child used by a shutdown or lifecycle test. */
-export function watchWorkerClose(child: ChildProcess): void {
-  observeWorkerClose(`pid:${child.pid ?? 0}`, child);
-}
-
-/** Send a leader steering message to a running RPC worker; no peer mailbox, broadcast, or worker inbox is created. */
-export function sendWorkerSteerToChild(child: ChildProcess, message: string): boolean {
-  if (!child.stdin || child.stdin.destroyed || !child.stdin.writable) return false;
-  child.stdin.write(`${JSON.stringify({ type: "steer", message })}\n`);
+export function isWorkerCloseObserved(name: string): boolean {
+  const child = workers.get(name);
+  if (child) return closedWorkers.has(child);
+  // Not registered anymore: either never spawned or already unregistered by close.
   return true;
 }
 
-export function sendWorkerSteer(name: string, message: string): boolean {
-  const child = workers.get(name);
-  return child ? sendWorkerSteerToChild(child, message) : false;
-}
-
-/** Use the shared close-observing process termination primitive. */
 export { terminateChildProcess };
 
-/** Terminate a live worker and wait until its child process has closed. */
-export async function terminateWorker(name: string, graceMs = DEFAULT_TERMINATION_GRACE_MS): Promise<boolean> {
+/** Terminate a living teammate and wait until its child process has closed. */
+export async function terminateTeammate(name: string, graceMs = DEFAULT_TERMINATION_GRACE_MS): Promise<boolean> {
   const child = workers.get(name);
   if (!child) return false;
   return terminateChildProcess(child, graceMs);
 }
 
-/** Gracefully end a worker that has already reported a terminal task result. */
-export async function finishReportedWorker(name: string, graceMs = POST_REPORT_GRACE_MS): Promise<boolean> {
-  return terminateWorker(name, graceMs);
-}
-
-/** Stop every live child before the leader discards the current session board. */
-export interface WorkerShutdownResult {
-  name: string;
-  confirmedClosed: boolean;
-}
-
-export async function terminateWorkerEntries(
-  children: Array<[string, ChildProcess]>,
-  graceMs = DEFAULT_TERMINATION_GRACE_MS,
-): Promise<WorkerShutdownResult[]> {
-  return Promise.all(children.map(async ([name, child]) => ({
+export async function terminateAllTeammates(graceMs = DEFAULT_TERMINATION_GRACE_MS): Promise<Array<{ name: string; confirmedClosed: boolean }>> {
+  const entries = [...workers.entries()];
+  return Promise.all(entries.map(async ([name, child]) => ({
     name,
-    confirmedClosed: isWorkerCloseObserved(child) || await terminateChildProcess(child, graceMs),
+    confirmedClosed: closedWorkers.has(child) || await terminateChildProcess(child, graceMs),
   })));
 }
 
-export async function terminateAllWorkers(graceMs = DEFAULT_TERMINATION_GRACE_MS): Promise<WorkerShutdownResult[]> {
-  const children = [...workers.entries()];
-  const results = await terminateWorkerEntries(children, graceMs);
-  for (const result of results) {
-    const child = workers.get(result.name);
-    if (result.confirmedClosed && child) workers.delete(result.name);
-  }
-  return results;
+// ── Control stream ────────────────────────────────────────────────
+
+function writeToControlStream(child: ChildProcess, line: unknown): boolean {
+  if (!child.stdin || child.stdin.destroyed || !child.stdin.writable) return false;
+  child.stdin.write(`${JSON.stringify(line)}\n`);
+  return true;
 }
 
-const TASK_ARG_LIMIT = 8000;
-const OUTPUT_CAP = 16_000;
-
-function appendCapped(chunks: string[], chunk: string, cap: number): void {
-  chunks.push(chunk);
-  let total = chunks.reduce((sum, value) => sum + value.length, 0);
-  while (total > cap && chunks.length > 1) {
-    total -= chunks.shift()?.length ?? 0;
-  }
-  if (total > cap && chunks.length === 1) chunks[0] = chunks[0].slice(-cap);
+/**
+ * Deliver a new wake-up prompt to an idle teammate's control stream.
+ * This starts a fresh assistant sequence in the child process.
+ */
+export function deliverPrompt(name: string, message: string): boolean {
+  const child = workers.get(name);
+  if (!child) return false;
+  const sent = writeToControlStream(child, { type: "prompt", id: randomUUID(), message });
+  if (sent) beginSequence(name);
+  return sent;
 }
+
+/** Per-name stream states so prompt delivery can reset sequence boundaries. */
+const streamStates = new Map<string, StreamState>();
+
+function beginSequence(name: string): void {
+  const state = streamStates.get(name);
+  if (state) {
+    state.finalResponse = false;
+    state.text = "";
+    state.thinking = "";
+    clearActiveTools(state);
+  }
+  baselines.set(name, streamTurns.get(name) ?? 0);
+}
+
+/** Send a mid-turn steer to a working teammate; no peer mailbox is involved. */
+export function sendWorkerSteer(name: string, message: string): boolean {
+  const child = workers.get(name);
+  return child ? writeToControlStream(child, { type: "steer", message }) : false;
+}
+
+// ── Stream parsing ────────────────────────────────────────────────
 
 type JsonEvent = {
   type?: string;
@@ -317,58 +158,26 @@ type JsonEvent = {
   };
 };
 
-/**
- * Parse the JSONL output of a `pi --print --mode json` worker run.
- * Returns the final assistant text and the last reported usage.
- */
-export function parseWorkerOutput(stdout: string): { text: string; usage?: WorkerUsage } {
-  const state = createWorkerStreamState();
-  for (const line of stdout.split("\n")) applyWorkerJsonLine(state, line);
-  return { text: state.text.trim(), usage: state.usage };
-}
-
-/** Parse the latest live progress state from a worker JSON stream. */
-export function parseWorkerProgress(stdout: string): WorkerProgressUpdate {
-  const state = createWorkerStreamState();
-  for (const line of stdout.split("\n")) applyWorkerJsonLine(state, line);
-  return {
-    text: truncate(state.text, OUTPUT_CAP),
-    activeTool: state.activeTool,
-    liveThinking: truncate(state.thinking, OUTPUT_CAP),
-    turns: state.turns,
-    finalResponse: state.finalResponse,
-  };
-}
-
-interface WorkerStreamState {
+interface StreamState {
   text: string;
   thinking: string;
   toolcallArgs: string;
   activeTool?: string;
-  activeToolCallId?: string;
   activeTools: Map<string, string>;
+  /** Lifetime count of completed assistant messages. */
   turns: number;
   finalResponse?: boolean;
   usage?: WorkerUsage;
 }
 
-function createWorkerStreamState(): WorkerStreamState {
+function createStreamState(): StreamState {
   return { text: "", thinking: "", toolcallArgs: "", activeTools: new Map(), turns: 0 };
 }
 
-function setActiveTool(state: WorkerStreamState, toolCallId: string | undefined, label: string): void {
-  const key = toolCallId ?? `tool-${state.activeTools.size}`;
-  state.activeTools.set(key, label);
-  state.activeToolCallId = key;
-  state.activeTool = label;
-}
-
-function clearActiveTool(state: WorkerStreamState, toolCallId: string | undefined): void {
-  if (toolCallId) state.activeTools.delete(toolCallId);
-  else state.activeTools.clear();
-  const next = [...state.activeTools.entries()].at(-1);
-  state.activeToolCallId = next?.[0];
-  state.activeTool = next?.[1];
+function clearActiveTools(state: StreamState): void {
+  state.toolcallArgs = "";
+  state.activeTool = undefined;
+  state.activeTools.clear();
 }
 
 function toolExecutionLabel(toolName: string | undefined, args: unknown): string {
@@ -390,13 +199,19 @@ function toolcallLabel(rawArgs: string): string | undefined {
     if (typeof subject === "string" && subject.trim()) return `message: ${normalizeInline(subject)}`;
     const query = args.query;
     if (typeof query === "string" && query.trim()) return `search: ${normalizeInline(query)}`;
+    const to = args.to;
+    if (typeof to === "string" && to.trim() && typeof args.subject === "string") return `send: ${normalizeInline(args.subject)}`;
   } catch {
     // Incomplete JSON mid-stream — retry on the next delta.
   }
   return undefined;
 }
 
-function applyWorkerJsonLine(state: WorkerStreamState, line: string): boolean {
+function normalizeInline(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function applyStreamLine(state: StreamState, line: string): boolean {
   if (!line.trim()) return false;
   let event: JsonEvent;
   try {
@@ -404,30 +219,21 @@ function applyWorkerJsonLine(state: WorkerStreamState, line: string): boolean {
   } catch {
     return false;
   }
-  if (event.type === "message_start" && event.message?.role === "assistant") {
-    state.thinking = "";
-    state.activeTool = undefined;
-    state.activeToolCallId = undefined;
-    state.activeTools.clear();
-    return true;
-  }
   if (event.type === "tool_execution_start") {
-    setActiveTool(state, event.toolCallId, toolExecutionLabel(event.toolName, event.args));
+    state.activeTools.set(event.toolCallId ?? `tool-${state.activeTools.size}`, toolExecutionLabel(event.toolName, event.args));
+    state.activeTool = [...state.activeTools.values()].at(-1);
     return true;
   }
   if (event.type === "tool_execution_end") {
-    if (!event.toolCallId || state.activeTools.has(event.toolCallId)) {
-      clearActiveTool(state, event.toolCallId);
-      return true;
-    }
-    return false;
+    if (event.toolCallId) state.activeTools.delete(event.toolCallId);
+    else state.activeTools.clear();
+    state.activeTool = [...state.activeTools.values()].at(-1);
+    return true;
   }
   if (event.type !== "message_update") {
     if (event.type !== "message_end" || event.message?.role !== "assistant") return false;
     state.turns++;
-    state.activeTool = undefined;
-    state.activeToolCallId = undefined;
-    state.activeTools.clear();
+    clearActiveTools(state);
     state.thinking = "";
     if (event.message.stopReason === "stop") state.finalResponse = true;
     const parts = extractTextContent(event.message.content, "");
@@ -435,12 +241,12 @@ function applyWorkerJsonLine(state: WorkerStreamState, line: string): boolean {
     const u = event.message.usage;
     if (u) {
       state.usage = {
-        input: u.input ?? 0,
-        output: u.output ?? 0,
-        cacheRead: u.cacheRead ?? 0,
-        cacheWrite: u.cacheWrite ?? 0,
-        totalTokens: u.totalTokens ?? 0,
-        cost: u.cost?.total ?? 0,
+        input: (state.usage?.input ?? 0) + (u.input ?? 0),
+        output: (state.usage?.output ?? 0) + (u.output ?? 0),
+        cacheRead: (state.usage?.cacheRead ?? 0) + (u.cacheRead ?? 0),
+        cacheWrite: (state.usage?.cacheWrite ?? 0) + (u.cacheWrite ?? 0),
+        totalTokens: (state.usage?.totalTokens ?? 0) + (u.totalTokens ?? 0),
+        cost: (state.usage?.cost ?? 0) + (u.cost?.total ?? 0),
       };
     }
     return true;
@@ -457,10 +263,7 @@ function applyWorkerJsonLine(state: WorkerStreamState, line: string): boolean {
       state.thinking += sub.delta ?? "";
       return true;
     case "toolcall_start":
-      state.toolcallArgs = "";
-      state.activeTool = undefined;
-      state.activeToolCallId = undefined;
-      state.activeTools.clear();
+      clearActiveTools(state);
       return true;
     case "toolcall_delta": {
       state.toolcallArgs += sub.delta ?? "";
@@ -469,20 +272,19 @@ function applyWorkerJsonLine(state: WorkerStreamState, line: string): boolean {
       return true;
     }
     case "toolcall_end":
-      // The tool call has been emitted; execution events now own the current
-      // activity label until the tool result arrives.
-      state.toolcallArgs = "";
-      state.activeTool = undefined;
-      state.activeToolCallId = undefined;
-      state.activeTools.clear();
+      // Execution events own the activity label until the result arrives.
+      clearActiveTools(state);
       return true;
     default:
       return false;
   }
 }
 
-function normalizeInline(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
+/** Parse the final assistant text and accumulated usage from captured stdout. */
+export function parseTeammateOutput(stdout: string): { text: string; usage?: WorkerUsage } {
+  const state = createStreamState();
+  for (const line of stdout.split("\n")) applyStreamLine(state, line);
+  return { text: state.text.trim(), usage: state.usage };
 }
 
 function truncate(text: string, cap: number): string {
@@ -490,38 +292,53 @@ function truncate(text: string, cap: number): string {
   return `${text.slice(0, cap)}\n... [truncated ${text.length - cap} chars]`;
 }
 
-/**
- * Resolve how to launch a Pi CLI process.
- * Re-exported from pi-kit for backward compatibility.
- */
-export { resolvePiCli } from "@fradser/pi-kit";
+// ── Resident spawn ────────────────────────────────────────────────
+
+/** Turn-count baseline per teammate at its most recent delivered prompt. */
+const baselines = new Map<string, number>();
+const streamTurns = new Map<string, number>();
+
+export interface ResidentSpawnOptions {
+  /** Teammate name — the registry key for steering, prompting, and shutdown. */
+  workerName: string;
+  /** Optional kickoff prompt; omit to let the teammate idle immediately. */
+  description?: string;
+  model?: string;
+  /** Execution-tool allowlist; capability tools are always appended. */
+  tools?: string[];
+  env?: Record<string, string | undefined>;
+  cwd?: string;
+  /** Maximum assistant turns per wake-up sequence (default DEFAULT_TURN_BUDGET). */
+  turnBudget?: number;
+  onUpdate?: (update: WorkerProgressUpdate) => void;
+  onExit: (result: WorkerProcessResult) => void;
+  onError?: (error: Error) => void;
+}
+
+export interface SpawnedResident {
+  pid: number;
+}
+
+const WORKER_EXTENSION = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "index.ts");
 
 /**
- * Spawn a child Pi process that executes the task description in
- * non-interactive mode. Returns immediately with the child pid; the outcome
- * is delivered via `onExit` / `onError`.
+ * Spawn one resident child Pi process in RPC mode. Returns immediately with
+ * the child pid; outcomes arrive via onExit / onError. An empty description
+ * spawns an idle teammate that waits for its first delivered prompt.
  */
-export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { error: string } {
-  // resolvePiCli always resolves (worst case a "pi" binary on PATH); a missing
-  // binary surfaces later as a child "error" event through onError.
+export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | { error: string } {
   const cli = resolvePiCli();
-  const workerExtension = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "index.ts");
-  const mode = options.mode ?? "json";
   const args: string[] = [
     ...cli.args,
-    ...(mode === "rpc" ? ["--mode", "rpc"] : ["--print", "--mode", mode]),
+    "--mode", "rpc",
     "--no-session",
     "--no-extensions",
-    "--extension",
-    workerExtension,
+    "--extension", WORKER_EXTENSION,
   ];
   if (options.model) args.push("--model", options.model);
-  // Capability tools cannot be removed; execution tools are selected by the
-  // leader from the teammate's explicit configuration or role default.
-  const capabilityTools = ["teammate_message"];
-  const requestedTools = (options.tools ?? []).filter((tool) => !tool.startsWith("teammate_"));
-  const tools = [...new Set([...requestedTools, ...capabilityTools])];
-  args.push("--tools", tools.join(","));
+  const capabilityTools = ["send_message", "task_list", "task_claim", "task_submit"];
+  const requestedTools = (options.tools ?? []).filter((tool) => !capabilityTools.includes(tool));
+  args.push("--tools", [...new Set([...requestedTools, ...capabilityTools])].join(","));
 
   let tempDir: string | undefined;
   const cleanupTempDir = () => {
@@ -534,98 +351,102 @@ export function spawnPiWorker(options: SpawnPiWorkerOptions): SpawnedWorker | { 
       tempDir = undefined;
     }
   };
-  const setupError = (error: unknown): { error: string } => ({
-    error: error instanceof Error ? error.message : String(error),
-  });
 
-  let taskText = `Task: ${options.description}`;
-  try {
-    if (mode !== "rpc" && taskText.length > TASK_ARG_LIMIT) {
-      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "teammate-"));
-      const taskFile = path.join(tempDir, "task.md");
-      fs.writeFileSync(taskFile, taskText, { mode: 0o600 });
-      args.push(`@${taskFile}`);
-    } else if (mode !== "rpc") {
-      args.push(taskText);
-    }
-  } catch (error) {
-    cleanupTempDir();
-    return setupError(error);
-  }
-
-  let child;
+  let child: ChildProcess;
   try {
     child = spawnPiChild(cli.command, args, {
       cwd: options.cwd,
       env: { ...process.env, ...options.env },
-      stdio: [mode === "rpc" ? "pipe" : "ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
   } catch (error) {
     cleanupTempDir();
-    return setupError(error);
+    return { error: error instanceof Error ? error.message : String(error) };
   }
-  observeWorkerClose(options.workerName ?? `pid:${child.pid ?? 0}`, child);
-  if (options.workerName) workers.set(options.workerName, child);
-
-  if (mode === "rpc") {
-    child.stdin?.write(`${JSON.stringify({ type: "prompt", id: randomUUID(), message: taskText })}\n`);
+  if (options.description && options.description.trim()) {
+    writeToControlStream(child, { type: "prompt", id: randomUUID(), message: options.description });
+    baselines.set(options.workerName, 0);
   }
+  observeWorkerClose(options.workerName, child);
+  workers.set(options.workerName, child);
 
   const stdoutChunks: string[] = [];
   const stderrChunks: string[] = [];
-  const streamState = createWorkerStreamState();
+  const streamState = createStreamState();
+  streamStates.set(options.workerName, streamState);
   let stdoutBuffer = "";
   let settled = false;
-  let turnBudgetExceeded = false;
+  let budgetExceeded = false;
+  const turnBudget = options.turnBudget ?? DEFAULT_TURN_BUDGET;
+
   const emitProgress = () => options.onUpdate?.({
     text: truncate(streamState.text, OUTPUT_CAP),
     activeTool: streamState.activeTool,
     liveThinking: truncate(streamState.thinking, OUTPUT_CAP),
-    turns: streamState.turns,
+    turns: Math.max(0, streamState.turns - (baselines.get(options.workerName) ?? 0)),
     finalResponse: streamState.finalResponse,
   });
+
   child.stdout?.on("data", (chunk: Buffer) => {
     const text = chunk.toString();
-    appendCapped(stdoutChunks, text, OUTPUT_CAP * 2);
+    appendCapped(stdoutChunks, text, OUTPUT_CAP * 4);
     stdoutBuffer += text;
     const lines = stdoutBuffer.split("\n");
     stdoutBuffer = lines.pop() ?? "";
     let changed = false;
     for (const line of lines) {
-      changed = applyWorkerJsonLine(streamState, line) || changed;
-      if (options.turnBudget && streamState.turns >= options.turnBudget && !streamState.finalResponse && !turnBudgetExceeded) {
-        turnBudgetExceeded = true;
-        void terminateChildProcess(child);
-      }
+      changed = applyStreamLine(streamState, line) || changed;
     }
+    streamTurns.set(options.workerName, streamState.turns);
     if (changed) emitProgress();
+    if (
+      !budgetExceeded
+      && streamState.turns - (baselines.get(options.workerName) ?? 0) >= turnBudget
+      && !streamState.finalResponse
+    ) {
+      budgetExceeded = true;
+      void terminateChildProcess(child);
+    }
   });
   child.stderr?.on("data", (chunk: Buffer) => appendCapped(stderrChunks, chunk.toString(), OUTPUT_CAP * 2));
 
   child.on("error", (error) => {
     cleanupTempDir();
     settled = true;
-    // Keep the registry entry until close is observed; shutdown diagnostics must
-    // distinguish an error/exit code from a confirmed close event.
+    // Keep the registry entry until close is observed so shutdown diagnostics
+    // can distinguish an error/exit code from a confirmed close event.
     options.onError?.(error);
   });
 
   child.on("close", (code, signal) => {
     cleanupTempDir();
-    if (options.workerName && workers.get(options.workerName) === child) workers.delete(options.workerName);
-    // A spawn failure already reported via onError (Node fires error then
-    // close) — do not double-report through onExit, which would let a failed
-    // spawn look like a successful 0-exit run.
+    if (workers.get(options.workerName) === child) workers.delete(options.workerName);
+    streamStates.delete(options.workerName);
+    baselines.delete(options.workerName);
+    streamTurns.delete(options.workerName);
+    // A spawn failure was already reported via onError (Node fires error then
+    // close) — do not double-report through onExit.
     if (settled) return;
-    const rawStdout = stdoutChunks.join("");
-    const parsed = mode === "text"
-      ? { text: rawStdout.trim(), usage: undefined }
-      : parseWorkerOutput(rawStdout);
-    const stdout = truncate(parsed.text, OUTPUT_CAP);
-    const stderr = truncate(stderrChunks.join("").trim(), OUTPUT_CAP);
-    options.onExit({ pid: child.pid ?? 0, exitCode: code, signal, stdout, stderr, usage: parsed.usage, turnBudgetExceeded });
+    const parsed = parseTeammateOutput(stdoutChunks.join(""));
+    options.onExit({
+      pid: child.pid ?? 0,
+      exitCode: code,
+      signal,
+      stdout: truncate(parsed.text, OUTPUT_CAP),
+      stderr: truncate(stderrChunks.join("").trim(), OUTPUT_CAP),
+      usage: parsed.usage,
+      turnBudgetExceeded: budgetExceeded,
+    });
   });
 
   return { pid: child.pid ?? 0 };
 }
 
+function appendCapped(chunks: string[], chunk: string, cap: number): void {
+  chunks.push(chunk);
+  let total = chunks.reduce((sum, value) => sum + value.length, 0);
+  while (total > cap && chunks.length > 1) {
+    total -= chunks.shift()?.length ?? 0;
+  }
+  if (total > cap && chunks.length === 1) chunks[0] = chunks[0].slice(-cap);
+}

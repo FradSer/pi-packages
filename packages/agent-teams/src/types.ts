@@ -1,116 +1,102 @@
 import type { Static } from "typebox";
 import { Type } from "typebox";
 
-// ── Run / Node ────────────────────────────────────────────────────
+// ── Teammate ──────────────────────────────────────────────────────
 
-export const NodeStatus = Type.Union(
+export const TeammateStatus = Type.Union(
   [
-    Type.Literal("pending"),
-    Type.Literal("running"),
-    Type.Literal("completed"),
-    Type.Literal("failed"),
-    Type.Literal("cancelled"),
+    Type.Literal("starting"),
+    Type.Literal("idle"),
+    Type.Literal("working"),
+    Type.Literal("stopped"),
   ],
-  { description: "Current status of a run node" },
+  { description: "Lifecycle of a resident teammate" },
 );
-export type NodeStatus = Static<typeof NodeStatus>;
+export type TeammateStatus = Static<typeof TeammateStatus>;
 
-export const RunStatus = Type.Union(
-  [
-    Type.Literal("running"),
-    Type.Literal("completed"),
-    Type.Literal("failed"),
-    Type.Literal("cancelled"),
-  ],
-  { description: "Current status of a run" },
-);
-export type RunStatus = Static<typeof RunStatus>;
-
-/** One task in a dispatched run: a bounded child-process unit of work. */
-export interface Node {
-  /** User-chosen id, unique within the run. */
-  id: string;
-  /** Stable node identity: `${runId}:${nodeId}`. */
-  workerKey: string;
+/** A named, long-lived child Pi process on the team roster. */
+export interface Teammate {
+  /** Unique among living teammates; also the mailbox and roster key. */
+  name: string;
   /** Resolved agent definition name. */
   agent: string;
-  /** The specific task text handed to the worker. */
-  prompt: string;
-  /** Optional repository-relative paths used to coordinate this node. */
-  paths: string[];
-  /** Read nodes may overlap; write nodes need shared-workspace conflict protection. */
-  access: "read" | "write";
-  /** Optional per-node model pin (provider/model). */
-  model?: string;
-  /** RPC mode keeps stdin available for runtime steering. */
-  mode?: "json" | "rpc";
-  /** Optional maximum number of assistant turns before the worker is stopped. */
-  turnBudget?: number;
-  /** Node ids that must complete before this node may start. */
+  /** Per-spawn capability identity, regenerated for every process. */
+  spawnId: string;
+  pid: number;
+  status: TeammateStatus;
+  /** Working directory (the worktree root when isolated). */
+  cwd?: string;
+  /** Whether this teammate owns a dedicated Git worktree. */
+  isolation: "worktree" | "none";
+  /** Board task currently claimed by this teammate, if any. */
+  currentTaskId?: string;
+  /** Live assistant text assembled from the RPC stream. */
+  liveText?: string;
+  /** Current child tool name, if a tool is executing. */
+  activeTool?: string;
+  /** Live assistant reasoning streamed while no tool runs. */
+  liveThinking?: string;
+  /** Assistant turns observed in the current wake-up sequence. */
+  turns?: number;
+  /** The child finished its current sequence and awaits the next prompt. */
+  sequenceEnded?: boolean;
+  /** When the harness last sent a claimable-task notice to this teammate. */
+  lastNoticeAt?: number;
+  usage?: WorkerUsage;
+  error?: string;
+  createdAt: number;
+  updatedAt: number;
+  stoppedAt?: number;
+  /** Last wall-clock time output was observed (any stream event or prompt delivery). */
+  lastOutputAt?: number;
+  /** When the current stall episode notice was sent (one per episode). */
+  stallNoticeSentAt?: number;
+}
+
+// ── Task board ────────────────────────────────────────────────────
+
+export const TaskStatus = Type.Union(
+  [
+    Type.Literal("pending"),
+    Type.Literal("claimed"),
+    Type.Literal("completed"),
+  ],
+  { description: "Board lifecycle of a task" },
+);
+export type TaskStatus = Static<typeof TaskStatus>;
+
+/** One task on the shared board. Only the leader process writes board state. */
+export interface BoardTask {
+  id: string;
+  subject: string;
+  description?: string;
+  /** Task ids that must complete before this task is claimable. */
   dependsOn: string[];
-  /** Named upstream node ids whose results are included as fork context. */
-  forkContext?: string[];
-  /** Named input bindings using `nodeId#/json/pointer` sources. */
-  inputBindings?: Record<string, string>;
-  status: NodeStatus;
+  /** Deterministic completion gate; overrides the agent-role default. */
+  verify?: string;
+  status: TaskStatus;
+  claimedBy?: string;
   result?: string;
-  /** Named structured outputs emitted through teammate_message. */
-  namedOutputs?: Record<string, string>;
-  /** Bounded JSON output emitted through teammate_message for downstream data flow. */
-  structuredOutput?: unknown;
   errorMessage?: string;
-  /** True once the terminal node follow-up has been delivered. */
-  nodeFollowUpSent?: boolean;
-  /** Real child-process execution info when this node was spawned. */
-  spawn?: SpawnInfo;
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
 }
 
-/** Ephemeral agent declared inline for a single run (does not persist to disk). */
-export interface EphemeralAgent {
-  name: string;
-  description: string;
-  tools: string[];
-  model?: string;
-  prompt: string;
-}
-
-/** A dispatched dependency-aware task graph. */
-export interface Run {
-  id: string;
-  cwd: string;
-  status: RunStatus;
-  concurrency: number;
-  /** Every node runs in its own git worktree when true. */
-  worktree: boolean;
-  /** background=true returns immediately; false gathers in the tool call. */
-  background: boolean;
-  /** Run-level failure detail. */
-  errorMessage?: string;
-  nodes: Record<string, Node>;
-  createdAt: number;
-  updatedAt: number;
-  finishedAt?: number;
-  /** True once the run-completion follow-up was delivered, or claimed by wait/foreground gather. */
-  completionNotified?: boolean;
-  /** True once the run-settled leader summary was sent (onRunSettled is idempotent). */
-  settledMessageSent?: boolean;
-  /** Synthesized final summary produced by the optional __summary node. */
-  summary?: string;
-  /** True once run cancellation has been requested; it wins over node outcomes. */
-  cancelRequested?: boolean;
-  /** Ephemeral agents scoped to this run only. */
-  ephemeralAgents?: Record<string, EphemeralAgent>;
+/** A claim or submission intent expressed by a worker through marker files.
+ * Workers never write the board file itself. `status` applies to submissions. */
+export interface TaskIntent {
+  taskId: string;
+  worker: string;
+  spawnId: string;
+  status?: "completed" | "failed";
+  result?: string;
+  timestamp: number;
 }
 
 // ── Spawn ─────────────────────────────────────────────────────────
 
-/** Lifecycle of a spawned child Pi process running a node. */
-export type SpawnStatus = "running" | "completed" | "failed";
-
-/** Token/cost usage reported by a finished worker (from JSON-mode output). */
+/** Token/cost usage reported by a teammate (accumulated across sequences). */
 export interface WorkerUsage {
   input: number;
   output: number;
@@ -120,46 +106,6 @@ export interface WorkerUsage {
   cost: number;
 }
 
-export interface SpawnInfo {
-  /** Per-spawn capability identity, regenerated for every worker process. */
-  spawnId: string;
-  mode?: "json" | "rpc";
-  pid: number;
-  status: SpawnStatus;
-  startedAt: number;
-  /** Live assistant text assembled from JSON-mode stream events. */
-  liveText?: string;
-  /** Current child tool name, if a tool is executing. */
-  activeTool?: string;
-  /** Live assistant reasoning streamed from the child (shown while no tool runs). */
-  liveThinking?: string;
-  /** Number of assistant turns observed from the child JSON stream. */
-  turns?: number;
-  /** The child emitted a final successful assistant response and should close promptly. */
-  finalResponse?: boolean;
-  finishedAt?: number;
-  exitCode?: number;
-  /** Truncated stdout of the child process. */
-  stdout?: string;
-  /** Truncated stderr of the child process. */
-  stderr?: string;
-  /** Spawn-level error (e.g. CLI resolution failure). */
-  error?: string;
-  /** Token/cost usage reported by the worker, when available. */
-  usage?: WorkerUsage;
-  timedOut?: boolean;
-  /** Whether this spawn owns a dedicated Git worktree. */
-  isolation?: "worktree" | "none";
-  /** Terminal report accepted from the worker before process close. */
-  logicalTerminalReport?: "completed" | "failed";
-  /** True after the first terminal report for this spawn is accepted. */
-  terminalReportAccepted?: boolean;
-  /** True only after the child process close event has been observed. */
-  processClosed: boolean;
-  /** True after the harness emits the canonical terminal result. */
-  terminalResultEmitted?: boolean;
-}
-
 // ── Mailbox ───────────────────────────────────────────────────────
 
 export interface MailboxMessage {
@@ -167,136 +113,121 @@ export interface MailboxMessage {
   from: string;
   subject: string;
   body: string;
-  runId?: string;
+  status?: "in_progress" | "completed" | "failed";
   timestamp: number;
 }
 
-/** Append-only event emitted by a worker and applied by the team leader. */
-export interface WorkerMessageEvent {
+/** Append-only report event emitted by a teammate to the leader. The title
+ * is derived by the harness from the first line of the body. */
+export interface WorkerReportEvent {
   id: string;
   type: "message";
   worker: string;
   spawnId: string;
-  subject: string;
   body: string;
   status?: "in_progress" | "completed" | "failed";
-  data?: {
-    kind?: "named_output" | "output";
-    name?: string;
-    value?: string;
-    output?: unknown;
-    message?: string;
-  };
 }
 
-export type WorkerEvent = WorkerMessageEvent;
+export type WorkerEvent = WorkerReportEvent;
+
+/** Structural guard applied to every outbox record before it is trusted. */
+export function isWorkerEvent(value: unknown): value is WorkerReportEvent {
+  if (!value || typeof value !== "object") return false;
+  const event = value as Partial<WorkerReportEvent>;
+  return typeof event.id === "string"
+    && event.type === "message"
+    && typeof event.worker === "string"
+    && typeof event.spawnId === "string"
+    && typeof event.body === "string"
+    && (event.status === undefined || ["in_progress", "completed", "failed"].includes(event.status));
+}
+
+/** Derive a display title from the first non-empty line of a message. */
+export function messageTitle(body: string): string {
+  for (const line of body.split("\n")) {
+    const trimmed = line.replace(/\s+/g, " ").trim();
+    if (trimmed) return trimmed.slice(0, 120);
+  }
+  return "(no content)";
+}
+
+/** One message in a teammate inbox (peer-to-peer or harness feedback). */
+export interface InboxMessage {
+  id: string;
+  from: string;
+  subject: string;
+  body: string;
+  timestamp: number;
+}
 
 // ── Tool parameter schemas (typebox) ──────────────────────────────
 
-const NodeAccess = Type.Union(
-  [Type.Literal("read"), Type.Literal("write")],
-  { description: "Scheduling and prompt metadata only: read/write intent is included in the worker prompt; teammates that share paths run concurrently and coordinate through teammate_message. It does not enforce filesystem permissions or provide an OS/container sandbox. Default: read." },
-);
-
-/** One task inside teammate_run. */
-export const RunTaskSpec = Type.Object({
-  id: Type.String({ description: "Node id, unique within this run" }),
-  agent: Type.String({ description: "Agent definition name (bundled, user, or project scope)" }),
-  prompt: Type.String({ minLength: 1, description: "The specific task text handed to this worker" }),
-  dependsOn: Type.Optional(Type.Array(Type.String(), { description: "Node ids that must complete before this node starts" })),
-  paths: Type.Optional(Type.Array(Type.String({ description: "Optional repository-relative path used for scheduling metadata; not a permission boundary" }), {
-    minItems: 1,
-    description: "Optional scheduling and prompt metadata; paths do not enforce read/write access or provide an OS/container sandbox. Teammates that share paths may coordinate through teammate_message",
-  })),
-  access: Type.Optional(NodeAccess),
-  model: Type.Optional(Type.String({ description: "Optional per-node provider/model pin" })),
-  mode: Type.Optional(Type.Union([Type.Literal("json"), Type.Literal("rpc")], { description: "Worker process mode; rpc enables runtime steering" })),
-  turnBudget: Type.Optional(Type.Integer({ minimum: 1, description: "Optional maximum assistant turns before the worker is stopped (default: 100; high safety cap for edge cases)" })),
-  forkContext: Type.Optional(Type.Array(Type.String(), { description: "Named upstream node ids whose results are included as fork context" })),
-  inputBindings: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "Named inputs bound from dependency outputs using nodeId#/json/pointer" })),
+/** Spawn one named resident teammate. */
+export const TeammateSpawnParams = Type.Object({
+  name: Type.String({ minLength: 1, description: "Teammate name, unique among living teammates; used for messaging and claiming" }),
+  agent: Type.String({ description: "Agent definition name (bundled, user, or project scope); its frontmatter pins model and optional worktree isolation" }),
+  prompt: Type.Optional(Type.String({ description: "Optional kickoff prompt delivered as the teammate's first turn; omit to let it wait for messages or board claims" })),
 });
 
-export const EphemeralAgentSpec = Type.Object({
-  name: Type.String({ minLength: 1, description: "Ephemeral agent name, unique within the run" }),
-  prompt: Type.String({ minLength: 1, description: "Role prompt (Markdown body) for this ephemeral agent" }),
-  description: Type.Optional(Type.String({ description: "Routing hint for when to choose this ephemeral agent" })),
-  tools: Type.Optional(Type.Array(Type.String(), { description: "Pi tool ids for this ephemeral agent" })),
-  model: Type.Optional(Type.String({ description: "Optional provider/model pin for this ephemeral agent" })),
+/** Shut down one living teammate. */
+export const TeammateShutdownParams = Type.Object({
+  name: Type.String({ description: "Teammate name on the roster" }),
 });
 
-/** Dispatch a dependency-aware task graph in one call. */
-export const TeammateRunParams = Type.Object({
-  tasks: Type.Array(RunTaskSpec, {
-    minItems: 1,
-    maxItems: 32,
-    description: "Task graph to dispatch; dependsOn edges must form a DAG",
-  }),
-  concurrency: Type.Optional(Type.Integer({ minimum: 1, maximum: 32, description: "Max nodes running at once (default: 4)" })),
-  worktree: Type.Optional(Type.Boolean({ description: "Run every node in its own git worktree (default: false)" })),
-  background: Type.Optional(Type.Boolean({ default: true, description: "Return immediately and deliver one completion follow-up. Default: true — teammates always run in the background; workers message team-leader with deliverables upon completion." })),
-  summarize: Type.Optional(Type.Boolean({ description: "Append a __summary node after all leaf nodes. Default: true when the run has more than one user task, false for a single task." })),
-  summaryAgent: Type.Optional(Type.String({ description: "Agent used for the summary node when summarize is on (default: observer)" })),
-  cwd: Type.Optional(Type.String({ description: "Working directory for this run (default: the session cwd)" })),
-  ephemeralAgents: Type.Optional(Type.Array(EphemeralAgentSpec, {
-    maxItems: 8,
-    description: "Ephemeral agents defined for this run only; they override bundled agents by name for this run and do not persist to disk",
-  })),
+/** Create a board task (leader-only). */
+export const TaskCreateParams = Type.Object({
+  subject: Type.String({ minLength: 1, description: "Short task title shown on the board" }),
+  description: Type.Optional(Type.String({ description: "Full task description for the claiming teammate" }),
+  ),
+  dependsOn: Type.Optional(Type.Array(Type.String(), { description: "Task ids that must complete before this task is claimable" })),
+  verify: Type.Optional(Type.String({ description: "Deterministic completion gate command; zero exit completes the task. Overrides any agent-role default verify." })),
 });
 
-/** Explicit cancel of a run or single node. */
-export const TeammateCancelParams = Type.Object({
-  runId: Type.String({ description: "Run id to cancel" }),
-  nodeId: Type.Optional(Type.String({ description: "Cancel one node (and its not-yet-started dependents) instead of the whole run; the run continues" })),
-});
+/** Shared leader/worker read-only board view. */
+export const TaskListParams = Type.Object({});
 
-/** Retry the failed/cancelled nodes of a settled run. */
-export const TeammateRetryParams = Type.Object({
-  runId: Type.String({ description: "Run id of a settled (failed/cancelled/completed) run" }),
-  nodeIds: Type.Optional(Type.Array(Type.String(), { description: "Node ids to reset and re-run; defaults to all failed and cancelled nodes" })),
-});
+/** The reserved recipient name for reports to the team leader. */
+export const LEADER_RECIPIENT = "leader";
 
-/** Worker progress message or final report to the team leader. */
-export const TeammateMessageParams = Type.Object({
-  subject: Type.String({ description: "Concise report subject" }),
-  body: Type.String({ description: "Progress note or full final deliverable for the team leader" }),
+/** The single messaging primitive: addressed peer mail and leader reports.
+ * `status` is honored only for to="leader" terminal reports. */
+export const SendMessageParams = Type.Object({
+  to: Type.String({ minLength: 1, description: 'Recipient: a teammate name on the roster, or "leader" to report to the team leader' }),
+  message: Type.String({ description: "Message content; the first line becomes the title shown in the console" }),
   status: Type.Optional(Type.Union([
     Type.Literal("in_progress"),
     Type.Literal("completed"),
     Type.Literal("failed"),
-  ], { description: "Optional worker status; use completed or failed for the final deliverable" })),
-  data: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: "Structured teammate data: named_output or output" })),
+  ], { description: 'Only for to="leader": completed or failed ends the current assignment and triggers immediate follow-up delivery' })),
 });
 
-/** Leader-only operation that fans out a completed node's structured array output. */
-export const TeammateFanoutParams = Type.Object({
-  runId: Type.String({ description: "Source run id" }),
-  nodeId: Type.String({ description: "Completed source node whose structured output is an array" }),
-  agent: Type.String({ description: "Agent to run for each item" }),
-  prompt: Type.String({ minLength: 1, description: "Task prompt; each item is appended as JSON" }),
-  paths: Type.Optional(Type.Array(Type.String({ description: "Optional scheduling and prompt metadata: repository-relative paths are included in the worker prompt when provided; they do not enforce filesystem permissions or provide an OS/container sandbox" }), { minItems: 1, description: "Optional scheduling and prompt metadata; paths do not enforce read/write access or provide an OS/container sandbox" })),
-  access: Type.Optional(NodeAccess),
-  model: Type.Optional(Type.String()),
-  turnBudget: Type.Optional(Type.Integer({ minimum: 1 })),
-  concurrency: Type.Optional(Type.Integer({ minimum: 1, maximum: 32 })),
-  background: Type.Optional(Type.Boolean({ default: true })),
+/** Self-claim a pending board task. */
+export const TaskClaimParams = Type.Object({
+  taskId: Type.Optional(Type.String({ description: "Specific task id to claim; omit to claim the first claimable task" })),
 });
 
-/** Leader-only runtime steer sent through the existing teammate_message name. */
-export const TeammateLeaderMessageParams = Type.Object({
-  target: Type.String({ description: "Run-qualified worker key, for example run_1:inspect" }),
-  body: Type.String({ minLength: 1, description: "Steering message for the running RPC worker" }),
+/** Submit a claimed task outcome. Completion passes through the verify gate. */
+export const TaskSubmitParams = Type.Object({
+  taskId: Type.String({ description: "The claimed task id" }),
+  status: Type.Union([Type.Literal("completed"), Type.Literal("failed")], { description: "Outcome of the claimed task" }),
+  result: Type.Optional(Type.String({ description: "Result summary recorded on the board when completed" })),
 });
 
 // ── State snapshot for persistence ────────────────────────────────
 
-export interface TeammateState {
-  runs: Record<string, Run>;
-  /** Single leader inbox for worker terminal reports and leader-bound messages. */
+export interface TeamState {
+  teammates: Record<string, Teammate>;
+  tasks: Record<string, BoardTask>;
+  /** Single leader inbox for teammate reports and harness diagnostics. */
   leaderMailbox: MailboxMessage[];
   messageCounter: number;
-  runCounter: number;
-  /** Byte offsets consumed by the parent from each worker's append-only outbox. */
+  taskCounter: number;
+  /** Byte offsets consumed by the parent from each teammate's outbox. */
   workerEventOffsets: Record<string, number>;
-  /** Event IDs already applied by the parent, keyed to their worker spawn for compaction. */
+  /** Report event ids already applied, keyed by teammate spawn. */
   workerEventIds: Record<string, string>;
+  /** Consumed byte offsets per peer inbox file. */
+  peerInboxOffsets: Record<string, number>;
+  /** Delivered peer message ids per inbox, capped FIFO for deduplication. */
+  peerDeliveredIds: Record<string, string[]>;
 }
