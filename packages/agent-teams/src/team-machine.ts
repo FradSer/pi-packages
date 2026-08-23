@@ -125,6 +125,8 @@ const pendingShutdowns = new Set<string>();
 const verifyingTasks = new Map<string, { worker: string; spawnId: string }>();
 /** Idle nudges already fired per teammate incarnation (one per transition). */
 const idleNudgesSent = new Set<string>();
+/** Self-finalize requests delivered per teammate incarnation before escalating to the leader. */
+const selfFinalizeAttempts = new Set<string>();
 const pendingDeliveries = new Map<string, InboxMessage[]>();
 const liveWorktrees = new Map<string, ReturnType<typeof createWorktree>>();
 
@@ -163,6 +165,7 @@ export function shutdownTeamMachine(): void {
   pendingShutdowns.clear();
   verifyingTasks.clear();
   idleNudgesSent.clear();
+  selfFinalizeAttempts.clear();
   pendingDeliveries.clear();
 }
 
@@ -408,7 +411,7 @@ function checkStalledTeammates(now = Date.now()): void {
     const silence = stallSilenceMs(teammate, now);
     if (silence === undefined) continue;
     if (silence < STALL_NOTICE_MS || teammate.stallNoticeSentAt !== undefined) continue;
-    const body = `@${teammate.name} has produced no RPC output for ${formatSilenceDuration(silence)}. The child may be blocked in a provider or tool call; steer delivery is uncertain. Decide: keep waiting, steer again, or shut it down (and respawn a successor with context from the original kickoff, its mailbox reports, board claims, and the /teammate detail transcript).`;
+    const body = `@${teammate.name} has produced no RPC output for ${formatSilenceDuration(silence)}. The child may be blocked in a provider or tool call; steer delivery is uncertain. Decide: keep waiting, steer again, or shut it down (and respawn a successor with context from the original kickoff, its mailbox reports, board claims, and the /agent-teams detail transcript).`;
     updateTeammate(teammate.name, { stallNoticeSentAt: now });
     deliverToLeader({ from: "harness", subject: `Possible stall: @${teammate.name}`, body });
     sendUpdate({ teammate: teammate.name, agent: teammate.agent, body, finished: false });
@@ -428,9 +431,24 @@ export function hasUnfinalizedReport(name: string): boolean {
 /** One light reminder per idle transition when work looks unfinished. */
 function nudgeIfUnfinalized(name: string, spawnId: string): void {
   const key = `${name}:${spawnId}`;
-  if (idleNudgesSent.has(key) || !hasUnfinalizedReport(name)) return;
+  // The terminal report may have been written to the outbox file but not yet
+  // drained into the leader mailbox by the next tick; drain before deciding.
+  drainTeammateOutboxes();
+  if (!hasUnfinalizedReport(name)) return;
+  if (!selfFinalizeAttempts.has(key)) {
+    // First miss: give the worker one chance to fix its own bookkeeping
+    // before bothering the leader. The inbox message wakes it on the next tick.
+    selfFinalizeAttempts.add(key);
+    deliverFeedback(
+      name,
+      "Assignment not finalized",
+      'Your latest message to the leader carried no terminal status. Send send_message(to="leader", message=...) now with status="completed" or status="failed" summarizing your final result.',
+    );
+    return;
+  }
+  if (idleNudgesSent.has(key)) return;
   idleNudgesSent.add(key);
-  const reminder = `@${name} is now idle but its last report was not marked status="completed" or "failed". Its conclusions may be stuck in the mailbox — ask it to finalize or inspect the /teammate console.`;
+  const reminder = `@${name} is now idle but its last report was not marked status="completed" or "failed". Its conclusions may be stuck in the mailbox — ask it to finalize or inspect the /agent-teams console.`;
   deliverToLeader({ from: "harness", subject: `Idle without terminal report: @${name}`, body: reminder });
   sendUpdate({ teammate: name, body: reminder, finished: false });
 }
@@ -464,6 +482,8 @@ export async function shutdownTeammate(name: string): Promise<{ ok: true; body: 
     pendingShutdowns.delete(name);
     const released = releaseTasksOf(name, "Teammate was shut down.");
     updateTeammate(name, { status: "stopped", activeTool: undefined });
+    idleNudgesSent.delete(`${name}:${teammate.spawnId}`);
+    selfFinalizeAttempts.delete(`${name}:${teammate.spawnId}`);
     publishStateSnapshot();
     notifyChange();
     return { ok: true, body: summarizeShutdown(name, released.length, 0, undefined) };
@@ -493,6 +513,7 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
   // A stopped teammate must not keep the poll loop or its queue alive.
   pendingDeliveries.delete(name);
   idleNudgesSent.delete(`${name}:${teammate.spawnId}`);
+  selfFinalizeAttempts.delete(`${name}:${teammate.spawnId}`);
   updateTeammate(name, {
     status: "stopped",
     activeTool: undefined,

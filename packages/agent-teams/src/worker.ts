@@ -119,7 +119,9 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
           body: params.message,
           status: params.status,
         });
-        return { content: [{ type: "text", text: "Queued message to leader." }], details: {} };
+        return { content: [{ type: "text", text: params.status
+          ? "Queued message to leader."
+          : 'Queued message to leader. Note: without status="completed" or status="failed" this report does not end your assignment.' }], details: {} };
       }
       if (params.status) throw new Error('status is valid only when to="leader".');
       if (params.to === binding.worker) throw new Error("You are already the recipient — no need to message yourself.");

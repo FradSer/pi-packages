@@ -45,6 +45,11 @@ Feature: Agent Teams collaborative organization contract
       And a declared verify command is used as the role-default completion gate
       And worktree: true is used as the role-default Git isolation setting
 
+    Scenario: Multi-line YAML tool lists are declared like inline lists
+      Given an agent Markdown file whose tools frontmatter uses one dash item per line under "tools:"
+      When the leader resolves that agent
+      Then every dash-listed tool is declared and none is silently dropped
+
     Scenario: Agent descriptions are injected into prompt guidance
       Given agent definitions exist in bundled, user, or project scopes
       When a turn starts and before_agent_start runs
@@ -163,12 +168,18 @@ Feature: Agent Teams collaborative organization contract
       And intermediate reports are recorded without interrupting the main session
       And status is rejected for peer-directed messages
 
-    Scenario: An idle teammate with an unfinalized last report nudges the leader
+    Scenario: A teammate whose last report lacks terminal status is asked to self-finalize first
       Given a teammate sent leader-bound messages but never status="completed" or "failed"
       When its current sequence ends and it goes idle
-      Then the harness delivers one light reminder naming that teammate
-      And the reminder fires once per idle transition, not per stream tick
-      And it does not fire when every report from that teammate was terminal
+      Then the harness writes one finalize request into that teammate's inbox instead of alerting the leader
+      And the request instructs send_message(to="leader") with status="completed" or status="failed"
+
+    Scenario: A repeated unfinalized idle transition escalates to the leader
+      Given a teammate already received one finalize request for this spawn incarnation
+      When it goes idle again and its last leader-bound report still lacks terminal status
+      Then the harness delivers one light leader reminder naming that teammate
+      And neither request nor reminder repeats within the same spawn incarnation
+      And neither fires when every report from that teammate was terminal
 
     Scenario: The leader addresses a living teammate by name through send_message
       When the leader calls send_message with a teammate name and one message body

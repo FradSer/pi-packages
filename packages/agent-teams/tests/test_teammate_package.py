@@ -79,6 +79,7 @@ def test_bdd_contract_covers_target_resources() -> None:
         "xxx.local.md files mark personal overrides inside .pi/agents",
         "Local override files dedupe against their shared counterpart by teammate name",
         "Agent frontmatter declares tools, model, verify, and worktree; the body is the role prompt",
+        "Multi-line YAML tool lists are declared like inline lists",
         "An unknown agent name fails the spawn",
         "Teammates are named resident processes",
         "Spawning creates one named resident teammate",
@@ -98,8 +99,9 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Peer traffic never enters the leader's model context",
         "Reports to the leader use the unified send_message primitive",
         "The leader addresses a living teammate by name through send_message",
-        "An idle teammate with an unfinalized last report nudges the leader",
-        "the reminder fires once per idle transition, not per stream tick",
+        "A teammate whose last report lacks terminal status is asked to self-finalize first",
+        "neither request nor reminder repeats within the same spawn incarnation",
+        "A repeated unfinalized idle transition escalates to the leader",
         "the shared task_list view includes the living roster on both leader and worker sides",
         "Stale spawn events cannot affect a newer teammate incarnation",
         "The task board is shared coordination state",
@@ -406,6 +408,73 @@ def test_agent_frontmatter_parses_tools_model_verify(tmp_path: Path) -> None:
     assert payload["worktree"] is True
     assert payload["scope"] == "project"
     assert payload["promptIsBody"] is True
+
+
+def test_agent_frontmatter_parses_multiline_dash_list_tools(tmp_path: Path) -> None:
+    agents_dir = tmp_path / ".pi" / "agents"
+    agents_dir.mkdir(parents=True)
+    (agents_dir / "scribe.md").write_text(
+        "---\n"
+        "name: scribe\n"
+        "description: Worktree writer\n"
+        "tools:\n"
+        "  - read\n"
+        "  - bash\n"
+        "  - edit # allow file edits\n"
+        "  - write\n"
+        "worktree: true\n"
+        "---\n"
+        "Write inside your worktree.\n",
+        encoding="utf-8",
+    )
+    payload = run_node(
+        f'''\
+        import {{ resolveAgent }} from "{(SRC / "agents.ts").as_uri()}";
+        const agent = resolveAgent("scribe", {json.dumps(str(tmp_path))});
+        console.log(JSON.stringify({{
+          found: Boolean(agent),
+          tools: agent?.tools ?? [],
+          worktree: agent?.worktree ?? null,
+          promptIsBody: (agent?.prompt ?? "").includes("Write inside your worktree."),
+        }}));
+        ''',
+    )
+    assert payload["found"] is True
+    assert payload["tools"] == ["read", "bash", "edit", "write"]
+    assert payload["worktree"] is True
+    assert payload["promptIsBody"] is True
+
+
+def test_agent_frontmatter_dash_list_edge_cases(tmp_path: Path) -> None:
+    """Flush-left dashes, interleaved comments, no-space dashes, and
+    comment-only entries must parse like a standard YAML block sequence."""
+    agents_dir = tmp_path / ".pi" / "agents"
+    agents_dir.mkdir(parents=True)
+    (agents_dir / "edge.md").write_text(
+        "---\n"
+        "name: edge\n"
+        "description: Dash-list edge cases\n"
+        "tools:\n"
+        "# allowlist comment\n"
+        "- read\n"
+        "  - bash\n"
+        "-edit\n"
+        "  - # not a tool\n"
+        "- write # trailing comment\n"
+        "model: m\n"
+        "---\n"
+        "Edge body.\n",
+        encoding="utf-8",
+    )
+    payload = run_node(
+        f'''\
+        import {{ resolveAgent }} from "{(SRC / "agents.ts").as_uri()}";
+        const agent = resolveAgent("edge", {json.dumps(str(tmp_path))});
+        console.log(JSON.stringify({{ tools: agent?.tools ?? [], model: agent?.model ?? null }}));
+        ''',
+    )
+    assert payload["tools"] == ["read", "bash", "edit", "write"]
+    assert payload["model"] == "m"
 
 
 def test_project_agent_overrides_user_and_bundled(tmp_path: Path) -> None:
@@ -869,14 +938,26 @@ def test_read_receipts_and_legacy_registry_are_gone() -> None:
         assert legacy.lower() not in all_sources.lower(), legacy
     assert "ephemeral" not in all_sources.lower()
 
-def test_idle_without_terminal_report_nudge_exists() -> None:
+def test_idle_without_terminal_report_self_finalizes_before_escalating() -> None:
     machine = source("team-machine.ts")
+    worker = source("worker.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
-    assert "An idle teammate with an unfinalized last report nudges the leader" in feature
+    assert "A teammate whose last report lacks terminal status is asked to self-finalize first" in feature
+    assert "A repeated unfinalized idle transition escalates to the leader" in feature
     assert "export function hasUnfinalizedReport" in machine
     assert "nudgeIfUnfinalized" in machine
-    # One nudge per idle transition, keyed by name+spawn incarnation.
+    # The decision reads post-drain mailbox state: the terminal report is
+    # written to the outbox file before the final response arrives.
+    nudge_body = machine[machine.index("function nudgeIfUnfinalized"):]
+    assert "drainTeammateOutboxes();" in nudge_body[:400]
+    # First miss: one inbox finalize request per spawn incarnation, no leader alert yet.
+    assert "selfFinalizeAttempts" in machine
+    assert "selfFinalizeAttempts.clear();" in machine
+    assert machine.count("selfFinalizeAttempts.delete(") == 2
+    # Second miss: the existing once-per-incarnation leader reminder.
     assert "idleNudgesSent" in machine
+    # The worker-side send tool reinforces the rule at the exact moment of use.
+    assert "does not end your assignment" in worker
     # A prompt-less spawn is idle from birth instead of sticking in starting.
     assert 'updateTeammate(input.name, { status: "idle" })' in machine
 

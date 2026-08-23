@@ -62,13 +62,40 @@ function parseFrontmatter(raw: string): { fields: Record<string, string | string
   const fields: Record<string, string | string[]> = {};
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(raw);
   if (!match) return { fields, body: raw.trim() };
-  for (const line of match[1].split("\n")) {
+  const lines = match[1].split("\n");
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
     const separator = line.indexOf(":");
     if (separator <= 0) continue;
     const key = line.slice(0, separator).trim();
     // Strip inline YAML comments (# ...) and surrounding whitespace/quotes.
     let value = line.slice(separator + 1).replace(/\s+#.*$/, "").trim();
     if (key === "tools") {
+      if (value === "") {
+        // YAML block sequence: "- item" lines, flush-left or indented,
+        // possibly interleaved with blank or comment-only lines.
+        const items: string[] = [];
+        index += 1;
+        while (index < lines.length) {
+          const trimmed = lines[index].trim();
+          if (trimmed === "" || trimmed.startsWith("#")) {
+            index += 1;
+            continue;
+          }
+          if (!/^-.+/.test(trimmed)) break;
+          const rawItem = trimmed.replace(/^-\s*/, "");
+          const item = rawItem
+            .replace(/\s+#.*$/, "")
+            .trim()
+            .replace(/^["']|["']$/g, "");
+          // "- # comment" is a comment-only entry, not a tool.
+          if (item && !rawItem.trimStart().startsWith("#")) items.push(item);
+          index += 1;
+        }
+        index -= 1; // The for-loop steps past the last consumed line.
+        fields.tools = items;
+        continue;
+      }
       const tools = value
         .replace(/^\[|\]$/g, "")
         .split(",")
