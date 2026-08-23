@@ -36,11 +36,21 @@ export function formatAgentTaskName(prompt: string, fallback: string, maxLength 
 
 /** Format the compact two-row tool event label used by background operations. */
 export function formatToolEventLabel(
-  kind: "started" | "event" | "listed",
+  kind: "started" | "event" | "listed" | "created",
   description: string,
   tool = "monitor",
 ): string {
   return `[${tool}] ${kind} · ${description}`;
+}
+
+/**
+ * Format the dim expand hint appended to a collapsed transcript row
+ * (" · ctrl+o to expand"), the same visual language as teammate report
+ * rows. Callers pass the configured key text resolved by the host, e.g.
+ * keyHint("app.tools.expand", "to expand").
+ */
+export function formatExpandHint(keyHintText: string, theme: PiThemeLike): string {
+  return theme.fg("dim", ` · ${keyHintText}`);
 }
 
 /**

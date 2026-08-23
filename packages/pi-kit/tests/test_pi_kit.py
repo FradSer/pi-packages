@@ -160,6 +160,8 @@ def test_tool_event_labels_share_the_compact_monitor_pattern() -> None:
           started: formatToolEventLabel("started", "运行 monitor 包测试"),
           event: formatToolEventLabel("event", "运行 monitor 包测试"),
           listed: formatToolEventLabel("listed", "2 other sessions in pi-packages", "sessions"),
+          agentEvent: formatToolEventLabel("event", "@scribe shut down", "agent"),
+          created: formatToolEventLabel("created", "Fix the login flow", "board"),
         }}));
         """
     )
@@ -167,6 +169,25 @@ def test_tool_event_labels_share_the_compact_monitor_pattern() -> None:
         "started": "[monitor] started · 运行 monitor 包测试",
         "event": "[monitor] event · 运行 monitor 包测试",
         "listed": "[sessions] listed · 2 other sessions in pi-packages",
+        "agentEvent": "[agent] event · @scribe shut down",
+        "created": "[board] created · Fix the login flow",
+    }
+
+
+def test_expand_hint_shares_the_report_row_style() -> None:
+    result = run_typescript(
+        f"""
+        import {{ formatExpandHint }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const theme = {{ fg: (_color, text) => `<dim>${{text}}</dim>` }};
+        console.log(JSON.stringify({{
+          hint: formatExpandHint("ctrl+o to expand", theme),
+          plain: formatExpandHint("ctrl+o to expand", {{ fg: (_color, text) => text }}),
+        }}));
+        """
+    )
+    assert result == {
+        "hint": "<dim> · ctrl+o to expand</dim>",
+        "plain": " · ctrl+o to expand",
     }
 
 

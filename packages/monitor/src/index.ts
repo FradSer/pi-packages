@@ -4,7 +4,7 @@ import {
   type ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import { Box, Container, isKeyRelease, Key, matchesKey, Text, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { formatToolEventLabel, safeDisplayText } from "@fradser/pi-kit";
+import { formatExpandHint, formatToolEventLabel, safeDisplayText } from "@fradser/pi-kit";
 import {
   MonitorManager,
   type Monitor,
@@ -152,7 +152,7 @@ export default function (pi: ExtensionAPI) {
     const details = message.details as MonitorMessageDetails | undefined;
     const description = safeDisplayText(details?.description ?? "result");
     const title = theme.fg("customMessageLabel", theme.bold(formatToolEventLabel("event", description)));
-    const hint = theme.fg("dim", ` (${keyHint("app.tools.expand", "to expand")})`);
+    const hint = formatExpandHint(keyHint("app.tools.expand", "to expand"), theme);
     const box = new Box(outputPad, 1, (text) => theme.bg("customMessageBg", text));
     if (!expanded) {
       box.addChild(new Text(`${title}${hint}`, 0, 0));

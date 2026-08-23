@@ -102,10 +102,11 @@ monitor_start
 
 A successful result wakes the agent once. In the transcript it is shown as a
 compact monitor event; expand it to inspect the terminal fields. The collapsed
-renderer uses Pi's configured tool-expansion key rather than assuming a fixed key:
+row appends the same dim ` · <configured expand key> to expand` hint used by
+team-mate report rows (shared via `@fradser/pi-kit`):
 
 ```text
-[monitor] event · test suite result (<configured expand key> to expand)
+[monitor] event · test suite result · <configured expand key> to expand
 
 status=success
 elapsed=8.4s

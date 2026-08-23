@@ -1,5 +1,5 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { formatAgentMessagePrefix, formatAgentTaskName, formatToolEventLabel } from "@fradser/pi-kit";
+import { keyHint, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { formatAgentMessagePrefix, formatAgentTaskName, formatExpandHint, formatToolEventLabel, safeDisplayText } from "@fradser/pi-kit";
 import {
   createBoardTask,
   formatSilenceDuration,
@@ -12,13 +12,8 @@ import { listTasks, livingTeammates } from "./state.ts";
 import { LEADER_RECIPIENT, SendMessageParams, TeammateShutdownParams, TeammateSpawnParams, TaskCreateParams } from "./types.ts";
 import { registerTaskListTool } from "./worker.ts";
 import { openTeamConsole, refreshTeamUI } from "./ui.ts";
+import { discoverAgents } from "./agents.ts";
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
-import * as fs from "node:fs";
-import * as path from "node:path";
-
-function isValidAgentName(name: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) && !name.includes("..") && name !== "con";
-}
 
 function rosterSummary(): string {
   const alive = livingTeammates();
@@ -39,7 +34,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     renderCall: () => new Text("", 0, 0),
     renderResult(result, _options, theme, context) {
       const text = result.content[0]?.type === "text" ? (result.content[0] as { type: string; text: string }).text : "";
-      if ((result as { isError?: boolean }).isError) {
+      if (context.isError) {
         return new Text(theme.fg("error", text.split("\n")[0] || "Failed to spawn teammate."), 0, 0);
       }
       const params = context.args as { name: string; agent: string; prompt?: string };
@@ -71,17 +66,24 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     parameters: TeammateShutdownParams,
     renderShell: "self",
     renderCall: () => new Text("", 0, 0),
-    renderResult(result, _options, theme, context) {
+    renderResult(result, options, theme, context) {
       const text = result.content[0]?.type === "text" ? (result.content[0] as { type: string; text: string }).text : "";
-      if ((result as { isError?: boolean }).isError) {
+      if (context.isError) {
         return new Text(theme.fg("error", text.split("\n")[0] || "Failed to shut down teammate."), 0, 0);
       }
       const name = String((context.args as { name?: string }).name ?? "");
-      const line = `${theme.fg("toolTitle", theme.bold(formatToolEventLabel("event", `@${name} shut down`).trimEnd()))}`;
-      return {
-        render: (width: number) => [truncateToWidth(line, Math.max(1, width))],
-        invalidate: () => {},
+      const title = theme.fg("toolTitle", theme.bold(formatToolEventLabel("event", `@${name} shut down`, "agent")));
+      const render = (width: number) => {
+        if (width <= 0) return [];
+        if (!options.expanded) {
+          return [truncateToWidth(`${title}${formatExpandHint(keyHint("app.tools.expand", "to expand"), theme)}`, width)];
+        }
+        return [
+          truncateToWidth(title, width),
+          ...text.split("\n").map((line) => truncateToWidth(theme.fg("customMessageText", safeDisplayText(line)), width)),
+        ];
       };
+      return { render, invalidate: () => {} };
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await shutdownTeammate(params.name);
@@ -97,10 +99,26 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     label: "Send Message",
     description: "The only messaging primitive. Address a living teammate by name; working teammates receive a steer immediately and idle teammates wake with the message. status is reserved for worker reports to leader.",
     parameters: SendMessageParams,
-    renderCall(args, theme) {
-      const prefix = theme.fg("toolTitle", theme.bold(formatAgentMessagePrefix("to")));
-      const recipient = theme.fg("accent", `@${String(args.to ?? "")}`);
-      return new Text(`${prefix}${recipient}`, 0, 0);
+    // Canonical lifecycle rows (same as packages/monitor): empty call slot,
+    // ONE delivery row owned by renderResult.
+    renderShell: "self",
+    renderCall: () => new Text("", 0, 0),
+    renderResult(result, _options, theme, context) {
+      const text = result.content[0]?.type === "text" ? (result.content[0] as { type: string; text: string }).text : "";
+      if (context.isError) {
+        return new Text(theme.fg("error", text.split("\n")[0] || "Failed to send message."), 0, 0);
+      }
+      const to = String((context.args as { to?: string }).to ?? "");
+      const details = result.details as { queued?: boolean; stalledMs?: number } | undefined;
+      const suffix = details?.queued ? "queued" : "delivered";
+      let line = `${theme.fg("toolTitle", theme.bold(formatAgentMessagePrefix("to")))}${theme.fg("accent", `@${to}`)}${theme.fg("dim", ` · ${suffix}`)}`;
+      if (!details?.queued && details?.stalledMs !== undefined) {
+        line += theme.fg("dim", ` · stalled ${formatSilenceDuration(details.stalledMs)}`);
+      }
+      return {
+        render: (width: number) => width > 0 ? [truncateToWidth(line, width)] : [],
+        invalidate: () => {},
+      };
     },
     async execute(_toolCallId, params) {
       if (params.to === LEADER_RECIPIENT) throw new Error('The leader cannot send a message to itself.');
@@ -112,7 +130,12 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       if (!result.queued && result.stalledMs !== undefined) {
         text += `\nWarning: @${params.to} has been stalled with no output for ${formatSilenceDuration(result.stalledMs)} — the control-stream write succeeded, but the teammate may be wedged. Consider teammate_shutdown if it stays silent.`;
       }
-      return { content: [{ type: "text", text }], details: {} };
+      return {
+        content: [{ type: "text", text }],
+        details: result.stalledMs !== undefined && !result.queued
+          ? { queued: result.queued, stalledMs: result.stalledMs }
+          : { queued: result.queued },
+      };
     },
   });
 
@@ -122,6 +145,22 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     label: "Create Task",
     description: "Create one shared board task. Resident teammates self-claim it when dependencies are met; an optional verify command gates completion.",
     parameters: TaskCreateParams,
+    // Canonical lifecycle rows (same as packages/monitor): empty call slot,
+    // ONE created row owned by renderResult.
+    renderShell: "self",
+    renderCall: () => new Text("", 0, 0),
+    renderResult(result, _options, theme, context) {
+      const text = result.content[0]?.type === "text" ? (result.content[0] as { type: string; text: string }).text : "";
+      if (context.isError) {
+        return new Text(theme.fg("error", text.split("\n")[0] || "Failed to create task."), 0, 0);
+      }
+      const subject = String((context.args as { subject?: string }).subject ?? "");
+      const line = theme.fg("toolTitle", theme.bold(formatToolEventLabel("created", subject, "board")));
+      return {
+        render: (width: number) => width > 0 ? [truncateToWidth(line, width)] : [],
+        invalidate: () => {},
+      };
+    },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const tasks = listTasks();
       if (params.dependsOn?.some((dep) => !tasks.some((task) => task.id === dep))) {
@@ -137,81 +176,23 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
   registerTaskListTool(pi);
 }
 
+function teamStatusSummary(): string {
+  const roles = [...discoverAgents().keys()].map((name) => `@${name}`);
+  const rolesLine = roles.length > 0
+    ? `${roles.length} persistent agent role${roles.length === 1 ? "" : "s"}: ${roles.join(", ")}`
+    : "No agent roles discovered.";
+  return `${rosterSummary()}\n${rolesLine}`;
+}
+
 export function registerTeamCommand(pi: ExtensionAPI): void {
   pi.registerCommand("agent-teams", {
-    description: "Agent Teams menu: console and create agents from session history",
+    description: "Agent Teams management console: session teammates and persistent agent roles",
     handler: async (_args, ctx) => {
-      const choice = await ctx.ui.select("agent-teams", ["console", "project", "local"]);
-      if (!choice) return;
-      if (choice === "console") {
-        publishStateSnapshot();
-        if (ctx.mode !== "tui") { ctx.ui.notify(rosterSummary(), "info"); return; }
-        await openTeamConsole(ctx);
-        refreshTeamUI(ctx);
-        return;
-      }
-      await createAgentFromHistory(ctx, choice === "local");
+      publishStateSnapshot();
+      if (ctx.mode !== "tui") { ctx.ui.notify(teamStatusSummary(), "info"); return; }
+      await openTeamConsole(ctx);
+      refreshTeamUI(ctx);
     },
   });
 }
 
-interface GeneratedAgent { name?: string; description?: string; tools?: string[]; prompt?: string; content?: string; }
-
-function parseGeneratedAgents(raw: string): GeneratedAgent[] {
-  const cleaned = raw.trim().replace(/^```(?:json)?\s*|\s*```$/g, "");
-  const start = cleaned.indexOf("[");
-  const end = cleaned.lastIndexOf("]");
-  if (start < 0 || end <= start) return [];
-  try {
-    const value: unknown = JSON.parse(cleaned.slice(start, end + 1));
-    return Array.isArray(value) ? value.filter((item): item is GeneratedAgent => Boolean(item && typeof item === "object")) : [];
-  } catch { return []; }
-}
-
-function renderAgentDefinition(agent: GeneratedAgent): string {
-  const name = agent.name!.trim();
-  const description = (agent.description || "Agent created from session history").replace(/[\r\n]+/g, " ").trim();
-  const tools = Array.isArray(agent.tools) ? agent.tools.filter((tool) => typeof tool === "string" && tool.trim()).join(", ") : "";
-  return `---\nname: ${name}\ndescription: ${description}${tools ? `\ntools: ${tools}` : ""}\n---\n\n${(agent.prompt || "").trim()}`;
-}
-
-async function createAgentFromHistory(ctx: ExtensionContext, local: boolean): Promise<void> {
-  const branch = ctx.sessionManager?.getBranch?.() ?? [];
-  const history = branch.map((entry: any) => {
-    const text = typeof entry?.text === "string" ? entry.text : typeof entry?.content === "string" ? entry.content : "";
-    return text ? text : Array.isArray(entry?.content) ? entry.content.map((part: any) => part?.text ?? "").join("") : "";
-  }).filter(Boolean).slice(-20).join("\n\n");
-  const generated = await generateAgentPrompt(ctx, history);
-  if (!generated) return;
-  const dir = path.join(ctx.cwd || process.cwd(), ".pi", "agents");
-  fs.mkdirSync(dir, { recursive: true });
-  const definitions = parseGeneratedAgents(generated)
-    .filter((item) => typeof item.name === "string" && (item.content?.trim() || item.prompt?.trim()))
-    .map((item) => ({ name: item.name!.trim(), content: item.content?.trim() || renderAgentDefinition(item) }));
-  if (definitions.length === 0) { ctx.ui.notify("Model returned no usable agent definitions", "error"); return; }
-  let created = 0;
-  for (const definition of definitions) {
-    if (!isValidAgentName(definition.name)) continue;
-    const filename = `${definition.name}${local ? ".local" : ""}.md`;
-    try { fs.writeFileSync(path.join(dir, filename), definition.content, { encoding: "utf8", flag: "wx" }); created++; } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-    }
-  }
-  ctx.ui.notify(`Created ${created} agent definition${created === 1 ? "" : "s"}`, created ? "info" : "warning");
-}
-
-async function generateAgentPrompt(ctx: ExtensionContext, history: string): Promise<string | undefined> {
-  const model = ctx.model;
-  const registry = ctx.modelRegistry;
-  if (!model || !registry?.complete) {
-    ctx.ui.notify("No model available to generate an agent", "error");
-    return undefined;
-  }
-  const response = await registry.complete(model, {
-    systemPrompt: "Design a complementary resident coding agent team from session history. Return a JSON array of 2-4 complementary agent definitions. Each item must have name, description, tools, and prompt fields. Names use letters, digits, dots, dashes, underscores. Return JSON only, with no code fences.",
-    messages: [{ role: "user", content: `Session history:\n${history || "(empty)"}`, timestamp: Date.now() }],
-  }, { maxTokens: 2000, temperature: 0, cacheRetention: "none" });
-  const content = response.content?.filter((part: any) => part.type === "text").map((part: any) => part.text).join("\\n").trim();
-  if (!content) { ctx.ui.notify("Model returned no agent definition", "error"); return undefined; }
-  return content;
-}

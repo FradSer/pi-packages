@@ -3,6 +3,7 @@ export const TEAMMATE_REPORT_MESSAGE_TYPE = "agent-teams-report";
 export interface FollowUpReport {
   teammate?: string;
   agent?: string;
+  spawnId?: string;
   body: string;
   finished?: boolean;
   runId?: string;

@@ -39,7 +39,8 @@ class TestSessionsExtension(unittest.TestCase):
         self.assertIn('theme.fg("customMessageLabel", theme.bold(formatToolEventLabel("listed"', content)
         self.assertIn('theme.bg("customMessageBg", text)', content)
         self.assertIn("new Box(1, 1,", content)
-        self.assertIn('keyHint("app.tools.expand", "to expand")', content)
+        self.assertIn('formatExpandHint(keyHint("app.tools.expand", "to expand"), theme)', content)
+        self.assertNotIn('(keyHint("app.tools.expand", "to expand"))', content)
         # Expanded view reuses the shared task-name truncation for goals.
         self.assertIn("formatAgentTaskName", content)
 

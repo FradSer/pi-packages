@@ -635,6 +635,7 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
     sendUpdate({
       teammate: teammate.name,
       agent: teammate.agent,
+      spawnId: teammate.spawnId,
       body: record.body,
       finished: true,
     });

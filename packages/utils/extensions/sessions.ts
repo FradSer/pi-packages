@@ -15,7 +15,7 @@ import os from "node:os";
 import path from "node:path";
 import { keyHint, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Box, Container, Text } from "@earendil-works/pi-tui";
-import { formatAgentTaskName, formatToolEventLabel, safeDisplayText } from "@fradser/pi-kit";
+import { formatAgentTaskName, formatExpandHint, formatToolEventLabel, safeDisplayText } from "@fradser/pi-kit";
 import { Type } from "typebox";
 
 export interface SessionInfo {
@@ -413,7 +413,7 @@ export default function (pi: ExtensionAPI) {
         return box;
       }
       if (!options.expanded) {
-        const hint = theme.fg("dim", ` (${keyHint("app.tools.expand", "to expand")})`);
+        const hint = formatExpandHint(keyHint("app.tools.expand", "to expand"), theme);
         box.addChild(new Text(`${title}${hint}`, 0, 0));
         return box;
       }

@@ -97,7 +97,7 @@ Feature: Result-contract background monitoring
     Given a monitor reaches a terminal result
     When the result notification is rendered in the TUI
     Then the collapsed line starts with `[monitor] event · <description>`
-    And the collapsed line uses the configured tool expansion key hint
+    And the collapsed line appends the configured expansion key as the shared pi-kit ` · <key> to expand` hint
     And the collapsed line does not hard-code `Ctrl+O`
     And the collapsed line does not start with `⏺`
     And the collapsed line is the only rendered monitor event

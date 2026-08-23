@@ -176,9 +176,10 @@ def test_monitor_report_renderer_uses_compact_event_style_and_configured_hint() 
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     assert 'registerMessageRenderer("monitor-result"' in extension
     assert 'formatToolEventLabel("event", description)' in extension
+    assert "formatExpandHint(keyHint(\"app.tools.expand\", \"to expand\"), theme)" in extension
+    assert '(keyHint("app.tools.expand", "to expand"))' not in extension
     assert '⏺ [monitor]' not in extension
     assert "expanded" in extension
-    assert 'keyHint("app.tools.expand", "to expand")' in extension
     assert 'Ctrl+O to expand' not in extension
     assert "extractMonitorDescription" not in extension
 
