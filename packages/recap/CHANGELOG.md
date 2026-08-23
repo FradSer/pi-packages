@@ -1,5 +1,14 @@
 # @fradser/pi-recap
 
+## 0.1.5
+
+### Patch Changes
+
+- 7ad11b4: Allow manual recap generation from the recap menu and `/recap now` to refresh an already-generated exchange instead of returning the cached recap.
+- Updated dependencies [50c45ff]
+- Updated dependencies [7ad11b4]
+  - @fradser/pi-kit@0.2.0
+
 ## 0.1.4
 
 ### Patch Changes
