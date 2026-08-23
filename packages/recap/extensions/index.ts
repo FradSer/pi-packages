@@ -235,6 +235,7 @@ export default function (pi: ExtensionAPI) {
 
   async function performRecap(
     ctx: ExtensionContext,
+    force = false,
   ): Promise<string | undefined> {
     if (ctx.mode !== "tui") return undefined;
 
@@ -252,7 +253,7 @@ export default function (pi: ExtensionAPI) {
       config.language,
     ].join("\u0000");
     if (activeRequest?.key === key) return activeRequest.promise;
-    if (completedRequestKey === key && currentRecap) return currentRecap;
+    if (!force && completedRequestKey === key && currentRecap) return currentRecap;
     activeRequest?.controller.abort();
 
     const controller = new AbortController();
@@ -431,7 +432,7 @@ export default function (pi: ExtensionAPI) {
 
     if (choice.startsWith("Generate recap now")) {
       ctx.ui.notify("Generating recap...", "info");
-      const refreshed = await performRecap(ctx);
+      const refreshed = await performRecap(ctx, true);
       if (refreshed) {
         ctx.ui.notify(`✦ Recap: ${refreshed}`, "info");
       } else {
@@ -551,7 +552,7 @@ export default function (pi: ExtensionAPI) {
           return;
         }
         ctx.ui.notify("Generating recap...", "info");
-        const refreshed = await performRecap(ctx);
+        const refreshed = await performRecap(ctx, true);
         if (refreshed) {
           ctx.ui.notify(`✦ Recap: ${refreshed}`, "info");
         } else {

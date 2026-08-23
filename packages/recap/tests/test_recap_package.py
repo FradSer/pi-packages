@@ -34,9 +34,11 @@ def test_feature_covers_recap_scenarios() -> None:
     assert "Scenario: Recap widget is displayed above the editor by default" in feature
     assert "Scenario: Recap is informative and scannable" in feature
     assert "Scenario: /recap opens an interactive management menu" in feature
+    assert "Scenario: Generate recap now bypasses same-exchange deduplication" in feature
     assert "Scenario: Model selection supports custom provider and model overrides" in feature
     assert "Scenario: Language selection allows specifying target generation language" in feature
     assert "Scenario: Recap shows a generation marker while refreshing" in feature
+    assert "Scenario: Recap preserves a leading inline code marker" in feature
     assert "Scenario: Recap maintains context continuity using previous recap and last exchange" in feature
     assert "Scenario: Generated recap is persisted to the session" in feature
     assert "Scenario: Existing session restores persisted recap on startup across restarts" in feature
@@ -228,6 +230,59 @@ def test_startup_regenerates_when_no_saved_recap_exists() -> None:
     assert result["completeCalls"] == 1
 
 
+def test_generate_recap_now_refreshes_an_existing_recap() -> None:
+    result = run_typescript(
+        f"""
+        import extensionModule from "{INDEX_URI}";
+        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+
+        let registeredEvents = {{}};
+        let registeredCommand;
+        let completeCalls = 0;
+        const fakePi = {{
+          on(event, handler) {{ registeredEvents[event] = handler; }},
+          registerCommand(_name, command) {{ registeredCommand = command; }},
+          appendEntry() {{}},
+        }};
+
+        initExtension(fakePi);
+        const fakeCtx = {{
+          mode: "tui",
+          hasUI: true,
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{
+            getBranch: () => [
+              {{ type: "message", message: {{ role: "user", content: "fix bug" }} }},
+              {{ type: "message", message: {{ role: "assistant", content: "bug fixed" }} }},
+              {{ type: "custom", customType: "recap", data: {{ recap: "Existing recap" }} }},
+            ],
+            getSessionFile: () => "/tmp/fake-cwd/session-1.jsonl",
+          }},
+          ui: {{
+            setWidget: () => {{}},
+            notify: () => {{}},
+            select: async () => "Generate recap now",
+          }},
+          modelRegistry: {{
+            find: () => ({{ provider: "mock", id: "m1" }}),
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => {{
+              completeCalls++;
+              return {{ role: "assistant", content: [{{ type: "text", text: "Refreshed recap" }}] }};
+            }},
+          }},
+          model: {{ provider: "mock", id: "m1" }},
+        }};
+
+        await registeredEvents["session_start"]({{}}, fakeCtx);
+        await registeredCommand.handler("", fakeCtx);
+
+        console.log(JSON.stringify({{ completeCalls }}));
+        """
+    )
+    assert result["completeCalls"] == 1
+
+
 def test_headless_session_does_not_start_recap_generation() -> None:
     result = run_typescript(
         f"""
@@ -268,6 +323,48 @@ def test_headless_session_does_not_start_recap_generation() -> None:
         """
     )
     assert result["completeCalls"] == 0
+
+
+def test_recap_now_command_refreshes_an_existing_recap() -> None:
+    result = run_typescript(
+        f"""
+        import extensionModule from "{INDEX_URI}";
+        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+
+        let registeredCommand;
+        let completeCalls = 0;
+        const fakePi = {{
+          on() {{}},
+          registerCommand(_name, command) {{ registeredCommand = command; }},
+          appendEntry() {{}},
+        }};
+        initExtension(fakePi);
+        const fakeCtx = {{
+          mode: "tui",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{
+            getBranch: () => [
+              {{ type: "message", message: {{ role: "user", content: "fix bug" }} }},
+              {{ type: "message", message: {{ role: "assistant", content: "bug fixed" }} }},
+            ],
+            getSessionFile: () => undefined,
+          }},
+          ui: {{ setWidget: () => {{}}, notify: () => {{}} }},
+          modelRegistry: {{
+            find: () => ({{ provider: "mock", id: "m1" }}),
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => {{
+              completeCalls++;
+              return {{ role: "assistant", content: [{{ type: "text", text: "Refreshed recap" }}] }};
+            }},
+          }},
+          model: {{ provider: "mock", id: "m1" }},
+        }};
+        await registeredCommand.handler("now", fakeCtx);
+        console.log(JSON.stringify({{ completeCalls }}));
+        """
+    )
+    assert result["completeCalls"] == 1
 
 
 def test_headless_recap_command_does_not_generate() -> None:
@@ -627,6 +724,19 @@ def test_clean_recap_text_removes_prefixes_and_quotes() -> None:
     assert result["t2"] == "Fixing the redirect bug"
     assert result["t3"] == "Updating the test configuration"
     assert result["t4"] == "修复登录重定向问题"
+
+
+def test_clean_recap_text_preserves_inline_code_backticks() -> None:
+    result = run_typescript(
+        f"""
+        import {{ cleanRecapText }} from "{RECAP_URI}";
+
+        const text = cleanRecapText('`list_directory_sessions` 渲染对齐 monitor event 风格，重启后测试通过，数据链路正常');
+        console.log(JSON.stringify({{ text }}));
+        """
+    )
+    assert result["text"].startswith("`list_directory_sessions`")
+    assert result["text"].count("`") == 2
 
 
 def test_clean_recap_text_caps_length() -> None:

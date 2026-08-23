@@ -43,6 +43,12 @@ Feature: Session Recap
     When the user runs /recap
     Then an interactive select menu opens displaying the current recap, language, and management options
 
+  Scenario: Generate recap now bypasses same-exchange deduplication
+    Given the current exchange already has a displayed recap
+    When the user selects "Generate recap now" from the recap menu
+    Then recap generation calls the configured model again
+    And the displayed recap is replaced with the refreshed result
+
   Scenario: Model selection supports custom provider and model overrides
     Given the recap management menu
     When the user selects a custom recap model
@@ -69,6 +75,12 @@ Feature: Session Recap
     And the previous recap remains visible until the new recap is ready
     When recap generation finishes
     Then the generation marker is replaced by the new recap
+
+  Scenario: Recap preserves a leading inline code marker
+    Given the recap starts with the inline code marker "`list_directory_sessions`"
+    When the summary is cleaned before rendering
+    Then the opening marker is not removed
+    And the inline code marker remains balanced around "list_directory_sessions"
 
   Scenario: Recap marker aligns with the native working spinner
     Given the recap widget is displayed above the editor

@@ -151,8 +151,21 @@ export function cleanRecapText(raw: string): string {
   let text = raw.trim();
   // Strip code blocks or backticks
   text = text.replace(/^```[a-z]*\n?|```$/gi, "").trim();
-  // Strip outer quotes
-  text = text.replace(/^["'“‘`]+|["'”’`]+$/g, "").trim();
+  // Strip quotes only when they wrap the complete summary. An inline code
+  // marker at the start of a summary must remain paired for Markdown rendering.
+  const outerQuotePairs: Array<[string, string]> = [
+    ["\"", "\""],
+    ["'", "'"],
+    ["“", "”"],
+    ["‘", "’"],
+    ["`", "`"],
+  ];
+  for (const [opening, closing] of outerQuotePairs) {
+    if (text.startsWith(opening) && text.endsWith(closing)) {
+      text = text.slice(opening.length, -closing.length).trim();
+      break;
+    }
+  }
   // Strip common label prefixes like "※ Recap:", "recap:", "Summary:", "- ", "* "
   text = text.replace(/^(?:※\s*)?(?:recap|summary|status)\s*[:\uFF1A]\s*/i, "");
   text = text.replace(/^※\s*/, "");
