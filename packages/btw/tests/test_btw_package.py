@@ -39,6 +39,7 @@ def test_feature_covers_isolation_and_temp_prompt_lifecycle() -> None:
     assert "follow-up composer keeps equal spacing on both sides of the input area" in feature
     assert "overlay does not report nonexistent hidden lines" in feature
     assert "conversation separators are longer than the content text and centered" in feature
+    assert "internal overlay separator marker is never displayed" in feature
     assert "Scenario: Side answers render Markdown formatting" in feature
     assert "block-level Markdown at the start of an answer is not joined to the btw label" in feature
     assert "Scenario: Side answers are constrained to concise responses" in feature
@@ -459,6 +460,7 @@ def test_overlay_handles_multi_turn_flow() -> None:
     assert "[mut]›[/mut]" in turn2_rendered
     assert "more lines" not in turn2_rendered
     assert "__BTW_CONVERSATION_SEPARATOR__" not in turn2_rendered
+    assert "__OVERLAY_SEPARATOR__" not in turn2_rendered
     assert "[bor]─" in turn2_rendered
     assert "╭" not in turn2_rendered
     assert "╰" not in turn2_rendered

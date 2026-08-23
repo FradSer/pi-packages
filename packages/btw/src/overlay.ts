@@ -426,7 +426,7 @@ export function createBtwOverlay(
 
       if (markdown) {
         const mdLines = markdown.render(contentWidth).map((line) =>
-          line.includes("__BTW_CONVERSATION_SEPARATOR__") ? "__BTW_CONVERSATION_SEPARATOR__" : line,
+          line.includes("__OVERLAY_SEPARATOR__") ? "__OVERLAY_SEPARATOR__" : line,
         );
         // Adaptive body: short answers fill the panel; long ones cap and scroll.
         const viewport = Math.min(mdLines.length, maxBody);
@@ -435,7 +435,7 @@ export function createBtwOverlay(
         const windowLines = mdLines.slice(scroll, scroll + viewport);
         lines.push("");
         for (const line of windowLines) {
-          if (line === "__BTW_CONVERSATION_SEPARATOR__") {
+          if (line === "__OVERLAY_SEPARATOR__") {
             const separator = style.dim("─".repeat(Math.max(1, width - 4)));
             lines.push(`${" ".repeat(2)}${separator}${" ".repeat(2)}`);
           } else {

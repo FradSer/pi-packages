@@ -50,6 +50,7 @@ Feature: Read-only side questions
     And conversation separators span the available width with equal side spacing
     And the overlay does not report nonexistent hidden lines
     And conversation separators are longer than the content text and centered
+    And the internal overlay separator marker is never displayed
 
   Scenario: Side answers render Markdown formatting
     Given an interactive side question overlay
