@@ -4,7 +4,7 @@ import {
   type ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import { Box, Container, isKeyRelease, Key, matchesKey, Text, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { formatToolEventLabel } from "@fradser/pi-kit";
+import { formatToolEventLabel, safeDisplayText } from "@fradser/pi-kit";
 import {
   MonitorManager,
   type Monitor,
@@ -324,13 +324,6 @@ function formatElapsed(milliseconds: number): string {
 
 function compactValue(value: string): string {
   return safeDisplayText(value).replace(/[\r\n]+/g, "\\n");
-}
-
-function safeDisplayText(value: unknown): string {
-  return String(value)
-    .replace(/\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001b\\)|[@-_])/g, "")
-    .replace(/(?:\u009b[0-?]*[ -/]*[@-~]|\u009d[^\u0007]*(?:\u0007|\u009c)|\u0090[^\u0007]*(?:\u0007|\u009c)|\u0098[^\u0007]*(?:\u0007|\u009c)|\u009e[^\u0007]*(?:\u0007|\u009c)|\u009f[^\u0007]*(?:\u0007|\u009c))/g, "")
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u0080-\u009f]/g, "");
 }
 
 function statusColor(status: Monitor["status"]): "warning" | "success" | "error" | "dim" {

@@ -213,8 +213,9 @@ def test_monitor_status_uses_the_native_footer_and_console_owns_input() -> None:
     assert "updateFooterStatus" in extension
     assert "requestRender = () => tui.requestRender()" in extension
     assert "isKeyRelease(data)" in extension
-    assert "safeDisplayText" in extension
-    assert "\\u0080-\\u009f" in extension
+    assert 'safeDisplayText } from "@fradser/pi-kit"' in extension
+    # The sanitizer implementation lives in pi-kit; the local copy is gone.
+    assert '\u0080-\u009f' not in extension
     assert "C1" not in extension
 
 
