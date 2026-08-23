@@ -159,13 +159,29 @@ def test_tool_event_labels_share_the_compact_monitor_pattern() -> None:
         console.log(JSON.stringify({{
           started: formatToolEventLabel("started", "运行 monitor 包测试"),
           event: formatToolEventLabel("event", "运行 monitor 包测试"),
+          listed: formatToolEventLabel("listed", "2 other sessions in pi-packages", "sessions"),
         }}));
         """
     )
     assert result == {
         "started": "[monitor] started · 运行 monitor 包测试",
         "event": "[monitor] event · 运行 monitor 包测试",
+        "listed": "[sessions] listed · 2 other sessions in pi-packages",
     }
+
+
+def test_safe_display_text_sanitizes_terminal_output() -> None:
+    result = run_typescript(
+        f"""
+        import {{ safeDisplayText }} from {json.dumps((SRC / "index.ts").as_uri())};
+        console.log(JSON.stringify({{
+          ansi: safeDisplayText("\u001b[31mred\u001b[39m"),
+          osc: safeDisplayText("Evil\u001b]0;pwned\u0007Name"),
+          control: safeDisplayText("a\u0007b\u007fc"),
+        }}));
+        """
+    )
+    assert result == {"ansi": "red", "osc": "EvilName", "control": "abc"}
 
 
 def test_agent_display_helpers_share_labels_and_message_counts() -> None:

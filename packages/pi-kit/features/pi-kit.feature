@@ -21,6 +21,7 @@ Feature: Shared pi-kit runtime helpers
     When a tool event label is formatted
     Then started is `[monitor] started · <description>`
     And terminal events are `[monitor] event · <description>`
+    And synchronous listings support other tools as `[sessions] listed · <description>`
 
   Scenario: Agent task and message labels share pi-kit formatting
     Given an agent task and a teammate name
@@ -45,6 +46,11 @@ Feature: Shared pi-kit runtime helpers
     Given content that is neither a string nor an array
     When text content is extracted
     Then an empty string is returned
+
+  Scenario: Display text is sanitized for terminal output
+    Given untrusted registry values containing ANSI, OSC, and control characters
+    When safeDisplayText sanitizes them
+    Then escape sequences are stripped and only printable text remains
 
   Scenario: Model reference is parsed from a provider/model string
     Given a valid "provider/model" string

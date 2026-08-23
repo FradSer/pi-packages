@@ -36,11 +36,23 @@ export function formatAgentTaskName(prompt: string, fallback: string, maxLength 
 
 /** Format the compact two-row tool event label used by background operations. */
 export function formatToolEventLabel(
-  kind: "started" | "event",
+  kind: "started" | "event" | "listed",
   description: string,
   tool = "monitor",
 ): string {
   return `[${tool}] ${kind} · ${description}`;
+}
+
+/**
+ * Strips ANSI/OSC escape sequences and control characters from untrusted
+ * display text (registry values, process output) so it cannot inject
+ * terminal commands or corrupt TUI layout.
+ */
+export function safeDisplayText(value: unknown): string {
+  return String(value)
+    .replace(/\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001b\\)|[@-_])/g, "")
+    .replace(/(?:\u009b[0-?]*[ -/]*[@-~]|\u009d[^\u0007]*(?:\u0007|\u009c)|\u0090[^\u0007]*(?:\u0007|\u009c)|\u0098[^\u0007]*(?:\u0007|\u009c)|\u009e[^\u0007]*(?:\u0007|\u009c)|\u009f[^\u0007]*(?:\u0007|\u009c))/g, "")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u0080-\u009f]/g, "");
 }
 
 /** Format the colored-prefix portion of an incoming or outgoing message label. */
