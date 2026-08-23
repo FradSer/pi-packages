@@ -194,48 +194,103 @@ export async function readConsolidationLock(lockPath: string): Promise<Consolida
   try { return parseLockOwner(await fsp.readFile(lockPath, "utf8")); } catch { return undefined; }
 }
 
+function isProcessAlive(pid: number): boolean {
+  try { process.kill(pid, 0); return true; } catch (error: unknown) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/**
+ * Quarantine the inspected dead-owner lock atomically: rename it aside, verify
+ * the bytes still describe the dead owner we inspected, and only then discard.
+ * A concurrent acquirer therefore either finds no lock to reclaim or contends
+ * on the replacement — a live lock is restored rather than deleted.
+ */
+async function quarantineDeadOwnerLock(paths: ConsolidationRunPaths, deadOwner: ConsolidationLockOwner): Promise<boolean> {
+  const quarantine = `${paths.lockFile}.${crypto.randomBytes(6).toString("hex")}.reclaim`;
+  try {
+    await fsp.rename(paths.lockFile, quarantine);
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+  try {
+    const quarantined = await readConsolidationLock(quarantine);
+    if (
+      !quarantined || quarantined.nonce !== deadOwner.nonce ||
+      quarantined.hostname !== os.hostname() || isProcessAlive(quarantined.pid)
+    ) {
+      // The lock changed between inspection and quarantine. Restore it unless
+      // another owner already replaced it at the canonical path.
+      try {
+        await fsp.lstat(paths.lockFile);
+        await fsp.rm(quarantine, { force: true });
+      } catch {
+        await fsp.rename(quarantine, paths.lockFile).catch(() => fsp.rm(quarantine, { force: true }));
+      }
+      return false;
+    }
+    await fsp.rm(quarantine, { force: true });
+    return true;
+  } catch (error) {
+    await fsp.rm(quarantine, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
 export async function acquireConsolidationLock(paths: ConsolidationRunPaths, owner: Partial<Pick<ConsolidationLockOwner, "runId" | "cwd">> = {}): Promise<ConsolidationLockHandle> {
   await ensureSecureDirectory(paths.memory.agentDir);
   await ensureSecureDirectory(path.dirname(paths.lockFile));
-  const lockOwner: ConsolidationLockOwner = {
-    runId: owner.runId ?? paths.runId,
-    scopeKey: paths.memory.scopeKey,
-    cwd: owner.cwd ?? paths.memory.cwd,
-    pid: process.pid,
-    hostname: os.hostname(),
-    acquiredAt: new Date().toISOString(),
-    nonce: crypto.randomBytes(16).toString("hex"),
-  };
-  let handle: fsp.FileHandle | undefined;
-  let created = false;
-  try {
-    handle = await fsp.open(paths.lockFile, "wx", 0o600);
-    created = true;
-    await handle.writeFile(`${JSON.stringify(lockOwner)}\n`, "utf8");
-    await handle.sync();
-    await handle.close();
-    handle = undefined;
-  } catch (error: unknown) {
-    await handle?.close().catch(() => {});
-    if (created) await fsp.rm(paths.lockFile, { force: true }).catch(() => {});
-    const code = error && typeof error === "object" && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
-    if (code === "EEXIST") throw new ConsolidationLockContentionError(paths.lockFile, await readConsolidationLock(paths.lockFile));
-    throw error;
-  }
-  let released = false;
-  const release = async (): Promise<boolean> => {
-    if (released) return false;
-    const current = await readConsolidationLock(paths.lockFile);
-    if (!current || current.nonce !== lockOwner.nonce) { released = true; return false; }
+  for (let attempt = 0; ; attempt += 1) {
+    const lockOwner: ConsolidationLockOwner = {
+      runId: owner.runId ?? paths.runId,
+      scopeKey: paths.memory.scopeKey,
+      cwd: owner.cwd ?? paths.memory.cwd,
+      pid: process.pid,
+      hostname: os.hostname(),
+      acquiredAt: new Date().toISOString(),
+      nonce: crypto.randomBytes(16).toString("hex"),
+    };
+    let handle: fsp.FileHandle | undefined;
+    let created = false;
     try {
-      await fsp.rm(paths.lockFile, { force: true });
-      released = true;
-      return true;
-    } catch {
-      return false;
+      handle = await fsp.open(paths.lockFile, "wx", 0o600);
+      created = true;
+      await handle.writeFile(`${JSON.stringify(lockOwner)}\n`, "utf8");
+      await handle.sync();
+      await handle.close();
+      handle = undefined;
+    } catch (error: unknown) {
+      await handle?.close().catch(() => {});
+      if (created) await fsp.rm(paths.lockFile, { force: true }).catch(() => {});
+      const code = error && typeof error === "object" && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
+      if (code === "EEXIST") {
+        // One bounded reclaim attempt: only a same-host dead owner qualifies.
+        const currentOwner = attempt === 0 ? await readConsolidationLock(paths.lockFile) : undefined;
+        const reclaimable = Boolean(
+          currentOwner && currentOwner.hostname === os.hostname() && !isProcessAlive(currentOwner.pid) &&
+          await quarantineDeadOwnerLock(paths, currentOwner),
+        );
+        if (!reclaimable) throw new ConsolidationLockContentionError(paths.lockFile, await readConsolidationLock(paths.lockFile));
+        continue;
+      }
+      throw error;
     }
-  };
+    let released = false;
+    const release = async (): Promise<boolean> => {
+      if (released) return false;
+      const current = await readConsolidationLock(paths.lockFile);
+      if (!current || current.nonce !== lockOwner.nonce) { released = true; return false; }
+      try {
+        await fsp.rm(paths.lockFile, { force: true });
+        released = true;
+        return true;
+      } catch {
+        return false;
+      }
+    };
   return { path: paths.lockFile, owner: lockOwner, release };
+  }
 }
 
 export interface SnapshotSessionManager {
@@ -309,6 +364,7 @@ export interface ConsolidationRun {
   lockPath: string;
   lock?: ConsolidationLockHandle;
   released: boolean;
+  normalization: MirrorNormalization;
 }
 
 class SnapshotLimitError extends Error {
@@ -503,11 +559,122 @@ export async function writeNoContextManifest(paths: ConsolidationRunPaths, reaso
   return manifest;
 }
 
+export interface MirrorRepair {
+  name: string;
+  direction: "harness-to-public" | "public-to-harness";
+}
+
+export interface MirrorNormalization {
+  /** Safe files whose drifted or missing copy was rewritten from the newer side. */
+  repaired: MirrorRepair[];
+  /** Public files removed: private-marked, or orphaned without a harness copy. */
+  removed: string[];
+}
+
+async function listMemoryRootFiles(root: string): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  let names: string[];
+  try {
+    names = await fsp.readdir(root);
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return files;
+    throw error;
+  }
+  for (const name of names.sort()) {
+    if (name.toLowerCase() === "memory.md" || !isMemoryFilename(name)) continue;
+    const stat = await fsp.lstat(path.join(root, name));
+    if (!stat.isFile()) throw new Error(`Memory entry is not a regular file: ${path.join(root, name)}`);
+    files.set(name.toLowerCase(), name);
+  }
+  return files;
+}
+
+/**
+ * Make the two memory roots satisfy the validator's mirror contract before the
+ * run snapshots them: safe files are byte-identical mirrors, private files
+ * never appear publicly, and both indexes are exact. Drift direction is decided
+ * by the newer mtime — sessions write the harness first, while memory updates
+ * arriving through the git-tracked mirror land in public — so either side can
+ * be the fresh one. Without this, any pre-existing drift fails post-apply validation and every
+ * full-scope consolidation becomes unrunnable until manual repair.
+ */
+export async function normalizeMirrorDrift(memory: MemoryPaths): Promise<MirrorNormalization> {
+  const harnessStat = await fsp.lstat(memory.harnessDir).then(
+    () => true,
+    (error: unknown) => {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      return false;
+    },
+  );
+  const harnessFiles = await listMemoryRootFiles(memory.harnessDir);
+  const publicFiles = await listMemoryRootFiles(memory.publicDir);
+  if (!harnessStat && harnessFiles.size === 0) {
+    // No canonical root yet: import the public mirror instead of deleting it.
+    if (publicFiles.size === 0) return { repaired: [], removed: [] };
+    await ensureMemoryRoot(memory.harnessDir);
+    for (const [, publicName] of [...publicFiles].sort(([a], [b]) => a.localeCompare(b))) {
+      const content = (await readBoundedRegularFile(path.join(memory.publicDir, publicName), MAX_MEMORY_BYTES)).toString("utf8");
+      await writeMemoryFile(path.join(memory.harnessDir, publicName), content);
+    }
+    await updateMemoryIndex(memory.harnessDir, new Set());
+    await updateMemoryIndex(memory.publicDir, new Set());
+    return {
+      repaired: [...publicFiles.values()].sort().map((name) => ({ name, direction: "public-to-harness" as const })),
+      removed: [],
+    };
+  }
+  const removed = new Set<string>();
+  const repairLog = new Map<string, MirrorRepair>();
+  const privateNames = await readPrivateIndexNames(memory.harnessDir);
+  const copyBytes = async (direction: MirrorRepair["direction"], name: string, source: string, target: string): Promise<void> => {
+    const content = (await readBoundedRegularFile(source, MAX_MEMORY_BYTES)).toString("utf8");
+    await writeMemoryFile(target, content);
+    repairLog.set(name, { name, direction });
+  };
+  // Newer mtime wins for drifted pairs; ties fall back to the harness copy.
+  const copyNewer = async (harnessName: string, publicName: string): Promise<void> => {
+    const harnessFile = path.join(memory.harnessDir, harnessName);
+    const publicFile = path.join(memory.publicDir, publicName);
+    const [harnessStat, publicStat] = await Promise.all([fsp.lstat(harnessFile), fsp.lstat(publicFile)]);
+    const fromHarness = harnessStat.mtimeMs >= publicStat.mtimeMs;
+    await copyBytes(
+      fromHarness ? "harness-to-public" : "public-to-harness",
+      harnessName,
+      fromHarness ? harnessFile : publicFile,
+      fromHarness ? publicFile : harnessFile,
+    );
+  };
+  for (const [key, publicName] of [...publicFiles].sort(([a], [b]) => a.localeCompare(b))) {
+    const harnessName = harnessFiles.get(key);
+    if (!harnessName || privateNames.has(key)) {
+      await fsp.rm(path.join(memory.publicDir, publicName), { force: true });
+      removed.add(publicName);
+      continue;
+    }
+    const harnessHash = await sha256File(path.join(memory.harnessDir, harnessName), MAX_MEMORY_BYTES);
+    const publicHash = await sha256File(path.join(memory.publicDir, publicName), MAX_MEMORY_BYTES);
+    if (harnessHash === publicHash) continue;
+    await copyNewer(harnessName, publicName);
+  }
+  for (const [key, harnessName] of [...harnessFiles].sort(([a], [b]) => a.localeCompare(b))) {
+    if (privateNames.has(key) || publicFiles.has(key)) continue;
+    await copyBytes("harness-to-public", harnessName, path.join(memory.harnessDir, harnessName), path.join(memory.publicDir, harnessName));
+  }
+  if (removed.size > 0 || repairLog.size > 0 || harnessFiles.size > 0 || publicFiles.size > 0) {
+    await ensureMemoryRoot(memory.harnessDir);
+    await ensureMemoryRoot(memory.publicDir);
+    await updateMemoryIndex(memory.harnessDir, privateNames);
+    await updateMemoryIndex(memory.publicDir, new Set());
+  }
+  return { repaired: [...repairLog.values()].sort((left, right) => left.name.localeCompare(right.name)), removed: [...removed].sort() };
+}
+
 export async function createConsolidationRun(ctx: ExtensionContext, cwd: string, noContext = false): Promise<ConsolidationRun> {
   const paths = resolveConsolidationRunPaths(cwd);
   const lock = await acquireConsolidationLock(paths, { runId: paths.runId, cwd });
   try {
     await ensureConsolidationRunDir(paths);
+    const normalization = await normalizeMirrorDrift(paths.memory);
     const captured = noContext ? undefined : await captureConsolidationSnapshot(ctx, paths);
     const contextManifest = captured?.manifest ?? await writeNoContextManifest(paths);
     const snapshot = captured?.snapshot ?? {
@@ -532,16 +699,16 @@ export async function createConsolidationRun(ctx: ExtensionContext, cwd: string,
       sourceHashes: { harness: await hashMemoryRoot(paths.memory.harnessDir), public: await hashMemoryRoot(paths.memory.publicDir) },
     };
     await writeJsonAtomic(paths.manifestFile, manifest);
-    return { manifest, paths, lockPath: paths.lockFile, lock, released: false };
+    return { manifest, paths, lockPath: paths.lockFile, lock, released: false, normalization };
   } catch (error) {
     await lock.release(); await removeConsolidationRunDir(paths); throw error;
   }
 }
 
-export async function releaseConsolidationRun(run: ConsolidationRun): Promise<void> {
+export async function releaseConsolidationRun(run: ConsolidationRun, options: { keepArtifacts?: boolean } = {}): Promise<void> {
   if (run.released) return;
   try {
-    await removeConsolidationRunDir(run.paths);
+    if (!options.keepArtifacts) await removeConsolidationRunDir(run.paths);
   } finally {
     try {
       if (run.lock) await run.lock.release();

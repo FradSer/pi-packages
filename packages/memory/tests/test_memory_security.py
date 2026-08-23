@@ -320,3 +320,154 @@ def test_memory_config_writes_atomically_under_a_safe_agent_directory() -> None:
         )
         assert json.loads(result["raw"]) == {"provider": "openai", "model": "gpt-5"}
         assert result["files"] == ["memory.json"]
+
+
+def test_stale_dead_owner_lock_is_reclaimed_but_live_owner_is_contention() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        repo = root / "repo"
+        agent = root / "agent"
+        repo.mkdir()
+        result = run_bun(
+            f"""
+            import {{
+              acquireConsolidationLock,
+              ConsolidationLockContentionError,
+              resolveConsolidationRunPaths,
+            }} from './packages/memory/extensions/consolidation-run.ts';
+            import {{ readFileSync, writeFileSync, mkdirSync }} from 'node:fs';
+            import {{ hostname }} from 'node:os';
+            import {{ spawnSync }} from 'node:child_process';
+            import {{ join }} from 'node:path';
+            const paths = resolveConsolidationRunPaths({json.dumps(str(repo))}, 'run_stale', {json.dumps(str(agent))});
+            mkdirSync(paths.memory.runsDir, {{ recursive: true }});
+            const exited = spawnSync('true');
+            const deadPid = exited.pid ?? 999999;
+            const owner = {{
+              runId: 'run_stale', scopeKey: paths.memory.scopeKey, cwd: {json.dumps(str(repo))},
+              pid: deadPid, hostname: hostname(),
+              acquiredAt: new Date().toISOString(), nonce: 'deadbeef',
+            }};
+            writeFileSync(paths.lockFile, JSON.stringify(owner) + '\\n');
+            const reclaimed = await acquireConsolidationLock(paths);
+            const reclaimWorked = reclaimed.owner.pid === process.pid;
+            await reclaimed.release();
+
+            const liveOwner = {{ ...owner, pid: process.pid, nonce: 'livebeef' }};
+            writeFileSync(paths.lockFile, JSON.stringify(liveOwner) + '\\n');
+            let contention = false;
+            try {{ await acquireConsolidationLock(paths); }} catch (error) {{
+              contention = error instanceof ConsolidationLockContentionError && error.owner?.nonce === 'livebeef';
+            }}
+            console.log(JSON.stringify({{ reclaimWorked, contention }}));
+            """
+        )
+        assert result == {"reclaimWorked": True, "contention": True}
+
+
+def test_lock_reclaim_is_atomic_quarantine_with_bounded_retry() -> None:
+    security_source = (PACKAGE / "extensions" / "consolidation-run.ts").read_text(encoding="utf-8")
+    # Reclaim renames the lock aside and verifies the nonce before discarding.
+    assert "async function quarantineDeadOwnerLock(" in security_source
+    assert 'await fsp.rename(paths.lockFile, quarantine);' in security_source
+    assert "quarantined.nonce !== deadOwner.nonce" in security_source
+    assert ".reclaim`" in security_source
+    # Retry after reclaim is bounded to a single attempt.
+    assert "for (let attempt = 0; ; attempt += 1) {" in security_source
+    assert "attempt === 0 ? await readConsolidationLock(paths.lockFile) : undefined" in security_source
+    assert "return acquireConsolidationLock(" not in security_source
+
+
+def test_mirror_drift_is_normalized_before_the_run() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        repo = root / "repo"
+        agent = root / "agent"
+        (repo).mkdir()
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ normalizeMirrorDrift }} from './packages/memory/extensions/consolidation-run.ts';
+            import {{ resolveMemoryPaths }} from './packages/memory/extensions/memory-paths.ts';
+            import {{ mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, utimesSync }} from 'node:fs';
+            const memory = resolveMemoryPaths({json.dumps(str(repo))});
+            mkdirSync(memory.harnessDir, {{ recursive: true }});
+            mkdirSync(memory.publicDir, {{ recursive: true }});
+            // Drifted safe file A: harness newer (session wrote harness only).
+            writeFileSync(memory.harnessDir + '/a.md', 'v2\\n');
+            writeFileSync(memory.publicDir + '/a.md', 'v1\\n');
+            utimesSync(memory.harnessDir + '/a.md', 2000, 2000);
+            utimesSync(memory.publicDir + '/a.md', 1000, 1000);
+            // Drifted safe file B: public newer (git-tracked update never reached harness).
+            writeFileSync(memory.harnessDir + '/b.md', 'old\\n');
+            writeFileSync(memory.publicDir + '/b.md', 'new\\n');
+            utimesSync(memory.harnessDir + '/b.md', 1000, 1000);
+            utimesSync(memory.publicDir + '/b.md', 3000, 3000);
+            // Private-marked file leaked into public.
+            writeFileSync(memory.harnessDir + '/secret.md', 'private\\n');
+            writeFileSync(memory.harnessDir + '/MEMORY.md', '# Memory Index\\n\\n- [a.md](a.md)\\n- [secret.md](secret.md) (harness only)\\n');
+            writeFileSync(memory.publicDir + '/secret.md', 'private\\n');
+            writeFileSync(memory.publicDir + '/MEMORY.md', '# Memory Index\\n');
+            // Orphan public file with no harness copy.
+            writeFileSync(memory.publicDir + '/orphan.md', 'orphan\\n');
+            // Safe file missing from public entirely.
+            writeFileSync(memory.harnessDir + '/d.md', 'd\\n');
+
+            const outcome = await normalizeMirrorDrift(memory);
+            console.log(JSON.stringify({{
+              repaired: outcome.repaired,
+              removed: outcome.removed,
+              aMatches: readFileSync(memory.harnessDir + '/a.md', 'utf8') === readFileSync(memory.publicDir + '/a.md', 'utf8'),
+              bHarnessUpdated: readFileSync(memory.harnessDir + '/b.md', 'utf8'),
+              dMirrored: readFileSync(memory.publicDir + '/d.md', 'utf8'),
+              secretGone: !existsSync(memory.publicDir + '/secret.md'),
+              orphanGone: !existsSync(memory.publicDir + '/orphan.md'),
+              publicIndex: readFileSync(memory.publicDir + '/MEMORY.md', 'utf8'),
+            }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert result["repaired"] == [
+            {"name": "a.md", "direction": "harness-to-public"},
+            {"name": "b.md", "direction": "public-to-harness"},
+            {"name": "d.md", "direction": "harness-to-public"},
+        ]
+        assert result["removed"] == ["orphan.md", "secret.md"]
+        assert result["aMatches"] is True
+        assert result["bHarnessUpdated"] == "new\n"
+        assert result["dMirrored"] == "d\n"
+        assert result["secretGone"] is True
+        assert result["orphanGone"] is True
+        assert "- [a.md](a.md)" in result["publicIndex"]
+        assert "(harness only)" not in result["publicIndex"]
+
+
+def test_missing_harness_root_imports_public_instead_of_deleting() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        repo = root / "repo"
+        agent = root / "agent"
+        repo.mkdir()
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ normalizeMirrorDrift }} from './packages/memory/extensions/consolidation-run.ts';
+            import {{ resolveMemoryPaths }} from './packages/memory/extensions/memory-paths.ts';
+            import {{ mkdirSync, writeFileSync, readFileSync }} from 'node:fs';
+            const memory = resolveMemoryPaths({json.dumps(str(repo))});
+            mkdirSync(memory.publicDir, {{ recursive: true }});
+            writeFileSync(memory.publicDir + '/kept.md', 'kept\\n');
+            const outcome = await normalizeMirrorDrift(memory);
+            console.log(JSON.stringify({{
+              repaired: outcome.repaired,
+              removed: outcome.removed,
+              imported: readFileSync(memory.harnessDir + '/kept.md', 'utf8'),
+            }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert result == {
+            "repaired": [{"name": "kept.md", "direction": "public-to-harness"}],
+            "removed": [],
+            "imported": "kept\n",
+        }

@@ -45,12 +45,11 @@ PRIVATE_MARKER_RE = re.compile(r"\(\s*harness[\s_-]+only\s*\)", re.IGNORECASE)
 LINK_RE = re.compile(r"\[[^\]]*\.md\]\(([^)]+)\)", re.IGNORECASE)
 TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9][A-Za-z0-9_.-]*\.md)", re.IGNORECASE)
 
-# Keep validator limits aligned with the runtime loader and transaction writer.
-# Check sizes from metadata before opening files so untrusted memory cannot force
-# an unbounded read into the validator process.
-MAX_MEMORY_FILES = 128
+# Keep validator limits aligned with the runtime loader and transaction writer
+# (consolidation-run.ts MAX_MEMORY_FILES / MAX_MEMORY_BYTES).
+MAX_MEMORY_FILES = 4_096
 MAX_MEMORY_FILE_BYTES = 64_000
-MAX_MEMORY_TOTAL_BYTES = 96_000
+MAX_MEMORY_TOTAL_BYTES = MAX_MEMORY_FILES * MAX_MEMORY_FILE_BYTES
 
 
 class ValidationError(Exception):
@@ -939,7 +938,38 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--expected-receipt-phase", choices=("pre", "post"), default="post")
     parser.add_argument("--check", default="plan,receipt,privacy", help="comma list: plan,receipt,privacy")
+    parser.add_argument(
+        "--max-total-bytes",
+        type=int,
+        dest="max_total_bytes",
+        help="override the aggregate memory byte bound (defaults to file-count × per-file bounds)",
+    )
+    parser.add_argument(
+        "--max-memory-files",
+        type=int,
+        dest="max_memory_files",
+        help="override the memory file count bound",
+    )
     args = parser.parse_args(argv)
+    global MAX_MEMORY_TOTAL_BYTES, MAX_MEMORY_FILES
+    if args.max_memory_files is not None:
+        if args.max_memory_files < 1:
+            print(json.dumps({
+                "ok": False,
+                "checks": [],
+                "errors": [{"code": "usage", "message": "usage: --max-memory-files must be positive"}],
+            }, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+            raise SystemExit(2)
+        MAX_MEMORY_FILES = args.max_memory_files
+    if args.max_total_bytes is not None:
+        if args.max_total_bytes < 0:
+            print(json.dumps({
+                "ok": False,
+                "checks": [],
+                "errors": [{"code": "usage", "message": "usage: --max-total-bytes must be non-negative"}],
+            }, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+            raise SystemExit(2)
+        MAX_MEMORY_TOTAL_BYTES = args.max_total_bytes
     checks = {item.strip().lower() for item in args.check.split(",") if item.strip()}
     aliases = {"cluster": "plan", "staleness": "plan", "report": "plan"}
     if "all" in checks:

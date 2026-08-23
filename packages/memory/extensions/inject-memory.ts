@@ -269,11 +269,34 @@ function parentSelectedScope(run: ConsolidationRun, noContext: boolean): string[
   return [...names.values()].sort();
 }
 
+/**
+ * Render the parent-owned selected scope for the child task. The child cannot
+ * derive this list itself: the snapshot holds session entries, not memory
+ * names, so the authoritative scope must be stated in the task header.
+ */
+export function formatSelectedScopeTaskLines(selectedScope: readonly string[]): string[] {
+  if (selectedScope.length === 0) {
+    return [
+      "- Selected memory scope (authoritative, complete): [] — verified no-op; every plan section must be empty",
+    ];
+  }
+  return [
+    `- Selected memory scope (authoritative, complete, JSON): ${JSON.stringify(selectedScope)}`,
+    "- Your plan's `selected` array MUST be exactly this list — same names, same casing, no additions or omissions.",
+    ...selectedScope.map((name) => `  - ${name}`),
+  ];
+}
+
 function appendBoundedUtf8Text(current: string, text: string, maxBytes: number): string {
   if (!text) return current;
   const bytes = Buffer.concat([Buffer.from(current, "utf8"), Buffer.from(text, "utf8")]);
   if (bytes.byteLength <= maxBytes) return bytes.toString("utf8");
   return bytes.subarray(bytes.byteLength - maxBytes).toString("utf8");
+}
+
+function tailBoundedUtf8Text(text: string, maxBytes = 256 * 1024): string {
+  const bytes = Buffer.from(text, "utf8");
+  return bytes.byteLength <= maxBytes ? text : bytes.subarray(bytes.byteLength - maxBytes).toString("utf8");
 }
 
 export interface ConsolidationEvidence {
@@ -320,7 +343,9 @@ export function missingConsolidationEvidence(evidence: ConsolidationEvidence): s
   return missing;
 }
 
-const DREAM_TIMEOUT_MS = 20 * 60 * 1000;
+// A full-scope run reads every selected memory file plus repository grounding;
+// a measured 30-file pass took ~11 minutes, so keep headroom above that.
+const DREAM_TIMEOUT_MS = 30 * 60 * 1000;
 
 let dreamingTimer: NodeJS.Timeout | undefined;
 let dreamingActivity = "";
@@ -507,9 +532,10 @@ async function runConsolidationValidator(
 async function spawnAsyncConsolidation(
   ctx: ExtensionContext,
   state: DreamState,
-  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string },
+  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; attempt?: number },
 ): Promise<void> {
-  if (state.active) {
+  const attempt = opts.attempt ?? 0;
+  if (state.active && attempt === 0) {
     ctx.ui.notify("Memory consolidation is already running in background.", "info");
     return;
   }
@@ -552,6 +578,13 @@ async function spawnAsyncConsolidation(
     return;
   }
   state.run = run;
+  const selectedScope = parentSelectedScope(run, Boolean(opts.noContext));
+  if (run.normalization.repaired.length > 0 || run.normalization.removed.length > 0) {
+    ctx.ui.notify(
+      `Memory consolidation normalized mirrors before planning: ${run.normalization.repaired.length} repaired, ${run.normalization.removed.length} removed`,
+      "info",
+    );
+  }
 
   procedure = procedure
     .replaceAll("{{RUN_ID}}", run.manifest.runId)
@@ -574,6 +607,8 @@ async function spawnAsyncConsolidation(
     `- Artifact/snapshot digest: ${run.manifest.snapshotDigest}`,
     `- Run directory: ${run.manifest.runDir}`,
     `- Context mode: ${opts.noContext ? "no-context (do not capture session context)" : "parent-provided immutable snapshot"}`,
+    `- Pre-run mirror normalization: ${JSON.stringify({ repaired: run.normalization.repaired, removed: run.normalization.removed })}`,
+    ...formatSelectedScopeTaskLines(selectedScope),
     `- Immutable manifest: ${path.join(run.manifest.runDir, "manifest.json")}`,
     `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
     `- Harness memory dir: ${harnessDir}`,
@@ -642,10 +677,12 @@ async function spawnAsyncConsolidation(
   let stdoutCaptureBytes = 0;
   let stdoutLineCount = 0;
   let stdoutCaptureOverflowed = false;
+  let outputLimitReason = "";
   const stdoutDecoder = new TextDecoder("utf-8");
   const stderrDecoder = new TextDecoder("utf-8");
   const evidence = createConsolidationEvidence();
-  const stopForOutputLimit = (_reason: string): void => {
+  const stopForOutputLimit = (reason: string): void => {
+    outputLimitReason = reason;
     if (stdoutCaptureOverflowed) return;
     stdoutCaptureOverflowed = true;
     stdoutBuffer = "";
@@ -739,6 +776,33 @@ async function spawnAsyncConsolidation(
   const completion = new Promise<void>((resolve) => { resolveCompletion = resolve; });
   state.completion = completion;
   let finished = false;
+  let failureRecorded = false;
+  let mutatedMemory = false;
+  /**
+   * One parent-owned retry for failures before any memory mutation: a fresh
+   * child re-plans from the same immutable run inputs. Every retry attempt is
+   * validated identically, so this never weakens the fail-closed gates.
+   */
+  const retryPlanPhase = async (reason: string): Promise<void> => {
+    if (attempt > 0) {
+      ctx.ui.notify(`Memory dreaming failed: ${reason.slice(-300)}`, "error");
+      return;
+    }
+    ctx.ui.notify(`Memory consolidation plan was rejected (${reason.slice(-160)}); retrying once with a fresh planner…`, "info");
+    await releaseConsolidationRun(run, { keepArtifacts: true });
+    state.run = undefined;
+    await spawnAsyncConsolidation(ctx, state, { ...opts, attempt: attempt + 1 });
+  };
+  const persistRunDiagnostics = async (): Promise<void> => {
+    failureRecorded = true;
+    try {
+      const marker = outputLimitReason ? `\n[truncated: ${outputLimitReason}]\n` : "";
+      await writeFileAtomic(run.paths.stdoutFile, tailBoundedUtf8Text(`${stdoutCapture}${marker}`));
+      await writeFileAtomic(run.paths.stderrFile, tailBoundedUtf8Text(stderr));
+    } catch {
+      // Diagnostics are best-effort; never mask the original failure.
+    }
+  };
   const finish = async (code: number | null, error?: Error): Promise<void> => {
     if (finished) return;
     finished = true;
@@ -766,6 +830,8 @@ async function spawnAsyncConsolidation(
     try {
       if (!ownsCurrentRun()) return;
       if (error) {
+        await persistRunDiagnostics();
+        if (!ownsCurrentRun()) return;
         ctx.ui.notify(`Memory dreaming failed to start: ${error.message}`, "error");
       } else if (code === 0) {
         const extracted = stdoutCaptureOverflowed
@@ -792,7 +858,13 @@ async function spawnAsyncConsolidation(
         if (!ownsCurrentRun()) return;
         const plan = evidence.finalPlan;
         if (!plan || evidence.planCount !== 1) {
+          await persistRunDiagnostics();
+          if (!ownsCurrentRun()) return;
           const detail = stderr.trim() || evidence.lastJsonError;
+          if (attempt === 0) {
+            await retryPlanPhase(`missing exactly one schema-valid consolidation plan${detail ? ` (${detail.slice(-300)})` : ""}`);
+            return;
+          }
           ctx.ui.notify(
             `Memory dreaming finished without verified consolidation: missing exactly one schema-valid consolidation plan${detail ? ` (${detail.slice(-300)})` : ""}`,
             "warning",
@@ -823,6 +895,7 @@ async function spawnAsyncConsolidation(
           if (!ownsCurrentRun()) return;
           const mutationStartedAt = Date.now();
           const applied = await applyConsolidationPlan(run, plan, ownsCurrentRun);
+          mutatedMemory = true;
           if (!ownsCurrentRun()) return;
           const receipt = createConsolidationReceipt(run.manifest, applied.selected, applied.finalState, planDigest);
           const receiptPath = await writeConsolidationReceipt(run, receipt);
@@ -839,15 +912,33 @@ async function spawnAsyncConsolidation(
           }
         }
       } else {
+        await persistRunDiagnostics();
+        if (!ownsCurrentRun()) return;
         const errReason = stderr.trim() || evidence.lastJsonError || `exit code ${code}`;
+        if (attempt === 0) {
+          await retryPlanPhase(errReason);
+          return;
+        }
         ctx.ui.notify(`Memory dreaming failed: ${errReason.slice(-300)}`, "error");
       }
     } catch (finishError: unknown) {
-      if (ownsCurrentRun()) ctx.ui.notify(`Memory consolidation verification failed: ${(finishError as Error).message}`, "error");
+      if (ownsCurrentRun()) {
+        await persistRunDiagnostics();
+        if (!ownsCurrentRun()) return;
+        const message = (finishError as Error).message;
+        if (!mutatedMemory && attempt === 0) {
+          await retryPlanPhase(message);
+          return;
+        }
+        ctx.ui.notify(`Memory consolidation verification failed: ${message}`, "error");
+      }
     } finally {
       try {
-        if (generation === state.generation && state.run === run) state.run = undefined;
-        await releaseConsolidationRun(run);
+        // Ownership must be captured before state.run is cleared: the retention
+        // decision may not depend on a check that just became false.
+        const ownedNow = generation === state.generation && !state.cancelled && state.run === run;
+        if (ownedNow) state.run = undefined;
+        await releaseConsolidationRun(run, { keepArtifacts: failureRecorded && ownedNow });
       } finally {
         resolveCompletion();
         if (state.completion === completion) state.completion = undefined;

@@ -504,3 +504,51 @@ def test_worker_environment_is_an_explicit_non_credential_allowlist() -> None:
     assert "process.env.PI_CODING_AGENT_DIR" in content
     assert "process.env.ANTHROPIC_API_KEY" not in content
     assert "env: { ...process.env" not in content
+
+
+def test_child_task_embeds_parent_selected_scope() -> None:
+    content = source()
+    assert "const selectedScope = parentSelectedScope(run, Boolean(opts.noContext));" in content
+    assert "...formatSelectedScopeTaskLines(selectedScope)," in content
+    procedure = (MEMORY_PKG_DIR / "procedures" / "consolidate.md").read_text(encoding="utf-8")
+    assert "authoritative selected memory scope" in procedure
+    assert "supplied by the parent snapshot" not in procedure
+    assert "only that header decides whether this run is a verified no-op" in procedure
+
+
+def test_selected_scope_task_lines_render_exact_contract() -> None:
+    result = run_bun(
+        """
+        import { formatSelectedScopeTaskLines } from './packages/memory/extensions/inject-memory.ts';
+        console.log(JSON.stringify({
+          empty: formatSelectedScopeTaskLines([]),
+          named: formatSelectedScopeTaskLines(['a.md', 'B.md']),
+        }));
+        """
+    )
+    assert result["empty"] == [
+        "- Selected memory scope (authoritative, complete): [] — verified no-op; every plan section must be empty",
+    ]
+    named = result["named"]
+    assert isinstance(named, list)
+    assert 'JSON): ["a.md","B.md"]' in named[0]
+    assert "MUST be exactly this list" in named[1]
+    assert named[2:] == ["  - a.md", "  - B.md"]
+
+
+def test_failed_runs_persist_bounded_diagnostics_and_retain_artifacts() -> None:
+    content = source()
+    assert "const persistRunDiagnostics = async (): Promise<void>" in content
+    assert "failureRecorded = true;" in content
+    assert "writeFileAtomic(run.paths.stdoutFile, tailBoundedUtf8Text(`" in content
+    assert "writeFileAtomic(run.paths.stderrFile, tailBoundedUtf8Text(stderr))" in content
+    assert "await persistRunDiagnostics();" in content
+    # Late events must not notify or retain: recheck ownership after every await.
+    assert content.count("await persistRunDiagnostics();\n        if (!ownsCurrentRun()) return;") == 3
+    assert "await persistRunDiagnostics();\n          if (!ownsCurrentRun()) return;" in content
+    # Retention must be decided from ownership captured before state.run clears.
+    assert "const ownedNow = generation === state.generation && !state.cancelled && state.run === run;" in content
+    assert "releaseConsolidationRun(run, { keepArtifacts: failureRecorded && ownedNow })" in content
+    # Output-limit trips clear the capture before persistence; keep the reason.
+    assert "outputLimitReason = reason;" in content
+    assert "`\\n[truncated: ${outputLimitReason}]\\n`" in content

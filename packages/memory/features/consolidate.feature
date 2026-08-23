@@ -133,6 +133,42 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     When the parent parses the child output
     Then it rejects the event instead of treating the wrapper as a plan
 
+  Scenario: Parent supplies the authoritative selected scope to the child
+    Given memory roots contain existing memory files when a consolidation run starts
+    When the parent builds the child task prompt
+    Then it embeds the exact parent-derived selected scope as JSON in the task header
+    And the procedure requires the plan's selected array to be exactly that set of names with identical casing
+    And the child is never asked to derive selected names from the snapshot
+
+  Scenario: Failed consolidation runs keep bounded diagnostics
+    Given a consolidation child exits without a verified consolidation
+    When the parent finishes handling the failure
+    Then it writes bounded stdout and stderr captures into the run directory
+    And it retains the run directory artifacts while releasing the lock
+
+  Scenario: Pre-mutation plan failures retry once with a fresh planner
+    Given a consolidation child produced no schema-valid plan or its plan was rejected by validation
+    And no memory mutation has been applied yet
+    When the parent handles the failure on the first attempt
+    Then it releases the failed run while keeping its diagnostics
+    And it spawns exactly one replacement planner against the same run inputs
+    And every attempt passes the same validation gates before any mutation
+    And a failure after memory mutation is never retried
+
+  Scenario: Pre-run mirror normalization repairs safe-file drift
+    Given the harness and public copies of a safe memory file differ before the run
+    When a consolidation run is created
+    Then the parent overwrites the older copy with the newer side's bytes first
+    And the repair direction is reported in the task header and notification
+    And both indexes are regenerated so post-apply validation sees consistent mirrors
+
+  Scenario: Privacy violations and orphans are removed before planning
+    Given a private-marked memory file exists under public
+    And a public file has no harness copy while the harness root exists
+    When a consolidation run is created
+    Then both files are removed from public before the snapshot is captured
+    And a missing harness root imports public files instead of deleting them
+
   Scenario: Parent validates before and after scoped mutation
     Given the child returns a valid plan for selected memory files
     When consolidation applies the plan
@@ -182,6 +218,13 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     When consolidation is triggered
     Then no second child is spawned
     And the user receives a lock diagnostic
+
+  Scenario: A stale lock from a dead same-host process is reclaimed
+    Given a consolidation lock exists for this project
+    And its owner pid is dead on this host
+    When consolidation is triggered again
+    Then the dead-owner lock is removed and acquisition retries once
+    And a lock owned by a live process still resolves as contention
 
   Scenario: First-run lock initialization races resolve as contention
     Given two Pi processes initialize the same missing agent memory directory concurrently

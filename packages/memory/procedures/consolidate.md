@@ -35,10 +35,14 @@ prose.
 
 ## Scope and names
 
-Use only the selected names supplied by the parent snapshot. A selected memory
-name is a simple Markdown filename matching `[A-Za-z0-9][A-Za-z0-9_-]*.md`.
-`MEMORY.md` is an index, case-insensitively, and is never a selected item. Do
-not add an item merely because it was found outside the selected scope. Preserve
+The task header states the authoritative selected memory scope as a JSON list.
+That list is complete and final: your plan's `selected` array must be exactly
+those names — same names, same casing, no additions, no omissions. A selected
+memory name is a simple Markdown filename matching
+`[A-Za-z0-9][A-Za-z0-9_-]*.md`. `MEMORY.md` is an index, case-insensitively,
+and is never a selected item. Do not add an item merely because it was found
+outside the listed scope, and do not emit an empty scope when the header lists
+names; only that header decides whether this run is a verified no-op. Preserve
 case in names and reject path-qualified names.
 
 ## Required plan object
