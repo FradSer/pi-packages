@@ -588,6 +588,54 @@ def test_spawn_renders_legacy_started_line() -> None:
     assert "details: { started: true }" in tools
 
 
+def test_spawn_started_line_fits_narrow_tui_width() -> None:
+    tools = source("tools.ts")
+    assert "render: (width: number) => width > 0 ? [truncateToWidth(line, width)] : []" in tools
+    assert "started line fits the available TUI width" in (
+        PACKAGE / "features" / "agent-teams.feature"
+    ).read_text(encoding="utf-8")
+
+
+def test_teammate_spawn_started_row_fits_narrow_transcript_widths() -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "The teammate_spawn started row fits narrow transcript widths" in feature
+    payload = run_node(
+        f'''\
+        import {{ registerLeaderTools }} from "{(SRC / "tools.ts").as_uri()}";
+        import {{ visibleWidth }} from "@earendil-works/pi-tui";
+        const tools = [];
+        registerLeaderTools({{ registerTool(tool) {{ tools.push(tool); }}, registerCommand() {{}} }});
+        const spawn = tools.find((tool) => tool.name === "teammate_spawn");
+        const theme = {{ fg: (_color, text) => text, bold: (text) => text }};
+        const renderRow = (width) => spawn.renderResult(
+          {{ content: [{{ type: "text", text: "started" }}] }},
+          {{}},
+          theme,
+          {{ args: {{ name: "very-long-teammate-name", agent: "reviewer", prompt: "Investigate the narrow transcript rendering regression" }} }},
+        ).render(width);
+        const rows = [1, 8, 16, 24].map((width) => ({{ width, lines: renderRow(width) }}));
+        const row = renderRow(24)[0];
+        console.log(JSON.stringify({{
+          row,
+          narrowRowsFit: rows.every(({{ width, lines }}) => lines.length === 1 && visibleWidth(lines[0]) <= width),
+          rowIsSingleLine: !row.includes("\\n"),
+          rowFitsWidth: visibleWidth(row) <= 24,
+          zeroWidthLines: spawn.renderResult(
+            {{ content: [{{ type: "text", text: "started" }}] }},
+            {{}},
+            theme,
+            {{ args: {{ name: "name", agent: "reviewer", prompt: "task" }} }},
+          ).render(0).length === 0,
+          identifiesStarted: row.includes("[agent] started"),
+        }}));
+        '''
+    )
+    assert payload["narrowRowsFit"] is True
+    assert payload["rowIsSingleLine"] is True
+    assert payload["rowFitsWidth"] is True
+    assert payload["identifiesStarted"] is True
+
+
 def test_live_activity_renders_markdown_without_literal_emphasis_markers() -> None:
     payload = run_node(
         f'''\

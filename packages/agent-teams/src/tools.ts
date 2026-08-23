@@ -39,7 +39,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       const params = context.args as { name: string; agent: string; prompt?: string };
       const line = `${theme.fg("toolTitle", theme.bold(formatToolEventLabel("started", "", "agent").trimEnd()))} ${theme.fg("accent", `@${params.name}`)} ${theme.fg("dim", "·")} ${theme.fg("customMessageText", theme.bold(formatAgentTaskName(params.prompt ?? "", params.name)))}`;
       return {
-        render: (width: number) => [truncateToWidth(line, Math.max(1, width))],
+        render: (width: number) => width > 0 ? [truncateToWidth(line, width)] : [],
         invalidate: () => {},
       };
     },

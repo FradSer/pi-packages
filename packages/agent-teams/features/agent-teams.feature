@@ -265,7 +265,13 @@ Feature: Agent Teams collaborative organization contract
       When the spawn tool call renders in the transcript
       Then it shows one started line identifying the teammate and kickoff task
       And the line follows the `[agent] started · @name · task-name` shape
+      And the started line fits the available TUI width with a trailing ellipsis when needed
       And the full result text stays available behind the standard tool rendering
+
+    Scenario: The teammate_spawn started row fits narrow transcript widths
+      Given the leader spawns a teammate with a long name and kickoff prompt
+      When the started row renders in a narrow transcript
+      Then the row stays on one line and does not exceed the available width
 
     Scenario: The leader coordinates through spawn, shutdown, steer, and the board
       When the leader inspects available tools
