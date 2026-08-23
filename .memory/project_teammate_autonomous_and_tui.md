@@ -1,22 +1,23 @@
 ---
 name: teammate-autonomous-and-tui
-description: Agent Teams (packages/agent-teams) — run-centric: declarative agent files, single-call DAG dispatch, bounded child-process nodes, one-way worker-to-leader messages, leader runtime steering for running RPC workers, session-wide worker cap, per-spawn identity validation
+description: Agent Teams uses named resident teammates, a shared task board, one-way worker reports, and a TUI console owned by ctx.ui.custom
 type: project
 ---
 
-`packages/agent-teams` is a run-centric multi-agent system: the Pi session is the leader; agents are declarative Markdown files; each run is a dependency-aware task graph dispatched in one call, where each node is a bounded child Pi process and a session-wide cap limits total workers to 8.
+`packages/agent-teams` is a resident teammate system. The Pi session is the leader; teammates are named long-lived RPC child processes backed by declarative Markdown agent definitions. The system does not use the former run-centric DAG or fanout tool model.
 
-**Why:**
-The teammate-registry model (runtime `teammate_register`/`create_task`/`start_task` ceremony, session-scoped identities, read receipts) was replaced after a design review. The ceremony critique: a one-off delegation cost 4 tool calls (list/register/create/start), identities were session-ephemeral so registration cost was paid per session, and competitor packages proved single-call DAG dispatch + declarative markdown agents. The later simplification removed peer mailboxes, broadcasts, and worker inboxes: workers send one-way messages to the leader, upstream DAG results replace peer delivery, and the leader can steer a running RPC worker through the leader-side `teammate_message` operation. Live run status is not injected into every system prompt.
+## Why
 
-**How to apply:**
-1. **Agents are declarative files** (`src/agents.ts`): frontmatter `name`/`description`/`tools`/`model` (inline `#` comments stripped), body = role prompt. Discovery precedence per name: project `.pi/agents/` > user `~/.pi/agent/agents/` > bundled `agents/`. Bundled: worker/reviewer/specialist/observer.
-2. **Single-call DAG dispatch** (`teammate_run`): `tasks` with `id`/`agent`/`prompt`/`paths`/`access` (default read)/`dependsOn`/`model`/`mode`/`turnBudget`/`forkContext`/`inputBindings`, plus `concurrency` (default 4), `worktree`, `background`, `summarize`, and `summaryAgent`. `turnBudget` is an assistant-turn budget; there is no `timeoutMs` or wall-clock deadline field. Validates duplicate ids, unknown dependsOn, cycles, and bad paths before any spawn. Root nodes start immediately; `scheduleRun` auto-starts dependents on completion; overlapping shared-workspace writes are deferred across all runs in the session unless worktree-isolated (`findSharedWorkspaceWriteConflict`). A session-wide cap of 8 workers applies across runs.
-3. **Paths and access are metadata only**: they provide scheduling and prompt context. Shared-workspace protection is advisory write/write coordination. They do not enforce filesystem permissions, provide true read/write enforcement, or create an OS/container sandbox. A worker's actual capabilities come from the `tools` list in its resolved agent definition; `worktree: true` provides Git worktree separation and diff capture, not a sandbox.
-4. **Leader tool surface (5)**: `teammate_run`, `teammate_fanout`, `teammate_message`, `teammate_cancel`, and `teammate_retry`. `teammate_fanout` is leader-only bounded fanout from a completed node's structured array output. Leader-side `teammate_message` steers a running RPC worker; it does not create a mailbox. `teammate_cancel` handles run or node-level cancellation; `teammate_retry` retries failed/cancelled nodes without re-running completed ones.
-5. **Worker protocol (1 capability tool)**: worker-side `teammate_message` has `subject`/`body`/optional `status` and always reports to the leader. Per-spawn identity: `PI_TEAMMATE_WORKER_NAME` = `runId:nodeId`, `PI_TEAMMATE_SPAWN_ID` = fresh UUID; stale-spawn events are rejected. Reports enter one leader inbox; there are no peer mailboxes, broadcasts, worker inboxes, or worker-to-worker channels. Upstream DAG results are injected into downstream prompts (`=== UPSTREAM HANDOFF ===`).
-6. **Outcomes and persistence**: workers report progress/final deliverables, but the harness creates one canonical terminal result after child close. Reported completion plus harness shutdown remains completed; failed nodes cancel transitive pending dependents. State snapshots are dirty-gated and written as leader-owned debug artifacts; worker task argument temp directories are removed after close or spawn error.
-7. **UI**: passive widget (display-only) + `/teammate` full-screen console (owns input via `ctx.ui.custom`, no global interception) — rows are nodes, detail = node lifecycle and leader reports, live activity streams tool calls and thinking deltas, SGR mouse-wheel scrolling. Agent report transcript labels use human-readable `[Agent message] from @<teammate>` while transport remains the lowercase `<agent-message>` protocol marker.
-8. **Testing**: BDD in `features/agent-teams.feature`, package tests in `tests/test_teammate_package.py` including node-eval runtime tests of state.ts/spawner.ts; typecheck via `npx tsc --noEmit --strict ... src/*.ts`.
+Resident teammates remain available between turns, consume no model tokens while idle, and can be steered or awakened by the harness. A shared board and explicit message protocol provide coordination without leader-side polling or peer traffic entering the leader model context.
 
-**Related:** [[pi-cli-print-json-usage]] [[no-global-input-interception]] [[pi-kitty-csi-u-keys]] [[pi-custom-component-rendering]] [[pi-package-conventions]]
+## How to apply
+
+1. Agent definitions resolve from project `.pi/agents`, user `~/.pi/agent/agents`, and bundled definitions. Project-local `.local.md` overrides take precedence over the matching project definition.
+2. The leader tool surface is `teammate_spawn`, `teammate_shutdown`, `send_message`, `task_create`, and `task_list`. Worker capabilities add `task_claim` and `task_submit`; `send_message` is the unified reporting and peer-message primitive.
+3. Teammates are capped at eight living workers per session. They have no turn-count or wall-clock termination cap. Silence is telemetry for a stall notice; the leader decides whether to wait, steer, shut down, or respawn.
+4. Worker and leader state use one-writer atomic snapshots. Workers write outboxes, peer inboxes, and exclusive-create task intents. Per-spawn identity validation rejects stale callbacks and reports.
+5. Task completion is gated by the effective task verify command, falling back to the agent role's verify command. Shutdown or crashes release claimed tasks, while the board persists for later inspection and runtime rosters do not.
+6. The passive widget shows only working or starting teammates. `/agent-teams` opens the full-screen console through `ctx.ui.custom`; extensions must not use global terminal-input interception.
+7. Keep BDD scenarios in `packages/agent-teams/features/agent-teams.feature` and executable coverage in `packages/agent-teams/tests/test_teammate_package.py`.
+
+**Related:** [[pi-package-conventions]] [[no-global-input-interception]] [[pi-custom-component-rendering]]
