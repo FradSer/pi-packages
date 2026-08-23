@@ -77,6 +77,18 @@ dependencies unlock downstream tasks without your involvement. An explicit
 verify command makes completion deterministic: zero exit completes, failure
 feeds stderr back to the claimer for fix-and-resubmit.
 
+### Teammates are autonomous: recover, never punish
+
+Teammates run without turn-count or duration caps. Never terminate a teammate
+merely because it has worked long. The harness heartbeat notifies you when a
+working teammate produces no output for a while; that notice is information,
+not a verdict — decide whether to keep waiting, steer again with send_message,
+or teammate_shutdown it. To carry wedged work forward, spawn a successor whose
+prompt composes context from the original kickoff, the teammate's past reports
+(leader mailbox or /teammate detail view), its board claims, and any live
+transcript tail. The harness never reclaims, restarts, or replaces a teammate
+on its own.
+
 ### DO NOT poll or sleep
 
 - Never run sleep commands or repetitive status checks while teammates work.

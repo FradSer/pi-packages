@@ -59,7 +59,6 @@ import {
 } from "./statefile.ts";
 import { isWorkerEvent } from "./types.ts";
 import {
-  DEFAULT_TURN_BUDGET,
   deliverPrompt,
   isCleanExit,
   sendWorkerSteer,
@@ -76,11 +75,10 @@ export const MAX_SESSION_WORKERS = 8;
 /** Harness coordination cadence: outbox drain every tick, notices paced. */
 const LIVE_POLL_MS = 500;
 export const NOTICE_PACE_MS = 2000;
-/** Silence is not a work deadline: active stream output keeps a teammate alive. */
+/** Silence is not a work deadline: active stream output keeps a teammate alive.
+ * The watchdog may only notify; termination decisions belong to the leader model. */
 const DEFAULT_STALL_NOTICE_MS = 30 * 60 * 1000;
-const DEFAULT_STALL_SHUTDOWN_MS = 2 * 60 * 60 * 1000;
 export const STALL_NOTICE_MS = readDurationEnv("PI_TEAMMATE_STALL_NOTICE_MS", DEFAULT_STALL_NOTICE_MS);
-export const STALL_SHUTDOWN_MS = readDurationEnv("PI_TEAMMATE_STALL_SHUTDOWN_MS", DEFAULT_STALL_SHUTDOWN_MS);
 /** Fully-consumed inboxes larger than this are truncated. */
 const INBOX_COMPACT_BYTES = 256 * 1024;
 
@@ -123,7 +121,6 @@ let sendUpdate: (report: FollowUpReport) => void = () => {};
 let notifyChange: () => void = () => {};
 
 const pendingShutdowns = new Set<string>();
-const pendingShutdownReasons = new Map<string, string>();
 /** Task ids under verification, bound to the claiming teammate incarnation. */
 const verifyingTasks = new Map<string, { worker: string; spawnId: string }>();
 /** Idle nudges already fired per teammate incarnation (one per transition). */
@@ -164,7 +161,6 @@ export function shutdownTeamMachine(): void {
   sendUpdate = () => {};
   notifyChange = () => {};
   pendingShutdowns.clear();
-  pendingShutdownReasons.clear();
   verifyingTasks.clear();
   idleNudgesSent.clear();
   pendingDeliveries.clear();
@@ -278,7 +274,6 @@ export function spawnTeammate(input: {
     model: agent.model,
     tools: agent.tools,
     cwd: workerCwd,
-    turnBudget: DEFAULT_TURN_BUDGET,
     env: teammateEnv(stateFile, input, spawnId, agent.verify),
     onUpdate: (progress) => applyProgress(input.name, spawnId, progress),
     onExit: (result) => void handleTeammateClose(input.name, spawnId, result),
@@ -407,18 +402,13 @@ function applyProgress(name: string, spawnId: string, progress: {
 }
 
 function checkStalledTeammates(now = Date.now()): void {
-  if (STALL_NOTICE_MS <= 0 && STALL_SHUTDOWN_MS <= 0) return;
+  if (STALL_NOTICE_MS <= 0) return;
   for (const teammate of livingTeammates()) {
     if (teammate.status !== "working" && teammate.status !== "starting") continue;
     const silence = stallSilenceMs(teammate, now);
     if (silence === undefined) continue;
-    if (STALL_SHUTDOWN_MS > 0 && silence >= STALL_SHUTDOWN_MS) {
-      const reason = `Stall watchdog reclaimed @${teammate.name} after ${formatSilenceDuration(silence)} without RPC output.`;
-      void shutdownTeammate(teammate.name, reason);
-      continue;
-    }
-    if (STALL_NOTICE_MS <= 0 || silence < STALL_NOTICE_MS || teammate.stallNoticeSentAt !== undefined) continue;
-    const body = `@${teammate.name} has produced no RPC output for ${formatSilenceDuration(silence)}. The child may be blocked in a provider or tool call; steer delivery is uncertain. Consider teammate_shutdown and respawn if it does not recover.`;
+    if (silence < STALL_NOTICE_MS || teammate.stallNoticeSentAt !== undefined) continue;
+    const body = `@${teammate.name} has produced no RPC output for ${formatSilenceDuration(silence)}. The child may be blocked in a provider or tool call; steer delivery is uncertain. Decide: keep waiting, steer again, or shut it down (and respawn a successor with context from the original kickoff, its mailbox reports, board claims, and the /teammate detail transcript).`;
     updateTeammate(teammate.name, { stallNoticeSentAt: now });
     deliverToLeader({ from: "harness", subject: `Possible stall: @${teammate.name}`, body });
     sendUpdate({ teammate: teammate.name, agent: teammate.agent, body, finished: false });
@@ -464,10 +454,9 @@ function failSpawn(name: string, error: string): void {
 
 // ── Shutdown and close ────────────────────────────────────────────
 
-export async function shutdownTeammate(name: string, reason?: string): Promise<{ ok: true; body: string } | { ok: false; error: string }> {
+export async function shutdownTeammate(name: string): Promise<{ ok: true; body: string } | { ok: false; error: string }> {
   const teammate = getTeammate(name);
   if (!teammate || teammate.status === "stopped") return { ok: false, error: `No living teammate named "${name}".` };
-  if (reason?.trim()) pendingShutdownReasons.set(name, reason.trim());
   pendingShutdowns.add(name);
   const terminated = await terminateTeammate(name);
   if (!terminated) {
@@ -477,7 +466,7 @@ export async function shutdownTeammate(name: string, reason?: string): Promise<{
     updateTeammate(name, { status: "stopped", activeTool: undefined });
     publishStateSnapshot();
     notifyChange();
-    return { ok: true, body: summarizeShutdown(name, released.length, 0, undefined, pendingShutdownReasons.get(name)) };
+    return { ok: true, body: summarizeShutdown(name, released.length, 0, undefined) };
   }
   // Close finalization completes state transitions and reporting.
   return {
@@ -491,8 +480,7 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
   const teammate = getTeammate(name);
   if (!teammate || teammate.spawnId !== spawnId || teammate.status === "stopped") return;
   const requested = pendingShutdowns.has(name);
-  const shutdownReason = pendingShutdownReasons.get(name);
-  const crashed = !requested && !isCleanExit(result) && !result.turnBudgetExceeded;
+  const crashed = !requested && !isCleanExit(result);
 
   await finalizeWorktree(name);
 
@@ -502,20 +490,19 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
 
   const released = releaseTasksOf(name, requested ? "Teammate was shut down." : "Teammate stopped unexpectedly.");
   pendingShutdowns.delete(name);
-  pendingShutdownReasons.delete(name);
   // A stopped teammate must not keep the poll loop or its queue alive.
   pendingDeliveries.delete(name);
   idleNudgesSent.delete(`${name}:${teammate.spawnId}`);
   updateTeammate(name, {
     status: "stopped",
     activeTool: undefined,
-    error: requested ? undefined : closeErrorText(name, result, crashed),
+    error: requested ? undefined : closeErrorText(result, crashed),
   });
   clearWorkerRunEvents(name, teammate.spawnId);
   removeWorkerOutbox(requireStateFile(), name, teammate.spawnId);
 
   deliverToLeader(requested
-    ? { from: name, subject: "Teammate shut down", body: summarizeShutdown(name, released.length, result.exitCode, result.usage, shutdownReason) }
+    ? { from: name, subject: "Teammate shut down", body: summarizeShutdown(name, released.length, result.exitCode, result.usage) }
     : { from: name, subject: "Teammate stopped unexpectedly", body: crashDiagnostic(name, result, released) });
 
   if (!requested) {
@@ -530,10 +517,7 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
   notifyChange();
 }
 
-function closeErrorText(name: string, result: WorkerProcessResult, crashed: boolean): string | undefined {
-  if (result.turnBudgetExceeded) {
-    return `Teammate @${name} exceeded its assistant-turn budget for one wake-up sequence.`;
-  }
+function closeErrorText(result: WorkerProcessResult, crashed: boolean): string | undefined {
   if (!crashed) return undefined;
   return `Closed unexpectedly (code ${result.exitCode ?? "unknown"}${result.signal ? `, signal ${result.signal}` : ""}).`;
 }
@@ -552,12 +536,10 @@ function summarizeShutdown(
   releasedCount: number,
   exitCode: number | null | undefined,
   usage?: import("./types").WorkerUsage,
-  reason?: string,
 ): string {
   const lines = [`Teammate @${name} shut down (exit code ${exitCode ?? "unknown"}).`];
   if (releasedCount > 0) lines.push(`Released claimed task(s): ${releasedCount}.`);
   if (usage) lines.push(`Lifetime usage: ${usage.totalTokens} tokens, $${usage.cost.toFixed(4)}.`);
-  if (reason?.trim()) lines.push(`Reason: ${reason.trim()}.`);
   return lines.join("\n");
 }
 

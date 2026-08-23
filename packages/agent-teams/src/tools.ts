@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { formatAgentMessagePrefix, formatAgentTaskName, formatToolEventLabel } from "@fradser/pi-kit";
 import {
   createBoardTask,
@@ -13,6 +13,12 @@ import { LEADER_RECIPIENT, SendMessageParams, TeammateShutdownParams, TeammateSp
 import { registerTaskListTool } from "./worker.ts";
 import { openTeamConsole, refreshTeamUI } from "./ui.ts";
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+function isValidAgentName(name: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) && !name.includes("..") && name !== "con";
+}
 
 function rosterSummary(): string {
   const alive = livingTeammates();
@@ -132,16 +138,80 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
 }
 
 export function registerTeamCommand(pi: ExtensionAPI): void {
-  pi.registerCommand("teammate", {
-    description: "Open the full-screen team console: roster, task board, details, shutdown",
+  pi.registerCommand("agent-teams", {
+    description: "Agent Teams menu: console and create agents from session history",
     handler: async (_args, ctx) => {
-      publishStateSnapshot();
-      if (ctx.mode !== "tui") {
-        ctx.ui.notify(rosterSummary(), "info");
+      const choice = await ctx.ui.select("agent-teams", ["console", "project", "local"]);
+      if (!choice) return;
+      if (choice === "console") {
+        publishStateSnapshot();
+        if (ctx.mode !== "tui") { ctx.ui.notify(rosterSummary(), "info"); return; }
+        await openTeamConsole(ctx);
+        refreshTeamUI(ctx);
         return;
       }
-      await openTeamConsole(ctx);
-      refreshTeamUI(ctx);
+      await createAgentFromHistory(ctx, choice === "local");
     },
   });
+}
+
+interface GeneratedAgent { name?: string; description?: string; tools?: string[]; prompt?: string; content?: string; }
+
+function parseGeneratedAgents(raw: string): GeneratedAgent[] {
+  const cleaned = raw.trim().replace(/^```(?:json)?\s*|\s*```$/g, "");
+  const start = cleaned.indexOf("[");
+  const end = cleaned.lastIndexOf("]");
+  if (start < 0 || end <= start) return [];
+  try {
+    const value: unknown = JSON.parse(cleaned.slice(start, end + 1));
+    return Array.isArray(value) ? value.filter((item): item is GeneratedAgent => Boolean(item && typeof item === "object")) : [];
+  } catch { return []; }
+}
+
+function renderAgentDefinition(agent: GeneratedAgent): string {
+  const name = agent.name!.trim();
+  const description = (agent.description || "Agent created from session history").replace(/[\r\n]+/g, " ").trim();
+  const tools = Array.isArray(agent.tools) ? agent.tools.filter((tool) => typeof tool === "string" && tool.trim()).join(", ") : "";
+  return `---\nname: ${name}\ndescription: ${description}${tools ? `\ntools: ${tools}` : ""}\n---\n\n${(agent.prompt || "").trim()}`;
+}
+
+async function createAgentFromHistory(ctx: ExtensionContext, local: boolean): Promise<void> {
+  const branch = ctx.sessionManager?.getBranch?.() ?? [];
+  const history = branch.map((entry: any) => {
+    const text = typeof entry?.text === "string" ? entry.text : typeof entry?.content === "string" ? entry.content : "";
+    return text ? text : Array.isArray(entry?.content) ? entry.content.map((part: any) => part?.text ?? "").join("") : "";
+  }).filter(Boolean).slice(-20).join("\n\n");
+  const generated = await generateAgentPrompt(ctx, history);
+  if (!generated) return;
+  const dir = path.join(ctx.cwd || process.cwd(), ".pi", "agents");
+  fs.mkdirSync(dir, { recursive: true });
+  const definitions = parseGeneratedAgents(generated)
+    .filter((item) => typeof item.name === "string" && (item.content?.trim() || item.prompt?.trim()))
+    .map((item) => ({ name: item.name!.trim(), content: item.content?.trim() || renderAgentDefinition(item) }));
+  if (definitions.length === 0) { ctx.ui.notify("Model returned no usable agent definitions", "error"); return; }
+  let created = 0;
+  for (const definition of definitions) {
+    if (!isValidAgentName(definition.name)) continue;
+    const filename = `${definition.name}${local ? ".local" : ""}.md`;
+    try { fs.writeFileSync(path.join(dir, filename), definition.content, { encoding: "utf8", flag: "wx" }); created++; } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
+  }
+  ctx.ui.notify(`Created ${created} agent definition${created === 1 ? "" : "s"}`, created ? "info" : "warning");
+}
+
+async function generateAgentPrompt(ctx: ExtensionContext, history: string): Promise<string | undefined> {
+  const model = ctx.model;
+  const registry = ctx.modelRegistry;
+  if (!model || !registry?.complete) {
+    ctx.ui.notify("No model available to generate an agent", "error");
+    return undefined;
+  }
+  const response = await registry.complete(model, {
+    systemPrompt: "Design a complementary resident coding agent team from session history. Return a JSON array of 2-4 complementary agent definitions. Each item must have name, description, tools, and prompt fields. Names use letters, digits, dots, dashes, underscores. Return JSON only, with no code fences.",
+    messages: [{ role: "user", content: `Session history:\n${history || "(empty)"}`, timestamp: Date.now() }],
+  }, { maxTokens: 2000, temperature: 0, cacheRetention: "none" });
+  const content = response.content?.filter((part: any) => part.type === "text").map((part: any) => part.text).join("\\n").trim();
+  if (!content) { ctx.ui.notify("Model returned no agent definition", "error"); return undefined; }
+  return content;
 }

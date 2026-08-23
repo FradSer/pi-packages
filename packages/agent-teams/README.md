@@ -115,8 +115,7 @@ That is **7 unique tool names**. There are no `teammate_run`, `teammate_fanout`,
 - **Sent means written**: peer `send_message` succeeds only after the recipient inbox write succeeds. The harness owns delivery into a recipient turn.
 - **One writer per state file**: only the leader process writes runtime and board snapshots (atomic tmp+rename). Workers append leader reports to their outbox, peer mail to recipient inboxes, and task intent via exclusive-create marker files.
 - **Completion is gated, not self-reported**: a task completes only after its effective verify gate passes when one exists; no gate means the submission itself completes it.
-- **Turn budgets, never wall-clock**: each wake-up sequence has a 100-turn default cap. The API has no deadline dimension.
-- **Stall watchdog**: a wedged child (for example, blocked forever in a provider request) produces no RPC output, so the harness tracks silence per working teammate. After 30 minutes of total silence (`PI_TEAMMATE_STALL_NOTICE_MS`, 0 disables) the leader gets one actionable notice per episode; after 2 hours (`PI_TEAMMATE_STALL_SHUTDOWN_MS`, 0 disables) the child is reclaimed through the normal shutdown path with the reason in the report. Any output or prompt delivery re-arms it, and steering a silent teammate warns that delivery is uncertain.
+- **No caps, heartbeat only**: teammates run without turn-count or duration ceilings. The harness heartbeat tracks silence per working teammate and — after 30 minutes without any RPC output (`PI_TEAMMATE_STALL_NOTICE_MS`, 0 disables) — sends the leader one actionable notice per silence episode. The notice is the last automatic action: continuing, steering, shutting down, or respawning a context-carrying successor belongs to the leader alone. Any output or prompt delivery re-arms it, and steering a silent teammate warns that delivery is uncertain.
 - **Failure semantics**: an unexpected crash marks the teammate stopped, reports a diagnostic, and releases its claimed tasks.
 
 ## State and Sessions
@@ -135,7 +134,7 @@ agent-teams/
 │   ├── worker.ts         — worker tools plus the shared task_list registration
 │   ├── team-machine.ts   — resident lifecycle, mail routing, intents, verify, wake-ups
 │   ├── state.ts          — roster, board, leader inbox state machine
-│   ├── spawner.ts        — resident RPC process spawner and turn budgets
+│   ├── spawner.ts        — resident RPC process spawner (uncapped sequences)
 │   ├── agents.ts         — agent discovery and frontmatter parsing
 │   ├── statefile.ts      — runtime/board/mail IO and marker-file intents
 │   ├── ui.ts             — passive widget and /teammate console

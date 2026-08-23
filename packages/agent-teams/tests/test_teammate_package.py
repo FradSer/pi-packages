@@ -88,7 +88,8 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Shutdown stops one teammate and frees its slot",
         "An unexpected teammate crash is reported to the leader",
         "Teammates do not survive session shutdown",
-        "Turn budgets bound each wake-up sequence instead of wall-clock time",
+        "Teammates run without turn or duration caps",
+        "no configuration may automatically terminate a working teammate",
         "Messaging is peer-to-peer through local inboxes",
         "Teammates exchange messages directly by name",
         "Delivered messages wake an idle teammate automatically",
@@ -116,6 +117,10 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Workers cannot access leader tools",
         "Worktree isolation is an agent-role option",
         "Console and widget visualize the team without intercepting input",
+        "The agent-teams menu opens the team console",
+        "The agent-teams menu creates a project agent from history",
+        "The agent-teams menu creates a local agent from history",
+        "Agent creation rejects invalid or duplicate names",
         "The widget shows only working teammates",
         "idle and stopped teammates never appear above the input box",
         "the widget stays hidden when nobody is working",
@@ -556,6 +561,18 @@ def test_console_supports_mouse_wheel_scrolling() -> None:
     assert "direction === 0" in ext and "direction === 1" in ext
 
 
+def test_agent_teams_menu_renames_legacy_command_and_exposes_creation_options() -> None:
+    tools = source("tools.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert 'pi.registerCommand("agent-teams"' in tools
+    assert 'pi.registerCommand("teammate"' not in tools
+    for option in ('["console", "project", "local"]', 'choice === "console"', 'choice === "local"'):
+        assert option in tools
+    assert "getBranch" in tools
+    assert "createAgentFromHistory" in tools
+    assert ".local.md" in feature
+
+
 def test_console_has_roster_and_board_pages() -> None:
     ext = source("ui.ts")
     assert '"roster"' in ext and '"board"' in ext
@@ -707,9 +724,11 @@ def test_rpc_control_stream_protocol_lines() -> None:
     assert '{ type: "steer", message }' in spawner
     assert '"--mode", "rpc"' in spawner
     assert '"--no-session"' in spawner
-    # Turn budgets are enforced per wake-up sequence against the baseline.
-    assert "baselines.set" in spawner
-    assert "turnBudgetExceeded" in spawner
+    # The constitution: sequences are uncapped; the harness never terminates a
+    # working child on its own — no budget counters, no auto-reclaim.
+    assert "DEFAULT_TURN_BUDGET" not in spawner
+    assert "turnBudgetExceeded" not in spawner
+    assert "budgetExceeded" not in spawner
     # Residents never auto-exit after a report: no post-report grace shutdown.
     assert "finishReportedWorker" not in spawner
     assert "POST_REPORT_GRACE_MS" not in spawner
@@ -736,16 +755,18 @@ def test_silent_teammate_watchdog_contract() -> None:
     for phrase in (
         "A silent working teammate raises one stall notice per episode",
         "Activity re-arms the stall watchdog",
-        "Prolonged silence is reclaimed safely",
+        "the notice is the last automatic action",
         "last output time",
         "stall notice",
-        "normal bounded shutdown path",
     ):
         assert phrase in feature, phrase
     assert "lastOutputAt" in types
     assert "stallNoticeSentAt" in types
     assert "STALL_NOTICE_MS" in machine
-    assert "STALL_SHUTDOWN_MS" in machine
+    # No automatic reclaim may exist: shutdown thresholds are banned by design.
+    assert "STALL_SHUTDOWN_MS" not in machine
+    assert "PI_TEAMMATE_STALL_SHUTDOWN_MS" not in machine
+    assert "void shutdownTeammate(teammate.name, reason)" not in machine
     assert "checkStalledTeammates" in machine
     assert "stallSilenceMs" in machine
     assert "sendUpdate" in machine
@@ -772,17 +793,24 @@ def test_silent_teammate_watchdog_contract() -> None:
     assert payload["notReached"] is False
 
 
-def test_stall_reclaim_threads_reason_and_warns_on_steer() -> None:
+def test_stall_recovery_belongs_to_leader_alone() -> None:
     machine = source("team-machine.ts")
     tools = source("tools.ts")
+    guidance = source("guidance.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
-    # Reclaim goes through the normal bounded shutdown path and names the reason.
-    assert "the child is terminated through the normal bounded shutdown path" in feature
-    assert "the leader receives the shutdown reason" in feature
-    assert "void shutdownTeammate(teammate.name, reason)" in machine
-    assert "pendingShutdownReasons.get(name)" in machine
-    summary = machine[machine.index("function summarizeShutdown"):machine.index("async function finalizeWorktree")]
-    assert "`Reason: ${reason.trim()}.`" in summary
+    # The harness never reclaims, restarts, or replaces a teammate on its own.
+    assert "the harness never reclaims, restarts, or replaces a teammate on its own" in feature
+    assert "no configuration may automatically terminate a working teammate" in feature
+    assert "STALL_SHUTDOWN_MS" not in machine and "PI_TEAMMATE_STALL_SHUTDOWN_MS" not in machine
+    assert "pendingShutdownReasons" not in machine
+    # The stall notice itself carries the recovery decision menu.
+    notice = machine[machine.index("function checkStalledTeammates"):]
+    assert "keep waiting, steer again, or shut it down" in notice
+    assert "respawn a successor with context" in notice
+    # Leader guidance teaches recovery over punishment.
+    assert "Teammates are autonomous: recover, never punish" in guidance
+    assert "Never terminate a teammate" in guidance
+    assert "The harness never reclaims, restarts, or replaces a teammate" in guidance
     # A wake prompt restarts the silence clock so long-idle teammates never insta-stall.
     wake = machine[machine.index("export function wakeIdleTeammates"):]
     assert "lastOutputAt: Date.now()" in wake

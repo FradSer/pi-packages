@@ -99,10 +99,11 @@ Feature: Agent Teams collaborative organization contract
       And the roster dies with the session
       And the task board persists for later inspection
 
-    Scenario: Turn budgets bound each wake-up sequence instead of wall-clock time
+    Scenario: Teammates run without turn or duration caps
       Given a teammate is woken by a delivery or a new prompt
-      Then the wake-up sequence is bounded by the assistant-turn budget
-      And no user-facing wall-clock deadline is added to the team API
+      Then the wake-up sequence runs without any turn-count or wall-clock ceiling
+      And no configuration may automatically terminate a working teammate
+      And turn counts and silence durations exist only as telemetry and heartbeat signals for the leader's decisions
 
     Scenario: A silent working teammate raises one stall notice per episode
       Given a teammate is working and has produced no stream output for the stall-notice interval
@@ -110,19 +111,13 @@ Feature: Agent Teams collaborative organization contract
       Then the roster records the last output time and a stall notice
       And the leader receives one actionable diagnostic naming the teammate
       And the notice wakes the idle leader without requiring model polling
+      And the notice is the last automatic action: continuing, steering, shutting down, or respawning belongs to the leader alone
 
     Scenario: Activity re-arms the stall watchdog
       Given a teammate has already received a stall notice
       When any new RPC stream output arrives for that teammate
       Then the stall episode marker is cleared
       And a later silent episode can raise a fresh notice
-
-    Scenario: Prolonged silence is reclaimed safely
-      Given a teammate remains silent until the stall-shutdown interval
-      When the watchdog escalates the stall
-      Then the child is terminated through the normal bounded shutdown path
-      And its claimed tasks and runtime slot are released
-      And the leader receives the shutdown reason
 
   Rule: Messaging is peer-to-peer through local inboxes
 
@@ -258,6 +253,13 @@ Feature: Agent Teams collaborative organization contract
       Then the guidance instructs the leader to end its turn instead of sleeping or polling
       And wake-ups, deliveries, and verify outcomes arrive as automatic follow-ups
 
+    Scenario: The leader guidance teaches recovery over punishment
+      Given the leader receives a stall notice for a wedged teammate
+      When before_agent_start builds the leader guidance
+      Then it explains deciding to keep waiting, steer again, shut down, or respawn a successor
+      And a respawn composes context from the original kickoff, mailbox reports, board claims, and the console detail transcript
+      And the harness never reclaims, restarts, or replaces a teammate on its own
+
   Rule: Leader tool surface is exact
 
     Scenario: Spawning renders one started line per teammate
@@ -329,8 +331,34 @@ Feature: Agent Teams collaborative organization contract
       And the widget stays hidden when nobody is working
       And it does not intercept global terminal input
 
+    Scenario: The agent-teams menu opens the team console
+      When the user opens /agent-teams and chooses `console`
+      Then the roster page and board page open in the full-screen team console
+      And the legacy /teammate command is not registered
+
+    Scenario: The agent-teams menu creates a project agent from history
+      Given the project agents directory exists
+      When the user opens /agent-teams and chooses `project` (create project agent)
+      And provides a valid agent name
+      Then a git-managed `.pi/agents/<name>.md` definition is created
+      And its prompt is derived from the current session branch history
+      And an existing definition is never overwritten
+
+    Scenario: The agent-teams menu creates a local agent from history
+      Given the project agents directory exists
+      When the user opens /agent-teams and chooses `local` (create project-local agent)
+      And provides a valid agent name
+      Then a non-git-managed `.pi/agents/<name>.local.md` definition is created
+      And its prompt is derived from the current session branch history
+      And project-local discovery deduplicates any same-name project definition
+
+    Scenario: Agent creation rejects invalid or duplicate names
+      When the user chooses project or local agent creation with an invalid or existing name
+      Then creation fails with a validation error
+      And no existing agent definition is modified
+
     Scenario: The console has a roster page and a board page
-      When the user opens /teammate
+      When the user opens /agent-teams
       Then the roster page lists every roster entry with status, agent, and live activity, including idle and stopped teammates
       And the board page lists tasks with status, claimant, and subject
       And enter opens a detail view for either selection
@@ -358,7 +386,7 @@ Feature: Agent Teams collaborative organization contract
       When the child Pi process starts
       Then unrelated session extensions are disabled
       And the agent-teams worker extension is loaded explicitly
-      So extension startup failures cannot consume the teammate's turn budget
+      So extension startup failures cannot masquerade as teammate work
 
   Rule: Acceptance workflow — three-way review with cross-challenge
 

@@ -5,8 +5,9 @@
  * stream (stdin), streams JSON events on stdout, and suspends between wake
  * ups without consuming tokens. The harness delivers new prompts via
  * deliverPrompt (idle wake-up) and steering lines via sendWorkerSteer
- * (mid-turn delivery). Turn budgets bound each wake-up sequence, never
- * wall-clock time.
+ * (mid-turn delivery). Wake-up sequences are uncapped: no turn-count or
+ * wall-clock limit terminates a working teammate; anomalies surface as
+ * leader notifications instead.
  */
 
 import { randomUUID } from "node:crypto";
@@ -23,9 +24,6 @@ import {
 import type { ChildProcess } from "node:child_process";
 import type { WorkerUsage } from "./types.ts";
 
-/** High default safety cap per wake-up sequence; explicit budgets can be lower. */
-export const DEFAULT_TURN_BUDGET = 100;
-
 const OUTPUT_CAP = 16_000;
 
 export interface WorkerProcessResult {
@@ -35,7 +33,6 @@ export interface WorkerProcessResult {
   stdout: string;
   stderr: string;
   usage?: WorkerUsage;
-  turnBudgetExceeded?: boolean;
 }
 
 /** Live state extracted from a teammate's RPC output stream. */
@@ -308,8 +305,6 @@ export interface ResidentSpawnOptions {
   tools?: string[];
   env?: Record<string, string | undefined>;
   cwd?: string;
-  /** Maximum assistant turns per wake-up sequence (default DEFAULT_TURN_BUDGET). */
-  turnBudget?: number;
   onUpdate?: (update: WorkerProgressUpdate) => void;
   onExit: (result: WorkerProcessResult) => void;
   onError?: (error: Error) => void;
@@ -376,8 +371,6 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
   streamStates.set(options.workerName, streamState);
   let stdoutBuffer = "";
   let settled = false;
-  let budgetExceeded = false;
-  const turnBudget = options.turnBudget ?? DEFAULT_TURN_BUDGET;
 
   const emitProgress = () => options.onUpdate?.({
     text: truncate(streamState.text, OUTPUT_CAP),
@@ -399,14 +392,6 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
     }
     streamTurns.set(options.workerName, streamState.turns);
     if (changed) emitProgress();
-    if (
-      !budgetExceeded
-      && streamState.turns - (baselines.get(options.workerName) ?? 0) >= turnBudget
-      && !streamState.finalResponse
-    ) {
-      budgetExceeded = true;
-      void terminateChildProcess(child);
-    }
   });
   child.stderr?.on("data", (chunk: Buffer) => appendCapped(stderrChunks, chunk.toString(), OUTPUT_CAP * 2));
 
@@ -435,7 +420,6 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
       stdout: truncate(parsed.text, OUTPUT_CAP),
       stderr: truncate(stderrChunks.join("").trim(), OUTPUT_CAP),
       usage: parsed.usage,
-      turnBudgetExceeded: budgetExceeded,
     });
   });
 
