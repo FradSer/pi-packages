@@ -1760,6 +1760,20 @@ def test_silent_stall_env_override() -> None:
     assert payload["tier"] == 120_000
 
 
+def test_silent_stall_independent_of_notice_pace() -> None:
+    # The provider-hang tier is documented as a fixed five-minute default; the
+    # notice-pace floor must not silently move or disable it.
+    payload = run_node(
+        f'''\
+        import {{ stallThresholdMs }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const teammate = {{ status: "working", createdAt: 0, lastOutputAt: 0, activeTool: undefined, usage: undefined }};
+        console.log(JSON.stringify({{ tier: stallThresholdMs(teammate) }}));
+        ''',
+        env_overrides={"PI_TEAMMATE_NOTICE_PACE_MS": "120000"},
+    )
+    assert payload["tier"] == 300_000
+
+
 def test_stall_recovery_belongs_to_leader_alone() -> None:
     machine = source("team-machine.ts")
     tools = source("tools.ts")

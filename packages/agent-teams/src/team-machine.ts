@@ -96,9 +96,9 @@ export const STALL_NOTICE_MS = readDurationEnv("PI_TEAMMATE_STALL_NOTICE_MS", DE
 /** Silence with zero lifetime model output and no tool running is the provider-
  * hang signature: an in-flight request stuck on the model backend will not
  * recover by waiting or steering, so flag it well before the general window so
- * the leader can respawn early. Defaults to one notice-pace floor; 0 disables
- * the tier. */
-const DEFAULT_SILENT_STALL_MS = DEFAULT_NOTICE_PACE_MS;
+ * the leader can respawn early. Defaults to five minutes, independent of the
+ * notice-pace floor; 0 disables the tier. */
+const DEFAULT_SILENT_STALL_MS = 5 * 60 * 1000;
 export const SILENT_STALL_MS = readDurationEnv("PI_TEAMMATE_SILENT_STALL_MS", DEFAULT_SILENT_STALL_MS);
 /** Fully-consumed inboxes larger than this are truncated. */
 const INBOX_COMPACT_BYTES = 256 * 1024;
