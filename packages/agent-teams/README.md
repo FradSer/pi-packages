@@ -122,8 +122,9 @@ That is **7 unique tool names**. There are no `teammate_run`, `teammate_fanout`,
 - **Per-spawn identity validation**: every leader report must match the teammate's current spawn id; stale callbacks and events cannot affect a replacement with the same name.
 - **Sent means written**: peer `send_message` succeeds only after the recipient inbox write succeeds. The harness owns delivery into a recipient turn.
 - **One writer per state file**: only the leader process writes runtime and board snapshots (atomic tmp+rename). Workers append leader reports to their outbox, peer mail to recipient inboxes, and task intent via exclusive-create marker files.
-- **Completion is gated, not self-reported**: a task completes only after its effective verify gate passes when one exists; no gate means the submission itself completes it.
+- **Completion is gated, not self-reported**: a task completes only after its effective verify gate passes when one exists; no gate means the submission itself completes it. A gate that keeps failing parks the task with its holder after the second consecutive failure and escalates to the leader once instead of looping.
 - **No caps, heartbeat only**: teammates run without turn-count or duration ceilings. The harness heartbeat tracks silence per working teammate and — after 30 minutes without any RPC output (`PI_TEAMMATE_STALL_NOTICE_MS`, 0 disables) — sends the leader one actionable notice per silence episode. The notice is the last automatic action: continuing, steering, shutting down, or respawning a context-carrying successor belongs to the leader alone. Any output or prompt delivery re-arms it, and steering a silent teammate warns that delivery is uncertain.
+- **One-shot board notices**: an idle teammate is told about a claimable task exactly once; declined tasks never re-wake it, and released tasks re-arm. Notices are paced at least five minutes apart per teammate (`PI_TEAMMATE_NOTICE_PACE_MS` overrides in milliseconds).
 - **Failure semantics**: an unexpected crash marks the teammate stopped, reports a diagnostic, and releases its claimed tasks.
 
 ## State and Sessions

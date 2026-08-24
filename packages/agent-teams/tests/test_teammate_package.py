@@ -360,7 +360,33 @@ def test_wake_prompt_composes_deliveries_and_paced_notice() -> None:
     assert payload["hasNotice"] is True
     assert payload["suggestsClaim"] is True
     assert payload["quietEmpty"] is True
-    assert payload["paceMs"] == 2000
+    assert payload["paceMs"] == 5 * 60 * 1000
+
+
+def test_notice_pacing_defaults_to_minutes_and_is_configurable() -> None:
+    default_payload = run_node(
+        f'''\
+        import {{ NOTICE_PACE_MS }} from "{(SRC / "team-machine.ts").as_uri()}";
+        console.log(JSON.stringify({{ paceMs: NOTICE_PACE_MS }}));
+        '''
+    )
+    override_payload = run_node(
+        f'''\
+        import {{ NOTICE_PACE_MS }} from "{(SRC / "team-machine.ts").as_uri()}";
+        console.log(JSON.stringify({{ paceMs: NOTICE_PACE_MS }}));
+        ''',
+        env_overrides={"PI_TEAMMATE_NOTICE_PACE_MS": "45000"},
+    )
+    invalid_payload = run_node(
+        f'''\
+        import {{ NOTICE_PACE_MS }} from "{(SRC / "team-machine.ts").as_uri()}";
+        console.log(JSON.stringify({{ paceMs: NOTICE_PACE_MS }}));
+        ''',
+        env_overrides={"PI_TEAMMATE_NOTICE_PACE_MS": "not-a-number"},
+    )
+    assert default_payload["paceMs"] == 5 * 60 * 1000
+    assert override_payload["paceMs"] == 45_000
+    assert invalid_payload["paceMs"] == 5 * 60 * 1000
 
 
 def test_fresh_claimable_filter_is_one_shot_per_task() -> None:
@@ -451,6 +477,155 @@ def test_task_ids_are_meaningful_slugs_of_their_subjects() -> None:
     # A resumed board keeps its legacy ids; new slugs still never collide.
     assert payload["afterResume"] != "t_10"
     assert source("state.ts").count("taskCounter") == 0
+
+
+def test_unknown_agent_spawn_error_is_actionable() -> None:
+    payload = run_node(
+        f'''\
+        import {{ unknownAgentError }} from "{(SRC / "team-machine.ts").as_uri()}";
+        console.log(JSON.stringify({{ message: unknownAgentError("ghost-role", "/tmp/proj") }}));
+        '''
+    )
+    message = payload["message"]
+    assert "ghost-role" in message
+    assert "/tmp/proj/.pi/agents" in message
+    assert "stale" in message
+    assert "definition" in message
+    assert "references/agent-roles.md" in message
+    guidance = source("guidance.ts")
+    assert "resolved live at spawn time" in guidance
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Spawning an unknown agent names the recovery path" in feature
+
+
+def test_task_lookups_ignore_prototype_property_names() -> None:
+    payload = run_node(
+        f'''\
+        import {{ resetState, createTask, getTask, applyClaimIntent, loadBoard }} from "{(SRC / "state.ts").as_uri()}";
+        resetState();
+        const depBefore = createTask({{ subject: "real work", dependsOn: ["constructor"] }});
+        const made = createTask({{ subject: "Constructor" }});
+        const resolved = getTask("constructor");
+        const claim = applyClaimIntent({{ taskId: "constructor", worker: "w", spawnId: "s", timestamp: 1 }});
+        // A JSON-parsed board (Object.prototype intact) must not leak either.
+        resetState();
+        loadBoard(JSON.parse(JSON.stringify({{ t_1: {{ id: "t_1", subject: "legacy", dependsOn: [], status: "completed", createdAt: 1, updatedAt: 1 }} }})));
+        const afterLegacyDep = createTask({{ subject: "next step", dependsOn: ["hasOwnProperty"] }});
+        console.log(JSON.stringify({{
+          depBlockedBeforeCreation: depBefore.ok === false,
+          madeId: made.task?.id ?? null,
+          resolvedIsOwnEntry: resolved?.id === "constructor",
+          resolvedNotAFunction: typeof resolved !== "function",
+          claimApplied: claim.applied === true,
+          legacyProtoDepBlocked: afterLegacyDep.ok === false,
+        }}));
+        '''
+    )
+    assert payload["depBlockedBeforeCreation"] is True
+    assert payload["madeId"] == "constructor"
+    assert payload["resolvedIsOwnEntry"] is True
+    assert payload["resolvedNotAFunction"] is True
+    assert payload["claimApplied"] is True
+    assert payload["legacyProtoDepBlocked"] is True
+
+
+def test_slug_ids_with_duplicate_suffixes_stay_within_length_cap() -> None:
+    payload = run_node(
+        f'''\
+        import {{ resetState, createTask }} from "{(SRC / "state.ts").as_uri()}";
+        resetState();
+        const long = "Audit every single surface of the whole application very thoroughly".toLowerCase();
+        const first = createTask({{ subject: long }});
+        const second = createTask({{ subject: long + "!" }});
+        console.log(JSON.stringify({{
+          a: first.task.id,
+          b: second.task.id,
+          bothWithinCap: first.task.id.length <= 48 && second.task.id.length <= 48,
+          distinct: first.task.id !== second.task.id,
+        }}));
+        '''
+    )
+    assert payload["bothWithinCap"] is True
+    assert payload["distinct"] is True
+    assert payload["b"].endswith("-2")
+
+
+def test_retain_live_noticed_ids_prunes_stale_first() -> None:
+    payload = run_node(
+        f'''\
+        import {{ retainLiveNoticedIds }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const noticed = ["old-done", "live-1", "live-2", "other-done"];
+        const retained = retainLiveNoticedIds(noticed, new Set(["live-1", "live-2", "brand-new"]));
+        console.log(JSON.stringify({{ retained }}));
+        '''
+    )
+    assert payload["retained"] == ["live-1", "live-2"]
+
+
+def test_unknown_agent_error_names_configured_user_dir_and_lists_agents() -> None:
+    payload = run_node(
+        f'''\
+        import {{ unknownAgentError }} from "{(SRC / "team-machine.ts").as_uri()}";
+        console.log(JSON.stringify({{ message: unknownAgentError("ghost-role", "/tmp/proj") }}));
+        ''',
+        env_overrides={"PI_CODING_AGENT_DIR": "/tmp/custom-agent-dir"},
+    )
+    message = payload["message"]
+    assert "ghost-role" in message
+    assert "/tmp/proj/.pi/agents" in message
+    assert "/tmp/custom-agent-dir/agents" in message
+    assert "~/.pi/agent/agents" not in message
+    assert "stale" in message
+    assert "definition" in message
+    assert "references/agent-roles.md" in message
+    assert "Available now:" in message
+
+
+def test_verify_failure_residue_is_cleared_when_a_holder_is_released() -> None:
+    machine = source("team-machine.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "A stopped holder leaves no verify-failure residue" in feature
+    close = machine[machine.index("async function handleTeammateClose") :]
+    synth = machine[machine.index("export async function shutdownTeammate") : machine.index("async function handleTeammateClose")]
+    for section in (close, synth):
+        assert "verifyFailures.delete(`${task.id}:${teammate.spawnId}`)" in section
+
+
+def test_stale_verify_result_cannot_complete_a_new_holding(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask }} from "{(SRC / "state.ts").as_uri()}";
+        initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 0, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const made = createTask({{ subject: "gated work", verify: "sleep 0.4" }});
+        const id = made.task.id;
+        applyClaimIntent({{ taskId: id, worker: "w", spawnId: "s1", timestamp: 1 }});
+        attemptSubmission("w", "s1", id, "completed");
+        processTaskIntents();
+        attemptSubmission("w", "s1", id, "failed");
+        processTaskIntents();
+        const releasedWhileVerifying = getTask(id).status === "pending";
+        applyClaimIntent({{ taskId: id, worker: "w", spawnId: "s1", timestamp: 2 }});
+        await wait(700);
+        const staleCompleted = getTask(id).status === "completed";
+        attemptSubmission("w", "s1", id, "completed");
+        processTaskIntents();
+        await wait(700);
+        console.log(JSON.stringify({{
+          releasedWhileVerifying,
+          staleCompleted,
+          finalStatus: getTask(id).status,
+        }}));
+        shutdownTeamMachine();
+        '''
+    )
+    assert payload["releasedWhileVerifying"] is True
+    # The pre-release gate result must not complete the post-release holding.
+    assert payload["staleCompleted"] is False
+    assert payload["finalStatus"] == "completed"
 
 
 def test_agent_definitions_are_declarative_files_with_verify() -> None:
@@ -1195,7 +1370,8 @@ def test_session_cap_and_shutdown_surface() -> None:
     tools = source("tools.ts")
     assert "MAX_SESSION_WORKERS = 8" in machine
     assert "livingTeammates().length >= MAX_SESSION_WORKERS" in machine
-    assert "NOTICE_PACE_MS = 2000" in machine
+    assert "DEFAULT_NOTICE_PACE_MS = 5 * 60 * 1000" in machine
+    assert 'readDurationEnv("PI_TEAMMATE_NOTICE_PACE_MS", DEFAULT_NOTICE_PACE_MS)' in machine
     assert "shutdownTeammate" in tools and "teammate_shutdown" in tools
     assert "pendingShutdowns" in machine
     assert "releaseTasksOf" in machine

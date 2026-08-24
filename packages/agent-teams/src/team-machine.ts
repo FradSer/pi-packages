@@ -10,7 +10,8 @@ import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinitionInput } from "./agents.ts";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinitionInput } from "./agents.ts";
 import {
   applyClaimIntent,
   claimableTasks,
@@ -74,11 +75,17 @@ import type { FollowUpReport } from "./follow-up-queue.ts";
 export const MAX_SESSION_WORKERS = 8;
 /** Harness coordination cadence: outbox drain every tick, notices paced. */
 const LIVE_POLL_MS = 500;
-export const NOTICE_PACE_MS = 2000;
+/** Minimum gap between claimable-task notices per teammate. One-shot noticing
+ *  makes repeats rare; this floor keeps any residual burst from stampeding
+ *  every idle teammate at once, and each wake costs a full worker turn. */
+const DEFAULT_NOTICE_PACE_MS = 5 * 60 * 1000;
+export const NOTICE_PACE_MS = readDurationEnv("PI_TEAMMATE_NOTICE_PACE_MS", DEFAULT_NOTICE_PACE_MS);
 /** Consecutive verify failures before the harness stops inviting resubmission and escalates to the leader instead. */
 export const VERIFY_FAILURE_ESCALATE_AFTER = 2;
-/** Claimable task ids remembered per teammate before a notice re-arms (bounded FIFO). */
-const MAX_NOTICED_TASK_IDS = 64;
+/** Claimable task ids remembered per teammate. markTasksNoticed prunes stale
+ *  ids on every notice, so slots are occupied only by currently-claimable
+ *  work; the cap is far above any realistic concurrent board size. */
+const MAX_NOTICED_TASK_IDS = 256;
 /** Claimable tasks listed in one wake-prompt board notice. */
 const WAKE_NOTICE_TASK_LIMIT = 10;
 /** Silence is not a work deadline: active stream output keeps a teammate alive.
@@ -127,8 +134,9 @@ let sendUpdate: (report: FollowUpReport) => void = () => {};
 let notifyChange: () => void = () => {};
 
 const pendingShutdowns = new Set<string>();
-/** Task ids under verification, bound to the claiming teammate incarnation. */
-const verifyingTasks = new Map<string, { worker: string; spawnId: string }>();
+/** Task ids under verification, bound to one exact submission via token so a
+ *  release/re-claim or newer submission invalidates any older in-flight gate. */
+const verifyingTasks = new Map<string, { worker: string; spawnId: string; token: string }>();
 /** Idle nudges already fired per teammate incarnation (one per transition). */
 const idleNudgesSent = new Set<string>();
 /** Consecutive verify failures per taskId:spawnId holder incarnation. */
@@ -285,7 +293,7 @@ export function spawnTeammate(input: {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
-  if (!agent) return { ok: false, error: `Agent "${input.agent}" not found in any scope.` };
+  if (!agent) return { ok: false, error: unknownAgentError(input.agent, leaderCwd) };
 
   let isolation: Teammate["isolation"] = "none";
   let workerCwd = leaderCwd;
@@ -325,6 +333,21 @@ export function spawnTeammate(input: {
   ensureLivePoll();
   notifyChange();
   return { ok: true, teammate: getTeammate(input.name)! };
+}
+
+/** Spawn failure for an unresolvable agent name. Definitions resolve live at
+ *  spawn time, so the available-agents list in the cached session guidance can
+ *  go stale (e.g. another session removed the file); name every checked scope
+ *  and the recovery path. */
+export function unknownAgentError(name: string, cwd: string): string {
+  const available = [...discoverAgents(cwd).keys()];
+  return [
+    `Agent "${name}" not found in any scope.`,
+    `Checked: ${cwd}/.pi/agents/<name>.local.md, ${cwd}/.pi/agents/<name>.md, ${path.join(getAgentDir(), "agents")}, and in-memory session roles.`,
+    'The available-agents list in your guidance may be stale: definition files can change mid-session (for example removed by a parallel session).',
+    'Recover by spawning with an inline definition derived from references/agent-roles.md, choose an existing role, or create the role first.',
+    `Available now: ${available.length > 0 ? available.join(", ") : "(none)"}.`,
+  ].join(' ');
 }
 
 function validateSpawnInput(input: { name: string }): string | undefined {
@@ -519,7 +542,11 @@ export async function shutdownTeammate(name: string): Promise<{ ok: true; body: 
     // The child was already gone; synthesize the close bookkeeping.
     pendingShutdowns.delete(name);
     const released = releaseTasksOf(name, "Teammate was shut down.");
-    for (const task of released) rearmTaskNotice(task.id);
+    for (const task of released) {
+      verifyFailures.delete(`${task.id}:${teammate.spawnId}`);
+      verifyingTasks.delete(task.id);
+      rearmTaskNotice(task.id);
+    }
     updateTeammate(name, { status: "stopped", activeTool: undefined });
     idleNudgesSent.delete(`${name}:${teammate.spawnId}`);
     selfFinalizeAttempts.delete(`${name}:${teammate.spawnId}`);
@@ -548,7 +575,11 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
   drainTeammateOutboxes();
 
   const released = releaseTasksOf(name, requested ? "Teammate was shut down." : "Teammate stopped unexpectedly.");
-  for (const task of released) rearmTaskNotice(task.id);
+  for (const task of released) {
+    verifyFailures.delete(`${task.id}:${teammate.spawnId}`);
+    verifyingTasks.delete(task.id);
+    rearmTaskNotice(task.id);
+  }
   pendingShutdowns.delete(name);
   // A stopped teammate must not keep the poll loop or its queue alive.
   pendingDeliveries.delete(name);
@@ -811,6 +842,8 @@ function applyClaimMarker(intent: import("./types").TaskIntent): void {
   const outcome = applyClaimIntent(intent);
   if (outcome.applied) {
     verifyFailures.delete(`${intent.taskId}:${intent.spawnId}`);
+    // A new holding must not inherit an in-flight gate from a previous one.
+    verifyingTasks.delete(intent.taskId);
     updateTeammate(intent.worker, { currentTaskId: intent.taskId });
     return;
   }
@@ -828,6 +861,7 @@ function applySubmissionMarker(intent: import("./types").TaskIntent): void {
   if (intent.status === "failed") {
     releaseTask(intent.taskId, intent.result?.trim() || "Teammate reported failure.");
     verifyFailures.delete(`${intent.taskId}:${intent.spawnId}`);
+    verifyingTasks.delete(intent.taskId);
     rearmTaskNotice(intent.taskId);
     freeTeammateFromTask(intent.worker, intent.taskId);
     notifyTaskOutcome(task.subject, `${intent.worker} reported failure`, intent.result ?? "");
@@ -854,11 +888,14 @@ function beginVerifyOrComplete(intent: import("./types").TaskIntent, verify: str
     finishCompletion(intent, task.subject);
     return;
   }
-  // The gate is bound to this claim: a crash/release/re-claim between submit
-  // and verify resolution must not let an old result complete a new holder.
-  verifyingTasks.set(intent.taskId, { worker: intent.worker, spawnId: intent.spawnId });
+  // The gate is bound to this exact submission via a unique token: a
+  // release/re-claim or newer submission between submit and verify resolution
+  // must not let the stale result complete the new holding.
+  const token = randomUUID();
+  verifyingTasks.set(intent.taskId, { worker: intent.worker, spawnId: intent.spawnId, token });
   runVerifyCommand(verify)
     .then((outcome) => {
+      if (verifyingTasks.get(intent.taskId)?.token !== token) return;
       verifyingTasks.delete(intent.taskId);
       const current = getState().tasks[intent.taskId];
       const stillHolds = current?.status === "claimed"
@@ -894,7 +931,9 @@ function beginVerifyOrComplete(intent: import("./types").TaskIntent, verify: str
       ensureLivePoll();
       notifyChange();
     })
-    .catch(() => verifyingTasks.delete(intent.taskId));
+    .catch(() => {
+      if (verifyingTasks.get(intent.taskId)?.token === token) verifyingTasks.delete(intent.taskId);
+    });
 }
 
 function finishCompletion(intent: import("./types").TaskIntent, subject: string): void {
@@ -949,11 +988,18 @@ export function freshClaimableTasks<T extends { id: string }>(
   return tasks.filter((task) => !noticed.has(task.id));
 }
 
+/** Retain only noticed ids that are still claimable, so a long board's history
+ *  can never evict a live one and resurrect an old wake-up. */
+export function retainLiveNoticedIds(noticedIds: readonly string[], claimableIds: ReadonlySet<string>): string[] {
+  return noticedIds.filter((id) => claimableIds.has(id));
+}
+
 function markTasksNoticed(name: string, taskIds: string[]): void {
   if (taskIds.length === 0) return;
   const teammate = getTeammate(name);
   if (!teammate) return;
-  const merged = [...(teammate.noticedTaskIds ?? []), ...taskIds];
+  const live = retainLiveNoticedIds(teammate.noticedTaskIds ?? [], new Set(claimableTasks().map((task) => task.id)));
+  const merged = [...live, ...taskIds];
   while (merged.length > MAX_NOTICED_TASK_IDS) merged.shift();
   updateTeammate(name, { noticedTaskIds: merged });
 }

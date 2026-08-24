@@ -236,7 +236,6 @@ export interface TeamState {
   /** Single leader inbox for teammate reports and harness diagnostics. */
   leaderMailbox: MailboxMessage[];
   messageCounter: number;
-  taskCounter: number;
   /** Byte offsets consumed by the parent from each teammate's outbox. */
   workerEventOffsets: Record<string, number>;
   /** Report event ids already applied, keyed by teammate spawn. */

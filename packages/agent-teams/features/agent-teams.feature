@@ -72,6 +72,14 @@ Feature: Agent Teams collaborative organization contract
       When the leader spawns a teammate with an agent name that no scope defines
       Then the spawn is rejected and available agents are listed
 
+    Scenario: Spawning an unknown agent names the recovery path
+      Given an available-agents list whose definition files changed mid-session
+      When the leader spawns an agent name that no scope defines anymore
+      Then the failure reports every checked scope including the project agents directory and the configured user agents directory
+      And it explains that the guidance list may be stale
+      And it lists the agent names currently discoverable in any scope
+      And it points to creating the role on demand from the shipped role reference
+
   Rule: Teammates are named resident processes
 
     Scenario: Spawning creates one named resident teammate
@@ -256,8 +264,13 @@ Feature: Agent Teams collaborative organization contract
       Given the leader creates a task titled "Polish login flow"
       When the board assigns its id
       Then the id is a sanitized slug of the title such as "polish-login-flow"
-      And a second task with the same title gets a distinct numbered id
+      And a second task with the same title gets a distinct numbered id within the length cap
       And a resumed board keeps its old ids while new tasks still get unique slugs
+
+    Scenario: Task lookups never alias inherited object properties
+      Given the leader creates a task whose slug id is a prototype name such as "constructor"
+      When the board stores and resolves that task
+      Then the task is its own entry and dependency checks see only real board entries
 
     Scenario: Repeated verify failures escalate instead of looping
       Given a teammate holds a claimed task whose gate cannot pass
@@ -265,6 +278,17 @@ Feature: Agent Teams collaborative organization contract
       Then the task remains claimed by the holder without another resubmit invitation
       And the leader receives one escalation naming the task and the verify output
       And further failed submissions stay quiet toward the leader until a new holding begins
+
+    Scenario: A stopped holder leaves no verify-failure residue
+      Given a teammate accumulated verify failures on its claimed tasks
+      When the teammate stops and its claimed tasks are released
+      Then no verify-failure record remains keyed to the released holder incarnation
+
+    Scenario: A verify result belongs to exactly one submission
+      Given a claimed task whose verify command is running
+      When the holder releases the task and re-claims it before the verify resolves
+      Then the stale verify result cannot complete the new holding
+      And a fresh submission after the re-claim runs its own gate to completion
 
     Scenario: The board persists across restarts while the runtime does not
       Given a session recorded a task board
@@ -293,6 +317,12 @@ Feature: Agent Teams collaborative organization contract
       Then the same task never wakes that teammate again
       And the teammate is woken only by new mail or newly claimable work
 
+    Scenario: Recording new notices retains ids of tasks still claimable
+      Given a long board whose noticed history exceeds the retention window
+      When the teammate is notified about further work
+      Then stale non-claimable ids are pruned first
+      And ids of tasks still claimable survive and never re-wake the teammate
+
     Scenario: Released tasks are noticeable again
       Given a task whose id an idle teammate was already notified about
       When the task is released back to pending
@@ -302,6 +332,11 @@ Feature: Agent Teams collaborative organization contract
       Given an idle teammate and newly claimable work
       When notice delivery is attempted in quick succession
       Then the harness waits at least the pacing interval between notices
+
+    Scenario: Notice pacing defaults to minutes and is configurable
+      Given no pacing configuration is set
+      Then claimable-task notices wait at least five minutes between deliveries by default
+      And PI_TEAMMATE_NOTICE_PACE_MS overrides the default in milliseconds
 
     Scenario: The leader guidance forbids sleep-based coordination
       Given the team leader is composing a reply while teammates work

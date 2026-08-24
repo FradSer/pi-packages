@@ -22,10 +22,9 @@ export const MAX_TASK_DEPENDENCIES = 32;
 function emptyState(): TeamState {
   return {
     teammates: {},
-    tasks: {},
+    tasks: emptyTaskMap(),
     leaderMailbox: [],
     messageCounter: 0,
-    taskCounter: 0,
     workerEventOffsets: {},
     workerEventIds: {},
     peerInboxOffsets: {},
@@ -56,6 +55,12 @@ export function consumeStateDirty(): boolean {
 
 function nextMessageId(): string {
   return `msg_${++state.messageCounter}`;
+}
+
+/** Task maps must not inherit Object.prototype: slug ids like "constructor"
+ *  are legal task ids and must never alias inherited properties. */
+function emptyTaskMap(): Record<string, BoardTask> {
+  return Object.create(null);
 }
 
 export function resetState(): void {
@@ -204,6 +209,26 @@ export function setPeerInboxOffset(inboxName: string, offset: number): void {
 
 // ── Board: creation and queries ───────────────────────────────────
 
+/** Maximum characters in a generated slug task id (suffix included). */
+const MAX_TASK_ID_LENGTH = 48;
+
+/** A readable, filesystem-safe id derived from the subject:
+ *  "Polish login flow" -> "polish-login-flow"; duplicates get -2, -3, ... */
+export function taskIdFromSubject(subject: string, taken: ReadonlySet<string>): string {
+  const base = subject
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, MAX_TASK_ID_LENGTH)
+    .replace(/-+$/g, "") || "task";
+  let id = base;
+  for (let n = 2; taken.has(id); n++) {
+    const suffix = `-${n}`;
+    id = base.slice(0, Math.max(1, MAX_TASK_ID_LENGTH - suffix.length)).replace(/-+$/g, "") + suffix;
+  }
+  return id;
+}
+
 export function createTask(input: {
   subject: string;
   description?: string;
@@ -219,7 +244,7 @@ export function createTask(input: {
   for (const dep of dependsOn) {
     if (!state.tasks[dep]) return { ok: false, error: `Task depends on unknown task "${dep}".` };
   }
-  const id = `t_${++state.taskCounter}`;
+  const id = taskIdFromSubject(subject, new Set(Object.keys(state.tasks)));
   const task: BoardTask = {
     id,
     subject,
@@ -350,8 +375,6 @@ export function loadBoard(tasks: Record<string, BoardTask>): number {
       updatedAt: Date.now(),
     };
     state.tasks[restored.id] = restored;
-    const numeric = Number(restored.id.slice(2));
-    if (Number.isFinite(numeric)) state.taskCounter = Math.max(state.taskCounter, numeric);
     reloaded++;
   }
   if (reloaded > 0) markStateDirty();

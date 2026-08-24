@@ -59,6 +59,10 @@ to differ.
 Available agents:
 ${agents}
 
+Definitions are resolved live at spawn time: if a spawn says a listed role is
+gone, its definition file changed mid-session — recreate it on demand instead
+of retrying.
+
 When an assignment or user request needs an agent whose name has no
 definition yet, create it in memory first: derive it from the shipped abstract
 role reference at \`${AGENT_REFERENCE_PATH}\` — its definition anatomy,
