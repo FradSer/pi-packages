@@ -12,6 +12,7 @@ import {
   type Teammate,
   type TeamState,
   type WorkerReportEvent,
+  type WorkerUsage,
 } from "./types.ts";
 import { nonEmpty } from "@fradser/pi-kit";
 
@@ -139,7 +140,10 @@ export function updateTeammate(name: string, patch: Partial<Teammate>): Teammate
 export function updateTeammateProgress(
   name: string,
   spawnId: string,
-  progress: Pick<Teammate, "liveText" | "activeTool" | "liveThinking" | "turns"> & { sequenceEnded?: boolean },
+  progress: Pick<Teammate, "liveText" | "activeTool" | "liveThinking" | "turns"> & {
+    sequenceEnded?: boolean;
+    usage?: WorkerUsage;
+  },
 ): boolean {
   const teammate = state.teammates[name];
   if (!teammate || teammate.spawnId !== spawnId) return false;
@@ -148,6 +152,7 @@ export function updateTeammateProgress(
   teammate.liveThinking = progress.liveThinking;
   teammate.turns = progress.turns;
   if (progress.sequenceEnded !== undefined) teammate.sequenceEnded = progress.sequenceEnded;
+  if (progress.usage) teammate.usage = progress.usage;
   if (teammate.status === "starting") {
     teammate.status = progress.sequenceEnded ? "idle" : "working";
   }

@@ -180,6 +180,17 @@ Feature: Agent Teams collaborative organization contract
       Then the stall episode marker is cleared
       And a later silent episode can raise a fresh notice
 
+    Scenario: A provider hang is flagged before the default stall window
+      Given a working teammate has received no model output yet and runs no tool
+      When its silence passes the silent-stall interval while staying under the default stall-notice interval
+      Then the leader receives one stall notice reporting zero lifetime model output
+      And the notice names shutdown plus respawn as the effective remedy instead of steering
+
+    Scenario: Stall notices carry lifetime usage diagnostics
+      Given a silent working teammate with recorded lifetime token usage
+      When the harness raises a stall notice for that teammate
+      Then the body reports the silence duration, spawn age, and lifetime usage totals
+
   Rule: Messaging is peer-to-peer through local inboxes
 
     Scenario: Teammates exchange messages directly by name
