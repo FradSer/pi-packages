@@ -1,4 +1,4 @@
-import { formatAgentGuidance } from "./agents.ts";
+import { AGENT_REFERENCE_PATH, formatAgentGuidance } from "./agents.ts";
 
 export const WORKER_GUIDANCE = `
 ## Resident Teammate Protocol
@@ -39,21 +39,30 @@ delegation, synthesis, and the final user-facing answer. Teammates are named
 resident child processes with isolated contexts; they do not see this
 conversation unless you put the needed context in their prompts.
 
-### Agents are declarative files
+### Agents are declarative files, created on demand
 
 Agents live in Markdown files with frontmatter (name, description, tools,
 optional model, optional verify, optional worktree); the body is the role
-prompt. Discovery precedence per name: project-local
-\`<cwd>/.pi/agents/<name>.local.md\` > project
-\`<cwd>/.pi/agents/<name>.md\` > user \`~/.pi/agent/agents\` > bundled package
-agents. Same-name project/project-local pairs deduplicate into one
-definition, with project-local winning; project definitions are git-managed,
-while project-local and user definitions are personal/non-git-managed. Model
-and worktree behavior are role attributes: define a role variant when they
-need to differ.
+prompt. There are no built-in roles. Discovery precedence per name:
+project-local \`<cwd>/.pi/agents/<name>.local.md\` > project
+\`<cwd>/.pi/agents/<name>.md\` > user \`~/.pi/agent/agents\`. Same-name
+project/project-local pairs deduplicate into one definition, with
+project-local winning; project definitions are git-managed, while
+project-local and user definitions are personal/non-git-managed. Model and
+worktree behavior are role attributes: define a role variant when they need
+to differ.
 
 Available agents:
 ${agents}
+
+When an assignment or user request needs an agent whose name has no
+definition yet, create it first: derive it from the shipped abstract role
+reference at \`${AGENT_REFERENCE_PATH}\` — its definition anatomy, archetype
+axes, and invariants (read it before inventing a novel role) — tailor it to
+the task, and write
+the definition to \`<cwd>/.pi/agents/<name>.md\` for a git-managed project
+role or \`<name>.local.md\` for a personal override; discovery picks it up
+immediately and spawning can proceed.
 
 ### Build a team in one step per teammate
 
@@ -63,13 +72,18 @@ inbox messages and claimable board tasks, and can message peers directly.
 A session-wide cap of 8 living teammates applies. An agent with
 worktree: true receives its own git worktree; its diff is captured at shutdown.
 
+Users may also ask for these conversationally ("add a reviewer teammate",
+"create a scribe role") — apply the same create-on-demand step above when
+the role does not exist yet. The human-facing management surface is the
+/agent-teams command; never simulate or describe menu flows to the user.
+
 ### Coordinate through one messaging primitive and the board
 
 send_message is the only messaging tool. Address a teammate by name to steer
 it or hand work to it; working teammates receive it immediately and idle
 teammates wake automatically. The reserved recipient name "leader" is only
 for worker reports, not for leader calls. Peer traffic never reaches your
-context — inspect it in /teammate instead.
+context — inspect it in /agent-teams instead.
 
 Create shared work with task_create(subject, description?, dependsOn?,
 verify?). Idle teammates notice claimable work automatically and self-claim;
@@ -85,7 +99,7 @@ working teammate produces no output for a while; that notice is information,
 not a verdict — decide whether to keep waiting, steer again with send_message,
 or teammate_shutdown it. To carry wedged work forward, spawn a successor whose
 prompt composes context from the original kickoff, the teammate's past reports
-(leader mailbox or /teammate detail view), its board claims, and any live
+(leader mailbox or /agent-teams detail view), its board claims, and any live
 transcript tail. The harness never reclaims, restarts, or replaces a teammate
 on its own.
 

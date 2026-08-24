@@ -36,9 +36,13 @@ Review the assigned scope for exploitable security problems. Do not edit files.
 
 Discovery precedence per name (later overrides earlier):
 
+There are no built-in roles. When a needed role has no definition, the
+leader creates one on demand: it derives the definition from the task using
+the abstract role reference in `references/agent-roles.md` (definition
+anatomy, archetype axes, invariants), writes the file, and then spawns.
+
 | Scope | Location | Git semantics |
 |---|---|---|
-| bundled | package `agents/` | shipped with the package |
 | user | `~/.pi/agent/agents/*.md` | system-level, never committed |
 | project | `<cwd>/.pi/agents/<name>.md` | **git-managed** — commit for the team |
 | project-local | `<cwd>/.pi/agents/<name>.local.md` | **local** — personal override, gitignore by convention |
@@ -90,7 +94,7 @@ send_message({ to, message, status? })
 - Peer mail: `to: "<teammate-name>"`; `status` is invalid.
 - Leader steering or direct assignment: `to: "<teammate-name>"`; a working recipient gets a control-stream steer, an idle recipient wakes with the message.
 - The first non-empty line of `message` becomes the console title.
-- Peer traffic never enters the leader model context; inspect it in `/teammate` instead.
+- Peer traffic never enters the leader model context; inspect it in `/agent-teams` instead.
 
 Only the leader creates tasks. Idle teammates self-claim pending tasks whose dependencies are met. A task-level `verify` command overrides the claiming agent's frontmatter `verify`; zero exit completes the task, while failure returns stderr to the claimer for fix-and-resubmit.
 
@@ -105,7 +109,7 @@ Only the leader creates tasks. Idle teammates self-claim pending tasks whose dep
 | `task_list()` | Both | One shared board-view definition; leader view also includes the roster |
 | `task_claim(taskId?)` | Worker | Atomically self-claim a pending, unblocked task |
 | `task_submit(taskId, status, result?)` | Worker | Submit a claimed task outcome; completion passes through verify |
-| `/teammate` | User | Full-screen roster and board console, message/task details, shutdown |
+| `/agent-teams` | User | Management console: session teammates, persistent agent roles, board, details, shutdown |
 
 That is **7 unique tool names**. There are no `teammate_run`, `teammate_fanout`, `teammate_cancel`, `teammate_retry`, or `teammate_message` tools.
 
@@ -127,17 +131,17 @@ Runtime state lives in `~/.pi/agent/teammate/<sessionKey>/` and dies with the se
 ```
 agent-teams/
 ├── index.ts              — package-root extension entry point
-├── agents/               — bundled declarative agent definitions
+├── references/           — role templates consulted when generating new agents
 ├── src/
 │   ├── index.ts          — composition root and session lifecycle
-│   ├── tools.ts          — leader tools and /teammate command
+│   ├── tools.ts          — leader tools and /agent-teams command
 │   ├── worker.ts         — worker tools plus the shared task_list registration
 │   ├── team-machine.ts   — resident lifecycle, mail routing, intents, verify, wake-ups
 │   ├── state.ts          — roster, board, leader inbox state machine
 │   ├── spawner.ts        — resident RPC process spawner (uncapped sequences)
 │   ├── agents.ts         — agent discovery and frontmatter parsing
 │   ├── statefile.ts      — runtime/board/mail IO and marker-file intents
-│   ├── ui.ts             — passive widget and /teammate console
+│   ├── ui.ts             — passive widget and /agent-teams management console
 │   ├── guidance.ts       — static leader and worker protocols
 │   └── follow-up-queue.ts — serialized automatic report delivery
 ├── features/             — BDD contract

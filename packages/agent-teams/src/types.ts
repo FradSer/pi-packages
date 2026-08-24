@@ -165,7 +165,7 @@ export interface InboxMessage {
 /** Spawn one named resident teammate. */
 export const TeammateSpawnParams = Type.Object({
   name: Type.String({ minLength: 1, description: "Teammate name, unique among living teammates; used for messaging and claiming" }),
-  agent: Type.String({ description: "Agent definition name (bundled, user, or project scope); its frontmatter pins model and optional worktree isolation" }),
+  agent: Type.String({ description: "Agent definition name (from user, project, or project-local scopes); its frontmatter pins model and optional worktree isolation" }),
   prompt: Type.Optional(Type.String({ description: "Optional kickoff prompt delivered as the teammate's first turn; omit to let it wait for messages or board claims" })),
 });
 

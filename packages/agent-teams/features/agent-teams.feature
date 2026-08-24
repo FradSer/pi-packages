@@ -2,7 +2,7 @@ Feature: Agent Teams collaborative organization contract
   Agent Teams gives Pi a Claude-Code-style team layer: named resident
   teammates, a shared local task board with self-claim, and peer-to-peer
   messaging between teammates. Agents are declarative Markdown files
-  (bundled, user, project, and project-local scopes). The team leader spawns named
+  (user, project, and project-local scopes); there are no built-in roles. The team leader spawns named
   teammates as long-lived child Pi processes in RPC mode; idle teammates
   are woken by harness polling (inbox delivery and claimable-task
   notices), never by leader-model busywork. Task completion is gated by
@@ -14,10 +14,9 @@ Feature: Agent Teams collaborative organization contract
 
   Rule: Agents are declarative Markdown files
 
-    Scenario: Discover agents from bundled, user, project, and project-local scopes
+    Scenario: Discover agents from user, project, and project-local scopes
       When the leader queries agent definitions
-      Then bundled agents shipped with the package are available
-      And user agents under the Pi global agents directory are available
+      Then user agents under the Pi global agents directory are available
       And project agents under the project .pi/agents directory are available
 
     Scenario: xxx.local.md files mark personal overrides inside .pi/agents
@@ -51,9 +50,15 @@ Feature: Agent Teams collaborative organization contract
       Then every dash-listed tool is declared and none is silently dropped
 
     Scenario: Agent descriptions are injected into prompt guidance
-      Given agent definitions exist in bundled, user, or project scopes
+      Given agent definitions exist in user, project, or project-local scopes
       When a turn starts and before_agent_start runs
       Then each discovered agent's name, description, scope, tools, model, and verify are injected into prompt guidance
+
+    Scenario: Roles are generated on demand from the shipped role reference
+      Given no definition exists for the requested agent name
+      When the leader is asked to start that agent
+      Then it derives a definition from the task and the shipped abstract role reference
+      And the new definition lands in the project or project-local agents directory before spawning
 
     Scenario: An unknown agent name fails the spawn
       When the leader spawns a teammate with an agent name that no scope defines
@@ -156,7 +161,7 @@ Feature: Agent Teams collaborative organization contract
       Given teammates exchange peer messages
       When the harness routes the traffic
       Then no peer message body is delivered to the leader as a follow-up or report
-      And peer messages are inspectable in the /teammate console instead
+      And peer messages are inspectable in the /agent-teams console instead
 
     Scenario: Reports to the leader use the unified send_message primitive
       Given a teammate is working
@@ -167,6 +172,13 @@ Feature: Agent Teams collaborative organization contract
       And a status="completed" or status="failed" report ends the current assignment, with the teammate going idle when its current sequence ends
       And intermediate reports are recorded without interrupting the main session
       And status is rejected for peer-directed messages
+
+    Scenario: Completion is announced once per spawn incarnation
+      Given a teammate delivered several leader-bound reports carrying terminal status within one spawn
+      When the report batches render in the transcript
+      Then exactly one "Teammate finished" entry is appended for that teammate and spawn identity
+      And repeated terminal reports from the same spawn stay ordinary report rows without extra finished entries
+      And respawning a teammate with the same name announces its completion again
 
     Scenario: A teammate whose last report lacks terminal status is asked to self-finalize first
       Given a teammate sent leader-bound messages but never status="completed" or "failed"
@@ -280,11 +292,38 @@ Feature: Agent Teams collaborative organization contract
       And the line follows the `[agent] started · @name · task-name` shape
       And the started line fits the available TUI width with a trailing ellipsis when needed
       And the full result text stays available behind the standard tool rendering
+      And a failed spawn keys off the render context isError flag and renders one plain error line
 
     Scenario: The teammate_spawn started row fits narrow transcript widths
       Given the leader spawns a teammate with a long name and kickoff prompt
       When the started row renders in a narrow transcript
       Then the row stays on one line and does not exceed the available width
+
+    Scenario: Shutting down renders one collapsible agent event line
+      Given the leader shuts down a teammate
+      When the shutdown tool call renders in the transcript
+      Then it shows one event line following the `[agent] event · @name shut down` shape
+      And the collapsed line appends the shared dim expand hint from pi-kit
+      And expanding the line reveals the shutdown detail lines such as exit code, released tasks, and usage
+      And the event line is never labeled as a monitor event
+      And a failed shutdown keys off the render context isError flag and renders one plain error line without an event row
+
+    Scenario: Steering renders one delivery line per message
+      Given the leader sends a message to a living teammate
+      When the send_message tool call renders in the transcript
+      Then the call slot renders no content of its own
+      And the result renders one delivery line following the `[message] to @name` shape
+      And the line appends the delivery outcome such as delivered or queued as a dim suffix
+      And the line flags a stalled recipient with its silence duration instead of a duplicate sentence
+      And the full result text stays available to the model without a second transcript row
+      And a failed delivery keys off the render context isError flag and renders one plain error line without an outcome suffix
+
+    Scenario: Creating a board task renders one created line
+      Given the leader creates a board task
+      When the task_create tool call renders in the transcript
+      Then the call slot renders no content of its own
+      And the result renders one `[board] created · <subject>` line truncated to the available width
+      And a failed creation keys off the render context isError flag and renders one plain error line without a created row
 
     Scenario: The leader coordinates through spawn, shutdown, steer, and the board
       When the leader inspects available tools
@@ -342,42 +381,45 @@ Feature: Agent Teams collaborative organization contract
       And the widget stays hidden when nobody is working
       And it does not intercept global terminal input
 
-    Scenario: The agent-teams menu opens the team console
-      When the user opens /agent-teams and chooses `console`
-      Then the roster page and board page open in the full-screen team console
+    Scenario: The agent-teams command opens the console directly
+      When the user runs /agent-teams in a TUI session
+      Then the full-screen team console opens without any intermediate menu
       And the legacy /teammate command is not registered
 
-    Scenario: The agent-teams menu creates a project agent from history
-      Given the project agents directory exists
-      When the user opens /agent-teams and chooses `project` (create project agent)
-      And provides a valid agent name
-      Then a git-managed `.pi/agents/<name>.md` definition is created
-      And its prompt is derived from the current session branch history
-      And an existing definition is never overwritten
+    Scenario: Non-TUI sessions receive a text summary instead of the console
+      When the user runs /agent-teams outside TUI mode
+      Then the team status summary is delivered as a notification
+      And no interactive console opens
 
-    Scenario: The agent-teams menu creates a local agent from history
-      Given the project agents directory exists
-      When the user opens /agent-teams and chooses `local` (create project-local agent)
-      And provides a valid agent name
-      Then a non-git-managed `.pi/agents/<name>.local.md` definition is created
-      And its prompt is derived from the current session branch history
-      And project-local discovery deduplicates any same-name project definition
-
-    Scenario: Agent creation rejects invalid or duplicate names
-      When the user chooses project or local agent creation with an invalid or existing name
-      Then creation fails with a validation error
-      And no existing agent definition is modified
+    Scenario: The console roster separates session teammates from persistent agent roles
+      Given agent definitions exist in user, project, or project-local scopes
+      When the console renders its roster page
+      Then session teammates appear under a teammates section with runtime status and live activity
+      And deduplicated persistent definitions appear under an agent roles section with scope provenance, definition source, and live instance counts
 
     Scenario: The console has a roster page and a board page
-      When the user opens /agent-teams
+      When the user runs /agent-teams
       Then the roster page lists every roster entry with status, agent, and live activity, including idle and stopped teammates
+      And the roster page lists persistent agent roles after the session teammates
+      And each role row carries scope provenance, the definition source, and live instance counts
       And the board page lists tasks with status, claimant, and subject
       And enter opens a detail view for either selection
-      And x shuts down the selected living teammate
+      And x asks for confirmation before shutting down the selected living teammate
       And tab switches between roster and board pages
       And detail views expose reports to the leader and peer mail transcripts
       And a teammate's current board task appears in its detail view
       And detail scrolling preserves wrapped lines with keyboard and mouse-wheel navigation
+
+    Scenario: A role row opens a read-only definition preview
+      Given an agent definition exists in any scope
+      When the user opens its role row in the console
+      Then the detail view shows the definition source, frontmatter fields, and role prompt
+      And the preview offers no edit or write action
+
+    Scenario: Teammates are shut down from the console with confirmation
+      When the user requests shutdown for a living teammate in the console and confirms
+      Then that teammate shuts down and its claimed task returns to the board
+      But cancelling the confirmation leaves the teammate untouched
 
     Scenario: Detail views expose transcripts
       Given a teammate exchanged peer messages and reports

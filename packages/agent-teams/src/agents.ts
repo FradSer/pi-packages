@@ -2,10 +2,12 @@
  * Declarative agent definitions: Markdown files with YAML-style frontmatter.
  *
  * Discovery scopes (later scopes override earlier ones for the same name):
- *   1. bundled       — agents shipped with this package (agents/)
- *   2. user          — ~/.pi/agent/agents/ (respects PI_CODING_AGENT_DIR)
- *   3. project       — <cwd>/.pi/agents/<name>.md
- *   4. project-local — <cwd>/.pi/agents/<name>.local.md (personal override)
+ *   1. user          — ~/.pi/agent/agents/ (respects PI_CODING_AGENT_DIR)
+ *   2. project       — <cwd>/.pi/agents/<name>.md
+ *   3. project-local — <cwd>/.pi/agents/<name>.local.md (personal override)
+ *
+ * There are no built-in roles: references/agent-roles.md ships template
+ * shapes that the leader consults when generating a new definition on demand.
  *
  * Frontmatter fields:
  *   name        — unique agent id (required)
@@ -22,7 +24,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
-export type AgentScope = "bundled" | "user" | "project" | "project-local";
+export type AgentScope = "user" | "project" | "project-local";
 
 export interface AgentDefinition {
   name: string;
@@ -44,7 +46,11 @@ export interface AgentDefinition {
   source: string;
 }
 
-const BUNDLED_AGENTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "agents");
+/** Shipped role templates: reference material for generating new definitions
+ * on demand — never discovered and never spawnable directly. */
+export const AGENT_REFERENCE_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)), "..", "references", "agent-roles.md",
+);
 
 /** Files named `xxx.local.md` in the project agents directory are personal
  * overrides: same teammate name as `xxx.md`, project-local scope, never git-
@@ -160,11 +166,10 @@ function scopeIsGitManaged(scope: AgentScope): boolean {
 
 /**
  * Resolve all agent definitions visible from the given cwd, with later scopes
- * overriding earlier ones per name: project-local > project > user > bundled.
+ * overriding earlier ones per name: project-local > project > user.
  */
 export function discoverAgents(cwd?: string): Map<string, AgentDefinition> {
   const agents = new Map<string, AgentDefinition>();
-  loadDir("bundled", BUNDLED_AGENTS_DIR, agents);
   loadDir("user", agentsDir("user", cwd), agents);
   loadDir("project", agentsDir("project", cwd), agents);
   return agents;
@@ -185,7 +190,7 @@ export function hasAgent(name: string, cwd?: string): boolean {
  */
 export function formatAgentGuidance(cwd?: string): string {
   const agents = discoverAgents(cwd);
-  if (agents.size === 0) return "(none found in bundled, user, project, or project-local scopes)";
+  if (agents.size === 0) return "(none defined yet — create one on demand from the shipped templates)";
   const lines: string[] = [];
   for (const agent of agents.values()) {
     const extras = [

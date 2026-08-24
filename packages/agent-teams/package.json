@@ -24,7 +24,7 @@
   "files": [
     "index.ts",
     "src",
-    "agents",
+    "references",
     ".memory",
     "README.md"
   ],

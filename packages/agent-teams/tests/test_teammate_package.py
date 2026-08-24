@@ -66,7 +66,7 @@ def test_manifest_declares_native_extension_package() -> None:
     assert "pi-package" in manifest["keywords"]
     assert manifest["pi"] == {"extensions": ["./index.ts"]}
     assert "skills" not in manifest["files"]
-    assert "agents" in manifest["files"] or (PACKAGE / "agents").exists()
+    assert "references" in manifest["files"] and not (PACKAGE / "agents").exists()
 
 
 def test_bdd_contract_covers_target_resources() -> None:
@@ -74,7 +74,8 @@ def test_bdd_contract_covers_target_resources() -> None:
     for phrase in (
         "Feature: Agent Teams collaborative organization contract",
         "Agents are declarative Markdown files",
-        "Discover agents from bundled, user, project, and project-local scopes",
+        "Discover agents from user, project, and project-local scopes",
+        "Roles are generated on demand from the shipped role reference",
         "Project scopes distinguish git-managed from local definitions",
         "xxx.local.md files mark personal overrides inside .pi/agents",
         "Local override files dedupe against their shared counterpart by teammate name",
@@ -119,10 +120,11 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Workers cannot access leader tools",
         "Worktree isolation is an agent-role option",
         "Console and widget visualize the team without intercepting input",
-        "The agent-teams menu opens the team console",
-        "The agent-teams menu creates a project agent from history",
-        "The agent-teams menu creates a local agent from history",
-        "Agent creation rejects invalid or duplicate names",
+        "The agent-teams command opens the console directly",
+        "Non-TUI sessions receive a text summary instead of the console",
+        "The console roster separates session teammates from persistent agent roles",
+        "A role row opens a read-only definition preview",
+        "Teammates are shut down from the console with confirmation",
         "The widget shows only working teammates",
         "idle and stopped teammates never appear above the input box",
         "the widget stays hidden when nobody is working",
@@ -477,7 +479,7 @@ def test_agent_frontmatter_dash_list_edge_cases(tmp_path: Path) -> None:
     assert payload["model"] == "m"
 
 
-def test_project_agent_overrides_user_and_bundled(tmp_path: Path) -> None:
+def test_project_agent_overrides_user_scope(tmp_path: Path) -> None:
     user_dir = tmp_path / "user-agents"
     project_dir = tmp_path / ".pi" / "agents"
     project_dir.mkdir(parents=True)
@@ -509,9 +511,8 @@ def test_project_agent_overrides_user_and_bundled(tmp_path: Path) -> None:
         env_overrides={"PI_CODING_AGENT_DIR": str(user_dir)},
     )
     # dedup: dup.md + dup.local.md collapse into ONE entry; no "dup.local" key.
-    assert sorted(payload["keys"]) == [
-        "dup", "observer", "personal", "reviewer", "shared", "specialist", "worker",
-    ]
+    # There are no built-in roles, so only the fixture definitions exist.
+    assert sorted(payload["keys"]) == ["dup", "personal", "shared"]
     assert payload["dupScope"] == "project-local"
     assert payload["dupBody"] == "project-local body"
     assert payload["dupGitManaged"] is False
@@ -625,21 +626,48 @@ def test_follow_up_queue_batches_by_sender_order() -> None:
 
 def test_console_supports_mouse_wheel_scrolling() -> None:
     ext = source("ui.ts")
-    assert "const sgrWheel = /^\\x1b\\[<(\\d+);(\\d+);(\\d+)[Mm]$/" in ext
-    assert "(button & 64) !== 0" in ext
-    assert "direction === 0" in ext and "direction === 1" in ext
+    # One SGR wheel parser shared by the list page and detail views.
+    assert "function wheelDelta(data: string): number | undefined" in ext
+    assert "/^\\x1b\\[<(\\d+);\\d+;\\d+[Mm]$/" in ext
+    assert "(button & 64) === 0" in ext
+    assert ext.count("const wheel = wheelDelta(data);") == 2
 
 
-def test_agent_teams_menu_renames_legacy_command_and_exposes_creation_options() -> None:
+def test_agent_teams_command_opens_console_directly() -> None:
     tools = source("tools.ts")
+    ui = source("ui.ts")
+    guidance = source("guidance.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+
+    # Single-action entry: the command opens the console with no menu.
     assert 'pi.registerCommand("agent-teams"' in tools
     assert 'pi.registerCommand("teammate"' not in tools
-    for option in ('["console", "project", "local"]', 'choice === "console"', 'choice === "local"'):
-        assert option in tools
-    assert "getBranch" in tools
-    assert "createAgentFromHistory" in tools
-    assert ".local.md" in feature
+    assert "ctx.ui.select(" not in tools
+    assert "openTeamConsole(ctx)" in tools
+
+    # The session-history generation flow is gone; creation is conversational.
+    assert "createAgentFromHistory" not in tools
+    assert "generateAgentPrompt" not in tools
+    assert "parseGeneratedAgents" not in tools
+    assert "teammate_spawn" in guidance  # conversational spawn stays routed to the tool
+    assert ".pi/agents/<name>.md" in guidance  # conversational role creation writes definitions
+    assert "${AGENT_REFERENCE_PATH}" in guidance  # on-demand generation consults shipped templates
+    assert "no built-in roles" in guidance
+    assert "bundled" not in guidance
+
+    # The console is the management surface for both entity kinds.
+    assert "buildRoleDetail" in ui
+    assert "== teammates (this session) ==" in ui
+    assert "== agent roles (persistent definitions) ==" in ui
+    assert "discoverAgents" in ui
+
+    # No stale references to the legacy command name anywhere user-visible;
+    # the deprecation line in the contract is the one allowed mention.
+    assert "/teammate" not in guidance
+    teammate_feature_lines = [line.strip() for line in feature.splitlines() if "/teammate" in line]
+    assert teammate_feature_lines == ["And the legacy /teammate command is not registered"]
+    assert "/agent-teams" in guidance
+    assert "/agent-teams" in feature
 
 
 def test_console_has_roster_and_board_pages() -> None:
@@ -720,6 +748,204 @@ def test_teammate_spawn_started_row_fits_narrow_transcript_widths() -> None:
     assert payload["rowIsSingleLine"] is True
     assert payload["rowFitsWidth"] is True
     assert payload["identifiesStarted"] is True
+
+
+def test_shutdown_renders_one_collapsible_agent_event_line() -> None:
+    tools = source("tools.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Shutting down renders one collapsible agent event line" in feature
+    assert 'formatToolEventLabel("event", `@${name} shut down`, "agent")' in tools
+    assert "formatExpandHint" in tools
+
+
+def test_shutdown_row_hides_details_behind_the_shared_expand_hint() -> None:
+    payload = run_node(
+        f'''\
+        import {{ registerLeaderTools }} from "{(SRC / "tools.ts").as_uri()}";
+        import {{ initTheme }} from "@earendil-works/pi-coding-agent";
+        initTheme("dark");
+        const tools = [];
+        registerLeaderTools({{ registerTool(tool) {{ tools.push(tool); }}, registerCommand() {{}} }});
+        const shutdown = tools.find((tool) => tool.name === "teammate_shutdown");
+        const theme = {{ fg: (_color, text) => text, bold: (text) => text }};
+        const render = (expanded, width = 100) => shutdown.renderResult(
+          {{ content: [{{ type: "text", text: "Teammate @scribe shut down (exit code 0).\\nLifetime usage: 1200 tokens, $0.0012." }}] }},
+          {{ expanded }},
+          theme,
+          {{ args: {{ name: "scribe" }} }},
+        ).render(width);
+        const collapsed = render(false);
+        const expandedRows = render(true);
+        console.log(JSON.stringify({{
+          collapsed,
+          expandedRows,
+          zeroWidthCollapsedIsEmpty: render(false, 0).length === 0,
+          collapsedIsSingleLine: !collapsed.join("\\n").includes("\\n"),
+          collapsedNamesAgentEvent: collapsed[0].includes("[agent] event · @scribe shut down"),
+          collapsedHasSharedHint: collapsed[0].includes(" · ") && collapsed[0].includes("to expand"),
+          expandedKeepsTitle: expandedRows[0].startsWith("[agent] event · @scribe shut down") && !expandedRows[0].includes("to expand"),
+          expandedRevealsDetails: expandedRows.some((line) => line.includes("exit code 0"))
+            && expandedRows.some((line) => line.includes("Lifetime usage")),
+          neverLabeledMonitor: !collapsed.join(" ").includes("[monitor]"),
+        }}));
+        '''
+    )
+    assert payload["zeroWidthCollapsedIsEmpty"] is True
+    assert payload["collapsedIsSingleLine"] is True
+    assert payload["collapsedNamesAgentEvent"] is True
+    assert payload["collapsedHasSharedHint"] is True
+    assert payload["expandedKeepsTitle"] is True
+    assert payload["expandedRevealsDetails"] is True
+    assert payload["neverLabeledMonitor"] is True
+
+
+def test_send_message_renders_one_delivery_line() -> None:
+    tools = source("tools.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Steering renders one delivery line per message" in feature
+    block = tools.split('name: "send_message"', 1)[1]
+    assert 'renderShell: "self"' in block
+    assert 'renderCall: () => new Text("", 0, 0)' in block
+    assert 'formatAgentMessagePrefix("to")' in block
+    assert "{ queued: result.queued }" in block
+    # Pi signals failures via the render context, not the result object.
+    assert tools.count("context.isError") == 4
+    assert "result as { isError?: boolean }" not in tools
+
+
+def test_send_message_delivery_row_stays_single_and_carries_outcome() -> None:
+    payload = run_node(
+        f'''\
+        import {{ registerLeaderTools }} from "{(SRC / "tools.ts").as_uri()}";
+        import {{ initTheme }} from "@earendil-works/pi-coding-agent";
+        initTheme("dark");
+        const tools = [];
+        registerLeaderTools({{ registerTool(tool) {{ tools.push(tool); }}, registerCommand() {{}} }});
+        const send = tools.find((tool) => tool.name === "send_message");
+        const shutdown = tools.find((tool) => tool.name === "teammate_shutdown");
+        const theme = {{ fg: (_color, text) => text, bold: (text) => text }};
+        const render = (details, width = 100) => send.renderResult(
+          {{ content: [{{ type: "text", text: "Message to @audit: Delivered to its running turn." }}], details }},
+          {{}},
+          theme,
+          {{ args: {{ to: "audit", message: "hello" }} }},
+        ).render(width);
+        const errorRow = send.renderResult(
+          {{ content: [{{ type: "text", text: "No living teammate named ghost." }}], details: {{}} }},
+          {{}},
+          theme,
+          {{ args: {{ to: "ghost", message: "hi" }}, isError: true }},
+        ).render(100).join("\\n");
+        const shutdownErrorRow = shutdown.renderResult(
+          {{ content: [{{ type: "text", text: "No living teammate named ghost." }}], details: {{}} }},
+          {{ expanded: false }},
+          theme,
+          {{ args: {{ name: "ghost" }}, isError: true }},
+        ).render(100).join("\\n");
+        console.log(JSON.stringify({{
+          callEmpty: send.renderCall({{ to: "audit" }}, theme).render(100).join("") === "",
+          deliveredRow: render({{ queued: false }}),
+          queuedRow: render({{ queued: true }}),
+          stalledRow: render({{ queued: false, stalledMs: 125_000 }}),
+          zeroWidthEmpty: render({{ queued: false }}, 0).length === 0,
+          stalledIsSingleLine: render({{ queued: false, stalledMs: 125_000 }}).length === 1,
+          noDuplicateSentence: !render({{ queued: false, stalledMs: 125_000 }})[0].includes("Delivered to its running turn"),
+          errorIsExactPlainLine: errorRow.trim() === "No living teammate named ghost." && !errorRow.includes("·"),
+          shutdownErrorIsPlainLine: shutdownErrorRow.trim() === "No living teammate named ghost."
+            && !shutdownErrorRow.includes("[agent] event") && !shutdownErrorRow.includes("to expand"),
+        }}));
+        '''
+    )
+    assert payload["callEmpty"] is True
+    assert payload["deliveredRow"] == ["[message] to @audit · delivered"]
+    assert payload["queuedRow"] == ["[message] to @audit · queued"]
+    assert payload["stalledRow"] == ["[message] to @audit · delivered · stalled 2m"]
+    assert payload["zeroWidthEmpty"] is True
+    assert payload["stalledIsSingleLine"] is True
+    assert payload["noDuplicateSentence"] is True
+    assert payload["errorIsExactPlainLine"] is True
+    assert payload["shutdownErrorIsPlainLine"] is True
+
+
+def test_task_create_renders_one_created_line() -> None:
+    tools = source("tools.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Creating a board task renders one created line" in feature
+    block = tools.split('name: "task_create"', 1)[1].split('name: "task_list"', 1)[0]
+    assert 'renderShell: "self"' in block
+    assert 'renderCall: () => new Text("", 0, 0)' in block
+    assert 'formatToolEventLabel("created", subject, "board")' in block
+    payload = run_node(
+        f'''\
+        import {{ registerLeaderTools }} from "{(SRC / "tools.ts").as_uri()}";
+        import {{ initTheme }} from "@earendil-works/pi-coding-agent";
+        initTheme("dark");
+        const tools = [];
+        registerLeaderTools({{ registerTool(tool) {{ tools.push(tool); }}, registerCommand() {{}} }});
+        const create = tools.find((tool) => tool.name === "task_create");
+        const theme = {{ fg: (_color, text) => text, bold: (text) => text }};
+        const render = (width = 100) => create.renderResult(
+          {{ content: [{{ type: "text", text: "Created [t_3] Fix the login flow." }}], details: {{}} }},
+          {{}},
+          theme,
+          {{ args: {{ subject: "Fix the login flow" }} }},
+        ).render(width);
+        const errorRow = create.renderResult(
+          {{ content: [{{ type: "text", text: "Unknown dependency id in [t_9]." }}], details: {{}} }},
+          {{}},
+          theme,
+          {{ args: {{ subject: "Broken task", dependsOn: ["t_9"] }}, isError: true }},
+        ).render(100).join("\\n");
+        console.log(JSON.stringify({{
+          callEmpty: create.renderCall({{ subject: "x" }}, theme).render(100).join("") === "",
+          createdRow: render(),
+          zeroWidthEmpty: render(0).length === 0,
+          noDuplicateSentence: !render()[0].includes("Idle teammates are notified"),
+          errorIsPlainLine: errorRow.trim() === "Unknown dependency id in [t_9]." && !errorRow.includes("[board]"),
+        }}));
+        '''
+    )
+    assert payload["callEmpty"] is True
+    assert payload["createdRow"] == ["[board] created · Fix the login flow"]
+    assert payload["zeroWidthEmpty"] is True
+    assert payload["noDuplicateSentence"] is True
+    assert payload["errorIsPlainLine"] is True
+
+
+def test_completion_announced_once_per_spawn_incarnation() -> None:
+    tools = source("team-machine.ts")
+    extension = source("index.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Completion is announced once per spawn incarnation" in feature
+    # The machine layer carries the spawn identity so the display can dedupe.
+    assert "spawnId: teammate.spawnId," in tools
+    assert "markTeammateFinished(announcedFinishKeys, report)" in extension
+    assert "announcedFinishKeys.clear()" in extension
+    payload = run_node(
+        f'''\
+        import {{ markTeammateFinished }} from "{(SRC / "index.ts").as_uri()}";
+        const seen = new Set();
+        const report = (over = {{}}) => ({{ teammate: "probe", spawnId: "s1", body: "done", finished: true, ...over }});
+        console.log(JSON.stringify({{
+          firstAnnounces: markTeammateFinished(seen, report()),
+          repeatSuppressed: markTeammateFinished(seen, report({{ body: "again" }})),
+          respawnAnnounces: markTeammateFinished(seen, report({{ spawnId: "s2" }})),
+          unfinishedIgnored: markTeammateFinished(seen, report({{ spawnId: "s3", finished: undefined }})),
+          crashPathAnnounces: markTeammateFinished(seen, report({{ spawnId: undefined }})),
+          crashRepeatSuppressed: markTeammateFinished(seen, report({{ spawnId: undefined }})),
+          seenSize: seen.size,
+        }}));
+        '''
+    )
+    assert payload == {
+        "firstAnnounces": True,
+        "repeatSuppressed": False,
+        "respawnAnnounces": True,
+        "unfinishedIgnored": False,
+        "crashPathAnnounces": True,
+        "crashRepeatSuppressed": False,
+        "seenSize": 3,
+    }
 
 
 def test_live_activity_renders_markdown_without_literal_emphasis_markers() -> None:
@@ -972,7 +1198,7 @@ def test_worker_task_list_includes_roster_tail() -> None:
 
 
 def test_terminal_status_discipline_is_documented_for_workers() -> None:
-    reviewer = (PACKAGE / "agents" / "reviewer.md").read_text(encoding="utf-8")
+    templates = " ".join((PACKAGE / "references" / "agent-roles.md").read_text(encoding="utf-8").split())
     guidance = source("guidance.ts")
-    assert 'MUST\ncarry status="completed"' in reviewer
+    assert 'MUST carry status="completed"' in templates
     assert "MUST carry" in guidance and 'status="completed"' in guidance

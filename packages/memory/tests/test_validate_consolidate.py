@@ -251,15 +251,17 @@ class ValidatorContractTests(unittest.TestCase):
 
     def test_privacy_rejects_memory_file_count_before_reading(self) -> None:
         self.memory_layout(private=False)
-        for index in range(129):
+        for index in range(6):
             write(self.harness / f"memory_{index}.md", "safe\n")
         write(self.harness / "MEMORY.md", "\n".join(
-            [f"- [memory_{index}.md](memory_{index}.md) — safe" for index in range(129)]
+            [f"- [memory_{index}.md](memory_{index}.md) — safe" for index in range(6)]
         ) + "\n")
+        # Default count bound is 4096 (aligned with the runtime); shrink it to exercise the guard.
         result = run([
             "--harness", str(self.harness),
             "--public", str(self.public),
             "--check=privacy",
+            "--max-memory-files", "5",
         ])
         self.assertEqual(result.returncode, 1)
         self.assertIn("memory file count", result.stdout)
@@ -280,10 +282,12 @@ class ValidatorContractTests(unittest.TestCase):
         write(self.harness / "project_example.md", "x" * 50_000)
         write(self.harness / "project_second.md", "x" * 50_000)
         write(self.harness / "MEMORY.md", "- [project_example.md](project_example.md)\n- [project_second.md](project_second.md)\n")
+        # Default aggregate bound is file-count × per-file; shrink it to exercise the guard.
         result = run([
             "--harness", str(self.harness),
             "--public", str(self.public),
             "--check=privacy",
+            "--max-total-bytes", "96000",
         ])
         self.assertEqual(result.returncode, 1)
         self.assertIn("aggregate", result.stdout)
