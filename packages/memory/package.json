@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-memory",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Native /memory command for pi — auto-memory guidance, instructions menu, and manual consolidation (no skill surface)",
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",
