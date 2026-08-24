@@ -884,14 +884,46 @@ def test_console_wires_searchable_teammate_model_picker() -> None:
         'getAvailable()',
     ):
         assert needle in ui_source, f"console picker must use {needle}"
-    # Clearing is a pinned list entry, never a letter hotkey: a bare "c" branch
-    # would swallow typed search text (e.g. filtering for "claude").
+    # Key routing lives in the pure mapPickerKey table; the console handler
+    # must consume it instead of matching raw letters itself.
+    assert "mapPickerKey" in ui_source
     picker_input = ui_source[ui_source.index("function handlePickerInput"):]
     assert 'data === "c"' not in picker_input
     assert "isClearEntry" in ui_source
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "a searchable model picker lists registry models with type-to-filter" in feature
     assert "confirming the pinned clear entry restores Pi's own choice" in feature
+
+
+def test_picker_key_routes_printables_to_typing_and_keys_to_actions() -> None:
+    payload = run_node(
+        f'''\
+        import {{ mapPickerKey }} from "{(SRC / "picker-keys.ts").as_uri()}";
+        console.log(JSON.stringify({{
+          letterC: mapPickerKey("c"),
+          capitalC: mapPickerKey("C"),
+          digit: mapPickerKey("3"),
+          space: mapPickerKey(" "),
+          escape: mapPickerKey("\\x1b"),
+          enter: mapPickerKey("\\r"),
+          up: mapPickerKey("\\x1b[A"),
+          down: mapPickerKey("\\x1b[B"),
+          backspace: mapPickerKey("\\x7f"),
+          tabIgnored: mapPickerKey("\\t"),
+          multiCharPasteIgnored: mapPickerKey("abc"),
+        }}, (key, value) => (value === undefined ? null : value)));
+        '''
+    )
+    # The regression core: letters route to typing, never to shortcuts.
+    for key in ("letterC", "capitalC", "digit", "space"):
+        assert payload[key] == {"kind": "type", "text": {"letterC": "c", "capitalC": "C", "digit": "3", "space": " "}[key]}, key
+    assert payload["escape"] == {"kind": "cancel"}
+    assert payload["enter"] == {"kind": "confirm"}
+    assert payload["up"] == {"kind": "up"}
+    assert payload["down"] == {"kind": "down"}
+    assert payload["backspace"] == {"kind": "backspace"}
+    assert payload["tabIgnored"] is None
+    assert payload["multiCharPasteIgnored"] is None
 
 
 def test_agent_frontmatter_parses_tools_model_verify(tmp_path: Path) -> None:

@@ -496,6 +496,7 @@ Feature: Agent Teams collaborative organization contract
     Scenario: The console sets and clears the unified teammate model
       When the user opens /agent-teams and presses m in the roster page
       Then a searchable model picker lists registry models with type-to-filter
+      And every typed character filters the list instead of triggering shortcuts
       And confirming a model stores it as the team default for later spawns this session
       And confirming the pinned clear entry restores Pi's own choice
 

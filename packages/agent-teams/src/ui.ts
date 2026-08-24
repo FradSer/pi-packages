@@ -30,6 +30,7 @@ import {
   stallSilenceMs,
 } from "./team-machine.ts";
 import type { Teammate } from "./types.ts";
+import { mapPickerKey } from "./picker-keys.ts";
 import { inboxPath } from "./statefile.ts";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -443,11 +444,13 @@ export function openTeamConsole(ctx: {
         mode = "list";
         return;
       }
-      if (matchesKey(data, Key.escape)) {
+      const action = mapPickerKey(data);
+      if (!action) return;
+      if (action.kind === "cancel") {
         closeModelPicker();
         return;
       }
-      if (matchesKey(data, Key.enter)) {
+      if (action.kind === "confirm") {
         const picked = picker.selected();
         // An empty filtered list must not clobber the current default.
         if (!picked) return;
@@ -461,25 +464,11 @@ export function openTeamConsole(ctx: {
         closeModelPicker();
         return;
       }
-      if (matchesKey(data, Key.up)) {
-        picker.up();
-        requestRender();
-        return;
-      }
-      if (matchesKey(data, Key.down)) {
-        picker.down();
-        requestRender();
-        return;
-      }
-      if (matchesKey(data, Key.backspace) || matchesKey(data, Key.delete)) {
-        picker.backspace();
-        requestRender();
-        return;
-      }
-      if (data.length === 1 && data >= " ") {
-        picker.type(data);
-        requestRender();
-      }
+      if (action.kind === "up") picker.up();
+      else if (action.kind === "down") picker.down();
+      else if (action.kind === "backspace") picker.backspace();
+      else picker.type(action.text);
+      requestRender();
     }
 
     const currentRows = (): ConsoleRow[] =>
