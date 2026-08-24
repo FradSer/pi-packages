@@ -884,8 +884,14 @@ def test_console_wires_searchable_teammate_model_picker() -> None:
         'getAvailable()',
     ):
         assert needle in ui_source, f"console picker must use {needle}"
+    # Clearing is a pinned list entry, never a letter hotkey: a bare "c" branch
+    # would swallow typed search text (e.g. filtering for "claude").
+    picker_input = ui_source[ui_source.index("function handlePickerInput"):]
+    assert 'data === "c"' not in picker_input
+    assert "isClearEntry" in ui_source
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "a searchable model picker lists registry models with type-to-filter" in feature
+    assert "confirming the pinned clear entry restores Pi's own choice" in feature
 
 
 def test_agent_frontmatter_parses_tools_model_verify(tmp_path: Path) -> None:

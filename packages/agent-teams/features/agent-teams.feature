@@ -497,7 +497,7 @@ Feature: Agent Teams collaborative organization contract
       When the user opens /agent-teams and presses m in the roster page
       Then a searchable model picker lists registry models with type-to-filter
       And confirming a model stores it as the team default for later spawns this session
-      And pressing c in the picker clears the team default back to Pi's own choice
+      And confirming the pinned clear entry restores Pi's own choice
 
   Rule: Worktree isolation is an agent-role option
 

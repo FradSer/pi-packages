@@ -373,10 +373,22 @@ export function openTeamConsole(ctx: {
     let picker: SearchPicker<{ provider: string; id: string; name?: string }> | undefined;
     let pickerOffset = 0;
 
+    /** Pinned pseudo-entry so clearing never collides with typed search text. */
+    const CLEAR_TEAM_MODEL_ENTRY: { provider: string; id: string; name?: string } = {
+      provider: "",
+      id: "__clear-team-default__",
+      name: "Use Pi default",
+    };
+    const isClearEntry = (model: { id: string } | undefined): boolean =>
+      model?.id === CLEAR_TEAM_MODEL_ENTRY.id;
+
     const openModelPicker = (): void => {
       const models = sortModels([...(ctx.modelRegistry?.getAvailable() ?? [])]);
       if (models.length === 0) return;
-      picker = createSearchPicker(models, { filter: fuzzyFilter, getText: modelSearchText });
+      picker = createSearchPicker([CLEAR_TEAM_MODEL_ENTRY, ...models], {
+        filter: fuzzyFilter,
+        getText: (model) => (isClearEntry(model) ? "clear team default use pi default" : modelSearchText(model)),
+      });
       pickerOffset = 0;
       mode = "picker";
       requestRender();
@@ -404,6 +416,9 @@ export function openTeamConsole(ctx: {
       const rows = results.slice(pickerOffset, pickerOffset + pickerViewport()).map((model, index) => {
         const absolute = pickerOffset + index;
         const marker = absolute === selected ? style.accent("❯ ") : "  ";
+        if (isClearEntry(model)) {
+          return truncateToWidth(`${marker}${theme.fg("warning", "✕ clear team default")} ${style.dim("· use Pi default")}`, Math.max(10, width - 1));
+        }
         const tags = [
           modelLabel(model) === leaderRef ? style.dim("(leader)") : "",
           modelLabel(model) === teamDefault ? style.success("(default)") : "",
@@ -418,7 +433,7 @@ export function openTeamConsole(ctx: {
         truncateToWidth(`${style.accent("❯ ")}${picker.query()}▏  ${style.dim(`${results.length} models`)}`, Math.max(10, width - 1)),
         ...rows,
         "",
-        truncateToWidth(style.dim("type to filter · ↑↓ select · enter set · c clear · esc cancel"), Math.max(10, width - 1)),
+        truncateToWidth(style.dim("type to filter · ↑↓ select · enter set/clear · esc cancel"), Math.max(10, width - 1)),
         border,
       ];
     };
@@ -436,14 +451,13 @@ export function openTeamConsole(ctx: {
         const picked = picker.selected();
         // An empty filtered list must not clobber the current default.
         if (!picked) return;
-        setTeamDefaultModel(modelLabel(picked));
-        ctx.ui.notify(`Teammate model set to ${modelLabel(picked)} for this session`, "info");
-        closeModelPicker();
-        return;
-      }
-      if (data === "c" || data === "C") {
-        setTeamDefaultModel(undefined);
-        ctx.ui.notify("Teammate model cleared — Pi picks its default", "info");
+        if (isClearEntry(picked)) {
+          setTeamDefaultModel(undefined);
+          ctx.ui.notify("Teammate model cleared — Pi picks its default", "info");
+        } else {
+          setTeamDefaultModel(modelLabel(picked));
+          ctx.ui.notify(`Teammate model set to ${modelLabel(picked)} for this session`, "info");
+        }
         closeModelPicker();
         return;
       }
