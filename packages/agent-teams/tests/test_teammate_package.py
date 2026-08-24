@@ -707,6 +707,86 @@ def test_generated_agent_roles_are_session_scoped_and_not_persisted(tmp_path: Pa
     }
 
 
+def test_persistent_definitions_outrank_generated_session_roles(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ discoverAgents, registerSessionAgent, clearSessionAgents }} from "{(SRC / "agents.ts").as_uri()}";
+        import fs from "node:fs";
+        clearSessionAgents();
+        const agentsDir = {json.dumps(str(tmp_path / ".pi" / "agents"))};
+        fs.mkdirSync(agentsDir, {{ recursive: true }});
+        fs.writeFileSync(`${{agentsDir}}/scout.md`, [
+          "---",
+          "name: scout",
+          "description: File-based scout",
+          "tools: read",
+          "---",
+          "File role.",
+          "",
+        ].join("\\n"));
+        registerSessionAgent({{
+          name: "scout",
+          description: "Session scout",
+          tools: ["bash"],
+          prompt: "Session prompt.",
+        }});
+        registerSessionAgent({{
+          name: "ghost",
+          description: "Only in memory",
+          tools: ["bash"],
+          prompt: "Ghost prompt.",
+        }});
+        const scout = discoverAgents({json.dumps(str(tmp_path))}).get("scout");
+        const ghost = discoverAgents({json.dumps(str(tmp_path))}).get("ghost");
+        console.log(JSON.stringify({{
+          scoutScope: scout?.scope ?? null,
+          scoutTools: scout?.tools ?? null,
+          ghostScope: ghost?.scope ?? null,
+        }}));
+        ''',
+    )
+    assert payload == {
+        "scoutScope": "project",
+        "scoutTools": ["read"],
+        "ghostScope": "session",
+    }
+
+
+def test_inline_definitions_replace_stale_session_roles_but_not_files(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ inlineDefinitionApplies }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resolveAgent, registerSessionAgent, clearSessionAgents }} from "{(SRC / "agents.ts").as_uri()}";
+        import fs from "node:fs";
+        const cwd = {json.dumps(str(tmp_path))};
+        clearSessionAgents();
+        const noResolution = inlineDefinitionApplies(undefined);
+        const beforeFile = (() => {{
+          registerSessionAgent({{ name: "scout", description: "Stale role", tools: ["bash"], prompt: "Old." }});
+          return inlineDefinitionApplies(resolveAgent("scout", cwd));
+        }})();
+        const agentsDir = `${{cwd}}/.pi/agents`;
+        fs.mkdirSync(agentsDir, {{ recursive: true }});
+        fs.writeFileSync(`${{agentsDir}}/scout.md`, [
+          "---",
+          "name: scout",
+          "description: File-based scout",
+          "tools: read",
+          "---",
+          "File role.",
+          "",
+        ].join("\\n"));
+        const afterFile = inlineDefinitionApplies(resolveAgent("scout", cwd));
+        console.log(JSON.stringify({{ noResolution, sessionRoleCase: beforeFile, fileCase: afterFile }}));
+        ''',
+    )
+    assert payload == {"noResolution": True, "sessionRoleCase": True, "fileCase": False}
+    machine = source("team-machine.ts")
+    # The spawn path must gate generation on the helper so a corrected inline
+    # definition replaces a stale session role instead of being ignored.
+    assert "input.definition && inlineDefinitionApplies(resolved)" in machine
+
+
 def test_agent_frontmatter_parses_tools_model_verify(tmp_path: Path) -> None:
     agents_dir = tmp_path / ".pi" / "agents"
     agents_dir.mkdir(parents=True)
@@ -1253,33 +1333,48 @@ def test_completion_announced_once_per_spawn_incarnation() -> None:
     assert "Completion is announced once per spawn incarnation" in feature
     # The machine layer carries the spawn identity so the display can dedupe.
     assert "spawnId: teammate.spawnId," in tools
-    assert "markTeammateFinished(announcedFinishKeys, report)" in extension
-    assert "announcedFinishKeys.clear()" in extension
+    # Crash diagnostics key on the incarnation too: a respawned teammate's
+    # second unexpected stop must stay visible instead of sharing one session key.
+    crash_block = tools[tools.index("if (!requested) {") :]
+    assert "spawnId: teammate.spawnId," in crash_block[:400]
+    assert "markTeammateFinished(report)" in extension
+    assert "announcedFinishKeys.clear()" in tools
+
+
+def test_shutdown_after_finish_renders_no_second_event_line(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ markTeammateFinished }} from "{(SRC / "index.ts").as_uri()}";
-        const seen = new Set();
-        const report = (over = {{}}) => ({{ teammate: "probe", spawnId: "s1", body: "done", finished: true, ...over }});
+        import {{ initTeamMachine, shutdownTeamMachine, markTeammateFinished, hasAnnouncedFinish }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate, updateTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 0, status: "stopped", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const firstAnnounces = markTeammateFinished({{ teammate: "w", spawnId: "s1", body: "done", finished: true }});
+        const currentIncarnationAnnounced = hasAnnouncedFinish("w");
+        const repeatSuppressed = markTeammateFinished({{ teammate: "w", spawnId: "s1", body: "again", finished: true }});
+        updateTeammate("w", {{ spawnId: "s2", status: "working" }});
+        const respawnIncarnationQuiet = hasAnnouncedFinish("w");
         console.log(JSON.stringify({{
-          firstAnnounces: markTeammateFinished(seen, report()),
-          repeatSuppressed: markTeammateFinished(seen, report({{ body: "again" }})),
-          respawnAnnounces: markTeammateFinished(seen, report({{ spawnId: "s2" }})),
-          unfinishedIgnored: markTeammateFinished(seen, report({{ spawnId: "s3", finished: undefined }})),
-          crashPathAnnounces: markTeammateFinished(seen, report({{ spawnId: undefined }})),
-          crashRepeatSuppressed: markTeammateFinished(seen, report({{ spawnId: undefined }})),
-          seenSize: seen.size,
+          firstAnnounces,
+          currentIncarnationAnnounced,
+          repeatSuppressed,
+          respawnIncarnationQuiet,
         }}));
+        shutdownTeamMachine();
         '''
     )
     assert payload == {
         "firstAnnounces": True,
+        "currentIncarnationAnnounced": True,
         "repeatSuppressed": False,
-        "respawnAnnounces": True,
-        "unfinishedIgnored": False,
-        "crashPathAnnounces": True,
-        "crashRepeatSuppressed": False,
-        "seenSize": 3,
+        "respawnIncarnationQuiet": False,
     }
+    tools = source("tools.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Shutdown after a finish announcement adds no second event line" in feature
+    assert "Shutdown without a finish announcement keeps its event line" in feature
+    # The finished entry already announced this end of life; the event row is noise.
+    assert "if (hasAnnouncedFinish(name))" in tools
 
 
 def test_live_activity_renders_markdown_without_literal_emphasis_markers() -> None:

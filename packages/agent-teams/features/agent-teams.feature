@@ -80,6 +80,24 @@ Feature: Agent Teams collaborative organization contract
       And it lists the agent names currently discoverable in any scope
       And it points to creating the role on demand from the shipped role reference
 
+    Scenario: Persistent definitions outrank generated session roles
+      Given a generated session role and a definition file share the same teammate name
+      When the leader resolves that name
+      Then the filesystem definition wins at its declared scope
+      And generated session roles only fill names that no file defines
+
+    Scenario: A new inline definition replaces a stale generated role of the same name
+      Given a generated session role exists for an agent name from an earlier spawn this session
+      When the leader spawns that name again while supplying an explicit inline definition
+      Then the new definition's tools, model, verify, worktree, and prompt take effect
+      And the role remains session-scoped and no definition file is written
+
+    Scenario: Definition files outrank an inline definition of the same name
+      Given a definition file exists for the requested agent name
+      When the leader spawns it while also supplying an inline definition of the same name
+      Then the file-based definition is used unchanged
+      And no definition file is modified
+
   Rule: Teammates are named resident processes
 
     Scenario: Spawning creates one named resident teammate
@@ -110,6 +128,17 @@ Feature: Agent Teams collaborative organization contract
       And the roster records the teammate as stopped
       And its session worker slot is released
       And worktree changes are captured and reported before teardown when the teammate owned a worktree
+
+    Scenario: Shutdown after a finish announcement adds no second event line
+      Given a teammate whose terminal report already announced its finish entry
+      When the leader shuts that teammate down
+      Then no shutdown event line renders for that incarnation
+      And the finish entry stays the single end-of-life announcement
+
+    Scenario: Shutdown without a finish announcement keeps its event line
+      Given a living teammate that announced no terminal report
+      When the leader shuts that teammate down
+      Then the shutdown event line renders with its expandable diagnostics
 
     Scenario: An unexpected teammate crash is reported to the leader
       Given a resident teammate's child process closes without a shutdown request

@@ -11,7 +11,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinitionInput } from "./agents.ts";
+import { discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "./agents.ts";
 import {
   applyClaimIntent,
   claimableTasks,
@@ -139,6 +139,8 @@ const pendingShutdowns = new Set<string>();
 const verifyingTasks = new Map<string, { worker: string; spawnId: string; token: string }>();
 /** Idle nudges already fired per teammate incarnation (one per transition). */
 const idleNudgesSent = new Set<string>();
+/** One finish entry per spawn incarnation; repeated terminal reports stay ordinary report rows. */
+const announcedFinishKeys = new Set<string>();
 /** Consecutive verify failures per taskId:spawnId holder incarnation. */
 const verifyFailures = new Map<string, VerifyFailureRecord>();
 /** Self-finalize requests delivered per teammate incarnation before escalating to the leader. */
@@ -184,6 +186,7 @@ export function shutdownTeamMachine(): void {
   selfFinalizeAttempts.clear();
   pendingDeliveries.clear();
   verifyFailures.clear();
+  announcedFinishKeys.clear();
 }
 
 /** Terminate every resident teammate; returns unconfirmed-close diagnostics. */
@@ -273,8 +276,9 @@ export function spawnTeammate(input: {
   const stateFile = requireStateFile();
   const invalid = validateSpawnInput(input);
   if (invalid) return { ok: false, error: invalid };
-  let agent = resolveAgent(input.agent, leaderCwd);
-  if (!agent && input.definition) {
+  const resolved = resolveAgent(input.agent, leaderCwd);
+  let agent: AgentDefinition | undefined = resolved;
+  if (input.definition && inlineDefinitionApplies(resolved)) {
     try {
       const generated = input.definition;
       const roleInput: AgentDefinitionInput = {
@@ -333,6 +337,13 @@ export function spawnTeammate(input: {
   ensureLivePoll();
   notifyChange();
   return { ok: true, teammate: getTeammate(input.name)! };
+}
+
+/** True when a spawn's inline definition should create or replace the role:
+ *  nothing resolved, or only a session-scoped generated role did. Filesystem
+ *  scopes are user-owned and always win over inline input. */
+export function inlineDefinitionApplies(resolved: AgentDefinition | undefined): boolean {
+  return !resolved || resolved.scope === "session";
 }
 
 /** Spawn failure for an unresolvable agent name. Definitions resolve live at
@@ -479,6 +490,25 @@ interface VerifyFailureRecord {
   escalated: boolean;
 }
 
+/** Record one finish entry per spawn incarnation; later terminal reports from
+ *  the same resident stay ordinary report rows. */
+export function markTeammateFinished(
+  report: Pick<FollowUpReport, "teammate" | "agent" | "spawnId" | "finished">,
+): boolean {
+  if (!report.finished) return false;
+  const name = report.teammate ?? report.agent ?? "teammate";
+  const key = `${name}:${report.spawnId ?? "session"}`;
+  if (announcedFinishKeys.has(key)) return false;
+  announcedFinishKeys.add(key);
+  return true;
+}
+
+/** True when this teammate's current incarnation already announced its finish entry. */
+export function hasAnnouncedFinish(name: string): boolean {
+  const spawnId = getTeammate(name)?.spawnId;
+  return announcedFinishKeys.has(`${name}:${spawnId ?? "session"}`);
+}
+
 /** True when the teammate's last leader-bound report lacks a terminal status. */
 export function hasUnfinalizedReport(name: string): boolean {
   const mailbox = getState().leaderMailbox;
@@ -600,6 +630,7 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
   if (!requested) {
     sendUpdate({
       teammate: name,
+      spawnId: teammate.spawnId,
       body: `@${name} stopped unexpectedly${released.length > 0 ? `; claimed task(s) ${released.map((t) => t.id).join(", ")} returned to the board` : ""}.`,
       finished: true,
     });

@@ -34,7 +34,11 @@ worktree: true              # optional role-default Git isolation
 Review the assigned scope for exploitable security problems. Do not edit files.
 ```
 
-Discovery precedence per name (later overrides earlier):
+Discovery precedence per name (later overrides earlier): user < project <
+project-local, with generated session roles filling only the names no file
+defines. A re-spawn that supplies an explicit inline definition replaces a
+previously generated session role of the same name; definition files are never
+overwritten by inline input.
 
 There are no built-in roles. When a needed role has no definition, the
 leader creates it in memory for the current session: it derives the definition
@@ -125,6 +129,7 @@ That is **7 unique tool names**. There are no `teammate_run`, `teammate_fanout`,
 - **Completion is gated, not self-reported**: a task completes only after its effective verify gate passes when one exists; no gate means the submission itself completes it. A gate that keeps failing parks the task with its holder after the second consecutive failure and escalates to the leader once instead of looping.
 - **No caps, heartbeat only**: teammates run without turn-count or duration ceilings. The harness heartbeat tracks silence per working teammate and — after 30 minutes without any RPC output (`PI_TEAMMATE_STALL_NOTICE_MS`, 0 disables) — sends the leader one actionable notice per silence episode. The notice is the last automatic action: continuing, steering, shutting down, or respawning a context-carrying successor belongs to the leader alone. Any output or prompt delivery re-arms it, and steering a silent teammate warns that delivery is uncertain.
 - **One-shot board notices**: an idle teammate is told about a claimable task exactly once; declined tasks never re-wake it, and released tasks re-arm. Notices are paced at least five minutes apart per teammate (`PI_TEAMMATE_NOTICE_PACE_MS` overrides in milliseconds).
+- **One end-of-life line per teammate**: the first terminal report of a spawn incarnation renders the finish entry; shutting that incarnation down afterwards adds no second event row.
 - **Failure semantics**: an unexpected crash marks the teammate stopped, reports a diagnostic, and releases its claimed tasks.
 
 ## State and Sessions

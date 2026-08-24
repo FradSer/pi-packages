@@ -3,6 +3,7 @@ import { formatAgentMessagePrefix, formatAgentTaskName, formatExpandHint, format
 import {
   createBoardTask,
   formatSilenceDuration,
+  hasAnnouncedFinish,
   publishStateSnapshot,
   sendLeaderMessage,
   shutdownTeammate,
@@ -72,6 +73,8 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
         return new Text(theme.fg("error", text.split("\n")[0] || "Failed to shut down teammate."), 0, 0);
       }
       const name = String((context.args as { name?: string }).name ?? "");
+      // The finish entry already announced this end of life; a second event row is noise.
+      if (hasAnnouncedFinish(name)) return { render: () => [], invalidate: () => {} };
       const title = theme.fg("toolTitle", theme.bold(formatToolEventLabel("event", `@${name} shut down`, "agent")));
       const render = (width: number) => {
         if (width <= 0) return [];

@@ -257,7 +257,9 @@ export function discoverAgents(cwd?: string): Map<string, AgentDefinition> {
   const agents = new Map<string, AgentDefinition>();
   loadDir("user", agentsDir("user", cwd), agents);
   loadDir("project", agentsDir("project", cwd), agents);
-  for (const [name, definition] of sessionAgents) agents.set(name, definition);
+  // Generated roles fill gaps only: filesystem scopes keep precedence over
+  // session memory.
+  for (const [name, definition] of sessionAgents) if (!agents.has(name)) agents.set(name, definition);
   return agents;
 }
 
