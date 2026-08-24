@@ -141,6 +141,8 @@ const verifyingTasks = new Map<string, { worker: string; spawnId: string; token:
 const idleNudgesSent = new Set<string>();
 /** One finish entry per spawn incarnation; repeated terminal reports stay ordinary report rows. */
 const announcedFinishKeys = new Set<string>();
+/** Incarnations whose terminal report reached the leader pipeline, queued or dispatched. */
+const terminalReportKeys = new Set<string>();
 /** Consecutive verify failures per taskId:spawnId holder incarnation. */
 const verifyFailures = new Map<string, VerifyFailureRecord>();
 /** Self-finalize requests delivered per teammate incarnation before escalating to the leader. */
@@ -187,6 +189,7 @@ export function shutdownTeamMachine(): void {
   pendingDeliveries.clear();
   verifyFailures.clear();
   announcedFinishKeys.clear();
+  terminalReportKeys.clear();
 }
 
 /** Terminate every resident teammate; returns unconfirmed-close diagnostics. */
@@ -509,6 +512,23 @@ export function hasAnnouncedFinish(name: string): boolean {
   return announcedFinishKeys.has(`${name}:${spawnId ?? "session"}`);
 }
 
+/** Remember at send time that this incarnation produced a terminal report, so
+ *  end-of-life suppression covers reports still queued for dispatch. */
+export function recordTerminalReport(
+  report: Pick<FollowUpReport, "teammate" | "agent" | "spawnId" | "finished">,
+): void {
+  if (!report.finished) return;
+  const name = report.teammate ?? report.agent ?? "teammate";
+  terminalReportKeys.add(`${name}:${report.spawnId ?? "session"}`);
+}
+
+/** True when this teammate's current incarnation has a terminal report in the
+ *  leader pipeline, whether or not its finish entry has been dispatched yet. */
+export function hasTerminalReport(name: string): boolean {
+  const spawnId = getTeammate(name)?.spawnId;
+  return terminalReportKeys.has(`${name}:${spawnId ?? "session"}`);
+}
+
 /** True when the teammate's last leader-bound report lacks a terminal status. */
 export function hasUnfinalizedReport(name: string): boolean {
   const mailbox = getState().leaderMailbox;
@@ -628,12 +648,14 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
     : { from: name, subject: "Teammate stopped unexpectedly", body: crashDiagnostic(name, result, released) });
 
   if (!requested) {
-    sendUpdate({
+    const report = {
       teammate: name,
       spawnId: teammate.spawnId,
       body: `@${name} stopped unexpectedly${released.length > 0 ? `; claimed task(s) ${released.map((t) => t.id).join(", ")} returned to the board` : ""}.`,
       finished: true,
-    });
+    };
+    recordTerminalReport(report);
+    sendUpdate(report);
   }
   publishStateSnapshot();
   ensureLivePoll();
@@ -734,13 +756,15 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
   });
   if (record.status === "completed" || record.status === "failed") {
     // The assignment ends; the resident itself stays alive until sequence end.
-    sendUpdate({
+    const report = {
       teammate: teammate.name,
       agent: teammate.agent,
       spawnId: teammate.spawnId,
       body: record.body,
       finished: true,
-    });
+    };
+    recordTerminalReport(report);
+    sendUpdate(report);
   }
   return true;
 }

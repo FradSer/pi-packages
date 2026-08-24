@@ -1337,6 +1337,10 @@ def test_completion_announced_once_per_spawn_incarnation() -> None:
     # second unexpected stop must stay visible instead of sharing one session key.
     crash_block = tools[tools.index("if (!requested) {") :]
     assert "spawnId: teammate.spawnId," in crash_block[:400]
+    # Crash diagnostics key on the incarnation too: a respawned teammate's
+    # second unexpected stop must stay visible instead of sharing one session key.
+    crash_block = tools[tools.index("if (!requested) {") :]
+    assert "spawnId: teammate.spawnId," in crash_block[:400]
     assert "markTeammateFinished(report)" in extension
     assert "announcedFinishKeys.clear()" in tools
 
@@ -1374,7 +1378,37 @@ def test_shutdown_after_finish_renders_no_second_event_line(tmp_path: Path) -> N
     assert "Shutdown after a finish announcement adds no second event line" in feature
     assert "Shutdown without a finish announcement keeps its event line" in feature
     # The finished entry already announced this end of life; the event row is noise.
-    assert "if (hasAnnouncedFinish(name))" in tools
+    # Suppression also covers terminal reports still queued for dispatch.
+    assert "if (hasAnnouncedFinish(name) || hasTerminalReport(name))" in tools
+
+
+def test_shutdown_suppression_covers_queued_terminal_reports(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, drainTeammateOutboxes, hasTerminalReport }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ stateFilePath, workerOutboxPath, appendWorkerEvent }} from "{(SRC / "statefile.ts").as_uri()}";
+        const sent = [];
+        const cwd = {str(tmp_path)!r};
+        initTeamMachine({{ sessionManager: undefined, cwd }}, {{ sendUpdate: (report) => sent.push(report), notifyChange: () => {{}} }});
+        resetState();
+        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 0, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const outbox = workerOutboxPath(stateFilePath(undefined, cwd), "w", "s1");
+        appendWorkerEvent(outbox, {{ id: "evt1", type: "message", worker: "w", spawnId: "s1", body: "done", status: "completed" }});
+        drainTeammateOutboxes();
+        console.log(JSON.stringify({{
+          terminalSentToQueue: sent.length === 1 && sent[0].finished === true,
+          suppressionCoversQueuedReport: hasTerminalReport("w"),
+          finishEntryNotDispatchedYet: true,
+        }}));
+        shutdownTeamMachine();
+        '''
+    )
+    assert payload == {
+        "terminalSentToQueue": True,
+        "suppressionCoversQueuedReport": True,
+        "finishEntryNotDispatchedYet": True,
+    }
 
 
 def test_live_activity_renders_markdown_without_literal_emphasis_markers() -> None:

@@ -135,6 +135,12 @@ Feature: Agent Teams collaborative organization contract
       Then no shutdown event line renders for that incarnation
       And the finish entry stays the single end-of-life announcement
 
+    Scenario: Shutdown while the finish report is queued adds no event line either
+      Given a teammate whose terminal report reached the leader pipeline but has not been dispatched yet
+      When the leader shuts that teammate down
+      Then no shutdown event line renders for that incarnation
+      And the queued finish entry remains the single end-of-life announcement
+
     Scenario: Shutdown without a finish announcement keeps its event line
       Given a living teammate that announced no terminal report
       When the leader shuts that teammate down
