@@ -45,6 +45,10 @@ def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
     assert "Scenario: Model reference is formatted from config" in feature
     assert "Scenario: Model label is formatted from a model object" in feature
     assert "Scenario: A model is selected from the interactive menu" in feature
+    assert "Scenario: Model search text leads with the provider-prefixed label" in feature
+    assert "Scenario: A search picker filters models by query and resets the selection" in feature
+    assert "Scenario: A search picker restores previous results on backspace" in feature
+    assert "Scenario: Search picker navigation clamps within filtered results" in feature
     assert "Scenario: Pi workers inherit their working directory without an unsupported flag" in feature
     assert "Scenario: Pi workers have no wall-clock timeout" in feature
     assert "Scenario: pi-kit stays a pure runtime dependency" in feature
@@ -442,6 +446,55 @@ def test_pi_kit_has_no_consumer_imports() -> None:
         for name in consumer_names:
             assert name not in text, f"{source.name} must not import consumer package {name}"
         assert 'from "@earendil-works/pi-coding-agent"' not in text, f"{source.name} must not import pi core"
+
+
+def test_model_search_text_and_search_picker_behavior() -> None:
+    result = run_typescript(
+        f"""
+        import {{ modelSearchText, createSearchPicker, sortModels }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const models = sortModels([
+          {{ provider: "openai", id: "gpt-5.2", name: "GPT-5.2" }},
+          {{ provider: "anthropic", id: "claude-opus-4-6", name: "Claude Opus 4.6" }},
+          {{ provider: "anthropic", id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" }},
+          {{ provider: "google", id: "gemini-3-pro", name: undefined }},
+        ].map((m) => ({{ ...m, name: m.name ?? m.id }})));
+        // Substring stand-in with fuzzyFilter ordering semantics: keep order, drop misses.
+        const substringFilter = (items, query, getText) =>
+          items.filter((item) => getText(item).toLowerCase().includes(query.toLowerCase()));
+        const picker = createSearchPicker(models, {{ filter: substringFilter, getText: modelSearchText }});
+        picker.type("cl");
+        const narrowed = picker.results().map((m) => `${{m.provider}}/${{m.id}}`);
+        picker.down();
+        picker.type("aude opus");
+        const refined = picker.results().map((m) => `${{m.provider}}/${{m.id}}`);
+        const refinedIndex = picker.selectedIndex();
+        picker.backspace();
+        picker.clear();
+        const restored = picker.results().length;
+        picker.up();
+        const clampedTop = picker.selectedIndex();
+        picker.type("zzz-no-match");
+        const emptySelected = picker.selected();
+        console.log(JSON.stringify({{
+          namedText: modelSearchText({{ provider: "anthropic", id: "claude-opus-4-6", name: "Claude Opus 4.6" }}),
+          namelessText: modelSearchText({{ provider: "google", id: "gemini-3-pro" }}),
+          narrowed,
+          refined,
+          refinedIndex,
+          restored,
+          clampedTop,
+          emptySelected,
+        }}, (key, value) => (value === undefined ? null : value)));
+        """
+    )
+    assert result["namedText"] == "anthropic/claude-opus-4-6 · Claude Opus 4.6"
+    assert result["namelessText"] == "google/gemini-3-pro"
+    assert result["narrowed"] == ["anthropic/claude-opus-4-6", "anthropic/claude-sonnet-4-6"]
+    assert result["refined"] == ["anthropic/claude-opus-4-6"]
+    assert result["refinedIndex"] == 0
+    assert result["restored"] == 4
+    assert result["clampedTop"] == 0
+    assert result["emptySelected"] is None
 
 
 def test_consumers_declare_pi_kit_as_workspace_dependency() -> None:

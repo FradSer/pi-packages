@@ -678,6 +678,86 @@ export async function selectModelFromMenu(
   return { provider: model.provider, model: model.id };
 }
 
+// ── Model search ────────────────────────────────────────────────────
+
+/**
+ * Searchable text for one model: the provider-prefixed label first, then the
+ * display name — mirroring pi's own /model selector ranking where exact
+ * provider-prefixed queries rank ahead of bare model ids.
+ */
+export function modelSearchText(model: { provider: string; id: string; name?: string }): string {
+  const label = modelLabel(model);
+  return model.name && model.name !== model.id ? `${label} · ${model.name}` : label;
+}
+
+/** Pure type-to-filter controller shared by interactive model pickers. The
+ * filter callback is injected by the host (typically @earendil-works/pi-tui's
+ * fuzzyFilter), keeping this module free of UI dependencies. Typing refilters
+ * from the full item list and resets the selection to the best match;
+ * navigation clamps within the filtered results. */
+export interface SearchPicker<T> {
+  /** Current query text. */
+  query(): string;
+  /** Items matching the current query (the full list when the query is empty). */
+  results(): T[];
+  /** Selected item, or undefined when no results remain. */
+  selected(): T | undefined;
+  /** Index of the selection within results(). */
+  selectedIndex(): number;
+  /** Append typed text; refilters and moves the selection to the top result. */
+  type(text: string): void;
+  /** Remove the last query character; refilters. */
+  backspace(): void;
+  /** Clear the query entirely; restores the full list in original order. */
+  clear(): void;
+  /** Move the selection up; clamps at the first result. */
+  up(): void;
+  /** Move the selection down; clamps at the last result. */
+  down(): void;
+}
+
+/** Create a search picker over a fixed item list with an injected filter. */
+export function createSearchPicker<T>(
+  items: readonly T[],
+  options: {
+    filter: (items: T[], query: string, getText: (item: T) => string) => T[];
+    getText: (item: T) => string;
+  },
+): SearchPicker<T> {
+  let query = "";
+  let filtered = [...items];
+  let index = 0;
+  const refilter = () => {
+    filtered = query ? options.filter([...items], query, options.getText) : [...items];
+    index = 0;
+  };
+  return {
+    query: () => query,
+    results: () => filtered,
+    selected: () => filtered[index],
+    selectedIndex: () => index,
+    type: (text) => {
+      query += text;
+      refilter();
+    },
+    backspace: () => {
+      if (!query) return;
+      query = query.slice(0, -1);
+      refilter();
+    },
+    clear: () => {
+      query = "";
+      refilter();
+    },
+    up: () => {
+      index = Math.max(0, index - 1);
+    },
+    down: () => {
+      index = Math.max(0, Math.min(filtered.length - 1, index));
+    },
+  };
+}
+
 /** Options for enterModelFromInput. */
 export interface EnterModelOptions {
   /** Dialog label shown to the user. */
