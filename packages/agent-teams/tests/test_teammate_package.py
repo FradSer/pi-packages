@@ -75,7 +75,8 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Feature: Agent Teams collaborative organization contract",
         "Agents are declarative Markdown files",
         "Discover agents from user, project, and project-local scopes",
-        "Roles are generated on demand from the shipped role reference",
+        "Generated roles stay in memory by default",
+        "Generated roles can be persisted only after an explicit request",
         "Project scopes distinguish git-managed from local definitions",
         "xxx.local.md files mark personal overrides inside .pi/agents",
         "Local override files dedupe against their shared counterpart by teammate name",
@@ -359,7 +360,272 @@ def test_wake_prompt_composes_deliveries_and_paced_notice() -> None:
     assert payload["hasNotice"] is True
     assert payload["suggestsClaim"] is True
     assert payload["quietEmpty"] is True
-    assert payload["paceMs"] == 2000
+    assert payload["paceMs"] == 5 * 60 * 1000
+
+
+def test_notice_pacing_defaults_to_minutes_and_is_configurable() -> None:
+    default_payload = run_node(
+        f'''\
+        import {{ NOTICE_PACE_MS }} from "{(SRC / "team-machine.ts").as_uri()}";
+        console.log(JSON.stringify({{ paceMs: NOTICE_PACE_MS }}));
+        '''
+    )
+    override_payload = run_node(
+        f'''\
+        import {{ NOTICE_PACE_MS }} from "{(SRC / "team-machine.ts").as_uri()}";
+        console.log(JSON.stringify({{ paceMs: NOTICE_PACE_MS }}));
+        ''',
+        env_overrides={"PI_TEAMMATE_NOTICE_PACE_MS": "45000"},
+    )
+    invalid_payload = run_node(
+        f'''\
+        import {{ NOTICE_PACE_MS }} from "{(SRC / "team-machine.ts").as_uri()}";
+        console.log(JSON.stringify({{ paceMs: NOTICE_PACE_MS }}));
+        ''',
+        env_overrides={"PI_TEAMMATE_NOTICE_PACE_MS": "not-a-number"},
+    )
+    assert default_payload["paceMs"] == 5 * 60 * 1000
+    assert override_payload["paceMs"] == 45_000
+    assert invalid_payload["paceMs"] == 5 * 60 * 1000
+
+
+def test_fresh_claimable_filter_is_one_shot_per_task() -> None:
+    payload = run_node(
+        f'''\
+        import {{ freshClaimableTasks }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const tasks = [{{ id: "t_1" }}, {{ id: "t_2" }}, {{ id: "t_3" }}];
+        console.log(JSON.stringify({{
+          firstPass: freshClaimableTasks(undefined, tasks).map((task) => task.id),
+          afterNotice: freshClaimableTasks(["t_1", "t_2"], tasks).map((task) => task.id),
+          emptyWhenAllSeen: freshClaimableTasks(["t_1", "t_2", "t_3"], tasks).length === 0,
+        }}));
+        '''
+    )
+    assert payload["firstPass"] == ["t_1", "t_2", "t_3"]
+    assert payload["afterNotice"] == ["t_3"]
+    assert payload["emptyWhenAllSeen"] is True
+
+
+def test_repeated_verify_failures_escalate_once_then_go_quiet() -> None:
+    payload = run_node(
+        f'''\
+        import {{ reactToVerifyFailure, VERIFY_FAILURE_ESCALATE_AFTER }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const first = reactToVerifyFailure(undefined);
+        const second = reactToVerifyFailure(first);
+        const third = reactToVerifyFailure(second);
+        console.log(JSON.stringify({{
+          escalateAfter: VERIFY_FAILURE_ESCALATE_AFTER,
+          first,
+          second,
+          third,
+        }}));
+        '''
+    )
+    assert payload["escalateAfter"] == 2
+    assert payload["first"] == {"count": 1, "escalated": False, "escalateToLeader": False}
+    assert payload["second"] == {"count": 2, "escalated": True, "escalateToLeader": True}
+    assert payload["third"] == {"count": 3, "escalated": True, "escalateToLeader": False}
+
+
+def test_board_notices_are_one_shot_and_verify_loops_escalate() -> None:
+    machine = source("team-machine.ts")
+    types = source("types.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    for phrase in (
+        "Declined claimable work does not wake an idle teammate twice",
+        "Released tasks are noticeable again",
+        "Repeated verify failures escalate instead of looping",
+    ):
+        assert phrase in feature, phrase
+    assert "noticedTaskIds" in types
+    assert "rearmTaskNotice" in machine
+    assert "freshClaimableTasks(teammate.noticedTaskIds" in machine
+    assert "VERIFY_FAILURE_ESCALATE_AFTER" in machine
+    # Released tasks re-arm notices for every living teammate.
+    assert machine.count("rearmTaskNotice(intent.taskId)") >= 1
+    wake = machine[machine.index("export function wakeIdleTeammates") :]
+    assert "freshClaimableTasks(teammate.noticedTaskIds, claimableTasks())" in wake
+    assert "markTasksNoticed(teammate.name" in wake
+
+
+def test_task_ids_are_meaningful_slugs_of_their_subjects() -> None:
+    payload = run_node(
+        f'''\
+        import {{ resetState, createTask, loadBoard }} from "{(SRC / "state.ts").as_uri()}";
+        resetState();
+        const a = createTask({{ subject: "Polish login flow" }});
+        const b = createTask({{ subject: "Polish login flow!" }});
+        const c = createTask({{ subject: "修复登录流程" }});
+        const d = createTask({{ subject: "***" }});
+        loadBoard({{ t_9: {{ id: "t_9", subject: "carried over", dependsOn: [], status: "completed", createdAt: 1, updatedAt: 1 }} }});
+        const afterResume = createTask({{ subject: "Carried over" }});
+        console.log(JSON.stringify({{
+          a: a.task.id,
+          b: b.task.id,
+          c: c.task.id,
+          d: d.task.id,
+          distinct: a.task.id !== b.task.id,
+          afterResume: afterResume.task.id,
+        }}));
+        '''
+    )
+    assert payload["a"] == "polish-login-flow"
+    assert payload["b"] == "polish-login-flow-2"
+    assert payload["c"] == "修复登录流程"
+    assert payload["d"] == "task"
+    assert payload["distinct"] is True
+    # A resumed board keeps its legacy ids; new slugs still never collide.
+    assert payload["afterResume"] != "t_10"
+    assert source("state.ts").count("taskCounter") == 0
+
+
+def test_unknown_agent_spawn_error_is_actionable() -> None:
+    payload = run_node(
+        f'''\
+        import {{ unknownAgentError }} from "{(SRC / "team-machine.ts").as_uri()}";
+        console.log(JSON.stringify({{ message: unknownAgentError("ghost-role", "/tmp/proj") }}));
+        '''
+    )
+    message = payload["message"]
+    assert "ghost-role" in message
+    assert "/tmp/proj/.pi/agents" in message
+    assert "stale" in message
+    assert "definition" in message
+    assert "references/agent-roles.md" in message
+    guidance = source("guidance.ts")
+    assert "resolved live at spawn time" in guidance
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Spawning an unknown agent names the recovery path" in feature
+
+
+def test_task_lookups_ignore_prototype_property_names() -> None:
+    payload = run_node(
+        f'''\
+        import {{ resetState, createTask, getTask, applyClaimIntent, loadBoard }} from "{(SRC / "state.ts").as_uri()}";
+        resetState();
+        const depBefore = createTask({{ subject: "real work", dependsOn: ["constructor"] }});
+        const made = createTask({{ subject: "Constructor" }});
+        const resolved = getTask("constructor");
+        const claim = applyClaimIntent({{ taskId: "constructor", worker: "w", spawnId: "s", timestamp: 1 }});
+        // A JSON-parsed board (Object.prototype intact) must not leak either.
+        resetState();
+        loadBoard(JSON.parse(JSON.stringify({{ t_1: {{ id: "t_1", subject: "legacy", dependsOn: [], status: "completed", createdAt: 1, updatedAt: 1 }} }})));
+        const afterLegacyDep = createTask({{ subject: "next step", dependsOn: ["hasOwnProperty"] }});
+        console.log(JSON.stringify({{
+          depBlockedBeforeCreation: depBefore.ok === false,
+          madeId: made.task?.id ?? null,
+          resolvedIsOwnEntry: resolved?.id === "constructor",
+          resolvedNotAFunction: typeof resolved !== "function",
+          claimApplied: claim.applied === true,
+          legacyProtoDepBlocked: afterLegacyDep.ok === false,
+        }}));
+        '''
+    )
+    assert payload["depBlockedBeforeCreation"] is True
+    assert payload["madeId"] == "constructor"
+    assert payload["resolvedIsOwnEntry"] is True
+    assert payload["resolvedNotAFunction"] is True
+    assert payload["claimApplied"] is True
+    assert payload["legacyProtoDepBlocked"] is True
+
+
+def test_slug_ids_with_duplicate_suffixes_stay_within_length_cap() -> None:
+    payload = run_node(
+        f'''\
+        import {{ resetState, createTask }} from "{(SRC / "state.ts").as_uri()}";
+        resetState();
+        const long = "Audit every single surface of the whole application very thoroughly".toLowerCase();
+        const first = createTask({{ subject: long }});
+        const second = createTask({{ subject: long + "!" }});
+        console.log(JSON.stringify({{
+          a: first.task.id,
+          b: second.task.id,
+          bothWithinCap: first.task.id.length <= 48 && second.task.id.length <= 48,
+          distinct: first.task.id !== second.task.id,
+        }}));
+        '''
+    )
+    assert payload["bothWithinCap"] is True
+    assert payload["distinct"] is True
+    assert payload["b"].endswith("-2")
+
+
+def test_retain_live_noticed_ids_prunes_stale_first() -> None:
+    payload = run_node(
+        f'''\
+        import {{ retainLiveNoticedIds }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const noticed = ["old-done", "live-1", "live-2", "other-done"];
+        const retained = retainLiveNoticedIds(noticed, new Set(["live-1", "live-2", "brand-new"]));
+        console.log(JSON.stringify({{ retained }}));
+        '''
+    )
+    assert payload["retained"] == ["live-1", "live-2"]
+
+
+def test_unknown_agent_error_names_configured_user_dir_and_lists_agents() -> None:
+    payload = run_node(
+        f'''\
+        import {{ unknownAgentError }} from "{(SRC / "team-machine.ts").as_uri()}";
+        console.log(JSON.stringify({{ message: unknownAgentError("ghost-role", "/tmp/proj") }}));
+        ''',
+        env_overrides={"PI_CODING_AGENT_DIR": "/tmp/custom-agent-dir"},
+    )
+    message = payload["message"]
+    assert "ghost-role" in message
+    assert "/tmp/proj/.pi/agents" in message
+    assert "/tmp/custom-agent-dir/agents" in message
+    assert "~/.pi/agent/agents" not in message
+    assert "stale" in message
+    assert "definition" in message
+    assert "references/agent-roles.md" in message
+    assert "Available now:" in message
+
+
+def test_verify_failure_residue_is_cleared_when_a_holder_is_released() -> None:
+    machine = source("team-machine.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "A stopped holder leaves no verify-failure residue" in feature
+    close = machine[machine.index("async function handleTeammateClose") :]
+    synth = machine[machine.index("export async function shutdownTeammate") : machine.index("async function handleTeammateClose")]
+    for section in (close, synth):
+        assert "verifyFailures.delete(`${task.id}:${teammate.spawnId}`)" in section
+
+
+def test_stale_verify_result_cannot_complete_a_new_holding(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask }} from "{(SRC / "state.ts").as_uri()}";
+        initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 0, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const made = createTask({{ subject: "gated work", verify: "sleep 0.4" }});
+        const id = made.task.id;
+        applyClaimIntent({{ taskId: id, worker: "w", spawnId: "s1", timestamp: 1 }});
+        attemptSubmission("w", "s1", id, "completed");
+        processTaskIntents();
+        attemptSubmission("w", "s1", id, "failed");
+        processTaskIntents();
+        const releasedWhileVerifying = getTask(id).status === "pending";
+        applyClaimIntent({{ taskId: id, worker: "w", spawnId: "s1", timestamp: 2 }});
+        await wait(700);
+        const staleCompleted = getTask(id).status === "completed";
+        attemptSubmission("w", "s1", id, "completed");
+        processTaskIntents();
+        await wait(700);
+        console.log(JSON.stringify({{
+          releasedWhileVerifying,
+          staleCompleted,
+          finalStatus: getTask(id).status,
+        }}));
+        shutdownTeamMachine();
+        '''
+    )
+    assert payload["releasedWhileVerifying"] is True
+    # The pre-release gate result must not complete the post-release holding.
+    assert payload["staleCompleted"] is False
+    assert payload["finalStatus"] == "completed"
 
 
 def test_agent_definitions_are_declarative_files_with_verify() -> None:
@@ -371,6 +637,154 @@ def test_agent_definitions_are_declarative_files_with_verify() -> None:
     assert "fields.verify" in agents_ts
     assert 'return scope === "project";' in agents_ts
     assert "PI_CODING_AGENT_DIR" in agents_ts or "getAgentDir" in agents_ts
+    assert 'export type AgentScope = "user" | "project" | "project-local" | "session";' in agents_ts
+    assert "registerSessionAgent" in agents_ts
+    assert "clearSessionAgents" in agents_ts
+    assert "source: undefined" in agents_ts
+
+
+def test_generated_agent_roles_can_be_persisted_only_explicitly(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ discoverAgents, persistAgentDefinition, clearSessionAgents }} from "{(SRC / "agents.ts").as_uri()}";
+        import fs from "node:fs";
+        clearSessionAgents();
+        const persisted = persistAgentDefinition({{
+          name: "saved-reviewer",
+          description: "Review a requested scope",
+          tools: ["read"],
+          prompt: "Review only the assigned scope.",
+        }}, "project-local", {json.dumps(str(tmp_path))});
+        const found = discoverAgents({json.dumps(str(tmp_path))}).get("saved-reviewer");
+        console.log(JSON.stringify({{
+          scope: persisted.scope,
+          sourceExists: typeof persisted.source === "string" && fs.existsSync(persisted.source),
+          discoveredScope: found?.scope ?? null,
+          gitManaged: found?.gitManaged ?? null,
+        }}));
+        ''',
+    )
+    assert payload == {
+        "scope": "project-local",
+        "sourceExists": True,
+        "discoveredScope": "project-local",
+        "gitManaged": False,
+    }
+
+
+def test_generated_agent_roles_are_session_scoped_and_not_persisted(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ discoverAgents, registerSessionAgent, clearSessionAgents }} from "{(SRC / "agents.ts").as_uri()}";
+        import fs from "node:fs";
+        clearSessionAgents();
+        const registered = registerSessionAgent({{
+          name: "human-philosopher",
+          description: "Analyze human nature",
+          tools: ["read"],
+          prompt: "Answer from philosophical traditions.",
+        }});
+        const current = discoverAgents({json.dumps(str(tmp_path))}).get("human-philosopher");
+        const agentsDir = {json.dumps(str(tmp_path / ".pi" / "agents"))};
+        const filesBefore = fs.existsSync(agentsDir) ? fs.readdirSync(agentsDir) : [];
+        clearSessionAgents();
+        const afterReset = discoverAgents({json.dumps(str(tmp_path))}).get("human-philosopher");
+        console.log(JSON.stringify({{
+          registered: registered.scope,
+          sourceIsMemory: current?.source === undefined,
+          gitManaged: current?.gitManaged ?? null,
+          filesBefore,
+          absentAfterReset: afterReset === undefined,
+        }}));
+        ''',
+    )
+    assert payload == {
+        "registered": "session",
+        "sourceIsMemory": True,
+        "gitManaged": False,
+        "filesBefore": [],
+        "absentAfterReset": True,
+    }
+
+
+def test_persistent_definitions_outrank_generated_session_roles(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ discoverAgents, registerSessionAgent, clearSessionAgents }} from "{(SRC / "agents.ts").as_uri()}";
+        import fs from "node:fs";
+        clearSessionAgents();
+        const agentsDir = {json.dumps(str(tmp_path / ".pi" / "agents"))};
+        fs.mkdirSync(agentsDir, {{ recursive: true }});
+        fs.writeFileSync(`${{agentsDir}}/scout.md`, [
+          "---",
+          "name: scout",
+          "description: File-based scout",
+          "tools: read",
+          "---",
+          "File role.",
+          "",
+        ].join("\\n"));
+        registerSessionAgent({{
+          name: "scout",
+          description: "Session scout",
+          tools: ["bash"],
+          prompt: "Session prompt.",
+        }});
+        registerSessionAgent({{
+          name: "ghost",
+          description: "Only in memory",
+          tools: ["bash"],
+          prompt: "Ghost prompt.",
+        }});
+        const scout = discoverAgents({json.dumps(str(tmp_path))}).get("scout");
+        const ghost = discoverAgents({json.dumps(str(tmp_path))}).get("ghost");
+        console.log(JSON.stringify({{
+          scoutScope: scout?.scope ?? null,
+          scoutTools: scout?.tools ?? null,
+          ghostScope: ghost?.scope ?? null,
+        }}));
+        ''',
+    )
+    assert payload == {
+        "scoutScope": "project",
+        "scoutTools": ["read"],
+        "ghostScope": "session",
+    }
+
+
+def test_inline_definitions_replace_stale_session_roles_but_not_files(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ inlineDefinitionApplies }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resolveAgent, registerSessionAgent, clearSessionAgents }} from "{(SRC / "agents.ts").as_uri()}";
+        import fs from "node:fs";
+        const cwd = {json.dumps(str(tmp_path))};
+        clearSessionAgents();
+        const noResolution = inlineDefinitionApplies(undefined);
+        const beforeFile = (() => {{
+          registerSessionAgent({{ name: "scout", description: "Stale role", tools: ["bash"], prompt: "Old." }});
+          return inlineDefinitionApplies(resolveAgent("scout", cwd));
+        }})();
+        const agentsDir = `${{cwd}}/.pi/agents`;
+        fs.mkdirSync(agentsDir, {{ recursive: true }});
+        fs.writeFileSync(`${{agentsDir}}/scout.md`, [
+          "---",
+          "name: scout",
+          "description: File-based scout",
+          "tools: read",
+          "---",
+          "File role.",
+          "",
+        ].join("\\n"));
+        const afterFile = inlineDefinitionApplies(resolveAgent("scout", cwd));
+        console.log(JSON.stringify({{ noResolution, sessionRoleCase: beforeFile, fileCase: afterFile }}));
+        ''',
+    )
+    assert payload == {"noResolution": True, "sessionRoleCase": True, "fileCase": False}
+    machine = source("team-machine.ts")
+    # The spawn path must gate generation on the helper so a corrected inline
+    # definition replaces a stale session role instead of being ignored.
+    assert "input.definition && inlineDefinitionApplies(resolved)" in machine
 
 
 def test_agent_frontmatter_parses_tools_model_verify(tmp_path: Path) -> None:
@@ -650,7 +1064,7 @@ def test_agent_teams_command_opens_console_directly() -> None:
     assert "generateAgentPrompt" not in tools
     assert "parseGeneratedAgents" not in tools
     assert "teammate_spawn" in guidance  # conversational spawn stays routed to the tool
-    assert ".pi/agents/<name>.md" in guidance  # conversational role creation writes definitions
+    assert ".pi/agents/<name>.md" in guidance  # explicit persistence writes definitions
     assert "${AGENT_REFERENCE_PATH}" in guidance  # on-demand generation consults shipped templates
     assert "no built-in roles" in guidance
     assert "bundled" not in guidance
@@ -658,7 +1072,7 @@ def test_agent_teams_command_opens_console_directly() -> None:
     # The console is the management surface for both entity kinds.
     assert "buildRoleDetail" in ui
     assert "== teammates (this session) ==" in ui
-    assert "== agent roles (persistent definitions) ==" in ui
+    assert "== agent roles (persistent and session definitions) ==" in ui
     assert "discoverAgents" in ui
 
     # No stale references to the legacy command name anywhere user-visible;
@@ -919,32 +1333,81 @@ def test_completion_announced_once_per_spawn_incarnation() -> None:
     assert "Completion is announced once per spawn incarnation" in feature
     # The machine layer carries the spawn identity so the display can dedupe.
     assert "spawnId: teammate.spawnId," in tools
-    assert "markTeammateFinished(announcedFinishKeys, report)" in extension
-    assert "announcedFinishKeys.clear()" in extension
+    # Crash diagnostics key on the incarnation too: a respawned teammate's
+    # second unexpected stop must stay visible instead of sharing one session key.
+    crash_block = tools[tools.index("if (!requested) {") :]
+    assert "spawnId: teammate.spawnId," in crash_block[:400]
+    # Crash diagnostics key on the incarnation too: a respawned teammate's
+    # second unexpected stop must stay visible instead of sharing one session key.
+    crash_block = tools[tools.index("if (!requested) {") :]
+    assert "spawnId: teammate.spawnId," in crash_block[:400]
+    assert "markTeammateFinished(report)" in extension
+    assert "announcedFinishKeys.clear()" in tools
+
+
+def test_shutdown_after_finish_renders_no_second_event_line(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ markTeammateFinished }} from "{(SRC / "index.ts").as_uri()}";
-        const seen = new Set();
-        const report = (over = {{}}) => ({{ teammate: "probe", spawnId: "s1", body: "done", finished: true, ...over }});
+        import {{ initTeamMachine, shutdownTeamMachine, markTeammateFinished, hasAnnouncedFinish }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate, updateTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 0, status: "stopped", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const firstAnnounces = markTeammateFinished({{ teammate: "w", spawnId: "s1", body: "done", finished: true }});
+        const currentIncarnationAnnounced = hasAnnouncedFinish("w");
+        const repeatSuppressed = markTeammateFinished({{ teammate: "w", spawnId: "s1", body: "again", finished: true }});
+        updateTeammate("w", {{ spawnId: "s2", status: "working" }});
+        const respawnIncarnationQuiet = hasAnnouncedFinish("w");
         console.log(JSON.stringify({{
-          firstAnnounces: markTeammateFinished(seen, report()),
-          repeatSuppressed: markTeammateFinished(seen, report({{ body: "again" }})),
-          respawnAnnounces: markTeammateFinished(seen, report({{ spawnId: "s2" }})),
-          unfinishedIgnored: markTeammateFinished(seen, report({{ spawnId: "s3", finished: undefined }})),
-          crashPathAnnounces: markTeammateFinished(seen, report({{ spawnId: undefined }})),
-          crashRepeatSuppressed: markTeammateFinished(seen, report({{ spawnId: undefined }})),
-          seenSize: seen.size,
+          firstAnnounces,
+          currentIncarnationAnnounced,
+          repeatSuppressed,
+          respawnIncarnationQuiet,
         }}));
+        shutdownTeamMachine();
         '''
     )
     assert payload == {
         "firstAnnounces": True,
+        "currentIncarnationAnnounced": True,
         "repeatSuppressed": False,
-        "respawnAnnounces": True,
-        "unfinishedIgnored": False,
-        "crashPathAnnounces": True,
-        "crashRepeatSuppressed": False,
-        "seenSize": 3,
+        "respawnIncarnationQuiet": False,
+    }
+    tools = source("tools.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Shutdown after a finish announcement adds no second event line" in feature
+    assert "Shutdown without a finish announcement keeps its event line" in feature
+    # The finished entry already announced this end of life; the event row is noise.
+    # Suppression also covers terminal reports still queued for dispatch.
+    assert "if (hasAnnouncedFinish(name) || hasTerminalReport(name))" in tools
+
+
+def test_shutdown_suppression_covers_queued_terminal_reports(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, drainTeammateOutboxes, hasTerminalReport }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ stateFilePath, workerOutboxPath, appendWorkerEvent }} from "{(SRC / "statefile.ts").as_uri()}";
+        const sent = [];
+        const cwd = {str(tmp_path)!r};
+        initTeamMachine({{ sessionManager: undefined, cwd }}, {{ sendUpdate: (report) => sent.push(report), notifyChange: () => {{}} }});
+        resetState();
+        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 0, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const outbox = workerOutboxPath(stateFilePath(undefined, cwd), "w", "s1");
+        appendWorkerEvent(outbox, {{ id: "evt1", type: "message", worker: "w", spawnId: "s1", body: "done", status: "completed" }});
+        drainTeammateOutboxes();
+        console.log(JSON.stringify({{
+          terminalSentToQueue: sent.length === 1 && sent[0].finished === true,
+          suppressionCoversQueuedReport: hasTerminalReport("w"),
+          finishEntryNotDispatchedYet: true,
+        }}));
+        shutdownTeamMachine();
+        '''
+    )
+    assert payload == {
+        "terminalSentToQueue": True,
+        "suppressionCoversQueuedReport": True,
+        "finishEntryNotDispatchedYet": True,
     }
 
 
@@ -1006,7 +1469,9 @@ def test_consolidated_tool_schemas_keep_one_message_primitive() -> None:
     assert "TeammateMessageParams" not in types
     assert "TeammateLeaderMessageParams" not in types
     spawn_schema = types[types.index("export const TeammateSpawnParams"):types.index("/** Shut down")]
-    assert "model:" not in spawn_schema and "worktree:" not in spawn_schema and "cwd:" not in spawn_schema
+    assert "definition: Type.Optional" in spawn_schema
+    assert "persist" in spawn_schema and "persistScope" in spawn_schema
+    assert "cwd:" not in spawn_schema
     assert 'name: "send_message"' in tools
     assert 'name: "send_message"' in worker
     assert 'name: "teammate_message"' not in tools + worker
@@ -1034,7 +1499,8 @@ def test_session_cap_and_shutdown_surface() -> None:
     tools = source("tools.ts")
     assert "MAX_SESSION_WORKERS = 8" in machine
     assert "livingTeammates().length >= MAX_SESSION_WORKERS" in machine
-    assert "NOTICE_PACE_MS = 2000" in machine
+    assert "DEFAULT_NOTICE_PACE_MS = 5 * 60 * 1000" in machine
+    assert 'readDurationEnv("PI_TEAMMATE_NOTICE_PACE_MS", DEFAULT_NOTICE_PACE_MS)' in machine
     assert "shutdownTeammate" in tools and "teammate_shutdown" in tools
     assert "pendingShutdowns" in machine
     assert "releaseTasksOf" in machine

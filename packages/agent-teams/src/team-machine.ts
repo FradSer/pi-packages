@@ -10,7 +10,8 @@ import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { resolveAgent } from "./agents.ts";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "./agents.ts";
 import {
   applyClaimIntent,
   claimableTasks,
@@ -74,7 +75,19 @@ import type { FollowUpReport } from "./follow-up-queue.ts";
 export const MAX_SESSION_WORKERS = 8;
 /** Harness coordination cadence: outbox drain every tick, notices paced. */
 const LIVE_POLL_MS = 500;
-export const NOTICE_PACE_MS = 2000;
+/** Minimum gap between claimable-task notices per teammate. One-shot noticing
+ *  makes repeats rare; this floor keeps any residual burst from stampeding
+ *  every idle teammate at once, and each wake costs a full worker turn. */
+const DEFAULT_NOTICE_PACE_MS = 5 * 60 * 1000;
+export const NOTICE_PACE_MS = readDurationEnv("PI_TEAMMATE_NOTICE_PACE_MS", DEFAULT_NOTICE_PACE_MS);
+/** Consecutive verify failures before the harness stops inviting resubmission and escalates to the leader instead. */
+export const VERIFY_FAILURE_ESCALATE_AFTER = 2;
+/** Claimable task ids remembered per teammate. markTasksNoticed prunes stale
+ *  ids on every notice, so slots are occupied only by currently-claimable
+ *  work; the cap is far above any realistic concurrent board size. */
+const MAX_NOTICED_TASK_IDS = 256;
+/** Claimable tasks listed in one wake-prompt board notice. */
+const WAKE_NOTICE_TASK_LIMIT = 10;
 /** Silence is not a work deadline: active stream output keeps a teammate alive.
  * The watchdog may only notify; termination decisions belong to the leader model. */
 const DEFAULT_STALL_NOTICE_MS = 30 * 60 * 1000;
@@ -121,10 +134,17 @@ let sendUpdate: (report: FollowUpReport) => void = () => {};
 let notifyChange: () => void = () => {};
 
 const pendingShutdowns = new Set<string>();
-/** Task ids under verification, bound to the claiming teammate incarnation. */
-const verifyingTasks = new Map<string, { worker: string; spawnId: string }>();
+/** Task ids under verification, bound to one exact submission via token so a
+ *  release/re-claim or newer submission invalidates any older in-flight gate. */
+const verifyingTasks = new Map<string, { worker: string; spawnId: string; token: string }>();
 /** Idle nudges already fired per teammate incarnation (one per transition). */
 const idleNudgesSent = new Set<string>();
+/** One finish entry per spawn incarnation; repeated terminal reports stay ordinary report rows. */
+const announcedFinishKeys = new Set<string>();
+/** Incarnations whose terminal report reached the leader pipeline, queued or dispatched. */
+const terminalReportKeys = new Set<string>();
+/** Consecutive verify failures per taskId:spawnId holder incarnation. */
+const verifyFailures = new Map<string, VerifyFailureRecord>();
 /** Self-finalize requests delivered per teammate incarnation before escalating to the leader. */
 const selfFinalizeAttempts = new Set<string>();
 const pendingDeliveries = new Map<string, InboxMessage[]>();
@@ -167,6 +187,9 @@ export function shutdownTeamMachine(): void {
   idleNudgesSent.clear();
   selfFinalizeAttempts.clear();
   pendingDeliveries.clear();
+  verifyFailures.clear();
+  announcedFinishKeys.clear();
+  terminalReportKeys.clear();
 }
 
 /** Terminate every resident teammate; returns unconfirmed-close diagnostics. */
@@ -247,12 +270,37 @@ export function spawnTeammate(input: {
   name: string;
   agent: string;
   prompt?: string;
+  definition?: Omit<AgentDefinitionInput, "name" | "tools"> & {
+    tools?: string[];
+    persist?: boolean;
+    persistScope?: "project" | "project-local";
+  };
 }): { ok: true; teammate: Teammate } | { ok: false; error: string } {
   const stateFile = requireStateFile();
   const invalid = validateSpawnInput(input);
   if (invalid) return { ok: false, error: invalid };
-  const agent = resolveAgent(input.agent, leaderCwd);
-  if (!agent) return { ok: false, error: `Agent "${input.agent}" not found in any scope.` };
+  const resolved = resolveAgent(input.agent, leaderCwd);
+  let agent: AgentDefinition | undefined = resolved;
+  if (input.definition && inlineDefinitionApplies(resolved)) {
+    try {
+      const generated = input.definition;
+      const roleInput: AgentDefinitionInput = {
+        name: input.agent,
+        description: generated.description,
+        tools: generated.tools ?? [],
+        model: generated.model,
+        verify: generated.verify,
+        worktree: generated.worktree,
+        prompt: generated.prompt,
+      };
+      agent = generated.persist
+        ? persistAgentDefinition(roleInput, generated.persistScope ?? "project-local", leaderCwd)
+        : registerSessionAgent(roleInput);
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+  if (!agent) return { ok: false, error: unknownAgentError(input.agent, leaderCwd) };
 
   let isolation: Teammate["isolation"] = "none";
   let workerCwd = leaderCwd;
@@ -292,6 +340,28 @@ export function spawnTeammate(input: {
   ensureLivePoll();
   notifyChange();
   return { ok: true, teammate: getTeammate(input.name)! };
+}
+
+/** True when a spawn's inline definition should create or replace the role:
+ *  nothing resolved, or only a session-scoped generated role did. Filesystem
+ *  scopes are user-owned and always win over inline input. */
+export function inlineDefinitionApplies(resolved: AgentDefinition | undefined): boolean {
+  return !resolved || resolved.scope === "session";
+}
+
+/** Spawn failure for an unresolvable agent name. Definitions resolve live at
+ *  spawn time, so the available-agents list in the cached session guidance can
+ *  go stale (e.g. another session removed the file); name every checked scope
+ *  and the recovery path. */
+export function unknownAgentError(name: string, cwd: string): string {
+  const available = [...discoverAgents(cwd).keys()];
+  return [
+    `Agent "${name}" not found in any scope.`,
+    `Checked: ${cwd}/.pi/agents/<name>.local.md, ${cwd}/.pi/agents/<name>.md, ${path.join(getAgentDir(), "agents")}, and in-memory session roles.`,
+    'The available-agents list in your guidance may be stale: definition files can change mid-session (for example removed by a parallel session).',
+    'Recover by spawning with an inline definition derived from references/agent-roles.md, choose an existing role, or create the role first.',
+    `Available now: ${available.length > 0 ? available.join(", ") : "(none)"}.`,
+  ].join(' ');
 }
 
 function validateSpawnInput(input: { name: string }): string | undefined {
@@ -418,6 +488,47 @@ function checkStalledTeammates(now = Date.now()): void {
   }
 }
 
+interface VerifyFailureRecord {
+  count: number;
+  escalated: boolean;
+}
+
+/** Record one finish entry per spawn incarnation; later terminal reports from
+ *  the same resident stay ordinary report rows. */
+export function markTeammateFinished(
+  report: Pick<FollowUpReport, "teammate" | "agent" | "spawnId" | "finished">,
+): boolean {
+  if (!report.finished) return false;
+  const name = report.teammate ?? report.agent ?? "teammate";
+  const key = `${name}:${report.spawnId ?? "session"}`;
+  if (announcedFinishKeys.has(key)) return false;
+  announcedFinishKeys.add(key);
+  return true;
+}
+
+/** True when this teammate's current incarnation already announced its finish entry. */
+export function hasAnnouncedFinish(name: string): boolean {
+  const spawnId = getTeammate(name)?.spawnId;
+  return announcedFinishKeys.has(`${name}:${spawnId ?? "session"}`);
+}
+
+/** Remember at send time that this incarnation produced a terminal report, so
+ *  end-of-life suppression covers reports still queued for dispatch. */
+export function recordTerminalReport(
+  report: Pick<FollowUpReport, "teammate" | "agent" | "spawnId" | "finished">,
+): void {
+  if (!report.finished) return;
+  const name = report.teammate ?? report.agent ?? "teammate";
+  terminalReportKeys.add(`${name}:${report.spawnId ?? "session"}`);
+}
+
+/** True when this teammate's current incarnation has a terminal report in the
+ *  leader pipeline, whether or not its finish entry has been dispatched yet. */
+export function hasTerminalReport(name: string): boolean {
+  const spawnId = getTeammate(name)?.spawnId;
+  return terminalReportKeys.has(`${name}:${spawnId ?? "session"}`);
+}
+
 /** True when the teammate's last leader-bound report lacks a terminal status. */
 export function hasUnfinalizedReport(name: string): boolean {
   const mailbox = getState().leaderMailbox;
@@ -481,6 +592,11 @@ export async function shutdownTeammate(name: string): Promise<{ ok: true; body: 
     // The child was already gone; synthesize the close bookkeeping.
     pendingShutdowns.delete(name);
     const released = releaseTasksOf(name, "Teammate was shut down.");
+    for (const task of released) {
+      verifyFailures.delete(`${task.id}:${teammate.spawnId}`);
+      verifyingTasks.delete(task.id);
+      rearmTaskNotice(task.id);
+    }
     updateTeammate(name, { status: "stopped", activeTool: undefined });
     idleNudgesSent.delete(`${name}:${teammate.spawnId}`);
     selfFinalizeAttempts.delete(`${name}:${teammate.spawnId}`);
@@ -509,6 +625,11 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
   drainTeammateOutboxes();
 
   const released = releaseTasksOf(name, requested ? "Teammate was shut down." : "Teammate stopped unexpectedly.");
+  for (const task of released) {
+    verifyFailures.delete(`${task.id}:${teammate.spawnId}`);
+    verifyingTasks.delete(task.id);
+    rearmTaskNotice(task.id);
+  }
   pendingShutdowns.delete(name);
   // A stopped teammate must not keep the poll loop or its queue alive.
   pendingDeliveries.delete(name);
@@ -527,11 +648,14 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
     : { from: name, subject: "Teammate stopped unexpectedly", body: crashDiagnostic(name, result, released) });
 
   if (!requested) {
-    sendUpdate({
+    const report = {
       teammate: name,
+      spawnId: teammate.spawnId,
       body: `@${name} stopped unexpectedly${released.length > 0 ? `; claimed task(s) ${released.map((t) => t.id).join(", ")} returned to the board` : ""}.`,
       finished: true,
-    });
+    };
+    recordTerminalReport(report);
+    sendUpdate(report);
   }
   publishStateSnapshot();
   ensureLivePoll();
@@ -632,13 +756,15 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
   });
   if (record.status === "completed" || record.status === "failed") {
     // The assignment ends; the resident itself stays alive until sequence end.
-    sendUpdate({
+    const report = {
       teammate: teammate.name,
       agent: teammate.agent,
       spawnId: teammate.spawnId,
       body: record.body,
       finished: true,
-    });
+    };
+    recordTerminalReport(report);
+    sendUpdate(report);
   }
   return true;
 }
@@ -770,6 +896,9 @@ function applyClaimMarker(intent: import("./types").TaskIntent): void {
   if (!sender) return;
   const outcome = applyClaimIntent(intent);
   if (outcome.applied) {
+    verifyFailures.delete(`${intent.taskId}:${intent.spawnId}`);
+    // A new holding must not inherit an in-flight gate from a previous one.
+    verifyingTasks.delete(intent.taskId);
     updateTeammate(intent.worker, { currentTaskId: intent.taskId });
     return;
   }
@@ -786,11 +915,25 @@ function applySubmissionMarker(intent: import("./types").TaskIntent): void {
   }
   if (intent.status === "failed") {
     releaseTask(intent.taskId, intent.result?.trim() || "Teammate reported failure.");
+    verifyFailures.delete(`${intent.taskId}:${intent.spawnId}`);
+    verifyingTasks.delete(intent.taskId);
+    rearmTaskNotice(intent.taskId);
     freeTeammateFromTask(intent.worker, intent.taskId);
     notifyTaskOutcome(task.subject, `${intent.worker} reported failure`, intent.result ?? "");
     return;
   }
   beginVerifyOrComplete(intent, task.verify ?? resolveAgent(sender.agent, leaderCwd)?.verify);
+}
+
+/** Fold one more verify failure into bookkeeping. The first failure invites a
+ *  fix-and-resubmit cycle; from the second the harness escalates to the leader
+ *  exactly once per holding and stays quiet after that. */
+export function reactToVerifyFailure(
+  previous: VerifyFailureRecord | undefined,
+): VerifyFailureRecord & { escalateToLeader: boolean } {
+  const count = (previous?.count ?? 0) + 1;
+  const escalated = previous?.escalated === true || count >= VERIFY_FAILURE_ESCALATE_AFTER;
+  return { count, escalated, escalateToLeader: escalated && previous?.escalated !== true };
 }
 
 function beginVerifyOrComplete(intent: import("./types").TaskIntent, verify: string | undefined): void {
@@ -800,11 +943,14 @@ function beginVerifyOrComplete(intent: import("./types").TaskIntent, verify: str
     finishCompletion(intent, task.subject);
     return;
   }
-  // The gate is bound to this claim: a crash/release/re-claim between submit
-  // and verify resolution must not let an old result complete a new holder.
-  verifyingTasks.set(intent.taskId, { worker: intent.worker, spawnId: intent.spawnId });
+  // The gate is bound to this exact submission via a unique token: a
+  // release/re-claim or newer submission between submit and verify resolution
+  // must not let the stale result complete the new holding.
+  const token = randomUUID();
+  verifyingTasks.set(intent.taskId, { worker: intent.worker, spawnId: intent.spawnId, token });
   runVerifyCommand(verify)
     .then((outcome) => {
+      if (verifyingTasks.get(intent.taskId)?.token !== token) return;
       verifyingTasks.delete(intent.taskId);
       const current = getState().tasks[intent.taskId];
       const stillHolds = current?.status === "claimed"
@@ -813,17 +959,36 @@ function beginVerifyOrComplete(intent: import("./types").TaskIntent, verify: str
       if (!stillHolds) return;
       if (outcome.ok) finishCompletion(intent, task.subject);
       else {
-        deliverFeedback(
-          intent.worker,
-          `Verify failed for ${intent.taskId}`,
-          [`The completion gate for "${task.subject}" failed.`, outcome.detail ?? "(no verify output)", "Fix the issues and resubmit with task_submit."].filter(Boolean).join("\n"),
-        );
-        notifyTaskOutcome(task.subject, `verify gate failed for ${intent.taskId}`, outcome.detail ?? "(no verify output)");
+        const key = `${intent.taskId}:${intent.spawnId}`;
+        const reaction = reactToVerifyFailure(verifyFailures.get(key));
+        verifyFailures.set(key, reaction);
+        const detail = outcome.detail ?? "(no verify output)";
+        if (reaction.count >= VERIFY_FAILURE_ESCALATE_AFTER) {
+          // An unfixable gate parks the task with its holder instead of
+          // looping: no further resubmit invitations, one leader escalation.
+          if (reaction.escalateToLeader) {
+            notifyTaskOutcome(task.subject, `verify failed ${reaction.count} times for ${intent.taskId}: manual attention needed`, detail);
+          }
+          deliverFeedback(
+            intent.worker,
+            `Verify still failing for ${intent.taskId}`,
+            [`The completion gate for "${task.subject}" failed again (${reaction.count} consecutive failures).`, detail, "The task stays claimed by you. Do not resubmit or reclaim it; the leader has been notified and will decide next steps."].join("\n"),
+          );
+        } else {
+          deliverFeedback(
+            intent.worker,
+            `Verify failed for ${intent.taskId}`,
+            [`The completion gate for "${task.subject}" failed.`, detail, "Fix the issues and resubmit with task_submit."].join("\n"),
+          );
+          notifyTaskOutcome(task.subject, `verify gate failed for ${intent.taskId}`, detail);
+        }
       }
       ensureLivePoll();
       notifyChange();
     })
-    .catch(() => verifyingTasks.delete(intent.taskId));
+    .catch(() => {
+      if (verifyingTasks.get(intent.taskId)?.token === token) verifyingTasks.delete(intent.taskId);
+    });
 }
 
 function finishCompletion(intent: import("./types").TaskIntent, subject: string): void {
@@ -831,6 +996,7 @@ function finishCompletion(intent: import("./types").TaskIntent, subject: string)
   if (!task) return;
   const completed = completeTask(intent.taskId, intent.result);
   if (!completed) return;
+  verifyFailures.delete(`${intent.taskId}:${intent.spawnId}`);
   freeTeammateFromTask(intent.worker, intent.taskId);
   notifyTaskOutcome(subject, `${intent.worker} completed`, intent.result ?? "");
 }
@@ -868,20 +1034,56 @@ function findLivingTeammate(intent: import("./types").TaskIntent): Teammate | un
 
 // ── Wake-ups ──────────────────────────────────────────────────────
 
+/** Claimable tasks the teammate has not been notified about yet. */
+export function freshClaimableTasks<T extends { id: string }>(
+  noticedIds: readonly string[] | undefined,
+  tasks: readonly T[],
+): T[] {
+  const noticed = new Set(noticedIds ?? []);
+  return tasks.filter((task) => !noticed.has(task.id));
+}
+
+/** Retain only noticed ids that are still claimable, so a long board's history
+ *  can never evict a live one and resurrect an old wake-up. */
+export function retainLiveNoticedIds(noticedIds: readonly string[], claimableIds: ReadonlySet<string>): string[] {
+  return noticedIds.filter((id) => claimableIds.has(id));
+}
+
+function markTasksNoticed(name: string, taskIds: string[]): void {
+  if (taskIds.length === 0) return;
+  const teammate = getTeammate(name);
+  if (!teammate) return;
+  const live = retainLiveNoticedIds(teammate.noticedTaskIds ?? [], new Set(claimableTasks().map((task) => task.id)));
+  const merged = [...live, ...taskIds];
+  while (merged.length > MAX_NOTICED_TASK_IDS) merged.shift();
+  updateTeammate(name, { noticedTaskIds: merged });
+}
+
+/** A released task becomes noticeable again for every living teammate. */
+function rearmTaskNotice(taskId: string): void {
+  for (const teammate of livingTeammates()) {
+    if (teammate.noticedTaskIds?.includes(taskId)) {
+      updateTeammate(teammate.name, { noticedTaskIds: teammate.noticedTaskIds.filter((id) => id !== taskId) });
+    }
+  }
+}
+
 /**
  * Compose one wake-up prompt per idle teammate from queued inbox deliveries
- * plus a paced claimable-task notice. Teammates with nothing to do are never
- * woken.
+ * plus a board notice covering only claimable work that teammate has never
+ * been shown. Teammates with nothing new are never woken.
  */
 export function wakeIdleTeammates(): void {
-  const claimable = claimableTasks();
   for (const teammate of idleTeammates()) {
     const deliveries = pendingDeliveries.get(teammate.name) ?? [];
-    const dueNotice = claimable.length > 0 && noticeDue(teammate);
+    const fresh = freshClaimableTasks(teammate.noticedTaskIds, claimableTasks());
+    const dueNotice = fresh.length > 0 && noticeDue(teammate);
     if (deliveries.length === 0 && !dueNotice) continue;
-    const prompt = buildWakePrompt(deliveries, claimable, dueNotice);
+    const noticed = fresh.slice(0, WAKE_NOTICE_TASK_LIMIT);
+    const prompt = buildWakePrompt(deliveries, noticed, dueNotice);
     if (!deliverPrompt(teammate.name, prompt)) continue;
     pendingDeliveries.delete(teammate.name);
+    if (dueNotice) markTasksNoticed(teammate.name, noticed.map((task) => task.id));
     // A delivered prompt is fresh activity: restart the silence clock so a
     // long-idle teammate is never insta-flagged as stalled on wake.
     updateTeammate(teammate.name, {

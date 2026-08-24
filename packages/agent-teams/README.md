@@ -34,18 +34,26 @@ worktree: true              # optional role-default Git isolation
 Review the assigned scope for exploitable security problems. Do not edit files.
 ```
 
-Discovery precedence per name (later overrides earlier):
+Discovery precedence per name (later overrides earlier): user < project <
+project-local, with generated session roles filling only the names no file
+defines. A re-spawn that supplies an explicit inline definition replaces a
+previously generated session role of the same name; definition files are never
+overwritten by inline input.
 
 There are no built-in roles. When a needed role has no definition, the
-leader creates one on demand: it derives the definition from the task using
-the abstract role reference in `references/agent-roles.md` (definition
-anatomy, archetype axes, invariants), writes the file, and then spawns.
+leader creates it in memory for the current session: it derives the definition
+from the task using the abstract role reference in `references/agent-roles.md`
+(definition anatomy, archetype axes, invariants), registers it, and then spawns.
+The role is not written to disk or reused in a later session unless the user
+explicitly requests persistence; only then may the leader set `definition.persist`
+and choose a project or project-local scope.
 
 | Scope | Location | Git semantics |
 |---|---|---|
 | user | `~/.pi/agent/agents/*.md` | system-level, never committed |
 | project | `<cwd>/.pi/agents/<name>.md` | **git-managed** — commit for the team |
 | project-local | `<cwd>/.pi/agents/<name>.local.md` | **local** — personal override, gitignore by convention |
+| session | in-memory registry | **ephemeral** — disappears at session start, no source file |
 
 A teammate definition is just a Markdown file you own. Shared roles live in `.pi/agents/<name>.md`; a personal tweak to that exact role is `<name>.local.md` in the SAME directory — same teammate name, local scope wins, and discovery deduplicates the pair into one entry (never two). `resolveAgent` reports each definition's `scope` and `gitManaged`; guidance lists both so the leader knows provenance.
 
@@ -118,8 +126,10 @@ That is **7 unique tool names**. There are no `teammate_run`, `teammate_fanout`,
 - **Per-spawn identity validation**: every leader report must match the teammate's current spawn id; stale callbacks and events cannot affect a replacement with the same name.
 - **Sent means written**: peer `send_message` succeeds only after the recipient inbox write succeeds. The harness owns delivery into a recipient turn.
 - **One writer per state file**: only the leader process writes runtime and board snapshots (atomic tmp+rename). Workers append leader reports to their outbox, peer mail to recipient inboxes, and task intent via exclusive-create marker files.
-- **Completion is gated, not self-reported**: a task completes only after its effective verify gate passes when one exists; no gate means the submission itself completes it.
+- **Completion is gated, not self-reported**: a task completes only after its effective verify gate passes when one exists; no gate means the submission itself completes it. A gate that keeps failing parks the task with its holder after the second consecutive failure and escalates to the leader once instead of looping.
 - **No caps, heartbeat only**: teammates run without turn-count or duration ceilings. The harness heartbeat tracks silence per working teammate and — after 30 minutes without any RPC output (`PI_TEAMMATE_STALL_NOTICE_MS`, 0 disables) — sends the leader one actionable notice per silence episode. The notice is the last automatic action: continuing, steering, shutting down, or respawning a context-carrying successor belongs to the leader alone. Any output or prompt delivery re-arms it, and steering a silent teammate warns that delivery is uncertain.
+- **One-shot board notices**: an idle teammate is told about a claimable task exactly once; declined tasks never re-wake it, and released tasks re-arm. Notices are paced at least five minutes apart per teammate (`PI_TEAMMATE_NOTICE_PACE_MS` overrides in milliseconds).
+- **One end-of-life line per teammate**: the first terminal report of a spawn incarnation renders the finish entry; shutting that incarnation down afterwards adds no second event row.
 - **Failure semantics**: an unexpected crash marks the teammate stopped, reports a diagnostic, and releases its claimed tasks.
 
 ## State and Sessions

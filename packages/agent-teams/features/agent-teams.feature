@@ -54,15 +54,49 @@ Feature: Agent Teams collaborative organization contract
       When a turn starts and before_agent_start runs
       Then each discovered agent's name, description, scope, tools, model, and verify are injected into prompt guidance
 
-    Scenario: Roles are generated on demand from the shipped role reference
+    Scenario: Generated roles stay in memory by default
       Given no definition exists for the requested agent name
-      When the leader is asked to start that agent
-      Then it derives a definition from the task and the shipped abstract role reference
-      And the new definition lands in the project or project-local agents directory before spawning
+      When the leader derives a role from the task and shipped abstract role reference without a persistence request
+      Then it registers the definition in the current session's memory
+      And the role is discovered with session scope and no filesystem source
+      And no agent definition file is written
+      And the role disappears when the session starts again
+
+    Scenario: Generated roles can be persisted only after an explicit request
+      Given no definition exists for the requested agent name
+      When the user explicitly asks to keep the role for future sessions
+      Then the leader sets definition.persist=true and writes a project or project-local definition before spawning
+      And the persisted role is discovered from that filesystem scope
 
     Scenario: An unknown agent name fails the spawn
       When the leader spawns a teammate with an agent name that no scope defines
       Then the spawn is rejected and available agents are listed
+
+    Scenario: Spawning an unknown agent names the recovery path
+      Given an available-agents list whose definition files changed mid-session
+      When the leader spawns an agent name that no scope defines anymore
+      Then the failure reports every checked scope including the project agents directory and the configured user agents directory
+      And it explains that the guidance list may be stale
+      And it lists the agent names currently discoverable in any scope
+      And it points to creating the role on demand from the shipped role reference
+
+    Scenario: Persistent definitions outrank generated session roles
+      Given a generated session role and a definition file share the same teammate name
+      When the leader resolves that name
+      Then the filesystem definition wins at its declared scope
+      And generated session roles only fill names that no file defines
+
+    Scenario: A new inline definition replaces a stale generated role of the same name
+      Given a generated session role exists for an agent name from an earlier spawn this session
+      When the leader spawns that name again while supplying an explicit inline definition
+      Then the new definition's tools, model, verify, worktree, and prompt take effect
+      And the role remains session-scoped and no definition file is written
+
+    Scenario: Definition files outrank an inline definition of the same name
+      Given a definition file exists for the requested agent name
+      When the leader spawns it while also supplying an inline definition of the same name
+      Then the file-based definition is used unchanged
+      And no definition file is modified
 
   Rule: Teammates are named resident processes
 
@@ -94,6 +128,23 @@ Feature: Agent Teams collaborative organization contract
       And the roster records the teammate as stopped
       And its session worker slot is released
       And worktree changes are captured and reported before teardown when the teammate owned a worktree
+
+    Scenario: Shutdown after a finish announcement adds no second event line
+      Given a teammate whose terminal report already announced its finish entry
+      When the leader shuts that teammate down
+      Then no shutdown event line renders for that incarnation
+      And the finish entry stays the single end-of-life announcement
+
+    Scenario: Shutdown while the finish report is queued adds no event line either
+      Given a teammate whose terminal report reached the leader pipeline but has not been dispatched yet
+      When the leader shuts that teammate down
+      Then no shutdown event line renders for that incarnation
+      And the queued finish entry remains the single end-of-life announcement
+
+    Scenario: Shutdown without a finish announcement keeps its event line
+      Given a living teammate that announced no terminal report
+      When the leader shuts that teammate down
+      Then the shutdown event line renders with its expandable diagnostics
 
     Scenario: An unexpected teammate crash is reported to the leader
       Given a resident teammate's child process closes without a shutdown request
@@ -244,6 +295,36 @@ Feature: Agent Teams collaborative organization contract
       Then the task is released back to pending
       And the failure reason is recorded on the board
 
+    Scenario: Task ids are readable slugs of their subjects
+      Given the leader creates a task titled "Polish login flow"
+      When the board assigns its id
+      Then the id is a sanitized slug of the title such as "polish-login-flow"
+      And a second task with the same title gets a distinct numbered id within the length cap
+      And a resumed board keeps its old ids while new tasks still get unique slugs
+
+    Scenario: Task lookups never alias inherited object properties
+      Given the leader creates a task whose slug id is a prototype name such as "constructor"
+      When the board stores and resolves that task
+      Then the task is its own entry and dependency checks see only real board entries
+
+    Scenario: Repeated verify failures escalate instead of looping
+      Given a teammate holds a claimed task whose gate cannot pass
+      When submissions fail verification a second consecutive time
+      Then the task remains claimed by the holder without another resubmit invitation
+      And the leader receives one escalation naming the task and the verify output
+      And further failed submissions stay quiet toward the leader until a new holding begins
+
+    Scenario: A stopped holder leaves no verify-failure residue
+      Given a teammate accumulated verify failures on its claimed tasks
+      When the teammate stops and its claimed tasks are released
+      Then no verify-failure record remains keyed to the released holder incarnation
+
+    Scenario: A verify result belongs to exactly one submission
+      Given a claimed task whose verify command is running
+      When the holder releases the task and re-claims it before the verify resolves
+      Then the stale verify result cannot complete the new holding
+      And a fresh submission after the re-claim runs its own gate to completion
+
     Scenario: The board persists across restarts while the runtime does not
       Given a session recorded a task board
       When the session shuts down and a later session resumes the same board directory
@@ -265,10 +346,32 @@ Feature: Agent Teams collaborative organization contract
       Given an idle teammate with no inbox messages and no claimable tasks
       Then the harness performs no wake-up and spends no tokens
 
-    Scenario: Claimable-task notices respect a per-teammate pacing interval
+    Scenario: Declined claimable work does not wake an idle teammate twice
       Given an idle teammate and an unclaimed pending task
-      When the teammate declines to claim and stays idle
-      Then the harness waits at least the pacing interval before the next notice
+      When the teammate is woken by the notice, declines to claim, and goes idle again
+      Then the same task never wakes that teammate again
+      And the teammate is woken only by new mail or newly claimable work
+
+    Scenario: Recording new notices retains ids of tasks still claimable
+      Given a long board whose noticed history exceeds the retention window
+      When the teammate is notified about further work
+      Then stale non-claimable ids are pruned first
+      And ids of tasks still claimable survive and never re-wake the teammate
+
+    Scenario: Released tasks are noticeable again
+      Given a task whose id an idle teammate was already notified about
+      When the task is released back to pending
+      Then the task may wake teammates once more
+
+    Scenario: Claimable-task notices respect a per-teammate pacing interval
+      Given an idle teammate and newly claimable work
+      When notice delivery is attempted in quick succession
+      Then the harness waits at least the pacing interval between notices
+
+    Scenario: Notice pacing defaults to minutes and is configurable
+      Given no pacing configuration is set
+      Then claimable-task notices wait at least five minutes between deliveries by default
+      And PI_TEAMMATE_NOTICE_PACE_MS overrides the default in milliseconds
 
     Scenario: The leader guidance forbids sleep-based coordination
       Given the team leader is composing a reply while teammates work

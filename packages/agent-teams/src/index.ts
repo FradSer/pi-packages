@@ -8,7 +8,8 @@
 import { getMarkdownTheme, keyHint } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildTeamLeaderGuidance, WORKER_GUIDANCE } from "./guidance.ts";
-import { initTeamMachine, removeRuntimeDir, shutdownTeamMachine, teardownTeammates } from "./team-machine.ts";
+import { clearSessionAgents } from "./agents.ts";
+import { initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, teardownTeammates } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
 import { resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
@@ -23,9 +24,6 @@ const STATE_DIR_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 let leaderPi: ExtensionAPI | undefined;
 let leaderCtx: ExtensionContext | undefined;
 let followUpQueue: FollowUpQueue | undefined;
-// One "Teammate finished" announcement per spawn incarnation; repeated
-// terminal reports from the same resident stay ordinary report rows.
-const announcedFinishKeys = new Set<string>();
 
 const REPORT_COLORS = ["success", "warning", "error", "mdLink"] as const;
 export const TEAMMATE_FINISHED_ENTRY_TYPE = "agent-teams-teammate-finished";
@@ -91,7 +89,7 @@ export default function (pi: ExtensionAPI) {
     if (event.message.role !== "custom" || event.message.customType !== TEAMMATE_REPORT_MESSAGE_TYPE) return;
     const reports = extractReports(event.message.details);
     for (const report of reports) {
-      if (!markTeammateFinished(announcedFinishKeys, report)) continue;
+      if (!markTeammateFinished(report)) continue;
       pi.appendEntry(TEAMMATE_FINISHED_ENTRY_TYPE, {
         teammate: report.teammate ?? report.agent,
         agent: report.agent,
@@ -100,9 +98,9 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
+    clearSessionAgents();
     resetState();
     followUpQueue?.reset();
-    announcedFinishKeys.clear();
     leaderCtx = ctx;
     followUpQueue = new FollowUpQueue({
       isIdle: () => Boolean(leaderCtx?.isIdle()),
@@ -161,22 +159,4 @@ function extractReports(details: unknown): FollowUpReport[] {
   if (typed && "reports" in typed && Array.isArray(typed.reports)) return typed.reports;
   if (typed && "teammate" in typed) return [typed as FollowUpReport];
   return [];
-}
-
-/**
- * Announce a finished entry only on the first terminal report of a spawn
- * incarnation. Reports without a spawn identity key on the session scope so
- * crash diagnostics always stay visible. Returns true when the caller should
- * append the finished entry.
- */
-export function markTeammateFinished(
-  seen: Set<string>,
-  report: Pick<FollowUpReport, "teammate" | "agent" | "spawnId" | "finished">,
-): boolean {
-  if (!report.finished) return false;
-  const name = report.teammate ?? report.agent ?? "teammate";
-  const key = `${name}:${report.spawnId ?? "session"}`;
-  if (seen.has(key)) return false;
-  seen.add(key);
-  return true;
 }
