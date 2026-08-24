@@ -119,6 +119,12 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Claimable-task notices respect a per-teammate pacing interval",
         "Leader tool surface is exact",
         "Workers cannot access leader tools",
+        "Teammate models resolve at spawn time",
+        "The inherit alias pins the leader's current model",
+        "An explicit role pin overrides inherit and the team default",
+        "A role without a model uses the team default model",
+        "Without a role model and without a team default no --model flag passes",
+        "The console sets and clears the unified teammate model",
         "Worktree isolation is an agent-role option",
         "Console and widget visualize the team without intercepting input",
         "The agent-teams command opens the console directly",
@@ -594,26 +600,34 @@ def test_verify_failure_residue_is_cleared_when_a_holder_is_released() -> None:
 def test_stale_verify_result_cannot_complete_a_new_holding(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner }} from "{(SRC / "team-machine.ts").as_uri()}";
         import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const tick = () => new Promise((resolve) => setTimeout(resolve, 10));
         registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 0, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
-        const made = createTask({{ subject: "gated work", verify: "sleep 0.4" }});
+        const made = createTask({{ subject: "gated work", verify: "Does the delivered gallery satisfy every acceptance criterion?" }});
         const id = made.task.id;
         applyClaimIntent({{ taskId: id, worker: "w", spawnId: "s1", timestamp: 1 }});
+        let releaseStaleGate;
+        setVerifyGateRunner(() => new Promise((resolve) => {{ releaseStaleGate = () => resolve({{ ok: true, detail: "stale pass" }}); }}));
         attemptSubmission("w", "s1", id, "completed");
         processTaskIntents();
+        await tick();
         attemptSubmission("w", "s1", id, "failed");
         processTaskIntents();
         const releasedWhileVerifying = getTask(id).status === "pending";
         applyClaimIntent({{ taskId: id, worker: "w", spawnId: "s1", timestamp: 2 }});
-        await wait(700);
+        releaseStaleGate();
+        await tick();
         const staleCompleted = getTask(id).status === "completed";
+        let releaseFreshGate;
+        setVerifyGateRunner(() => new Promise((resolve) => {{ releaseFreshGate = () => resolve({{ ok: true, detail: "fresh pass" }}); }}));
         attemptSubmission("w", "s1", id, "completed");
         processTaskIntents();
-        await wait(700);
+        await tick();
+        releaseFreshGate();
+        await tick();
         console.log(JSON.stringify({{
           releasedWhileVerifying,
           staleCompleted,
@@ -626,6 +640,38 @@ def test_stale_verify_result_cannot_complete_a_new_holding(tmp_path: Path) -> No
     # The pre-release gate result must not complete the post-release holding.
     assert payload["staleCompleted"] is False
     assert payload["finalStatus"] == "completed"
+
+
+def test_verify_review_verdict_protocol() -> None:
+    payload = run_node(
+        f'''\
+        import {{ buildVerifyReviewPrompt, parseVerifyVerdict }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const NL = String.fromCharCode(10);
+        const reply = (...lines) => lines.join(NL);
+        console.log(JSON.stringify({{
+          promptHasGate: buildVerifyReviewPrompt({{ verify: "Every scenario holds.", taskSubject: "Gallery refactor", workerResult: "Done.", cwd: "/repo" }}).includes("Every scenario holds."),
+          pass: parseVerifyVerdict(reply("Evidence...", "VERDICT: PASS")),
+          passLowerCase: parseVerifyVerdict("verdict: pass"),
+          passTrailingProse: parseVerifyVerdict(reply("VERDICT: PASS", "(closing note)")),
+          passWithJunkRejected: parseVerifyVerdict(reply("A", "VERDICT: PASS - also broken", "B")),
+          failWithReason: parseVerifyVerdict(reply("Evidence...", "VERDICT: FAIL - overflow at 400px")),
+          failExtraSpaces: parseVerifyVerdict("VERDICT:   FAIL   spaced reasons"),
+          missing: parseVerifyVerdict("Looks good to me"),
+          missingDetailTruncated: parseVerifyVerdict("x".repeat(5000)).detail.includes("[truncated]"),
+        }}, (key, value) => (value === undefined ? null : value)));
+        '''
+    )
+    assert payload["promptHasGate"] is True
+    assert payload["pass"] == {"ok": True}
+    assert payload["passLowerCase"] == {"ok": True}
+    assert payload["passTrailingProse"] == {"ok": True}
+    assert payload["passWithJunkRejected"]["ok"] is False
+    assert payload["failWithReason"]["ok"] is False
+    assert "overflow at 400px" in payload["failWithReason"]["detail"]
+    assert payload["failExtraSpaces"]["ok"] is False
+    assert "spaced reasons" in payload["failExtraSpaces"]["detail"]
+    assert payload["missing"]["ok"] is False
+    assert payload["missingDetailTruncated"] is True
 
 
 def test_agent_definitions_are_declarative_files_with_verify() -> None:
@@ -787,6 +833,99 @@ def test_inline_definitions_replace_stale_session_roles_but_not_files(tmp_path: 
     assert "input.definition && inlineDefinitionApplies(resolved)" in machine
 
 
+def test_spawn_model_resolution_precedence() -> None:
+    payload = run_node(
+        f'''\
+        import {{ resolveSpawnModel }} from "{(SRC / "team-machine.ts").as_uri()}";
+        console.log(JSON.stringify({{
+          pin: resolveSpawnModel("anthropic/claude-opus-4-6", "openai/gpt-5.2", "google/gemini-3-pro"),
+          inherit: resolveSpawnModel("inherit", "openai/gpt-5.2", "openai/gpt-5.2-leader"),
+          inheritCaseInsensitive: resolveSpawnModel("Inherit", undefined, "google/gemini-3-pro"),
+          teamDefault: resolveSpawnModel(undefined, "openai/gpt-5.2", "google/gemini-3-pro"),
+          none: resolveSpawnModel(undefined, undefined, "google/gemini-3-pro"),
+          inheritWithoutLeaderModel: resolveSpawnModel("inherit", undefined, undefined),
+          blankPinIsUnset: resolveSpawnModel("  ", "openai/gpt-5.2", undefined),
+        }}));
+        '''
+    )
+    assert payload["pin"] == {"model": "anthropic/claude-opus-4-6", "source": "pin"}
+    assert payload["inherit"] == {"model": "openai/gpt-5.2-leader", "source": "inherit"}
+    assert payload["inheritCaseInsensitive"] == {"model": "google/gemini-3-pro", "source": "inherit"}
+    assert payload["teamDefault"] == {"model": "openai/gpt-5.2", "source": "team-default"}
+    assert payload["none"] == {"source": "none"}
+    assert payload["inheritWithoutLeaderModel"] == {"source": "none"}
+    assert payload["blankPinIsUnset"] == {"model": "openai/gpt-5.2", "source": "team-default"}
+
+
+def test_team_default_model_persists_in_state_snapshot() -> None:
+    payload = run_node(
+        f'''\
+        import {{ getTeamDefaultModel, setTeamDefaultModel, getState }} from "{(SRC / "state.ts").as_uri()}";
+        setTeamDefaultModel("openai/gpt-5.2");
+        const stored = getTeamDefaultModel();
+        const snapshotted = JSON.stringify(getState()).includes("openai/gpt-5.2");
+        setTeamDefaultModel("  ");
+        const cleared = getTeamDefaultModel();
+        console.log(JSON.stringify({{ stored, snapshotted, cleared }}, (key, value) => (value === undefined ? null : value)));
+        '''
+    )
+    assert payload["stored"] == "openai/gpt-5.2"
+    assert payload["snapshotted"] is True
+    assert payload["cleared"] is None
+
+
+def test_console_wires_searchable_teammate_model_picker() -> None:
+    ui_source = source("ui.ts")
+    for needle in (
+        'createSearchPicker',
+        'modelSearchText',
+        'fuzzyFilter',
+        'setTeamDefaultModel',
+        'getAvailable()',
+    ):
+        assert needle in ui_source, f"console picker must use {needle}"
+    # Key routing lives in the pure mapPickerKey table; the console handler
+    # must consume it instead of matching raw letters itself.
+    assert "mapPickerKey" in ui_source
+    picker_input = ui_source[ui_source.index("function handlePickerInput"):]
+    assert 'data === "c"' not in picker_input
+    assert "isClearEntry" in ui_source
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "a searchable model picker lists registry models with type-to-filter" in feature
+    assert "confirming the pinned clear entry restores Pi's own choice" in feature
+
+
+def test_picker_key_routes_printables_to_typing_and_keys_to_actions() -> None:
+    payload = run_node(
+        f'''\
+        import {{ mapPickerKey }} from "{(SRC / "picker-keys.ts").as_uri()}";
+        console.log(JSON.stringify({{
+          letterC: mapPickerKey("c"),
+          capitalC: mapPickerKey("C"),
+          digit: mapPickerKey("3"),
+          space: mapPickerKey(" "),
+          escape: mapPickerKey("\\x1b"),
+          enter: mapPickerKey("\\r"),
+          up: mapPickerKey("\\x1b[A"),
+          down: mapPickerKey("\\x1b[B"),
+          backspace: mapPickerKey("\\x7f"),
+          tabIgnored: mapPickerKey("\\t"),
+          multiCharPasteIgnored: mapPickerKey("abc"),
+        }}, (key, value) => (value === undefined ? null : value)));
+        '''
+    )
+    # The regression core: letters route to typing, never to shortcuts.
+    for key in ("letterC", "capitalC", "digit", "space"):
+        assert payload[key] == {"kind": "type", "text": {"letterC": "c", "capitalC": "C", "digit": "3", "space": " "}[key]}, key
+    assert payload["escape"] == {"kind": "cancel"}
+    assert payload["enter"] == {"kind": "confirm"}
+    assert payload["up"] == {"kind": "up"}
+    assert payload["down"] == {"kind": "down"}
+    assert payload["backspace"] == {"kind": "backspace"}
+    assert payload["tabIgnored"] is None
+    assert payload["multiCharPasteIgnored"] is None
+
+
 def test_agent_frontmatter_parses_tools_model_verify(tmp_path: Path) -> None:
     agents_dir = tmp_path / ".pi" / "agents"
     agents_dir.mkdir(parents=True)
@@ -796,7 +935,7 @@ def test_agent_frontmatter_parses_tools_model_verify(tmp_path: Path) -> None:
         "description: Reviews code for exploitable problems\n"
         "tools: read,grep # execution allowlist\n"
         "model: anthropic/claude-sonnet-4\n"
-        'verify: "npm test"\n'
+        'verify: "Every declared acceptance scenario holds in the built gallery"\n'
         "worktree: true\n"
         "---\n"
         "Review the assigned scope.\n",
@@ -820,7 +959,7 @@ def test_agent_frontmatter_parses_tools_model_verify(tmp_path: Path) -> None:
     assert payload["found"] is True
     assert payload["tools"] == ["read", "grep"]
     assert payload["model"] == "anthropic/claude-sonnet-4"
-    assert payload["verify"] == "npm test"
+    assert payload["verify"] == "Every declared acceptance scenario holds in the built gallery"
     assert payload["worktree"] is True
     assert payload["scope"] == "project"
     assert payload["promptIsBody"] is True

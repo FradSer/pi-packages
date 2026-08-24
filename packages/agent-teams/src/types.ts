@@ -30,6 +30,8 @@ export interface Teammate {
   isolation: "worktree" | "none";
   /** Board task currently claimed by this teammate, if any. */
   currentTaskId?: string;
+  /** Effective launch model reference ("provider/model"); absent when Pi picks its default. */
+  model?: string;
   /** Live assistant text assembled from the RPC stream. */
   liveText?: string;
   /** Current child tool name, if a tool is executing. */
@@ -74,7 +76,8 @@ export interface BoardTask {
   description?: string;
   /** Task ids that must complete before this task is claimable. */
   dependsOn: string[];
-  /** Deterministic completion gate; overrides the agent-role default. */
+  /** Completion gate: a review prompt a fresh one-shot reviewer answers with
+   *  VERDICT: PASS or FAIL; overrides the agent-role default. */
   verify?: string;
   status: TaskStatus;
   claimedBy?: string;
@@ -172,8 +175,8 @@ export const TeammateSpawnParams = Type.Object({
   definition: Type.Optional(Type.Object({
     description: Type.String({ description: "Routing contract for the generated role" }),
     tools: Type.Optional(Type.Array(Type.String(), { description: "Pi tool ids for the generated role" })),
-    model: Type.Optional(Type.String({ description: "Optional provider/model pin" })),
-    verify: Type.Optional(Type.String({ description: "Optional role-default completion gate" })),
+    model: Type.Optional(Type.String({ description: 'Optional provider/model pin, or "inherit" to run on the leader\'s current model' })),
+    verify: Type.Optional(Type.String({ description: "Role-default completion gate: a review prompt a fresh reviewer answers with VERDICT: PASS or FAIL" })),
     worktree: Type.Optional(Type.Boolean({ description: "Whether this role receives a dedicated Git worktree" })),
     prompt: Type.String({ minLength: 1, description: "Role prompt for this generated teammate" }),
     persist: Type.Optional(Type.Boolean({ description: "Persist only when the user explicitly asks to keep this role for future sessions" })),
@@ -195,7 +198,7 @@ export const TaskCreateParams = Type.Object({
   description: Type.Optional(Type.String({ description: "Full task description for the claiming teammate" }),
   ),
   dependsOn: Type.Optional(Type.Array(Type.String(), { description: "Task ids that must complete before this task is claimable" })),
-  verify: Type.Optional(Type.String({ description: "Deterministic completion gate command; zero exit completes the task. Overrides any agent-role default verify." })),
+  verify: Type.Optional(Type.String({ description: "Completion gate: a review prompt a fresh reviewer answers with VERDICT: PASS or FAIL. Overrides any agent-role default verify." })),
 });
 
 /** Shared leader/worker read-only board view. */
@@ -233,6 +236,8 @@ export const TaskSubmitParams = Type.Object({
 export interface TeamState {
   teammates: Record<string, Teammate>;
   tasks: Record<string, BoardTask>;
+  /** Unified teammate model for this session; spawns without a role pin use it. */
+  defaultModel?: string;
   /** Single leader inbox for teammate reports and harness diagnostics. */
   leaderMailbox: MailboxMessage[];
   messageCounter: number;

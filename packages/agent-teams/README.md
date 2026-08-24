@@ -6,7 +6,7 @@ Claude-Code-style collaborative agent teams for Pi: named resident teammates, a 
 
 ## What This Package Does
 
-The team leader (your Pi session) spawns named teammates as long-lived child Pi processes in RPC mode. Each teammate has an isolated context, a peer inbox, and access to a shared task board. The harness—not the leader model—polls for activity: it drains leader reports, routes peer mail, applies task claims and submissions, runs deterministic verify gates, and wakes idle teammates only when work or mail exists.
+The team leader (your Pi session) spawns named teammates as long-lived child Pi processes in RPC mode. Each teammate has an isolated context, a peer inbox, and access to a shared task board. The harness—not the leader model—polls for activity: it drains leader reports, routes peer mail, applies task claims and submissions, judges verify prompts with fresh one-shot reviewers, and wakes idle teammates only when work or mail exists.
 
 The message surface is deliberately singular: `send_message` is the only messaging primitive. Workers report with `to: "leader"`; teammates address peers by name; the leader addresses teammates by name. The routing implementation varies by destination (outbox, inbox, or control stream), but callers use one schema.
 
@@ -27,12 +27,18 @@ Agent definitions are Markdown files with frontmatter; the body is the role prom
 name: isolated-security-auditor
 description: Read-only security reviewer in an isolated worktree
 tools: read,bash
-model: provider/model       # optional
-verify: npm test            # optional role-default completion gate
+model: provider/model       # optional; "inherit" = the leader's current model at spawn time
+verify: review prompt       # optional role-default gate; a fresh reviewer answers VERDICT: PASS/FAIL
 worktree: true              # optional role-default Git isolation
 ---
 Review the assigned scope for exploitable security problems. Do not edit files.
 ```
+
+Teammate model resolution at spawn time, in precedence order: an explicit
+`provider/model` pin wins; `inherit` pins the leader session's current model;
+without a pin, the unified teammate model set from `/agent-teams` (press `m`
+in the roster page for a type-to-filter picker) applies to this session;
+otherwise Pi picks its own default.
 
 Discovery precedence per name (later overrides earlier): user < project <
 project-local, with generated session roles filling only the names no file
@@ -88,7 +94,7 @@ task_create({
   subject: "Fix auth middleware findings",
   description: "Address the confirmed security findings in packages/api/src/auth.ts",
   dependsOn: ["t_1"],
-  verify: "npm test"
+  verify: "Every scenario in features/gallery.feature holds in the built gallery; no horizontal overflow at 400px."
 })
 ```
 
@@ -104,7 +110,7 @@ send_message({ to, message, status? })
 - The first non-empty line of `message` becomes the console title.
 - Peer traffic never enters the leader model context; inspect it in `/agent-teams` instead.
 
-Only the leader creates tasks. Idle teammates self-claim pending tasks whose dependencies are met. A task-level `verify` command overrides the claiming agent's frontmatter `verify`; zero exit completes the task, while failure returns stderr to the claimer for fix-and-resubmit.
+Only the leader creates tasks. Idle teammates self-claim pending tasks whose dependencies are met. A task-level `verify` prompt overrides the claiming agent's frontmatter `verify`. The harness runs it as a fresh one-shot reviewer that inspects the work independently and answers `VERDICT: PASS` or `VERDICT: FAIL - <reasons>`; PASS completes the task, FAIL feeds the findings back to the claimer for fix-and-resubmit. Write acceptance criteria a reviewer can check, not shell commands.
 
 ## Tools
 

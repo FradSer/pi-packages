@@ -13,6 +13,7 @@ import {
   type TeamState,
   type WorkerReportEvent,
 } from "./types.ts";
+import { nonEmpty } from "@fradser/pi-kit";
 
 export const MAX_LEADER_MAILBOX_MESSAGES = 4096;
 /** FIFO cap of remembered peer message ids per inbox (dedup guard). */
@@ -65,6 +66,19 @@ function emptyTaskMap(): Record<string, BoardTask> {
 
 export function resetState(): void {
   state = emptyState();
+  markStateDirty();
+}
+
+// ── Team default model ──────────────────────────────────────
+
+/** The unified teammate model for this session, or undefined when Pi picks. */
+export function getTeamDefaultModel(): string | undefined {
+  return state.defaultModel;
+}
+
+/** Set (or clear with undefined) the unified teammate model for later spawns. */
+export function setTeamDefaultModel(ref: string | undefined): void {
+  state.defaultModel = nonEmpty(ref);
   markStateDirty();
 }
 

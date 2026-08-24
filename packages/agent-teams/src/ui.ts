@@ -1,24 +1,36 @@
 /** Passive team widget and the /agent-teams management console
  * (session teammates + persistent agent roles + board). */
 
-import { truncateToWidth, Key, matchesKey } from "@earendil-works/pi-tui";
-import { createPiThemeStyle, PI_SPINNER_FRAMES, PI_SPINNER_INTERVAL_MS } from "@fradser/pi-kit";
+import { truncateToWidth, Key, matchesKey, fuzzyFilter } from "@earendil-works/pi-tui";
+import {
+  createPiThemeStyle,
+  createSearchPicker,
+  modelLabel,
+  modelSearchText,
+  PI_SPINNER_FRAMES,
+  PI_SPINNER_INTERVAL_MS,
+  sortModels,
+  type SearchPicker,
+} from "@fradser/pi-kit";
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import {
   clampConsoleScroll, consoleScrollRange, maxConsoleBody, scrollConsoleDetail, wrapConsoleDetail,
 } from "./console-viewport.ts";
 import { fitTeammateRow, formatTeammateLabel, runningTeammateActivity } from "./activity.ts";
-import { discoverAgents, resolveAgent, type AgentDefinition } from "./agents.ts";
-import { getState, getTeammate, listTasks, listTeammates, livingTeammates } from "./state.ts";
+import { MODEL_INHERIT_ALIAS, discoverAgents, resolveAgent, type AgentDefinition } from "./agents.ts";
+import { getState, getTeammate, getTeamDefaultModel, listTasks, listTeammates, livingTeammates, setTeamDefaultModel } from "./state.ts";
 import {
+  currentLeaderModelRef,
   ensureLivePoll,
   formatSilenceDuration,
+  resolveSpawnModel,
   runtimeDirPath,
   shutdownTeammate,
   STALL_NOTICE_MS,
   stallSilenceMs,
 } from "./team-machine.ts";
 import type { Teammate } from "./types.ts";
+import { mapPickerKey } from "./picker-keys.ts";
 import { inboxPath } from "./statefile.ts";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -189,6 +201,7 @@ function buildTeammateDetail(name: string): string[] {
     "== teammate ==",
     `  Status: ${teammate.status}${teammate.currentTaskId ? ` | Task: ${teammate.currentTaskId}` : ""}`,
     `  Spawn: ${teammate.pid > 0 ? `pid ${teammate.pid}` : "pid unknown"} | Isolation: ${teammate.isolation}`,
+    ...(teammate.model ? [`  Launch model: ${teammate.model}`] : []),
     `  Created: ${new Date(teammate.createdAt).toLocaleString()}`,
   ];
   if (teammate.stoppedAt) lines.push(`  Stopped: ${new Date(teammate.stoppedAt).toLocaleString()}`);
@@ -249,7 +262,7 @@ function buildRoleDetail(name: string): string[] {
     `  Source: ${displaySource(def.source)}`,
     `  Description: ${def.description || "(none)"}`,
     `  Tools: ${def.tools.join(", ") || "(role defaults)"}`,
-    `  Model: ${def.model ?? "(session default)"}`,
+    `  Model: ${describeSpawnModel(def.model)}`,
     `  Verify: ${def.verify ?? "(none)"}`,
     `  Worktree: ${def.worktree ? "true" : "false"}`,
     `  Living instances: ${livingTeammates().filter((teammate) => teammate.agent === def.name).length}`,
@@ -257,6 +270,17 @@ function buildRoleDetail(name: string): string[] {
     "== role prompt ==",
     ...indent(cap(def.prompt)),
   ];
+}
+
+/** Human-readable effective launch model for a role definition. */
+function describeSpawnModel(pinned: string | undefined): string {
+  const resolved = resolveSpawnModel(pinned, getTeamDefaultModel(), currentLeaderModelRef());
+  if (pinned && pinned.trim().toLowerCase() !== MODEL_INHERIT_ALIAS) return pinned.trim();
+  if (resolved.model) {
+    const suffix = pinned ? "inherit -> " : "[team default] ";
+    return `${suffix}${resolved.model}`;
+  }
+  return pinned ? "inherit -> (unavailable at spawn)" : "(Pi default)";
 }
 
 // ── Full-screen console ───────────────────────────────────────────
@@ -293,11 +317,15 @@ function wheelDelta(data: string): number | undefined {
 const LIST_CHROME_LINES = 5;
 
 /** Full-screen Team Console — owns input via ctx.ui.custom. Pages: roster /
- * board; each row opens a scrolling detail view. */
-export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> {
+ * board; each row opens a scrolling detail view; m opens the searchable
+ * teammate-model picker. */
+export function openTeamConsole(ctx: {
+  ui: ExtensionUIContext;
+  modelRegistry?: { getAvailable(): Array<{ provider: string; id: string; name?: string }> };
+}): Promise<void> {
   return ctx.ui.custom<void>((tui, theme, _keybindings, done) => {
     let page: ConsolePage = "roster";
-    let mode: "list" | "detail" = "list";
+    let mode: "list" | "detail" | "picker" = "list";
     let selectedRoster = 0;
     let selectedBoard = 0;
     let listOffset = 0;
@@ -342,6 +370,107 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
 
     const style = createPiThemeStyle(theme);
 
+    // ── Teammate-model picker (type-to-filter) ──────────────────
+    let picker: SearchPicker<{ provider: string; id: string; name?: string }> | undefined;
+    let pickerOffset = 0;
+
+    /** Pinned pseudo-entry so clearing never collides with typed search text. */
+    const CLEAR_TEAM_MODEL_ENTRY: { provider: string; id: string; name?: string } = {
+      provider: "",
+      id: "__clear-team-default__",
+      name: "Use Pi default",
+    };
+    const isClearEntry = (model: { id: string } | undefined): boolean =>
+      model?.id === CLEAR_TEAM_MODEL_ENTRY.id;
+
+    const openModelPicker = (): void => {
+      const models = sortModels([...(ctx.modelRegistry?.getAvailable() ?? [])]);
+      if (models.length === 0) return;
+      picker = createSearchPicker([CLEAR_TEAM_MODEL_ENTRY, ...models], {
+        filter: fuzzyFilter,
+        getText: (model) => (isClearEntry(model) ? "clear team default use pi default" : modelSearchText(model)),
+      });
+      pickerOffset = 0;
+      mode = "picker";
+      requestRender();
+    };
+
+    const closeModelPicker = (): void => {
+      picker = undefined;
+      mode = "list";
+      requestRender();
+    };
+
+    const PICKER_CHROME_LINES = 7;
+    const pickerViewport = (): number => Math.max(1, tui.terminal.rows - PICKER_CHROME_LINES);
+
+    const renderPicker = (width: number): string[] => {
+      if (!picker) return [];
+      const border = style.border("─".repeat(Math.max(1, width)));
+      const results = picker.results();
+      const selected = picker.selectedIndex();
+      if (selected < pickerOffset) pickerOffset = selected;
+      else if (selected >= pickerOffset + pickerViewport()) pickerOffset = selected - pickerViewport() + 1;
+      pickerOffset = clampConsoleScroll(pickerOffset, results.length, pickerViewport());
+      const leaderRef = currentLeaderModelRef();
+      const teamDefault = getTeamDefaultModel();
+      const rows = results.slice(pickerOffset, pickerOffset + pickerViewport()).map((model, index) => {
+        const absolute = pickerOffset + index;
+        const marker = absolute === selected ? style.accent("❯ ") : "  ";
+        if (isClearEntry(model)) {
+          return truncateToWidth(`${marker}${theme.fg("warning", "✕ clear team default")} ${style.dim("· use Pi default")}`, Math.max(10, width - 1));
+        }
+        const tags = [
+          modelLabel(model) === leaderRef ? style.dim("(leader)") : "",
+          modelLabel(model) === teamDefault ? style.success("(default)") : "",
+        ].filter(Boolean).join(" ");
+        const display = model.name && model.name !== model.id ? style.dim(model.name) : "";
+        return truncateToWidth(`${marker}${theme.fg("customMessageText", modelLabel(model))} ${display} ${tags}`.replace(/\s+$/g, ""), Math.max(10, width - 1));
+      });
+      return [
+        border,
+        style.accent(truncateToWidth(`teammate model  ${teamDefault ?? "auto (Pi default)"}`, width)),
+        "",
+        truncateToWidth(`${style.accent("❯ ")}${picker.query()}▏  ${style.dim(`${results.length} models`)}`, Math.max(10, width - 1)),
+        ...rows,
+        "",
+        truncateToWidth(style.dim("type to filter · ↑↓ select · enter set/clear · esc cancel"), Math.max(10, width - 1)),
+        border,
+      ];
+    };
+
+    function handlePickerInput(data: string): void {
+      if (!picker) {
+        mode = "list";
+        return;
+      }
+      const action = mapPickerKey(data);
+      if (!action) return;
+      if (action.kind === "cancel") {
+        closeModelPicker();
+        return;
+      }
+      if (action.kind === "confirm") {
+        const picked = picker.selected();
+        // An empty filtered list must not clobber the current default.
+        if (!picked) return;
+        if (isClearEntry(picked)) {
+          setTeamDefaultModel(undefined);
+          ctx.ui.notify("Teammate model cleared — Pi picks its default", "info");
+        } else {
+          setTeamDefaultModel(modelLabel(picked));
+          ctx.ui.notify(`Teammate model set to ${modelLabel(picked)} for this session`, "info");
+        }
+        closeModelPicker();
+        return;
+      }
+      if (action.kind === "up") picker.up();
+      else if (action.kind === "down") picker.down();
+      else if (action.kind === "backspace") picker.backspace();
+      else picker.type(action.text);
+      requestRender();
+    }
+
     const currentRows = (): ConsoleRow[] =>
       page === "roster"
         // The console is the management surface: idle and stopped stay
@@ -365,7 +494,7 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
     const headerLine = (): string => {
       const alive = livingTeammates();
       const tasks = listTasks();
-      return `team  ${alive.length} alive · ${alive.filter(isWorking).length} working · ${getRoles().length} roles · board ${tasks.filter((task) => task.status === "pending").length}p/${tasks.filter((task) => task.status === "claimed").length}c/${tasks.filter((task) => task.status === "completed").length}d · ${page}`;
+      return `team  ${alive.length} alive · ${alive.filter(isWorking).length} working · ${getRoles().length} roles · board ${tasks.filter((task) => task.status === "pending").length}p/${tasks.filter((task) => task.status === "claimed").length}c/${tasks.filter((task) => task.status === "completed").length}d · model ${getTeamDefaultModel() ?? "auto"} · ${page}`;
     };
 
     interface ContentLine {
@@ -457,7 +586,7 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
       const footer = confirmName
         ? theme.fg("warning", `Shut down @${confirmName}? Its claimed task returns to the board · y yes / n no`)
         : style.dim(page === "roster"
-            ? "↑↓ select · enter open · tab board · x shutdown · esc/q close"
+            ? "↑↓ select · enter open · tab board · x shutdown · m model · esc/q close"
             : "↑↓ select · enter open · tab roster · esc/q close");
       return [
         border,
@@ -503,8 +632,12 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
     };
 
     return {
-      render: (width) => (mode === "list" ? renderList(width) : renderDetail(width)),
+      render: (width) => (mode === "picker" ? renderPicker(width) : mode === "detail" ? renderDetail(width) : renderList(width)),
       handleInput: (data: string) => {
+        if (mode === "picker") {
+          handlePickerInput(data);
+          return;
+        }
         if (mode !== "list") {
           handleDetailInput(data);
           return;
@@ -545,6 +678,14 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
           const row = rows[selection];
           if (page === "roster" && row?.kind === "teammate" && getTeammate(row.key)?.status !== "stopped") {
             confirmName = row.key;
+          }
+          return;
+        }
+        if (data === "m" || data === "M") {
+          if (ctx.modelRegistry && ctx.modelRegistry.getAvailable().length > 0) {
+            openModelPicker();
+          } else {
+            ctx.ui.notify("No models are available in the model registry.", "warning");
           }
           return;
         }

@@ -21,8 +21,9 @@ you consume nothing.
 - The shared task board is coordination state. Read it with task_list, claim
   pending tasks whose dependencies are met with task_claim (claims are
   atomic; losing a race means try another), and submit outcomes with
-  task_submit. Completion may pass through a verify gate: if it fails, stderr
-  feedback arrives in your inbox — fix and resubmit.
+  task_submit. Completion may pass through a verify gate: a fresh reviewer
+  checks the work independently, and on VERDICT: FAIL its findings arrive in
+  your inbox — fix and resubmit.
 - Coordinate file ownership with peers through send_message before writing.
 
 Do not use leader tools (spawning or shutting down teammates, creating
@@ -42,8 +43,9 @@ conversation unless you put the needed context in their prompts.
 ### Agents are declarative files, with ephemeral generated roles by default
 
 Persistent agents live in Markdown files with frontmatter (name, description,
-tools, optional model, optional verify, optional worktree); the body is the
-role prompt. There are no built-in roles. Generated roles are session-scoped
+tools, optional model — a provider/model pin or "inherit" for the leader's
+current model at spawn time — optional verify, optional worktree); the body
+is the role prompt. There are no built-in roles. Generated roles are session-scoped
 and held in memory by default: they have no filesystem source and disappear on
 the next session. Do not write
 an agent definition unless the user explicitly asks to keep the role for future
@@ -95,9 +97,11 @@ context — inspect it in /agent-teams instead.
 
 Create shared work with task_create(subject, description?, dependsOn?,
 verify?). Idle teammates notice claimable work automatically and self-claim;
-dependencies unlock downstream tasks without your involvement. An explicit
-verify command makes completion deterministic: zero exit completes, failure
-feeds stderr back to the claimer for fix-and-resubmit.
+dependencies unlock downstream tasks without your involvement. The verify
+prompt is judged by a fresh one-shot reviewer that inspects the work itself:
+VERDICT: PASS completes, FAIL feeds the reviewer's findings back to the
+claimer for fix-and-resubmit. Write gates as acceptance criteria a reviewer
+can check (behavior, constraints, evidence), not as shell commands.
 
 ### Teammates are autonomous: recover, never punish
 

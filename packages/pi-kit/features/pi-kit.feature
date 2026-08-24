@@ -93,6 +93,30 @@ Feature: Shared pi-kit runtime helpers
     When enterModelFromInput is called
     Then it notifies with an error and returns undefined
 
+  Scenario: Model search text leads with the provider-prefixed label
+    Given a model with provider, id, and display name
+    When modelSearchText formats it
+    Then the text starts with "provider/id" and includes the display name
+    And a nameless model still produces searchable text without a trailing separator
+
+  Scenario: A search picker filters models by query and resets the selection
+    Given a picker over sorted models with an injected filter
+    When characters are typed into the query
+    Then results contain only models whose search text matches
+    And the selection points at the first result
+
+  Scenario: A search picker restores previous results on backspace
+    Given a picker narrowed by a query
+    When the last query character is removed
+    Then results widen back toward the full list
+    And clearing the query restores every model in original order
+
+  Scenario: Search picker navigation clamps within filtered results
+    Given a picker with several filtered results
+    When down is pressed past the end or up before the start
+    Then the selection stays within bounds
+    And an empty result list has no selection
+
   Scenario: Pi workers inherit their working directory without an unsupported flag
     Given a worker is launched with cwd set on the child process
     When pi-kit builds the non-interactive Pi command

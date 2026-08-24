@@ -5,13 +5,13 @@
  * engine described by the BDD contract.
  */
 
-import { exec } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "./agents.ts";
+import { modelLabel, runPiWorker } from "@fradser/pi-kit";
+import { MODEL_INHERIT_ALIAS, discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "./agents.ts";
 import {
   applyClaimIntent,
   claimableTasks,
@@ -23,6 +23,7 @@ import {
   getPeerInboxOffset,
   getState,
   getTeammate,
+  getTeamDefaultModel,
   idleTeammates,
   isPeerDelivered,
   isValidTeammateName,
@@ -130,6 +131,8 @@ let generation = 0;
 let runtimeStateFile = "";
 let boardFile = "";
 let leaderCwd = "";
+/** Live view of the leader session's current model, resolved at spawn time. */
+let leaderModelRef: () => string | undefined = () => undefined;
 let sendUpdate: (report: FollowUpReport) => void = () => {};
 let notifyChange: () => void = () => {};
 
@@ -158,11 +161,12 @@ export interface MachineHooks {
 }
 
 export function initTeamMachine(
-  ctx: Pick<ExtensionContext, "sessionManager" | "cwd">,
+  ctx: Pick<ExtensionContext, "sessionManager" | "cwd" | "model">,
   hooks: MachineHooks,
 ): void {
   generation++;
   leaderCwd = ctx.cwd || process.cwd();
+  leaderModelRef = () => (ctx.model ? modelLabel(ctx.model) : undefined);
   const sessionFile = ctx.sessionManager?.getSessionFile();
   runtimeStateFile = stateFilePath(sessionFile, leaderCwd);
   boardFile = boardFilePath(sessionFile, leaderCwd);
@@ -180,6 +184,8 @@ export function shutdownTeamMachine(): void {
   runtimeStateFile = "";
   boardFile = "";
   leaderCwd = "";
+  leaderModelRef = () => undefined;
+  setVerifyGateRunner(undefined);
   sendUpdate = () => {};
   notifyChange = () => {};
   pendingShutdowns.clear();
@@ -190,6 +196,36 @@ export function shutdownTeamMachine(): void {
   verifyFailures.clear();
   announcedFinishKeys.clear();
   terminalReportKeys.clear();
+}
+
+// ── Spawn model resolution ────────────────────────────────────
+
+/** How a spawn's effective model was chosen. */
+export type SpawnModelSource = "pin" | "inherit" | "team-default" | "none";
+
+/**
+ * Resolve the effective spawn model. Precedence: explicit role pin beats the
+ * `inherit` alias (the leader session's current model), which beats the team
+ * default set from the console; with none of these Pi picks its own default.
+ * The value is resolved at spawn time so mid-session leader model switches
+ * apply to later spawns.
+ */
+export function resolveSpawnModel(
+  pinned: string | undefined,
+  teamDefault: string | undefined,
+  leaderModel: string | undefined,
+): { model?: string; source: SpawnModelSource } {
+  const pin = pinned?.trim();
+  if (pin && pin.toLowerCase() !== MODEL_INHERIT_ALIAS) return { model: pin, source: "pin" };
+  if (pin && leaderModel) return { model: leaderModel, source: "inherit" };
+  const fallback = teamDefault?.trim();
+  if (fallback) return { model: fallback, source: "team-default" };
+  return { model: undefined, source: "none" };
+}
+
+/** The leader session's current model reference, when one is selected. */
+export function currentLeaderModelRef(): string | undefined {
+  return leaderModelRef();
 }
 
 /** Terminate every resident teammate; returns unconfirmed-close diagnostics. */
@@ -319,10 +355,13 @@ export function spawnTeammate(input: {
     return { ok: false, error: registered.error };
   }
 
+  const spawnModel = resolveSpawnModel(agent.model, getTeamDefaultModel(), leaderModelRef());
+  updateTeammate(input.name, { model: spawnModel.model });
+
   const started = spawnResident({
     workerName: input.name,
     description: buildKickoffPrompt(input.name, input.agent, agent.prompt, input.prompt, isolation),
-    model: agent.model,
+    model: spawnModel.model,
     tools: agent.tools,
     cwd: workerCwd,
     env: teammateEnv(stateFile, input, spawnId, agent.verify),
@@ -948,47 +987,66 @@ function beginVerifyOrComplete(intent: import("./types").TaskIntent, verify: str
   // must not let the stale result complete the new holding.
   const token = randomUUID();
   verifyingTasks.set(intent.taskId, { worker: intent.worker, spawnId: intent.spawnId, token });
-  runVerifyCommand(verify)
-    .then((outcome) => {
-      if (verifyingTasks.get(intent.taskId)?.token !== token) return;
-      verifyingTasks.delete(intent.taskId);
-      const current = getState().tasks[intent.taskId];
-      const stillHolds = current?.status === "claimed"
-        && current.claimedBy === intent.worker
-        && getTeammate(intent.worker)?.spawnId === intent.spawnId;
-      if (!stillHolds) return;
-      if (outcome.ok) finishCompletion(intent, task.subject);
-      else {
-        const key = `${intent.taskId}:${intent.spawnId}`;
-        const reaction = reactToVerifyFailure(verifyFailures.get(key));
-        verifyFailures.set(key, reaction);
-        const detail = outcome.detail ?? "(no verify output)";
-        if (reaction.count >= VERIFY_FAILURE_ESCALATE_AFTER) {
-          // An unfixable gate parks the task with its holder instead of
-          // looping: no further resubmit invitations, one leader escalation.
-          if (reaction.escalateToLeader) {
-            notifyTaskOutcome(task.subject, `verify failed ${reaction.count} times for ${intent.taskId}: manual attention needed`, detail);
-          }
-          deliverFeedback(
-            intent.worker,
-            `Verify still failing for ${intent.taskId}`,
-            [`The completion gate for "${task.subject}" failed again (${reaction.count} consecutive failures).`, detail, "The task stays claimed by you. Do not resubmit or reclaim it; the leader has been notified and will decide next steps."].join("\n"),
-          );
-        } else {
-          deliverFeedback(
-            intent.worker,
-            `Verify failed for ${intent.taskId}`,
-            [`The completion gate for "${task.subject}" failed.`, detail, "Fix the issues and resubmit with task_submit."].join("\n"),
-          );
-          notifyTaskOutcome(task.subject, `verify gate failed for ${intent.taskId}`, detail);
-        }
+  const input: VerifyReviewInput = {
+    verify,
+    taskSubject: task.subject,
+    workerResult: intent.result ?? "",
+    cwd: getTeammate(intent.worker)?.cwd || leaderCwd,
+  };
+  // A runner that throws synchronously or rejects is a failed gate, never a
+  // silent stuck claim: the holder gets feedback and escalation still applies.
+  Promise.resolve()
+    .then(() => verifyGateRunner(input))
+    .then((outcome) => resolveGateOutcome(intent, task.subject, token, outcome))
+    .catch((error) => resolveGateOutcome(intent, task.subject, token, {
+      ok: false,
+      detail: truncated(`(completion review crashed) ${error instanceof Error ? error.message : String(error)}`),
+    }));
+}
+
+/** Apply one gate outcome to its submission, guarded by the binding token. */
+function resolveGateOutcome(
+  intent: import("./types").TaskIntent,
+  subject: string,
+  token: string,
+  outcome: VerifyReviewOutcome,
+): void {
+  if (verifyingTasks.get(intent.taskId)?.token !== token) return;
+  verifyingTasks.delete(intent.taskId);
+  const current = getState().tasks[intent.taskId];
+  const stillHolds = current?.status === "claimed"
+    && current.claimedBy === intent.worker
+    && getTeammate(intent.worker)?.spawnId === intent.spawnId;
+  if (!stillHolds) return;
+  if (outcome.ok) {
+    finishCompletion(intent, subject);
+  } else {
+    const key = `${intent.taskId}:${intent.spawnId}`;
+    const reaction = reactToVerifyFailure(verifyFailures.get(key));
+    verifyFailures.set(key, reaction);
+    const detail = outcome.detail ?? "(no review output)";
+    if (reaction.count >= VERIFY_FAILURE_ESCALATE_AFTER) {
+      // An unfixable gate parks the task with its holder instead of
+      // looping: no further resubmit invitations, one leader escalation.
+      if (reaction.escalateToLeader) {
+        notifyTaskOutcome(subject, `verify failed ${reaction.count} times for ${intent.taskId}: manual attention needed`, detail);
       }
-      ensureLivePoll();
-      notifyChange();
-    })
-    .catch(() => {
-      if (verifyingTasks.get(intent.taskId)?.token === token) verifyingTasks.delete(intent.taskId);
-    });
+      deliverFeedback(
+        intent.worker,
+        `Verify still failing for ${intent.taskId}`,
+        [`The completion gate for "${subject}" failed again (${reaction.count} consecutive failures).`, detail, "The task stays claimed by you. Do not resubmit or reclaim it; the leader has been notified and will decide next steps."].join("\n"),
+      );
+    } else {
+      deliverFeedback(
+        intent.worker,
+        `Verify failed for ${intent.taskId}`,
+        [`The completion gate for "${subject}" failed.`, detail, "Fix the issues and resubmit with task_submit."].join("\n"),
+      );
+      notifyTaskOutcome(subject, `verify gate failed for ${intent.taskId}`, detail);
+    }
+  }
+  ensureLivePoll();
+  notifyChange();
 }
 
 function finishCompletion(intent: import("./types").TaskIntent, subject: string): void {
@@ -1001,17 +1059,87 @@ function finishCompletion(intent: import("./types").TaskIntent, subject: string)
   notifyTaskOutcome(subject, `${intent.worker} completed`, intent.result ?? "");
 }
 
-function runVerifyCommand(command: string): Promise<{ ok: boolean; detail?: string }> {
-  return new Promise((resolve) => {
-    exec(command, { cwd: leaderCwd, maxBuffer: 1024 * 1024 }, (error, _stdout, stderr) => {
-      const code = (error as { code?: number | string } | null)?.code;
-      if (error) {
-        resolve({ ok: false, detail: `verify exited with code ${code ?? "unknown"}: ${(stderr || error.message).slice(0, 4000)}` });
-        return;
-      }
-      resolve({ ok: true });
-    });
+// ── Verify gate: fresh one-shot reviewer with a VERDICT protocol ──
+
+/** The reviewer's reply must end with exactly one of these verdict lines. */
+export const VERIFY_VERDICT_PASS = "VERDICT: PASS";
+export const VERIFY_VERDICT_FAIL = "VERDICT: FAIL";
+
+export interface VerifyReviewInput {
+  /** The acceptance-gate prompt (task-level or agent-role default). */
+  verify: string;
+  /** Board subject of the gated task. */
+  taskSubject: string;
+  /** The claimer's own result summary; evidence, never trusted alone. */
+  workerResult: string;
+  /** Working directory to review: the holder's worktree root when isolated,
+   *  else the leader cwd — the reviewer must inspect the claimed work's tree. */
+  cwd: string;
+}
+
+export type VerifyReviewOutcome = { ok: boolean; detail?: string };
+
+/** Compose the reviewer prompt: fresh context, independent checks, explicit verdict line. */
+export function buildVerifyReviewPrompt(input: VerifyReviewInput): string {
+  const result = input.workerResult.trim().slice(0, 4000);
+  return [
+    "You are a fresh completion-gate reviewer for one teammate task on a shared board.",
+    `Task subject: ${input.taskSubject}`,
+    result ? `The claimer's result summary:\n${result}` : "The claimer provided no result summary.",
+    "Independently verify the work against the acceptance gate below using your tools; do not trust the summary alone. Do not modify any files.",
+    "Acceptance gate:",
+    input.verify.trim(),
+    "",
+    `End your final message with exactly one verdict line: "${VERIFY_VERDICT_PASS}" if the gate holds, or "${VERIFY_VERDICT_FAIL} - <reasons>" if it does not.`,
+  ].join("\n");
+}
+
+/** Parse the reviewer's reply into a gate outcome, scanning from the final
+ *  line upward. PASS must be an exact verdict line ("VERDICT: PASS", no
+ *  trailing content) so a contradictory suffix cannot sneak through; FAIL
+ *  carries its reasons. A missing or malformed verdict fails the gate so an
+ *  ambiguous review never completes a task. */
+export function parseVerifyVerdict(text: string): VerifyReviewOutcome {
+  const lines = text.trim().split("\n");
+  for (let index = lines.length - 1; index >= 0; index--) {
+    const candidate = lines[index].trim();
+    if (/^verdict:\s*pass$/i.test(candidate)) return { ok: true };
+    const failMatch = /^verdict:\s*fail\b[\s:-]*(.*)$/i.exec(candidate);
+    if (failMatch) {
+      return { ok: false, detail: truncated(failMatch[1].trim()) || "(no reasons given)" };
+    }
+  }
+  return { ok: false, detail: `(no ${VERIFY_VERDICT_PASS}/FAIL verdict line in the review)\n${truncated(text.trim())}` };
+}
+
+function truncated(text: string, cap = 4000): string {
+  const suffix = "\n…[truncated]";
+  return text.length <= cap ? text : text.slice(0, Math.max(0, cap - suffix.length)) + suffix;
+}
+
+/** Run the gate as a one-shot Pi worker: a brand-new context that inspects
+ *  the working tree itself before answering. Uses the team's model resolution
+ *  chain (team default, else Pi default) rather than any role pin. */
+export async function runVerifyReview(input: VerifyReviewInput): Promise<VerifyReviewOutcome> {
+  const outcome = await runPiWorker({
+    prompt: buildVerifyReviewPrompt(input),
+    cwd: input.cwd || leaderCwd,
+    model: resolveSpawnModel(undefined, getTeamDefaultModel(), leaderModelRef()).model,
   });
+  // A reviewer that did not exit cleanly produced no trustworthy verdict,
+  // even if partial output happens to contain a PASS line.
+  if (outcome.exitCode !== 0) {
+    return { ok: false, detail: truncated(`reviewer exited with code ${outcome.exitCode}: ${(outcome.stderr || outcome.text || "no output").trim()}`) };
+  }
+  return parseVerifyVerdict(outcome.text);
+}
+
+/** Active gate runner; tests inject a stub through setVerifyGateRunner. */
+let verifyGateRunner: (input: VerifyReviewInput) => Promise<VerifyReviewOutcome> = runVerifyReview;
+
+/** Replace the completion-gate runner (test seam); undefined restores the real reviewer. */
+export function setVerifyGateRunner(runner: ((input: VerifyReviewInput) => Promise<VerifyReviewOutcome>) | undefined): void {
+  verifyGateRunner = runner ?? runVerifyReview;
 }
 
 function freeTeammateFromTask(workerName: string, taskId: string): void {

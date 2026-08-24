@@ -148,7 +148,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     name: "task_create",
     promptSnippet: "Create a shared board task",
     label: "Create Task",
-    description: "Create one shared board task. Resident teammates self-claim it when dependencies are met; an optional verify command gates completion.",
+    description: "Create one shared board task. Resident teammates self-claim it when dependencies are met; an optional verify prompt gates completion through a fresh reviewer.",
     parameters: TaskCreateParams,
     // Canonical lifecycle rows (same as packages/monitor): empty call slot,
     // ONE created row owned by renderResult.
