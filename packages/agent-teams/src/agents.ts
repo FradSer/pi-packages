@@ -13,7 +13,8 @@
  *   name        — unique agent id (required)
  *   description — routing contract: when the leader should choose this agent
  *   tools       — comma-separated list or YAML list of Pi tool ids
- *   model       — optional provider/model pin
+ *   model       — optional provider/model pin, or "inherit" for the leader's
+ *                 current model at spawn time
  *   verify      — optional role-default completion gate command (zero exit passes)
  *   worktree    — optional role-default Git worktree isolation (true/false)
  * The Markdown body is the worker's role prompt.
@@ -55,6 +56,10 @@ export interface AgentDefinitionInput {
   worktree?: boolean;
   prompt: string;
 }
+
+/** Reserved model value meaning "use the leader session's current model",
+ *  resolved at spawn time (Claude-Code-style inherit). */
+export const MODEL_INHERIT_ALIAS = "inherit";
 
 const sessionAgents = new Map<string, AgentDefinition>();
 const AGENT_NAME_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/i;

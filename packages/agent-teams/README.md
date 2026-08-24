@@ -27,12 +27,18 @@ Agent definitions are Markdown files with frontmatter; the body is the role prom
 name: isolated-security-auditor
 description: Read-only security reviewer in an isolated worktree
 tools: read,bash
-model: provider/model       # optional
+model: provider/model       # optional; "inherit" = the leader's current model at spawn time
 verify: npm test            # optional role-default completion gate
 worktree: true              # optional role-default Git isolation
 ---
 Review the assigned scope for exploitable security problems. Do not edit files.
 ```
+
+Teammate model resolution at spawn time, in precedence order: an explicit
+`provider/model` pin wins; `inherit` pins the leader session's current model;
+without a pin, the unified teammate model set from `/agent-teams` (press `m`
+in the roster page for a type-to-filter picker) applies to this session;
+otherwise Pi picks its own default.
 
 Discovery precedence per name (later overrides earlier): user < project <
 project-local, with generated session roles filling only the names no file

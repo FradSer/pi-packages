@@ -30,6 +30,8 @@ export interface Teammate {
   isolation: "worktree" | "none";
   /** Board task currently claimed by this teammate, if any. */
   currentTaskId?: string;
+  /** Effective launch model reference ("provider/model"); absent when Pi picks its default. */
+  model?: string;
   /** Live assistant text assembled from the RPC stream. */
   liveText?: string;
   /** Current child tool name, if a tool is executing. */
@@ -172,7 +174,7 @@ export const TeammateSpawnParams = Type.Object({
   definition: Type.Optional(Type.Object({
     description: Type.String({ description: "Routing contract for the generated role" }),
     tools: Type.Optional(Type.Array(Type.String(), { description: "Pi tool ids for the generated role" })),
-    model: Type.Optional(Type.String({ description: "Optional provider/model pin" })),
+    model: Type.Optional(Type.String({ description: 'Optional provider/model pin, or "inherit" to run on the leader\'s current model' })),
     verify: Type.Optional(Type.String({ description: "Optional role-default completion gate" })),
     worktree: Type.Optional(Type.Boolean({ description: "Whether this role receives a dedicated Git worktree" })),
     prompt: Type.String({ minLength: 1, description: "Role prompt for this generated teammate" }),
@@ -233,6 +235,8 @@ export const TaskSubmitParams = Type.Object({
 export interface TeamState {
   teammates: Record<string, Teammate>;
   tasks: Record<string, BoardTask>;
+  /** Unified teammate model for this session; spawns without a role pin use it. */
+  defaultModel?: string;
   /** Single leader inbox for teammate reports and harness diagnostics. */
   leaderMailbox: MailboxMessage[];
   messageCounter: number;

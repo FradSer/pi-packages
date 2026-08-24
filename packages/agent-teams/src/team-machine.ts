@@ -11,7 +11,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "./agents.ts";
+import { modelLabel } from "@fradser/pi-kit";
+import { MODEL_INHERIT_ALIAS, discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "./agents.ts";
 import {
   applyClaimIntent,
   claimableTasks,
@@ -23,6 +24,7 @@ import {
   getPeerInboxOffset,
   getState,
   getTeammate,
+  getTeamDefaultModel,
   idleTeammates,
   isPeerDelivered,
   isValidTeammateName,
@@ -130,6 +132,8 @@ let generation = 0;
 let runtimeStateFile = "";
 let boardFile = "";
 let leaderCwd = "";
+/** Live view of the leader session's current model, resolved at spawn time. */
+let leaderModelRef: () => string | undefined = () => undefined;
 let sendUpdate: (report: FollowUpReport) => void = () => {};
 let notifyChange: () => void = () => {};
 
@@ -158,11 +162,12 @@ export interface MachineHooks {
 }
 
 export function initTeamMachine(
-  ctx: Pick<ExtensionContext, "sessionManager" | "cwd">,
+  ctx: Pick<ExtensionContext, "sessionManager" | "cwd" | "model">,
   hooks: MachineHooks,
 ): void {
   generation++;
   leaderCwd = ctx.cwd || process.cwd();
+  leaderModelRef = () => (ctx.model ? modelLabel(ctx.model) : undefined);
   const sessionFile = ctx.sessionManager?.getSessionFile();
   runtimeStateFile = stateFilePath(sessionFile, leaderCwd);
   boardFile = boardFilePath(sessionFile, leaderCwd);
@@ -180,6 +185,7 @@ export function shutdownTeamMachine(): void {
   runtimeStateFile = "";
   boardFile = "";
   leaderCwd = "";
+  leaderModelRef = () => undefined;
   sendUpdate = () => {};
   notifyChange = () => {};
   pendingShutdowns.clear();
@@ -190,6 +196,36 @@ export function shutdownTeamMachine(): void {
   verifyFailures.clear();
   announcedFinishKeys.clear();
   terminalReportKeys.clear();
+}
+
+// ── Spawn model resolution ────────────────────────────────────
+
+/** How a spawn's effective model was chosen. */
+export type SpawnModelSource = "pin" | "inherit" | "team-default" | "none";
+
+/**
+ * Resolve the effective spawn model. Precedence: explicit role pin beats the
+ * `inherit` alias (the leader session's current model), which beats the team
+ * default set from the console; with none of these Pi picks its own default.
+ * The value is resolved at spawn time so mid-session leader model switches
+ * apply to later spawns.
+ */
+export function resolveSpawnModel(
+  pinned: string | undefined,
+  teamDefault: string | undefined,
+  leaderModel: string | undefined,
+): { model?: string; source: SpawnModelSource } {
+  const pin = pinned?.trim();
+  if (pin && pin.toLowerCase() !== MODEL_INHERIT_ALIAS) return { model: pin, source: "pin" };
+  if (pin && leaderModel) return { model: leaderModel, source: "inherit" };
+  const fallback = teamDefault?.trim();
+  if (fallback) return { model: fallback, source: "team-default" };
+  return { model: undefined, source: "none" };
+}
+
+/** The leader session's current model reference, when one is selected. */
+export function currentLeaderModelRef(): string | undefined {
+  return leaderModelRef();
 }
 
 /** Terminate every resident teammate; returns unconfirmed-close diagnostics. */
@@ -319,10 +355,13 @@ export function spawnTeammate(input: {
     return { ok: false, error: registered.error };
   }
 
+  const spawnModel = resolveSpawnModel(agent.model, getTeamDefaultModel(), leaderModelRef());
+  updateTeammate(input.name, { model: spawnModel.model });
+
   const started = spawnResident({
     workerName: input.name,
     description: buildKickoffPrompt(input.name, input.agent, agent.prompt, input.prompt, isolation),
-    model: agent.model,
+    model: spawnModel.model,
     tools: agent.tools,
     cwd: workerCwd,
     env: teammateEnv(stateFile, input, spawnId, agent.verify),

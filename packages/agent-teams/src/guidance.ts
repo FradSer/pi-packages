@@ -42,8 +42,9 @@ conversation unless you put the needed context in their prompts.
 ### Agents are declarative files, with ephemeral generated roles by default
 
 Persistent agents live in Markdown files with frontmatter (name, description,
-tools, optional model, optional verify, optional worktree); the body is the
-role prompt. There are no built-in roles. Generated roles are session-scoped
+tools, optional model — a provider/model pin or "inherit" for the leader's
+current model at spawn time — optional verify, optional worktree); the body
+is the role prompt. There are no built-in roles. Generated roles are session-scoped
 and held in memory by default: they have no filesystem source and disappear on
 the next session. Do not write
 an agent definition unless the user explicitly asks to keep the role for future

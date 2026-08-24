@@ -119,6 +119,12 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Claimable-task notices respect a per-teammate pacing interval",
         "Leader tool surface is exact",
         "Workers cannot access leader tools",
+        "Teammate models resolve at spawn time",
+        "The inherit alias pins the leader's current model",
+        "An explicit role pin overrides inherit and the team default",
+        "A role without a model uses the team default model",
+        "Without a role model and without a team default no --model flag passes",
+        "The console sets and clears the unified teammate model",
         "Worktree isolation is an agent-role option",
         "Console and widget visualize the team without intercepting input",
         "The agent-teams command opens the console directly",
@@ -785,6 +791,61 @@ def test_inline_definitions_replace_stale_session_roles_but_not_files(tmp_path: 
     # The spawn path must gate generation on the helper so a corrected inline
     # definition replaces a stale session role instead of being ignored.
     assert "input.definition && inlineDefinitionApplies(resolved)" in machine
+
+
+def test_spawn_model_resolution_precedence() -> None:
+    payload = run_node(
+        f'''\
+        import {{ resolveSpawnModel }} from "{(SRC / "team-machine.ts").as_uri()}";
+        console.log(JSON.stringify({{
+          pin: resolveSpawnModel("anthropic/claude-opus-4-6", "openai/gpt-5.2", "google/gemini-3-pro"),
+          inherit: resolveSpawnModel("inherit", "openai/gpt-5.2", "openai/gpt-5.2-leader"),
+          inheritCaseInsensitive: resolveSpawnModel("Inherit", undefined, "google/gemini-3-pro"),
+          teamDefault: resolveSpawnModel(undefined, "openai/gpt-5.2", "google/gemini-3-pro"),
+          none: resolveSpawnModel(undefined, undefined, "google/gemini-3-pro"),
+          inheritWithoutLeaderModel: resolveSpawnModel("inherit", undefined, undefined),
+          blankPinIsUnset: resolveSpawnModel("  ", "openai/gpt-5.2", undefined),
+        }}));
+        '''
+    )
+    assert payload["pin"] == {"model": "anthropic/claude-opus-4-6", "source": "pin"}
+    assert payload["inherit"] == {"model": "openai/gpt-5.2-leader", "source": "inherit"}
+    assert payload["inheritCaseInsensitive"] == {"model": "google/gemini-3-pro", "source": "inherit"}
+    assert payload["teamDefault"] == {"model": "openai/gpt-5.2", "source": "team-default"}
+    assert payload["none"] == {"source": "none"}
+    assert payload["inheritWithoutLeaderModel"] == {"source": "none"}
+    assert payload["blankPinIsUnset"] == {"model": "openai/gpt-5.2", "source": "team-default"}
+
+
+def test_team_default_model_persists_in_state_snapshot() -> None:
+    payload = run_node(
+        f'''\
+        import {{ getTeamDefaultModel, setTeamDefaultModel, getState }} from "{(SRC / "state.ts").as_uri()}";
+        setTeamDefaultModel("openai/gpt-5.2");
+        const stored = getTeamDefaultModel();
+        const snapshotted = JSON.stringify(getState()).includes("openai/gpt-5.2");
+        setTeamDefaultModel("  ");
+        const cleared = getTeamDefaultModel();
+        console.log(JSON.stringify({{ stored, snapshotted, cleared }}, (key, value) => (value === undefined ? null : value)));
+        '''
+    )
+    assert payload["stored"] == "openai/gpt-5.2"
+    assert payload["snapshotted"] is True
+    assert payload["cleared"] is None
+
+
+def test_console_wires_searchable_teammate_model_picker() -> None:
+    ui_source = source("ui.ts")
+    for needle in (
+        'createSearchPicker',
+        'modelSearchText',
+        'fuzzyFilter',
+        'setTeamDefaultModel',
+        'getAvailable()',
+    ):
+        assert needle in ui_source, f"console picker must use {needle}"
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "a searchable model picker lists registry models with type-to-filter" in feature
 
 
 def test_agent_frontmatter_parses_tools_model_verify(tmp_path: Path) -> None:

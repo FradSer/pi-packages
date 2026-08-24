@@ -460,6 +460,45 @@ Feature: Agent Teams collaborative organization contract
       And the protocol covers reporting, peer messaging, claiming, submitting, and inbox wake-ups
       And it states that peer messages may arrive mid-turn from other Claude-style teammates
 
+  Rule: Teammate models resolve at spawn time
+
+    Scenario: The inherit alias pins the leader's current model
+      Given an agent definition whose model is "inherit"
+      And the leader session model is "openai/gpt-5.2"
+      When the leader spawns a teammate from that definition
+      Then the child launches with --model openai/gpt-5.2
+      And the roster records the resolved model on the teammate
+
+    Scenario: An explicit role pin overrides inherit and the team default
+      Given an agent definition with model "anthropic/claude-opus-4-6"
+      And a team default model of "openai/gpt-5.2" and a leader model of "google/gemini-3-pro"
+      When the leader spawns a teammate from that definition
+      Then the child launches with --model anthropic/claude-opus-4-6
+
+    Scenario: A role without a model uses the team default model
+      Given an agent definition without a model field
+      And a team default model set to "openai/gpt-5.2" from the console
+      When the leader spawns a teammate from that definition
+      Then the child launches with --model openai/gpt-5.2
+
+    Scenario: Without a role model and without a team default no --model flag passes
+      Given an agent definition without a model field and no team default model
+      When the leader spawns a teammate from that definition
+      Then the child launches without a --model flag and Pi picks its default
+
+    Scenario: The inherit alias falls back when the leader has no model
+      Given an agent definition whose model is "inherit"
+      And the leader session has no current model
+      And no team default model is set
+      When the leader spawns a teammate from that definition
+      Then the child launches without a --model flag
+
+    Scenario: The console sets and clears the unified teammate model
+      When the user opens /agent-teams and presses m in the roster page
+      Then a searchable model picker lists registry models with type-to-filter
+      And confirming a model stores it as the team default for later spawns this session
+      And pressing c in the picker clears the team default back to Pi's own choice
+
   Rule: Worktree isolation is an agent-role option
 
     Scenario: A worktree role owns a git worktree
