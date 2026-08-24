@@ -143,8 +143,14 @@ Feature: Memory management with auto-memory guidance and manual consolidation
   Scenario: Failed consolidation runs keep bounded diagnostics
     Given a consolidation child exits without a verified consolidation
     When the parent finishes handling the failure
-    Then it writes bounded stdout and stderr captures into the run directory
+    Then it writes bounded stdout and stderr captures plus a compact activity summary into the run directory
     And it retains the run directory artifacts while releasing the lock
+
+  Scenario: Identical duplicate plan records collapse before validation
+    Given a child plan repeats one per-item record byte-for-byte
+    When the parent extracts the plan
+    Then identical duplicates collapse to their first occurrence and the run proceeds
+    But conflicting duplicates stay intact so validation rejects the ambiguity
 
   Scenario: Pre-mutation plan failures retry once with a fresh planner
     Given a consolidation child produced no schema-valid plan or its plan was rejected by validation
@@ -161,6 +167,14 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     Then the parent overwrites the older copy with the newer side's bytes first
     And the repair direction is reported in the task header and notification
     And both indexes are regenerated so post-apply validation sees consistent mirrors
+
+  Scenario: Legacy scope directories migrate to hashed roots before loading
+    Given a project whose harness memory lives under the legacy dash-encoded directory
+    And no hashed scope root exists for that project yet
+    When memories are loaded or a consolidation run starts
+    Then the legacy files merge into the hashed root with newer mtime winning per file
+    And private markers carry into the rebuilt index and the merged source is removed
+    And an existing hashed root is never touched by migration
 
   Scenario: Privacy violations and orphans are removed before planning
     Given a private-marked memory file exists under public

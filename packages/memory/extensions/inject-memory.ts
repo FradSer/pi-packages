@@ -258,6 +258,46 @@ export function normalizeSelectedScope(plan: unknown): string[] {
   return names.sort();
 }
 
+const PER_ITEM_PLAN_SECTIONS = ["inventory", "staleness", "grounding", "report"] as const;
+
+/**
+ * Collapse byte-identical duplicate records for the same memory name inside
+ * per-item plan sections. Models occasionally emit the same record twice; when
+ * the duplicates are canonically equal the collapse is lossless. Conflicting
+ * duplicates are left intact so validation rejects them and the retry path
+ * handles genuine ambiguity.
+ */
+export function collapseDuplicatePlanRecords<T>(plan: T): T {
+  if (!plan || typeof plan !== "object" || Array.isArray(plan)) return plan;
+  const value = plan as Record<string, unknown>;
+  const next: Record<string, unknown> = { ...value };
+  let collapsed = false;
+  for (const section of PER_ITEM_PLAN_SECTIONS) {
+    const records = value[section];
+    if (!Array.isArray(records)) continue;
+    const seen = new Set<string>();
+    const kept: unknown[] = [];
+    for (const record of records) {
+      const name = record && typeof record === "object" && !Array.isArray(record)
+        ? (record as { name?: unknown }).name
+        : undefined;
+      if (typeof name !== "string") {
+        kept.push(record);
+        continue;
+      }
+      const key = `${name.toLowerCase()}\u0000${JSON.stringify(record)}`;
+      if (seen.has(key)) {
+        collapsed = true;
+        continue;
+      }
+      seen.add(key);
+      kept.push(record);
+    }
+    if (collapsed && kept.length !== records.length) next[section] = kept;
+  }
+  return collapsed ? (next as T) : plan;
+}
+
 function parentSelectedScope(run: ConsolidationRun, noContext: boolean): string[] {
   if (noContext) return [];
   const names = new Map<string, string>();
@@ -678,6 +718,11 @@ async function spawnAsyncConsolidation(
   let stdoutLineCount = 0;
   let stdoutCaptureOverflowed = false;
   let outputLimitReason = "";
+  const activitySummary: string[] = [];
+  const noteActivity = (entry: string): void => {
+    activitySummary.push(entry);
+    if (activitySummary.length > 200) activitySummary.shift();
+  };
   const stdoutDecoder = new TextDecoder("utf-8");
   const stderrDecoder = new TextDecoder("utf-8");
   const evidence = createConsolidationEvidence();
@@ -712,6 +757,7 @@ async function spawnAsyncConsolidation(
         }
       }
       dreamingActivity = name === "bash" ? detail : detail ? `${name} ${detail}` : name;
+      noteActivity(`tool ${name}${detail ? ` ${detail}` : ""}`);
     } catch {
       // ignore non-JSON output
     }
@@ -799,6 +845,7 @@ async function spawnAsyncConsolidation(
       const marker = outputLimitReason ? `\n[truncated: ${outputLimitReason}]\n` : "";
       await writeFileAtomic(run.paths.stdoutFile, tailBoundedUtf8Text(`${stdoutCapture}${marker}`));
       await writeFileAtomic(run.paths.stderrFile, tailBoundedUtf8Text(stderr));
+      await writeFileAtomic(run.paths.activitySummaryFile, `${JSON.stringify(activitySummary, null, 1)}\n`);
     } catch {
       // Diagnostics are best-effort; never mask the original failure.
     }
@@ -856,7 +903,7 @@ async function spawnAsyncConsolidation(
           evidence.planCount = 1;
         }
         if (!ownsCurrentRun()) return;
-        const plan = evidence.finalPlan;
+        const plan = evidence.finalPlan ? collapseDuplicatePlanRecords(evidence.finalPlan) : undefined;
         if (!plan || evidence.planCount !== 1) {
           await persistRunDiagnostics();
           if (!ownsCurrentRun()) return;

@@ -471,3 +471,43 @@ def test_missing_harness_root_imports_public_instead_of_deleting() -> None:
             "removed": [],
             "imported": "kept\n",
         }
+
+
+def test_legacy_dash_scope_migrates_into_hashed_root() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        repo = root / "repo"
+        agent = root / "agent"
+        repo.mkdir()
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ loadAndDeduplicateMemories }} from './packages/memory/extensions/memory-files.ts';
+            import {{ migrateLegacyMemoryDirs }} from './packages/memory/extensions/memory-files.ts';
+            import {{ resolveMemoryPaths }} from './packages/memory/extensions/memory-paths.ts';
+            import {{ mkdirSync, writeFileSync, readFileSync, existsSync, utimesSync }} from 'node:fs';
+            const memory = resolveMemoryPaths({json.dumps(str(repo))});
+            const legacyDir = memory.agentDir + '/memory/' + {json.dumps(str(repo))}.replace(/\//g, '-');
+            mkdirSync(legacyDir, {{ recursive: true }});
+            writeFileSync(legacyDir + '/keep.md', 'legacy\\n');
+            writeFileSync(legacyDir + '/secret.md', 'private\\n');
+            writeFileSync(legacyDir + '/MEMORY.md', '# Memory Index\\n\\n- [keep.md](keep.md)\\n- [secret.md](secret.md) (harness only)\\n');
+
+            const entries = await loadAndDeduplicateMemories({json.dumps(str(repo))});
+            console.log(JSON.stringify({{
+              migrated: existsSync(memory.harnessDir + '/keep.md'),
+              legacyGone: !existsSync(legacyDir),
+              index: readFileSync(memory.harnessDir + '/MEMORY.md', 'utf8'),
+              injected: entries.map((entry) => entry.filename),
+              secondRunStable: (await migrateLegacyMemoryDirs(memory)).length === 0,
+            }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert result["migrated"] is True
+        assert result["legacyGone"] is True
+        assert "- [keep.md](keep.md)" in result["index"]
+        assert "- [secret.md](secret.md) (harness only)" in result["index"]
+        # Harness-only marking keeps content out of the git mirror, not out of prompts.
+        assert result["injected"] == ["keep.md", "secret.md"]
+        assert result["secondRunStable"] is True

@@ -552,3 +552,26 @@ def test_failed_runs_persist_bounded_diagnostics_and_retain_artifacts() -> None:
     # Output-limit trips clear the capture before persistence; keep the reason.
     assert "outputLimitReason = reason;" in content
     assert "`\\n[truncated: ${outputLimitReason}]\\n`" in content
+
+
+def test_identical_duplicate_plan_records_collapse_conflicting_do_not() -> None:
+    result = run_bun(
+        """
+        import { collapseDuplicatePlanRecords } from './packages/memory/extensions/inject-memory.ts';
+        const plan = {
+          selected: ['a.md'],
+          staleness: [
+            { name: 'a.md', verdict: 'KEEP' },
+            { name: 'a.md', verdict: 'KEEP' },
+            { name: 'b.md', verdict: 'KEEP' },
+            { name: 'b.md', verdict: 'SUPERSEDED' },
+          ],
+        };
+        console.log(JSON.stringify(collapseDuplicatePlanRecords(plan)));
+        """
+    )
+    assert result["staleness"] == [
+        {"name": "a.md", "verdict": "KEEP"},
+        {"name": "b.md", "verdict": "KEEP"},
+        {"name": "b.md", "verdict": "SUPERSEDED"},
+    ]

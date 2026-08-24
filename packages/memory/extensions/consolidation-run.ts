@@ -7,7 +7,7 @@ import type { ChildProcess } from "node:child_process";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { terminateChildProcess } from "@fradser/pi-kit";
 import { resolveMemoryPaths, type MemoryPaths } from "./memory-paths";
-import { isMemoryFilename } from "./memory-files";
+import { isMemoryFilename, migrateLegacyMemoryDirs } from "./memory-files";
 
 export const CONSOLIDATION_SCHEMA_VERSION = 1;
 export const MAX_PLAN_BYTES = 512_000;
@@ -33,6 +33,7 @@ export interface ConsolidationRunPaths {
   stderrFile: string;
   preReceiptFile: string;
   postReceiptFile: string;
+  activitySummaryFile: string;
 }
 
 const RUN_ID_RE = /^run_[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -62,6 +63,7 @@ export function resolveConsolidationRunPaths(cwd: string, runId = createConsolid
     stderrFile: path.join(runDir, "stderr.txt"),
     preReceiptFile: path.join(runDir, "pre-receipt.json"),
     postReceiptFile: path.join(runDir, "post-receipt.json"),
+    activitySummaryFile: path.join(runDir, "activity-summary.json"),
   };
 }
 
@@ -598,7 +600,8 @@ async function listMemoryRootFiles(root: string): Promise<Map<string, string>> {
  * be the fresh one. Without this, any pre-existing drift fails post-apply validation and every
  * full-scope consolidation becomes unrunnable until manual repair.
  */
-export async function normalizeMirrorDrift(memory: MemoryPaths): Promise<MirrorNormalization> {
+export async function normalizeMirrorDrift(memory: MemoryPaths, cwdVariants: readonly string[] = []): Promise<MirrorNormalization> {
+  await migrateLegacyMemoryDirs(memory, cwdVariants).catch(() => {});
   const harnessStat = await fsp.lstat(memory.harnessDir).then(
     () => true,
     (error: unknown) => {
@@ -674,7 +677,7 @@ export async function createConsolidationRun(ctx: ExtensionContext, cwd: string,
   const lock = await acquireConsolidationLock(paths, { runId: paths.runId, cwd });
   try {
     await ensureConsolidationRunDir(paths);
-    const normalization = await normalizeMirrorDrift(paths.memory);
+    const normalization = await normalizeMirrorDrift(paths.memory, [cwd]);
     const captured = noContext ? undefined : await captureConsolidationSnapshot(ctx, paths);
     const contextManifest = captured?.manifest ?? await writeNoContextManifest(paths);
     const snapshot = captured?.snapshot ?? {
