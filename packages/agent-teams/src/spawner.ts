@@ -44,6 +44,8 @@ export interface WorkerProgressUpdate {
   turns: number;
   /** True after the current sequence's final response. */
   finalResponse?: boolean;
+  /** Lifetime accumulated usage parsed from message_end events. */
+  usage?: WorkerUsage;
 }
 
 /** A crashed teammate is one that closed without a normal zero exit. */
@@ -378,6 +380,7 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
     liveThinking: truncate(streamState.thinking, OUTPUT_CAP),
     turns: Math.max(0, streamState.turns - (baselines.get(options.workerName) ?? 0)),
     finalResponse: streamState.finalResponse,
+    usage: streamState.usage,
   });
 
   child.stdout?.on("data", (chunk: Buffer) => {

@@ -26,8 +26,8 @@ import {
   resolveSpawnModel,
   runtimeDirPath,
   shutdownTeammate,
-  STALL_NOTICE_MS,
   stallSilenceMs,
+  stallThresholdMs,
 } from "./team-machine.ts";
 import type { Teammate } from "./types.ts";
 import { mapPickerKey } from "./picker-keys.ts";
@@ -111,11 +111,12 @@ function isWorking(teammate: { status: string }): boolean {
   return teammate.status === "working" || teammate.status === "starting";
 }
 
-/** Silence marker appended once a working teammate passes the stall notice threshold. */
+/** Silence marker appended once a working teammate passes its stall threshold. */
 function stallSuffix(teammate: Teammate): string {
   if (!isWorking(teammate)) return "";
   const silence = stallSilenceMs(teammate);
-  return silence !== undefined && STALL_NOTICE_MS > 0 && silence >= STALL_NOTICE_MS
+  const threshold = stallThresholdMs(teammate);
+  return silence !== undefined && threshold > 0 && silence >= threshold
     ? ` · stalled for ${formatSilenceDuration(silence)}`
     : "";
 }

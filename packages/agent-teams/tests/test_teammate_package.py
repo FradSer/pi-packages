@@ -1693,6 +1693,73 @@ def test_silent_teammate_watchdog_contract() -> None:
     assert payload["notReached"] is False
 
 
+def test_provider_hang_silent_stall_tier() -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    machine = source("team-machine.ts")
+    spawner = source("spawner.ts")
+    state = source("state.ts")
+    ui = source("ui.ts")
+    for phrase in (
+        "A provider hang is flagged before the default stall window",
+        "Stall notices carry lifetime usage diagnostics",
+    ):
+        assert phrase in feature, phrase
+    assert "PI_TEAMMATE_SILENT_STALL_MS" in machine
+    assert "stallThresholdMs" in machine and "hasModelOutput" in machine
+    assert "stallNoticeBody" in machine
+    # Streaming usage reaches the roster so zero-token hangs are visible before shutdown.
+    assert "usage?: WorkerUsage" in spawner
+    assert "usage: streamState.usage" in spawner
+    assert "progress.usage" in state
+    # The console marks the silent tier with the same effective threshold.
+    assert "stallThresholdMs" in ui
+    payload = run_node(
+        f'''\
+        import {{ hasModelOutput, stallThresholdMs, stallNoticeBody }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const now = 5 * 60_000;
+        const hung = {{ status: "working", createdAt: 0, lastOutputAt: 0, activeTool: undefined, usage: undefined }};
+        const longTool = {{ ...hung, activeTool: "bash: pio run -t upload", usage: undefined }};
+        const midWork = {{ ...hung, usage: {{ input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: 0.01 }} }};
+        console.log(JSON.stringify({{
+          silentTier: stallThresholdMs(hung),
+          longToolTier: stallThresholdMs(longTool),
+          modelOutputTier: stallThresholdMs(midWork),
+          zeroOutputDetected: !hasModelOutput(hung),
+          outputDetected: hasModelOutput(midWork),
+          hungBody: stallNoticeBody(hung, now, now),
+          longToolBody: stallNoticeBody(longTool, now, now),
+          midWorkBody: stallNoticeBody(midWork, 30 * 60_000, 30 * 60_000),
+        }}));
+        '''
+    )
+    assert payload["zeroOutputDetected"] is True
+    assert payload["outputDetected"] is True
+    # The provider-hang signature uses the shorter window; anything else keeps the default.
+    assert payload["silentTier"] < payload["longToolTier"] == payload["modelOutputTier"]
+    hung_body: str = payload["hungBody"]  # type: ignore[assignment]
+    assert "No model output received yet" in hung_body
+    assert "respawning a successor" in hung_body
+    assert "spawn age" in hung_body
+    long_tool_body: str = payload["longToolBody"]  # type: ignore[assignment]
+    assert "No model output received yet" not in long_tool_body
+    assert "Tool still running: bash: pio run -t upload" in long_tool_body
+    mid_work_body: str = payload["midWorkBody"]  # type: ignore[assignment]
+    assert "Lifetime usage: 15 tokens, $0.0100." in mid_work_body
+    assert "steer delivery is uncertain" in mid_work_body
+
+
+def test_silent_stall_env_override() -> None:
+    payload = run_node(
+        f'''\
+        import {{ stallThresholdMs }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const teammate = {{ status: "working", createdAt: 0, lastOutputAt: 0, activeTool: undefined, usage: undefined }};
+        console.log(JSON.stringify({{ tier: stallThresholdMs(teammate) }}));
+        ''',
+        env_overrides={"PI_TEAMMATE_SILENT_STALL_MS": "120000"},
+    )
+    assert payload["tier"] == 120_000
+
+
 def test_stall_recovery_belongs_to_leader_alone() -> None:
     machine = source("team-machine.ts")
     tools = source("tools.ts")
@@ -1704,7 +1771,7 @@ def test_stall_recovery_belongs_to_leader_alone() -> None:
     assert "STALL_SHUTDOWN_MS" not in machine and "PI_TEAMMATE_STALL_SHUTDOWN_MS" not in machine
     assert "pendingShutdownReasons" not in machine
     # The stall notice itself carries the recovery decision menu.
-    notice = machine[machine.index("function checkStalledTeammates"):]
+    notice = machine[machine.index("export function stallNoticeBody"):]
     assert "keep waiting, steer again, or shut it down" in notice
     assert "respawn a successor with context" in notice
     # Leader guidance teaches recovery over punishment.

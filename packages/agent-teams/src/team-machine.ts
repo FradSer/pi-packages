@@ -70,7 +70,7 @@ import {
   type WorkerProcessResult,
 } from "./spawner.ts";
 import { captureWorktreeDiff, cleanupWorktree, createWorktree } from "./worktree.ts";
-import { messageTitle, type InboxMessage, type Teammate } from "./types.ts";
+import { messageTitle, type InboxMessage, type Teammate, type WorkerUsage } from "./types.ts";
 import type { FollowUpReport } from "./follow-up-queue.ts";
 
 export const MAX_SESSION_WORKERS = 8;
@@ -93,6 +93,13 @@ const WAKE_NOTICE_TASK_LIMIT = 10;
  * The watchdog may only notify; termination decisions belong to the leader model. */
 const DEFAULT_STALL_NOTICE_MS = 30 * 60 * 1000;
 export const STALL_NOTICE_MS = readDurationEnv("PI_TEAMMATE_STALL_NOTICE_MS", DEFAULT_STALL_NOTICE_MS);
+/** Silence with zero lifetime model output and no tool running is the provider-
+ * hang signature: an in-flight request stuck on the model backend will not
+ * recover by waiting or steering, so flag it well before the general window so
+ * the leader can respawn early. Defaults to one notice-pace floor; 0 disables
+ * the tier. */
+const DEFAULT_SILENT_STALL_MS = DEFAULT_NOTICE_PACE_MS;
+export const SILENT_STALL_MS = readDurationEnv("PI_TEAMMATE_SILENT_STALL_MS", DEFAULT_SILENT_STALL_MS);
 /** Fully-consumed inboxes larger than this are truncated. */
 const INBOX_COMPACT_BYTES = 256 * 1024;
 
@@ -124,6 +131,41 @@ export function formatSilenceDuration(milliseconds: number): string {
   const minutes = totalMinutes % 60;
   if (hours > 0) return `${hours}h${minutes > 0 ? ` ${minutes}m` : ""}`;
   return `${minutes}m`;
+}
+
+/** True when the stream has delivered model output (usage totals) at least once. */
+export function hasModelOutput(teammate: Pick<Teammate, "usage">): boolean {
+  return !!teammate.usage && teammate.usage.totalTokens > 0;
+}
+
+/** Silence threshold for one teammate. A worker that has never received model
+ * output and runs no tool is almost certainly blocked on the provider rather
+ * than doing slow work; that signature uses the shorter silent-stall window. */
+export function stallThresholdMs(teammate: Pick<Teammate, "usage" | "activeTool">): number {
+  if (STALL_NOTICE_MS <= 0 || SILENT_STALL_MS <= 0) return STALL_NOTICE_MS;
+  if (!hasModelOutput(teammate) && !teammate.activeTool) return SILENT_STALL_MS;
+  return STALL_NOTICE_MS;
+}
+
+function usageLine(usage: WorkerUsage | undefined): string {
+  if (!usage) return "";
+  return ` Lifetime usage: ${usage.totalTokens} tokens, $${usage.cost.toFixed(4)}.`;
+}
+
+/** Stall notice body with the diagnostics a leader needs to decide: silence
+ * duration, spawn age, lifetime usage, and — for the zero-output provider-hang
+ * signature — the remedy that actually works (shutdown + respawn). */
+export function stallNoticeBody(
+  teammate: Pick<Teammate, "name" | "createdAt" | "activeTool" | "usage">,
+  silenceMs: number,
+  now = Date.now(),
+): string {
+  const head = `@${teammate.name} has been silent for ${formatSilenceDuration(silenceMs)} (spawn age ${formatSilenceDuration(Math.max(0, now - teammate.createdAt))}).`;
+  if (!hasModelOutput(teammate) && !teammate.activeTool) {
+    return `${head} No model output received yet.${usageLine(teammate.usage)} An in-flight request stuck on the provider will not recover by steering; recovery usually means shutting this teammate down and respawning a successor (optionally pinning another model). Decide: keep waiting, steer again, or shut it down.`;
+  }
+  const toolNote = teammate.activeTool ? ` Tool still running: ${teammate.activeTool}.` : "";
+  return `${head}${toolNote}${usageLine(teammate.usage)} The child may be blocked in a provider or tool call; steer delivery is uncertain. Decide: keep waiting, steer again, or shut it down (and respawn a successor with context from the original kickoff, its mailbox reports, board claims, and the /agent-teams detail transcript).`;
 }
 
 let livePollTimer: ReturnType<typeof setInterval> | undefined;
@@ -494,6 +536,7 @@ function applyProgress(name: string, spawnId: string, progress: {
   liveThinking?: string;
   turns: number;
   finalResponse?: boolean;
+  usage?: WorkerUsage;
 }): void {
   const teammate = getTeammate(name);
   // A stale callback from an older incarnation must not touch the current one.
@@ -504,6 +547,7 @@ function applyProgress(name: string, spawnId: string, progress: {
     liveThinking: progress.liveThinking,
     turns: progress.turns,
     sequenceEnded: progress.finalResponse === true ? true : undefined,
+    usage: progress.usage,
   });
   updateTeammate(name, { lastOutputAt: Date.now(), stallNoticeSentAt: undefined });
   if (progress.finalResponse && teammate.status !== "idle") {
@@ -518,9 +562,9 @@ function checkStalledTeammates(now = Date.now()): void {
   for (const teammate of livingTeammates()) {
     if (teammate.status !== "working" && teammate.status !== "starting") continue;
     const silence = stallSilenceMs(teammate, now);
-    if (silence === undefined) continue;
-    if (silence < STALL_NOTICE_MS || teammate.stallNoticeSentAt !== undefined) continue;
-    const body = `@${teammate.name} has produced no RPC output for ${formatSilenceDuration(silence)}. The child may be blocked in a provider or tool call; steer delivery is uncertain. Decide: keep waiting, steer again, or shut it down (and respawn a successor with context from the original kickoff, its mailbox reports, board claims, and the /agent-teams detail transcript).`;
+    if (silence === undefined || teammate.stallNoticeSentAt !== undefined) continue;
+    if (silence < stallThresholdMs(teammate)) continue;
+    const body = stallNoticeBody(teammate, silence, now);
     updateTeammate(teammate.name, { stallNoticeSentAt: now });
     deliverToLeader({ from: "harness", subject: `Possible stall: @${teammate.name}`, body });
     sendUpdate({ teammate: teammate.name, agent: teammate.agent, body, finished: false });
@@ -870,7 +914,7 @@ export function sendLeaderMessage(to: string, message: string): { ok: true; queu
   if (delivered) {
     // A control-stream write succeeds even when the child never reads it;
     // surface prolonged silence so the leader knows delivery is uncertain.
-    const stalled = isStallThresholdReached(teammate, Date.now(), STALL_NOTICE_MS);
+    const stalled = isStallThresholdReached(teammate, Date.now(), stallThresholdMs(teammate));
     const silence = stallSilenceMs(teammate);
     return { ok: true, queued: false, ...(stalled && silence !== undefined ? { stalledMs: silence } : {}) };
   }
