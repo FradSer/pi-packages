@@ -6,8 +6,8 @@ Feature: Agent Teams collaborative organization contract
   teammates as long-lived child Pi processes in RPC mode; idle teammates
   are woken by harness polling (inbox delivery and claimable-task
   notices), never by leader-model busywork. Task completion is gated by
-  deterministic verify commands; peer traffic never enters the leader's
-  model context.
+  verify prompts that a fresh one-shot reviewer answers with a VERDICT;
+  peer traffic never enters the leader's model context.
 
   Background:
     Given the pi-agent-teams-fradser extension is loaded
@@ -41,7 +41,7 @@ Feature: Agent Teams collaborative organization contract
       Then the teammate receives the body as its role prompt
       And the teammate receives exactly the declared execution tools plus its capability tools
       And a declared model is used when one is provided
-      And a declared verify command is used as the role-default completion gate
+      And a declared verify prompt is used as the role-default completion gate
       And worktree: true is used as the role-default Git isolation setting
 
     Scenario: Multi-line YAML tool lists are declared like inline lists
@@ -257,7 +257,7 @@ Feature: Agent Teams collaborative organization contract
   Rule: The task board is shared coordination state
 
     Scenario: The leader creates tasks; teammates never do
-      When the leader calls task_create with a subject and optional description, dependencies, and verify command
+      When the leader calls task_create with a subject and optional description, dependencies, and a verify prompt
       Then the task joins the board as pending
       And workers have no task creation capability
 
@@ -284,11 +284,11 @@ Feature: Agent Teams collaborative organization contract
     Scenario: Completion is submitted by the claimer and gated by verify
       Given a teammate holds a claimed task
       When it calls task_submit with status completed and a result
-      Then the harness runs the effective verify command for the task
-      And the effective verify is the task-level command, falling back to the agent-role default
-      And a zero exit completes the task and frees the teammate
-      And a non-zero exit keeps the task claimed and feeds stderr back to the teammate
-      And without any verify command the submission itself completes the task
+      Then the harness runs the effective verify prompt in a fresh one-shot reviewer
+      And the effective verify is the task-level prompt, falling back to the agent-role default
+      And a VERDICT: PASS completes the task and frees the teammate
+      And a VERDICT: FAIL keeps the task claimed and feeds the reviewer's findings back to the teammate
+      And without any verify prompt the submission itself completes the task
 
     Scenario: Failed submissions keep the task claimable by its holder
       Given a teammate submits a failed outcome for its task
@@ -311,7 +311,7 @@ Feature: Agent Teams collaborative organization contract
       Given a teammate holds a claimed task whose gate cannot pass
       When submissions fail verification a second consecutive time
       Then the task remains claimed by the holder without another resubmit invitation
-      And the leader receives one escalation naming the task and the verify output
+      And the leader receives one escalation naming the task and the reviewer's findings
       And further failed submissions stay quiet toward the leader until a new holding begins
 
     Scenario: A stopped holder leaves no verify-failure residue
@@ -320,7 +320,7 @@ Feature: Agent Teams collaborative organization contract
       Then no verify-failure record remains keyed to the released holder incarnation
 
     Scenario: A verify result belongs to exactly one submission
-      Given a claimed task whose verify command is running
+      Given a claimed task whose verify review is running
       When the holder releases the task and re-claims it before the verify resolves
       Then the stale verify result cannot complete the new holding
       And a fresh submission after the re-claim runs its own gate to completion

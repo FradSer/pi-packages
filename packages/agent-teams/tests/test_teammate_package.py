@@ -600,26 +600,34 @@ def test_verify_failure_residue_is_cleared_when_a_holder_is_released() -> None:
 def test_stale_verify_result_cannot_complete_a_new_holding(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner }} from "{(SRC / "team-machine.ts").as_uri()}";
         import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const tick = () => new Promise((resolve) => setTimeout(resolve, 10));
         registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 0, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
-        const made = createTask({{ subject: "gated work", verify: "sleep 0.4" }});
+        const made = createTask({{ subject: "gated work", verify: "Does the delivered gallery satisfy every acceptance criterion?" }});
         const id = made.task.id;
         applyClaimIntent({{ taskId: id, worker: "w", spawnId: "s1", timestamp: 1 }});
+        let releaseStaleGate;
+        setVerifyGateRunner(() => new Promise((resolve) => {{ releaseStaleGate = () => resolve({{ ok: true, detail: "stale pass" }}); }}));
         attemptSubmission("w", "s1", id, "completed");
         processTaskIntents();
+        await tick();
         attemptSubmission("w", "s1", id, "failed");
         processTaskIntents();
         const releasedWhileVerifying = getTask(id).status === "pending";
         applyClaimIntent({{ taskId: id, worker: "w", spawnId: "s1", timestamp: 2 }});
-        await wait(700);
+        releaseStaleGate();
+        await tick();
         const staleCompleted = getTask(id).status === "completed";
+        let releaseFreshGate;
+        setVerifyGateRunner(() => new Promise((resolve) => {{ releaseFreshGate = () => resolve({{ ok: true, detail: "fresh pass" }}); }}));
         attemptSubmission("w", "s1", id, "completed");
         processTaskIntents();
-        await wait(700);
+        await tick();
+        releaseFreshGate();
+        await tick();
         console.log(JSON.stringify({{
           releasedWhileVerifying,
           staleCompleted,
@@ -632,6 +640,27 @@ def test_stale_verify_result_cannot_complete_a_new_holding(tmp_path: Path) -> No
     # The pre-release gate result must not complete the post-release holding.
     assert payload["staleCompleted"] is False
     assert payload["finalStatus"] == "completed"
+
+
+def test_verify_review_verdict_protocol() -> None:
+    payload = run_node(
+        f'''\
+        import {{ buildVerifyReviewPrompt, parseVerifyVerdict }} from "{(SRC / "team-machine.ts").as_uri()}";
+        console.log(JSON.stringify({{
+          promptHasGate: buildVerifyReviewPrompt({{ verify: "Every scenario holds.", taskSubject: "Gallery refactor", workerResult: "Done." }}).includes("Every scenario holds."),
+          pass: parseVerifyVerdict("Evidence...\\nVERDICT: PASS"),
+          failWithReason: parseVerifyVerdict("Evidence...\\nVERDICT: FAIL - overflow at 400px"),
+          missing: parseVerifyVerdict("Looks good to me"),
+          missingDetailTruncated: parseVerifyVerdict("x".repeat(5000)).detail.includes("[truncated]"),
+        }}));
+        '''
+    )
+    assert payload["promptHasGate"] is True
+    assert payload["pass"] == {"ok": True}
+    assert payload["failWithReason"]["ok"] is False
+    assert "overflow at 400px" in payload["failWithReason"]["detail"]
+    assert payload["missing"]["ok"] is False
+    assert payload["missingDetailTruncated"] is True
 
 
 def test_agent_definitions_are_declarative_files_with_verify() -> None:

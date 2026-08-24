@@ -96,9 +96,11 @@ context — inspect it in /agent-teams instead.
 
 Create shared work with task_create(subject, description?, dependsOn?,
 verify?). Idle teammates notice claimable work automatically and self-claim;
-dependencies unlock downstream tasks without your involvement. An explicit
-verify command makes completion deterministic: zero exit completes, failure
-feeds stderr back to the claimer for fix-and-resubmit.
+dependencies unlock downstream tasks without your involvement. The verify
+prompt is judged by a fresh one-shot reviewer that inspects the work itself:
+VERDICT: PASS completes, FAIL feeds the reviewer's findings back to the
+claimer for fix-and-resubmit. Write gates as acceptance criteria a reviewer
+can check (behavior, constraints, evidence), not as shell commands.
 
 ### Teammates are autonomous: recover, never punish
 

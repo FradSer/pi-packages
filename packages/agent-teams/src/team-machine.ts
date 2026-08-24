@@ -5,13 +5,12 @@
  * engine described by the BDD contract.
  */
 
-import { exec } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { modelLabel } from "@fradser/pi-kit";
+import { modelLabel, runPiWorker } from "@fradser/pi-kit";
 import { MODEL_INHERIT_ALIAS, discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "./agents.ts";
 import {
   applyClaimIntent,
@@ -987,7 +986,11 @@ function beginVerifyOrComplete(intent: import("./types").TaskIntent, verify: str
   // must not let the stale result complete the new holding.
   const token = randomUUID();
   verifyingTasks.set(intent.taskId, { worker: intent.worker, spawnId: intent.spawnId, token });
-  runVerifyCommand(verify)
+  verifyGateRunner({
+    verify,
+    taskSubject: task.subject,
+    workerResult: intent.result ?? "",
+  })
     .then((outcome) => {
       if (verifyingTasks.get(intent.taskId)?.token !== token) return;
       verifyingTasks.delete(intent.taskId);
@@ -1040,17 +1043,78 @@ function finishCompletion(intent: import("./types").TaskIntent, subject: string)
   notifyTaskOutcome(subject, `${intent.worker} completed`, intent.result ?? "");
 }
 
-function runVerifyCommand(command: string): Promise<{ ok: boolean; detail?: string }> {
-  return new Promise((resolve) => {
-    exec(command, { cwd: leaderCwd, maxBuffer: 1024 * 1024 }, (error, _stdout, stderr) => {
-      const code = (error as { code?: number | string } | null)?.code;
-      if (error) {
-        resolve({ ok: false, detail: `verify exited with code ${code ?? "unknown"}: ${(stderr || error.message).slice(0, 4000)}` });
-        return;
-      }
-      resolve({ ok: true });
-    });
+// ── Verify gate: fresh one-shot reviewer with a VERDICT protocol ──
+
+/** The reviewer's reply must end with exactly one of these verdict lines. */
+export const VERIFY_VERDICT_PASS = "VERDICT: PASS";
+export const VERIFY_VERDICT_FAIL = "VERDICT: FAIL";
+
+export interface VerifyReviewInput {
+  /** The acceptance-gate prompt (task-level or agent-role default). */
+  verify: string;
+  /** Board subject of the gated task. */
+  taskSubject: string;
+  /** The claimer's own result summary; evidence, never trusted alone. */
+  workerResult: string;
+}
+
+export type VerifyReviewOutcome = { ok: boolean; detail?: string };
+
+/** Compose the reviewer prompt: fresh context, independent checks, explicit verdict line. */
+export function buildVerifyReviewPrompt(input: VerifyReviewInput): string {
+  const result = input.workerResult.trim().slice(0, 4000);
+  return [
+    "You are a fresh completion-gate reviewer for one teammate task on a shared board.",
+    `Task subject: ${input.taskSubject}`,
+    result ? `The claimer's result summary:\n${result}` : "The claimer provided no result summary.",
+    "Independently verify the work against the acceptance gate below using your tools; do not trust the summary alone. Do not modify any files.",
+    "Acceptance gate:",
+    input.verify.trim(),
+    "",
+    `End your final message with exactly one verdict line: "${VERIFY_VERDICT_PASS}" if the gate holds, or "${VERIFY_VERDICT_FAIL} - <reasons>" if it does not.`,
+  ].join("\n");
+}
+
+/** Parse the reviewer's reply into a gate outcome; a missing or malformed
+ *  verdict fails the gate so an ambiguous review never completes a task. */
+export function parseVerifyVerdict(text: string): VerifyReviewOutcome {
+  const trimmed = text.trim();
+  for (const line of trimmed.split("\n").reverse()) {
+    const candidate = line.trim();
+    if (/^verdict:\s*pass\b/i.test(candidate)) return { ok: true };
+    if (/^verdict:\s*fail\b/i.test(candidate)) {
+      return { ok: false, detail: candidate.slice(VERIFY_VERDICT_FAIL.length).replace(/^[\s:-]+/, "") || "(no reasons given)" };
+    }
+  }
+  return { ok: false, detail: `(no ${VERIFY_VERDICT_PASS}/FAIL verdict line in the review)\n${truncated(trimmed)}` };
+}
+
+function truncated(text: string, cap = 4000): string {
+  const suffix = "\n…[truncated]";
+  return text.length <= cap ? text : text.slice(0, Math.max(0, cap - suffix.length)) + suffix;
+}
+
+/** Run the gate as a one-shot Pi worker: a brand-new context that inspects
+ *  the working tree itself before answering. Uses the team's model resolution
+ *  chain (team default, else Pi default) rather than any role pin. */
+export async function runVerifyReview(input: VerifyReviewInput): Promise<VerifyReviewOutcome> {
+  const outcome = await runPiWorker({
+    prompt: buildVerifyReviewPrompt(input),
+    cwd: leaderCwd,
+    model: resolveSpawnModel(undefined, getTeamDefaultModel(), leaderModelRef()).model,
   });
+  if (outcome.exitCode !== 0 && !outcome.text.trim()) {
+    return { ok: false, detail: `reviewer exited with code ${outcome.exitCode}: ${(outcome.stderr || "no output").slice(0, 4000)}` };
+  }
+  return parseVerifyVerdict(outcome.text);
+}
+
+/** Active gate runner; tests inject a stub through setVerifyGateRunner. */
+let verifyGateRunner: (input: VerifyReviewInput) => Promise<VerifyReviewOutcome> = runVerifyReview;
+
+/** Replace the completion-gate runner (test seam); undefined restores the real reviewer. */
+export function setVerifyGateRunner(runner: ((input: VerifyReviewInput) => Promise<VerifyReviewOutcome>) | undefined): void {
+  verifyGateRunner = runner ?? runVerifyReview;
 }
 
 function freeTeammateFromTask(workerName: string, taskId: string): void {

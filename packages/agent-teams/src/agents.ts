@@ -15,7 +15,8 @@
  *   tools       — comma-separated list or YAML list of Pi tool ids
  *   model       — optional provider/model pin, or "inherit" for the leader's
  *                 current model at spawn time
- *   verify      — optional role-default completion gate command (zero exit passes)
+ *   verify      — optional role-default completion gate: a review prompt a
+ *                 fresh one-shot reviewer answers with VERDICT: PASS/FAIL
  *   worktree    — optional role-default Git worktree isolation (true/false)
  * The Markdown body is the worker's role prompt.
  */
