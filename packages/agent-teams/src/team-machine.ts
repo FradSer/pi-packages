@@ -185,6 +185,7 @@ export function shutdownTeamMachine(): void {
   boardFile = "";
   leaderCwd = "";
   leaderModelRef = () => undefined;
+  setVerifyGateRunner(undefined);
   sendUpdate = () => {};
   notifyChange = () => {};
   pendingShutdowns.clear();
@@ -986,51 +987,66 @@ function beginVerifyOrComplete(intent: import("./types").TaskIntent, verify: str
   // must not let the stale result complete the new holding.
   const token = randomUUID();
   verifyingTasks.set(intent.taskId, { worker: intent.worker, spawnId: intent.spawnId, token });
-  verifyGateRunner({
+  const input: VerifyReviewInput = {
     verify,
     taskSubject: task.subject,
     workerResult: intent.result ?? "",
-  })
-    .then((outcome) => {
-      if (verifyingTasks.get(intent.taskId)?.token !== token) return;
-      verifyingTasks.delete(intent.taskId);
-      const current = getState().tasks[intent.taskId];
-      const stillHolds = current?.status === "claimed"
-        && current.claimedBy === intent.worker
-        && getTeammate(intent.worker)?.spawnId === intent.spawnId;
-      if (!stillHolds) return;
-      if (outcome.ok) finishCompletion(intent, task.subject);
-      else {
-        const key = `${intent.taskId}:${intent.spawnId}`;
-        const reaction = reactToVerifyFailure(verifyFailures.get(key));
-        verifyFailures.set(key, reaction);
-        const detail = outcome.detail ?? "(no verify output)";
-        if (reaction.count >= VERIFY_FAILURE_ESCALATE_AFTER) {
-          // An unfixable gate parks the task with its holder instead of
-          // looping: no further resubmit invitations, one leader escalation.
-          if (reaction.escalateToLeader) {
-            notifyTaskOutcome(task.subject, `verify failed ${reaction.count} times for ${intent.taskId}: manual attention needed`, detail);
-          }
-          deliverFeedback(
-            intent.worker,
-            `Verify still failing for ${intent.taskId}`,
-            [`The completion gate for "${task.subject}" failed again (${reaction.count} consecutive failures).`, detail, "The task stays claimed by you. Do not resubmit or reclaim it; the leader has been notified and will decide next steps."].join("\n"),
-          );
-        } else {
-          deliverFeedback(
-            intent.worker,
-            `Verify failed for ${intent.taskId}`,
-            [`The completion gate for "${task.subject}" failed.`, detail, "Fix the issues and resubmit with task_submit."].join("\n"),
-          );
-          notifyTaskOutcome(task.subject, `verify gate failed for ${intent.taskId}`, detail);
-        }
+    cwd: getTeammate(intent.worker)?.cwd || leaderCwd,
+  };
+  // A runner that throws synchronously or rejects is a failed gate, never a
+  // silent stuck claim: the holder gets feedback and escalation still applies.
+  Promise.resolve()
+    .then(() => verifyGateRunner(input))
+    .then((outcome) => resolveGateOutcome(intent, task.subject, token, outcome))
+    .catch((error) => resolveGateOutcome(intent, task.subject, token, {
+      ok: false,
+      detail: truncated(`(completion review crashed) ${error instanceof Error ? error.message : String(error)}`),
+    }));
+}
+
+/** Apply one gate outcome to its submission, guarded by the binding token. */
+function resolveGateOutcome(
+  intent: import("./types").TaskIntent,
+  subject: string,
+  token: string,
+  outcome: VerifyReviewOutcome,
+): void {
+  if (verifyingTasks.get(intent.taskId)?.token !== token) return;
+  verifyingTasks.delete(intent.taskId);
+  const current = getState().tasks[intent.taskId];
+  const stillHolds = current?.status === "claimed"
+    && current.claimedBy === intent.worker
+    && getTeammate(intent.worker)?.spawnId === intent.spawnId;
+  if (!stillHolds) return;
+  if (outcome.ok) {
+    finishCompletion(intent, subject);
+  } else {
+    const key = `${intent.taskId}:${intent.spawnId}`;
+    const reaction = reactToVerifyFailure(verifyFailures.get(key));
+    verifyFailures.set(key, reaction);
+    const detail = outcome.detail ?? "(no review output)";
+    if (reaction.count >= VERIFY_FAILURE_ESCALATE_AFTER) {
+      // An unfixable gate parks the task with its holder instead of
+      // looping: no further resubmit invitations, one leader escalation.
+      if (reaction.escalateToLeader) {
+        notifyTaskOutcome(subject, `verify failed ${reaction.count} times for ${intent.taskId}: manual attention needed`, detail);
       }
-      ensureLivePoll();
-      notifyChange();
-    })
-    .catch(() => {
-      if (verifyingTasks.get(intent.taskId)?.token === token) verifyingTasks.delete(intent.taskId);
-    });
+      deliverFeedback(
+        intent.worker,
+        `Verify still failing for ${intent.taskId}`,
+        [`The completion gate for "${subject}" failed again (${reaction.count} consecutive failures).`, detail, "The task stays claimed by you. Do not resubmit or reclaim it; the leader has been notified and will decide next steps."].join("\n"),
+      );
+    } else {
+      deliverFeedback(
+        intent.worker,
+        `Verify failed for ${intent.taskId}`,
+        [`The completion gate for "${subject}" failed.`, detail, "Fix the issues and resubmit with task_submit."].join("\n"),
+      );
+      notifyTaskOutcome(subject, `verify gate failed for ${intent.taskId}`, detail);
+    }
+  }
+  ensureLivePoll();
+  notifyChange();
 }
 
 function finishCompletion(intent: import("./types").TaskIntent, subject: string): void {
@@ -1056,6 +1072,9 @@ export interface VerifyReviewInput {
   taskSubject: string;
   /** The claimer's own result summary; evidence, never trusted alone. */
   workerResult: string;
+  /** Working directory to review: the holder's worktree root when isolated,
+   *  else the leader cwd — the reviewer must inspect the claimed work's tree. */
+  cwd: string;
 }
 
 export type VerifyReviewOutcome = { ok: boolean; detail?: string };
@@ -1075,18 +1094,22 @@ export function buildVerifyReviewPrompt(input: VerifyReviewInput): string {
   ].join("\n");
 }
 
-/** Parse the reviewer's reply into a gate outcome; a missing or malformed
- *  verdict fails the gate so an ambiguous review never completes a task. */
+/** Parse the reviewer's reply into a gate outcome, scanning from the final
+ *  line upward. PASS must be an exact verdict line ("VERDICT: PASS", no
+ *  trailing content) so a contradictory suffix cannot sneak through; FAIL
+ *  carries its reasons. A missing or malformed verdict fails the gate so an
+ *  ambiguous review never completes a task. */
 export function parseVerifyVerdict(text: string): VerifyReviewOutcome {
-  const trimmed = text.trim();
-  for (const line of trimmed.split("\n").reverse()) {
-    const candidate = line.trim();
-    if (/^verdict:\s*pass\b/i.test(candidate)) return { ok: true };
-    if (/^verdict:\s*fail\b/i.test(candidate)) {
-      return { ok: false, detail: candidate.slice(VERIFY_VERDICT_FAIL.length).replace(/^[\s:-]+/, "") || "(no reasons given)" };
+  const lines = text.trim().split("\n");
+  for (let index = lines.length - 1; index >= 0; index--) {
+    const candidate = lines[index].trim();
+    if (/^verdict:\s*pass$/i.test(candidate)) return { ok: true };
+    const failMatch = /^verdict:\s*fail\b[\s:-]*(.*)$/i.exec(candidate);
+    if (failMatch) {
+      return { ok: false, detail: truncated(failMatch[1].trim()) || "(no reasons given)" };
     }
   }
-  return { ok: false, detail: `(no ${VERIFY_VERDICT_PASS}/FAIL verdict line in the review)\n${truncated(trimmed)}` };
+  return { ok: false, detail: `(no ${VERIFY_VERDICT_PASS}/FAIL verdict line in the review)\n${truncated(text.trim())}` };
 }
 
 function truncated(text: string, cap = 4000): string {
@@ -1100,11 +1123,13 @@ function truncated(text: string, cap = 4000): string {
 export async function runVerifyReview(input: VerifyReviewInput): Promise<VerifyReviewOutcome> {
   const outcome = await runPiWorker({
     prompt: buildVerifyReviewPrompt(input),
-    cwd: leaderCwd,
+    cwd: input.cwd || leaderCwd,
     model: resolveSpawnModel(undefined, getTeamDefaultModel(), leaderModelRef()).model,
   });
-  if (outcome.exitCode !== 0 && !outcome.text.trim()) {
-    return { ok: false, detail: `reviewer exited with code ${outcome.exitCode}: ${(outcome.stderr || "no output").slice(0, 4000)}` };
+  // A reviewer that did not exit cleanly produced no trustworthy verdict,
+  // even if partial output happens to contain a PASS line.
+  if (outcome.exitCode !== 0) {
+    return { ok: false, detail: truncated(`reviewer exited with code ${outcome.exitCode}: ${(outcome.stderr || outcome.text || "no output").trim()}`) };
   }
   return parseVerifyVerdict(outcome.text);
 }

@@ -76,7 +76,8 @@ export interface BoardTask {
   description?: string;
   /** Task ids that must complete before this task is claimable. */
   dependsOn: string[];
-  /** Deterministic completion gate; overrides the agent-role default. */
+  /** Completion gate: a review prompt a fresh one-shot reviewer answers with
+   *  VERDICT: PASS or FAIL; overrides the agent-role default. */
   verify?: string;
   status: TaskStatus;
   claimedBy?: string;

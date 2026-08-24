@@ -646,19 +646,30 @@ def test_verify_review_verdict_protocol() -> None:
     payload = run_node(
         f'''\
         import {{ buildVerifyReviewPrompt, parseVerifyVerdict }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const NL = String.fromCharCode(10);
+        const reply = (...lines) => lines.join(NL);
         console.log(JSON.stringify({{
-          promptHasGate: buildVerifyReviewPrompt({{ verify: "Every scenario holds.", taskSubject: "Gallery refactor", workerResult: "Done." }}).includes("Every scenario holds."),
-          pass: parseVerifyVerdict("Evidence...\\nVERDICT: PASS"),
-          failWithReason: parseVerifyVerdict("Evidence...\\nVERDICT: FAIL - overflow at 400px"),
+          promptHasGate: buildVerifyReviewPrompt({{ verify: "Every scenario holds.", taskSubject: "Gallery refactor", workerResult: "Done.", cwd: "/repo" }}).includes("Every scenario holds."),
+          pass: parseVerifyVerdict(reply("Evidence...", "VERDICT: PASS")),
+          passLowerCase: parseVerifyVerdict("verdict: pass"),
+          passTrailingProse: parseVerifyVerdict(reply("VERDICT: PASS", "(closing note)")),
+          passWithJunkRejected: parseVerifyVerdict(reply("A", "VERDICT: PASS - also broken", "B")),
+          failWithReason: parseVerifyVerdict(reply("Evidence...", "VERDICT: FAIL - overflow at 400px")),
+          failExtraSpaces: parseVerifyVerdict("VERDICT:   FAIL   spaced reasons"),
           missing: parseVerifyVerdict("Looks good to me"),
           missingDetailTruncated: parseVerifyVerdict("x".repeat(5000)).detail.includes("[truncated]"),
-        }}));
+        }}, (key, value) => (value === undefined ? null : value)));
         '''
     )
     assert payload["promptHasGate"] is True
     assert payload["pass"] == {"ok": True}
+    assert payload["passLowerCase"] == {"ok": True}
+    assert payload["passTrailingProse"] == {"ok": True}
+    assert payload["passWithJunkRejected"]["ok"] is False
     assert payload["failWithReason"]["ok"] is False
     assert "overflow at 400px" in payload["failWithReason"]["detail"]
+    assert payload["failExtraSpaces"]["ok"] is False
+    assert "spaced reasons" in payload["failExtraSpaces"]["detail"]
     assert payload["missing"]["ok"] is False
     assert payload["missingDetailTruncated"] is True
 
@@ -886,7 +897,7 @@ def test_agent_frontmatter_parses_tools_model_verify(tmp_path: Path) -> None:
         "description: Reviews code for exploitable problems\n"
         "tools: read,grep # execution allowlist\n"
         "model: anthropic/claude-sonnet-4\n"
-        'verify: "npm test"\n'
+        'verify: "Every declared acceptance scenario holds in the built gallery"\n'
         "worktree: true\n"
         "---\n"
         "Review the assigned scope.\n",
@@ -910,7 +921,7 @@ def test_agent_frontmatter_parses_tools_model_verify(tmp_path: Path) -> None:
     assert payload["found"] is True
     assert payload["tools"] == ["read", "grep"]
     assert payload["model"] == "anthropic/claude-sonnet-4"
-    assert payload["verify"] == "npm test"
+    assert payload["verify"] == "Every declared acceptance scenario holds in the built gallery"
     assert payload["worktree"] is True
     assert payload["scope"] == "project"
     assert payload["promptIsBody"] is True

@@ -753,7 +753,7 @@ export function createSearchPicker<T>(
       index = Math.max(0, index - 1);
     },
     down: () => {
-      index = Math.max(0, Math.min(filtered.length - 1, index));
+      index = Math.max(0, Math.min(filtered.length - 1, index + 1));
     },
   };
 }

@@ -590,7 +590,7 @@ Feature: Agent Teams collaborative organization contract
       And the leader creates one review task per lens on the board
       When each reviewer claims its task and reviews independently
       And reviewers exchange top findings and challenges through send_message
-      And each reviewer submits its task with a verify command that must pass
-      Then completions are gated by the verify commands rather than self-report
+      And each reviewer submits its task with a verify prompt that must pass
+      Then completions are gated by the verify reviews rather than self-report
       And the leader synthesizes the final review from the three completed tasks
       And peer challenges never passed through the leader's context

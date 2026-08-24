@@ -465,6 +465,7 @@ def test_model_search_text_and_search_picker_behavior() -> None:
         picker.type("cl");
         const narrowed = picker.results().map((m) => `${{m.provider}}/${{m.id}}`);
         picker.down();
+        const movedIndex = picker.selectedIndex();
         picker.type("aude opus");
         const refined = picker.results().map((m) => `${{m.provider}}/${{m.id}}`);
         const refinedIndex = picker.selectedIndex();
@@ -473,16 +474,23 @@ def test_model_search_text_and_search_picker_behavior() -> None:
         const restored = picker.results().length;
         picker.up();
         const clampedTop = picker.selectedIndex();
+        picker.clear();
+        for (let i = 0; i < 10; i++) picker.down();
+        const bottomClamped = picker.selectedIndex();
+        const bottomSelected = picker.selected();
         picker.type("zzz-no-match");
         const emptySelected = picker.selected();
         console.log(JSON.stringify({{
           namedText: modelSearchText({{ provider: "anthropic", id: "claude-opus-4-6", name: "Claude Opus 4.6" }}),
           namelessText: modelSearchText({{ provider: "google", id: "gemini-3-pro" }}),
           narrowed,
+          movedIndex,
           refined,
           refinedIndex,
           restored,
           clampedTop,
+          bottomClamped,
+          bottomLabel: `${{bottomSelected?.provider ?? ""}}/${{bottomSelected?.id ?? ""}}`,
           emptySelected,
         }}, (key, value) => (value === undefined ? null : value)));
         """
@@ -493,7 +501,10 @@ def test_model_search_text_and_search_picker_behavior() -> None:
     assert result["refined"] == ["anthropic/claude-opus-4-6"]
     assert result["refinedIndex"] == 0
     assert result["restored"] == 4
+    assert result["movedIndex"] == 1
     assert result["clampedTop"] == 0
+    assert result["bottomClamped"] == 3
+    assert result["bottomLabel"] == "openai/gpt-5.2"
     assert result["emptySelected"] is None
 
 

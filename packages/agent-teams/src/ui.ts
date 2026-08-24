@@ -434,11 +434,10 @@ export function openTeamConsole(ctx: {
       }
       if (matchesKey(data, Key.enter)) {
         const picked = picker.selected();
-        setTeamDefaultModel(picked ? modelLabel(picked) : undefined);
-        ctx.ui.notify(
-          picked ? `Teammate model set to ${modelLabel(picked)} for this session` : "Teammate model cleared — Pi picks its default",
-          "info",
-        );
+        // An empty filtered list must not clobber the current default.
+        if (!picked) return;
+        setTeamDefaultModel(modelLabel(picked));
+        ctx.ui.notify(`Teammate model set to ${modelLabel(picked)} for this session`, "info");
         closeModelPicker();
         return;
       }
