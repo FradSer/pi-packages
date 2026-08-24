@@ -1,6 +1,0 @@
----
-"@fradser/pi-agent-teams": minor
----
-
-Rebuild Agent Teams as a Claude-Code-style collaborative organization layer: named resident teammates (long-lived RPC child processes), a shared task board with atomic self-claim and verify-gated completion, and direct peer-to-peer inbox messaging. The former DAG API (`teammate_run`, `teammate_fanout`, `teammate_cancel`, `teammate_retry`) remains removed. Simplify the new team surface to seven unique tool names: `send_message(to, message, status?)` is the one messaging primitive for worker reports, peer mail, and leader steering; `task_list` is shared by both sides; and `teammate_spawn` now accepts only name, agent, and optional prompt, with model/worktree moved to declarative agent frontmatter.
-Agent definitions gain a fourth scope for custom teammates: inside `.pi/agents/`, a `<name>.local.md` file declares a personal project-local override that stays out of version control, while `<name>.md` remains the git-managed team-shared layer; same-name pairs deduplicate into one definition with local winning. Precedence is project-local > project > user > bundled, and `resolveAgent` exposes each definition's scope and gitManaged flag so guidance and tooling can show provenance.
