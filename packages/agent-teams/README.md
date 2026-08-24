@@ -37,15 +37,19 @@ Review the assigned scope for exploitable security problems. Do not edit files.
 Discovery precedence per name (later overrides earlier):
 
 There are no built-in roles. When a needed role has no definition, the
-leader creates one on demand: it derives the definition from the task using
-the abstract role reference in `references/agent-roles.md` (definition
-anatomy, archetype axes, invariants), writes the file, and then spawns.
+leader creates it in memory for the current session: it derives the definition
+from the task using the abstract role reference in `references/agent-roles.md`
+(definition anatomy, archetype axes, invariants), registers it, and then spawns.
+The role is not written to disk or reused in a later session unless the user
+explicitly requests persistence; only then may the leader set `definition.persist`
+and choose a project or project-local scope.
 
 | Scope | Location | Git semantics |
 |---|---|---|
 | user | `~/.pi/agent/agents/*.md` | system-level, never committed |
 | project | `<cwd>/.pi/agents/<name>.md` | **git-managed** — commit for the team |
 | project-local | `<cwd>/.pi/agents/<name>.local.md` | **local** — personal override, gitignore by convention |
+| session | in-memory registry | **ephemeral** — disappears at session start, no source file |
 
 A teammate definition is just a Markdown file you own. Shared roles live in `.pi/agents/<name>.md`; a personal tweak to that exact role is `<name>.local.md` in the SAME directory — same teammate name, local scope wins, and discovery deduplicates the pair into one entry (never two). `resolveAgent` reports each definition's `scope` and `gitManaged`; guidance lists both so the leader knows provenance.
 

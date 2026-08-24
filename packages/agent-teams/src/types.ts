@@ -42,6 +42,8 @@ export interface Teammate {
   sequenceEnded?: boolean;
   /** When the harness last sent a claimable-task notice to this teammate. */
   lastNoticeAt?: number;
+  /** Claimable task ids already announced to this teammate; one notice per id until it re-arms. */
+  noticedTaskIds?: string[];
   usage?: WorkerUsage;
   error?: string;
   createdAt: number;
@@ -165,8 +167,21 @@ export interface InboxMessage {
 /** Spawn one named resident teammate. */
 export const TeammateSpawnParams = Type.Object({
   name: Type.String({ minLength: 1, description: "Teammate name, unique among living teammates; used for messaging and claiming" }),
-  agent: Type.String({ description: "Agent definition name (from user, project, or project-local scopes); its frontmatter pins model and optional worktree isolation" }),
+  agent: Type.String({ description: "Agent definition name; an inline definition may create this role in memory for the current session" }),
   prompt: Type.Optional(Type.String({ description: "Optional kickoff prompt delivered as the teammate's first turn; omit to let it wait for messages or board claims" })),
+  definition: Type.Optional(Type.Object({
+    description: Type.String({ description: "Routing contract for the generated role" }),
+    tools: Type.Optional(Type.Array(Type.String(), { description: "Pi tool ids for the generated role" })),
+    model: Type.Optional(Type.String({ description: "Optional provider/model pin" })),
+    verify: Type.Optional(Type.String({ description: "Optional role-default completion gate" })),
+    worktree: Type.Optional(Type.Boolean({ description: "Whether this role receives a dedicated Git worktree" })),
+    prompt: Type.String({ minLength: 1, description: "Role prompt for this generated teammate" }),
+    persist: Type.Optional(Type.Boolean({ description: "Persist only when the user explicitly asks to keep this role for future sessions" })),
+    persistScope: Type.Optional(Type.Union([
+      Type.Literal("project"),
+      Type.Literal("project-local"),
+    ], { description: "Persistence scope; defaults to project-local when persist is true" })),
+  }, { description: "Optional generated role definition; kept in memory unless explicitly persisted" })),
 });
 
 /** Shut down one living teammate. */

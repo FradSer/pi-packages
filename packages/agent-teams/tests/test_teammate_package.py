@@ -75,7 +75,8 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Feature: Agent Teams collaborative organization contract",
         "Agents are declarative Markdown files",
         "Discover agents from user, project, and project-local scopes",
-        "Roles are generated on demand from the shipped role reference",
+        "Generated roles stay in memory by default",
+        "Generated roles can be persisted only after an explicit request",
         "Project scopes distinguish git-managed from local definitions",
         "xxx.local.md files mark personal overrides inside .pi/agents",
         "Local override files dedupe against their shared counterpart by teammate name",
@@ -362,6 +363,96 @@ def test_wake_prompt_composes_deliveries_and_paced_notice() -> None:
     assert payload["paceMs"] == 2000
 
 
+def test_fresh_claimable_filter_is_one_shot_per_task() -> None:
+    payload = run_node(
+        f'''\
+        import {{ freshClaimableTasks }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const tasks = [{{ id: "t_1" }}, {{ id: "t_2" }}, {{ id: "t_3" }}];
+        console.log(JSON.stringify({{
+          firstPass: freshClaimableTasks(undefined, tasks).map((task) => task.id),
+          afterNotice: freshClaimableTasks(["t_1", "t_2"], tasks).map((task) => task.id),
+          emptyWhenAllSeen: freshClaimableTasks(["t_1", "t_2", "t_3"], tasks).length === 0,
+        }}));
+        '''
+    )
+    assert payload["firstPass"] == ["t_1", "t_2", "t_3"]
+    assert payload["afterNotice"] == ["t_3"]
+    assert payload["emptyWhenAllSeen"] is True
+
+
+def test_repeated_verify_failures_escalate_once_then_go_quiet() -> None:
+    payload = run_node(
+        f'''\
+        import {{ reactToVerifyFailure, VERIFY_FAILURE_ESCALATE_AFTER }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const first = reactToVerifyFailure(undefined);
+        const second = reactToVerifyFailure(first);
+        const third = reactToVerifyFailure(second);
+        console.log(JSON.stringify({{
+          escalateAfter: VERIFY_FAILURE_ESCALATE_AFTER,
+          first,
+          second,
+          third,
+        }}));
+        '''
+    )
+    assert payload["escalateAfter"] == 2
+    assert payload["first"] == {"count": 1, "escalated": False, "escalateToLeader": False}
+    assert payload["second"] == {"count": 2, "escalated": True, "escalateToLeader": True}
+    assert payload["third"] == {"count": 3, "escalated": True, "escalateToLeader": False}
+
+
+def test_board_notices_are_one_shot_and_verify_loops_escalate() -> None:
+    machine = source("team-machine.ts")
+    types = source("types.ts")
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    for phrase in (
+        "Declined claimable work does not wake an idle teammate twice",
+        "Released tasks are noticeable again",
+        "Repeated verify failures escalate instead of looping",
+    ):
+        assert phrase in feature, phrase
+    assert "noticedTaskIds" in types
+    assert "rearmTaskNotice" in machine
+    assert "freshClaimableTasks(teammate.noticedTaskIds" in machine
+    assert "VERIFY_FAILURE_ESCALATE_AFTER" in machine
+    # Released tasks re-arm notices for every living teammate.
+    assert machine.count("rearmTaskNotice(intent.taskId)") >= 1
+    wake = machine[machine.index("export function wakeIdleTeammates") :]
+    assert "freshClaimableTasks(teammate.noticedTaskIds, claimableTasks())" in wake
+    assert "markTasksNoticed(teammate.name" in wake
+
+
+def test_task_ids_are_meaningful_slugs_of_their_subjects() -> None:
+    payload = run_node(
+        f'''\
+        import {{ resetState, createTask, loadBoard }} from "{(SRC / "state.ts").as_uri()}";
+        resetState();
+        const a = createTask({{ subject: "Polish login flow" }});
+        const b = createTask({{ subject: "Polish login flow!" }});
+        const c = createTask({{ subject: "修复登录流程" }});
+        const d = createTask({{ subject: "***" }});
+        loadBoard({{ t_9: {{ id: "t_9", subject: "carried over", dependsOn: [], status: "completed", createdAt: 1, updatedAt: 1 }} }});
+        const afterResume = createTask({{ subject: "Carried over" }});
+        console.log(JSON.stringify({{
+          a: a.task.id,
+          b: b.task.id,
+          c: c.task.id,
+          d: d.task.id,
+          distinct: a.task.id !== b.task.id,
+          afterResume: afterResume.task.id,
+        }}));
+        '''
+    )
+    assert payload["a"] == "polish-login-flow"
+    assert payload["b"] == "polish-login-flow-2"
+    assert payload["c"] == "修复登录流程"
+    assert payload["d"] == "task"
+    assert payload["distinct"] is True
+    # A resumed board keeps its legacy ids; new slugs still never collide.
+    assert payload["afterResume"] != "t_10"
+    assert source("state.ts").count("taskCounter") == 0
+
+
 def test_agent_definitions_are_declarative_files_with_verify() -> None:
     ext = source("agents.ts") + source("tools.ts")
     assert "discoverAgents" in ext and "resolveAgent" in ext
@@ -371,6 +462,74 @@ def test_agent_definitions_are_declarative_files_with_verify() -> None:
     assert "fields.verify" in agents_ts
     assert 'return scope === "project";' in agents_ts
     assert "PI_CODING_AGENT_DIR" in agents_ts or "getAgentDir" in agents_ts
+    assert 'export type AgentScope = "user" | "project" | "project-local" | "session";' in agents_ts
+    assert "registerSessionAgent" in agents_ts
+    assert "clearSessionAgents" in agents_ts
+    assert "source: undefined" in agents_ts
+
+
+def test_generated_agent_roles_can_be_persisted_only_explicitly(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ discoverAgents, persistAgentDefinition, clearSessionAgents }} from "{(SRC / "agents.ts").as_uri()}";
+        import fs from "node:fs";
+        clearSessionAgents();
+        const persisted = persistAgentDefinition({{
+          name: "saved-reviewer",
+          description: "Review a requested scope",
+          tools: ["read"],
+          prompt: "Review only the assigned scope.",
+        }}, "project-local", {json.dumps(str(tmp_path))});
+        const found = discoverAgents({json.dumps(str(tmp_path))}).get("saved-reviewer");
+        console.log(JSON.stringify({{
+          scope: persisted.scope,
+          sourceExists: typeof persisted.source === "string" && fs.existsSync(persisted.source),
+          discoveredScope: found?.scope ?? null,
+          gitManaged: found?.gitManaged ?? null,
+        }}));
+        ''',
+    )
+    assert payload == {
+        "scope": "project-local",
+        "sourceExists": True,
+        "discoveredScope": "project-local",
+        "gitManaged": False,
+    }
+
+
+def test_generated_agent_roles_are_session_scoped_and_not_persisted(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ discoverAgents, registerSessionAgent, clearSessionAgents }} from "{(SRC / "agents.ts").as_uri()}";
+        import fs from "node:fs";
+        clearSessionAgents();
+        const registered = registerSessionAgent({{
+          name: "human-philosopher",
+          description: "Analyze human nature",
+          tools: ["read"],
+          prompt: "Answer from philosophical traditions.",
+        }});
+        const current = discoverAgents({json.dumps(str(tmp_path))}).get("human-philosopher");
+        const agentsDir = {json.dumps(str(tmp_path / ".pi" / "agents"))};
+        const filesBefore = fs.existsSync(agentsDir) ? fs.readdirSync(agentsDir) : [];
+        clearSessionAgents();
+        const afterReset = discoverAgents({json.dumps(str(tmp_path))}).get("human-philosopher");
+        console.log(JSON.stringify({{
+          registered: registered.scope,
+          sourceIsMemory: current?.source === undefined,
+          gitManaged: current?.gitManaged ?? null,
+          filesBefore,
+          absentAfterReset: afterReset === undefined,
+        }}));
+        ''',
+    )
+    assert payload == {
+        "registered": "session",
+        "sourceIsMemory": True,
+        "gitManaged": False,
+        "filesBefore": [],
+        "absentAfterReset": True,
+    }
 
 
 def test_agent_frontmatter_parses_tools_model_verify(tmp_path: Path) -> None:
@@ -650,7 +809,7 @@ def test_agent_teams_command_opens_console_directly() -> None:
     assert "generateAgentPrompt" not in tools
     assert "parseGeneratedAgents" not in tools
     assert "teammate_spawn" in guidance  # conversational spawn stays routed to the tool
-    assert ".pi/agents/<name>.md" in guidance  # conversational role creation writes definitions
+    assert ".pi/agents/<name>.md" in guidance  # explicit persistence writes definitions
     assert "${AGENT_REFERENCE_PATH}" in guidance  # on-demand generation consults shipped templates
     assert "no built-in roles" in guidance
     assert "bundled" not in guidance
@@ -658,7 +817,7 @@ def test_agent_teams_command_opens_console_directly() -> None:
     # The console is the management surface for both entity kinds.
     assert "buildRoleDetail" in ui
     assert "== teammates (this session) ==" in ui
-    assert "== agent roles (persistent definitions) ==" in ui
+    assert "== agent roles (persistent and session definitions) ==" in ui
     assert "discoverAgents" in ui
 
     # No stale references to the legacy command name anywhere user-visible;
@@ -1006,7 +1165,9 @@ def test_consolidated_tool_schemas_keep_one_message_primitive() -> None:
     assert "TeammateMessageParams" not in types
     assert "TeammateLeaderMessageParams" not in types
     spawn_schema = types[types.index("export const TeammateSpawnParams"):types.index("/** Shut down")]
-    assert "model:" not in spawn_schema and "worktree:" not in spawn_schema and "cwd:" not in spawn_schema
+    assert "definition: Type.Optional" in spawn_schema
+    assert "persist" in spawn_schema and "persistScope" in spawn_schema
+    assert "cwd:" not in spawn_schema
     assert 'name: "send_message"' in tools
     assert 'name: "send_message"' in worker
     assert 'name: "teammate_message"' not in tools + worker

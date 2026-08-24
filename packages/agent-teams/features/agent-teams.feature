@@ -54,11 +54,19 @@ Feature: Agent Teams collaborative organization contract
       When a turn starts and before_agent_start runs
       Then each discovered agent's name, description, scope, tools, model, and verify are injected into prompt guidance
 
-    Scenario: Roles are generated on demand from the shipped role reference
+    Scenario: Generated roles stay in memory by default
       Given no definition exists for the requested agent name
-      When the leader is asked to start that agent
-      Then it derives a definition from the task and the shipped abstract role reference
-      And the new definition lands in the project or project-local agents directory before spawning
+      When the leader derives a role from the task and shipped abstract role reference without a persistence request
+      Then it registers the definition in the current session's memory
+      And the role is discovered with session scope and no filesystem source
+      And no agent definition file is written
+      And the role disappears when the session starts again
+
+    Scenario: Generated roles can be persisted only after an explicit request
+      Given no definition exists for the requested agent name
+      When the user explicitly asks to keep the role for future sessions
+      Then the leader sets definition.persist=true and writes a project or project-local definition before spawning
+      And the persisted role is discovered from that filesystem scope
 
     Scenario: An unknown agent name fails the spawn
       When the leader spawns a teammate with an agent name that no scope defines
@@ -244,6 +252,20 @@ Feature: Agent Teams collaborative organization contract
       Then the task is released back to pending
       And the failure reason is recorded on the board
 
+    Scenario: Task ids are readable slugs of their subjects
+      Given the leader creates a task titled "Polish login flow"
+      When the board assigns its id
+      Then the id is a sanitized slug of the title such as "polish-login-flow"
+      And a second task with the same title gets a distinct numbered id
+      And a resumed board keeps its old ids while new tasks still get unique slugs
+
+    Scenario: Repeated verify failures escalate instead of looping
+      Given a teammate holds a claimed task whose gate cannot pass
+      When submissions fail verification a second consecutive time
+      Then the task remains claimed by the holder without another resubmit invitation
+      And the leader receives one escalation naming the task and the verify output
+      And further failed submissions stay quiet toward the leader until a new holding begins
+
     Scenario: The board persists across restarts while the runtime does not
       Given a session recorded a task board
       When the session shuts down and a later session resumes the same board directory
@@ -265,10 +287,21 @@ Feature: Agent Teams collaborative organization contract
       Given an idle teammate with no inbox messages and no claimable tasks
       Then the harness performs no wake-up and spends no tokens
 
-    Scenario: Claimable-task notices respect a per-teammate pacing interval
+    Scenario: Declined claimable work does not wake an idle teammate twice
       Given an idle teammate and an unclaimed pending task
-      When the teammate declines to claim and stays idle
-      Then the harness waits at least the pacing interval before the next notice
+      When the teammate is woken by the notice, declines to claim, and goes idle again
+      Then the same task never wakes that teammate again
+      And the teammate is woken only by new mail or newly claimable work
+
+    Scenario: Released tasks are noticeable again
+      Given a task whose id an idle teammate was already notified about
+      When the task is released back to pending
+      Then the task may wake teammates once more
+
+    Scenario: Claimable-task notices respect a per-teammate pacing interval
+      Given an idle teammate and newly claimable work
+      When notice delivery is attempted in quick succession
+      Then the harness waits at least the pacing interval between notices
 
     Scenario: The leader guidance forbids sleep-based coordination
       Given the team leader is composing a reply while teammates work

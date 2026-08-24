@@ -12,7 +12,7 @@ Resident teammates remain available between turns, consume no model tokens while
 
 ## How to apply
 
-1. Agent definitions resolve from project `.pi/agents`, user `~/.pi/agent/agents`, and bundled definitions. Project-local `.local.md` overrides take precedence over the matching project definition.
+1. Persistent agent definitions resolve from project `.pi/agents` and user `~/.pi/agent/agents`; project-local `.local.md` overrides take precedence over the matching project definition. Generated roles are session-scoped and in-memory by default, with no source file; persistence requires an explicit user request.
 2. The leader tool surface is `teammate_spawn`, `teammate_shutdown`, `send_message`, `task_create`, and `task_list`. Worker capabilities add `task_claim` and `task_submit`; `send_message` is the unified reporting and peer-message primitive.
 3. Teammates are capped at eight living workers per session. They have no turn-count or wall-clock termination cap. Silence is telemetry for a stall notice; the leader decides whether to wait, steer, shut down, or respawn.
 4. Worker and leader state use one-writer atomic snapshots. Workers write outboxes, peer inboxes, and exclusive-create task intents. Per-spawn identity validation rejects stale callbacks and reports.

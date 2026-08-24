@@ -24,7 +24,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
-export type AgentScope = "user" | "project" | "project-local";
+export type AgentScope = "user" | "project" | "project-local" | "session";
 
 export interface AgentDefinition {
   name: string;
@@ -42,8 +42,93 @@ export interface AgentDefinition {
   /** True only for the shared project scope that is expected to be git-managed.
    * user and project-local definitions are machine/personal by definition. */
   gitManaged: boolean;
-  /** Absolute path of the definition file. */
-  source: string;
+  /** Absolute path of the definition file; absent for session-only roles. */
+  source?: string;
+}
+
+export interface AgentDefinitionInput {
+  name: string;
+  description: string;
+  tools: string[];
+  model?: string;
+  verify?: string;
+  worktree?: boolean;
+  prompt: string;
+}
+
+const sessionAgents = new Map<string, AgentDefinition>();
+const AGENT_NAME_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/i;
+
+function normalizeAgentInput(input: AgentDefinitionInput): AgentDefinitionInput {
+  const name = input.name.trim();
+  if (!AGENT_NAME_PATTERN.test(name)) {
+    throw new Error(`Invalid agent name "${name}". Use letters, digits, dots, dashes, underscores.`);
+  }
+  const prompt = input.prompt.trim();
+  if (!prompt) throw new Error(`Agent "${name}" prompt must not be empty.`);
+  return {
+    ...input,
+    name,
+    description: input.description.trim(),
+    tools: input.tools.map((tool) => tool.trim()).filter(Boolean),
+    model: input.model?.trim() || undefined,
+    verify: input.verify?.trim() || undefined,
+    worktree: input.worktree ?? false,
+    prompt,
+  };
+}
+
+/** Register a generated role for this session without writing a definition file. */
+export function registerSessionAgent(input: AgentDefinitionInput): AgentDefinition {
+  const normalized = normalizeAgentInput(input);
+  const definition: AgentDefinition = {
+    ...normalized,
+    worktree: normalized.worktree ?? false,
+    scope: "session",
+    gitManaged: false,
+    source: undefined,
+  };
+  sessionAgents.set(definition.name, definition);
+  return definition;
+}
+
+/** Persist a generated role only when the user explicitly requests it. */
+export function persistAgentDefinition(
+  input: AgentDefinitionInput,
+  scope: "project" | "project-local",
+  cwd = process.cwd(),
+): AgentDefinition {
+  const normalized = normalizeAgentInput(input);
+  const directory = agentsDir("project", cwd);
+  fs.mkdirSync(directory, { recursive: true });
+  const filename = `${normalized.name}${scope === "project-local" ? LOCAL_DEFINITION_SUFFIX : ".md"}`;
+  const source = path.join(directory, filename);
+  const frontmatter = [
+    "---",
+    `name: ${normalized.name}`,
+    `description: ${normalized.description.replace(/[\\r\\n]+/g, " ")}`,
+    `tools: ${normalized.tools.join(", ")}`,
+    ...(normalized.model ? [`model: ${normalized.model}`] : []),
+    ...(normalized.verify ? [`verify: ${normalized.verify.replace(/[\\r\\n]+/g, " ")}`] : []),
+    `worktree: ${normalized.worktree ? "true" : "false"}`,
+    "---",
+    normalized.prompt,
+    "",
+  ].join("\n");
+  fs.writeFileSync(source, frontmatter, { encoding: "utf8", mode: 0o600 });
+  sessionAgents.delete(normalized.name);
+  return {
+    ...normalized,
+    worktree: normalized.worktree ?? false,
+    scope,
+    gitManaged: scope === "project",
+    source,
+  };
+}
+
+/** Drop generated session roles; persistent user/project definitions remain discoverable. */
+export function clearSessionAgents(): void {
+  sessionAgents.clear();
 }
 
 /** Shipped role templates: reference material for generating new definitions
@@ -172,6 +257,7 @@ export function discoverAgents(cwd?: string): Map<string, AgentDefinition> {
   const agents = new Map<string, AgentDefinition>();
   loadDir("user", agentsDir("user", cwd), agents);
   loadDir("project", agentsDir("project", cwd), agents);
+  for (const [name, definition] of sessionAgents) agents.set(name, definition);
   return agents;
 }
 
@@ -197,7 +283,7 @@ export function formatAgentGuidance(cwd?: string): string {
       agent.model ? `Model: ${agent.model}` : "",
       agent.verify ? `Verify: ${agent.verify}` : "",
       agent.worktree ? "Worktree: true" : "",
-      agent.gitManaged ? "git-managed" : "local",
+      agent.scope === "session" ? "in-memory" : agent.gitManaged ? "git-managed" : "local",
     ].filter(Boolean);
     lines.push(`- **${agent.name}** (${agent.scope})`);
     if (agent.description) lines.push(`  ${agent.description}`);

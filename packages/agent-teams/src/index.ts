@@ -8,6 +8,7 @@
 import { getMarkdownTheme, keyHint } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildTeamLeaderGuidance, WORKER_GUIDANCE } from "./guidance.ts";
+import { clearSessionAgents } from "./agents.ts";
 import { initTeamMachine, removeRuntimeDir, shutdownTeamMachine, teardownTeammates } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
 import { resetState } from "./state.ts";
@@ -100,6 +101,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
+    clearSessionAgents();
     resetState();
     followUpQueue?.reset();
     announcedFinishKeys.clear();

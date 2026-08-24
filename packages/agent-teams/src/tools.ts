@@ -26,7 +26,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     name: "teammate_spawn",
     promptSnippet: "Spawn a named resident teammate",
     label: "Spawn Teammate",
-    description: "Spawn one named resident teammate. Model and worktree behavior come from its declarative agent definition; the kickoff prompt is optional.",
+    description: "Spawn one named resident teammate. Generated role definitions stay in memory by default; persist one only when the user explicitly asks to keep it for future sessions.",
     parameters: TeammateSpawnParams,
     // Canonical lifecycle rows (same as packages/monitor): empty renderCall,
     // ONE startup row owned by renderResult.

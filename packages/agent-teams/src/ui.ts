@@ -173,7 +173,8 @@ function indent(text: string): string[] {
   return text.split("\n").map((line) => `  ${line}`);
 }
 
-function displaySource(sourcePath: string): string {
+function displaySource(sourcePath: string | undefined): string {
+  if (!sourcePath) return "(in-memory session role)";
   const relative = path.relative(process.cwd(), sourcePath);
   return relative.startsWith("..") ? sourcePath : `./${relative}`;
 }
@@ -242,7 +243,7 @@ function buildRoleDetail(name: string): string[] {
   const def = resolveAgent(name);
   if (!def) return ["(agent definition not found)"];
   return [
-    `@${def.name} (${def.scope})${def.gitManaged ? " [git-managed]" : " [local]"}`,
+    `@${def.name} (${def.scope})${def.scope === "session" ? " [in-memory]" : def.gitManaged ? " [git-managed]" : " [local]"}`,
     "",
     "== role ==",
     `  Source: ${displaySource(def.source)}`,
@@ -396,7 +397,8 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
       const name = theme.bold(theme.fg(colorFor(key), `@${key}`));
       const live = livingTeammates().filter((teammate) => teammate.agent === key && teammate.status !== "stopped").length;
       const liveTag = live > 0 ? style.success(`[${live} live]`) : style.dim("[0 live]");
-      return `${marker}${name} ${style.dim(def.scope)} ${style.dim(displaySource(def.source))} ${liveTag}`;
+      const provenance = def.scope === "session" ? "in-memory" : displaySource(def.source);
+      return `${marker}${name} ${style.dim(def.scope)} ${style.dim(provenance)} ${liveTag}`;
     };
 
     const taskRowText = (key: string, selected: boolean): string => {
@@ -431,7 +433,7 @@ export function openTeamConsole(ctx: { ui: ExtensionUIContext }): Promise<void> 
       }
       teammates.forEach((row, index) => lines.push({ text: teammateRowText(row.key, index === selection), select: index }));
       lines.push({ text: "", select: -1 });
-      lines.push({ text: style.dim("== agent roles (persistent definitions) =="), select: -1 });
+      lines.push({ text: style.dim("== agent roles (persistent and session definitions) =="), select: -1 });
       if (roles.length === 0) {
         lines.push({ text: style.dim("No agent definitions discovered."), select: -1 });
       }

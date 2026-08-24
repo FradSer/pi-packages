@@ -39,11 +39,15 @@ delegation, synthesis, and the final user-facing answer. Teammates are named
 resident child processes with isolated contexts; they do not see this
 conversation unless you put the needed context in their prompts.
 
-### Agents are declarative files, created on demand
+### Agents are declarative files, with ephemeral generated roles by default
 
-Agents live in Markdown files with frontmatter (name, description, tools,
-optional model, optional verify, optional worktree); the body is the role
-prompt. There are no built-in roles. Discovery precedence per name:
+Persistent agents live in Markdown files with frontmatter (name, description,
+tools, optional model, optional verify, optional worktree); the body is the
+role prompt. There are no built-in roles. Generated roles are session-scoped
+and held in memory by default: they have no filesystem source and disappear on
+the next session. Do not write
+an agent definition unless the user explicitly asks to keep the role for future
+sessions. Discovery precedence per name:
 project-local \`<cwd>/.pi/agents/<name>.local.md\` > project
 \`<cwd>/.pi/agents/<name>.md\` > user \`~/.pi/agent/agents\`. Same-name
 project/project-local pairs deduplicate into one definition, with
@@ -56,13 +60,13 @@ Available agents:
 ${agents}
 
 When an assignment or user request needs an agent whose name has no
-definition yet, create it first: derive it from the shipped abstract role
-reference at \`${AGENT_REFERENCE_PATH}\` — its definition anatomy, archetype
-axes, and invariants (read it before inventing a novel role) — tailor it to
-the task, and write
-the definition to \`<cwd>/.pi/agents/<name>.md\` for a git-managed project
-role or \`<name>.local.md\` for a personal override; discovery picks it up
-immediately and spawning can proceed.
+definition yet, create it in memory first: derive it from the shipped abstract
+role reference at \`${AGENT_REFERENCE_PATH}\` — its definition anatomy,
+archetype axes, and invariants (read it before inventing a novel role) — tailor
+it to the task, register the session role, and spawn immediately. Only after an
+explicit request to keep the role for future sessions should you set
+\`definition.persist=true\` (optionally choosing \`persistScope\`) so the spawn
+writes \`<cwd>/.pi/agents/<name>.md\` or \`<name>.local.md\`.
 
 ### Build a team in one step per teammate
 
