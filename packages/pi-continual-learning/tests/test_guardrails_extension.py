@@ -133,6 +133,7 @@ def test_disabled_names_and_invalid_regex_are_tolerated() -> None:
                 "source": "user",
                 "policies": [
                     {"name": "broken", "pattern": "([unclosed", "action": "block", "reason": "x"},
+                    {"name": "bad-paths", "paths": [42], "pattern": "x", "action": "block", "reason": "x"},
                     {"name": "ok", "pattern": "deploy-prod", "action": "block", "reason": "ask first"},
                 ],
                 "disabled": ["no-otp-in-chat"],
@@ -141,5 +142,7 @@ def test_disabled_names_and_invalid_regex_are_tolerated() -> None:
     )
     merged = merge_only(layers)
     assert "no-otp-in-chat" not in merged["names"]
+    assert "bad-paths" not in merged["names"]
     assert "ok" in merged["names"]
     assert any("invalid regex" in str(e) for e in merged["errors"])
+    assert any("non-string tools, paths, or patterns" in str(e) for e in merged["errors"])

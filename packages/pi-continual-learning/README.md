@@ -31,8 +31,8 @@ Policies layer innermost-last; a policy name defined in several layers
 resolves to the innermost definition, and any layer can disable names:
 
 1. Built-in defaults ship with the package.
-2. `~/.pi/agent/harness.json` (+ `.harness.local.json`)
-3. `<project>/.pi/harness.json` (+ `.harness.local.json`)
+2. `~/.pi/agent/harness.json` (+ `harness.local.json`)
+3. `<project>/.pi/harness.json` (+ `harness.local.json`)
 
 Policy shape:
 
@@ -42,7 +42,8 @@ Policy shape:
   "tools": ["edit", "write"],
   // AND-gate: scope the policy to a class of calls first...
   "require": { "path": "path", "pattern": "\\.(tsx|css)$" },
-  // ...then any of these patterns triggers it on the args content
+  // ...then patterns inspect only text being written, never edit oldText
+  "paths": ["content", "newText", "edits.newText"],
   "patterns": ["width:\\s*\\d{3,}px"],
   "action": "block",
   // The block reason is fed back to the model as the more correct prompt:

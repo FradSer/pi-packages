@@ -81,7 +81,7 @@ fs.writeFileSync(
       {
         name: "danger-wipe",
         tools: ["bash"],
-        path: "command",
+        paths: ["command"],
         pattern: "wipe--workspace",
         action: "confirm",
         reason: "Destructive workspace wipe needs confirmation.",
@@ -147,7 +147,7 @@ fs.writeFileSync(
       {
         name: "block-curl-prod",
         tools: ["bash"],
-        path: "command",
+        paths: ["command"],
         pattern: "curl .*prod\\.example\\.com",
         action: "block",
         reason: "Prod curl is forbidden.",

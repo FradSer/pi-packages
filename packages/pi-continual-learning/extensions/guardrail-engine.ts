@@ -41,6 +41,12 @@ function compile(pattern: string): RegExp | undefined {
   }
 }
 
+function stringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string")
+    ? value
+    : undefined;
+}
+
 /** Merge layers innermost-last: user < project, shared < .local. A policy
  * name defined in several layers resolves to the definition of the
  * innermost layer that declares it; disabled names are collected from every
@@ -57,21 +63,32 @@ export function mergeLayers(layers: PolicyLayer[]): ResolvedConfig {
         errors.push(`${layer.source}: policy without a name was skipped`);
         continue;
       }
-      const hasPattern = Array.isArray(raw.patterns) || typeof raw.pattern === "string";
+      const tools = raw.tools === undefined ? undefined : stringArray(raw.tools);
+      const paths = raw.paths === undefined ? undefined : stringArray(raw.paths);
+      const patterns = raw.patterns === undefined ? undefined : stringArray(raw.patterns);
+      if (
+        (raw.tools !== undefined && !tools) ||
+        (raw.paths !== undefined && !paths) ||
+        (raw.patterns !== undefined && !patterns)
+      ) {
+        errors.push(`${layer.source}: policy "${raw.name}" has a non-string tools, paths, or patterns entry and was skipped`);
+        continue;
+      }
+      const hasPattern = typeof raw.pattern === "string" || Boolean(patterns?.length);
       const requirement = raw.require as Record<string, unknown> | undefined;
       const hasValidRequire =
         !requirement ||
         (typeof requirement.pattern === "string" &&
           (typeof requirement.path === "string" || requirement.path === undefined));
-      if (!hasPattern && !hasValidRequire) {
-        errors.push(`${layer.source}: policy "${raw.name}" has neither pattern(s) nor a valid require gate and was skipped`);
+      if (!hasPattern) {
+        errors.push(`${layer.source}: policy "${raw.name}" has no valid pattern and was skipped`);
         continue;
       }
       if (!hasValidRequire) {
         errors.push(`${layer.source}: policy "${raw.name}" has an invalid require gate (need string pattern, optional string path) and was skipped`);
         continue;
       }
-      byName.set(raw.name, { policy: normalizePolicy(raw, layer.source) });
+      byName.set(raw.name, { policy: normalizePolicy(raw, layer.source, tools, paths, patterns) });
     }
     for (const err of layer.errors ?? []) errors.push(`${layer.source}: ${err}`);
   }
@@ -94,14 +111,20 @@ export function mergeLayers(layers: PolicyLayer[]): ResolvedConfig {
   return { policies, errors };
 }
 
-function normalizePolicy(raw: Record<string, unknown>, source: string): Policy {
+function normalizePolicy(
+  raw: Record<string, unknown>,
+  source: string,
+  tools: string[] | undefined,
+  paths: string[] | undefined,
+  patterns: string[] | undefined,
+): Policy {
   const requirement = raw.require as Record<string, unknown> | undefined;
   return {
     name: String(raw.name),
-    tools: Array.isArray(raw.tools) ? (raw.tools as string[]) : undefined,
-    paths: Array.isArray(raw.paths) ? (raw.paths as string[]) : undefined,
+    tools,
+    paths,
     pattern: typeof raw.pattern === "string" ? raw.pattern : undefined,
-    patterns: Array.isArray(raw.patterns) ? (raw.patterns as string[]) : undefined,
+    patterns,
     require:
       requirement && typeof requirement.pattern === "string"
         ? {
@@ -169,7 +192,7 @@ export function evaluate(config: ResolvedConfig, call: ToolCallInput): Decision 
     }
     const subjects = policy.paths
       ? policy.paths.flatMap((p) => valueAtPath(call.args, p))
-      : valueAtPath(call.args, policy.path);
+      : valueAtPath(call.args);
     if (policy.regexps.some((re) => subjects.some((leaf) => re.test(leaf)))) {
       return {
         policyName: policy.name,
