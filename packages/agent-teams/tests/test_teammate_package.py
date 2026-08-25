@@ -1707,22 +1707,28 @@ def test_provider_hang_silent_stall_tier() -> None:
     assert "PI_TEAMMATE_SILENT_STALL_MS" in machine
     assert "stallThresholdMs" in machine and "hasModelOutput" in machine
     assert "stallNoticeBody" in machine
-    # Streaming usage reaches the roster so zero-token hangs are visible before shutdown.
-    assert "usage?: WorkerUsage" in spawner
-    assert "usage: streamState.usage" in spawner
+    # Streaming activity and usage reach the roster so hangs are visible before shutdown.
+    assert "modelOutputSeen?: boolean" in spawner
+    assert "modelOutputSeen: streamState.modelOutputSeen" in spawner
     assert "progress.usage" in state
+    assert "if (progress.modelOutputSeen) teammate.modelOutputSeen = true;" in state
+    # Usage never sets the classifier: only streamed content does.
+    assert "if (parts.trim()) state.modelOutputSeen = true;" in spawner
+    assert "totalTokens ?? 0) > 0)) state.modelOutputSeen" not in spawner
     # The console marks the silent tier with the same effective threshold.
     assert "stallThresholdMs" in ui
     payload = run_node(
         f'''\
         import {{ hasModelOutput, stallThresholdMs, stallNoticeBody }} from "{(SRC / "team-machine.ts").as_uri()}";
         const now = 5 * 60_000;
-        const hung = {{ status: "working", createdAt: 0, lastOutputAt: 0, activeTool: undefined, usage: undefined }};
-        const longTool = {{ ...hung, activeTool: "bash: pio run -t upload", usage: undefined }};
-        const midWork = {{ ...hung, usage: {{ input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: 0.01 }} }};
+        const hung = {{ status: "working", createdAt: 0, lastOutputAt: 0, activeTool: undefined, modelOutputSeen: undefined, usage: undefined }};
+        const longTool = {{ ...hung, activeTool: "bash: pio run -t upload", modelOutputSeen: true }};
+        const activityNoUsage = {{ ...hung, modelOutputSeen: true, usage: undefined }};
+        const midWork = {{ ...hung, modelOutputSeen: true, usage: {{ input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: 0.01 }} }};
         console.log(JSON.stringify({{
           silentTier: stallThresholdMs(hung),
           longToolTier: stallThresholdMs(longTool),
+          activityTier: stallThresholdMs(activityNoUsage),
           modelOutputTier: stallThresholdMs(midWork),
           zeroOutputDetected: !hasModelOutput(hung),
           outputDetected: hasModelOutput(midWork),
@@ -1734,8 +1740,9 @@ def test_provider_hang_silent_stall_tier() -> None:
     )
     assert payload["zeroOutputDetected"] is True
     assert payload["outputDetected"] is True
-    # The provider-hang signature uses the shorter window; anything else keeps the default.
-    assert payload["silentTier"] < payload["longToolTier"] == payload["modelOutputTier"]
+    # The provider-hang signature uses the shorter window; recognized stream
+    # activity counts as output even when usage totals are absent.
+    assert payload["silentTier"] < payload["longToolTier"] == payload["activityTier"] == payload["modelOutputTier"]
     hung_body: str = payload["hungBody"]  # type: ignore[assignment]
     assert "No model output received yet" in hung_body
     assert "respawning a successor" in hung_body
@@ -1790,14 +1797,17 @@ def test_worker_tool_grant_is_visible_at_spawn() -> None:
         assert phrase in feature, phrase
     assert "resolveWorkerTools" in spawner and "WORKER_CAPABILITY_TOOLS" in spawner
     assert 'args.push("--tools", resolveWorkerTools(options.tools).join(","))' in spawner
-    # The roster records the grant before the first wake — both leader state
-    # and the worker-readable roster snapshot.
+    # The grant is flushed to both rosters before the kickoff can be consumed.
     assert "tools: resolveWorkerTools(agent.tools)" in machine
+    grant_index = machine.index("tools: resolveWorkerTools(agent.tools)")
+    spawn_window = machine[grant_index:grant_index + 1200]
+    assert spawn_window.index("publishStateSnapshot()") < spawn_window.index("spawnResident({")
     assert "status: t.status, tools: t.tools" in machine
     assert "tools?: string[]" in types
-    # Persisted in result details so historical renders survive session restarts.
+    # Persisted in result details so historical renders survive session restarts
+    # and stay truthful across teammate-name reuse (no live-state fallback).
     assert "details: { started: true, tools: granted }" in tools_src
-    assert "details?.tools ?? getTeammate(params.name)?.tools" in tools_src
+    assert "const tools = details?.tools;" in tools_src
     # Spawn surfaces name the granted list so missing read/bash is obvious immediately.
     assert "granted.join(\", \")" in tools_src
     assert "Tools: ${teammate.tools.join(", ")}" in ui
@@ -1920,8 +1930,10 @@ def test_idle_without_terminal_report_self_finalizes_before_escalating() -> None
     assert "idleNudgesSent" in machine
     # The worker-side send tool reinforces the rule at the exact moment of use.
     assert "does not end your assignment" in worker
-    # A prompt-less spawn is idle from birth instead of sticking in starting.
-    assert 'updateTeammate(input.name, { status: "idle" })' in machine
+    # A spawned teammate runs a kickoff turn, so status must stay "starting"
+    # until real stream events arrive: the old synchronous idle mark mislabeled
+    # an actively-running turn as idle and misrouted queued deliveries.
+    assert 'updateTeammate(input.name, { status: "idle" })' not in machine
 
 
 def test_worker_task_list_includes_roster_tail() -> None:

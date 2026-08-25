@@ -134,15 +134,18 @@ export function formatSilenceDuration(milliseconds: number): string {
   return `${minutes}m`;
 }
 
-/** True when the stream has delivered model output (usage totals) at least once. */
-export function hasModelOutput(teammate: Pick<Teammate, "usage">): boolean {
-  return !!teammate.usage && teammate.usage.totalTokens > 0;
+/** True when the stream has delivered recognized model activity (text,
+ * thinking, tool-call, or tool execution events) at least once — the stall
+ * classifier. Usage totals stay diagnostics only: providers may omit them
+ * after real output, and an empty message_end artifact must not count. */
+export function hasModelOutput(teammate: Pick<Teammate, "modelOutputSeen">): boolean {
+  return teammate.modelOutputSeen === true;
 }
 
 /** Silence threshold for one teammate. A worker that has never received model
  * output and runs no tool is almost certainly blocked on the provider rather
  * than doing slow work; that signature uses the shorter silent-stall window. */
-export function stallThresholdMs(teammate: Pick<Teammate, "usage" | "activeTool">): number {
+export function stallThresholdMs(teammate: Pick<Teammate, "modelOutputSeen" | "activeTool">): number {
   if (STALL_NOTICE_MS <= 0 || SILENT_STALL_MS <= 0) return STALL_NOTICE_MS;
   if (!hasModelOutput(teammate) && !teammate.activeTool) return SILENT_STALL_MS;
   return STALL_NOTICE_MS;
@@ -157,7 +160,7 @@ function usageLine(usage: WorkerUsage | undefined): string {
  * duration, spawn age, lifetime usage, and — for the zero-output provider-hang
  * signature — the remedy that actually works (shutdown + respawn). */
 export function stallNoticeBody(
-  teammate: Pick<Teammate, "name" | "createdAt" | "activeTool" | "usage">,
+  teammate: Pick<Teammate, "name" | "createdAt" | "activeTool" | "modelOutputSeen" | "usage">,
   silenceMs: number,
   now = Date.now(),
 ): string {
@@ -402,6 +405,9 @@ export function spawnTeammate(input: {
   // Record the grant before the first wake: a role derived without tools shows
   // its narrow capability-only allowlist right on the spawn surface.
   updateTeammate(input.name, { model: spawnModel.model, tools: resolveWorkerTools(agent.tools) });
+  // Flush before the kickoff is written: a fast child must not read a stale
+  // worker-readable roster missing its own entry or tool grant.
+  publishStateSnapshot();
 
   const started = spawnResident({
     workerName: input.name,
@@ -418,8 +424,10 @@ export function spawnTeammate(input: {
     return { ok: false, error: started.error };
   }
   updateTeammate(input.name, { pid: started.pid });
-  // A prompt-less spawn has no stream activity; it is idle from birth.
-  if (!input.prompt?.trim()) updateTeammate(input.name, { status: "idle" });
+  // Status stays "starting" until real stream events arrive: every spawned
+  // teammate runs a kickoff turn, so marking prompt-less spawns idle here used
+  // to mislabel an actively-running turn as idle and misroute deliveries
+  // (queued instead of steered, then lost inside the running turn).
   publishStateSnapshot();
   ensureLivePoll();
   notifyChange();
@@ -539,6 +547,7 @@ function applyProgress(name: string, spawnId: string, progress: {
   liveThinking?: string;
   turns: number;
   finalResponse?: boolean;
+  modelOutputSeen?: boolean;
   usage?: WorkerUsage;
 }): void {
   const teammate = getTeammate(name);
@@ -550,6 +559,7 @@ function applyProgress(name: string, spawnId: string, progress: {
     liveThinking: progress.liveThinking,
     turns: progress.turns,
     sequenceEnded: progress.finalResponse === true ? true : undefined,
+    modelOutputSeen: progress.modelOutputSeen,
     usage: progress.usage,
   });
   updateTeammate(name, { lastOutputAt: Date.now(), stallNoticeSentAt: undefined });

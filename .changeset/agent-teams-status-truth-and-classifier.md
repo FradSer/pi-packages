@@ -1,0 +1,5 @@
+---
+"@fradser/pi-agent-teams": minor
+---
+
+Fixes from the first live analysis of the stall watchdog and tool-grant work, plus the delivery-gap root cause it surfaced: a spawned teammate runs its kickoff turn immediately, so marking prompt-less spawns idle at birth mislabeled an actively-running turn as idle — queued leader messages were then delivered into that running turn and lost (the teammate kept reporting "board empty" until a steer landed). Status now stays "starting" until real stream events arrive and flows starting→working→idle from stream truth. The provider-hang classifier now keys on recognized stream activity (text/thinking/toolcall/tool events) instead of usage totals — providers that omit usage after real output are no longer misclassified, and an empty message_end artifact never counts; usage stays diagnostics. The grant is flushed to both rosters before the kickoff is written, and historical spawn renders read persisted details only so name reuse cannot display another incarnation's allowlist.

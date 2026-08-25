@@ -41,7 +41,9 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       }
       const params = context.args as { name: string; prompt?: string };
       const details = result.details as { started?: boolean; tools?: string[] } | undefined;
-      const tools = details?.tools ?? getTeammate(params.name)?.tools;
+      // Details only: falling back to live roster state would mislabel history
+      // after a teammate name is reused with a different grant.
+      const tools = details?.tools;
       const toolsNote = tools?.length ? `${theme.fg("dim", " · ")}${theme.fg("muted", `tools: ${tools.join(", ")}`)}` : "";
       const line = `${theme.fg("toolTitle", theme.bold(formatToolEventLabel("started", "", "agent").trimEnd()))} ${theme.fg("accent", `@${params.name}`)} ${theme.fg("dim", "·")} ${theme.fg("customMessageText", theme.bold(formatAgentTaskName(params.prompt ?? "", params.name)))}${toolsNote}`;
       return {
@@ -56,7 +58,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       const granted = getTeammate(params.name)?.tools ?? [];
       const kickoffNote = params.prompt?.trim()
         ? "It received your kickoff prompt and is working on it."
-        : "It is idle: it wakes for inbox messages and claimable board tasks.";
+        : "It received the standard board-check kickoff and is running its first turn; it idles once that settles.";
       return {
         content: [{ type: "text", text: `@${params.name} is alive as ${params.agent} (tools: ${granted.join(", ")}).\n${kickoffNote}\n\n${rosterSummary()}` }],
         details: { started: true, tools: granted },
