@@ -1712,6 +1712,9 @@ def test_provider_hang_silent_stall_tier() -> None:
     assert "modelOutputSeen: streamState.modelOutputSeen" in spawner
     assert "progress.usage" in state
     assert "if (progress.modelOutputSeen) teammate.modelOutputSeen = true;" in state
+    # Usage never sets the classifier: only streamed content does.
+    assert "if (parts.trim()) state.modelOutputSeen = true;" in spawner
+    assert "totalTokens ?? 0) > 0)) state.modelOutputSeen" not in spawner
     # The console marks the silent tier with the same effective threshold.
     assert "stallThresholdMs" in ui
     payload = run_node(

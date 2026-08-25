@@ -58,7 +58,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       const granted = getTeammate(params.name)?.tools ?? [];
       const kickoffNote = params.prompt?.trim()
         ? "It received your kickoff prompt and is working on it."
-        : "It is idle: it wakes for inbox messages and claimable board tasks.";
+        : "It received the standard board-check kickoff and is running its first turn; it idles once that settles.";
       return {
         content: [{ type: "text", text: `@${params.name} is alive as ${params.agent} (tools: ${granted.join(", ")}).\n${kickoffNote}\n\n${rosterSummary()}` }],
         details: { started: true, tools: granted },

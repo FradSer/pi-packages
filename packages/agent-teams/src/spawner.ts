@@ -263,10 +263,10 @@ function applyStreamLine(state: StreamState, line: string): boolean {
     if (event.message.stopReason === "stop") state.finalResponse = true;
     const parts = extractTextContent(event.message.content, "");
     if (parts.trim()) state.text = parts;
+    // Usage stays diagnostics: only streamed content counts as model output,
+    // so input-only or failed responses cannot bypass the zero-output tier.
     const u = event.message.usage;
-    // A bare empty message_end (RPC startup artifact) must not count as model
-    // output; real content or usage does.
-    if (parts.trim() || (u && (u.totalTokens ?? 0) > 0)) state.modelOutputSeen = true;
+    if (parts.trim()) state.modelOutputSeen = true;
     if (u) {
       state.usage = {
         input: (state.usage?.input ?? 0) + (u.input ?? 0),
