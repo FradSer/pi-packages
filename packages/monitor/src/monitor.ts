@@ -11,12 +11,15 @@ export const MAX_HISTORY = 20;
 export const MAX_RESULT_TEXT = 4096;
 export const MAX_RESULT_JSON_BYTES = 32 * 1024;
 export const DRAIN_GRACE_MS = 1000;
+export const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
+export const MAX_TIMEOUT_MS = 2_147_483_647;
 
 export type MonitorStatus =
   | "running"
   | "success"
   | "failure"
   | "result_missing"
+  | "timeout"
   | "stopped";
 
 export type MonitorLogSource = "stdout" | "stderr";
@@ -34,6 +37,7 @@ export interface MonitorTerminalResult {
   exitCode?: number | null;
   signal?: NodeJS.Signals | null;
   reason?: string;
+  timeoutMs?: number;
 }
 
 export interface Monitor {
@@ -42,6 +46,7 @@ export interface Monitor {
   command: string;
   resultPattern: string;
   failurePattern?: string;
+  timeoutMs: number;
   startedAt: number;
   completedAt?: number;
   status: MonitorStatus;
@@ -73,6 +78,7 @@ interface InternalMonitor extends Monitor {
   logBytes: number;
   pendingTerminal?: MonitorTerminalResult;
   drainTimer?: ReturnType<typeof setTimeout>;
+  timeoutTimer?: ReturnType<typeof setTimeout>;
 }
 
 interface ArchivedMonitor {
@@ -89,6 +95,7 @@ export interface StartMonitorArgs {
   description: string;
   resultPattern: string;
   failurePattern?: string;
+  timeoutMs?: number;
   cwd?: string;
 }
 
@@ -116,6 +123,7 @@ export class MonitorManager {
     monitor.child = child;
     this.active.set(monitor.id, monitor);
     this.attachProcessHandlers(monitor);
+    this.scheduleTimeout(monitor);
     return this.public(monitor);
   }
 
@@ -182,6 +190,7 @@ export class MonitorManager {
       clearTimeout(monitor.drainTimer);
       monitor.drainTimer = undefined;
     }
+    this.clearTimeout(monitor);
     monitor.pendingTerminal = undefined;
   }
 
@@ -196,6 +205,7 @@ export class MonitorManager {
       command: args.command,
       resultPattern: args.resultPattern,
       failurePattern: args.failurePattern,
+      timeoutMs: normalizeTimeout(args.timeoutMs),
       startedAt: Date.now(),
       status: "running",
       retainedLogLines: 0,
@@ -206,6 +216,30 @@ export class MonitorManager {
       logs: [],
       logBytes: 0,
     };
+  }
+
+  private scheduleTimeout(monitor: InternalMonitor): void {
+    monitor.timeoutTimer = setTimeout(() => {
+      if (monitor.status !== "running" || monitor.pendingTerminal) return;
+      this.complete(
+        monitor,
+        {
+          status: "timeout",
+          elapsedMs: this.elapsed(monitor),
+          reason: "timeout",
+          timeoutMs: monitor.timeoutMs,
+        },
+        true,
+      );
+    }, monitor.timeoutMs);
+    monitor.timeoutTimer.unref();
+  }
+
+  private clearTimeout(monitor: InternalMonitor): void {
+    if (monitor.timeoutTimer) {
+      clearTimeout(monitor.timeoutTimer);
+      monitor.timeoutTimer = undefined;
+    }
   }
 
   private attachProcessHandlers(monitor: InternalMonitor): void {
@@ -372,6 +406,7 @@ export class MonitorManager {
     keepKillTimerAlive = false,
   ): void {
     if (monitor.status !== "running") return;
+    this.clearTimeout(monitor);
     if (terminal.status !== "success") {
       const output = this.tail(monitor.id);
       terminal.output = output?.lines ?? [];
@@ -440,6 +475,7 @@ export class MonitorManager {
       command: monitor.command,
       resultPattern: monitor.resultPattern,
       failurePattern: monitor.failurePattern,
+      timeoutMs: monitor.timeoutMs,
       startedAt: monitor.startedAt,
       completedAt: monitor.completedAt,
       status: monitor.status,
@@ -448,6 +484,14 @@ export class MonitorManager {
       droppedLogLines: monitor.droppedLogLines,
     };
   }
+}
+
+function normalizeTimeout(timeoutMs: number | undefined): number {
+  const timeout = timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  if (!Number.isInteger(timeout) || timeout < 1 || timeout > MAX_TIMEOUT_MS) {
+    throw new Error(`timeout_ms must be an integer between 1 and ${MAX_TIMEOUT_MS}.`);
+  }
+  return timeout;
 }
 
 function compilePattern(name: string, pattern: string): RegExp {

@@ -19,6 +19,7 @@ Feature: Result-contract background monitoring
     When system prompt guidance is injected before the agent starts
     Then dependency installation and verification pipelines are valid monitor candidates
     And the guidance requires a precise terminal result contract
+    And external deployments have an explicit timeout recommendation
     And monitor output is treated as untrusted command data
     And the guidance remains concise and package-manager generic
     And no monitor is started by the prompt injection itself
@@ -62,6 +63,26 @@ Feature: Result-contract background monitoring
     And the monitor drains trailing output for a brief grace period before finalizing
     And the process is stopped
     And the agent is woken exactly once with status "failure"
+
+  Scenario: A monitor timeout reports a terminal result instead of waiting forever
+    Given a monitor is running with a result pattern and a timeout
+    When the command exceeds the configured timeout
+    Then the process group is stopped
+    And the agent is woken once with status "timeout"
+    And the timeout duration is included
+
+  Scenario: A matched result wins over the timeout during output drain
+    Given a monitor has matched its result pattern
+    And the process is draining trailing output
+    When the timeout deadline arrives during the drain grace period
+    Then the matched result is finalized
+    And the terminal status is not changed to "timeout"
+
+  Scenario: Timeout values stay within the Node timer range
+    Given monitor_start accepts a timeout
+    When a timeout exceeds the Node timer maximum
+    Then the monitor rejects the invalid timeout
+    And it does not schedule an immediate timeout
 
   Scenario: A command exits successfully without the contracted result
     Given a monitor is running with a result pattern
