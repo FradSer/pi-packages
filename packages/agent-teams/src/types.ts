@@ -51,6 +51,9 @@ export interface Teammate {
   /** Effective tool allowlist granted to the child process (role tools plus
    *  the capability set). Absent only for legacy snapshots. */
   tools?: string[];
+  /** True once recognized model/stream activity was observed for this
+   * incarnation; the stall classifier uses this, not usage totals. */
+  modelOutputSeen?: boolean;
   createdAt: number;
   updatedAt: number;
   stoppedAt?: number;

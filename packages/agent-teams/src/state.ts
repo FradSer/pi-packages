@@ -142,6 +142,7 @@ export function updateTeammateProgress(
   spawnId: string,
   progress: Pick<Teammate, "liveText" | "activeTool" | "liveThinking" | "turns"> & {
     sequenceEnded?: boolean;
+    modelOutputSeen?: boolean;
     usage?: WorkerUsage;
   },
 ): boolean {
@@ -152,6 +153,7 @@ export function updateTeammateProgress(
   teammate.liveThinking = progress.liveThinking;
   teammate.turns = progress.turns;
   if (progress.sequenceEnded !== undefined) teammate.sequenceEnded = progress.sequenceEnded;
+  if (progress.modelOutputSeen) teammate.modelOutputSeen = true;
   if (progress.usage) teammate.usage = progress.usage;
   if (teammate.status === "starting") {
     teammate.status = progress.sequenceEnded ? "idle" : "working";

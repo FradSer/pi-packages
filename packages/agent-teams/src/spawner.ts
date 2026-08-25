@@ -44,6 +44,10 @@ export interface WorkerProgressUpdate {
   turns: number;
   /** True after the current sequence's final response. */
   finalResponse?: boolean;
+  /** True once the stream delivered recognized model activity (text, thinking,
+   *  tool-call, or tool execution events). Independent of usage totals so
+   *  providers that omit usage are not misclassified as silent. */
+  modelOutputSeen?: boolean;
   /** Lifetime accumulated usage parsed from message_end events. */
   usage?: WorkerUsage;
 }
@@ -183,6 +187,9 @@ interface StreamState {
   /** Lifetime count of completed assistant messages. */
   turns: number;
   finalResponse?: boolean;
+  /** Set by any recognized model/stream activity; never by a bare empty
+   *  message_end artifact. The stall classifier uses this, not usage. */
+  modelOutputSeen?: boolean;
   usage?: WorkerUsage;
 }
 
@@ -236,11 +243,13 @@ function applyStreamLine(state: StreamState, line: string): boolean {
     return false;
   }
   if (event.type === "tool_execution_start") {
+    state.modelOutputSeen = true;
     state.activeTools.set(event.toolCallId ?? `tool-${state.activeTools.size}`, toolExecutionLabel(event.toolName, event.args));
     state.activeTool = [...state.activeTools.values()].at(-1);
     return true;
   }
   if (event.type === "tool_execution_end") {
+    state.modelOutputSeen = true;
     if (event.toolCallId) state.activeTools.delete(event.toolCallId);
     else state.activeTools.clear();
     state.activeTool = [...state.activeTools.values()].at(-1);
@@ -255,6 +264,9 @@ function applyStreamLine(state: StreamState, line: string): boolean {
     const parts = extractTextContent(event.message.content, "");
     if (parts.trim()) state.text = parts;
     const u = event.message.usage;
+    // A bare empty message_end (RPC startup artifact) must not count as model
+    // output; real content or usage does.
+    if (parts.trim() || (u && (u.totalTokens ?? 0) > 0)) state.modelOutputSeen = true;
     if (u) {
       state.usage = {
         input: (state.usage?.input ?? 0) + (u.input ?? 0),
@@ -271,23 +283,28 @@ function applyStreamLine(state: StreamState, line: string): boolean {
   if (!sub) return false;
   switch (sub.type) {
     case "text_delta":
+      state.modelOutputSeen = true;
       state.activeTool = undefined;
       state.text += sub.delta ?? "";
       return true;
     case "thinking_delta":
+      state.modelOutputSeen = true;
       state.activeTool = undefined;
       state.thinking += sub.delta ?? "";
       return true;
     case "toolcall_start":
+      state.modelOutputSeen = true;
       clearActiveTools(state);
       return true;
     case "toolcall_delta": {
+      state.modelOutputSeen = true;
       state.toolcallArgs += sub.delta ?? "";
       const label = toolcallLabel(state.toolcallArgs);
       if (label) state.activeTool = label;
       return true;
     }
     case "toolcall_end":
+      state.modelOutputSeen = true;
       // Execution events own the activity label until the result arrives.
       clearActiveTools(state);
       return true;
@@ -395,6 +412,7 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
     liveThinking: truncate(streamState.thinking, OUTPUT_CAP),
     turns: Math.max(0, streamState.turns - (baselines.get(options.workerName) ?? 0)),
     finalResponse: streamState.finalResponse,
+    modelOutputSeen: streamState.modelOutputSeen,
     usage: streamState.usage,
   });
 

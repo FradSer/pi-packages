@@ -181,10 +181,16 @@ Feature: Agent Teams collaborative organization contract
       And a later silent episode can raise a fresh notice
 
     Scenario: A provider hang is flagged before the default stall window
-      Given a working teammate has received no model output yet and runs no tool
+      Given a working teammate has received no recognized stream activity and runs no tool
       When its silence passes the silent-stall interval while staying under the default stall-notice interval
-      Then the leader receives one stall notice reporting zero lifetime model output
+      Then the leader receives one stall notice reporting zero model output
       And the notice names shutdown plus respawn as the effective remedy instead of steering
+
+    Scenario: Recognized stream activity counts as output regardless of usage totals
+      Given a working teammate whose stream delivered text, thinking, or tool events without usage totals
+      When its silence grows past the silent-stall interval
+      Then the general stall window governs instead of the provider-hang tier
+      And an empty message_end artifact alone never counts as model output
 
     Scenario: Stall notices carry lifetime usage diagnostics
       Given a silent working teammate with recorded lifetime token usage
