@@ -1790,9 +1790,14 @@ def test_worker_tool_grant_is_visible_at_spawn() -> None:
         assert phrase in feature, phrase
     assert "resolveWorkerTools" in spawner and "WORKER_CAPABILITY_TOOLS" in spawner
     assert 'args.push("--tools", resolveWorkerTools(options.tools).join(","))' in spawner
-    # The roster records the grant before the first wake.
+    # The roster records the grant before the first wake — both leader state
+    # and the worker-readable roster snapshot.
     assert "tools: resolveWorkerTools(agent.tools)" in machine
+    assert "status: t.status, tools: t.tools" in machine
     assert "tools?: string[]" in types
+    # Persisted in result details so historical renders survive session restarts.
+    assert "details: { started: true, tools: granted }" in tools_src
+    assert "details?.tools ?? getTeammate(params.name)?.tools" in tools_src
     # Spawn surfaces name the granted list so missing read/bash is obvious immediately.
     assert "granted.join(\", \")" in tools_src
     assert "Tools: ${teammate.tools.join(", ")}" in ui

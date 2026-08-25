@@ -40,7 +40,8 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
         return new Text(theme.fg("error", text.split("\n")[0] || "Failed to spawn teammate."), 0, 0);
       }
       const params = context.args as { name: string; prompt?: string };
-      const tools = getTeammate(params.name)?.tools;
+      const details = result.details as { started?: boolean; tools?: string[] } | undefined;
+      const tools = details?.tools ?? getTeammate(params.name)?.tools;
       const toolsNote = tools?.length ? `${theme.fg("dim", " · ")}${theme.fg("muted", `tools: ${tools.join(", ")}`)}` : "";
       const line = `${theme.fg("toolTitle", theme.bold(formatToolEventLabel("started", "", "agent").trimEnd()))} ${theme.fg("accent", `@${params.name}`)} ${theme.fg("dim", "·")} ${theme.fg("customMessageText", theme.bold(formatAgentTaskName(params.prompt ?? "", params.name)))}${toolsNote}`;
       return {
@@ -58,7 +59,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
         : "It is idle: it wakes for inbox messages and claimable board tasks.";
       return {
         content: [{ type: "text", text: `@${params.name} is alive as ${params.agent} (tools: ${granted.join(", ")}).\n${kickoffNote}\n\n${rosterSummary()}` }],
-        details: { started: true },
+        details: { started: true, tools: granted },
       };
     },
   });

@@ -79,13 +79,13 @@ export function appendInboxMessage(file: string, message: { id: string; from: st
 }
 
 /** Publish the worker-readable roster of living teammates. */
-export function writeRoster(file: string, teammates: Array<{ name: string; agent: string; status: string }>): void {
+export function writeRoster(file: string, teammates: Array<{ name: string; agent: string; status: string; tools?: string[] }>): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   writeJsonAtomic(file, { teammates });
 }
 
 /** Read the roster from inside a teammate process; unknown roster = empty. */
-export function readRoster(file: string): Array<{ name: string; agent: string; status: string }> {
+export function readRoster(file: string): Array<{ name: string; agent: string; status: string; tools?: string[] }> {
   try {
     const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as { teammates?: Array<{ name: string; agent: string; status: string }> };
     return Array.isArray(parsed.teammates) ? parsed.teammates : [];

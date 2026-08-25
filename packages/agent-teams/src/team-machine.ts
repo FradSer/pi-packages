@@ -303,7 +303,7 @@ function flushSnapshots(): void {
   const stateFile = requireStateFile();
   try {
     writeStateFile(stateFile, getState());
-    writeRoster(rosterPath(stateFile), livingTeammates().map((t) => ({ name: t.name, agent: t.agent, status: t.status })));
+    writeRoster(rosterPath(stateFile), livingTeammates().map((t) => ({ name: t.name, agent: t.agent, status: t.status, tools: t.tools })));
     if (boardFile) writeBoardFile(boardFile, getState().tasks);
     clearStateDirty();
   } catch {
