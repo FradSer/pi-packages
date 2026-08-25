@@ -31,7 +31,7 @@ Policies layer innermost-last; a policy name defined in several layers
 resolves to the innermost definition, and any layer can disable names:
 
 1. Built-in defaults ship with the package.
-2. `~/.pi/agent/harness.json` (+ `harness.local.json`)
+2. Pi agent directory `harness.json` (+ `harness.local.json`; defaults to `~/.pi/agent`, honors `PI_CODING_AGENT_DIR`)
 3. `<project>/.pi/harness.json` (+ `harness.local.json`)
 
 Policy shape:

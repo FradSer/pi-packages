@@ -30,8 +30,7 @@ function defaultLayer(): PolicyLayer {
 let cached: { key: string; value: ResolvedWithPaths } | undefined;
 
 function resolveConfig(cwd: string, agentDir?: string): ResolvedWithPaths {
-  const effectiveAgentDir = agentDir ?? (process.env.PI_GUARDRAILS_AGENT_DIR || undefined);
-  const paths = configPaths(cwd, effectiveAgentDir);
+  const paths = configPaths(cwd, agentDir);
   // Cache key covers every file's mtime: a max-only key goes stale when a
   // newer project file masks later edits to an older user file.
   let cacheKey = "";
@@ -43,7 +42,7 @@ function resolveConfig(cwd: string, agentDir?: string): ResolvedWithPaths {
     }
   }
   if (cached && cached.key === cacheKey) return cached.value;
-  const config = mergeLayers([defaultLayer(), ...loadLayers(cwd, effectiveAgentDir)]);
+  const config = mergeLayers([defaultLayer(), ...loadLayers(cwd, agentDir)]);
   cached = { key: cacheKey, value: { config, paths } };
   return cached.value;
 }

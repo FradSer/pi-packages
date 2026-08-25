@@ -47,8 +47,8 @@ fs.mkdirSync(path.join(project, ".pi"), { recursive: true });
 const agentDir = path.join(tmp, "agent");
 fs.mkdirSync(agentDir, { recursive: true });
 
-process.env.PI_GUARDRAILS_AGENT_DIR = agentDir;
-delete process.env.PI_GUARDRAILS_AGENT_DIR; // start from production state
+process.env.PI_CODING_AGENT_DIR = agentDir;
+delete process.env.PI_CODING_AGENT_DIR; // start from production state
 const baseCtx = { cwd: project, hasUI: false };
 
 // ── S1: built-in defaults active with no config files ────────────────
@@ -137,8 +137,8 @@ fs.writeFileSync(
   });
 }
 
-// ── S4: user layer disables a built-in and adds its own rule ─────────
-process.env.PI_GUARDRAILS_AGENT_DIR = agentDir;
+// ── S4: standard agent-dir override shares memory's user layer ──────
+process.env.PI_CODING_AGENT_DIR = agentDir;
 fs.writeFileSync(
   path.join(agentDir, "harness.json"),
   JSON.stringify({
@@ -164,6 +164,7 @@ await new Promise((r) => setTimeout(r, 20));
     baseCtx,
   );
   record("user-layer", {
+    standardDirHonored: process.env.PI_CODING_AGENT_DIR === agentDir,
     disabledBuiltInGone: login.length === 0,
     userRuleFires:
       prodCurl.length === 1 &&
@@ -252,9 +253,9 @@ def test_s3_confirm_action_headless_and_interactive() -> None:
     assert s["headlessBlocked"] and s["allowedOnce"] and s["deniedBlocked"]
 
 
-def test_s4_user_layer_disable_and_extend() -> None:
+def test_s4_standard_agent_dir_user_layer_disable_and_extend() -> None:
     s = ALL["user-layer"]
-    assert s["disabledBuiltInGone"] and s["userRuleFires"]
+    assert s["standardDirHonored"] and s["disabledBuiltInGone"] and s["userRuleFires"]
 
 
 def test_s5_cache_invalidates_on_later_user_edit() -> None:

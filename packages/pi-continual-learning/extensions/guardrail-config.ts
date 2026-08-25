@@ -4,8 +4,8 @@
  * instead of TOML to keep the package dependency-free. */
 
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { PolicyLayer } from "./guardrail-types.ts";
 
 export interface ConfigPaths {
@@ -16,7 +16,8 @@ export interface ConfigPaths {
 }
 
 export function configPaths(cwd: string, agentDir?: string): ConfigPaths {
-  const base = agentDir ?? path.join(os.homedir(), ".pi", "agent");
+  // Shared with the absorbed memory surface: honors PI_CODING_AGENT_DIR.
+  const base = agentDir ?? getAgentDir();
   return {
     user: path.join(base, "harness.json"),
     userLocal: path.join(base, "harness.local.json"),
