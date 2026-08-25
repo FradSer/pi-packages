@@ -7,8 +7,8 @@ Feature: Generic tool-call guardrails from layered config
   Scenario: Layered config resolves with deterministic precedence
     Given guardrails are declared in the user directory and the project
     When the configuration is loaded
-    Then the user file is ~/.pi/agent/guardrails.json plus its .local variant
-    And the project file is .pi/guardrails.json plus its .local variant
+    Then the user file is ~/.pi/agent/harness.json plus its .local variant
+    And the project file is .pi/harness.json plus its .local variant
     And a policy name defined in several layers resolves to the innermost one
     And names listed in any layer's disabled list are removed everywhere
 

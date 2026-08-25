@@ -18,10 +18,10 @@ export interface ConfigPaths {
 export function configPaths(cwd: string, agentDir?: string): ConfigPaths {
   const base = agentDir ?? path.join(os.homedir(), ".pi", "agent");
   return {
-    user: path.join(base, "guardrails.json"),
-    userLocal: path.join(base, "guardrails.local.json"),
-    project: path.join(cwd, ".pi", "guardrails.json"),
-    projectLocal: path.join(cwd, ".pi", "guardrails.local.json"),
+    user: path.join(base, "harness.json"),
+    userLocal: path.join(base, "harness.local.json"),
+    project: path.join(cwd, ".pi", "harness.json"),
+    projectLocal: path.join(cwd, ".pi", "harness.local.json"),
   };
 }
 

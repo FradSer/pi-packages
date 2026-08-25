@@ -25,7 +25,7 @@ export interface Policy {
 }
 
 export interface PolicyLayer {
-  /** Human-readable origin, e.g. "~/.pi/agent/guardrails.json". */
+  /** Human-readable origin, e.g. "~/.pi/agent/harness.json". */
   source: string;
   policies?: Array<Record<string, unknown>>;
   disabled?: string[];

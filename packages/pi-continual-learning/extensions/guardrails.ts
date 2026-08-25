@@ -4,8 +4,8 @@
  * are blocked with corrective guidance (the "more correct prompt") or gated
  * behind user confirmation.
  *
- * Policies live in ~/.pi/agent/guardrails.json (+ .local) and
- * <project>/.pi/guardrails.json (+ .local). Curated defaults ship with the
+ * Policies live in ~/.pi/agent/harness.json (+ .local) and
+ * <project>/.pi/harness.json (+ .local). Curated defaults ship with the
  * package and can be disabled by name from any layer.
  */
 

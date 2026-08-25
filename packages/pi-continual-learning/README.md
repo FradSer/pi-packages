@@ -31,8 +31,8 @@ Policies layer innermost-last; a policy name defined in several layers
 resolves to the innermost definition, and any layer can disable names:
 
 1. Built-in defaults ship with the package.
-2. `~/.pi/agent/guardrails.json` (+ `.guardrails.local.json`)
-3. `<project>/.pi/guardrails.json` (+ `.guardrails.local.json`)
+2. `~/.pi/agent/harness.json` (+ `.harness.local.json`)
+3. `<project>/.pi/harness.json` (+ `.harness.local.json`)
 
 Policy shape:
 
@@ -51,10 +51,10 @@ Policy shape:
 ```
 
 A generalized example — AI-generated UI widths violating layout rules — ships
-at `examples/ui-width.guardrails.json`: edits touching UI files that contain
+at `examples/ui-width.harness.json`: edits touching UI files that contain
 fixed pixel widths above the threshold are blocked with design guidance, while
 the same text in non-UI files passes through. Drop the file's contents into
-your project `.pi/guardrails.json` to activate it.
+your project `.pi/harness.json` to activate it.
 
 Built-in defaults cover known-futile automation: interactive auth commands
 (`npm/pnpm/yarn login|adduser|logout`) and OTP-via-file/chat routing are
