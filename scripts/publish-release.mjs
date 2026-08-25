@@ -15,6 +15,8 @@ const packages = [
   "@fradser/pi-agent-teams",
   "@fradser/pi-context",
   "pi-mattpocock",
+  "pi-design",
+  "pi-artifact",
 ];
 
 const workspacePackages = new Map();

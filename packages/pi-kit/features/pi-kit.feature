@@ -141,6 +141,13 @@ Feature: Shared pi-kit runtime helpers
     And an unrelated package whose name merely contains pi is rejected
     And the resolver falls back to a PATH pi executable only after package resolution
 
+  Scenario: Packages deliver menu procedures through shared helpers
+    Given an extension module lives at <pkg>/<dir>/<file> in a shipped package
+    When pi-kit resolves the package directory from that module's URL
+    Then the directory is one level above the module's own directory
+    And loading a procedure by name reads procedures/<name> under it
+    And every {{PKG_DIR}} placeholder in the procedure is replaced with that directory
+
   Scenario: Child termination observes close and escalates once
     Given a worker ignores SIGTERM
     When pi-kit terminates the worker
