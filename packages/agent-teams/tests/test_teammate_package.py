@@ -1774,6 +1774,51 @@ def test_silent_stall_independent_of_notice_pace() -> None:
     assert payload["tier"] == 300_000
 
 
+def test_worker_tool_grant_is_visible_at_spawn() -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    spawner = source("spawner.ts")
+    machine = source("team-machine.ts")
+    guidance = source("guidance.ts")
+    types = source("types.ts")
+    ui = source("ui.ts")
+    tools_src = source("tools.ts")
+    for phrase in (
+        "The roster and spawn render expose the effective tool allowlist",
+        "The leader guidance requires explicit worker tooling",
+        "a role derived inline without a tools field shows only the capability set",
+    ):
+        assert phrase in feature, phrase
+    assert "resolveWorkerTools" in spawner and "WORKER_CAPABILITY_TOOLS" in spawner
+    assert 'args.push("--tools", resolveWorkerTools(options.tools).join(","))' in spawner
+    # The roster records the grant before the first wake.
+    assert "tools: resolveWorkerTools(agent.tools)" in machine
+    assert "tools?: string[]" in types
+    # Spawn surfaces name the granted list so missing read/bash is obvious immediately.
+    assert "granted.join(\", \")" in tools_src
+    assert "Tools: ${teammate.tools.join(", ")}" in ui
+    for phrase in (
+        "grants only the capability set",
+        "respawn with the right tools instead of steering",
+    ):
+        assert phrase in guidance, phrase
+    payload = run_node(
+        f'''\
+        import {{ resolveWorkerTools }} from "{(SRC / "spawner.ts").as_uri()}";
+        console.log(JSON.stringify({{
+          capabilityOnly: resolveWorkerTools(undefined),
+          emptyRole: resolveWorkerTools([]),
+          withShell: resolveWorkerTools(["read", "bash", "send_message"]),
+          dedupesCapability: resolveWorkerTools(["task_list"]),
+        }}));
+        '''
+    )
+    capability = ["send_message", "task_list", "task_claim", "task_submit"]
+    assert payload["capabilityOnly"] == capability
+    assert payload["emptyRole"] == capability
+    assert payload["withShell"] == ["read", "bash"] + capability
+    assert payload["dedupesCapability"] == capability
+
+
 def test_stall_recovery_belongs_to_leader_alone() -> None:
     machine = source("team-machine.ts")
     tools = source("tools.ts")

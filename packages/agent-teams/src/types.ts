@@ -48,6 +48,9 @@ export interface Teammate {
   noticedTaskIds?: string[];
   usage?: WorkerUsage;
   error?: string;
+  /** Effective tool allowlist granted to the child process (role tools plus
+   *  the capability set). Absent only for legacy snapshots. */
+  tools?: string[];
   createdAt: number;
   updatedAt: number;
   stoppedAt?: number;

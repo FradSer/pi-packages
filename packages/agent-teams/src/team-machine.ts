@@ -63,6 +63,7 @@ import { isWorkerEvent } from "./types.ts";
 import {
   deliverPrompt,
   isCleanExit,
+  resolveWorkerTools,
   sendWorkerSteer,
   spawnResident,
   terminateAllTeammates,
@@ -398,7 +399,9 @@ export function spawnTeammate(input: {
   }
 
   const spawnModel = resolveSpawnModel(agent.model, getTeamDefaultModel(), leaderModelRef());
-  updateTeammate(input.name, { model: spawnModel.model });
+  // Record the grant before the first wake: a role derived without tools shows
+  // its narrow capability-only allowlist right on the spawn surface.
+  updateTeammate(input.name, { model: spawnModel.model, tools: resolveWorkerTools(agent.tools) });
 
   const started = spawnResident({
     workerName: input.name,

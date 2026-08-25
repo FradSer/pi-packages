@@ -82,6 +82,13 @@ inbox messages and claimable board tasks, and can message peers directly.
 A session-wide cap of 8 living teammates applies. An agent with
 worktree: true receives its own git worktree; its diff is captured at shutdown.
 
+Match the definition's \`tools\` to the assignment. A role without a \`tools\`
+field grants only the capability set (send_message, task_list, task_claim,
+task_submit): any work that must read files or run commands needs \`read\` and
+\`bash\` listed explicitly. The spawn result names the granted list — if a
+teamate reports missing capabilities or the kickoff demands tools it lacks,
+teammate_shutdown it and respawn with the right tools instead of steering.
+
 Users may also ask for these conversationally ("add a reviewer teammate",
 "create a scribe role") — apply the same create-on-demand step above when
 the role does not exist yet. The human-facing management surface is the
