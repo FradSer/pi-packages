@@ -54,16 +54,16 @@ Answers side questions in a read-only overlay without adding them to the current
 pi install npm:@fradser/pi-btw
 ```
 
-### [`memory`](packages/memory/)
+### [`pi-continual-learning`](packages/pi-continual-learning/)
 
-Manages durable project memory with a `/memory` menu, auto-memory guidance, and manual consolidation.
+Continual learning at the harness and prompt surfaces: declarative tool-call guardrails with corrective guidance, plus memory retrieval, injection, and manual consolidation. Model weights are out of scope.
 
-**Command:** `/memory`, `/consolidate`
+**Command:** `/memory`, `/consolidate`, `/guardrails`
 
 **Install:**
 
 ```bash
-pi install npm:@fradser/pi-memory
+pi install npm:pi-continual-learning
 ```
 
 ### [`monitor`](packages/monitor/)

@@ -1,8 +1,12 @@
 # Repository Guidelines
 
+> Renamed from `@fradser/pi-memory` to `pi-continual-learning`: the package now owns
+> the harness surface of continual learning (declarative tool-call guardrails) in
+> addition to the prompt surface (memory retrieval, injection, consolidation).
+
 ## Project Structure
 
-`packages/memory/` publishes `@fradser/pi-memory`, a native extension with no
+`packages/pi-continual-learning/` publishes `pi-continual-learning`, a native extension with no
 skill surface. Package-root `index.ts` loads `extensions/inject-memory.ts`,
 which owns `/memory`, `/consolidate`, memory injection, and lifecycle cleanup.
 Supporting extension modules cover configuration, secure memory loading,
@@ -16,9 +20,9 @@ the dependency-free artifact/privacy validator. BDD contracts are in
 Run focused checks with:
 
 ```bash
-python3 -m pytest packages/memory/tests/ -q
+python3 -m pytest packages/pi-continual-learning/tests/ -q
 npx tsc --noEmit -p tsconfig.extensions.json
-pnpm --dir packages/memory pack --dry-run
+pnpm --dir packages/pi-continual-learning pack --dry-run
 ```
 
 There is no separate build step; Pi loads the shipped TypeScript entry point.

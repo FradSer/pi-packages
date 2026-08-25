@@ -12,7 +12,7 @@ SRC = PACKAGE / "src"
 CONSUMERS = [
     "agent-teams",
     "btw",
-    "memory",
+    "pi-continual-learning",
     "recap",
     "utils",
     "vision",
@@ -523,6 +523,6 @@ def test_publish_allowlist_orders_pi_kit_before_consumers() -> None:
     script = (REPO / "scripts" / "publish-release.mjs").read_text(encoding="utf-8")
     kit_position = script.index('"@fradser/pi-kit"')
     assert kit_position > 0, "publish allowlist must include @fradser/pi-kit"
-    for name in ['"@fradser/pi-agent-teams"', '"@fradser/pi-btw"', '"@fradser/pi-memory"',
+    for name in ['"@fradser/pi-agent-teams"', '"@fradser/pi-btw"', '"pi-continual-learning"',
                  '"@fradser/pi-recap"', '"@fradser/pi-utils"', '"@fradser/pi-vision"']:
         assert script.index(name) > kit_position, f"pi-kit must publish before {name}"

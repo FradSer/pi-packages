@@ -1,14 +1,18 @@
 {
-  "name": "@fradser/pi-memory",
-  "version": "0.2.7",
-  "description": "Native /memory command for pi — auto-memory guidance, instructions menu, and manual consolidation (no skill surface)",
-  "author": "Frad LEE <fradser@gmail.com>",
-  "license": "MIT",
+  "name": "pi-continual-learning",
+  "version": "0.1.0",
+  "description": "Continual learning for Pi at the harness and prompt surfaces — declarative tool-call guardrails plus memory retrieval, injection, and consolidation. Model weights are out of scope.",
   "keywords": [
     "pi-package",
+    "continual-learning",
+    "guardrails",
+    "policy",
     "memory",
     "consolidation"
   ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/FradSer/pi-packages.git"
@@ -18,9 +22,10 @@
   },
   "files": [
     "index.ts",
-    "procedures",
     "extensions",
+    "procedures",
     "scripts",
+    "examples",
     "README.md"
   ],
   "pi": {

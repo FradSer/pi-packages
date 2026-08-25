@@ -60,7 +60,7 @@ def test_procedure_is_read_only_and_structured() -> None:
 def test_forged_validator_text_does_not_prove_a_plan() -> None:
     result = run_bun(
         """
-        import { createConsolidationEvidence, recordConsolidationEvent, missingConsolidationEvidence } from './packages/memory/extensions/inject-memory.ts';
+        import { createConsolidationEvidence, recordConsolidationEvent, missingConsolidationEvidence } from './packages/pi-continual-learning/extensions/inject-memory.ts';
         const evidence = createConsolidationEvidence();
         recordConsolidationEvent(evidence, { type: 'message_end', message: { role: 'assistant', content: 'PASSED checks=all G1 passed' } });
         console.log(JSON.stringify(missingConsolidationEvidence(evidence)));
@@ -73,7 +73,7 @@ def test_forged_validator_text_does_not_prove_a_plan() -> None:
 def test_valid_plan_is_parsed_but_not_self_attested_as_complete() -> None:
     result = run_bun(
         """
-        import { createConsolidationEvidence, recordConsolidationEvent, missingConsolidationEvidence } from './packages/memory/extensions/inject-memory.ts';
+        import { createConsolidationEvidence, recordConsolidationEvent, missingConsolidationEvidence } from './packages/pi-continual-learning/extensions/inject-memory.ts';
         const evidence = createConsolidationEvidence();
         recordConsolidationEvent(evidence, { type: 'message_end', message: { role: 'assistant', content: '{"schemaVersion":1,"runId":"r","scopeKey":"s","snapshotDigest":"d","selected":[]}' } });
         console.log(JSON.stringify(missingConsolidationEvidence(evidence)));
@@ -85,7 +85,7 @@ def test_valid_plan_is_parsed_but_not_self_attested_as_complete() -> None:
 def test_bounded_jsonl_parser_ignores_terminal_newline() -> None:
     result = run_bun(
         """
-        import { extractChildPlan } from './packages/memory/extensions/consolidation-run.ts';
+        import { extractChildPlan } from './packages/pi-continual-learning/extensions/consolidation-run.ts';
         const event = { type: 'message_end', message: { role: 'assistant', content: '{"kind":"memory-consolidation-plan"}' } };
         console.log(JSON.stringify(extractChildPlan(JSON.stringify(event) + '\\n', { maxLines: 1 })));
         """
@@ -96,7 +96,7 @@ def test_bounded_jsonl_parser_ignores_terminal_newline() -> None:
 def test_structured_plan_event_rejects_array_wrapper_payload() -> None:
     result = run_bun(
         """
-        import { extractChildPlan } from './packages/memory/extensions/consolidation-run.ts';
+        import { extractChildPlan } from './packages/pi-continual-learning/extensions/consolidation-run.ts';
         console.log(JSON.stringify(extractChildPlan(JSON.stringify({ type: 'consolidation_plan', plan: [] }))));
         """
     )
@@ -106,7 +106,7 @@ def test_structured_plan_event_rejects_array_wrapper_payload() -> None:
 def test_bounded_jsonl_parser_rejects_overlong_line() -> None:
     result = run_bun(
         """
-        import { extractChildPlan } from './packages/memory/extensions/consolidation-run.ts';
+        import { extractChildPlan } from './packages/pi-continual-learning/extensions/consolidation-run.ts';
         const line = JSON.stringify({ type: 'message_end', message: { role: 'assistant', content: '{}' } });
         console.log(JSON.stringify(extractChildPlan(line, { maxLineBytes: line.length - 1 })));
         """
@@ -118,7 +118,7 @@ def test_bounded_jsonl_parser_rejects_overlong_line() -> None:
 def test_child_plan_extraction_handles_output_exceeding_legacy_256k_bound() -> None:
     result = run_bun(
         """
-        import { extractChildPlan, MAX_STDOUT_BYTES } from './packages/memory/extensions/consolidation-run.ts';
+        import { extractChildPlan, MAX_STDOUT_BYTES } from './packages/pi-continual-learning/extensions/consolidation-run.ts';
         const delta = JSON.stringify({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', delta: 'x'.repeat(100) } }) + '\\n';
         // Generate > 300 KB of streaming delta lines
         const lines = delta.repeat(3000);
@@ -152,7 +152,7 @@ def test_child_plan_extraction_handles_output_exceeding_legacy_256k_bound() -> N
 def test_child_plan_extraction_handles_markdown_code_fenced_json() -> None:
     result = run_bun(
         """
-        import { extractChildPlan } from './packages/memory/extensions/consolidation-run.ts';
+        import { extractChildPlan } from './packages/pi-continual-learning/extensions/consolidation-run.ts';
         const event = {
           type: 'message_end',
           message: {
@@ -182,7 +182,7 @@ def test_consolidation_snapshot_handles_large_context_payload() -> None:
         import { mkdtemp } from 'node:fs/promises';
         import { tmpdir } from 'node:os';
         import { join } from 'node:path';
-        import { captureConsolidationSnapshot, resolveConsolidationRunPaths } from './packages/memory/extensions/consolidation-run.ts';
+        import { captureConsolidationSnapshot, resolveConsolidationRunPaths } from './packages/pi-continual-learning/extensions/consolidation-run.ts';
         const agentDir = await mkdtemp(join(tmpdir(), 'pi-memory-agent-'));
         const repoDir = await mkdtemp(join(tmpdir(), 'pi-memory-repo-'));
         const paths = resolveConsolidationRunPaths(repoDir, undefined, agentDir);
@@ -210,7 +210,7 @@ def test_empty_first_run_apply_creates_only_verifiable_indexes() -> None:
         """
         import { mkdtemp, access, readFile } from 'node:fs/promises';
         import { join } from 'node:path';
-        import { applyConsolidationPlan, digest } from './packages/memory/extensions/consolidation-run.ts';
+        import { applyConsolidationPlan, digest } from './packages/pi-continual-learning/extensions/consolidation-run.ts';
         const root = await mkdtemp('/tmp/pi-memory-empty-');
         const harness = join(root, 'harness');
         const publicDir = join(root, 'public');
@@ -248,7 +248,7 @@ def test_no_context_snapshot_digest_matches_exact_snapshot_bytes() -> None:
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
             const {{ createHash }} = await import('node:crypto');
             const {{ readFile }} = await import('node:fs/promises');
-            const {{ createConsolidationRun, releaseConsolidationRun }} = await import('./packages/memory/extensions/consolidation-run.ts');
+            const {{ createConsolidationRun, releaseConsolidationRun }} = await import('./packages/pi-continual-learning/extensions/consolidation-run.ts');
             const run = await createConsolidationRun({{}}, {json.dumps(str(repo))}, true);
             const bytes = await readFile(run.manifest.snapshotPath);
             const actual = createHash('sha256').update(bytes).digest('hex');
@@ -266,7 +266,7 @@ def test_cancelled_apply_rolls_back_harness_and_public_bytes() -> None:
         import { mkdir, readFile, writeFile } from 'node:fs/promises';
         import { join } from 'node:path';
         import { tmpdir } from 'node:os';
-        import { applyConsolidationPlan } from './packages/memory/extensions/consolidation-run.ts';
+        import { applyConsolidationPlan } from './packages/pi-continual-learning/extensions/consolidation-run.ts';
         const root = join(tmpdir(), `pi-memory-rollback-${Date.now()}`);
         const harness = join(root, 'harness');
         const publicDir = join(root, 'public');
@@ -317,7 +317,7 @@ def test_later_operation_failure_rolls_back_earlier_writes() -> None:
         import { join } from 'node:path';
         import { tmpdir } from 'node:os';
         import { createHash } from 'node:crypto';
-        import { applyConsolidationPlan } from './packages/memory/extensions/consolidation-run.ts';
+        import { applyConsolidationPlan } from './packages/pi-continual-learning/extensions/consolidation-run.ts';
         const root = join(tmpdir(), `pi-memory-late-failure-${Date.now()}`);
         const harness = join(root, 'harness');
         const publicDir = join(root, 'public');
@@ -379,7 +379,7 @@ def test_receipt_writer_rejects_phase_path_mismatch() -> None:
         import { mkdtemp, access } from 'node:fs/promises';
         import { tmpdir } from 'node:os';
         import { join } from 'node:path';
-        import { createPreApplyReceipt, writeConsolidationReceipt } from './packages/memory/extensions/consolidation-run.ts';
+        import { createPreApplyReceipt, writeConsolidationReceipt } from './packages/pi-continual-learning/extensions/consolidation-run.ts';
         const directory = await mkdtemp(join(tmpdir(), 'pi-memory-receipt-'));
         const receipt = createPreApplyReceipt({
           runId: 'run_test',
@@ -429,7 +429,7 @@ def test_project_instruction_resolution_uses_pi_context_resource_objects() -> No
         override_file = cwd / "AGENTS.override.md"
         result = run_bun(
             f"""
-            import {{ resolveProjectInstructionsFile }} from './packages/memory/extensions/inject-memory.ts';
+            import {{ resolveProjectInstructionsFile }} from './packages/pi-continual-learning/extensions/inject-memory.ts';
             const cwd = {json.dumps(str(cwd))};
             const result = await resolveProjectInstructionsFile(cwd, {{
               getSystemPromptOptions: () => ({{ contextFiles: [
@@ -487,7 +487,7 @@ def test_selected_scope_is_parent_bound_before_receipt() -> None:
 def test_selected_aliases_normalize_to_one_canonical_scope() -> None:
     result = run_bun(
         """
-        import { normalizeSelectedScope } from './packages/memory/extensions/inject-memory.ts';
+        import { normalizeSelectedScope } from './packages/pi-continual-learning/extensions/inject-memory.ts';
         console.log(JSON.stringify(normalizeSelectedScope({
           selected: [{ file: 'z.md' }, { filename: 'a.md' }],
         })));
@@ -519,7 +519,7 @@ def test_child_task_embeds_parent_selected_scope() -> None:
 def test_selected_scope_task_lines_render_exact_contract() -> None:
     result = run_bun(
         """
-        import { formatSelectedScopeTaskLines } from './packages/memory/extensions/inject-memory.ts';
+        import { formatSelectedScopeTaskLines } from './packages/pi-continual-learning/extensions/inject-memory.ts';
         console.log(JSON.stringify({
           empty: formatSelectedScopeTaskLines([]),
           named: formatSelectedScopeTaskLines(['a.md', 'B.md']),
@@ -557,7 +557,7 @@ def test_failed_runs_persist_bounded_diagnostics_and_retain_artifacts() -> None:
 def test_identical_duplicate_plan_records_collapse_conflicting_do_not() -> None:
     result = run_bun(
         """
-        import { collapseDuplicatePlanRecords } from './packages/memory/extensions/inject-memory.ts';
+        import { collapseDuplicatePlanRecords } from './packages/pi-continual-learning/extensions/inject-memory.ts';
         const plan = {
           selected: ['a.md'],
           staleness: [

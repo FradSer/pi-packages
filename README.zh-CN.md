@@ -54,16 +54,16 @@ pi install npm:@fradser/pi-vision
 pi install npm:@fradser/pi-btw
 ```
 
-### [`memory`](packages/memory/)
+### [`pi-continual-learning`](packages/pi-continual-learning/)
 
-通过 `/memory` 菜单、自动记忆引导和手动整合管理持久化项目记忆。
+harness 与提示词表面的持续学习：声明式工具调用 guardrails（拦截并给出更正指引），以及记忆检索、注入与手动整合。模型权重不在范围内。
 
-**命令：** `/memory`、`/consolidate`
+**命令：** `/memory`、`/consolidate`、`/guardrails`
 
 **安装：**
 
 ```bash
-pi install npm:@fradser/pi-memory
+pi install npm:pi-continual-learning
 ```
 
 ### [`monitor`](packages/monitor/)
