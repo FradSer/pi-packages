@@ -53,6 +53,23 @@ export function isCleanExit(result: Pick<WorkerProcessResult, "exitCode" | "sign
   return result.exitCode === 0 && result.signal === null;
 }
 
+/** Tools every teammate receives regardless of its role definition. */
+export const WORKER_CAPABILITY_TOOLS: readonly string[] = [
+  "send_message",
+  "task_list",
+  "task_claim",
+  "task_submit",
+];
+
+/** Effective tool allowlist for one teammate: the role's requested tools plus
+ *  the capability set, deduplicated in request order. Roles without a tools
+ *  field get exactly the capability set — leaders should see that narrow
+ *  grant before the first wake so missing read/bash is obvious at spawn time. */
+export function resolveWorkerTools(requested?: string[]): string[] {
+  const requestedOnly = (requested ?? []).filter((tool) => !WORKER_CAPABILITY_TOOLS.includes(tool));
+  return [...new Set([...requestedOnly, ...WORKER_CAPABILITY_TOOLS])];
+}
+
 // ── Process registry ──────────────────────────────────────────────
 
 /** Live children by teammate name — powers steering, prompting, and shutdown. */
@@ -333,9 +350,7 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
     "--extension", WORKER_EXTENSION,
   ];
   if (options.model) args.push("--model", options.model);
-  const capabilityTools = ["send_message", "task_list", "task_claim", "task_submit"];
-  const requestedTools = (options.tools ?? []).filter((tool) => !capabilityTools.includes(tool));
-  args.push("--tools", [...new Set([...requestedTools, ...capabilityTools])].join(","));
+  args.push("--tools", resolveWorkerTools(options.tools).join(","));
 
   let tempDir: string | undefined;
   const cleanupTempDir = () => {

@@ -397,6 +397,12 @@ Feature: Agent Teams collaborative organization contract
       And a respawn composes context from the original kickoff, mailbox reports, board claims, and the console detail transcript
       And the harness never reclaims, restarts, or replaces a teammate on its own
 
+    Scenario: The leader guidance requires explicit worker tooling
+      Given the leader derives an inline role for file-inspecting work
+      When before_agent_start builds the leader guidance
+      Then it warns that a definition without tools grants only the capability set
+      And it instructs respawning with read and bash when a teammate reports missing capabilities instead of steering it
+
   Rule: Leader tool surface is exact
 
     Scenario: Spawning renders one started line per teammate
@@ -412,6 +418,13 @@ Feature: Agent Teams collaborative organization contract
       Given the leader spawns a teammate with a long name and kickoff prompt
       When the started row renders in a narrow transcript
       Then the row stays on one line and does not exceed the available width
+
+    Scenario: The roster and spawn render expose the effective tool allowlist
+      Given the leader spawns a teammate from a role definition with tools
+      Then the roster records the exact tool allowlist granted to the child process
+      And the spawn result names the granted tools before the teammate's first wake
+      And a role derived inline without a tools field shows only the capability set
+      And missing read or bash for a file-inspecting assignment is visible at spawn time, not after wasted worker turns
 
     Scenario: Shutting down renders one collapsible agent event line
       Given the leader shuts down a teammate

@@ -203,6 +203,7 @@ function buildTeammateDetail(name: string): string[] {
     `  Status: ${teammate.status}${teammate.currentTaskId ? ` | Task: ${teammate.currentTaskId}` : ""}`,
     `  Spawn: ${teammate.pid > 0 ? `pid ${teammate.pid}` : "pid unknown"} | Isolation: ${teammate.isolation}`,
     ...(teammate.model ? [`  Launch model: ${teammate.model}`] : []),
+    ...(teammate.tools?.length ? [`  Tools: ${teammate.tools.join(", ")}`] : []),
     `  Created: ${new Date(teammate.createdAt).toLocaleString()}`,
   ];
   if (teammate.stoppedAt) lines.push(`  Stopped: ${new Date(teammate.stoppedAt).toLocaleString()}`);
