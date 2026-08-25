@@ -813,3 +813,25 @@ export async function enterModelFromInput(
   }
   return ref;
 }
+
+// ── Procedures ──────────────────────────────────────────────────────────
+
+/**
+ * Package directory for an extension module living at <pkg>/<dir>/<file>:
+ * one level above that module's directory. Module URL form (import.meta.url)
+ * matches the established memory/git-agent resolution pattern.
+ */
+export function resolvePackageDir(moduleUrl: string): string {
+  return path.resolve(path.dirname(fileURLToPath(moduleUrl)), "..");
+}
+
+/**
+ * Load a procedure file procedures/<name> under the package directory and
+ * substitute every {{PKG_DIR}} placeholder with the package directory, so
+ * shipped Markdown can reference bundled scripts/references portably.
+ */
+export async function loadProcedure(pkgDir: string, name: string): Promise<string> {
+  const file = path.join(pkgDir, "procedures", name);
+  const procedure = await fs.promises.readFile(file, "utf8");
+  return procedure.replaceAll("{{PKG_DIR}}", pkgDir);
+}

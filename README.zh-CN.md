@@ -1,4 +1,4 @@
-# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-10-blue)
+# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-11-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -122,6 +122,18 @@ pi install npm:@fradser/pi-context
 
 ```bash
 pi install npm:pi-mattpocock
+```
+
+### [`pi-artifact`](packages/pi-artifact/)
+
+通过 Open Artifacts 发布和维护自包含的 HTML/Markdown/React 页面（可分享 URL），内置发布 CLI 默认指向 coda0.com。
+
+**命令：** `/artifact`、`/artifact publish`、`/artifact update`、`/artifact status`、`/artifact show`
+
+**安装：**
+
+```bash
+pi install npm:pi-artifact
 ```
 
 ## 开发

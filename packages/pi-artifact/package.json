@@ -1,0 +1,43 @@
+{
+  "name": "pi-artifact",
+  "version": "0.1.0",
+  "description": "/artifact menu wrapping Open Artifacts — publish and maintain self-contained HTML/Markdown/React pages as shareable URLs on coda0.com or any self-hosted instance.",
+  "keywords": [
+    "pi-package",
+    "artifacts",
+    "publishing",
+    "open-artifacts",
+    "coda0"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "index.ts",
+    "extensions",
+    "procedures",
+    "references",
+    "examples",
+    "vendor",
+    "scripts",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "dependencies": {
+    "@fradser/pi-kit": "workspace:*"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

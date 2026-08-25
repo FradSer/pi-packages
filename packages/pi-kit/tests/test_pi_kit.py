@@ -53,6 +53,7 @@ def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
     assert "Scenario: Pi workers have no wall-clock timeout" in feature
     assert "Scenario: pi-kit stays a pure runtime dependency" in feature
     assert "Scenario: Pi CLI resolution accepts only the coding-agent package" in feature
+    assert "Scenario: Packages deliver menu procedures through shared helpers" in feature
     assert "Scenario: Child termination observes close and escalates once" in feature
 
 
@@ -335,6 +336,28 @@ def test_model_ref_parse_and_format_helpers() -> None:
     ]
     assert result["nonEmpty"] == "hi"
     assert result["nonEmptyBlank"] is None
+
+
+def test_resolve_package_dir_and_load_procedure() -> None:
+    result = run_typescript(
+        f"""
+        import {{ loadProcedure, resolvePackageDir }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ mkdtempSync, mkdirSync, writeFileSync }} from "node:fs";
+        import {{ join }} from "node:path";
+        import {{ pathToFileURL }} from "node:url";
+        const pkg = mkdtempSync(join(process.env.TMPDIR ?? "/tmp", "pikit-proc-"));
+        mkdirSync(join(pkg, "extensions"), {{ recursive: true }});
+        writeFileSync(join(pkg, "extensions", "index.ts"), "export default 1;\\n");
+        mkdirSync(join(pkg, "procedures"), {{ recursive: true }});
+        writeFileSync(join(pkg, "procedures", "demo.md"), "run {{{{PKG_DIR}}}}/scripts/x.mjs\\n");
+        const moduleUrl = pathToFileURL(join(pkg, "extensions", "index.ts")).href;
+        const pkgDir = resolvePackageDir(moduleUrl);
+        const procedure = await loadProcedure(pkgDir, "demo.md");
+        console.log(JSON.stringify({{ pkgDirMatches: pkgDir === pkg, procedure }}, null, 0));
+        """
+    )
+    assert result["pkgDirMatches"] is True
+    assert "{{PKG_DIR}}" not in result["procedure"]
 
 
 def test_select_model_from_menu_returns_selected_pair() -> None:

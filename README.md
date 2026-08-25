@@ -1,4 +1,4 @@
-# Frad's Pi Packages ![](https://img.shields.io/badge/packages-10-blue)
+# Frad's Pi Packages ![](https://img.shields.io/badge/packages-11-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -122,6 +122,18 @@ Provides Pi-adapted BDD, TDD, implementation, review, debugging, architecture, r
 
 ```bash
 pi install npm:pi-mattpocock
+```
+
+### [`pi-artifact`](packages/pi-artifact/)
+
+Publishes and maintains self-contained HTML/Markdown/React pages as shareable URLs through Open Artifacts, with the bundled publishing CLI defaulting to coda0.com.
+
+**Command:** `/artifact`, `/artifact publish`, `/artifact update`, `/artifact status`, `/artifact show`
+
+**Install:**
+
+```bash
+pi install npm:pi-artifact
 ```
 
 ## Development

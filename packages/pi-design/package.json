@@ -1,0 +1,12 @@
+{
+  "name": "pi-design",
+  "version": "0.0.1",
+  "description": "Reserved placeholder for the future Pi design package.",
+  "license": "MIT",
+  "type": "module",
+  "files": ["index.js", "README.md"],
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  }
+}
