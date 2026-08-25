@@ -1252,7 +1252,7 @@ def test_spawn_renders_legacy_started_line() -> None:
     assert "Spawning renders one started line per teammate" in feature
     assert 'formatToolEventLabel("started", "", "agent")' in tools
     assert "formatAgentTaskName" in tools
-    assert "details: { started: true }" in tools
+    assert "details: { started: true, tools: granted }" in tools
 
 
 def test_spawn_started_line_fits_narrow_tui_width() -> None:
