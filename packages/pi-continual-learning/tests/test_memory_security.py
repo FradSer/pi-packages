@@ -26,7 +26,7 @@ def run_bun(source: str, env: dict[str, str] | None = None) -> dict[str, object]
 def test_scope_key_does_not_collide_for_path_punctuation() -> None:
     result = run_bun(
         """
-        import { resolveMemoryPaths } from './packages/memory/extensions/memory-paths.ts';
+        import { resolveMemoryPaths } from './packages/pi-continual-learning/extensions/memory-paths.ts';
         console.log(JSON.stringify({
           left: resolveMemoryPaths('/tmp/a-b/c').scopeKey,
           right: resolveMemoryPaths('/tmp/a/b-c').scopeKey,
@@ -45,7 +45,7 @@ def test_real_and_symlinked_project_paths_share_scope_lock() -> None:
         alias.symlink_to(physical, target_is_directory=True)
         result = run_bun(
             f"""
-            import {{ resolveMemoryPaths }} from './packages/memory/extensions/memory-paths.ts';
+            import {{ resolveMemoryPaths }} from './packages/pi-continual-learning/extensions/memory-paths.ts';
             const physical = resolveMemoryPaths({json.dumps(str(physical))});
             const alias = resolveMemoryPaths({json.dumps(str(alias))});
             console.log(JSON.stringify({{ physical, alias }}));
@@ -68,7 +68,7 @@ def test_first_run_lock_race_reports_contention() -> None:
               acquireConsolidationLock,
               ConsolidationLockContentionError,
               resolveConsolidationRunPaths,
-            }} from './packages/memory/extensions/consolidation-run.ts';
+            }} from './packages/pi-continual-learning/extensions/consolidation-run.ts';
             const first = resolveConsolidationRunPaths({json.dumps(str(repo))}, 'run_first', {json.dumps(str(agent))});
             const second = resolveConsolidationRunPaths({json.dumps(str(repo))}, 'run_second', {json.dumps(str(agent))});
             const outcomes = await Promise.allSettled([
@@ -98,7 +98,7 @@ def test_loader_rejects_symlinked_memory_files_and_orders_entries() -> None:
         result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            const {{ loadAndDeduplicateMemories }} = await import('./packages/memory/extensions/memory-files.ts');
+            const {{ loadAndDeduplicateMemories }} = await import('./packages/pi-continual-learning/extensions/memory-files.ts');
             const values = await loadAndDeduplicateMemories({json.dumps(str(repo))});
             console.log(JSON.stringify(values));
             """,
@@ -120,7 +120,7 @@ def test_loader_uses_strict_memory_filename_policy() -> None:
         result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            const {{ loadAndDeduplicateMemories }} = await import('./packages/memory/extensions/memory-files.ts');
+            const {{ loadAndDeduplicateMemories }} = await import('./packages/pi-continual-learning/extensions/memory-files.ts');
             console.log(JSON.stringify(await loadAndDeduplicateMemories({json.dumps(str(repo))})));
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
@@ -129,7 +129,7 @@ def test_loader_uses_strict_memory_filename_policy() -> None:
         truncated = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            const {{ loadAndDeduplicateMemories }} = await import('./packages/memory/extensions/memory-files.ts');
+            const {{ loadAndDeduplicateMemories }} = await import('./packages/pi-continual-learning/extensions/memory-files.ts');
             console.log(JSON.stringify(await loadAndDeduplicateMemories({json.dumps(str(repo))}, {{ maxFileChars: 3 }})));
             """
         )
@@ -144,7 +144,7 @@ def test_invalid_memory_config_is_reported_without_crashing_or_overwriting() -> 
         result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            const {{ readMemoryConfigState }} = await import('./packages/memory/extensions/config.ts');
+            const {{ readMemoryConfigState }} = await import('./packages/pi-continual-learning/extensions/config.ts');
             const state = readMemoryConfigState();
             console.log(JSON.stringify({{ state, raw: await Bun.file({json.dumps(str(agent / 'memory.json'))}).text() }}));
             """,
@@ -158,7 +158,7 @@ def test_invalid_memory_config_is_reported_without_crashing_or_overwriting() -> 
 def test_realpath_aliases_share_scope_for_var_tmp() -> None:
     result = run_bun(
         """
-        import { resolveMemoryPaths } from './packages/memory/extensions/memory-paths.ts';
+        import { resolveMemoryPaths } from './packages/pi-continual-learning/extensions/memory-paths.ts';
         const left = resolveMemoryPaths('/var/tmp');
         const right = resolveMemoryPaths('/private/var/tmp');
         console.log(JSON.stringify({ left, right }));
@@ -193,7 +193,7 @@ def test_loader_reads_only_bounded_bytes_before_truncating() -> None:
               return handle;
             }};
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            const {{ loadAndDeduplicateMemories }} = await import('./packages/memory/extensions/memory-files.ts');
+            const {{ loadAndDeduplicateMemories }} = await import('./packages/pi-continual-learning/extensions/memory-files.ts');
             const values = await loadAndDeduplicateMemories({json.dumps(str(repo))}, {{ maxFileChars: 3 }});
             console.log(JSON.stringify({{ values, bytesRequested }}));
             """,
@@ -227,7 +227,7 @@ def test_loader_fails_closed_when_root_is_replaced_by_a_symlink() -> None:
               return originalOpen(target, ...args);
             }};
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(root / 'agent'))};
-            const {{ loadAndDeduplicateMemories }} = await import('./packages/memory/extensions/memory-files.ts');
+            const {{ loadAndDeduplicateMemories }} = await import('./packages/pi-continual-learning/extensions/memory-files.ts');
             console.log(JSON.stringify(await loadAndDeduplicateMemories({json.dumps(str(repo))})));
             """,
             {"PI_CODING_AGENT_DIR": str(root / "agent")},
@@ -258,7 +258,7 @@ def test_loader_skips_a_child_replaced_by_a_symlink() -> None:
               return originalOpen(target, ...args);
             }};
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(root / 'agent'))};
-            const {{ loadAndDeduplicateMemories }} = await import('./packages/memory/extensions/memory-files.ts');
+            const {{ loadAndDeduplicateMemories }} = await import('./packages/pi-continual-learning/extensions/memory-files.ts');
             console.log(JSON.stringify(await loadAndDeduplicateMemories({json.dumps(str(repo))})));
             """,
             {"PI_CODING_AGENT_DIR": str(root / "agent")},
@@ -276,7 +276,7 @@ def test_memory_config_rejects_symlinked_roots_and_targets() -> None:
         root_result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(symlinked_agent))};
-            const {{ writeMemoryConfig }} = await import('./packages/memory/extensions/config.ts');
+            const {{ writeMemoryConfig }} = await import('./packages/pi-continual-learning/extensions/config.ts');
             let error = '';
             try {{ writeMemoryConfig({{ provider: 'openai', model: 'gpt-5' }}); }} catch (cause) {{ error = String(cause); }}
             console.log(JSON.stringify({{ error, exists: await Bun.file({json.dumps(str(outside / 'memory.json'))}).exists() }}));
@@ -294,7 +294,7 @@ def test_memory_config_rejects_symlinked_roots_and_targets() -> None:
         target_result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            const {{ writeMemoryConfig }} = await import('./packages/memory/extensions/config.ts');
+            const {{ writeMemoryConfig }} = await import('./packages/pi-continual-learning/extensions/config.ts');
             let error = '';
             try {{ writeMemoryConfig({{ provider: 'openai', model: 'gpt-5' }}); }} catch (cause) {{ error = String(cause); }}
             console.log(JSON.stringify({{ error, raw: await Bun.file({json.dumps(str(target))}).text() }}));
@@ -312,7 +312,7 @@ def test_memory_config_writes_atomically_under_a_safe_agent_directory() -> None:
         result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            const {{ writeMemoryConfig }} = await import('./packages/memory/extensions/config.ts');
+            const {{ writeMemoryConfig }} = await import('./packages/pi-continual-learning/extensions/config.ts');
             writeMemoryConfig({{ provider: 'openai', model: 'gpt-5' }});
             console.log(JSON.stringify({{ raw: await Bun.file({json.dumps(str(agent / 'memory.json'))}).text(), files: await (await import('node:fs/promises')).readdir({json.dumps(str(agent))}) }}));
             """,
@@ -334,7 +334,7 @@ def test_stale_dead_owner_lock_is_reclaimed_but_live_owner_is_contention() -> No
               acquireConsolidationLock,
               ConsolidationLockContentionError,
               resolveConsolidationRunPaths,
-            }} from './packages/memory/extensions/consolidation-run.ts';
+            }} from './packages/pi-continual-learning/extensions/consolidation-run.ts';
             import {{ readFileSync, writeFileSync, mkdirSync }} from 'node:fs';
             import {{ hostname }} from 'node:os';
             import {{ spawnSync }} from 'node:child_process';
@@ -387,8 +387,8 @@ def test_mirror_drift_is_normalized_before_the_run() -> None:
         result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ normalizeMirrorDrift }} from './packages/memory/extensions/consolidation-run.ts';
-            import {{ resolveMemoryPaths }} from './packages/memory/extensions/memory-paths.ts';
+            import {{ normalizeMirrorDrift }} from './packages/pi-continual-learning/extensions/consolidation-run.ts';
+            import {{ resolveMemoryPaths }} from './packages/pi-continual-learning/extensions/memory-paths.ts';
             import {{ mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, utimesSync }} from 'node:fs';
             const memory = resolveMemoryPaths({json.dumps(str(repo))});
             mkdirSync(memory.harnessDir, {{ recursive: true }});
@@ -451,8 +451,8 @@ def test_missing_harness_root_imports_public_instead_of_deleting() -> None:
         result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ normalizeMirrorDrift }} from './packages/memory/extensions/consolidation-run.ts';
-            import {{ resolveMemoryPaths }} from './packages/memory/extensions/memory-paths.ts';
+            import {{ normalizeMirrorDrift }} from './packages/pi-continual-learning/extensions/consolidation-run.ts';
+            import {{ resolveMemoryPaths }} from './packages/pi-continual-learning/extensions/memory-paths.ts';
             import {{ mkdirSync, writeFileSync, readFileSync }} from 'node:fs';
             const memory = resolveMemoryPaths({json.dumps(str(repo))});
             mkdirSync(memory.publicDir, {{ recursive: true }});
@@ -482,9 +482,9 @@ def test_legacy_dash_scope_migrates_into_hashed_root() -> None:
         result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ loadAndDeduplicateMemories }} from './packages/memory/extensions/memory-files.ts';
-            import {{ migrateLegacyMemoryDirs }} from './packages/memory/extensions/memory-files.ts';
-            import {{ resolveMemoryPaths }} from './packages/memory/extensions/memory-paths.ts';
+            import {{ loadAndDeduplicateMemories }} from './packages/pi-continual-learning/extensions/memory-files.ts';
+            import {{ migrateLegacyMemoryDirs }} from './packages/pi-continual-learning/extensions/memory-files.ts';
+            import {{ resolveMemoryPaths }} from './packages/pi-continual-learning/extensions/memory-paths.ts';
             import {{ mkdirSync, writeFileSync, readFileSync, existsSync, utimesSync }} from 'node:fs';
             const memory = resolveMemoryPaths({json.dumps(str(repo))});
             const legacyDir = memory.agentDir + '/memory/' + {json.dumps(str(repo))}.replace(/\//g, '-');

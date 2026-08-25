@@ -1,4 +1,16 @@
-# @fradser/pi-memory
+# pi-continual-learning
+
+Continues the release history of `@fradser/pi-memory` under a broader identity:
+the same memory surface plus declarative tool-call guardrails. Entries below the
+heritage marker belong to the previous identity.
+
+<!-- heritage: @fradser/pi-memory -->
+
+## 0.1.0 (first release as pi-continual-learning)
+
+- Absorbs @fradser/pi-memory 0.2.7 functionality unchanged.
+- Adds layered JSON tool-call guardrails: corrective block reasons, require-gate
+  AND scoping, built-in defaults, and the /guardrails command.
 
 ## 0.2.7
 

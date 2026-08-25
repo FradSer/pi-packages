@@ -5,7 +5,7 @@ import { join } from "node:path";
 const packages = [
   // pi-kit publishes first: consumer packages depend on it.
   "@fradser/pi-kit",
-  "@fradser/pi-memory",
+  "pi-continual-learning",
   "@fradser/pi-btw",
   "@fradser/pi-monitor",
   "@fradser/pi-utils",
