@@ -6,9 +6,11 @@ export interface Policy {
   name: string;
   /** Restrict to these tool names; undefined matches every tool. */
   tools?: string[];
-  /** Dot path into the tool arguments tested against the pattern(s).
-   * Defaults to the whole stringified argument object. */
-  path?: string;
+  /** Dot paths into the tool arguments whose string values are tested
+   * against the pattern(s). Segments traverse arrays ("edits.newText" scans
+   * every edit). Prefer explicit content paths — the default scans the whole
+   * argument JSON, which also matches replaced source quoted in edit inputs. */
+  paths?: string[];
   /** Single regex source. */
   pattern?: string;
   /** Multiple regex sources; any match triggers the action. */

@@ -14,7 +14,7 @@ export const DEFAULT_POLICIES: Policy[] = [
   {
     name: "no-interactive-auth-automation",
     tools: ["bash"],
-    path: "command",
+    paths: ["command"],
     pattern: "\\b(npm|pnpm|yarn|bun)\\s+(login|adduser|logout|whoami\\s*--interactive)\\b",
     action: "block",
     reason:
@@ -24,7 +24,7 @@ export const DEFAULT_POLICIES: Policy[] = [
   {
     name: "no-otp-in-chat",
     tools: ["bash"],
-    path: "command",
+    paths: ["command"],
     pattern: "\\b(otp|one[- ]time (password|code))\\b.*[>|>>]|printf[^|]*\\b(otp|verification code)\\b.*>\\s*/tmp",
     action: "block",
     reason:
@@ -99,7 +99,7 @@ function normalizePolicy(raw: Record<string, unknown>, source: string): Policy {
   return {
     name: String(raw.name),
     tools: Array.isArray(raw.tools) ? (raw.tools as string[]) : undefined,
-    path: typeof raw.path === "string" ? raw.path : undefined,
+    paths: Array.isArray(raw.paths) ? (raw.paths as string[]) : undefined,
     pattern: typeof raw.pattern === "string" ? raw.pattern : undefined,
     patterns: Array.isArray(raw.patterns) ? (raw.patterns as string[]) : undefined,
     require:
@@ -129,14 +129,27 @@ export interface Decision {
   reason: string;
 }
 
-function valueAtPath(args: Record<string, unknown>, path?: string): string {
-  if (!path) return JSON.stringify(args);
-  let current: unknown = args;
-  for (const key of path.split(".")) {
-    if (current === null || typeof current !== "object") return "";
-    current = (current as Record<string, unknown>)[key];
+function valueAtPath(args: Record<string, unknown>, path?: string): string[] {
+  if (!path) return [JSON.stringify(args)];
+  return collectLeaves(args, path.split("."));
+}
+
+/** Collect string values reachable via dot segments; arrays fan out so
+ * "edits.newText" scans every edit's replacement text. */
+function collectLeaves(value: unknown, segs: string[]): string[] {
+  if (segs.length === 0) {
+    if (typeof value === "string") return [value];
+    if (value !== undefined && value !== null) return [JSON.stringify(value)];
+    return [];
   }
-  return typeof current === "string" ? current : JSON.stringify(current ?? "");
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectLeaves(item, segs));
+  }
+  if (value !== null && typeof value === "object") {
+    const next = (value as Record<string, unknown>)[segs[0]];
+    return next === undefined ? [] : collectLeaves(next, segs.slice(1));
+  }
+  return [];
 }
 
 /**
@@ -152,10 +165,12 @@ export function evaluate(config: ResolvedConfig, call: ToolCallInput): Decision 
     if (policy.require) {
       const gateSubject = valueAtPath(call.args, policy.require.path);
       const gateRe = compile(policy.require.pattern);
-      if (!gateRe || !gateRe.test(gateSubject)) continue;
+      if (!gateRe || !gateSubject.some((leaf) => gateRe.test(leaf))) continue;
     }
-    const subject = valueAtPath(call.args, policy.path);
-    if (policy.regexps.some((re) => re.test(subject))) {
+    const subjects = policy.paths
+      ? policy.paths.flatMap((p) => valueAtPath(call.args, p))
+      : valueAtPath(call.args, policy.path);
+    if (policy.regexps.some((re) => subjects.some((leaf) => re.test(leaf)))) {
       return {
         policyName: policy.name,
         action: policy.action ?? "block",

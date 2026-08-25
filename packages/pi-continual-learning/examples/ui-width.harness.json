@@ -2,7 +2,10 @@
   "policies": [
     {
       "name": "ui-fixed-width",
-      "tools": ["edit", "write"],
+      "tools": [
+        "edit",
+        "write"
+      ],
       "require": {
         "path": "path",
         "pattern": "\\.(tsx|jsx|css|scss|html|vue|svelte)$"
@@ -13,7 +16,12 @@
         "\\bw-\\[(?!max-)\\d{3,}px\\]"
       ],
       "action": "block",
-      "reason": "Fixed pixel widths above 99px break responsiveness. Use design tokens, percentage/flex/grid units (w-full, max-w-*, flex-1, fr), or the spacing scale from DESIGN.md. Re-check the layout container before retrying."
+      "reason": "Fixed pixel widths above 99px break responsiveness. Use design tokens, percentage/flex/grid units (w-full, max-w-*, flex-1, fr), or the spacing scale from DESIGN.md. Re-check the layout container before retrying.",
+      "paths": [
+        "content",
+        "newText",
+        "edits.newText"
+      ]
     }
   ]
 }

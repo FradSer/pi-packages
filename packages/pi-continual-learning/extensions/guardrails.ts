@@ -27,21 +27,24 @@ function defaultLayer(): PolicyLayer {
   };
 }
 
-let cached: { mtime: number; value: ResolvedWithPaths } | undefined;
+let cached: { key: string; value: ResolvedWithPaths } | undefined;
 
-function resolveConfig(cwd: string): ResolvedWithPaths {
-  const paths = configPaths(cwd);
-  let newest = 0;
+function resolveConfig(cwd: string, agentDir?: string): ResolvedWithPaths {
+  const effectiveAgentDir = agentDir ?? (process.env.PI_GUARDRAILS_AGENT_DIR || undefined);
+  const paths = configPaths(cwd, effectiveAgentDir);
+  // Cache key covers every file's mtime: a max-only key goes stale when a
+  // newer project file masks later edits to an older user file.
+  let cacheKey = "";
   for (const file of Object.values(paths)) {
     try {
-      newest = Math.max(newest, fs.statSync(file).mtimeMs);
+      cacheKey += `${file}:${fs.statSync(file).mtimeMs};`;
     } catch {
-      /* absent file */
+      cacheKey += `${file}:-;`;
     }
   }
-  if (cached && cached.mtime === newest) return cached.value;
-  const config = mergeLayers([defaultLayer(), ...loadLayers(cwd)]);
-  cached = { mtime: newest, value: { config, paths } };
+  if (cached && cached.key === cacheKey) return cached.value;
+  const config = mergeLayers([defaultLayer(), ...loadLayers(cwd, effectiveAgentDir)]);
+  cached = { key: cacheKey, value: { config, paths } };
   return cached.value;
 }
 
@@ -52,8 +55,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
     const decision = evaluate(config, {
       toolName: event.toolName,
       args: (event.input ?? {}) as Record<string, unknown>,
-    });
-    if (!decision) return undefined;
+    });    if (!decision) return undefined;
 
     if (decision.action === "confirm") {
       if (!ctx.hasUI) {
