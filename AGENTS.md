@@ -74,6 +74,55 @@ when changing manifests or published files.
 - `files` must include everything that ships (`skills`/`extensions`/`procedures`/`references`/`scripts`).
 - **Never** add `.claude-plugin`, `${CLAUDE_PLUGIN_ROOT}`, or Claude-only skill frontmatter (`allowed-tools`, `user-invocable`, `argument-hint`, `model`). Skill frontmatter: `name`, `description`, optional `disable-model-invocation`.
 
+## Tool Result Text and Coordination-State Semantics
+
+Treat tool output as a contract for both the model and the transcript, not as an
+incidental sentence. Keep the domain model abstract and preserve the distinction
+between:
+
+- a **coordination container**, which scopes shared state for one execution
+  context;
+- a **work item**, which is one independently addressable unit inside that
+  container;
+- an **actor**, which may be assigned ownership or receive a delivery;
+- an **intent**, which requests a state transition but may still be awaiting
+  application, validation, or verification.
+
+Every state-changing operation must make its transition semantics explicit:
+creation adds a work item without implying execution; inspection returns a
+snapshot without mutating state; acquisition transfers ownership; submission
+records a proposed outcome; application or verification is the point at which
+the durable state may become final. Never report a later transition as complete
+when the operation only queued an intent or wrote a marker.
+
+Structure successful results into stable semantic groups chosen for the domain:
+context, summary, items, ownership, routing, validation, next action, and
+participants. Use short section labels consistently, mention the coordination
+context once, and keep each item line limited to identity, lifecycle state,
+subject, ownership, and blocking relationships. Put diagnostics in a separate
+warning or note group. Do not duplicate the same state in prose, summaries,
+participant lists, and detail paragraphs.
+
+The result should answer four questions in order:
+
+1. What state or transition was addressed?
+2. What actually happened synchronously?
+3. What remains pending, blocked, queued, or subject to verification?
+4. Who or what performs the next transition?
+
+Keep successful result text compact, factual, and actionable. Avoid ambiguous
+claims such as a generic "state updated" when only an intent was recorded or a
+delivery was queued. State the observed transition, the unobserved transition,
+and the next actor/action without embedding domain-specific assumptions in a
+shared guideline.
+
+For TUI tools, use the shared `@fradser/pi-kit` lifecycle abstraction: one
+compact `started` or `event` row in the transcript, with grouped details behind
+the standard expansion affordance. The collapsed row identifies only the
+operation and subject; expanded details carry the semantic groups above. Keep
+internal identifiers, raw diagnostics, and large participant lists out of the
+collapsed row unless required to distinguish the operation.
+
 ## Command menus vs skills (settled UX)
 
 - `memory`/`btw` expose workflows as **pi menu commands** (`/memory`, `/btw`), not skills: `pi.registerCommand(...)` + `ctx.ui.select` + the full procedure embedded via `pi.sendUserMessage(..., { deliverAs: "followUp" })` with `{{PKG_DIR}}` substituted at send time. Keep this pattern; do not reintroduce per-workflow skills. (The former `git-agent` package follows the same pattern from `~/Developer/FradSer/git-agent/git-agent-pi-package`; the former `git`/`github` packages moved to pure skills in `~/Developer/FradSer/skills`.)

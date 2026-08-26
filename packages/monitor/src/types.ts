@@ -1,6 +1,8 @@
 import { Type } from "typebox";
 
 /** Parameters for monitor_start: run a command and wait for a contracted terminal result. */
+export const MAX_TIMEOUT_MS = 2_147_483_647;
+
 export const MonitorStartParams = Type.Object({
   command: Type.String({
     description:
@@ -19,6 +21,13 @@ export const MonitorStartParams = Type.Object({
       minLength: 1,
       description:
         "Optional regular expression that identifies terminal failure in either stdout or stderr. Named capture groups are returned as fields.",
+    }),
+  ),
+  timeout_ms: Type.Optional(
+    Type.Integer({
+      minimum: 1,
+      maximum: MAX_TIMEOUT_MS,
+      description: "Maximum time to wait for a terminal result before the process group is stopped (up to 24 days).",
     }),
   ),
 });
