@@ -55,7 +55,7 @@ jobs:
       # changesets. This retry covers versioned packages that are newer than
       # npm after a partial publish or a merged version PR.
       - name: Retry publishing versioned packages
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.changesets.outputs.has-changesets != 'true'
         run: node scripts/publish-release.mjs
         env:
           NPM_CONFIG_PROVENANCE: "true"

@@ -24,3 +24,9 @@ Feature: Release publishing without local provenance assumptions
     When the Changesets action has no pending changesets
     Then a main-branch publish step still runs the explicit package release script
     And already published versions are skipped safely
+
+  Scenario: The main workflow does not publish the version PR working tree
+    Given the Changesets action found pending changesets and created or updated a version PR
+    When the action leaves the working tree with bumped package versions
+    Then the main-branch retry step is skipped
+    And publication waits for the version PR merge
