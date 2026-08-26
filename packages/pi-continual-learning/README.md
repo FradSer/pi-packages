@@ -22,7 +22,7 @@ pi install npm:pi-continual-learning
 | Command | Purpose |
 | --- | --- |
 | `/memory` | Memory management menu: instructions, model, consolidation, settings |
-| `/consolidate` | Consolidate now: memory first, then harness guardrail updates mined from session history |
+| `/consolidate` | Consolidate now: memory first, then harness guardrails and project AGENTS.md mined from session history |
 | `/harness` | Show active tool-call guardrails: sources, policies, config paths |
 
 ## Guardrails configuration
@@ -71,6 +71,41 @@ them — atomically, and only to the personal project-local layer
 (`.pi/harness.local.json`). Shared layers are never written; a failed or
 rejected harness plan never touches applied memory results; `no-context`
 runs skip the phase entirely.
+
+### AGENTS.md consolidation
+
+The third pipeline phase treats the repository-root `AGENTS.md` like trained
+weights. Against the same snapshot, a read-only planner proposes at most five
+evidence-cited edits — rewrite, remove, add, or extract addressable units.
+The parent enforces the discipline in code before anything is reviewed:
+
+- Every cited quote must appear verbatim in the snapshot text; unverifiable
+  quotes are discarded mechanically, and an operation left without evidence
+  never reaches review.
+- A brand-new unit needs batched evidence (at least two cited occurrences, or
+  a prior-gap fingerprint from the rejection ledger).
+- The post-edit document must fit the byte budget (default 16 KB ≈ 4k English
+  tokens by the bytes/4 heuristic — deliberately tighter than backpass's ~20 KB
+  default and Claude Code's 25 KB MEMORY.md load cap; lower it further for
+  primarily Chinese files, where UTF-8 packs fewer tokens per byte); once the
+  file sits at or above budget, updates are zero-sum — removals pay for
+  additions.
+- Narrow instructions are extracted instead of kept: trigger-scoped guidance
+  becomes a harness skill prompt; durable detail becomes a memory file.
+
+Each surviving operation is then presented individually for accept/reject,
+only accepted edits are applied in one atomic write (with a pre-apply digest
+for mid-apply shutdown recovery), and rejections are recorded in a capped
+ledger so unchanged proposals cannot come back without new evidence.
+User-level instruction files are never touched; a session without a TUI
+writes nothing. Configure via the per-project settings file:
+
+```json
+{ "autoMemory": true, "agentsMd": { "budgetBytes": 16384 } }
+```
+
+`"disabled": true` inside `agentsMd` turns the phase off. A failed AGENTS.md
+phase never touches applied memory or harness results.
 
 ### Skill prompt guidance
 

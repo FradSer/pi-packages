@@ -48,7 +48,13 @@ import {
 } from "./config";
 import { formatMemoriesBlock, loadAndDeduplicateMemories } from "./memory-files";
 import { resolveMemoryPaths } from "./memory-paths";
-import { runHarnessConsolidationPhase } from "./harness-consolidation";
+import {
+  DEFAULT_AGENTS_MD_BUDGET_BYTES,
+  MAX_AGENTS_MD_FILE_BYTES,
+  MIN_BUDGET_BYTES,
+  runAgentsMdConsolidationPhase,
+} from "./agents-md-consolidation";
+import { runHarnessConsolidationPhase, shouldRunHarnessPhase } from "./harness-consolidation";
 import {
   applyConsolidationPlan,
   sha256Digest,
@@ -75,6 +81,11 @@ export { projectScopeKey, resolveMemoryPaths } from "./memory-paths";
 
 interface MemorySettings {
   autoMemory: boolean;
+  /** AGENTS.md consolidation phase controls; absent means defaults (on). */
+  agentsMd?: {
+    disabled?: boolean;
+    budgetBytes?: number;
+  };
 }
 
 function safelyReadMemoryConfigState(): ReturnType<typeof readMemoryConfigState> {
@@ -96,8 +107,19 @@ async function readSettings(cwd = process.cwd()): Promise<MemorySettings> {
   try {
     const raw = await fs.readFile(settingsFilePath(cwd), "utf-8");
     const parsed = JSON.parse(raw) as Partial<MemorySettings>;
+    let agentsMd: MemorySettings["agentsMd"];
+    if (parsed.agentsMd && typeof parsed.agentsMd === "object") {
+      const budget = typeof parsed.agentsMd.budgetBytes === "number" && Number.isFinite(parsed.agentsMd.budgetBytes)
+        ? Math.min(MAX_AGENTS_MD_FILE_BYTES, Math.max(MIN_BUDGET_BYTES, Math.round(parsed.agentsMd.budgetBytes)))
+        : undefined;
+      agentsMd = {
+        ...(parsed.agentsMd.disabled === true ? { disabled: true } : {}),
+        ...(budget !== undefined ? { budgetBytes: budget } : {}),
+      };
+    }
     return {
       autoMemory: parsed.autoMemory === false ? false : true,
+      ...(agentsMd !== undefined ? { agentsMd } : {}),
     };
   } catch {
     return { autoMemory: true };
@@ -576,15 +598,15 @@ async function spawnAsyncConsolidation(
   ctx: ExtensionContext,
   state: DreamState,
   opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; attempt?: number },
-): Promise<void> {
+): Promise<boolean> {
   const attempt = opts.attempt ?? 0;
   if (state.active && attempt === 0) {
     ctx.ui.notify("Memory consolidation is already running in background.", "info");
-    return;
+    return false;
   }
   if (memoryConfigState.invalid) {
     ctx.ui.notify(`Memory consolidation is blocked: ${memoryConfigState.invalid}`, "error");
-    return;
+    return false;
   }
   state.active = true;
   state.outcome = undefined;
@@ -604,7 +626,7 @@ async function spawnAsyncConsolidation(
       state.outcome = "failed";
       ctx.ui.notify(`Memory consolidation setup failed: ${(err as Error).message}`, "error");
     }
-    return;
+    return false;
   }
   const memoryPaths = resolveMemoryPaths(opts.cwd);
   const harnessDir = memoryPaths.harnessDir;
@@ -614,13 +636,14 @@ async function spawnAsyncConsolidation(
   } catch (err: unknown) {
     if (isGenerationCurrent()) {
       state.active = false;
+      state.outcome = "failed";
       ctx.ui.notify(`Memory consolidation setup failed: ${(err as Error).message}`, "error");
     }
-    return;
+    return false;
   }
   if (!isGenerationCurrent()) {
     await releaseConsolidationRun(run);
-    return;
+    return false;
   }
   state.run = run;
   const selectedScope = parentSelectedScope(run, Boolean(opts.noContext));
@@ -672,7 +695,7 @@ async function spawnAsyncConsolidation(
       ctx.ui.notify("Memory consolidation: could not resolve the Pi CLI", "error");
     }
     await releaseConsolidationRun(run);
-    return;
+    return false;
   }
 
   let child: ChildProcess;
@@ -712,7 +735,7 @@ async function spawnAsyncConsolidation(
     state.active = false;
     await releaseConsolidationRun(run);
     if (isGenerationCurrent()) ctx.ui.notify(`Memory consolidation spawn failed: ${(err as Error).message}`, "error");
-    return;
+    return false;
   }
 
   state.child = child;
@@ -1009,20 +1032,23 @@ async function spawnAsyncConsolidation(
   child.on("error", (err) => { void finish(null, err); });
   child.on("close", (code) => { void finish(code); });
   child.unref();
+  return true;
 }
 
 /**
  * Full consolidation pipeline: the memory phase first; only a verified,
- * context-captured memory phase unlocks the harness phase. The harness phase
- * owns its own single-flight guard, so its failures never invalidate applied
- * memory results, and session shutdown cancels either phase cleanly.
+ * context-captured memory phase unlocks the harness phase, which in turn
+ * hands off to the AGENTS.md phase against the same snapshot. Later phases
+ * own their own single-flight guard, so their failures never invalidate
+ * applied earlier-phase results, and session shutdown cancels any phase.
  */
 async function startConsolidationPipeline(
   ctx: ExtensionContext,
   state: DreamState,
   opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string },
 ): Promise<void> {
-  await spawnAsyncConsolidation(ctx, state, opts);
+  const started = await spawnAsyncConsolidation(ctx, state, opts);
+  if (!started) return; // racing invocation: never wait on or unlock another run's phases
   void (async () => {
     // Wait for the memory phase's terminal outcome (retries included): the
     // last attempt sets `outcome` and its finally clears `active`.
@@ -1030,15 +1056,26 @@ async function startConsolidationPipeline(
       if (state.cancelled) return;
       await new Promise((r) => setTimeout(r, 200));
     }
-    if (state.cancelled || state.outcome !== "completed") return;
+    const gate = shouldRunHarnessPhase(state, opts.noContext);
+    if (gate !== "run" && gate !== "skip-no-context") return;
     if (opts.noContext) {
-      ctx.ui.notify("Harness consolidation needs captured context; skipped (no-context run).", "info");
+      ctx.ui.notify("Harness and AGENTS.md consolidation need captured context; skipped (no-context run).", "info");
       return;
     }
     await runHarnessConsolidationPhase(ctx, state, {
       pkgDir: opts.pkgDir,
       cwd: opts.cwd,
       reason: opts.reason,
+    });
+    if (state.cancelled) return;
+    const settings = await readSettings(opts.cwd);
+    await runAgentsMdConsolidationPhase(ctx, state, {
+      pkgDir: opts.pkgDir,
+      cwd: opts.cwd,
+      reason: opts.reason,
+      budgetBytes: settings.agentsMd?.budgetBytes ?? DEFAULT_AGENTS_MD_BUDGET_BYTES,
+      disabled: settings.agentsMd?.disabled === true,
+      hasUI: ctx.mode === "tui",
     });
   })();
 }

@@ -2,7 +2,9 @@
 
 > Renamed from `@fradser/pi-memory` to `pi-continual-learning`: the package now owns
 > the harness surface of continual learning (declarative tool-call guardrails) in
-> addition to the prompt surface (memory retrieval, injection, consolidation).
+> addition to the prompt surface (memory retrieval, injection, consolidation), plus
+> the AGENTS.md consolidation phase that trains the always-loaded project
+> instructions from session evidence.
 
 ## Project Structure
 
@@ -10,9 +12,14 @@
 skill surface. Package-root `index.ts` loads `extensions/inject-memory.ts`,
 which owns `/memory`, `/consolidate`, memory injection, and lifecycle cleanup.
 Supporting extension modules cover configuration, secure memory loading,
-canonical project paths, and parent-owned consolidation. The read-only child
-procedure is `procedures/consolidate.md`; `scripts/validate-consolidate.py` is
-the dependency-free artifact/privacy validator. BDD contracts are in
+canonical project paths, parent-owned consolidation, harness guardrail mining,
+and AGENTS.md consolidation (`extensions/agents-md-consolidation.ts`: plan
+validation, verbatim quote verification against the snapshot, document
+simulation, byte-budget zero-sum gating, rejection ledger, and the interactive
+per-operation review). The read-only child procedures are
+`procedures/consolidate.md`, `procedures/consolidate-harness.md`, and
+`procedures/consolidate-agents.md`; `scripts/validate-consolidate.py` is
+the dependency-free artifact/privacy validator for the memory phase. BDD contracts are in
 `features/`, with Python tests and the TypeScript evidence harness in `tests/`.
 
 ## Commands
@@ -35,7 +42,10 @@ project lock, capture an immutable snapshot (or explicit `no-context` mode),
 spawn a read-only `--no-extensions` worker, accept one bounded structured plan,
 validate before and after mutation, then write receipts and synchronize only
 safe files to `.memory`. Never let the child mutate memory or expose private
-harness data. Reuse `@fradser/pi-kit`; keep its dependency direction intact.
+harness data. The AGENTS.md phase additionally requires code-verified snapshot
+quotes, batched evidence for new units, budget zero-sum at cap, per-operation
+user acceptance before writing, and never targets user-level instruction files.
+Reuse `@fradser/pi-kit`; keep its dependency direction intact.
 
 ## Testing and Release
 
