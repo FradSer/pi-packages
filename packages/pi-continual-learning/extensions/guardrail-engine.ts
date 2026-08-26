@@ -65,7 +65,8 @@ export function mergeLayers(layers: PolicyLayer[]): ResolvedConfig {
         name.length > 64 ||
         !/^[a-z0-9-]+$/.test(name) ||
         name.startsWith("-") ||
-        name.endsWith("-")
+        name.endsWith("-") ||
+        name.includes("--")
       ) {
         errors.push(`${layer.source}: skill prompt name "${name}" violates the Pi skill-name rules and was skipped`);
         continue;

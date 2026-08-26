@@ -231,6 +231,7 @@ fs.writeFileSync(
     skillPrompts: {
       review: { prompt: "outer guidance", target: "system" },
       usernote: { prompt: "user guidance", target: "user" },
+      "bad--skill": { prompt: "must be rejected", target: "system" },
     },
     policies: [{
       name: "block-curl-prod",
@@ -299,6 +300,7 @@ await new Promise((r) => setTimeout(r, 20));
   record("command-surface", {
     listsPolicies: notified.includes("ui-fixed-width") && notified.includes("block-curl-prod"),
     showsPaths: notified.includes("harness.json") && notified.includes(".local"),
+    invalidSkillReported: notified.includes("bad--skill") && notified.includes("violates the Pi skill-name rules"),
   });
 }
 
@@ -359,4 +361,4 @@ def test_s6_skill_prompts_are_layered_and_idempotent() -> None:
 
 def test_s7_command_reports_surface() -> None:
     s = ALL["command-surface"]
-    assert s["listsPolicies"] and s["showsPaths"]
+    assert s["listsPolicies"] and s["showsPaths"] and s["invalidSkillReported"]
