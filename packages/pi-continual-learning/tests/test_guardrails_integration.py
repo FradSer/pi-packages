@@ -40,6 +40,26 @@ async function callTool(toolName, args, ctx) {
   return results.filter(Boolean);
 }
 
+async function callBefore(prompt, systemPrompt, ctx, onlyGuardrails = false) {
+  let currentSystemPrompt = systemPrompt;
+  const results = [];
+  const handlers = onlyGuardrails ? (hooks.before_agent_start ?? []).slice(-1) : (hooks.before_agent_start ?? []);
+  for (const fn of handlers) {
+    // Pi retains one context for a turn but creates a new event per handler.
+    const event = {
+      type: "before_agent_start",
+      prompt,
+      images: undefined,
+      systemPrompt: currentSystemPrompt,
+      systemPromptOptions: {},
+    };
+    const result = await fn(event, ctx);
+    results.push(result);
+    if (result?.systemPrompt !== undefined) currentSystemPrompt = result.systemPrompt;
+  }
+  return { event: { systemPrompt: currentSystemPrompt }, results: results.filter(Boolean) };
+}
+
 // ── temp project + isolated user dir ────────────────────────────────
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "guard-e2e-"));
 const project = path.join(tmp, "project");
@@ -113,7 +133,7 @@ fs.writeFileSync(
   );
   record("ui-policy-gated", {
     uiBlocked: uiEdit.length === 1 && uiEdit[0].block === true,
-    tokensMentioned: /design tokens|min\(100%/.test(uiEdit[0]?.reason ?? ""),
+    tokensMentioned: /design tokens|min\\(100%/.test(uiEdit[0]?.reason ?? ""),
     mdPassed: mdEdit.length === 0,
     oldTextTrapFixed: fixEdit.length === 0,
   });
@@ -204,7 +224,75 @@ await new Promise((r) => setTimeout(r, 20));
   });
 }
 
-// ── S6: /guardrails command reports surface, headless-safe ──────────
+// ── S6: layered skill prompt injection uses Pi's expanded skill shape ──
+fs.writeFileSync(
+  path.join(agentDir, "harness.json"),
+  JSON.stringify({
+    skillPrompts: {
+      review: { prompt: "outer guidance", target: "system" },
+      usernote: { prompt: "user guidance", target: "user" },
+      "bad--skill": { prompt: "must be rejected", target: "system" },
+    },
+    policies: [{
+      name: "block-curl-prod",
+      tools: ["bash"],
+      paths: ["command"],
+      pattern: "curl .*prod\\\\.example\\\\.com",
+      action: "block",
+      reason: "Prod curl is forbidden.",
+    }],
+  }),
+);
+fs.writeFileSync(
+  path.join(project, ".pi", "harness.json"),
+  JSON.stringify({
+    skillPrompts: {
+      review: { prompt: "inner guidance", target: "system" },
+    },
+    policies: [{
+      name: "ui-fixed-width",
+      tools: ["edit", "write"],
+      require: { path: "path", pattern: "\\\\.(tsx|css)$" },
+      paths: ["content", "newText", "edits.newText"],
+      patterns: ["width:\\\\s*\\\\d{3,}px"],
+      action: "block",
+      reason: "Use design tokens and min(100%, var(--token)).",
+    }],
+  }),
+);
+await new Promise((r) => setTimeout(r, 20));
+{
+  const expanded = '<skill name="review" location="/tmp/review/SKILL.md">\\nReferences are relative to /tmp/review.\\n\\nReview body\\n</skill>\\n\\ncheck this';
+  const first = await callBefore(expanded, "base system", baseCtx, true);
+  const second = await callBefore(expanded, first.event.systemPrompt, baseCtx, true);
+  const raw = await callBefore("/skill:review check this", "raw system", baseCtx, true);
+  const fake = await callBefore("<skill name=\\\"review\\\">arbitrary</skill>", "fake system", baseCtx, true);
+  const userExpanded = '<skill name="usernote" location="/tmp/usernote/SKILL.md">\\nReferences are relative to /tmp/usernote.\\n\\nBody\\n</skill>';
+  const user = await callBefore(userExpanded, "user system", baseCtx, true);
+  const userHandler = (hooks.before_agent_start ?? []).slice(-1)[0];
+  const sharedTurnCtx = { ...baseCtx };
+  const userEvent = () => ({
+    type: "before_agent_start",
+    prompt: userExpanded,
+    images: undefined,
+    systemPrompt: "user system",
+    systemPromptOptions: {},
+  });
+  const firstUser = await userHandler(userEvent(), sharedTurnCtx);
+  const duplicateUser = await userHandler(userEvent(), sharedTurnCtx);
+  const nextTurnUser = await userHandler(userEvent(), { ...baseCtx });
+  record("skill-prompts", {
+    projectWins: first.event.systemPrompt === "base system\\n\\ninner guidance",
+    idempotent: second.event.systemPrompt === first.event.systemPrompt,
+    rawIgnored: raw.event.systemPrompt === "raw system" && raw.results.length === 0,
+    malformedIgnored: fake.results.length === 0,
+    userMessage: user.results.length === 1 && user.results[0].message?.content === "user guidance" && user.results[0].message?.display === false,
+    userDedupedInTurn: firstUser?.message?.content === "user guidance" && duplicateUser === undefined,
+    userReinjectedNextTurn: nextTurnUser?.message?.content === "user guidance",
+  });
+}
+
+// ── S7: /guardrails command reports surface, headless-safe ──────────
 {
   let notified = "";
   const cmdCtx = { ...baseCtx, ui: { notify: (msg) => (notified = msg) } };
@@ -212,6 +300,7 @@ await new Promise((r) => setTimeout(r, 20));
   record("command-surface", {
     listsPolicies: notified.includes("ui-fixed-width") && notified.includes("block-curl-prod"),
     showsPaths: notified.includes("harness.json") && notified.includes(".local"),
+    invalidSkillReported: notified.includes("bad--skill") && notified.includes("violates the Pi skill-name rules"),
   });
 }
 
@@ -263,6 +352,13 @@ def test_s5_cache_invalidates_on_later_user_edit() -> None:
     assert s["freshRuleSeen"] and s["oldRuleRetired"]
 
 
-def test_s6_command_reports_surface() -> None:
+def test_s6_skill_prompts_are_layered_and_idempotent() -> None:
+    s = ALL["skill-prompts"]
+    assert s["projectWins"] and s["idempotent"]
+    assert s["rawIgnored"] and s["malformedIgnored"] and s["userMessage"]
+    assert s["userDedupedInTurn"] and s["userReinjectedNextTurn"]
+
+
+def test_s7_command_reports_surface() -> None:
     s = ALL["command-surface"]
-    assert s["listsPolicies"] and s["showsPaths"]
+    assert s["listsPolicies"] and s["showsPaths"] and s["invalidSkillReported"]

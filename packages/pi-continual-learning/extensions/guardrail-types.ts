@@ -26,10 +26,19 @@ export interface Policy {
   source?: string;
 }
 
+export interface SkillPrompt {
+  /** Literal guidance to add when the named skill is expanded by Pi. */
+  prompt: string;
+  /** Where Pi should receive the guidance. */
+  target: "system" | "user";
+}
+
 export interface PolicyLayer {
   /** Human-readable origin, e.g. "~/.pi/agent/harness.json". */
   source: string;
   policies?: Array<Record<string, unknown>>;
+  /** Per-skill guidance, resolved by skill name with innermost precedence. */
+  skillPrompts?: Record<string, unknown>;
   disabled?: string[];
   /** Non-fatal load problems (bad JSON shape) reported once. */
   errors?: string[];
@@ -37,5 +46,6 @@ export interface PolicyLayer {
 
 export interface ResolvedConfig {
   policies: Array<Policy & { regexps: RegExp[] }>;
+  skillPrompts: Record<string, SkillPrompt>;
   errors: string[];
 }

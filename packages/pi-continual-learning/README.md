@@ -61,6 +61,31 @@ Built-in defaults cover known-futile automation: interactive auth commands
 (`npm/pnpm/yarn login|adduser|logout`) and OTP-via-file/chat routing are
 blocked with guidance to hand those steps to the user's own terminal.
 
+### Skill prompt guidance
+
+`skillPrompts` adds corrective guidance when Pi expands a configured
+`/skill:<name>` invocation. The same four layers apply (user, user-local,
+project, project-local), with the innermost definition winning by skill name.
+`disabled` only affects tool-call policies, not skill prompts:
+
+```json
+{
+  "skillPrompts": {
+    "using-open-artifacts": {
+      "prompt": "Use coda0.com as the default instance unless the user specifies another host.",
+      "target": "system"
+    }
+  }
+}
+```
+
+`target: "system"` appends the prompt to the current system prompt. The
+`target: "user"` form delivers a hidden custom context message because Pi's
+`before_agent_start` hook cannot rewrite the already-expanded user message;
+both targets are matched only against Pi's complete expanded skill XML, not a
+raw `/skill:` command or arbitrary XML-looking text. Guidance is appended
+idempotently when a hook is evaluated more than once.
+
 ## Memory
 
 See `AGENTS.md` and `procedures/consolidate.md` for the memory loading rules,

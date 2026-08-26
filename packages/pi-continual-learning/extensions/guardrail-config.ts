@@ -41,6 +41,13 @@ function readLayer(source: string, filePath: string): PolicyLayer | undefined {
     } else if (parsed.policies !== undefined) {
       layer.errors = [`"policies" must be an array`];
     }
+    if (parsed.skillPrompts !== undefined) {
+      if (parsed.skillPrompts && typeof parsed.skillPrompts === "object" && !Array.isArray(parsed.skillPrompts)) {
+        layer.skillPrompts = parsed.skillPrompts as Record<string, unknown>;
+      } else {
+        layer.errors = [...(layer.errors ?? []), `"skillPrompts" must be an object`];
+      }
+    }
     if (Array.isArray(parsed.disabled)) {
       layer.disabled = parsed.disabled.map(String);
     }

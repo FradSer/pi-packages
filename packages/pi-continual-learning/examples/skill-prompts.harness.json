@@ -1,0 +1,8 @@
+{
+  "skillPrompts": {
+    "using-open-artifacts": {
+      "prompt": "Use coda0.com as the default instance unless the user specifies another host.",
+      "target": "system"
+    }
+  }
+}
