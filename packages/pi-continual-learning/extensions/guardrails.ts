@@ -10,7 +10,7 @@
  */
 
 import fs from "node:fs";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { parseSkillBlock, type ExtensionAPI, type BeforeAgentStartEvent } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_POLICIES, evaluate, mergeLayers } from "./guardrail-engine.ts";
 import { configPaths, loadLayers } from "./guardrail-config.ts";
 import type { PolicyLayer, ResolvedConfig } from "./guardrail-types.ts";
@@ -27,7 +27,28 @@ function defaultLayer(): PolicyLayer {
   };
 }
 
+function appendSystemGuidance(systemPrompt: string, guidance: string): string {
+  if (systemPrompt.includes(guidance)) return systemPrompt;
+  return systemPrompt ? `${systemPrompt}\n\n${guidance}` : guidance;
+}
+
+export function skillPromptTarget(
+  event: Pick<BeforeAgentStartEvent, "prompt">,
+  config: ResolvedConfig,
+): { name: string; prompt: string; target: "system" | "user" } | undefined {
+  const skill = parseSkillBlock(event.prompt);
+  if (!skill) return undefined;
+  const guidance = config.skillPrompts[skill.name];
+  if (!guidance) return undefined;
+  return { name: skill.name, ...guidance };
+}
+
 let cached: { key: string; value: ResolvedWithPaths } | undefined;
+
+// Pi shares one context among before_agent_start handlers in a turn, while
+// creating a fresh event for each one. Module scope also covers an accidental
+// duplicate extension registration; each later turn receives a new context.
+const injectedUserPromptContexts = new WeakSet<object>();
 
 function resolveConfig(cwd: string, agentDir?: string): ResolvedWithPaths {
   const paths = configPaths(cwd, agentDir);
@@ -48,13 +69,35 @@ function resolveConfig(cwd: string, agentDir?: string): ResolvedWithPaths {
 }
 
 export default function registerGuardrails(pi: ExtensionAPI) {
+  pi.on("before_agent_start", (event, ctx) => {
+    const cwd = ctx.cwd || process.cwd();
+    const { config } = resolveConfig(cwd);
+    const matched = skillPromptTarget(event, config);
+    if (!matched) return undefined;
+
+    if (matched.target === "system") {
+      return { systemPrompt: appendSystemGuidance(event.systemPrompt, matched.prompt) };
+    }
+    if (injectedUserPromptContexts.has(ctx)) return undefined;
+    injectedUserPromptContexts.add(ctx);
+    return {
+      message: {
+        customType: "skill-prompt-guidance",
+        content: matched.prompt,
+        display: false,
+        details: { skill: matched.name, target: "user" },
+      },
+    };
+  });
+
   pi.on("tool_call", async (event, ctx) => {
     const cwd = ctx.cwd || process.cwd();
     const { config } = resolveConfig(cwd);
     const decision = evaluate(config, {
       toolName: event.toolName,
       args: (event.input ?? {}) as Record<string, unknown>,
-    });    if (!decision) return undefined;
+    });
+    if (!decision) return undefined;
 
     if (decision.action === "confirm") {
       if (!ctx.hasUI) {
@@ -78,6 +121,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       const { config, paths } = resolveConfig(cwd);
       const lines = [
         `policies: ${config.policies.length ? config.policies.map((p) => p.name).join(", ") : "(none)"}`,
+        `skill prompts: ${Object.keys(config.skillPrompts).length ? Object.keys(config.skillPrompts).join(", ") : "(none)"}`,
         "built-in defaults are active unless disabled by name",
         "config paths:",
         `  ${paths.user}`,

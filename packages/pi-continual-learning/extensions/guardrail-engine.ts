@@ -53,11 +53,38 @@ function stringArray(value: unknown): string[] | undefined {
  * layer and remove matching policies everywhere. */
 export function mergeLayers(layers: PolicyLayer[]): ResolvedConfig {
   const byName = new Map<string, { policy: Policy; broken?: string }>();
+  const skillPrompts = new Map<string, { prompt: string; target: "system" | "user" }>();
   const disabled = new Set<string>();
   const errors: string[] = [];
 
   for (const layer of layers) {
     for (const name of layer.disabled ?? []) disabled.add(name);
+    for (const [name, raw] of Object.entries(layer.skillPrompts ?? {})) {
+      if (
+        name.length === 0 ||
+        name.length > 64 ||
+        !/^[a-z0-9-]+$/.test(name) ||
+        name.startsWith("-") ||
+        name.endsWith("-")
+      ) {
+        errors.push(`${layer.source}: skill prompt name "${name}" violates the Pi skill-name rules and was skipped`);
+        continue;
+      }
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        errors.push(`${layer.source}: skill prompt "${name}" must be an object and was skipped`);
+        continue;
+      }
+      const entry = raw as Record<string, unknown>;
+      if (typeof entry.prompt !== "string" || !entry.prompt.trim()) {
+        errors.push(`${layer.source}: skill prompt "${name}" needs a non-empty string prompt and was skipped`);
+        continue;
+      }
+      if (entry.target !== "system" && entry.target !== "user") {
+        errors.push(`${layer.source}: skill prompt "${name}" target must be system or user and was skipped`);
+        continue;
+      }
+      skillPrompts.set(name, { prompt: entry.prompt, target: entry.target });
+    }
     for (const raw of layer.policies ?? []) {
       if (!raw || typeof raw.name !== "string" || !raw.name.trim()) {
         errors.push(`${layer.source}: policy without a name was skipped`);
@@ -108,7 +135,11 @@ export function mergeLayers(layers: PolicyLayer[]): ResolvedConfig {
     if (regexps.length === 0 && patterns.length > 0) continue;
     policies.push({ ...entry.policy, regexps });
   }
-  return { policies, errors };
+  return {
+    policies,
+    skillPrompts: Object.fromEntries(skillPrompts),
+    errors,
+  };
 }
 
 function normalizePolicy(
