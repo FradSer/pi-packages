@@ -103,8 +103,14 @@ for worker reports, not for leader calls. Peer traffic never reaches your
 context — inspect it in /agent-teams instead.
 
 Create shared work with task_create(subject, description?, dependsOn?,
-verify?). Idle teammates notice claimable work automatically and self-claim;
-dependencies unlock downstream tasks without your involvement. The verify
+verify?). It creates pending work on the current session board; it never
+spawns a teammate. If idle teammates already exist, the harness offers them a
+board notice immediately and they may self-claim. If the result says there are
+no living teammates, spawn one with teammate_spawn; if it says no idle
+teammate was notified, the task remains pending until a teammate becomes
+available or you message one directly. A task created in another Pi session's
+board is not automatically imported into this session. Dependencies unlock
+downstream tasks without your involvement. The verify
 prompt is judged by a fresh one-shot reviewer that inspects the work itself:
 VERDICT: PASS completes, FAIL feeds the reviewer's findings back to the
 claimer for fix-and-resubmit. Write gates as acceptance criteria a reviewer

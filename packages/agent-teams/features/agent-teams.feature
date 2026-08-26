@@ -171,6 +171,8 @@ Feature: Agent Teams collaborative organization contract
       When the harness poll checks teammate liveness
       Then the roster records the last output time and a stall notice
       And the leader receives one actionable diagnostic naming the teammate
+      And the transcript renders the health diagnostic as one `[agent] event · @name stalled · silent <duration>` row
+      And message routing rows never repeat the teammate health state
       And the notice wakes the idle leader without requiring model polling
       And the notice is the last automatic action: continuing, steering, shutting down, or respawning belongs to the leader alone
 
@@ -204,6 +206,7 @@ Feature: Agent Teams collaborative organization contract
       When security calls send_message with to="backend" and one message body
       Then the message is appended to backend's inbox file
       And the send succeeds only after the recipient inbox write succeeds
+      And the synchronous routing outcome is queued because harness delivery into a turn is still pending
       And sending to an unknown teammate name fails
 
     Scenario: Delivered messages wake an idle teammate automatically
@@ -263,8 +266,11 @@ Feature: Agent Teams collaborative organization contract
 
     Scenario: The leader addresses a living teammate by name through send_message
       When the leader calls send_message with a teammate name and one message body
-      Then the message is written to that teammate's control stream or queued for its next wake-up
+      Then the routing outcome is steered only when the message is written to that teammate's active control stream
+      Or the routing outcome is queued when harness delivery must wait for the next wake-up
+      And neither outcome claims the teammate read, understood, or processed the message
       And sending to "leader", an unknown teammate, or a stopped teammate fails
+      And a stray status field on a leader-sent message does not block delivery; it is ignored with a one-line note
 
     Scenario: Stale spawn events cannot affect a newer teammate incarnation
       Given a teammate was restarted and holds a fresh spawn identity
@@ -277,6 +283,19 @@ Feature: Agent Teams collaborative organization contract
       When the leader calls task_create with a subject and optional description, dependencies, and a verify prompt
       Then the task joins the board as pending
       And workers have no task creation capability
+
+    Scenario: Creating a task reports the next execution action
+      Given the leader has no living teammates
+      When the leader creates a board task
+      Then the task remains pending
+      And the result tells the leader to spawn a teammate because task_create never spawns one automatically
+      And the result says the task belongs to the current session board
+
+    Scenario: Creating a task wakes an existing idle teammate immediately
+      Given an idle teammate is already running in the current session
+      When the leader creates a claimable board task
+      Then the harness attempts the board notice immediately instead of waiting for the next poll tick
+      And the task-create result reports the notification outcome
 
     Scenario: Only resident teammates self-claim tasks
       Given a pending task with no unmet dependencies
@@ -291,6 +310,41 @@ Feature: Agent Teams collaborative organization contract
       Then the dependent task is not claimable
       And when the last dependency completes, the task becomes claimable automatically
       And the shared task_list view includes the living roster on both leader and worker sides
+
+    Scenario: Task list groups board state around executable tasks
+      Given the current session board has pending, claimed, and completed tasks
+      When the leader or a worker calls task_list
+      Then the result names the current session task board once
+      And it reports one task summary with counts and claimable work
+      And each task line identifies status, subject, claimant, and dependency state without repeating board prose
+      And the roster is a separate compact section after the task section
+
+    Scenario: Task creation reports one actionable board handoff
+      Given the leader creates a task on the current session board
+      When task_create returns
+      Then the result groups the task identity, status, claimability, routing outcome, and next action
+      And it does not repeat the full roster or duplicate the task description
+
+    Scenario: Board result text uses stable semantic sections
+      Given task_create or task_list returns board information
+      When the leader reads the result
+      Then the board context appears under `BOARD`
+      And task state appears under `TASKS` or `CREATED`, `CLAIMED`, or `SUBMITTED`
+      And next actions appear under `NEXT`
+      And roster information appears only under `ROSTER`
+
+    Scenario: Task claim reports ownership and the next task action
+      Given a worker claims a pending task
+      When task_claim returns
+      Then the result names the task subject and new claimant
+      And it tells the worker to do the work and submit the task outcome
+
+    Scenario: Task submission reports verification routing
+      Given a worker submits a claimed task outcome
+      When task_submit returns
+      Then the result names the task and submitted status
+      And it says whether a verify review is queued or no review is configured
+      And it does not claim that the task is completed before the harness applies the submission
 
     Scenario: Claimed tasks are released when their holder stops
       Given a teammate holds a claimed task
@@ -349,6 +403,12 @@ Feature: Agent Teams collaborative organization contract
       And runtime state such as rosters, inboxes, and outboxes does not survive
       And claimed tasks held by dead teammates return to pending on reload
       And no automatic cleanup deletes persisted boards
+
+    Scenario: Board persistence is scoped to a board directory
+      Given two Pi sessions use different session files in the same project
+      When the first session creates a task
+      Then the second session does not import that task automatically
+      And resuming requires the same board directory
 
     Scenario: Board state has one writer
       Given workers may race to claim or submit tasks
@@ -441,15 +501,17 @@ Feature: Agent Teams collaborative organization contract
       And the event line is never labeled as a monitor event
       And a failed shutdown keys off the render context isError flag and renders one plain error line without an event row
 
-    Scenario: Steering renders one delivery line per message
-      Given the leader sends a message to a living teammate
+    Scenario: Sending renders one routing line per message
+      Given the leader or a teammate sends a message to a living teammate
       When the send_message tool call renders in the transcript
       Then the call slot renders no content of its own
-      And the result renders one delivery line following the `[message] to @name` shape
-      And the line appends the delivery outcome such as delivered or queued as a dim suffix
-      And the line flags a stalled recipient with its silence duration instead of a duplicate sentence
+      And the result renders one routing line following the `[message] to @name` shape
+      And the line appends exactly one synchronous routing outcome: steered or queued
+      And steered means only that the active control stream accepted the message
+      And queued means the harness still owns delivery into a recipient turn
+      And teammate health never appears as a message routing suffix
       And the full result text stays available to the model without a second transcript row
-      And a failed delivery keys off the render context isError flag and renders one plain error line without an outcome suffix
+      And a failed send keys off the render context isError flag and renders one plain error line without an outcome suffix
 
     Scenario: Creating a board task renders one created line
       Given the leader creates a board task
@@ -457,6 +519,24 @@ Feature: Agent Teams collaborative organization contract
       Then the call slot renders no content of its own
       And the result renders one `[board] created · <subject>` line truncated to the available width
       And a failed creation keys off the render context isError flag and renders one plain error line without a created row
+
+    Scenario: Every Agent Teams tool uses the shared pi-kit lifecycle renderer
+      Given Agent Teams registers leader and worker tools
+      When any tool renders a successful result
+      Then it uses pi-kit renderToolLifecycle with either started or event semantics
+      And its call slot is empty and its result row is width-bounded
+      And expanded event details use pi-kit's shared expansion behavior
+      And failed results use pi-kit's shared plain error formatting
+      And task_list uses the event adapter with the `listed` semantic label
+
+    Scenario: Every Agent Teams tool executes through the real tool harness
+      Given a fake RPC Pi child and isolated leader and worker state files
+      When the leader executes teammate_spawn, teammate_shutdown, send_message, task_create, and task_list
+      And the worker executes send_message, task_list, task_claim, and task_submit
+      Then every registered Agent Teams tool returns a successful result
+      And teammate_spawn starts a child that teammate_shutdown closes
+      And the message tools write their expected queue or inbox records
+      And the task tools expose the board, claim marker, and submission marker
 
     Scenario: The leader coordinates through spawn, shutdown, steer, and the board
       When the leader inspects available tools

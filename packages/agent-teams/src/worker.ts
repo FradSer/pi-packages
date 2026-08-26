@@ -6,7 +6,9 @@
 
 import { randomUUID } from "node:crypto";
 import * as path from "node:path";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { eventToolLifecycle } from "@fradser/pi-kit";
+import { emptyToolCall, renderLifecycleResult, resultDetails } from "./tool-render.ts";
 import { livingTeammates, listTasks } from "./state.ts";
 import { appendInboxMessage, appendWorkerEvent, createTaskIntent, readBoardFile, readRoster } from "./statefile.ts";
 import {
@@ -63,18 +65,35 @@ function dependenciesMet(task: BoardTask, tasks: Map<string, BoardTask>): boolea
   return task.dependsOn.every((dep) => tasks.get(dep)?.status === "completed");
 }
 
+function taskCounts(tasks: BoardTask[], byId: Map<string, BoardTask>): string {
+  const counts = { pending: 0, claimed: 0, completed: 0 };
+  for (const task of tasks) counts[task.status] += 1;
+  const claimable = tasks.filter((task) => task.status === "pending" && dependenciesMet(task, byId)).length;
+  return `tasks=${tasks.length} · pending=${counts.pending} (${claimable} claimable) · claimed=${counts.claimed} · completed=${counts.completed}`;
+}
+
+function taskStatusLabel(task: BoardTask, tasks: Map<string, BoardTask>): string {
+  if (task.status === "pending") return dependenciesMet(task, tasks) ? "pending/claimable" : "pending/blocked";
+  return task.status;
+}
+
 export function renderTaskBoard(tasks: BoardTask[]): string {
-  if (tasks.length === 0) return "(the task board is empty)";
   const byId = new Map(tasks.map((task) => [task.id, task]));
-  return tasks.map((task) => {
+  const lines = [`BOARD · current session`, `SUMMARY · ${taskCounts(tasks, byId)}`];
+  if (tasks.length === 0) return `${lines.join("\n")}\nTASKS\n(no tasks)`;
+  lines.push("TASKS");
+  for (const task of tasks) {
     const deps = task.dependsOn.length > 0
-      ? ` | depends on ${task.dependsOn.join(", ")} (${dependenciesMet(task, byId) ? "met" : "unmet"})`
+      ? ` · depends=${task.dependsOn.join(",")} (${dependenciesMet(task, byId) ? "met" : "blocked"})`
       : "";
-    const holder = task.claimedBy ? ` by @${task.claimedBy}` : "";
-    const verify = task.verify ? ` | verify: ${task.verify}` : "";
-    const description = task.description ? `\n    ${task.description.slice(0, 2000)}` : "";
-    return `- [${task.id}] ${task.status}${holder}: ${task.subject}${deps}${verify}${description}`;
-  }).join("\n");
+    const holder = task.claimedBy ? ` · claimant=@${task.claimedBy}` : "";
+    lines.push(`- ${task.id} · ${taskStatusLabel(task, byId)} · ${task.subject}${holder}${deps}`);
+  }
+  return lines.join("\n");
+}
+
+function renderRoster(roster: string): string {
+  return `ROSTER\n${roster || "(none)"}`;
 }
 
 /** One registration shared by leader and worker; binding chooses the data source. */
@@ -83,8 +102,18 @@ export function registerTaskListTool(pi: ExtensionAPI): void {
     name: "task_list",
     promptSnippet: "Read the shared task board",
     label: "Task Board",
-    description: "Read board tasks with status, dependencies, and verify gates. Pending tasks with met dependencies are claimable.",
+    description: "Read the current session board as grouped task state plus a compact roster. Pending tasks with met dependencies are claimable.",
     parameters: TaskListParams,
+    renderShell: "self",
+    renderCall: emptyToolCall,
+    renderResult(result, options, theme, context) {
+      const count = (result.details as { count?: number } | undefined)?.count ?? 0;
+      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+        "board",
+        `${count} task${count === 1 ? "" : "s"}`,
+        { label: "listed" },
+      ), resultDetails(result));
+    },
     async execute() {
       const binding = workerBinding();
       const tasks = binding ? loadBoardTasks(binding) : listTasks();
@@ -95,7 +124,15 @@ export function registerTaskListTool(pi: ExtensionAPI): void {
             .map((entry) => `@${entry.name} (${entry.agent}, ${entry.status})`)
             .join("\n")
         : livingTeammates().map((t) => `@${t.name} (${t.agent}, ${t.status}${t.currentTaskId ? `, task ${t.currentTaskId}` : ""})`).join("\n");
-      return { content: [{ type: "text", text: `${renderTaskBoard(tasks)}\n\nRoster:\n${roster || "(none)"}` }], details: {} };
+      const leaderHint = !binding && !roster && tasks.some((task) => task.status === "pending")
+        ? "NEXT · leader: teammate_spawn; workers then use task_claim"
+        : tasks.some((task) => task.status === "pending")
+          ? "NEXT · workers use task_claim for pending/claimable tasks"
+          : "NEXT · no claimable work";
+      return {
+        content: [{ type: "text", text: `${renderTaskBoard(tasks)}\n${leaderHint}\n\n${renderRoster(roster)}` }],
+        details: { count: tasks.length },
+      };
     },
   });
 }
@@ -107,6 +144,17 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
     label: "Send Message",
     description: "The only messaging primitive. Use to=\"leader\" for reports; use a teammate name for direct peer mail. status is valid only for leader reports.",
     parameters: SendMessageParams,
+    renderShell: "self",
+    renderCall: emptyToolCall,
+    renderResult(result, options, theme, context) {
+      const to = String((context.args as { to?: string }).to ?? "");
+      const details = result.details as { outcome?: "queued" } | undefined;
+      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+        "message",
+        details?.outcome ?? "queued",
+        { label: `to @${to}`, details: resultDetails(result) },
+      ));
+    },
     async execute(_toolCallId, params) {
       const binding = workerBinding();
       if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
@@ -119,9 +167,12 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
           body: params.message,
           status: params.status,
         });
-        return { content: [{ type: "text", text: params.status
-          ? "Queued message to leader."
-          : 'Queued message to leader. Note: without status="completed" or status="failed" this report does not end your assignment.' }], details: {} };
+        return {
+          content: [{ type: "text", text: params.status
+            ? `MESSAGING\nREPORT · to=leader · status=${params.status}\nNEXT · harness will deliver this report`
+            : 'MESSAGING\nREPORT · to=leader · status=in_progress\nNEXT · send status="completed" or status="failed" to end the assignment' }],
+          details: { to: LEADER_RECIPIENT, status: params.status ?? "in_progress", outcome: "queued" },
+        };
       }
       if (params.status) throw new Error('status is valid only when to="leader".');
       if (params.to === binding.worker) throw new Error("You are already the recipient — no need to message yourself.");
@@ -135,7 +186,10 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
         subject: messageTitle(params.message),
         body: params.message,
       });
-      return { content: [{ type: "text", text: `Delivered to @${params.to}'s inbox.` }], details: {} };
+      return {
+        content: [{ type: "text", text: `MESSAGING\nQUEUED · to=@${params.to}\nNEXT · harness will route the inbox message into a recipient turn` }],
+        details: { to: params.to, outcome: "queued" },
+      };
     },
   });
 
@@ -143,6 +197,16 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
 
   pi.registerTool({
     name: "task_claim",
+    renderShell: "self",
+    renderCall: emptyToolCall,
+    renderResult(result, options, theme, context) {
+      const taskId = String((context.args as { taskId?: string }).taskId ?? "first claimable");
+      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+        "board",
+        taskId,
+        { label: "claimed", details: resultDetails(result) },
+      ));
+    },
     promptSnippet: "Self-claim a pending board task",
     label: "Claim Task",
     description: "Atomically claim a pending task whose dependencies are met. Omit taskId to claim the first claimable task.",
@@ -167,7 +231,10 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
           timestamp: Date.now(),
         });
         if (won) {
-          return { content: [{ type: "text", text: `You won [${task.id}] "${task.subject}". Submit with task_submit.` }], details: {} };
+          return {
+            content: [{ type: "text", text: `BOARD · current session\nCLAIMED · ${task.id} · ${task.subject}\nOWNER · @${binding.worker}\nNEXT · do the work, then task_submit` }],
+            details: { taskId: task.id, subject: task.subject, worker: binding.worker },
+          };
         }
         if (params.taskId) throw new Error(`Task "${task.id}" was claimed by someone else first.`);
       }
@@ -177,6 +244,17 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
 
   pi.registerTool({
     name: "task_submit",
+    renderShell: "self",
+    renderCall: emptyToolCall,
+    renderResult(result, options, theme, context) {
+      const taskId = String((context.args as { taskId?: string }).taskId ?? "task");
+      const status = String((context.args as { status?: string }).status ?? "submitted");
+      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+        "board",
+        taskId,
+        { label: status, details: resultDetails(result) },
+      ));
+    },
     promptSnippet: "Submit a claimed task outcome",
     label: "Submit Task",
     description: "Submit a task you claimed. completed runs its verify gate; failed releases the task back to the board.",
@@ -193,7 +271,22 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
         timestamp: Date.now(),
       });
       if (!won) throw new Error(`A submission for "${params.taskId}" is already pending.`);
-      return { content: [{ type: "text", text: `Submitted ${params.status} for [${params.taskId}].` }], details: {} };
+          const task = loadBoardTasks(binding).find((candidate) => candidate.id === params.taskId);
+      const roleVerify = process.env.PI_TEAMMATE_VERIFY_DEFAULT?.trim();
+      const verify = params.status === "completed"
+        ? task?.verify
+          ? "VERIFY · queued (task gate)"
+          : roleVerify
+            ? "VERIFY · queued (role gate)"
+            : "VERIFY · none configured"
+        : "VERIFY · skipped (failed submission)";
+      const next = params.status === "completed"
+        ? "NEXT · wait for the harness result"
+        : "NEXT · task returns to pending";
+      return {
+        content: [{ type: "text", text: `BOARD · current session\nSUBMITTED · ${params.taskId} · ${params.status}\n${verify}\n${next}` }],
+        details: { taskId: params.taskId, status: params.status, verify: Boolean(task?.verify || roleVerify) },
+      };
     },
   });
 }

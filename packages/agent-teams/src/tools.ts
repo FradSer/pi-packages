@@ -1,8 +1,8 @@
-import { keyHint, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { formatAgentMessagePrefix, formatAgentTaskName, formatExpandHint, formatToolEventLabel, safeDisplayText } from "@fradser/pi-kit";
+import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { eventToolLifecycle, formatAgentTaskName, startedToolLifecycle } from "@fradser/pi-kit";
 import {
   createBoardTask,
-  formatSilenceDuration,
+  formatBoardTaskCreation,
   hasAnnouncedFinish,
   hasTerminalReport,
   publishStateSnapshot,
@@ -15,7 +15,7 @@ import { LEADER_RECIPIENT, SendMessageParams, TeammateShutdownParams, TeammateSp
 import { registerTaskListTool } from "./worker.ts";
 import { openTeamConsole, refreshTeamUI } from "./ui.ts";
 import { discoverAgents } from "./agents.ts";
-import { Text, truncateToWidth } from "@earendil-works/pi-tui";
+import { emptyToolCall, renderLifecycleResult, resultDetails } from "./tool-render.ts";
 
 function rosterSummary(): string {
   const alive = livingTeammates();
@@ -33,23 +33,16 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     // Canonical lifecycle rows (same as packages/monitor): empty renderCall,
     // ONE startup row owned by renderResult.
     renderShell: "self",
-    renderCall: () => new Text("", 0, 0),
-    renderResult(result, _options, theme, context) {
-      const text = result.content[0]?.type === "text" ? (result.content[0] as { type: string; text: string }).text : "";
-      if (context.isError) {
-        return new Text(theme.fg("error", text.split("\n")[0] || "Failed to spawn teammate."), 0, 0);
-      }
+    renderCall: emptyToolCall,
+    renderResult(result, options, theme, context) {
       const params = context.args as { name: string; prompt?: string };
       const details = result.details as { started?: boolean; tools?: string[] } | undefined;
-      // Details only: falling back to live roster state would mislabel history
-      // after a teammate name is reused with a different grant.
       const tools = details?.tools;
-      const toolsNote = tools?.length ? `${theme.fg("dim", " · ")}${theme.fg("muted", `tools: ${tools.join(", ")}`)}` : "";
-      const line = `${theme.fg("toolTitle", theme.bold(formatToolEventLabel("started", "", "agent").trimEnd()))} ${theme.fg("accent", `@${params.name}`)} ${theme.fg("dim", "·")} ${theme.fg("customMessageText", theme.bold(formatAgentTaskName(params.prompt ?? "", params.name)))}${toolsNote}`;
-      return {
-        render: (width: number) => width > 0 ? [truncateToWidth(line, width)] : [],
-        invalidate: () => {},
-      };
+      const toolsNote = tools?.length ? ` · tools: ${tools.join(", ")}` : "";
+      return renderLifecycleResult(result, options, theme, context, startedToolLifecycle(
+        "agent",
+        `@${params.name} · ${formatAgentTaskName(params.prompt ?? "", params.name)}${toolsNote}`,
+      ));
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = spawnTeammate(params);
@@ -73,28 +66,17 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     description: "Gracefully stop one named teammate. Its claimed task returns to the board; its worktree diff is captured before teardown.",
     parameters: TeammateShutdownParams,
     renderShell: "self",
-    renderCall: () => new Text("", 0, 0),
+    renderCall: emptyToolCall,
     renderResult(result, options, theme, context) {
-      const text = result.content[0]?.type === "text" ? (result.content[0] as { type: string; text: string }).text : "";
-      if (context.isError) {
-        return new Text(theme.fg("error", text.split("\n")[0] || "Failed to shut down teammate."), 0, 0);
-      }
       const name = String((context.args as { name?: string }).name ?? "");
       // The finish entry already announced this end of life (or its terminal
       // report is queued to); a second event row is noise.
       if (hasAnnouncedFinish(name) || hasTerminalReport(name)) return { render: () => [], invalidate: () => {} };
-      const title = theme.fg("toolTitle", theme.bold(formatToolEventLabel("event", `@${name} shut down`, "agent")));
-      const render = (width: number) => {
-        if (width <= 0) return [];
-        if (!options.expanded) {
-          return [truncateToWidth(`${title}${formatExpandHint(keyHint("app.tools.expand", "to expand"), theme)}`, width)];
-        }
-        return [
-          truncateToWidth(title, width),
-          ...text.split("\n").map((line) => truncateToWidth(theme.fg("customMessageText", safeDisplayText(line)), width)),
-        ];
-      };
-      return { render, invalidate: () => {} };
+      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+        "agent",
+        `@${name} shut down`,
+        { details: resultDetails(result) },
+      ));
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await shutdownTeammate(params.name);
@@ -108,44 +90,36 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     name: "send_message",
     promptSnippet: "Send a message to a teammate",
     label: "Send Message",
-    description: "The only messaging primitive. Address a living teammate by name; working teammates receive a steer immediately and idle teammates wake with the message. status is reserved for worker reports to leader.",
+    description: "The only messaging primitive. Address a living teammate by name; working teammates receive a steer immediately and idle teammates wake with the message.",
     parameters: SendMessageParams,
     // Canonical lifecycle rows (same as packages/monitor): empty call slot,
     // ONE delivery row owned by renderResult.
     renderShell: "self",
-    renderCall: () => new Text("", 0, 0),
-    renderResult(result, _options, theme, context) {
-      const text = result.content[0]?.type === "text" ? (result.content[0] as { type: string; text: string }).text : "";
-      if (context.isError) {
-        return new Text(theme.fg("error", text.split("\n")[0] || "Failed to send message."), 0, 0);
-      }
+    renderCall: emptyToolCall,
+    renderResult(result, options, theme, context) {
       const to = String((context.args as { to?: string }).to ?? "");
-      const details = result.details as { queued?: boolean; stalledMs?: number } | undefined;
-      const suffix = details?.queued ? "queued" : "delivered";
-      let line = `${theme.fg("toolTitle", theme.bold(formatAgentMessagePrefix("to")))}${theme.fg("accent", `@${to}`)}${theme.fg("dim", ` · ${suffix}`)}`;
-      if (!details?.queued && details?.stalledMs !== undefined) {
-        line += theme.fg("dim", ` · stalled ${formatSilenceDuration(details.stalledMs)}`);
-      }
-      return {
-        render: (width: number) => width > 0 ? [truncateToWidth(line, width)] : [],
-        invalidate: () => {},
-      };
+      const details = result.details as { outcome?: "steered" | "queued" } | undefined;
+      const outcome = details?.outcome ?? "queued";
+      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+        "message",
+        outcome,
+        { label: `to @${to}` },
+      ));
     },
     async execute(_toolCallId, params) {
       if (params.to === LEADER_RECIPIENT) throw new Error('The leader cannot send a message to itself.');
-      if (params.status) throw new Error('status is reserved for worker reports to="leader".');
       const result = sendLeaderMessage(params.to, params.message);
       if (!result.ok) throw new Error(result.error);
-      const disposition = result.queued ? "Queued for its next wake-up." : "Delivered to its running turn.";
-      let text = `Message to @${params.to}: ${disposition}`;
-      if (!result.queued && result.stalledMs !== undefined) {
-        text += `\nWarning: @${params.to} has been stalled with no output for ${formatSilenceDuration(result.stalledMs)} — the control-stream write succeeded, but the teammate may be wedged. Consider teammate_shutdown if it stays silent.`;
-      }
+      const action = result.outcome === "steered"
+        ? "active control stream accepted the steer"
+        : "harness will deliver the queued message on the next wake-up";
+      let text = `MESSAGING\n${result.outcome.toUpperCase()} · to=@${params.to}\nNEXT · ${action}`;
+      // A stray status field (copied from worker report patterns) must not
+      // block delivery — it carries no meaning on leader-sent messages.
+      if (params.status) text += `\nNOTE · status ignored for leader-directed steering`;
       return {
         content: [{ type: "text", text }],
-        details: result.stalledMs !== undefined && !result.queued
-          ? { queued: result.queued, stalledMs: result.stalledMs }
-          : { queued: result.queued },
+        details: { outcome: result.outcome },
       };
     },
   });
@@ -154,23 +128,19 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     name: "task_create",
     promptSnippet: "Create a shared board task",
     label: "Create Task",
-    description: "Create one shared board task. Resident teammates self-claim it when dependencies are met; an optional verify prompt gates completion through a fresh reviewer.",
+    description: "Create one pending task on the current session board. Existing idle teammates are notified immediately and may self-claim it; this tool never spawns teammates. An optional verify prompt gates completion through a fresh reviewer.",
     parameters: TaskCreateParams,
     // Canonical lifecycle rows (same as packages/monitor): empty call slot,
     // ONE created row owned by renderResult.
     renderShell: "self",
-    renderCall: () => new Text("", 0, 0),
-    renderResult(result, _options, theme, context) {
-      const text = result.content[0]?.type === "text" ? (result.content[0] as { type: string; text: string }).text : "";
-      if (context.isError) {
-        return new Text(theme.fg("error", text.split("\n")[0] || "Failed to create task."), 0, 0);
-      }
+    renderCall: emptyToolCall,
+    renderResult(result, options, theme, context) {
       const subject = String((context.args as { subject?: string }).subject ?? "");
-      const line = theme.fg("toolTitle", theme.bold(formatToolEventLabel("created", subject, "board")));
-      return {
-        render: (width: number) => width > 0 ? [truncateToWidth(line, width)] : [],
-        invalidate: () => {},
-      };
+      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+        "board",
+        subject,
+        { label: "created" },
+      ));
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const tasks = listTasks();
@@ -180,7 +150,14 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       const created = createBoardTask(params);
       if (!created.ok) throw new Error(created.error);
       refreshTeamUI(ctx);
-      return { content: [{ type: "text", text: `Created [${created.id}] "${params.subject}". Idle teammates are notified automatically.` }], details: {} };
+      return {
+        content: [{ type: "text", text: formatBoardTaskCreation(params.subject, created) }],
+        details: {
+          notifiedTeammates: created.notifiedTeammates,
+          livingTeammates: created.livingTeammates,
+          claimable: created.claimable,
+        },
+      };
     },
   });
 
