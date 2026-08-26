@@ -409,7 +409,7 @@ export class MonitorManager {
     this.clearTimeout(monitor);
     if (terminal.status !== "success") {
       const output = this.tail(monitor.id);
-      terminal.output = output?.lines ?? [];
+      terminal.output = collapseRepeatedLines(output?.lines ?? []);
       terminal.outputTruncated = output?.truncated ?? false;
     }
     if (killProcess) this.killTree(monitor, keepKillTimerAlive);
@@ -546,4 +546,18 @@ function boundedTail(logs: MonitorLogEntry[], maxBytes: number): MonitorLogEntry
     bytes += entry.bytes;
   }
   return selected;
+}
+
+function collapseRepeatedLines(lines: string[]): string[] {
+  const counts = new Map<string, number>();
+  const order: string[] = [];
+  for (const line of lines) {
+    if (!counts.has(line)) order.push(line);
+    counts.set(line, (counts.get(line) ?? 0) + 1);
+  }
+  return order.map((line) => formatRepeatedLine(line, counts.get(line) ?? 1));
+}
+
+function formatRepeatedLine(line: string, count: number): string {
+  return count > 1 ? `${line} (repeated ${count} times)` : line;
 }

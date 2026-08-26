@@ -164,6 +164,7 @@ The retained history and terminal diagnostic tail are bounded:
 - unterminated input fragment: 64 KiB
 - retained output: 2,000 lines and 256 KiB per monitor
 - terminal diagnostic tail: 100 lines and 32 KiB maximum
+- repeated diagnostic lines in terminal results are collapsed with occurrence counts
 - recently finished monitor history: 20 monitors
 
 ## Result semantics

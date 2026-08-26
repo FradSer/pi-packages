@@ -178,7 +178,7 @@ def test_terminal_report_uses_native_custom_message_content() -> None:
 def test_monitor_report_renderer_uses_compact_event_style_and_configured_hint() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     assert 'registerMessageRenderer("monitor-result"' in extension
-    assert 'formatToolEventLabel("event", description)' in extension
+    assert 'formatToolLifecycleTitle(eventToolLifecycle("monitor", description))' in extension
     assert "formatExpandHint(keyHint(\"app.tools.expand\", \"to expand\"), theme)" in extension
     assert '(keyHint("app.tools.expand", "to expand"))' not in extension
     assert '⏺ [monitor]' not in extension
@@ -196,7 +196,7 @@ def test_monitor_docs_use_configured_expansion_key() -> None:
 def test_monitor_start_uses_compact_event_style() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     start_tool = extension.split('name: "monitor_start"', 1)[1].split('name: "monitor_stop"', 1)[0]
-    assert 'formatToolEventLabel("started", safeDisplayText(context.args.description))' in start_tool
+    assert 'formatToolLifecycleTitle(startedToolLifecycle("monitor", safeDisplayText(context.args.description)))' in start_tool
     assert '[monitor] event · ${safeDisplayText(monitor.description)}' not in start_tool
     assert 'content: []' in start_tool
     assert 'renderCall: () => new Container()' in start_tool
@@ -217,7 +217,7 @@ def test_monitor_status_uses_the_native_footer_and_console_owns_input() -> None:
     assert "updateFooterStatus" in extension
     assert "requestRender = () => tui.requestRender()" in extension
     assert "isKeyRelease(data)" in extension
-    assert 'safeDisplayText } from "@fradser/pi-kit"' in extension
+    assert 'startedToolLifecycle } from "@fradser/pi-kit"' in extension
     # The sanitizer implementation lives in pi-kit; the local copy is gone.
     assert '\u0080-\u009f' not in extension
     assert "C1" not in extension
@@ -603,6 +603,41 @@ def test_nonzero_exit_reports_failure() -> None:
         const failure = terminals.find((entry) => entry.result.status === "failure");
         if (!failure || failure.result.exitCode !== 7) {
           throw new Error(JSON.stringify(terminals));
+        }
+        ''',
+    )
+
+
+def test_repeated_terminal_diagnostics_are_collapsed_with_counts() -> None:
+    run_typescript(
+        r'''
+        import { MonitorManager } from "./packages/monitor/src/monitor.ts";
+
+        const terminals = [];
+        const manager = new MonitorManager({
+          onTerminal: (monitor, result) => terminals.push({ monitor, result }),
+        });
+        manager.start({
+          command: [
+            "for i in 1 2 3; do printf '%s\\n' '/bin/sh: line 6: [: 0' '0: integer expression expected' >&2; done",
+            "sleep 5",
+          ].join("; "),
+          description: "deduplicated diagnostics",
+          resultPattern: "EXPECTED_SENTINEL",
+          timeoutMs: 100,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1400));
+        if (terminals.length !== 1) throw new Error(JSON.stringify(terminals));
+        const result = terminals[0].result;
+        if (result.status !== "timeout") throw new Error(JSON.stringify(result));
+        if (result.outputTruncated) throw new Error(JSON.stringify(result));
+        const output = result.output ?? [];
+        if (output.length !== 2) throw new Error(JSON.stringify(output));
+        if (!output[0].startsWith("[stderr]") || !output[0].includes("line 6") || !output[0].includes("repeated 3 times")) {
+          throw new Error(JSON.stringify(output));
+        }
+        if (!output[1].startsWith("[stderr]") || !output[1].includes("integer expression expected") || !output[1].includes("repeated 3 times")) {
+          throw new Error(JSON.stringify(output));
         }
         ''',
     )

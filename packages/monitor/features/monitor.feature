@@ -129,6 +129,12 @@ Feature: Result-contract background monitoring
     Then individual lines and the retained raw log are truncated to bounded sizes
     And truncation is surfaced in the terminal result
 
+  Scenario: Repeated diagnostic lines are collapsed in terminal output
+    Given a monitor captures the same source-labelled diagnostic lines repeatedly
+    When the monitor times out without the contracted result
+    Then the terminal diagnostic tail contains each repeated line once
+    And the repetition count is included without marking the output truncated
+
   Scenario: Stopping a monitor manually
     Given a monitor is running
     And the /monitor console exposes its monitor id
