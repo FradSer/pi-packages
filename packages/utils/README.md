@@ -1,6 +1,6 @@
 # Utils Pi Package
 
-A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks or continuing based on recommendations, `/init` for creating or updating scoped `AGENTS.md` contributor guides, multi-session directory awareness (`/sessions`), plus a git worktree path redirect.
+A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks or continuing based on recommendations, `/init` for creating or updating scoped `AGENTS.md` contributor guides, multi-session directory awareness (`/sessions`), git worktree session switching, plus git worktree path and `@` completion isolation.
 
 ## Structure
 
@@ -13,7 +13,9 @@ utils/
 │   ├── effort.ts         — /effort thinking-level menu
 │   ├── init.ts           — /init repository guide generation
 │   ├── sessions.ts       — /sessions directory awareness + listing tool
-│   └── worktree.ts       — git worktree add path redirect
+│   ├── worktree.ts       — git worktree add path redirect
+│   ├── worktree-completion.ts — worktree-aware @ filtering
+│   └── worktree-session.ts — EnterWorktree / ExitWorktree session switching
 ├── features/             — BDD contract
 ├── tests/                — Package E2E tests
 └── README.md
@@ -108,6 +110,43 @@ For safety, it only rewrites the direct `git worktree add` form. Commands with
 shell operators, redirections, substitutions, expansions, malformed quoting,
 unknown options, or extra arguments are left unchanged rather than being
 partially rewritten.
+
+## Git worktree-aware @ completions
+
+Editor file suggestions (`@`) are filtered to the session's own git worktree:
+a session in main never suggests linked worktree contents, and a session
+inside a linked worktree never suggests sibling worktrees or the main
+checkout. Worktree roots are discovered once per session via
+`git worktree list --porcelain`; outside a git repository nothing is filtered.
+Quoted and `@`-prefixed values are resolved (relative, absolute, and `~/`
+forms) before the containment check.
+
+## EnterWorktree / ExitWorktree
+
+Pi cannot mutate the current runtime's `cwd` in place. These commands use Pi's
+session replacement API so the built-in `read`, `edit`, `bash`, and `@` tools
+are all rebound to the selected worktree:
+
+```text
+/enter-worktree feature-auth
+/enter-worktree {"path":".pi/worktrees/existing"}
+/exit-worktree
+```
+
+`/enter-worktree` creates a managed worktree at `.pi/worktrees/<name>` on a
+`pi/worktree/<name>` branch, or enters an existing registered git worktree when
+`path` is supplied. The replacement session preserves the current conversation
+and records the parent session. The LLM-facing `enter_worktree` and
+`exit_worktree` tools queue these commands and report `queued` until the session
+replacement is applied. Their TUI uses the same pi-kit lifecycle style as
+`monitor_start`: an empty tool-call row followed by one compact event row,
+for example `[worktree] enter · feature-auth` or
+`[worktree] exit · current worktree`.
+
+`/exit-worktree` returns to the parent session. For worktrees created by Pi, it
+asks whether to keep or remove the worktree; dirty work is kept unless the user
+explicitly chooses forced removal. Existing worktrees are never removed by
+this command.
 
 ## License
 
