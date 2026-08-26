@@ -54,3 +54,9 @@ Feature: git worktree-aware @ completions
     Given a pi session running in a git repository
     When several completion rounds run in the same session
     Then the git worktree list command runs at most once
+
+  Scenario: Filtering follows session replacement into a worktree
+    Given a git repository with a linked worktree at .pi/worktrees/foo
+    And a pi session that started in the repository root
+    When the session is replaced into .pi/worktrees/foo and the provider suggests "../README.md"
+    Then the suggestion is dropped

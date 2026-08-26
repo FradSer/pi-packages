@@ -223,6 +223,44 @@ console.log(JSON.stringify({{
         self.assertTrue(report["applyDelegates"])
         self.assertTrue(report["triggerDelegates"])
 
+    def test_filtering_follows_session_replacement_cwd(self) -> None:
+        script = f"""
+import registerWorktreeCompletion from {json.dumps(COMPLETION_EXTENSION.as_uri())};
+const handlers = new Map();
+let factory = null;
+const pi = {{ on: (event, handler) => handlers.set(event, handler) }};
+const makeCtx = (cwd) => ({{
+  cwd,
+  ui: {{ addAutocompleteProvider: (f) => {{ factory = f; }} }},
+}});
+registerWorktreeCompletion(pi);
+handlers.get("session_start")({{}}, makeCtx({json.dumps(str(self.main))}));
+const current = {{ async getSuggestions() {{ return {{ items: [{{ value: "../main-repo/README.md" }}, {{ value: "src/index.ts" }}] }}; }} }};
+const provider = factory(current);
+const before = await provider.getSuggestions([], 0, 0, {{}});
+handlers.get("session_start")({{}}, makeCtx({json.dumps(str(self.wt_b))}));
+const after = await provider.getSuggestions([], 0, 0, {{}});
+console.log(JSON.stringify({{
+  beforeKeptMainReadme: before.items.some((item) => item.value === "../main-repo/README.md"),
+  afterDropsMainReadme: !after.items.some((item) => item.value === "../main-repo/README.md"),
+  afterKeepsOwnSrc: after.items.some((item) => item.value === "src/index.ts"),
+}}));
+"""
+        result = subprocess.run(
+            ["node", "--input-type=module"],
+            cwd=REPO,
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode:
+            raise AssertionError(f"Node runner failed:\n{result.stderr}")
+        report = json.loads(result.stdout)
+        self.assertTrue(report["beforeKeptMainReadme"])
+        self.assertTrue(report["afterDropsMainReadme"])
+        self.assertTrue(report["afterKeepsOwnSrc"])
+
     def test_discovery_runs_git_once_across_repeated_rounds(self) -> None:
         counter_bin = Path(tempfile.mkdtemp(prefix="pi-wtc-bin-"))
         counter = counter_bin / "count"

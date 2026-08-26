@@ -173,6 +173,13 @@ export function filterForeignWorktreeItems<T extends AutocompleteItem>(
 let registered = false;
 let cache: { cwd: string; roots: WorktreeRoots } | null = null;
 
+/**
+ * Live session cwd. Session replacement (EnterWorktree) swaps sessions without
+ * re-loading extensions, so the captured session_start context goes stale;
+ * every session_start refreshes the cwd the filter resolves against.
+ */
+let activeCwd: string | null = null;
+
 /** Memoized discovery keyed by cwd: git runs at most once per session. */
 export function getWorktreeRoots(cwd: string): WorktreeRoots {
 	if (!cache || cache.cwd !== cwd) {
@@ -183,6 +190,7 @@ export function getWorktreeRoots(cwd: string): WorktreeRoots {
 
 export default function registerWorktreeCompletion(pi: ExtensionAPI): void {
 	pi.on("session_start", (_event, ctx) => {
+		activeCwd = ctx.cwd;
 		if (registered) return;
 		registered = true;
 
@@ -196,11 +204,13 @@ export default function registerWorktreeCompletion(pi: ExtensionAPI): void {
 				);
 				if (!result || result.items.length === 0) return result;
 
-				const roots = getWorktreeRoots(ctx.cwd);
+				const cwd = activeCwd;
+				if (!cwd) return result;
+				const roots = getWorktreeRoots(cwd);
 				if (roots.foreignRoots.length === 0) return result;
 				return {
 					...result,
-					items: filterForeignWorktreeItems(result.items, ctx.cwd, roots),
+					items: filterForeignWorktreeItems(result.items, cwd, roots),
 				};
 			},
 			applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
