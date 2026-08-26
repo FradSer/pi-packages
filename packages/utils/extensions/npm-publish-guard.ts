@@ -18,6 +18,10 @@ import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 const COMMAND_POS = "(?:^|[;&|\\n])\\s*(?:[A-Za-z_][A-Za-z_0-9]*=[^\\s]*\\s+)*";
 const END = "(?:[;&|\\s]|$)";
 
+/** Workspace/filter flags package managers accept before the verb. */
+const PRE_FLAGS =
+	"(?:(?:--filter|--workspace|--since|-F|-w)(?:=[^\\s;&|]+|\\s+[^\\s;&|]+)?\\s+|workspace\\s+[^\\s;&|]+\\s+|-r\\s+|--recursive\\s+)*";
+
 interface GuardRule {
 	label: string;
 	re: RegExp;
@@ -25,11 +29,10 @@ interface GuardRule {
 
 const RULES: GuardRule[] = [
 	{
-		// Direct publish plus the recursive/workspace forms (`pnpm -r publish`).
+		// Direct publish plus recursive/workspace forms (`pnpm -r publish`,
+		// `pnpm --filter web publish`, `yarn workspace web publish`).
 		label: "Package publish",
-		re: new RegExp(
-			`${COMMAND_POS}(?:npm|pnpm|yarn|bun)\\s+(?:-r\\s+|--recursive\\s+)?publish${END}`,
-		),
+		re: new RegExp(`${COMMAND_POS}(?:npm|pnpm|yarn|bun)\\s+${PRE_FLAGS}publish${END}`),
 	},
 	{
 		label: "npm credential flow",
@@ -47,8 +50,15 @@ export interface BlockedNpmCommand {
 
 /** Match a bash command against the guarded npm operations. */
 export function matchBlockedNpmCommand(command: string): BlockedNpmCommand | null {
-	if (command.includes("--dry-run")) return null;
-	for (const rule of RULES) {
+	const [publishRule] = RULES;
+	// The dry-run allowance is scoped per invocation: `pnpm publish --dry-run &&
+	// pnpm -F api publish` must still block the second publish.
+	const globalPublish = new RegExp(publishRule.re.source, "g");
+	for (let match = globalPublish.exec(command); match !== null; match = globalPublish.exec(command)) {
+		const tail = command.slice(match.index).split(/[;&|\n]/)[0] ?? "";
+		if (!tail.includes("--dry-run")) return { label: publishRule.label };
+	}
+	for (const rule of RULES.slice(1)) {
 		if (rule.re.test(command)) return { label: rule.label };
 	}
 	return null;
