@@ -6,6 +6,10 @@ export interface FollowUpReport {
   spawnId?: string;
   body: string;
   finished?: boolean;
+  health?: {
+    state: "stalled";
+    silenceMs: number;
+  };
   runId?: string;
 }
 
@@ -18,11 +22,16 @@ export function groupReportsByTeammate(reports: FollowUpReport[]): FollowUpRepor
   const groups = new Map<string, FollowUpReportGroup>();
   for (const report of reports) {
     const teammate = report.teammate ?? report.agent ?? "teammate";
-    const group = groups.get(teammate);
+    if (report.health) {
+      groups.set(`health:${groups.size}:${teammate}`, { teammate, reports: [report] });
+      continue;
+    }
+    const key = `message:${teammate}`;
+    const group = groups.get(key);
     if (group) {
       group.reports.push(report);
     } else {
-      groups.set(teammate, { teammate, reports: [report] });
+      groups.set(key, { teammate, reports: [report] });
     }
   }
   return [...groups.values()];

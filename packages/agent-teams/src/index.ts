@@ -9,15 +9,15 @@ import { getMarkdownTheme, keyHint } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildTeamLeaderGuidance, WORKER_GUIDANCE } from "./guidance.ts";
 import { clearSessionAgents } from "./agents.ts";
-import { initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, teardownTeammates } from "./team-machine.ts";
+import { formatSilenceDuration, initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, teardownTeammates } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
 import { resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
 import { registerLeaderTools, registerTeamCommand } from "./tools.ts";
 import { registerWorkerCapabilities, workerBinding } from "./worker.ts";
-import { formatAgentMessagePrefix, formatExpandHint } from "@fradser/pi-kit";
+import { eventToolLifecycle, formatAgentMessagePrefix, formatExpandHint, renderToolLifecycle } from "@fradser/pi-kit";
 import { FollowUpQueue, groupReportsByTeammate, TEAMMATE_REPORT_MESSAGE_TYPE, type FollowUpReport } from "./follow-up-queue.ts";
-import { Box, Markdown, Text } from "@earendil-works/pi-tui";
+import { Box, Markdown, Text, truncateToWidth } from "@earendil-works/pi-tui";
 
 const STATE_DIR_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -27,6 +27,7 @@ let followUpQueue: FollowUpQueue | undefined;
 
 const REPORT_COLORS = ["success", "warning", "error", "mdLink"] as const;
 export const TEAMMATE_FINISHED_ENTRY_TYPE = "agent-teams-teammate-finished";
+export const TEAMMATE_HEALTH_MESSAGE_TYPE = "agent-teams-health";
 
 function reportColor(name: string): (typeof REPORT_COLORS)[number] {
   let hash = 0;
@@ -36,6 +37,11 @@ function reportColor(name: string): (typeof REPORT_COLORS)[number] {
 
 function sendMainSessionFollowUp(report: FollowUpReport): void {
   followUpQueue?.enqueue(report);
+}
+
+function extractHealthReport(details: unknown): FollowUpReport | undefined {
+  const report = details as FollowUpReport | undefined;
+  return report?.health?.state === "stalled" ? report : undefined;
 }
 
 export default function (pi: ExtensionAPI) {
@@ -52,6 +58,27 @@ export default function (pi: ExtensionAPI) {
     const data = entry.data as { teammate?: string; agent?: string } | undefined;
     const name = data?.teammate ?? data?.agent ?? "teammate";
     return new Text(theme.fg("success", `Teammate @${name} finished.`), 0, 0);
+  });
+  pi.registerMessageRenderer(TEAMMATE_HEALTH_MESSAGE_TYPE, (message, { expanded }, theme) => {
+    const health = extractHealthReport(message.details);
+    if (!health?.health) return new Text(String(message.content), 0, 0);
+    const spec = eventToolLifecycle(
+      "agent",
+      `@${health.teammate} ${health.health.state} · silent ${formatSilenceDuration(health.health.silenceMs)}`,
+      { details: String(message.content).split("\n").filter((line) => line.trim()) },
+    );
+    return {
+      render: (width: number) => renderToolLifecycle(spec, {
+        width,
+        expanded,
+        expandHint: formatExpandHint(keyHint("app.tools.expand", "to expand"), theme),
+        titleStyle: (line) => theme.fg("customMessageLabel", theme.bold(line)),
+        detailStyle: (line) => theme.fg("customMessageText", line),
+        truncate: truncateToWidth,
+        line: (line) => line,
+      }),
+      invalidate: () => {},
+    };
   });
   pi.registerMessageRenderer(TEAMMATE_REPORT_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) => {
     const reports = extractReports(message.details);
@@ -106,8 +133,10 @@ export default function (pi: ExtensionAPI) {
       isIdle: () => Boolean(leaderCtx?.isIdle()),
       prepareOnDispatch: true,
       dispatch: (reports, content) => leaderPi?.sendMessage({
-        customType: TEAMMATE_REPORT_MESSAGE_TYPE,
-        content,
+        customType: reports.length === 1 && reports[0]?.health
+          ? TEAMMATE_HEALTH_MESSAGE_TYPE
+          : TEAMMATE_REPORT_MESSAGE_TYPE,
+        content: reports.length === 1 && reports[0]?.health ? reports[0].body : content,
         display: true,
         details: reports.length === 1 ? reports[0] : { reports },
       }, { triggerTurn: true, deliverAs: "followUp" }),

@@ -570,6 +570,21 @@ function applyProgress(name: string, spawnId: string, progress: {
   ensureLivePoll();
 }
 
+export function formatAgentHealthReport(
+  state: "stalled",
+  teammate: Pick<Teammate, "name" | "agent">,
+  body: string,
+  silenceMs: number,
+): FollowUpReport {
+  return {
+    teammate: teammate.name,
+    agent: teammate.agent,
+    body,
+    finished: false,
+    health: { state, silenceMs },
+  };
+}
+
 function checkStalledTeammates(now = Date.now()): void {
   if (STALL_NOTICE_MS <= 0) return;
   for (const teammate of livingTeammates()) {
@@ -580,7 +595,7 @@ function checkStalledTeammates(now = Date.now()): void {
     const body = stallNoticeBody(teammate, silence, now);
     updateTeammate(teammate.name, { stallNoticeSentAt: now });
     deliverToLeader({ from: "harness", subject: `Possible stall: @${teammate.name}`, body });
-    sendUpdate({ teammate: teammate.name, agent: teammate.agent, body, finished: false });
+    sendUpdate(formatAgentHealthReport("stalled", teammate, body, silence));
   }
 }
 
@@ -913,7 +928,9 @@ function dispatchInboxMessage(teammate: Teammate, message: InboxMessage): void {
 }
 
 /** Route the leader's addressed send_message through the same delivery path. */
-export function sendLeaderMessage(to: string, message: string): { ok: true; queued: boolean; stalledMs?: number } | { ok: false; error: string } {
+export type MessageRoutingOutcome = "steered" | "queued";
+
+export function sendLeaderMessage(to: string, message: string): { ok: true; outcome: MessageRoutingOutcome } | { ok: false; error: string } {
   const teammate = getTeammate(to);
   if (!teammate || teammate.status === "stopped") return { ok: false, error: `No living teammate named "${to}".` };
   const envelope: InboxMessage = {
@@ -923,19 +940,13 @@ export function sendLeaderMessage(to: string, message: string): { ok: true; queu
     body: message,
     timestamp: Date.now(),
   };
-  const delivered = teammate.status === "working" && sendWorkerSteer(teammate.name, formatDelivery([envelope]));
-  if (delivered) {
-    // A control-stream write succeeds even when the child never reads it;
-    // surface prolonged silence so the leader knows delivery is uncertain.
-    const stalled = isStallThresholdReached(teammate, Date.now(), stallThresholdMs(teammate));
-    const silence = stallSilenceMs(teammate);
-    return { ok: true, queued: false, ...(stalled && silence !== undefined ? { stalledMs: silence } : {}) };
-  }
+  const steered = teammate.status === "working" && sendWorkerSteer(teammate.name, formatDelivery([envelope]));
+  if (steered) return { ok: true, outcome: "steered" };
   const queued = pendingDeliveries.get(teammate.name) ?? [];
   queued.push(envelope);
   pendingDeliveries.set(teammate.name, queued);
   ensureLivePoll();
-  return { ok: true, queued: true };
+  return { ok: true, outcome: "queued" };
 }
 
 function continueMaybeCompact(inbox: string, inboxName: string, offset: number): void {
@@ -1258,15 +1269,24 @@ function rearmTaskNotice(taskId: string): void {
  * plus a board notice covering only claimable work that teammate has never
  * been shown. Teammates with nothing new are never woken.
  */
-export function wakeIdleTeammates(): void {
+export function wakeIdleTeammates(immediateTaskId?: string): string[] {
+  const notified: string[] = [];
   for (const teammate of idleTeammates()) {
     const deliveries = pendingDeliveries.get(teammate.name) ?? [];
     const fresh = freshClaimableTasks(teammate.noticedTaskIds, claimableTasks());
-    const dueNotice = fresh.length > 0 && noticeDue(teammate);
+    const immediateNotice = immediateTaskId !== undefined && fresh.some((task) => task.id === immediateTaskId);
+    const dueNotice = fresh.length > 0 && (immediateNotice || noticeDue(teammate));
     if (deliveries.length === 0 && !dueNotice) continue;
-    const noticed = fresh.slice(0, WAKE_NOTICE_TASK_LIMIT);
+    const prioritized = immediateTaskId === undefined
+      ? fresh
+      : [
+          ...fresh.filter((task) => task.id === immediateTaskId),
+          ...fresh.filter((task) => task.id !== immediateTaskId),
+        ];
+    const noticed = prioritized.slice(0, WAKE_NOTICE_TASK_LIMIT);
     const prompt = buildWakePrompt(deliveries, noticed, dueNotice);
     if (!deliverPrompt(teammate.name, prompt)) continue;
+    notified.push(teammate.name);
     pendingDeliveries.delete(teammate.name);
     if (dueNotice) markTasksNoticed(teammate.name, noticed.map((task) => task.id));
     // A delivered prompt is fresh activity: restart the silence clock so a
@@ -1279,6 +1299,7 @@ export function wakeIdleTeammates(): void {
       ...(dueNotice ? { lastNoticeAt: Date.now() } : {}),
     });
   }
+  return notified;
 }
 
 function noticeDue(teammate: Teammate): boolean {
@@ -1308,17 +1329,59 @@ function formatDelivery(messages: InboxMessage[]): string {
 
 // ── Board helpers shared with tools.ts ────────────────────────────
 
+export interface BoardTaskCreationResult {
+  ok: true;
+  id: string;
+  notifiedTeammates: string[];
+  livingTeammates: number;
+  claimable: boolean;
+}
+
+export function formatBoardTaskCreation(subject: string, created: BoardTaskCreationResult): string {
+  const status = created.claimable ? "pending/claimable" : "pending/blocked";
+  const routing = created.notifiedTeammates.length > 0
+    ? `notified=${created.notifiedTeammates.map((name) => `@${name}`).join(",")}`
+    : created.livingTeammates === 0
+      ? "notified=none (no living teammates)"
+      : "notified=none (no idle teammate)";
+  const next = !created.claimable
+    ? "NEXT · waits for dependencies"
+    : created.livingTeammates === 0
+      ? "NEXT · leader: teammate_spawn"
+      : "NEXT · worker: task_claim";
+  return [
+    `BOARD · current session`,
+    `CREATED · ${created.id} · ${status} · ${subject}`,
+    `ROUTING · ${routing}`,
+    next,
+  ].join("\n");
+}
+
+/** Create a task and synchronously offer it to currently-idle teammates.
+ *
+ * The normal poll loop still handles later dependency unlocks and queued mail,
+ * but task creation is a user-visible boundary: an idle teammate should not
+ * have to wait for a future timer tick before it can see newly-created work.
+ */
 export function createBoardTask(input: {
   subject: string;
   description?: string;
   dependsOn?: string[];
   verify?: string;
-}): { ok: true; id: string } | { ok: false; error: string } {
+}): BoardTaskCreationResult | { ok: false; error: string } {
   const created = createTask(input);
   if (!created.ok) return created;
   publishStateSnapshot();
+  const notifiedTeammates = wakeIdleTeammates(created.task.id);
+  publishStateSnapshot();
   notifyChange();
-  return { ok: true, id: created.task.id };
+  return {
+    ok: true,
+    id: created.task.id,
+    notifiedTeammates,
+    livingTeammates: livingTeammates().length,
+    claimable: claimableTasks().some((task) => task.id === created.task.id),
+  };
 }
 
 export function boardOverview(): Array<import("./types").BoardTask> {

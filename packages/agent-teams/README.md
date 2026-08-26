@@ -106,11 +106,13 @@ send_message({ to, message, status? })
 
 - Worker report: `to: "leader"`; use optional `status: "completed" | "failed"` for a terminal report.
 - Peer mail: `to: "<teammate-name>"`; `status` is invalid.
-- Leader steering or direct assignment: `to: "<teammate-name>"`; a working recipient gets a control-stream steer, an idle recipient wakes with the message.
+- Leader steering or direct assignment: `to: "<teammate-name>"`; the synchronous routing result is `steered` only when the active control stream accepts the message, otherwise `queued` while the harness owns delivery on the next wake-up.
+- Peer mail and reports to the leader are written to an inbox or outbox first, so their synchronous routing result is `queued`; none of these labels claims the recipient has read, understood, or processed the message.
+- Teammate health is reported separately as an `[agent] event` such as `@name stalled · silent 5m`; health never appears as a message-routing suffix.
 - The first non-empty line of `message` becomes the console title.
 - Peer traffic never enters the leader model context; inspect it in `/agent-teams` instead.
 
-Only the leader creates tasks. Idle teammates self-claim pending tasks whose dependencies are met. A task-level `verify` prompt overrides the claiming agent's frontmatter `verify`. The harness runs it as a fresh one-shot reviewer that inspects the work independently and answers `VERDICT: PASS` or `VERDICT: FAIL - <reasons>`; PASS completes the task, FAIL feeds the findings back to the claimer for fix-and-resubmit. Write acceptance criteria a reviewer can check, not shell commands.
+Only the leader creates tasks. `task_create` adds pending work to the current session's board; it never spawns a teammate. If idle teammates already exist, they receive a board notice immediately and may self-claim pending tasks whose dependencies are met. With no living teammates, the result explicitly tells the leader to call `teammate_spawn`; with no idle recipient, the task remains pending until a teammate becomes available or is messaged directly. Boards are session-keyed, so a task created in another Pi session is not automatically imported into the current session. A task-level `verify` prompt overrides the claiming agent's frontmatter `verify`. The harness runs it as a fresh one-shot reviewer that inspects the work independently and answers `VERDICT: PASS` or `VERDICT: FAIL - <reasons>`; PASS completes the task, FAIL feeds the findings back to the claimer for fix-and-resubmit. Write acceptance criteria a reviewer can check, not shell commands.
 
 ## Tools
 
@@ -130,17 +132,17 @@ That is **7 unique tool names**. There are no `teammate_run`, `teammate_fanout`,
 ## Reliability Protocol
 
 - **Per-spawn identity validation**: every leader report must match the teammate's current spawn id; stale callbacks and events cannot affect a replacement with the same name.
-- **Sent means written**: peer `send_message` succeeds only after the recipient inbox write succeeds. The harness owns delivery into a recipient turn.
+- **Queued means written**: peer `send_message` succeeds only after the recipient inbox write succeeds. The harness still owns delivery into a recipient turn; only an accepted active control-stream steer is labeled `steered`.
 - **One writer per state file**: only the leader process writes runtime and board snapshots (atomic tmp+rename). Workers append leader reports to their outbox, peer mail to recipient inboxes, and task intent via exclusive-create marker files.
 - **Completion is gated, not self-reported**: a task completes only after its effective verify gate passes when one exists; no gate means the submission itself completes it. A gate that keeps failing parks the task with its holder after the second consecutive failure and escalates to the leader once instead of looping.
-- **No caps, heartbeat only**: teammates run without turn-count or duration ceilings. The harness heartbeat tracks silence per working teammate and — after 30 minutes without any RPC output (`PI_TEAMMATE_STALL_NOTICE_MS`, 0 disables) — sends the leader one actionable notice per silence episode. The notice is the last automatic action: continuing, steering, shutting down, or respawning a context-carrying successor belongs to the leader alone. Any output or prompt delivery re-arms it, and steering a silent teammate warns that delivery is uncertain. Notices carry diagnostics: silence duration, spawn age, and lifetime token/cost usage. A teammate with zero lifetime model output and no tool running gets flagged much earlier (5 minutes, `PI_TEAMMATE_SILENT_STALL_MS`, 0 disables): an in-flight request stuck on the provider will not recover by steering, so that notice names shutdown plus respawn as the effective remedy.
+- **No caps, heartbeat only**: teammates run without turn-count or duration ceilings. The harness heartbeat tracks silence per working teammate and — after 30 minutes without any RPC output (`PI_TEAMMATE_STALL_NOTICE_MS`, 0 disables) — sends the leader one actionable health event per silence episode. The notice is the last automatic action: continuing, steering, shutting down, or respawning a context-carrying successor belongs to the leader alone. Any output or prompt delivery re-arms it. Health events carry diagnostics separately from message routing: silence duration, spawn age, and lifetime token/cost usage. A teammate with zero lifetime model output and no tool running gets flagged much earlier (5 minutes, `PI_TEAMMATE_SILENT_STALL_MS`, 0 disables): an in-flight request stuck on the provider will not recover by steering, so that notice names shutdown plus respawn as the effective remedy.
 - **One-shot board notices**: an idle teammate is told about a claimable task exactly once; declined tasks never re-wake it, and released tasks re-arm. Notices are paced at least five minutes apart per teammate (`PI_TEAMMATE_NOTICE_PACE_MS` overrides in milliseconds).
 - **One end-of-life line per teammate**: the first terminal report of a spawn incarnation renders the finish entry; shutting that incarnation down afterwards adds no second event row.
 - **Failure semantics**: an unexpected crash marks the teammate stopped, reports a diagnostic, and releases its claimed tasks.
 
 ## State and Sessions
 
-Runtime state lives in `~/.pi/agent/teammate/<sessionKey>/` and dies with the session (`state.json`, report outboxes, peer inboxes, roster). The task board lives in `~/.pi/agent/tasks/<sessionKey>/board.json` and persists for later inspection; nothing auto-deletes it. Claims held by dead teammates return to pending on reload.
+Runtime state lives in `~/.pi/agent/teammate/<sessionKey>/` and dies with the session (`state.json`, report outboxes, peer inboxes, roster). The task board lives in `~/.pi/agent/tasks/<sessionKey>/board.json` and persists for later inspection; nothing auto-deletes it. The board key is derived from the Pi session file (or cwd when no session file exists), so a fresh session with a different session file does not import another session's tasks automatically; resume the same board directory to continue them. Claims held by dead teammates return to pending on reload.
 
 ## Structure
 

@@ -43,16 +43,18 @@ def source(name: str) -> str:
 
 
 def run_node(script: str, *args: str, env_overrides: dict[str, str] | None = None) -> dict[str, object]:
-    env = os.environ.copy()
+    env = {key: value for key, value in os.environ.items() if not key.startswith("PI_TEAMMATE_")}
     env.update(env_overrides or {})
     result = subprocess.run(
         ["node", "--input-type=module", "--eval", textwrap.dedent(script), *args],
         cwd=PACKAGE,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
         env=env,
     )
+    if result.returncode != 0:
+        raise AssertionError(result.stderr)
     return json.loads(result.stdout)
 
 
@@ -108,6 +110,8 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Stale spawn events cannot affect a newer teammate incarnation",
         "The task board is shared coordination state",
         "The leader creates tasks; teammates never do",
+        "Creating a task reports the next execution action",
+        "Creating a task wakes an existing idle teammate immediately",
         "Only resident teammates self-claim tasks",
         "Dependencies gate claimability",
         "Claimed tasks are released when their holder stops",
@@ -1165,16 +1169,22 @@ def test_follow_up_queue_batches_by_sender_order() -> None:
         const groups = groupReportsByTeammate([
           {{ teammate: "b", body: "1" }},
           {{ teammate: "a", body: "2" }},
+          {{ teammate: "b", body: "silent", health: {{ state: "stalled", silenceMs: 120_000 }} }},
           {{ teammate: "b", body: "3" }},
+          {{ teammate: "b", body: "silent again", health: {{ state: "stalled", silenceMs: 240_000 }} }},
         ]);
         console.log(JSON.stringify({{
           order: groups.map((group) => group.teammate).join(","),
           counts: groups.map((group) => group.reports.length).join(","),
+          healthGroupsAreIsolated: groups.filter((group) => group.reports[0]?.health).every((group) => group.reports.length === 1),
+          messagesStillGrouped: groups.find((group) => group.reports[0]?.body === "1")?.reports.map((report) => report.body).join(","),
         }}));
         '''
     )
-    assert payload["order"] == "b,a"
-    assert payload["counts"] == "2,1"
+    assert payload["order"] == "b,a,b,b"
+    assert payload["counts"] == "2,1,1,1"
+    assert payload["healthGroupsAreIsolated"] is True
+    assert payload["messagesStillGrouped"] == "1,3"
 
 
 def test_console_supports_mouse_wheel_scrolling() -> None:
@@ -1246,18 +1256,20 @@ def test_widget_shows_only_working_teammates() -> None:
     assert "○" not in widget and "\u25a0" not in widget
     assert "listTeammates()" not in widget
 
-def test_spawn_renders_legacy_started_line() -> None:
+def test_spawn_uses_shared_started_lifecycle_renderer() -> None:
     tools = source("tools.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "Spawning renders one started line per teammate" in feature
-    assert 'formatToolEventLabel("started", "", "agent")' in tools
+    assert "startedToolLifecycle(" in tools
+    assert "renderLifecycleResult(" in tools
     assert "formatAgentTaskName" in tools
     assert "details: { started: true, tools: granted }" in tools
 
 
 def test_spawn_started_line_fits_narrow_tui_width() -> None:
-    tools = source("tools.ts")
-    assert "render: (width: number) => width > 0 ? [truncateToWidth(line, width)] : []" in tools
+    tools = source("tool-render.ts")
+    assert "renderToolLifecycle(" in tools
+    assert "truncate: truncateToWidth" in tools
     assert "started line fits the available TUI width" in (
         PACKAGE / "features" / "agent-teams.feature"
     ).read_text(encoding="utf-8")
@@ -1307,8 +1319,9 @@ def test_shutdown_renders_one_collapsible_agent_event_line() -> None:
     tools = source("tools.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "Shutting down renders one collapsible agent event line" in feature
-    assert 'formatToolEventLabel("event", `@${name} shut down`, "agent")' in tools
-    assert "formatExpandHint" in tools
+    assert "eventToolLifecycle(" in tools
+    assert "renderLifecycleResult(" in tools
+    assert "formatExpandHint" in source("tool-render.ts")
 
 
 def test_shutdown_row_hides_details_behind_the_shared_expand_hint() -> None:
@@ -1352,21 +1365,23 @@ def test_shutdown_row_hides_details_behind_the_shared_expand_hint() -> None:
     assert payload["neverLabeledMonitor"] is True
 
 
-def test_send_message_renders_one_delivery_line() -> None:
+def test_send_message_renders_one_routing_line() -> None:
     tools = source("tools.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
-    assert "Steering renders one delivery line per message" in feature
+    assert "Sending renders one routing line per message" in feature
     block = tools.split('name: "send_message"', 1)[1]
     assert 'renderShell: "self"' in block
-    assert 'renderCall: () => new Text("", 0, 0)' in block
-    assert 'formatAgentMessagePrefix("to")' in block
-    assert "{ queued: result.queued }" in block
-    # Pi signals failures via the render context, not the result object.
-    assert tools.count("context.isError") == 4
+    assert "renderCall: emptyToolCall" in block
+    assert "eventToolLifecycle(" in block
+    assert "renderLifecycleResult(" in block
+    assert "outcome" in block
+    assert "stalledMs" not in block.split('name: "task_create"', 1)[0]
+    # Pi signals failures via the render context, handled by the shared adapter.
+    assert "context.isError" in source("tool-render.ts")
     assert "result as { isError?: boolean }" not in tools
 
 
-def test_send_message_delivery_row_stays_single_and_carries_outcome() -> None:
+def test_send_message_routing_row_stays_single_and_carries_only_routing_outcome() -> None:
     payload = run_node(
         f'''\
         import {{ registerLeaderTools }} from "{(SRC / "tools.ts").as_uri()}";
@@ -1378,7 +1393,7 @@ def test_send_message_delivery_row_stays_single_and_carries_outcome() -> None:
         const shutdown = tools.find((tool) => tool.name === "teammate_shutdown");
         const theme = {{ fg: (_color, text) => text, bold: (text) => text }};
         const render = (details, width = 100) => send.renderResult(
-          {{ content: [{{ type: "text", text: "Message to @audit: Delivered to its running turn." }}], details }},
+          {{ content: [{{ type: "text", text: "Routing accepted." }}], details }},
           {{}},
           theme,
           {{ args: {{ to: "audit", message: "hello" }} }},
@@ -1397,12 +1412,12 @@ def test_send_message_delivery_row_stays_single_and_carries_outcome() -> None:
         ).render(100).join("\\n");
         console.log(JSON.stringify({{
           callEmpty: send.renderCall({{ to: "audit" }}, theme).render(100).join("") === "",
-          deliveredRow: render({{ queued: false }}),
-          queuedRow: render({{ queued: true }}),
-          stalledRow: render({{ queued: false, stalledMs: 125_000 }}),
-          zeroWidthEmpty: render({{ queued: false }}, 0).length === 0,
-          stalledIsSingleLine: render({{ queued: false, stalledMs: 125_000 }}).length === 1,
-          noDuplicateSentence: !render({{ queued: false, stalledMs: 125_000 }})[0].includes("Delivered to its running turn"),
+          steeredRow: render({{ outcome: "steered" }}),
+          queuedRow: render({{ outcome: "queued" }}),
+          unrelatedDetailIgnored: render({{ outcome: "steered", silenceMs: 125_000 }}),
+          zeroWidthEmpty: render({{ outcome: "steered" }}, 0).length === 0,
+          routingIsSingleLine: render({{ outcome: "steered" }}).length === 1,
+          noDuplicateSentence: !render({{ outcome: "steered" }})[0].includes("Routing accepted"),
           errorIsExactPlainLine: errorRow.trim() === "No living teammate named ghost." && !errorRow.includes("·"),
           shutdownErrorIsPlainLine: shutdownErrorRow.trim() === "No living teammate named ghost."
             && !shutdownErrorRow.includes("[agent] event") && !shutdownErrorRow.includes("to expand"),
@@ -1410,14 +1425,122 @@ def test_send_message_delivery_row_stays_single_and_carries_outcome() -> None:
         '''
     )
     assert payload["callEmpty"] is True
-    assert payload["deliveredRow"] == ["[message] to @audit · delivered"]
+    assert payload["steeredRow"] == ["[message] to @audit · steered"]
     assert payload["queuedRow"] == ["[message] to @audit · queued"]
-    assert payload["stalledRow"] == ["[message] to @audit · delivered · stalled 2m"]
+    assert payload["unrelatedDetailIgnored"] == ["[message] to @audit · steered"]
     assert payload["zeroWidthEmpty"] is True
-    assert payload["stalledIsSingleLine"] is True
+    assert payload["routingIsSingleLine"] is True
     assert payload["noDuplicateSentence"] is True
     assert payload["errorIsExactPlainLine"] is True
     assert payload["shutdownErrorIsPlainLine"] is True
+
+
+def test_worker_send_message_reports_peer_and_leader_writes_as_queued() -> None:
+    worker = source("worker.ts")
+    assert '"delivered"' not in worker.split('name: "send_message"', 1)[1].split('name: "task_claim"', 1)[0]
+    payload = run_node(
+        f'''\
+        import {{ registerWorkerCapabilities }} from "{(SRC / "worker.ts").as_uri()}";
+        import {{ initTheme }} from "@earendil-works/pi-coding-agent";
+        initTheme("dark");
+        const tools = [];
+        registerWorkerCapabilities({{ registerTool(tool) {{ tools.push(tool); }} }});
+        const send = tools.find((tool) => tool.name === "send_message");
+        const theme = {{ fg: (_color, text) => text, bold: (text) => text }};
+        const render = (to) => send.renderResult(
+          {{ content: [{{ type: "text", text: "queued" }}], details: {{ outcome: "queued" }} }},
+          {{ expanded: true }},
+          theme,
+          {{ args: {{ to, message: "hello" }} }},
+        ).render(100)[0];
+        console.log(JSON.stringify({{ peer: render("backend"), leader: render("leader") }}));
+        '''
+    )
+    assert payload["peer"] == "[message] to @backend · queued"
+    assert payload["leader"] == "[message] to @leader · queued"
+
+
+def test_leader_send_message_ignores_stray_status_instead_of_throwing(tmp_path: Path) -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "a stray status field on a leader-sent message does not block delivery" in feature
+    tools = source("tools.ts")
+    assert 'status is reserved' not in tools
+    payload = run_node(
+        f'''\
+        import {{ registerLeaderTools }} from "{(SRC / "tools.ts").as_uri()}";
+        import {{ initTeamMachine, shutdownTeamMachine }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ registerTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        const tools = [];
+        registerLeaderTools({{ registerTool(tool) {{ tools.push(tool); }}, registerCommand() {{}} }});
+        const send = tools.find((tool) => tool.name === "send_message");
+        const dir = process.env.PI_TEST_DIR;
+        initTeamMachine(
+          {{ sessionManager: {{ getSessionFile: () => undefined }}, cwd: dir, model: undefined }},
+          {{ sendUpdate() {{}}, notifyChange() {{}} }},
+        );
+        registerTeammate({{ name: "audit", agent: "worker", spawnId: "s1", pid: 0, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        let stray = null;
+        try {{
+          stray = (await send.execute("t1", {{ to: "audit", message: "please audit the theme", status: "in_progress" }})).content[0].text;
+        }} catch (error) {{
+          stray = `THREW: ${{error.message}}`;
+        }}
+        const normal = (await send.execute("t2", {{ to: "audit", message: "again" }})).content[0].text;
+        shutdownTeamMachine();
+        console.log(JSON.stringify({{ stray, normal }}));
+        ''',
+        env_overrides={"PI_TEST_DIR": str(tmp_path)},
+    )
+    assert not payload["stray"].startswith("THREW:"), payload["stray"]
+    assert payload["stray"].startswith("MESSAGING\nQUEUED · to=@audit")
+    assert "status ignored" in payload["stray"]
+    assert payload["normal"].startswith("MESSAGING\nQUEUED · to=@audit")
+
+
+def test_task_create_explains_execution_state_and_current_session(tmp_path: Path) -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Creating a task reports the next execution action" in feature
+    assert "task_create never spawns one automatically" in feature
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, createBoardTask, formatBoardTaskCreation }} from "{(SRC / "team-machine.ts").as_uri()}";
+        initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate() {{}}, notifyChange() {{}} }});
+        const created = createBoardTask({{ subject: "Skill prompt injection" }});
+        console.log(JSON.stringify({{
+          ok: created.ok,
+          living: created.ok ? created.livingTeammates : null,
+          notified: created.ok ? created.notifiedTeammates : null,
+          text: created.ok ? formatBoardTaskCreation("Skill prompt injection", created) : null,
+        }}));
+        shutdownTeamMachine();
+        '''
+    )
+    assert payload["ok"] is True
+    assert payload["living"] == 0
+    assert payload["notified"] == []
+    text = str(payload["text"])
+    assert "BOARD · current session" in text
+    assert "no living teammates" in text
+    assert "teammate_spawn" in text
+
+
+def test_task_create_handoff_formats_each_execution_state() -> None:
+    payload = run_node(
+        f'''\
+        import {{ formatBoardTaskCreation }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const base = {{ ok: true, id: "task", notifiedTeammates: [], livingTeammates: 0, claimable: true }};
+        console.log(JSON.stringify({{
+          noWorker: formatBoardTaskCreation("task", base),
+          notified: formatBoardTaskCreation("task", {{ ...base, livingTeammates: 1, notifiedTeammates: ["reviewer"] }}),
+          busy: formatBoardTaskCreation("task", {{ ...base, livingTeammates: 1 }}),
+          blocked: formatBoardTaskCreation("task", {{ ...base, claimable: false }}),
+        }}));
+        '''
+    )
+    assert "teammate_spawn" in str(payload["noWorker"])
+    assert "@reviewer" in str(payload["notified"])
+    assert "no idle teammate" in str(payload["busy"])
+    assert "waits for dependencies" in str(payload["blocked"])
 
 
 def test_task_create_renders_one_created_line() -> None:
@@ -1426,8 +1549,9 @@ def test_task_create_renders_one_created_line() -> None:
     assert "Creating a board task renders one created line" in feature
     block = tools.split('name: "task_create"', 1)[1].split('name: "task_list"', 1)[0]
     assert 'renderShell: "self"' in block
-    assert 'renderCall: () => new Text("", 0, 0)' in block
-    assert 'formatToolEventLabel("created", subject, "board")' in block
+    assert "renderCall: emptyToolCall" in block
+    assert "eventToolLifecycle(" in block
+    assert 'label: "created"' in block
     payload = run_node(
         f'''\
         import {{ registerLeaderTools }} from "{(SRC / "tools.ts").as_uri()}";
@@ -1645,6 +1769,61 @@ def test_session_cap_and_shutdown_surface() -> None:
     assert "releaseTasksOf" in machine
 
 
+def test_stall_report_has_a_distinct_agent_health_event_renderer() -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    index_ts = source("index.ts")
+    machine = source("team-machine.ts")
+    assert "one `[agent] event · @name stalled · silent <duration>` row" in feature
+    assert "message routing rows never repeat the teammate health state" in feature
+    assert "TEAMMATE_HEALTH_MESSAGE_TYPE" in index_ts
+    assert "registerMessageRenderer(TEAMMATE_HEALTH_MESSAGE_TYPE" in index_ts
+    assert 'eventToolLifecycle(' in index_ts
+    assert '`@${health.teammate} ${health.health.state} · silent ${formatSilenceDuration(health.health.silenceMs)}`' in index_ts
+    assert "formatAgentHealthReport" in machine
+
+
+def test_stall_health_event_renders_compact_and_expandable() -> None:
+    payload = run_node(
+        f'''\
+        import extension, {{ TEAMMATE_HEALTH_MESSAGE_TYPE }} from "{(SRC / "index.ts").as_uri()}";
+        import {{ initTheme }} from "@earendil-works/pi-coding-agent";
+        initTheme("dark");
+        const renderers = new Map();
+        extension({{
+          on() {{}},
+          registerCommand() {{}},
+          registerEntryRenderer() {{}},
+          registerMessageRenderer(name, renderer) {{ renderers.set(name, renderer); }},
+          registerTool() {{}},
+        }});
+        const renderer = renderers.get(TEAMMATE_HEALTH_MESSAGE_TYPE);
+        const message = {{
+          content: "@audit has been silent. Decide whether to wait or shut it down.",
+          details: {{
+            teammate: "audit",
+            body: "@audit has been silent. Decide whether to wait or shut it down.",
+            health: {{ state: "stalled", silenceMs: 125_000 }},
+          }},
+        }};
+        const theme = {{ fg: (_color, text) => text, bold: (text) => text }};
+        const collapsed = renderer(message, {{ expanded: false, outputPad: 0 }}, theme).render(100);
+        const expanded = renderer(message, {{ expanded: true, outputPad: 0 }}, theme).render(100);
+        console.log(JSON.stringify({{
+          collapsed,
+          expanded,
+          compact: collapsed.length === 1 && collapsed[0].startsWith("[agent] event · @audit stalled · silent 2m"),
+          expandedTitle: expanded[0] === "[agent] event · @audit stalled · silent 2m",
+          expandedDiagnostic: expanded.some((line) => line.includes("Decide whether to wait")),
+          noMessageRow: !collapsed[0].includes("[message]"),
+        }}));
+        '''
+    )
+    assert payload["compact"] is True
+    assert payload["expandedTitle"] is True
+    assert payload["expandedDiagnostic"] is True
+    assert payload["noMessageRow"] is True
+
+
 def test_silent_teammate_watchdog_contract() -> None:
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     machine = source("team-machine.ts")
@@ -1670,7 +1849,8 @@ def test_silent_teammate_watchdog_contract() -> None:
     assert "checkStalledTeammates" in machine
     assert "stallSilenceMs" in machine
     assert "sendUpdate" in machine
-    assert "stalledMs" in machine and "stalled" in tools
+    assert "stalledMs" not in tools
+    assert 'formatAgentHealthReport("stalled"' in machine
     assert "formatSilenceDuration" in ui
     payload = run_node(
         f'''\
@@ -1781,6 +1961,98 @@ def test_silent_stall_independent_of_notice_pace() -> None:
     assert payload["tier"] == 300_000
 
 
+def test_every_agent_teams_tool_executes_through_real_registrations(tmp_path: Path) -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Every Agent Teams tool executes through the real tool harness" in feature
+    payload = run_node(
+        f'''\
+        import fs from "node:fs";
+        import path from "node:path";
+        import {{ initTeamMachine, shutdownTeamMachine }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ registerLeaderTools }} from "{(SRC / "tools.ts").as_uri()}";
+        import {{ registerWorkerCapabilities }} from "{(SRC / "worker.ts").as_uri()}";
+        import {{ boardFilePath, inboxPath, writeRoster }} from "{(SRC / "statefile.ts").as_uri()}";
+
+        const root = {str(tmp_path)!r};
+        const stateFile = path.join(root, "state.json");
+        const boardFile = boardFilePath(stateFile, root);
+        const mailDir = path.join(root, "mail");
+        const claimsDir = path.join(root, "claims");
+        const submissionsDir = path.join(root, "submissions");
+        fs.mkdirSync(mailDir, {{ recursive: true }});
+        fs.mkdirSync(claimsDir, {{ recursive: true }});
+        fs.mkdirSync(submissionsDir, {{ recursive: true }});
+        resetState();
+        initTeamMachine(
+          {{ sessionManager: {{ getSessionFile: () => stateFile }}, cwd: root, model: undefined }},
+          {{ sendUpdate() {{}}, notifyChange() {{}} }},
+        );
+
+        const leaderTools = [];
+        registerLeaderTools({{ registerTool(tool) {{ leaderTools.push(tool); }}, registerCommand() {{}} }});
+        const leader = Object.fromEntries(leaderTools.map((tool) => [tool.name, tool]));
+        const leaderResults = {{}};
+        leaderResults.spawn = await leader.teammate_spawn.execute("spawn", {{
+          name: "worker", agent: "worker", definition: {{
+            description: "test worker", tools: [], prompt: "test", worktree: false,
+          }}, prompt: "test",
+        }}, undefined, undefined, {{ cwd: root }});
+        const worker = registerTeammate({{ name: "peer", agent: "worker", spawnId: "peer-spawn", pid: 0, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        writeRoster(path.join(root, "roster.json"), [
+          {{ name: "worker", agent: "worker", status: "idle" }},
+          {{ name: "peer", agent: "worker", status: "idle" }},
+        ]);
+        leaderResults.message = await leader.send_message.execute("message", {{ to: "worker", message: "hello" }});
+        leaderResults.create = await leader.task_create.execute("create", {{ subject: "integration task" }}, undefined, undefined, {{}});
+        leaderResults.list = await leader.task_list.execute("list", {{}}, undefined, undefined, {{}});
+        const workerTools = [];
+        const workerEnv = {{
+          PI_TEAMMATE_WORKER_NAME: "peer",
+          PI_TEAMMATE_SPAWN_ID: "peer-spawn",
+          PI_TEAMMATE_OUTBOX_FILE: path.join(root, "peer-outbox.jsonl"),
+          PI_TEAMMATE_INBOX_FILE: path.join(mailDir, "inbox-peer.jsonl"),
+          PI_TEAMMATE_ROSTER_FILE: path.join(root, "roster.json"),
+          PI_TEAMMATE_BOARD_FILE: boardFile,
+          PI_TEAMMATE_CLAIMS_DIR: claimsDir,
+          PI_TEAMMATE_SUBMISSIONS_DIR: submissionsDir,
+        }};
+        for (const [key, value] of Object.entries(workerEnv)) process.env[key] = value;
+        registerWorkerCapabilities({{ registerTool(tool) {{ workerTools.push(tool); }} }});
+        const workerMap = Object.fromEntries(workerTools.map((tool) => [tool.name, tool]));
+        const workerResults = {{}};
+        workerResults.message = await workerMap.send_message.execute("message", {{ to: "leader", message: "report", status: "completed" }});
+        workerResults.list = await workerMap.task_list.execute("list", {{}}, undefined, undefined, {{}});
+        workerResults.claim = await workerMap.task_claim.execute("claim", {{}}, undefined, undefined, {{}});
+        const claimed = fs.readdirSync(claimsDir).length;
+        workerResults.submit = await workerMap.task_submit.execute("submit", {{ taskId: "integration-task", status: "completed", result: "done" }});
+        const submitted = fs.readdirSync(submissionsDir).length;
+        leaderResults.shutdown = await leader.teammate_shutdown.execute("shutdown", {{ name: "worker" }}, undefined, undefined, {{}});
+        shutdownTeamMachine();
+        console.log(JSON.stringify({{
+          leaderNames: Object.keys(leader), workerNames: Object.keys(workerMap),
+          leaderSuccess: Object.values(leaderResults).every(Boolean),
+          workerSuccess: Object.values(workerResults).every(Boolean),
+          messageQueued: leaderResults.message.details?.outcome === "queued",
+          workerReportWritten: fs.existsSync(path.join(root, "peer-outbox.jsonl")),
+          claimMarkerWritten: claimed === 1,
+          submissionMarkerWritten: submitted === 1,
+          shutdownReturned: Boolean(leaderResults.shutdown),
+        }}));
+        ''',
+        env_overrides={"PI_CODING_AGENT_DIR": str(tmp_path / "agent")},
+    )
+    assert payload["leaderNames"] == ["teammate_spawn", "teammate_shutdown", "send_message", "task_create", "task_list"]
+    assert payload["workerNames"] == ["send_message", "task_list", "task_claim", "task_submit"]
+    assert payload["leaderSuccess"] is True
+    assert payload["workerSuccess"] is True
+    assert payload["messageQueued"] is True
+    assert payload["workerReportWritten"] is True
+    assert payload["claimMarkerWritten"] is True
+    assert payload["submissionMarkerWritten"] is True
+    assert payload["shutdownReturned"] is True
+
+
 def test_worker_tool_grant_is_visible_at_spawn() -> None:
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     spawner = source("spawner.ts")
@@ -1856,10 +2128,13 @@ def test_stall_recovery_belongs_to_leader_alone() -> None:
     wake = machine[machine.index("export function wakeIdleTeammates"):]
     assert "lastOutputAt: Date.now()" in wake
     assert "stallNoticeSentAt: undefined" in wake
-    # Steering a silent teammate reports stalledMs; the tool renders a warning.
+    # Steering reports only its synchronous routing transition. Teammate health
+    # remains a separate watchdog report and transcript event.
     send = machine[machine.index("export function sendLeaderMessage"):]
-    assert "stalledMs" in send and "isStallThresholdReached" in send
-    assert "stalledMs !== undefined" in tools and "formatSilenceDuration" in tools
+    assert "stalledMs" not in send
+    assert "isStallThresholdReached" not in send
+    assert 'formatAgentHealthReport("stalled"' in machine
+    assert "stalledMs" not in tools
 
 
 def test_peer_traffic_stays_out_of_leader_context() -> None:
@@ -1875,6 +2150,29 @@ def test_peer_traffic_stays_out_of_leader_context() -> None:
     assert "deliverFeedback" in machine
 
 
+def test_board_path_is_stable_only_for_the_same_session_file(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ boardFilePath, sessionKey }} from "{(SRC / "statefile.ts").as_uri()}";
+        const cwd = {str(tmp_path)!r};
+        const first = "/sessions/first.jsonl";
+        const second = "/sessions/second.jsonl";
+        console.log(JSON.stringify({{
+          sameSession: boardFilePath(first, cwd) === boardFilePath(first, cwd),
+          differentSessions: boardFilePath(first, cwd) !== boardFilePath(second, cwd),
+          sameKey: sessionKey(first, cwd) === sessionKey(first, cwd),
+          differentKey: sessionKey(first, cwd) !== sessionKey(second, cwd),
+        }}));
+        '''
+    )
+    assert payload == {
+        "sameSession": True,
+        "differentSessions": True,
+        "sameKey": True,
+        "differentKey": True,
+    }
+
+
 def test_board_persists_but_runtime_does_not() -> None:
     machine = source("team-machine.ts")
     statefile = source("statefile.ts")
@@ -1884,6 +2182,8 @@ def test_board_persists_but_runtime_does_not() -> None:
     assert 'path.join(getAgentDir(), "teammate")' in statefile
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "no automatic cleanup deletes persisted boards" in feature
+    assert "Board persistence is scoped to a board directory" in feature
+    assert "different session file does not import another session's tasks automatically" in (PACKAGE / "README.md").read_text(encoding="utf-8")
     # cleanupExpiredStateDirs sweeps only the runtime root.
     sweep = statefile[statefile.index("export function cleanupExpiredStateDirs"):]
     assert "tasksRoot()" not in sweep
@@ -1929,7 +2229,7 @@ def test_idle_without_terminal_report_self_finalizes_before_escalating() -> None
     # Second miss: the existing once-per-incarnation leader reminder.
     assert "idleNudgesSent" in machine
     # The worker-side send tool reinforces the rule at the exact moment of use.
-    assert "does not end your assignment" in worker
+    assert 'send status="completed" or status="failed" to end the assignment' in worker
     # A spawned teammate runs a kickoff turn, so status must stay "starting"
     # until real stream events arrive: the old synchronous idle mark mislabeled
     # an actively-running turn as idle and misrouted queued deliveries.
@@ -1942,7 +2242,7 @@ def test_worker_task_list_includes_roster_tail() -> None:
     assert "the shared task_list view includes the living roster on both leader and worker sides" in feature
     roster_section = worker[worker.index("registerTaskListTool"):]
     assert "readRoster(binding.rosterFile)" in roster_section
-    assert "Roster:" in roster_section
+    assert "renderRoster(roster)" in roster_section
 
 
 def test_terminal_status_discipline_is_documented_for_workers() -> None:
