@@ -159,13 +159,38 @@ def test_shared_termination_escalates_after_close_grace_period() -> None:
 def test_tool_event_labels_share_the_compact_monitor_pattern() -> None:
     result = run_typescript(
         f"""
-        import {{ formatToolEventLabel }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{
+          eventToolLifecycle,
+          formatToolEventLabel,
+          formatToolLifecycleTitle,
+          renderToolLifecycle,
+          startedToolLifecycle,
+        }} from {json.dumps((SRC / "index.ts").as_uri())};
         console.log(JSON.stringify({{
           started: formatToolEventLabel("started", "运行 monitor 包测试"),
           event: formatToolEventLabel("event", "运行 monitor 包测试"),
           listed: formatToolEventLabel("listed", "2 other sessions in pi-packages", "sessions"),
           agentEvent: formatToolEventLabel("event", "@scribe shut down", "agent"),
           created: formatToolEventLabel("created", "Fix the login flow", "board"),
+          gathered: formatToolEventLabel("gathered", "3 requests since last commit", "context"),
+          startedTitle: formatToolLifecycleTitle(startedToolLifecycle("agent", "@audit · review")),
+          createdTitle: formatToolLifecycleTitle(eventToolLifecycle("board", "Fix login", {{ label: "created" }})),
+          startedRows: renderToolLifecycle(startedToolLifecycle("agent", "@audit · review"), {{
+            width: 80,
+            expanded: false,
+            titleStyle: (text) => text,
+            detailStyle: (text) => text,
+            truncate: (text, width) => text.slice(0, width),
+            line: (text) => text,
+          }}),
+          eventRows: renderToolLifecycle(eventToolLifecycle("board", "Fix login", {{ details: ["status=success"] }}), {{
+            width: 80,
+            expanded: true,
+            titleStyle: (text) => text,
+            detailStyle: (text) => text,
+            truncate: (text, width) => text.slice(0, width),
+            line: (text) => text,
+          }}),
         }}));
         """
     )
@@ -175,6 +200,11 @@ def test_tool_event_labels_share_the_compact_monitor_pattern() -> None:
         "listed": "[sessions] listed · 2 other sessions in pi-packages",
         "agentEvent": "[agent] event · @scribe shut down",
         "created": "[board] created · Fix the login flow",
+        "gathered": "[context] gathered · 3 requests since last commit",
+        "startedTitle": "[agent] started · @audit · review",
+        "createdTitle": "[board] created · Fix login",
+        "startedRows": ["[agent] started · @audit · review"],
+        "eventRows": ["[board] event · Fix login", "status=success"],
     }
 
 
