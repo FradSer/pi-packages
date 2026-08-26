@@ -4,7 +4,8 @@
 
 `packages/utils/` publishes `@fradser/pi-utils`, a native Pi extension. `index.ts`
 only wires the focused modules in `extensions/`: `/continue`, `/effort`, `/init`,
-`/sessions`/`/recap`, and the git worktree redirect. BDD contracts live in
+`/sessions`/`/recap`, git worktree path redirect, worktree-aware `@`
+completions, and EnterWorktree/ExitWorktree session switching. BDD contracts live in
 `features/`; executable Python tests and runtime harnesses live in `tests/`.
 The published package is limited by `package.json`'s `files` list (`index.ts`,
 `extensions/`, and `README.md`).
@@ -35,5 +36,5 @@ runtime dependency, not a peer dependency.
 For behavior changes, update the matching `.feature` scenario before changing
 implementation, then add or update tests under `tests/`. Cover command parsing,
 continuation edge cases, supported thinking levels, safe worktree rewriting,
-and session registry behavior. Add a Changeset for published changes and use
+worktree session replacement, and session registry behavior. Add a Changeset for published changes and use
 the repository's Conventional Commit scopes (for example `feat(packages):`).
