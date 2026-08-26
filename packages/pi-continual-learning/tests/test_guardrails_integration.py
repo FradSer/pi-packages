@@ -302,11 +302,11 @@ await new Promise((r) => setTimeout(r, 20));
   });
 }
 
-// ── S7: /guardrails command reports surface, headless-safe ──────────
+// ── S7: /harness command reports surface, headless-safe ───────────
 {
   let notified = "";
   const cmdCtx = { ...baseCtx, ui: { notify: (msg) => (notified = msg) } };
-  await commands.guardrails.handler("", cmdCtx);
+  await commands.harness.handler("", cmdCtx);
   record("command-surface", {
     listsPolicies: notified.includes("ui-fixed-width") && notified.includes("block-curl-prod"),
     showsPaths: notified.includes("harness.json") && notified.includes(".local"),

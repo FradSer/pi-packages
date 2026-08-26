@@ -48,6 +48,7 @@ import {
 } from "./config";
 import { formatMemoriesBlock, loadAndDeduplicateMemories } from "./memory-files";
 import { resolveMemoryPaths } from "./memory-paths";
+import { runHarnessConsolidationPhase } from "./harness-consolidation";
 import {
   applyConsolidationPlan,
   sha256Digest,
@@ -197,6 +198,8 @@ interface DreamState {
   active: boolean;
   generation: number;
   cancelled: boolean;
+  /** Terminal outcome of the last memory phase; gates the harness phase. */
+  outcome?: "completed" | "unverified" | "failed";
   child?: ChildProcess;
   run?: ConsolidationRun;
   cleanup?: () => void;
@@ -584,6 +587,7 @@ async function spawnAsyncConsolidation(
     return;
   }
   state.active = true;
+  state.outcome = undefined;
   const generation = state.generation + 1;
   state.generation = generation;
   state.cancelled = false;
@@ -597,6 +601,7 @@ async function spawnAsyncConsolidation(
   } catch (err: unknown) {
     if (isGenerationCurrent()) {
       state.active = false;
+      state.outcome = "failed";
       ctx.ui.notify(`Memory consolidation setup failed: ${(err as Error).message}`, "error");
     }
     return;
@@ -663,6 +668,7 @@ async function spawnAsyncConsolidation(
   if (!cli) {
     if (isGenerationCurrent()) {
       state.active = false;
+      state.outcome = "failed";
       ctx.ui.notify("Memory consolidation: could not resolve the Pi CLI", "error");
     }
     await releaseConsolidationRun(run);
@@ -702,7 +708,8 @@ async function spawnAsyncConsolidation(
       { cwd: opts.cwd, env: workerEnv, stdio: ["ignore", "pipe", "pipe"] },
     );
   } catch (err: unknown) {
-    if (isGenerationCurrent()) state.active = false;
+    if (isGenerationCurrent()) state.outcome = "failed";
+    state.active = false;
     await releaseConsolidationRun(run);
     if (isGenerationCurrent()) ctx.ui.notify(`Memory consolidation spawn failed: ${(err as Error).message}`, "error");
     return;
@@ -879,6 +886,7 @@ async function spawnAsyncConsolidation(
       if (error) {
         await persistRunDiagnostics();
         if (!ownsCurrentRun()) return;
+        state.outcome = "failed";
         ctx.ui.notify(`Memory dreaming failed to start: ${error.message}`, "error");
       } else if (code === 0) {
         const extracted = stdoutCaptureOverflowed
@@ -916,6 +924,7 @@ async function spawnAsyncConsolidation(
             `Memory dreaming finished without verified consolidation: missing exactly one schema-valid consolidation plan${detail ? ` (${detail.slice(-300)})` : ""}`,
             "warning",
           );
+          state.outcome = "unverified";
         } else {
           const planPath = path.join(run.manifest.runDir, "plan.json");
           const planText = `${JSON.stringify(plan, null, 2)}\n`;
@@ -953,8 +962,10 @@ async function spawnAsyncConsolidation(
           evidence.parentReceiptVerified = true;
           const missing = missingConsolidationEvidence(evidence);
           if (missing.length === 0) {
+            state.outcome = "completed";
             ctx.ui.notify("Memory dreaming complete — memory consolidated.", "info");
           } else {
+            state.outcome = "unverified";
             ctx.ui.notify(`Memory dreaming finished without verified consolidation: missing ${missing.join(", ")}`, "warning");
           }
         }
@@ -966,6 +977,7 @@ async function spawnAsyncConsolidation(
           await retryPlanPhase(errReason);
           return;
         }
+        state.outcome = "failed";
         ctx.ui.notify(`Memory dreaming failed: ${errReason.slice(-300)}`, "error");
       }
     } catch (finishError: unknown) {
@@ -977,6 +989,7 @@ async function spawnAsyncConsolidation(
           await retryPlanPhase(message);
           return;
         }
+        state.outcome = "failed";
         ctx.ui.notify(`Memory consolidation verification failed: ${message}`, "error");
       }
     } finally {
@@ -996,6 +1009,38 @@ async function spawnAsyncConsolidation(
   child.on("error", (err) => { void finish(null, err); });
   child.on("close", (code) => { void finish(code); });
   child.unref();
+}
+
+/**
+ * Full consolidation pipeline: the memory phase first; only a verified,
+ * context-captured memory phase unlocks the harness phase. The harness phase
+ * owns its own single-flight guard, so its failures never invalidate applied
+ * memory results, and session shutdown cancels either phase cleanly.
+ */
+async function startConsolidationPipeline(
+  ctx: ExtensionContext,
+  state: DreamState,
+  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string },
+): Promise<void> {
+  await spawnAsyncConsolidation(ctx, state, opts);
+  void (async () => {
+    // Wait for the memory phase's terminal outcome (retries included): the
+    // last attempt sets `outcome` and its finally clears `active`.
+    for (let i = 0; i < 9000 && !(state.outcome !== undefined && !state.active); i++) {
+      if (state.cancelled) return;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    if (state.cancelled || state.outcome !== "completed") return;
+    if (opts.noContext) {
+      ctx.ui.notify("Harness consolidation needs captured context; skipped (no-context run).", "info");
+      return;
+    }
+    await runHarnessConsolidationPhase(ctx, state, {
+      pkgDir: opts.pkgDir,
+      cwd: opts.cwd,
+      reason: opts.reason,
+    });
+  })();
 }
 
 async function editInstructions(ctx: ExtensionCommandContext, filePath: string): Promise<void> {
@@ -1131,7 +1176,7 @@ export default function (pi: ExtensionAPI) {
           return;
         }
         ctx.ui.notify("Starting memory consolidation in the background…", "info");
-        await spawnAsyncConsolidation(ctx, dreamState, {
+        await startConsolidationPipeline(ctx, dreamState, {
           pkgDir,
           cwd,
           noContext: false,
@@ -1166,7 +1211,7 @@ export default function (pi: ExtensionAPI) {
   // stays focused on instructions + settings. Consolidation runs in the
   // background, so the active session remains responsive.
   pi.registerCommand("consolidate", {
-    description: "Consolidate project memory now",
+    description: "Consolidate project memory and harness now",
     handler: async (rawArgs, ctx) => {
       const args = rawArgs.trim();
       if (args !== "" && args !== "no-context") {
@@ -1188,11 +1233,11 @@ export default function (pi: ExtensionAPI) {
       }
 
       ctx.ui.notify("Starting memory consolidation in the background…", "info");
-      await spawnAsyncConsolidation(ctx, dreamState, {
+      await startConsolidationPipeline(ctx, dreamState, {
         pkgDir,
         cwd,
         noContext: args === "no-context",
-        reason: "Consolidate the project memory now (user-invoked via /consolidate command).",
+        reason: "Consolidate the project memory and harness now (user-invoked via /consolidate command).",
       });
     },
   });

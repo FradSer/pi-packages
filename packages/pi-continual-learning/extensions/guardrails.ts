@@ -109,7 +109,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         return { block: true, reason: `${decision.reason}\n(no UI available to confirm)` };
       }
       const choice = await ctx.ui.select(
-        `guardrails: ${decision.policyName}\n\nAllow this call?`,
+        `harness: ${decision.policyName}\n\nAllow this call?`,
         ["Allow once", "Block"],
         { timeout: GUARDRAILS_CONFIRM_TIMEOUT_MS },
       );
@@ -126,7 +126,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
     return { block: true, reason: decision.reason };
   });
 
-  pi.registerCommand("guardrails", {
+  pi.registerCommand("harness", {
     description: "Show active tool-call guardrails: sources, policies, config paths",
     handler: async (_args, ctx) => {
       const cwd = ctx.cwd || process.cwd();

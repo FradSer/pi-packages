@@ -22,8 +22,8 @@ pi install npm:pi-continual-learning
 | Command | Purpose |
 | --- | --- |
 | `/memory` | Memory management menu: instructions, model, consolidation, settings |
-| `/consolidate` | Run manual memory consolidation now |
-| `/guardrails` | Show active policies, sources, and config paths |
+| `/consolidate` | Consolidate now: memory first, then harness guardrail updates mined from session history |
+| `/harness` | Show active tool-call guardrails: sources, policies, config paths |
 
 ## Guardrails configuration
 
@@ -60,6 +60,17 @@ your project `.pi/harness.json` to activate it.
 Built-in defaults cover known-futile automation: interactive auth commands
 (`npm/pnpm/yarn login|adduser|logout`) and OTP-via-file/chat routing are
 blocked with guidance to hand those steps to the user's own terminal.
+
+### Harness consolidation
+
+After a verified memory consolidation, `/consolidate` runs a second read-only
+planner against the same immutable session snapshot: it mines blocked tool
+calls, confirmation outcomes, and user corrections, then proposes bounded
+policy/skill-prompt changes citing that evidence. The parent alone applies
+them — atomically, and only to the personal project-local layer
+(`.pi/harness.local.json`). Shared layers are never written; a failed or
+rejected harness plan never touches applied memory results; `no-context`
+runs skip the phase entirely.
 
 ### Skill prompt guidance
 

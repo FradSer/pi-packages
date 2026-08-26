@@ -59,8 +59,8 @@ Feature: Generic tool-call guardrails from layered config
     Then the call is blocked with corrective design guidance
     And the same violation in a non-UI file passes through untouched
 
-  Scenario: The /guardrails command reports the active surface
+  Scenario: The /harness command reports the active surface
     Given guardrails loaded from one or more layers
-    When the user runs /guardrails
+    When the user runs /harness
     Then the command reports sources, policy names, and the config paths
     And it works headlessly without interactive UI
