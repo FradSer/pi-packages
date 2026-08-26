@@ -1,0 +1,127 @@
+---
+name: npm-package-first-release
+description: Bootstrap the first publication of an npm package and wire up Trusted Publishing (GitHub OIDC) in a monorepo. Use whenever a new package must be published to npm for the first time, when configuring npm trust github or a trusted publisher, when handing a package over from manual releases to CI-owned releases, or when diagnosing first-release failures such as EOTP, PUT 404, EPUBLISHCONFLICT, 401 on whoami, or "Package not found" during trust setup.
+---
+
+# npm package first release
+
+npm OIDC Trusted Publishing cannot create the **first** version of a package
+that does not exist yet, and a trust relationship cannot be created for a
+package that does not exist. The first version therefore needs one deliberate,
+human-in-the-loop publication; every later version is owned by CI. This skill
+walks that bootstrap and hands off cleanly.
+
+## Hard rules
+
+- Never ask the user to paste an OTP code into chat, and never automate
+  `npm login`, browser approval, or OTP entry. Interactive steps belong to the
+  user's own terminal, where prompts and browsers are visible to them.
+- Publish **before** configuring trust. `npm trust github` on an unpublished
+  package fails with `404 Package not found` — that error means ordering, not
+  a missing name.
+- In pnpm workspaces always publish with `pnpm publish`. It rewrites
+  `workspace:*` dependencies to real versions; plain `npm publish` would ship
+  an unresolvable manifest.
+- Do not run recursive root-level publishes (`pnpm -r publish`). Publish one
+  package from its directory.
+
+## Procedure
+
+### 0. Preconditions
+
+- The package name is on the repository's release allowlist (for pi-packages:
+  `scripts/publish-release.mjs`), so CI can take over after handoff.
+- Version/changeset coordination is decided: either a pending changeset will
+  produce a version PR, or the manifest version is already the exact version
+  intended for first publication. The registry-aware CI publisher skips
+  versions equal to what is on npm, so publishing an exact version early is
+  safe.
+
+### 1. Check credentials before anything else
+
+```bash
+npm whoami
+```
+
+- Success: continue.
+- `E401`: the stored token is dead. npm actively retires bypass-2FA tokens, so
+  tokens die silently even days after login. Ask the user to run `npm login`
+  themselves and confirm when done. Do not proceed on a dead token.
+
+A dead token is also why a publish of a brand-new package can fail with
+`PUT ... 404 Not Found`: the registry masks authorization failures for
+nonexistent packages as 404 instead of 401/403. When you see 404 on PUT,
+check `npm whoami` first before suspecting the package name.
+
+### 2. Check registry state
+
+```bash
+curl -s https://registry.npmjs.org/<package-name>
+```
+
+- 404: name is free — full bootstrap below.
+- HTTP 200 with no versions/dist-tags: the name was unpublished once
+  (tombstone); it can still be published after the 24-hour window.
+- Existing versions: this is not a first release — stop and reassess.
+
+### 3. User publishes the first version (interactive)
+
+The user runs, from the package directory:
+
+```bash
+pnpm publish --access public
+```
+
+pnpm prompts `Enter OTP:` inline; they type their authenticator code. If the
+branch is not the configured publish branch, pnpm asks to continue — answering
+yes is expected on wip/release branches.
+
+If the user must publish the exact version a changesets version PR produces,
+check out that PR's branch and publish from there, then merge it; the CI
+publisher compares local vs registry versions and skips what already exists.
+
+### 4. Establish the trust relationship
+
+Still the user's terminal:
+
+```bash
+npm trust github <package-name> --file <release-workflow>.yml \
+  --repo <owner>/<repo> --allow-publish -y
+```
+
+For pi-packages: `--file release.yml --repo FradSer/pi-packages`. This prints
+an auth URL and waits ("Press ENTER to open in the browser..."); the user
+approves in their browser. Requires npm >= 11.5.
+
+If this fails with `Package not found`, step 3 has not actually completed —
+verify the registry before retrying.
+
+### 5. Hand off to CI
+
+Merge the feature/version PR. The release workflow's registry-aware publisher
+sees the published version and skips it; all subsequent versions publish via
+GitHub Actions OIDC with provenance — no local token involved ever again.
+
+### 6. Verify
+
+```bash
+curl -s https://registry.npmjs.org/<package-name> | jq '."dist-tags".latest'
+```
+
+Registry edge caches can lag briefly after publish.
+
+## Failure quick table
+
+| Symptom | Real cause | Fix |
+| --- | --- | --- |
+| `PUT ... 404 Not Found` on a new package | Dead token masked by the registry | `npm whoami`; if E401, user re-runs `npm login` |
+| `EOTP` exiting immediately under automation | Non-TTY clients cannot complete web-auth | Stop automating; user runs the publish interactively |
+| Trust setup: `Package not found` | Package not published yet | Complete step 3 first, then re-run trust |
+| `EPUBLISHCONFLICT` / version exists | Version already on npm | Advance the version; never overwrite |
+| Token dies again days later | npm retiring bypass-2FA tokens | Re-login; prefer granular tokens with read-write packages |
+
+## Related project memory
+
+- `project_pi_package_npm_publishing` — allowlist + version-PR coordination.
+- `github-ci-npm-publishing` (pi-git-agent) — CI-only releases, `npm trust` CLI.
+- `npm-trusted-publishing` (apple-events) — trust requires existing package.
