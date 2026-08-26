@@ -2,7 +2,9 @@ Feature: Generic tool-call guardrails from layered config
   A package-level hook evaluates declarative policies against every tool
   call. Matching calls are blocked with an instructive reason that teaches
   the model the correct procedure instead of leaving it stuck, while
-  non-matching calls pass through untouched.
+  non-matching calls pass through untouched. Confirm gates own the agent
+  loop while their dialog waits, so an unanswered dialog must fail closed
+  after a bounded wait instead of hanging the session.
 
   Scenario: Layered config resolves with deterministic precedence
     Given guardrails are declared in the user directory and the project
@@ -26,8 +28,17 @@ Feature: Generic tool-call guardrails from layered config
   Scenario: Confirm actions defer to the user when UI exists
     Given a policy with the confirm action
     When a matching call arrives in an interactive session
-    Then the user is asked to allow or deny it
+    Then the user is asked to allow or deny it through a select dialog
+    And choosing Allow once proceeds without blocking
+    And choosing Block returns a block reason naming the user's choice
     And without UI the call is blocked instead of silently allowed
+
+  Scenario: An unanswered confirm dialog fails closed after a bounded wait
+    Given a policy with the confirm action
+    When a matching call arrives and nobody answers before the dialog timeout
+    Then the select dialog carries a bounded timeout with a visible countdown
+    And the expired dialog resolves to no choice
+    And the call is blocked with a reason stating the confirmation timed out
 
   Scenario: Broken policies never break the session
     Given a config containing an invalid regex or malformed JSON

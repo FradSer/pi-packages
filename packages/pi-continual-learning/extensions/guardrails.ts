@@ -43,6 +43,11 @@ export function skillPromptTarget(
   return { name: skill.name, ...guidance };
 }
 
+/** The confirm gate blocks the agent loop while its dialog waits, so an
+ * unattended session must fail closed after a bounded wait instead of
+ * hanging. pi renders the remaining time as a live countdown. */
+const GUARDRAILS_CONFIRM_TIMEOUT_MS = 60_000;
+
 let cached: { key: string; value: ResolvedWithPaths } | undefined;
 
 // Pi shares one context among before_agent_start handlers in a turn, while
@@ -106,9 +111,16 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       const choice = await ctx.ui.select(
         `guardrails: ${decision.policyName}\n\nAllow this call?`,
         ["Allow once", "Block"],
+        { timeout: GUARDRAILS_CONFIRM_TIMEOUT_MS },
       );
       if (choice === "Allow once") return undefined;
-      return { block: true, reason: `${decision.reason}\n(blocked by user choice)` };
+      // select resolves undefined on timeout — the same fail-closed outcome
+      // as an explicit Block, with a reason that says which happened.
+      const timedOut = choice === undefined;
+      return {
+        block: true,
+        reason: `${decision.reason}\n(${timedOut ? "blocked: confirmation timed out" : "blocked by user choice"})`,
+      };
     }
 
     return { block: true, reason: decision.reason };

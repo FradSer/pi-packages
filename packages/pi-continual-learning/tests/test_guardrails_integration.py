@@ -139,21 +139,31 @@ fs.writeFileSync(
   });
 }
 
-// ── S3: confirm action blocks headlessly, allows when approved ───────
+// ── S3: confirm action blocks headlessly, allows when approved, and
+//      fails closed when the dialog expires unanswered ────────────────
 {
   const headless = await callTool(
     "bash",
     { command: "wipe--workspace now" },
     baseCtx,
   );
-  const uiCtx = { ...baseCtx, hasUI: true, ui: { select: async () => "Allow once" } };
+  let askedTimeout;
+  const selecting = (answer) => async (_title, _options, opts) => {
+    askedTimeout = opts?.timeout;
+    return answer; // undefined simulates the countdown expiring
+  };
+  const uiCtx = { ...baseCtx, hasUI: true, ui: { select: selecting("Allow once") } };
   const allowed = await callTool("bash", { command: "wipe--workspace now" }, uiCtx);
-  const denyCtx = { ...baseCtx, hasUI: true, ui: { select: async () => "Block" } };
+  const denyCtx = { ...baseCtx, hasUI: true, ui: { select: selecting("Block") } };
   const denied = await callTool("bash", { command: "wipe--workspace now" }, denyCtx);
+  const expiredCtx = { ...baseCtx, hasUI: true, ui: { select: selecting(undefined) } };
+  const expired = await callTool("bash", { command: "wipe--workspace now" }, expiredCtx);
   record("confirm-action", {
     headlessBlocked: headless[0]?.block === true && /no UI available/.test(headless[0]?.reason ?? ""),
+    dialogBounded: typeof askedTimeout === "number" && Number.isFinite(askedTimeout) && askedTimeout > 0,
     allowedOnce: allowed.length === 0,
-    deniedBlocked: denied[0]?.block === true,
+    deniedBlocked: denied[0]?.block === true && /user choice/.test(denied[0]?.reason ?? ""),
+    timeoutFailsClosed: expired[0]?.block === true && /timed out/.test(expired[0]?.reason ?? ""),
   });
 }
 
@@ -337,9 +347,10 @@ def test_s2_ui_policy_gated_by_require_and_paths() -> None:
     assert s["mdPassed"] and s["oldTextTrapFixed"]
 
 
-def test_s3_confirm_action_headless_and_interactive() -> None:
+def test_s3_confirm_action_headless_interactive_and_bounded() -> None:
     s = ALL["confirm-action"]
-    assert s["headlessBlocked"] and s["allowedOnce"] and s["deniedBlocked"]
+    assert s["headlessBlocked"] and s["dialogBounded"]
+    assert s["allowedOnce"] and s["deniedBlocked"] and s["timeoutFailsClosed"]
 
 
 def test_s4_standard_agent_dir_user_layer_disable_and_extend() -> None:
