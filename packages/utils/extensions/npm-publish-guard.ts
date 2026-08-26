@@ -20,7 +20,7 @@ const END = "(?:[;&|\\s]|$)";
 
 /** Workspace/filter flags package managers accept before the verb. */
 const PRE_FLAGS =
-	"(?:(?:--filter|--workspace|--since|-F|-w)(?:=[^\\s;&|]+|\\s+[^\\s;&|]+)?\\s+|workspace\\s+[^\\s;&|]+\\s+|-r\\s+|--recursive\\s+)*";
+	"(?:(?:--filter|--workspace|--since|-F|-w)(?:=[^\\s;&|]+|\\s+[^\\s;&|]+)?\\s+|(?:workspace\\s+[^\\s;&|]+|recursive)\\s+|-r\\s+|--recursive\\s+)*";
 
 interface GuardRule {
 	label: string;
@@ -30,9 +30,10 @@ interface GuardRule {
 const RULES: GuardRule[] = [
 	{
 		// Direct publish plus recursive/workspace forms (`pnpm -r publish`,
-		// `pnpm --filter web publish`, `yarn workspace web publish`).
+		// `pnpm --filter web publish`, `yarn workspace web publish`). Capture
+		// group 1 ends at the verb so the dry-run scan can start there.
 		label: "Package publish",
-		re: new RegExp(`${COMMAND_POS}(?:npm|pnpm|yarn|bun)\\s+${PRE_FLAGS}publish${END}`),
+		re: new RegExp(`${COMMAND_POS}((?:npm|pnpm|yarn|bun)\\s+${PRE_FLAGS})publish${END}`),
 	},
 	{
 		label: "npm credential flow",
@@ -48,15 +49,32 @@ export interface BlockedNpmCommand {
 	label: string;
 }
 
+/** True when the first command segment after the verb carries a real `--dry-run` token. */
+function invocationHasDryRunFlag(segment: string): boolean {
+	for (const token of (segment.split(/[;&|\n]/)[0] ?? "").split(/\s+/)) {
+		if (token.startsWith("#")) return false;
+		if (token === "--dry-run") return true;
+	}
+	return false;
+}
+
 /** Match a bash command against the guarded npm operations. */
 export function matchBlockedNpmCommand(command: string): BlockedNpmCommand | null {
 	const [publishRule] = RULES;
-	// The dry-run allowance is scoped per invocation: `pnpm publish --dry-run &&
-	// pnpm -F api publish` must still block the second publish.
-	const globalPublish = new RegExp(publishRule.re.source, "g");
-	for (let match = globalPublish.exec(command); match !== null; match = globalPublish.exec(command)) {
-		const tail = command.slice(match.index).split(/[;&|\n]/)[0] ?? "";
-		if (!tail.includes("--dry-run")) return { label: publishRule.label };
+	// The dry-run allowance is scoped to the matched invocation itself and only
+	// honors the exact flag token: env values or comments carrying "--dry-run"
+	// and falsy spellings like "--dry-run=false" do not exempt a real publish.
+	const globalPublish = new RegExp(publishRule.re.source, "gd");
+	for (
+		let match = globalPublish.exec(command);
+		match !== null;
+		match = globalPublish.exec(command)
+	) {
+		const argsStart = match.indices?.[1]?.[1]
+			?? match.index + match[0].lastIndexOf("publish");
+		if (!invocationHasDryRunFlag(command.slice(argsStart))) {
+			return { label: publishRule.label };
+		}
 	}
 	for (const rule of RULES.slice(1)) {
 		if (rule.re.test(command)) return { label: rule.label };

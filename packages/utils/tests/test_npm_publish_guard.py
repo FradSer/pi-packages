@@ -42,6 +42,7 @@ class NpmPublishGuardTests(unittest.TestCase):
         for command in (
             "pnpm -r publish",
             "pnpm --recursive publish",
+            "pnpm recursive publish",
             "pnpm --filter web publish",
             "pnpm --filter=web publish",
             "pnpm -F api publish",
@@ -52,8 +53,17 @@ class NpmPublishGuardTests(unittest.TestCase):
 
     def test_dry_run_allowance_is_per_invocation(self) -> None:
         self.assertAllowed("pnpm publish --dry-run")
+        self.assertAllowed("pnpm -F api publish --dry-run")
         self.assertBlocked("pnpm publish --dry-run && pnpm -F api publish", "Package publish")
         self.assertBlocked("pnpm -F api publish; npm publish --dry-run", "Package publish")
+
+    def test_dry_run_allowance_resists_injection_vectors(self) -> None:
+        # Env values, trailing comments, and falsy spellings must not exempt a
+        # real publish.
+        self.assertBlocked("FOO=--dry-run npm publish", "Package publish")
+        self.assertBlocked("pnpm -F api publish # --dry-run", "Package publish")
+        self.assertBlocked("pnpm -F api publish --dry-run=false", "Package publish")
+        self.assertBlocked('pnpm -F api publish --tag next # note: --dry-run', "Package publish")
 
     def test_credential_and_token_flows_blocked_without_exemptions(self) -> None:
         for command in ("npm login", "npm adduser", "npm logout"):

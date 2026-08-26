@@ -13,14 +13,22 @@ Feature: npm publish and credential guard
 
   Scenario: Recursive and filtered workspace publishes are blocked
     When bash runs "pnpm -r publish", "pnpm --recursive publish",
-      "pnpm --filter web publish", "pnpm --filter=web publish",
-      "pnpm -F api publish", or "yarn workspace web publish"
+      "pnpm recursive publish", "pnpm --filter web publish",
+      "pnpm --filter=web publish", "pnpm -F api publish", or "yarn workspace web publish"
     Then the call is blocked with the publish label
 
   Scenario: Dry-run allowance is scoped to its own invocation
     When bash runs "pnpm publish --dry-run"
     Then the call is allowed
     When bash runs "pnpm publish --dry-run && pnpm -F api publish"
+    Then the call is blocked with the publish label
+
+  Scenario: The dry-run exemption only accepts the exact flag token
+    When bash runs "pnpm -F api publish --dry-run=false"
+    Then the call is blocked with the publish label
+    When bash runs "FOO=--dry-run npm publish"
+    Then the call is blocked with the publish label
+    When bash runs "pnpm -F api publish # --dry-run"
     Then the call is blocked with the publish label
 
   Scenario: Credential and token flows are blocked without exemptions
