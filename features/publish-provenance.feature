@@ -30,3 +30,4 @@ Feature: Release publishing without local provenance assumptions
     When the action leaves the working tree with bumped package versions
     Then the main-branch retry step is skipped
     And publication waits for the version PR merge
+    And the retry checks the Changesets action's camelCase `hasChangesets` output

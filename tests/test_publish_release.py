@@ -32,4 +32,5 @@ def test_workflow_has_a_main_branch_publish_retry() -> None:
 
 def test_workflow_skips_retry_when_changesets_created_a_version_pr() -> None:
     workflow = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    assert "steps.changesets.outputs.has-changesets != 'true'" in workflow
+    assert "steps.changesets.outputs.hasChangesets != 'true'" in workflow
+    assert "steps.changesets.outputs.has-changesets" not in workflow
