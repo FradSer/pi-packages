@@ -23,6 +23,13 @@ Feature: Shared pi-kit runtime helpers
     And terminal events are `[monitor] event · <description>`
     And synchronous listings support other tools as `[sessions] listed · <description>`
 
+  Scenario: Lifecycle tool renderers provide the shared started and event row contract
+    Given a tool renderer configured with pi-kit lifecycle primitives
+    When the renderer handles a started result
+    Then it owns an empty call slot and one width-bounded `[tool] started · <subject>` row
+    And when it handles an expanded event result it reveals bounded detail lines
+    And an error result is rendered as one plain error row without a lifecycle label
+
   Scenario: Agent task and message labels share pi-kit formatting
     Given an agent task and a teammate name
     When the shared display helpers format them

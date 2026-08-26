@@ -34,13 +34,91 @@ export function formatAgentTaskName(prompt: string, fallback: string, maxLength 
   return normalized.length <= maxLength ? normalized : `${normalized.slice(0, maxLength - 3)}...`;
 }
 
-/** Format the compact two-row tool event label used by background operations. */
+/** Lifecycle row kind shared by background and coordination tools. */
+export type ToolLifecycleKind = "started" | "event";
+
+/** Shared lifecycle row specification. Consumers adapt it to Pi's TUI types. */
+export interface ToolLifecycleSpec {
+  kind: ToolLifecycleKind;
+  tool: string;
+  subject: string;
+  /** Optional semantic label such as `created`, `listed`, or `to @name`. */
+  label?: string;
+  details?: readonly string[];
+}
+
+/** Format the compact tool event label used by background operations. */
 export function formatToolEventLabel(
-  kind: "started" | "event" | "listed" | "created",
+  kind: ToolLifecycleKind | "listed" | "created" | "gathered",
   description: string,
   tool = "monitor",
 ): string {
-  return `[${tool}] ${kind} · ${description}`;
+  return `[${safeDisplayText(tool)}] ${kind} · ${safeDisplayText(description)}`;
+}
+
+/** Build the common one-line lifecycle title for a tool result. */
+export function formatToolLifecycleTitle(spec: ToolLifecycleSpec): string {
+  const prefix = spec.label ?? spec.kind;
+  return `[${safeDisplayText(spec.tool)}] ${safeDisplayText(prefix)} · ${safeDisplayText(spec.subject)}`;
+}
+
+/** Build a started-row specification. */
+export function startedToolLifecycle(tool: string, subject: string): ToolLifecycleSpec {
+  return { kind: "started", tool, subject };
+}
+
+/** Build an event-row specification with optional expandable details. */
+export function eventToolLifecycle(
+  tool: string,
+  subject: string,
+  options: { label?: string; details?: readonly string[] } = {},
+): ToolLifecycleSpec {
+  return { kind: "event", tool, subject, label: options.label, details: options.details };
+}
+
+/** Return a bounded lifecycle detail block for an expanded result. */
+export function formatToolLifecycleDetails(spec: ToolLifecycleSpec, maxLines = 50): string[] {
+  return (spec.details ?? []).slice(0, Math.max(0, maxLines)).map((line) => safeDisplayText(line));
+}
+
+/** Return the first safe non-empty line from a failed tool result. */
+export function formatToolErrorLine(value: unknown, fallback = "Tool failed."): string {
+  const line = safeDisplayText(value).split("\n").find((entry) => entry.trim());
+  return line?.trim() || fallback;
+}
+
+/** Pi-independent adapters for the shared started/event row contract. */
+export interface ToolLifecycleRenderOptions<T> {
+  width: number;
+  expanded?: boolean;
+  expandHint?: string;
+  titleStyle: (text: string) => string;
+  detailStyle: (text: string) => string;
+  truncate: (text: string, width: number) => string;
+  line: (text: string) => T;
+}
+
+/**
+ * Render one lifecycle row and, when expanded, its bounded detail lines.
+ * Consumers provide Pi's Text/Box adapter, theme, and ANSI-aware truncator;
+ * pi-kit owns the started-vs-event behavior so extensions cannot drift.
+ */
+export function renderToolLifecycle<T>(
+  spec: ToolLifecycleSpec,
+  options: ToolLifecycleRenderOptions<T>,
+): T[] {
+  if (options.width <= 0) return [];
+  const title = options.titleStyle(formatToolLifecycleTitle(spec));
+  const details = formatToolLifecycleDetails(spec);
+  const collapsed = spec.kind === "started" || !options.expanded;
+  if (collapsed) {
+    const hint = spec.kind === "event" && details.length > 0 ? (options.expandHint ?? "") : "";
+    return [options.line(options.truncate(`${title}${hint}`, options.width))];
+  }
+  return [
+    options.line(options.truncate(title, options.width)),
+    ...details.map((detail) => options.line(options.truncate(options.detailStyle(detail), options.width))),
+  ];
 }
 
 /**
