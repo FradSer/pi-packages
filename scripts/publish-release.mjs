@@ -10,6 +10,7 @@ const packages = [
   "@fradser/pi-monitor",
   "@fradser/pi-utils",
   "@fradser/pi-vision",
+  "@fradser/pi-plan-mode",
   "@fradser/pi-recap",
   "pi-keyboard",
   "@fradser/pi-agent-teams",
