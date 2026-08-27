@@ -1,5 +1,23 @@
 # @fradser/pi-monitor
 
+## 2.1.0
+
+### Minor Changes
+
+- 02ec642: Add bounded monitor timeouts. `monitor_start` accepts `timeout_ms` and emits a terminal `timeout` result after the deadline, stopping the process group instead of waiting indefinitely when an external CLI or API is unavailable.
+
+### Patch Changes
+
+- dcf3806: Fix a crash when lifecycle tool rows render with pi's class-based Theme: extracting `theme.bg` into a local and calling it unbound lost the receiver, so any teammate/worktree tool result row threw `TypeError: Cannot read properties of undefined (reading 'bgColors')` (uncaughtException exiting pi). Lifecycle renderers now call theme methods through their receiver, with class-based-theme regression coverage. Unify the report-row visual language in pi-kit: every lifecycle row and collapsed teammate-message row share one full-width `customMessageBg` band (blank band row above/below, one-column inset), a `customMessageLabel`-colored bold `[tool] label ·` prefix, and per-teammate accent colors from pi-kit's stable palette applied to @name segments. Teammate report rows render `[message] from @name · <key> to expand` through the shared `renderAgentMessageBand` abstraction instead of their private Box, and agent startup rows use the explicit `[agent] @name started · task` shape. Remove the hard 80-character task-name cap so lifecycle rows truncate only at the actual terminal width; fixed session panels keep an explicit local width bound. Truncated band rows no longer lose the band background: truncating a styled row injects a full SGR reset (\x1b[0m) before the ellipsis that also cleared the customMessageBg, so pi-kit now re-applies the background immediately after every reset — the ellipsis and trailing padding keep the same band color as the preceding text.
+- 6664765: Collapse repeated source-labelled diagnostic lines in terminal monitor results and include their occurrence counts to keep timeout and failure reports concise.
+- dcf3806: Clarify monitor guidance so quick, low-output information commands run directly while noisy, long-running, or asynchronous work uses `monitor_start`.
+- Updated dependencies [fde16ae]
+- Updated dependencies [dcf3806]
+- Updated dependencies [dcf3806]
+- Updated dependencies [dcf3806]
+- Updated dependencies [a7fbc11]
+  - @fradser/pi-kit@0.4.0
+
 ## 2.0.5
 
 ### Patch Changes

@@ -1,5 +1,30 @@
 # @fradser/pi-utils
 
+## 0.4.0
+
+### Minor Changes
+
+- 8905dbd: Add Claude Code-style EnterWorktree and ExitWorktree session switching. Pi can
+  create or enter a git worktree through a replacement session, rebind built-in
+  tools and @ completions to that worktree cwd, return to the parent session, and
+  optionally clean up worktrees created by Pi.
+- edccd2f: Block package publish and npm credential commands (`publish`, `login`/`adduser`/`logout`, `token create/revoke/delete`) from the agent's non-interactive bash tool. These flows cannot complete there — 2FA web-auth exits immediately with EOTP and dead tokens surface as masked 404 PUT failures — so the guard blocks the call and returns corrective steering that routes the interactive step to the user's own terminal and the `npm-package-first-release` skill procedure.
+- 8905dbd: Add git worktree-aware @ completions: editor file suggestions now hide paths
+  that resolve inside another git worktree. A session in main never sees linked
+  worktree contents, and a session inside a linked worktree never sees sibling
+  worktrees or the main checkout.
+
+### Patch Changes
+
+- dcf3806: Preserve paragraph and bullet line breaks in `/init` instructions while letting Pi's TUI wrap long lines to the available width.
+- dcf3806: Fix a crash when lifecycle tool rows render with pi's class-based Theme: extracting `theme.bg` into a local and calling it unbound lost the receiver, so any teammate/worktree tool result row threw `TypeError: Cannot read properties of undefined (reading 'bgColors')` (uncaughtException exiting pi). Lifecycle renderers now call theme methods through their receiver, with class-based-theme regression coverage. Unify the report-row visual language in pi-kit: every lifecycle row and collapsed teammate-message row share one full-width `customMessageBg` band (blank band row above/below, one-column inset), a `customMessageLabel`-colored bold `[tool] label ·` prefix, and per-teammate accent colors from pi-kit's stable palette applied to @name segments. Teammate report rows render `[message] from @name · <key> to expand` through the shared `renderAgentMessageBand` abstraction instead of their private Box, and agent startup rows use the explicit `[agent] @name started · task` shape. Remove the hard 80-character task-name cap so lifecycle rows truncate only at the actual terminal width; fixed session panels keep an explicit local width bound. Truncated band rows no longer lose the band background: truncating a styled row injects a full SGR reset (\x1b[0m) before the ellipsis that also cleared the customMessageBg, so pi-kit now re-applies the background immediately after every reset — the ellipsis and trailing padding keep the same band color as the preceding text.
+- Updated dependencies [fde16ae]
+- Updated dependencies [dcf3806]
+- Updated dependencies [dcf3806]
+- Updated dependencies [dcf3806]
+- Updated dependencies [a7fbc11]
+  - @fradser/pi-kit@0.4.0
+
 ## 0.3.7
 
 ### Patch Changes

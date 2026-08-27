@@ -1,5 +1,37 @@
 # pi-continual-learning
 
+## 0.2.0
+
+### Minor Changes
+
+- 616dad7: Rename the `/guardrails` command to `/harness`, and extend `/consolidate`
+  into a two-phase pipeline: after a verified memory consolidation, a second
+  read-only planner mines the same immutable session snapshot for tool-call
+  guardrail evidence (blocked calls, confirm outcomes, corrections) and applies
+  bounded policy/skillPrompt changes atomically to the personal project-local
+  layer only.
+- 42cd385: Add AGENTS.md consolidation as the third /consolidate phase. A read-only
+  planner proposes at most five evidence-cited edits to the repository-root
+  AGENTS.md against the same immutable snapshot as memory and harness
+  consolidation. The parent verifies every cited quote verbatim in code,
+  requires batched evidence for new units, gates document growth behind a byte
+  budget with zero-sum updates at cap, routes narrow instructions to skill
+  prompts or memory files via extraction, and autonomously applies only
+  operations that pass all mechanical gates. User-level instruction files are
+  never touched; the planner remains read-only. Validated plans are applied
+  without a user confirmation step.
+- 6dea952: Initial release under the new identity: absorbs @fradser/pi-memory 0.2.7 (memory retrieval, injection, /memory menu, consolidation) and adds the harness surface of continual learning — layered JSON tool-call guardrails evaluated on every tool call, blocking futile or dangerous calls with corrective guidance fed back to the model. Includes require-gate AND scoping, built-in defaults for interactive-auth/OTP automation, and the /guardrails command.
+- 6d5b310: Add layered skill-specific corrective guidance for expanded `/skill:<name>` invocations, with idempotent system injection and user-target custom context messages.
+
+### Patch Changes
+
+- Updated dependencies [fde16ae]
+- Updated dependencies [dcf3806]
+- Updated dependencies [dcf3806]
+- Updated dependencies [dcf3806]
+- Updated dependencies [a7fbc11]
+  - @fradser/pi-kit@0.4.0
+
 Continues the release history of `@fradser/pi-memory` under a broader identity:
 the same memory surface plus declarative tool-call guardrails. Entries below the
 heritage marker belong to the previous identity.

@@ -1,5 +1,17 @@
 # @fradser/pi-recap
 
+## 0.1.7
+
+### Patch Changes
+
+- dcf3806: Start recap generation when the first user prompt arrives so the TUI immediately shows that the session is being recapped, then refresh the summary after the turn completes.
+- Updated dependencies [fde16ae]
+- Updated dependencies [dcf3806]
+- Updated dependencies [dcf3806]
+- Updated dependencies [dcf3806]
+- Updated dependencies [a7fbc11]
+  - @fradser/pi-kit@0.4.0
+
 ## 0.1.6
 
 ### Patch Changes
