@@ -14,7 +14,7 @@ const packages = [
   "pi-keyboard",
   "@fradser/pi-agent-teams",
   "@fradser/pi-context",
-  "pi-mattpocock",
+  "pi-matt-pocock",
 ];
 
 const workspacePackages = new Map();
