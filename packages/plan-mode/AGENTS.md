@@ -37,7 +37,6 @@ status above it, and review actions within the overlay viewport.
 Update the relevant `.feature` scenario before behavior changes, then add
 coverage under `tests/` for restrictions, worker diagnostics, CLI arguments,
 and review behavior. The manifest ships `index.ts`, `src`, and `README.md`.
-Although it is a workspace package with public publish metadata, the current
-`scripts/publish-release.mjs` allowlist does not include `@fradser/pi-plan-mode`;
-coordinate any release-script change and follow repository Changeset and
-Conventional Commit conventions.
+It is included in the `scripts/publish-release.mjs` allowlist and publishes
+through the GitHub Actions Changesets workflow. Follow repository Changeset and
+Conventional Commit conventions for release changes.
