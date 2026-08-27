@@ -36,16 +36,23 @@ function persistWorkflow(state: WorkflowState): void {
   pi.appendEntry(WORKFLOW_STATE_ENTRY, state);
 }
 
-function injectProcedure(state: WorkflowState): void {
-  pi.sendUserMessage(procedurePrompt(state.route, state.procedure, state.phase), {
-    deliverAs: "followUp",
-  });
+function loadWorkflowProcedure(state: WorkflowState): string {
+  const allowedProcedures = transitionProcedures(state.route);
+  if (!allowedProcedures.includes(state.procedure)) {
+    throw new Error(`Procedure ${state.procedure} is not available for route ${state.route}`);
+  }
+  return procedurePrompt(state.route, state.procedure, state.phase);
+}
+
+function injectProcedure(content: string): void {
+  pi.sendUserMessage(content, { deliverAs: "followUp" });
 }
 
 function activateWorkflow(state: WorkflowState, ctx: ExtensionContext): void {
+  const content = loadWorkflowProcedure(state);
   persistWorkflow(state);
   ctx.ui.setStatus("matt-pocock", workflowStatus(state));
-  injectProcedure(state);
+  injectProcedure(content);
 }
 
 function routeChoices(): string[] {
@@ -129,8 +136,27 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
   pi = extensionApi;
 
   pi.on("session_start", async (_event, ctx) => {
-    activeWorkflow = latestWorkflowState(ctx.sessionManager.getBranch());
-    ctx.ui.setStatus("matt-pocock", activeWorkflow ? workflowStatus(activeWorkflow) : undefined);
+    const restoredWorkflow = latestWorkflowState(ctx.sessionManager.getBranch());
+    if (!restoredWorkflow) {
+      activeWorkflow = undefined;
+      ctx.ui.setStatus("matt-pocock", undefined);
+      return;
+    }
+
+    try {
+      const content = loadWorkflowProcedure(restoredWorkflow);
+      activeWorkflow = restoredWorkflow;
+      ctx.ui.setStatus("matt-pocock", workflowStatus(activeWorkflow));
+      pi.sendMessage({
+        customType: "matt-pocock-procedure",
+        content,
+        display: false,
+      }, { deliverAs: "nextTurn" });
+    } catch (error) {
+      activeWorkflow = undefined;
+      ctx.ui.setStatus("matt-pocock", undefined);
+      ctx.ui.notify(`Could not restore Matt Pocock workflow: ${String(error)}`, "warning");
+    }
   });
 
   pi.on("before_agent_start", async (event) => {
@@ -168,9 +194,9 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         phase,
       };
 
+      const content = loadWorkflowProcedure(state);
       persistWorkflow(state);
       ctx.ui.setStatus("matt-pocock", workflowStatus(state));
-      const content = procedurePrompt(state.route, state.procedure, state.phase);
 
       return {
         content: [{ type: "text", text: content }],

@@ -152,11 +152,13 @@ def test_session_start_restores_persisted_workflow_and_visible_status() -> None:
 
         const events = new Map();
         const statuses = [];
+        const restored = [];
         const pi = {
           on(name, handler) { events.set(name, handler); },
           registerCommand() {},
           registerTool() {},
           appendEntry() {},
+          sendMessage(message, options) { restored.push({ message, options }); },
           sendUserMessage() {},
         };
         const ctx = {
@@ -176,10 +178,44 @@ def test_session_start_restores_persisted_workflow_and_visible_status() -> None:
         mattPocock(pi);
         await events.get("session_start")({}, ctx);
         const prompt = await events.get("before_agent_start")({ systemPrompt: "base" }, ctx);
-        console.log(JSON.stringify({ statuses, prompt }));
+        console.log(JSON.stringify({ statuses, restored, prompt }));
     """)
     assert result["statuses"] == ["Matt Pocock: hard-bug · feedback-loop"]
+    assert "# Diagnosing Bugs" in result["restored"][0]["message"]["content"]
+    assert result["restored"][0]["options"] == {"deliverAs": "nextTurn"}
     assert "Matt Pocock workflow active: hard-bug · feedback-loop." in result["prompt"]["systemPrompt"]
+
+
+def test_invalid_tool_procedure_does_not_persist_a_broken_workflow() -> None:
+    result = run_typescript("""
+        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+        const mattPocock = importedMattPocock.default ?? importedMattPocock;
+
+        const tools = new Map();
+        const entries = [];
+        const pi = {
+          on() {},
+          registerCommand() {},
+          registerTool(tool) { tools.set(tool.name, tool); },
+          appendEntry(customType, data) { entries.push({ customType, data }); },
+          sendUserMessage() {},
+        };
+        const ctx = { ui: { setStatus() {} } };
+
+        mattPocock(pi);
+        let error;
+        try {
+          await tools.get("matt_pocock_workflow").execute("call-1", {
+            route: "hard-bug",
+            procedure: "missing-procedure",
+          }, undefined, undefined, ctx);
+        } catch (caught) {
+          error = String(caught);
+        }
+        console.log(JSON.stringify({ entries, error }));
+    """)
+    assert result["entries"] == []
+    assert "not available for route hard-bug" in result["error"]
 
 
 def test_command_activates_a_route_injects_a_procedure_and_adds_compact_guidance() -> None:
