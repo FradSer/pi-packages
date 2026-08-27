@@ -148,6 +148,7 @@ Feature: Shared pi-kit runtime helpers
     Then it declares no pi manifest, no dependencies, and no peer dependencies
     And consumer packages declare it under dependencies with the workspace protocol
     And the publish allowlist orders pi-kit before its consumers
+    And the publish allowlist includes every package with a pending release
 
   Scenario: Pi CLI resolution accepts only the coding-agent package
     Given the current process entry or installed package is inspected
