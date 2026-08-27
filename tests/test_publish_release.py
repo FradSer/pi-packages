@@ -34,3 +34,13 @@ def test_workflow_skips_retry_when_changesets_created_a_version_pr() -> None:
     workflow = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "steps.changesets.outputs.hasChangesets != 'true'" in workflow
     assert "steps.changesets.outputs.has-changesets" not in workflow
+
+
+def test_workflow_uses_node_24_compatible_actions() -> None:
+    workflow = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "actions/checkout@v5" in workflow
+    assert "actions/setup-node@v5" in workflow
+    assert "pnpm/action-setup@v5" in workflow
+    assert "actions/checkout@v4" not in workflow
+    assert "actions/setup-node@v4" not in workflow
+    assert "pnpm/action-setup@v4" not in workflow

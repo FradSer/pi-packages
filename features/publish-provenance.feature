@@ -31,3 +31,10 @@ Feature: Release publishing without local provenance assumptions
     Then the main-branch retry step is skipped
     And publication waits for the version PR merge
     And the retry checks the Changesets action's camelCase `hasChangesets` output
+
+  Scenario: Release actions use Node 24-compatible action versions
+    Given the release workflow runs on GitHub-hosted runners
+    When GitHub loads the release workflow actions
+    Then checkout uses actions/checkout@v5
+    And Node setup uses actions/setup-node@v5
+    And pnpm setup uses pnpm/action-setup@v5
