@@ -67,13 +67,45 @@ After editing, briefly report which instruction files were created or updated
 and the independent directory scope each file covers.
 `.trim();
 
+function normalizePromptLayout(prompt: string): string {
+  const blocks = prompt
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .reduce<string[][]>((result, line) => {
+      if (!line) {
+        if (result.at(-1)?.length) result.push([]);
+        return result;
+      }
+      if (!result.length) result.push([]);
+      result.at(-1)?.push(line);
+      return result;
+    }, []);
+
+  return blocks
+    .filter((block) => block.length > 0)
+    .map((block) => {
+      const lines: string[] = [];
+      let current = "";
+      for (const line of block) {
+        if (line.startsWith("- ")) {
+          if (current) lines.push(current);
+          current = line;
+        } else {
+          current = current ? `${current} ${line}` : line;
+        }
+      }
+      if (current) lines.push(current);
+      return lines.join("\n");
+    })
+    .join("\n\n");
+}
+
 export function buildInitPrompt(cwd: string, focus: string = ""): string {
   const repositoryRoot = JSON.stringify(cwd);
-  const prompt = INIT_PROMPT.split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join(" ")
-    .replace("__REPOSITORY_ROOT__", repositoryRoot);
+  const prompt = normalizePromptLayout(INIT_PROMPT).replace(
+    "__REPOSITORY_ROOT__",
+    repositoryRoot,
+  );
   const focusSection = focus.trim()
     ? ` Additional user focus (apply only when consistent with the repository evidence above): ${focus.trim().replace(/\s+/g, " ")}`
     : "";

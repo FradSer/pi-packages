@@ -2,4 +2,4 @@
 "@fradser/pi-utils": patch
 ---
 
-Send `/init` instructions as a single-line prompt so Pi's TUI controls visual line wrapping.
+Preserve paragraph and bullet line breaks in `/init` instructions while letting Pi's TUI wrap long lines to the available width.

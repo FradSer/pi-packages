@@ -36,5 +36,5 @@ runtime dependency, not a peer dependency.
 For behavior changes, update the matching `.feature` scenario before changing
 implementation, then add or update tests under `tests/`. Cover command parsing,
 continuation edge cases, supported thinking levels, safe worktree rewriting,
-worktree session replacement, and session registry behavior. Add a Changeset for published changes and use
+worktree session replacement, and session registry behavior. Add a Changeset for published changes; any package update should receive a version bump through the GitHub Actions Changesets release flow. Use
 the repository's Conventional Commit scopes (for example `feat(packages):`).

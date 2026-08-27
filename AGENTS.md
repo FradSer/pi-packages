@@ -65,6 +65,10 @@ repository root. Run affected package tests, `pnpm test`, and the strict
 TypeScript check before opening a pull request. Include package dry-run output
 when changing manifests or published files.
 
+Every published-package update requires a Changeset. Do not hand-edit package
+versions for ordinary changes: GitHub Actions runs the Changesets workflow,
+opens the version PR, and publishes after that PR is merged.
+
 ## Pi UI and Extension Rules
 
 - Interactive popups use `ctx.ui.custom`; do not intercept terminal input globally.

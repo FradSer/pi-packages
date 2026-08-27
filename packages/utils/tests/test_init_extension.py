@@ -59,7 +59,7 @@ console.log(JSON.stringify({{
         self.assertIn("do not add parent-file references", prompt)
         self.assertIn("@fradser/pi-kit", prompt)
 
-    def test_prompt_is_single_line_for_tui_wrapping(self) -> None:
+    def test_prompt_preserves_paragraphs_and_bullets_without_source_noise(self) -> None:
         script = f'''
 import {{ buildInitPrompt }} from {json.dumps(INIT_EXTENSION.as_uri())};
 console.log(JSON.stringify(buildInitPrompt("/tmp/example-repo")));
@@ -75,7 +75,10 @@ console.log(JSON.stringify(buildInitPrompt("/tmp/example-repo")));
         if result.returncode != 0:
             raise AssertionError(f"TypeScript execution failed:\n{result.stderr}")
         prompt = json.loads(result.stdout)
-        self.assertNotIn("\n", prompt)
+        self.assertIn("\n\n", prompt)
+        self.assertIn("- Find all existing AGENTS.md", prompt)
+        self.assertNotIn("\n ", prompt)
+        self.assertNotIn("\n\n\n", prompt)
         self.assertNotIn("\r", prompt)
 
         multiline_script = f'''
@@ -93,7 +96,7 @@ console.log(JSON.stringify(buildInitPrompt("/tmp/example-repo", "focus on\\nrele
         if multiline_result.returncode != 0:
             raise AssertionError(f"TypeScript execution failed:\n{multiline_result.stderr}")
         multiline_prompt = json.loads(multiline_result.stdout)
-        self.assertNotIn("\n", multiline_prompt)
+        self.assertIn("focus on release commands", multiline_prompt)
         self.assertNotIn("\r", multiline_prompt)
 
     def test_package_manifest_loads_extensions_directory(self) -> None:
