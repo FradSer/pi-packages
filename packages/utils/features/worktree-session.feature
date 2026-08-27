@@ -64,3 +64,9 @@ Feature: EnterWorktree and ExitWorktree session switching
     And the EnterWorktree row is `[worktree] enter · feature-auth`
     And the ExitWorktree row is `[worktree] exit · current worktree`
     And the row does not claim that the session transition is complete
+
+  Scenario: Worktree tool rows survive Pi's class-based Theme
+    Given a theme whose bg method reads instance state like Pi's built-in Theme class
+    When EnterWorktree or ExitWorktree renders a non-error result
+    Then rendering succeeds without losing the bg receiver
+    And detail rows are painted through the bound bg method

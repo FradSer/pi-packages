@@ -1,0 +1,5 @@
+---
+"@fradser/pi-agent-teams": minor
+---
+
+Deliver every teammate report to the leader: intermediate send_message(to="leader") reports now reach the leader as their own follow-up turn instead of parking in the console-only mailbox, and queued reports are never coalesced — one message, one leader turn, in arrival order, with an authored-at timestamp in the envelope. Leader-relevant harness events ride the same channel: clean-shutdown summaries, worktree diff notices (bounded preview plus branch retrieval command), and verify-gate escalations; task outcome notices and operational diagnostics stay console-log only to avoid double reporting. Worktree cleanup now commits remaining work onto the kept branch before removing the directory — previously the branch deletion destroyed uncommitted captured work — while failed-spawn teardown still deletes the empty branch. Worker guidance rations messages by value instead of throttling: every leader-bound message costs a full turn, bare status pings are forbidden.

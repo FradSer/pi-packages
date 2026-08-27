@@ -42,6 +42,8 @@ export interface Teammate {
   turns?: number;
   /** The child finished its current sequence and awaits the next prompt. */
   sequenceEnded?: boolean;
+  /** Leader reports are closed until a new prompt starts after a terminal report. */
+  reportSequenceEnded?: boolean;
   /** When the harness last sent a claimable-task notice to this teammate. */
   lastNoticeAt?: number;
   /** Claimable task ids already announced to this teammate; one notice per id until it re-arms. */
@@ -137,6 +139,8 @@ export interface WorkerReportEvent {
   spawnId: string;
   body: string;
   status?: "in_progress" | "completed" | "failed";
+  /** Wall-clock time the teammate wrote the event. */
+  timestamp?: number;
 }
 
 export type WorkerEvent = WorkerReportEvent;
@@ -150,7 +154,8 @@ export function isWorkerEvent(value: unknown): value is WorkerReportEvent {
     && typeof event.worker === "string"
     && typeof event.spawnId === "string"
     && typeof event.body === "string"
-    && (event.status === undefined || ["in_progress", "completed", "failed"].includes(event.status));
+    && (event.status === undefined || ["in_progress", "completed", "failed"].includes(event.status))
+    && (event.timestamp === undefined || (typeof event.timestamp === "number" && Number.isFinite(event.timestamp)));
 }
 
 /** Derive a display title from the first non-empty line of a message. */
@@ -180,7 +185,7 @@ export const TeammateSpawnParams = Type.Object({
   prompt: Type.Optional(Type.String({ description: "Optional kickoff prompt delivered as the teammate's first turn; omit to let it wait for messages or board claims" })),
   definition: Type.Optional(Type.Object({
     description: Type.String({ description: "Routing contract for the generated role" }),
-    tools: Type.Optional(Type.Array(Type.String(), { description: "Pi tool ids for the generated role" })),
+    tools: Type.Optional(Type.Array(Type.String(), { description: "Pi tool ids for the generated role; only pi built-ins (read, bash, edit, write, grep, find, ls, powershell) are grantable — teammates run without extensions, so MCP/extension ids fail the spawn" })),
     model: Type.Optional(Type.String({ description: 'Optional provider/model pin, or "inherit" to run on the leader\'s current model' })),
     verify: Type.Optional(Type.String({ description: "Role-default completion gate: a review prompt a fresh reviewer answers with VERDICT: PASS or FAIL" })),
     worktree: Type.Optional(Type.Boolean({ description: "Whether this role receives a dedicated Git worktree" })),
@@ -218,6 +223,7 @@ export const LEADER_RECIPIENT = "leader";
 export const SendMessageParams = Type.Object({
   to: Type.String({ minLength: 1, description: 'Recipient: a teammate name on the roster, or "leader" to report to the team leader' }),
   message: Type.String({ description: "Message content; the first line becomes the title shown in the console" }),
+  reopen: Type.Optional(Type.Boolean({ description: "Leader only: explicitly start a new assignment after the teammate reported completion" })),
   status: Type.Optional(Type.Union([
     Type.Literal("in_progress"),
     Type.Literal("completed"),

@@ -21,8 +21,9 @@ Read `snapshotPath` first. It is the immutable session-context input selected
 by the parent; the current AGENTS.md text is embedded in the task message and
 is authoritative for anchoring operations. Read the repository only to verify
 claims about files the session touched. Do not write, edit, delete, rename,
-or copy any file. The parent alone reviews each operation with the user,
-applies accepted edits atomically, records rejections, and writes receipts.
+or copy any file. The parent alone validates the plan, applies all surviving
+edits atomically, records receipts, and never asks the user to approve an
+individual operation.
 
 ## The training loop you are performing
 
@@ -44,12 +45,11 @@ Every operation MUST carry an `evidence` array citing at least one verbatim
 quote from the snapshot — copy the exact characters, including whitespace.
 Paraphrase belongs in `reason`, never in `quote`. The parent discards in code
 every quote that does not appear verbatim in the snapshot text; an operation
-whose quotes all fail verification is dropped without review.
+whose quotes all fail verification is dropped before the automatic application step.
 
 A `gap`-backed `addUnit` additionally needs batched evidence: cited verified
-occurrences totaling at least two within this session, or a `priorGap`
-fingerprint from the supplied rejection ledger showing the same gap was
-observed in an earlier run. Never propose a brand-new rule from one anecdote.
+occurrences totaling at least two within this session. Never propose a
+brand-new rule from one anecdote.
 
 Modifying or removing an existing unit needs one clear contradicting
 observation — but if the evidence is ambiguous, keep the unit.
@@ -60,7 +60,9 @@ At most five operations total. Each `oldText`, `newText`, `text`, and
 `anchor` stays under 4,000 characters and must match the embedded document
 exactly once when applied. If the simulated post-edit size would exceed
 `budgetBytes` while the current file already sits at or above it, your plan
-must be zero-sum: removals and extractions pay for every addition.
+must be zero-sum: removals and extractions pay for every addition. After these
+mechanical checks pass, the parent applies the plan autonomously without
+asking for confirmation or opening an interactive review step.
 
 ## Extraction routing
 
@@ -140,3 +142,6 @@ Evidence kinds are exactly `violation`, `wrong`, `unused`, and `gap`;
 exactly. An empty `operations` array (or an object without `operations`) is a
 valid verified no-op — propose nothing rather than manufacturing work. The
 plan describes intended work only; it is never proof that anything changed.
+After the parent verifies the plan's shape, evidence, anchors, and budget, it
+applies every surviving operation autonomously. There is no user confirmation
+step.

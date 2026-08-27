@@ -15,6 +15,14 @@ Feature: Session Recap
     Then a concise recap is generated
     And it is displayed above the editor with the format "✦ Recap: <summary>"
 
+  Scenario: First user prompt starts an immediate in-progress recap
+    Given a new TUI session with no previous recap
+    When the user submits their first prompt
+    Then recap generation starts before the agent turn settles
+    And the widget tells the user that work is being recapped
+    And the completed turn can later refresh the recap with its outcome
+    And settling the turn is not delayed by the in-progress recap
+
   Scenario: Recap is informative and scannable
     Given a raw model summary
     When cleaned and formatted
@@ -32,6 +40,12 @@ Feature: Session Recap
     When session_start fires on restart
     Then the latest persisted recap is restored directly to the widget
     And no new recap generation is triggered
+
+  Scenario: Session replacement cancels a pending first-prompt recap
+    Given the first-prompt recap is still generating in a TUI session
+    When a replacement session starts
+    Then the pending recap request is aborted
+    And its result cannot update the replacement session
 
   Scenario: Existing session without saved recap computes initial recap on startup
     Given a session with existing messages in history and no saved recap

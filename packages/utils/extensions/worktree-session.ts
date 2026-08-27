@@ -9,13 +9,14 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import {
+	keyHint,
 	type ExtensionAPI,
 	type ExtensionCommandContext,
 	type ExtensionContext,
 	type Theme,
 } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { Text, truncateToWidth } from "@earendil-works/pi-tui";
+import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
 	eventToolLifecycle,
 	formatToolErrorLine,
@@ -37,7 +38,7 @@ function worktreeToolText(result: WorktreeToolResult): string {
 function renderWorktreeToolResult(
 	result: WorktreeToolResult,
 	options: { expanded?: boolean },
-	theme: Pick<Theme, "bold" | "fg">,
+	theme: Pick<Theme, "bold" | "fg" | "bg">,
 	context: { isError?: boolean },
 	subject: string,
 ): { invalidate: () => void; render: (width: number) => string[] } | Text {
@@ -47,16 +48,19 @@ function renderWorktreeToolResult(
 	const separator = subject.indexOf(" ");
 	const action = separator === -1 ? subject : subject.slice(0, separator);
 	const target = separator === -1 ? "" : subject.slice(separator + 1);
-	const spec = eventToolLifecycle("worktree", target, { label: action });
+	const spec = eventToolLifecycle("worktree", target, {
+		label: action,
+		details: worktreeToolText(result).split("\n").map((line) => line.trim()).filter(Boolean),
+	});
 	return {
 		invalidate: () => {},
 		render: (width) => renderToolLifecycle(spec, {
 			width,
 			expanded: options.expanded,
-			titleStyle: (line) => theme.fg("toolTitle", theme.bold(line)),
-			detailStyle: (line) => theme.fg("customMessageText", line),
-			truncate: truncateToWidth,
-			line: (line) => line,
+			expandHint: keyHint("app.tools.expand", "to expand"),
+			theme,
+			fit: truncateToWidth,
+			visibleWidth,
 		}),
 	};
 }

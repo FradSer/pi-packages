@@ -7,10 +7,9 @@
  * add, or extract addressable units. The parent verifies every cited quote
  * verbatim against the snapshot text in code, simulates the resulting
  * document, enforces the byte budget (zero-sum growth at budget), and applies
- * ONLY the operations the user accepts in a per-operation review. Rejected
- * operations are remembered in a ledger so an unchanged proposal cannot come
- * back without new evidence. User-level instruction files are never touched,
- * and any failure here never touches applied memory or harness results.
+ * every operation that passes those gates autonomously. User-level
+ * instruction files are never touched, and any failure here never touches
+ * applied memory or harness results.
  */
 
 import fs from "node:fs/promises";
@@ -42,7 +41,7 @@ export const AGENTS_PLAN_KIND = "agents-md-consolidation-plan";
 export const MAX_AGENTS_MD_OPS = 5;
 /** Refuse to plan against absurd instruction files. */
 export const MAX_AGENTS_MD_FILE_BYTES = 262_144;
-/** One addressed unit stays reviewable. */
+/** One addressed unit stays bounded and auditable. */
 export const MAX_UNIT_TEXT_CHARS = 4_000;
 export const MAX_EXTRACT_PROMPT_CHARS = 2_000;
 /** Default always-loaded budget (~4k English tokens by the common bytes/4
@@ -51,9 +50,7 @@ export const MAX_EXTRACT_PROMPT_CHARS = 2_000;
  * the first 25KB of MEMORY.md. Configurable per project. */
 export const DEFAULT_AGENTS_MD_BUDGET_BYTES = 16_384;
 export const MIN_BUDGET_BYTES = 2_048;
-export const MAX_LEDGER_ENTRIES = 512;
 const AGENTS_PHASE_TIMEOUT_MS = 15 * 60 * 1000;
-const LEDGER_FILENAME = "consolidate-agents-rejections.json";
 
 export type AgentsOpKind = "rewriteUnit" | "removeUnit" | "addUnit" | "extractUnit";
 export type EvidenceKind = "violation" | "wrong" | "unused" | "gap";
@@ -94,7 +91,6 @@ export interface AgentsOp {
   rationale?: string;
   extraction?: Extraction;
   evidence: AgentsEvidence[];
-  priorGap?: string;
 }
 
 export interface AgentsPlan {
@@ -106,15 +102,6 @@ export interface AgentsPlan {
   artifactHash?: string;
   operations?: unknown;
   report?: unknown;
-}
-
-export interface AgentsRejectionEntry {
-  fingerprint: string;
-  runId: string;
-  op: AgentsOpKind;
-  summary: string;
-  evidenceQuotes: string[];
-  rejectedAt: string;
 }
 
 function boundedString(value: unknown, max: number): value is string {
@@ -211,7 +198,6 @@ function coerceOperation(raw: unknown, label: string, errors: string[]): AgentsO
     evidence,
     ...(typeof record.reason === "string" ? { reason: record.reason.slice(0, 500) } : {}),
     ...(typeof record.rationale === "string" ? { rationale: record.rationale.slice(0, 500) } : {}),
-    ...(typeof record.priorGap === "string" && /^[0-9a-f]{16,64}$/i.test(record.priorGap) ? { priorGap: record.priorGap.toLowerCase() } : {}),
   };
   if (op === "addUnit") {
     if (!boundedString(record.text, MAX_UNIT_TEXT_CHARS)) {
@@ -317,23 +303,18 @@ export function verifyPlanQuotes(operations: readonly AgentsOp[], snapshotText: 
 }
 
 /** Batched-evidence gate for brand-new units: at least two DISTINCT verified
- * quotes, or one quote observed at least twice — planner-supplied occurrence
- * counts never stack across duplicate quotes. A recorded prior-gap
- * fingerprint from the rejection ledger is the cross-run alternative. */
-export function addUnitEvidenceSufficient(op: AgentsOp, knownPriorGaps: ReadonlySet<string>): boolean {
+ * quotes, or one quote observed at least twice. Planner-supplied occurrence
+ * counts never stack across duplicate quotes. */
+export function addUnitEvidenceSufficient(op: AgentsOp): boolean {
   if (op.op !== "addUnit") return true;
-  if (op.priorGap && knownPriorGaps.has(op.priorGap)) return true;
   const byQuote = new Map<string, number>();
   for (const entry of op.evidence) {
     const key = entry.quote.replace(/\s+/g, " ").trim();
-    const prev = byQuote.get(key) ?? 0;
-    byQuote.set(key, Math.max(prev, entry.occurrences ?? 1));
+    const previous = byQuote.get(key) ?? 0;
+    byQuote.set(key, Math.max(previous, entry.occurrences ?? 1));
   }
   if (byQuote.size >= 2) return true;
-  for (const occurrences of byQuote.values()) {
-    if (occurrences >= 2) return true;
-  }
-  return false;
+  return [...byQuote.values()].some((occurrences) => occurrences >= 2);
 }
 
 export function fingerprintOp(op: AgentsOp): string {
@@ -402,64 +383,6 @@ export function budgetAllows(preBytes: number, postBytes: number, budgetBytes: n
   return postBytes <= Math.max(preBytes, budgetBytes);
 }
 
-function rejectionLedgerPath(harnessDir: string): string {
-  return path.join(harnessDir, LEDGER_FILENAME);
-}
-
-export async function loadAgentsRejections(harnessDir: string): Promise<AgentsRejectionEntry[]> {
-  try {
-    const raw = await fs.readFile(rejectionLedgerPath(harnessDir), "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((entry): entry is AgentsRejectionEntry => {
-      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
-      const record = entry as Partial<AgentsRejectionEntry>;
-      return typeof record.fingerprint === "string"
-        && typeof record.runId === "string"
-        && typeof record.summary === "string"
-        && Array.isArray(record.evidenceQuotes)
-        && typeof record.rejectedAt === "string";
-    }).slice(-MAX_LEDGER_ENTRIES);
-  } catch {
-    return [];
-  }
-}
-
-export async function recordAgentsRejections(harnessDir: string, entries: readonly AgentsRejectionEntry[]): Promise<void> {
-  if (entries.length === 0) return;
-  const prior = await loadAgentsRejections(harnessDir);
-  const seen = new Set(prior.map((entry) => entry.fingerprint));
-  const fresh = entries.filter((entry) => !seen.has(entry.fingerprint));
-  const merged = [...prior, ...fresh].slice(-MAX_LEDGER_ENTRIES);
-  await writeFileAtomic(rejectionLedgerPath(harnessDir), `${JSON.stringify(merged, null, 1)}\n`, 0o600);
-}
-
-/** Drop repeat proposals: same fingerprint with no new evidence quote is a
- * rejected idea coming back unchanged. Individual drops keep good ops alive. */
-export function filterLedgerBlocked(
-  operations: readonly AgentsOp[],
-  verifiedQuotes: readonly string[][],
-  ledger: readonly AgentsRejectionEntry[],
-): { kept: Array<{ index: number; op: AgentsOp; verifiedQuotes: string[] }>; blocked: number[] } {
-  const byFingerprint = new Map(ledger.map((entry) => [entry.fingerprint, entry]));
-  const kept: Array<{ index: number; op: AgentsOp; verifiedQuotes: string[] }> = [];
-  const blocked: number[] = [];
-  for (const [originalIndex, op] of operations.entries()) {
-    const quotes = verifiedQuotes[originalIndex] ?? [];
-    const entry = byFingerprint.get(fingerprintOp(op));
-    if (entry) {
-      const storedQuotes = new Set(entry.evidenceQuotes);
-      const hasNewEvidence = quotes.some((quote) => !storedQuotes.has(quote));
-      if (!hasNewEvidence) {
-        blocked.push(originalIndex);
-        continue;
-      }
-    }
-    kept.push({ index: originalIndex, op, verifiedQuotes: quotes });
-  }
-  return { kept, blocked };
-}
-
 /** The consolidation target is exactly <cwd>/AGENTS.md. When that path would
  * resolve — lexically or through symlinks — to the user-level agent
  * instructions, it must never be touched. */
@@ -499,35 +422,12 @@ export function resolveAgentsTargetFile(cwd: string, agentDir: string): AgentsTa
   return { path: target };
 }
 
-function truncateForPreview(text: string, max = 240): string {
-  const collapsed = text.replace(/\s+$/g, "");
-  return collapsed.length <= max ? collapsed : `${collapsed.slice(0, max)}… (+${collapsed.length - max} chars)`;
-}
-
-export function formatOpPreview(op: AgentsOp): string {
-  switch (op.op) {
-    case "rewriteUnit":
-      return `- old: ${truncateForPreview(op.oldText ?? "")}\n  new: ${truncateForPreview(op.newText ?? "")}`;
-    case "removeUnit":
-      return `- remove: ${truncateForPreview(op.oldText ?? "")}`;
-    case "addUnit":
-      return op.anchor !== undefined
-        ? `- add ${op.position} anchor ${truncateForPreview(op.anchor, 80)}:\n  ${truncateForPreview(op.text ?? "")}`
-        : `- append:\n  ${truncateForPreview(op.text ?? "")}`;
-    case "extractUnit":
-      return op.extraction?.target === "skillPrompt"
-        ? `- extract to skillPrompt ${op.extraction.skillName}: ${truncateForPreview(op.oldText ?? "", 160)}`
-        : `- extract to memory ${op.extraction?.memoryName ?? "?"}: ${truncateForPreview(op.oldText ?? "", 160)}`;
-  }
-}
-
 interface PhaseOpts {
   pkgDir: string;
   cwd: string;
   reason: string;
   budgetBytes: number;
   disabled: boolean;
-  hasUI: boolean;
 }
 
 async function readRegularFileIfExists(filePath: string, maxBytes: number): Promise<Buffer | null> {
@@ -548,10 +448,6 @@ async function readSnapshotText(run: ConsolidationRun): Promise<string> {
   } catch {
     return "";
   }
-}
-
-function buildRecentLedgerLines(ledger: readonly AgentsRejectionEntry[]): string[] {
-  return ledger.slice(-32).map((entry) => `- ${entry.fingerprint.slice(0, 16)} ${entry.op}: ${entry.summary}`.slice(0, 200));
 }
 
 /** Third pipeline phase. Requires an already-completed memory phase (the
@@ -600,7 +496,6 @@ export async function runAgentsMdConsolidationPhase(
     const preBytes = docBytes.byteLength;
     const doc = docBytes.toString("utf8");
     const snapshotText = await readSnapshotText(run);
-    const ledger = await loadAgentsRejections(run.manifest.harnessDir);
     const cli = resolvePiCli();
     if (!cli) throw new Error("could not resolve the Pi CLI");
     let procedure = (
@@ -622,8 +517,6 @@ export async function runAgentsMdConsolidationPhase(
       `- Artifact/snapshot digest: ${run.manifest.snapshotDigest}`,
       `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
       `- Budget bytes: ${opts.budgetBytes}`,
-      `- Prior-gap fingerprints already recorded (do not re-propose without new evidence):`,
-      ...(buildRecentLedgerLines(ledger).length > 0 ? buildRecentLedgerLines(ledger) : ["- (none)"]),
       `- Current AGENTS.md (${preBytes} bytes), authoritative for anchoring operations:`,
       "<<<AGENTS.MD>>>",
       doc,
@@ -704,23 +597,14 @@ export async function runAgentsMdConsolidationPhase(
       return;
     }
     const quoteCheck = verifyPlanQuotes(shape.operations, snapshotText);
-    const knownPriorGaps = new Set(ledger.map((entry) => entry.fingerprint));
-    const surviving = quoteCheck.operations
-      .map((op, i) => ({ op, quotes: quoteCheck.verifiedQuotes[i] }))
-      .filter(({ op }) => addUnitEvidenceSufficient(op, knownPriorGaps));
-    const ledgerFilter = filterLedgerBlocked(
-      surviving.map((entry) => entry.op),
-      surviving.map((entry) => entry.quotes),
-      ledger,
-    );
-    const candidateOps = ledgerFilter.kept;
-    const droppedCount = quoteCheck.dropped.length + ledgerFilter.blocked.length;
+    const candidateOps = quoteCheck.operations.filter((op) => addUnitEvidenceSufficient(op));
+    const droppedCount = quoteCheck.dropped.length + quoteCheck.operations.length - candidateOps.length;
     if (candidateOps.length === 0) {
       await writeFileAtomic(path.join(run.manifest.runDir, "agents-noop.txt"), "verified no-op\n").catch(() => {});
       ctx.ui.notify(`AGENTS.md consolidation: verified no-op${droppedCount > 0 ? ` (${droppedCount} operation(s) failed evidence gates)` : ""}.`, "info");
       return;
     }
-    const ops = candidateOps.map((entry) => entry.op);
+    const ops = candidateOps;
     const simulated = simulateAgentsOps(doc, ops);
     if (!simulated.ok) {
       ctx.ui.notify(`AGENTS.md plan rejected during simulation: ${simulated.error.slice(-300)}`, "warning");
@@ -731,65 +615,14 @@ export async function runAgentsMdConsolidationPhase(
       return;
     }
 
-    // Per-operation human review gates the write.
-    const accepted: AgentsOp[] = [];
-    const rejected: AgentsOp[] = [];
-    const rejectedQuotes: string[][] = [];
-    if (opts.hasUI) {
-      let stop = false;
-      for (const [i, op] of ops.entries()) {
-        if (stop) break;
-        const choice = await ctx.ui.select(
-          `AGENTS.md change ${i + 1}/${ops.length}\n${formatOpPreview(op)}\n\nApply this change?`,
-          ["Accept", "Reject", "Stop reviewing"],
-        );
-        if (choice === undefined || choice === "Stop reviewing") { stop = true; break; }
-        if (choice === "Accept") accepted.push(op);
-        else {
-          rejected.push(op);
-          rejectedQuotes.push(candidateOps[i].verifiedQuotes);
-        }
-      }
-    }
-
+    // Structural, evidence, simulation, and budget checks are the complete
+    // safety gate. Validated operations apply without an interactive prompt.
     const planDigest = sha256Digest(JSON.stringify(rawPlan));
     const digestBefore = docBytes.toString("base64");
-    if (accepted.length === 0) {
-      await recordAgentsRejections(run.manifest.harnessDir, rejected.map((op, i) => ({
-        fingerprint: fingerprintOp(op),
-        runId: run.manifest.runId,
-        op: op.op,
-        summary: (op.reason ?? op.rationale ?? formatOpPreview(op)).replace(/\s+/g, " ").slice(0, 160),
-        evidenceQuotes: rejectedQuotes[i] ?? [],
-        rejectedAt: new Date().toISOString(),
-      })));
-      const stopEarly = opts.hasUI && rejected.length === 0;
-      await writeFileAtomic(path.join(run.manifest.runDir, "agents-post-receipt.json"), `${JSON.stringify({
-        kind: "agents-md-consolidation-receipt",
-        phase: "post",
-        runId: run.manifest.runId,
-        scopeDigest: run.manifest.scopeDigest,
-        snapshotDigest: run.manifest.snapshotDigest,
-        targetFile: targetPath,
-        accepted: [],
-        rejected: rejected.length,
-        planDigest,
-        note: !opts.hasUI
-          ? "review requires a TUI; nothing written"
-          : stopEarly
-            ? "review stopped before every operation was decided; nothing written"
-            : "all reviewed operations were rejected; nothing written",
-      }, null, 2)}\n`).catch(() => {});
-      ctx.ui.notify(opts.hasUI
-        ? `AGENTS.md consolidation: no changes applied (${rejected.length} rejected).`
-        : `AGENTS.md consolidation proposed ${ops.length} change(s); interactive review needs a TUI, so nothing was written.`,
-        "info");
-      return;
-    }
 
-    const resimulated = simulateAgentsOps(doc, accepted);
+    const resimulated = simulateAgentsOps(doc, ops);
     if (!resimulated.ok || !budgetAllows(preBytes, Buffer.byteLength(resimulated.doc, "utf8"), opts.budgetBytes)) {
-      ctx.ui.notify("AGENTS.md accepted subset failed re-validation; nothing was written.", "warning");
+      ctx.ui.notify("AGENTS.md plan failed re-validation; nothing was written.", "warning");
       return;
     }
 
@@ -798,7 +631,7 @@ export async function runAgentsMdConsolidationPhase(
     // on the next run) instead of a removed unit without one.
     const harnessOps: HarnessOp[] = [];
     const extractionNotes: string[] = [];
-    for (const op of accepted) {
+    for (const op of ops) {
       if (op.op !== "extractUnit" || !op.extraction) continue;
       if (op.extraction.target === "skillPrompt") {
         harnessOps.push({ op: "addSkillPrompt", name: op.extraction.skillName, prompt: op.extraction.prompt, target: op.extraction.promptTarget });
@@ -851,22 +684,13 @@ export async function runAgentsMdConsolidationPhase(
       digestAfter: afterBytes.toString("base64"),
       sha256Before: sha256Digest(docBytes),
       sha256After: sha256Digest(afterBytes),
-      accepted: accepted.map((op) => ({ op: op.op, fingerprint: fingerprintOp(op) })),
-      rejected: rejected.map((op) => ({ op: op.op, fingerprint: fingerprintOp(op) })),
+      applied: ops.map((op) => ({ op: op.op, fingerprint: fingerprintOp(op) })),
+      rejected: [],
       extractions: extractionNotes,
       planDigest,
     };
     await writeFileAtomic(path.join(run.manifest.runDir, "agents-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`).catch(() => {});
-    await recordAgentsRejections(run.manifest.harnessDir, rejected.map((op, i) => ({
-      fingerprint: fingerprintOp(op),
-      runId: run.manifest.runId,
-      op: op.op,
-      summary: (op.reason ?? op.rationale ?? formatOpPreview(op)).replace(/\s+/g, " ").slice(0, 160),
-      evidenceQuotes: rejectedQuotes[i] ?? [],
-      rejectedAt: new Date().toISOString(),
-    })));
-    const parts = [`${accepted.length} edit(s) applied`];
-    if (rejected.length > 0) parts.push(`${rejected.length} rejected`);
+    const parts = [`${ops.length} edit(s) applied`];
     if (extractionNotes.length > 0) parts.push(`extractions: ${extractionNotes.join(", ")}`);
     ctx.ui.notify(`AGENTS.md consolidated: ${parts.join(" · ")} (${path.basename(targetPath)}).`, "info");
   } catch (err) {

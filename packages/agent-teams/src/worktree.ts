@@ -4,7 +4,8 @@
  *
  * Layout: `<repoRoot>/.pi/worktrees/teammate-<taskId>/`, branch
  * `teammate/<taskId>`. On completion the worker's diff is captured against
- * the base commit, then the worktree and branch are removed.
+ * the base commit, then the worktree directory is removed while the branch
+ * stays so captured work remains retrievable.
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -104,15 +105,50 @@ export function captureWorktreeDiff(setup: WorktreeSetup): WorktreeDiffResult {
 }
 
 /**
- * Remove the worktree and its branch. Errors are returned rather than thrown
- * so task completion is never blocked by cleanup failure.
+ * Commit any remaining worktree changes onto the branch. Staging alone dies
+ * with the worktree directory; only a commit makes the kept branch carry the
+ * captured work. A clean tree succeeds without a commit.
  */
-export function cleanupWorktree(setup: WorktreeSetup): { ok: boolean; error?: string } {
-  const remove = runGit(setup.repoRoot, ["worktree", "remove", "--force", setup.path]);
-  const branch = runGit(setup.repoRoot, ["branch", "-D", setup.branch]);
+function commitRemainingWork(setup: WorktreeSetup): { ok: boolean; error?: string } {
+  const add = runGit(setup.path, ["add", "-A"]);
+  if (add.status !== 0) return { ok: false, error: add.stderr.trim() || "git add failed" };
+  const result = spawnSync("git", ["-C", setup.path, "commit", "-m", "agent-teams: capture teammate work"], { encoding: "utf-8" });
+  if (result.status === 0) return { ok: true };
+  const output = `${result.stderr ?? ""}${result.stdout ?? ""}`;
+  if (/nothing to commit/i.test(output)) return { ok: true };
+  return { ok: false, error: output.trim() || "git commit failed" };
+}
+
+/**
+ * Remove the worktree directory but keep the branch: remaining changes are
+ * committed first so the captured diff stays retrievable with
+ * `git diff <baseCommit>..<branch>` after cleanup. Pass `{ deleteBranch: true }`
+ * for teardowns where no work was captured (a failed spawn). When the commit
+ * fails in keep-branch mode the directory is PRESERVED and returned in the
+ * error — removing it would destroy the only copy of the work. Errors are
+ * returned rather than thrown so task completion is never blocked by cleanup
+ * failure.
+ */
+export function cleanupWorktree(
+  setup: WorktreeSetup,
+  options?: { deleteBranch?: boolean },
+): { ok: boolean; error?: string } {
   const errors: string[] = [];
+  if (!options?.deleteBranch) {
+    const commit = commitRemainingWork(setup);
+    if (!commit.ok) {
+      return {
+        ok: false,
+        error: `commit: ${commit.error}; worktree left in place at ${setup.path} so the work is not lost`,
+      };
+    }
+  }
+  const remove = runGit(setup.repoRoot, ["worktree", "remove", "--force", setup.path]);
   if (remove.status !== 0) errors.push(`worktree remove: ${remove.stderr.trim()}`);
-  if (branch.status !== 0) errors.push(`branch delete: ${branch.stderr.trim()}`);
+  if (options?.deleteBranch) {
+    const branch = runGit(setup.repoRoot, ["branch", "-D", setup.branch]);
+    if (branch.status !== 0) errors.push(`branch delete: ${branch.stderr.trim()}`);
+  }
   try {
     runGit(setup.repoRoot, ["worktree", "prune"]);
   } catch {
@@ -121,7 +157,8 @@ export function cleanupWorktree(setup: WorktreeSetup): { ok: boolean; error?: st
   return errors.length > 0 ? { ok: false, error: errors.join("; ") } : { ok: true };
 }
 
-/** Best-effort cleanup used when a spawn fails before the worker starts. */
+/** Best-effort cleanup used when a spawn fails before the worker starts:
+ *  nothing was captured, so the empty branch goes too. */
 export function discardWorktree(setup: WorktreeSetup): void {
-  cleanupWorktree(setup);
+  cleanupWorktree(setup, { deleteBranch: true });
 }

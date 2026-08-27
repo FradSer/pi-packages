@@ -15,9 +15,9 @@ import { resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
 import { registerLeaderTools, registerTeamCommand } from "./tools.ts";
 import { registerWorkerCapabilities, workerBinding } from "./worker.ts";
-import { eventToolLifecycle, formatAgentMessagePrefix, formatExpandHint, renderToolLifecycle } from "@fradser/pi-kit";
-import { FollowUpQueue, groupReportsByTeammate, TEAMMATE_REPORT_MESSAGE_TYPE, type FollowUpReport } from "./follow-up-queue.ts";
-import { Box, Markdown, Text, truncateToWidth } from "@earendil-works/pi-tui";
+import { agentColor, eventToolLifecycle, formatAgentMessagePrefix, renderAgentMessageBand, renderToolLifecycle } from "@fradser/pi-kit";
+import { FollowUpQueue, groupReportsByTeammate, TEAMMATE_HARNESS_MESSAGE_TYPE, TEAMMATE_REPORT_MESSAGE_TYPE, type FollowUpReport } from "./follow-up-queue.ts";
+import { Box, Markdown, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 const STATE_DIR_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -25,15 +25,8 @@ let leaderPi: ExtensionAPI | undefined;
 let leaderCtx: ExtensionContext | undefined;
 let followUpQueue: FollowUpQueue | undefined;
 
-const REPORT_COLORS = ["success", "warning", "error", "mdLink"] as const;
 export const TEAMMATE_FINISHED_ENTRY_TYPE = "agent-teams-teammate-finished";
 export const TEAMMATE_HEALTH_MESSAGE_TYPE = "agent-teams-health";
-
-function reportColor(name: string): (typeof REPORT_COLORS)[number] {
-  let hash = 0;
-  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) | 0;
-  return REPORT_COLORS[Math.abs(hash) % REPORT_COLORS.length];
-}
 
 function sendMainSessionFollowUp(report: FollowUpReport): void {
   followUpQueue?.enqueue(report);
@@ -42,6 +35,11 @@ function sendMainSessionFollowUp(report: FollowUpReport): void {
 function extractHealthReport(details: unknown): FollowUpReport | undefined {
   const report = details as FollowUpReport | undefined;
   return report?.health?.state === "stalled" ? report : undefined;
+}
+
+function extractHarnessReport(details: unknown): FollowUpReport | undefined {
+  const report = details as FollowUpReport | undefined;
+  return report?.origin === "harness" || report?.harnessEvent ? report : undefined;
 }
 
 export default function (pi: ExtensionAPI) {
@@ -71,11 +69,31 @@ export default function (pi: ExtensionAPI) {
       render: (width: number) => renderToolLifecycle(spec, {
         width,
         expanded,
-        expandHint: formatExpandHint(keyHint("app.tools.expand", "to expand"), theme),
-        titleStyle: (line) => theme.fg("customMessageLabel", theme.bold(line)),
-        detailStyle: (line) => theme.fg("customMessageText", line),
-        truncate: truncateToWidth,
-        line: (line) => line,
+        expandHint: keyHint("app.tools.expand", "to expand"),
+        theme,
+        fit: truncateToWidth,
+        visibleWidth,
+      }),
+      invalidate: () => {},
+    };
+  });
+  pi.registerMessageRenderer(TEAMMATE_HARNESS_MESSAGE_TYPE, (message, { expanded }, theme) => {
+    const report = extractHarnessReport(message.details);
+    if (!report) return new Text(String(message.content), 0, 0);
+    const event = report.harnessEvent;
+    const spec = eventToolLifecycle(
+      "agent",
+      event?.subject ?? "Agent Teams event",
+      { details: report.body.split("\n").filter((line) => line.trim()) },
+    );
+    return {
+      render: (width: number) => renderToolLifecycle(spec, {
+        width,
+        expanded,
+        expandHint: keyHint("app.tools.expand", "to expand"),
+        theme,
+        fit: truncateToWidth,
+        visibleWidth,
       }),
       invalidate: () => {},
     };
@@ -89,18 +107,15 @@ export default function (pi: ExtensionAPI) {
     }
     if (!expanded) {
       const groups = groupReportsByTeammate(reports);
-      const hint = formatExpandHint(keyHint("app.tools.expand", "to expand"), theme);
-      for (const group of groups) {
-        const prefix = theme.fg("customMessageLabel", theme.bold(formatAgentMessagePrefix("from", group.reports.length)));
-        const name = theme.fg(reportColor(group.teammate), `@${group.teammate}`);
-        box.addChild(new Text(`${prefix}${name}${hint}`, 0, 0));
-      }
-      return box;
+      return renderAgentMessageBand(
+        groups.map((group) => ({ direction: "from", teammate: group.teammate, count: group.reports.length })),
+        { theme, fit: truncateToWidth, expandHint: keyHint("app.tools.expand", "to expand") },
+      );
     }
     for (const [index, report] of reports.entries()) {
       const teammate = report.teammate ?? report.agent ?? "teammate";
       const prefix = theme.fg("customMessageLabel", theme.bold(formatAgentMessagePrefix("from")));
-      const name = theme.fg(reportColor(teammate), `@${teammate}`);
+      const name = theme.fg(agentColor(teammate), `@${teammate}`);
       box.addChild(new Text(`${prefix}${name}`, 0, 0));
       box.addChild(new Markdown(report.body, 0, 0, getMarkdownTheme(), {
         color: (text) => theme.fg("customMessageText", text),
@@ -135,7 +150,11 @@ export default function (pi: ExtensionAPI) {
       dispatch: (reports, content) => leaderPi?.sendMessage({
         customType: reports.length === 1 && reports[0]?.health
           ? TEAMMATE_HEALTH_MESSAGE_TYPE
-          : TEAMMATE_REPORT_MESSAGE_TYPE,
+          : reports.length === 1 && (reports[0]?.origin === "harness" || reports[0]?.harnessEvent)
+            ? TEAMMATE_HARNESS_MESSAGE_TYPE
+            : TEAMMATE_REPORT_MESSAGE_TYPE,
+        // Health remains a compact diagnostic for its dedicated renderer;
+        // other harness events retain their explicit envelope in model context.
         content: reports.length === 1 && reports[0]?.health ? reports[0].body : content,
         display: true,
         details: reports.length === 1 ? reports[0] : { reports },

@@ -1,5 +1,5 @@
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { eventToolLifecycle, formatAgentTaskName, startedToolLifecycle } from "@fradser/pi-kit";
+import { detailField, eventToolLifecycle, formatAgentTaskName, startedToolLifecycle } from "@fradser/pi-kit";
 import {
   createBoardTask,
   formatBoardTaskCreation,
@@ -10,17 +10,29 @@ import {
   shutdownTeammate,
   spawnTeammate,
 } from "./team-machine.ts";
-import { listTasks, livingTeammates, getTeammate } from "./state.ts";
+import { listTasks, livingTeammates } from "./state.ts";
 import { LEADER_RECIPIENT, SendMessageParams, TeammateShutdownParams, TeammateSpawnParams, TaskCreateParams } from "./types.ts";
 import { registerTaskListTool } from "./worker.ts";
 import { openTeamConsole, refreshTeamUI } from "./ui.ts";
 import { discoverAgents } from "./agents.ts";
-import { emptyToolCall, renderLifecycleResult, resultDetails } from "./tool-render.ts";
+import { emptyToolCall, renderLifecycleResult } from "./tool-render.ts";
 
 function rosterSummary(): string {
   const alive = livingTeammates();
   if (alive.length === 0) return "No living teammates.";
   return alive.map((t) => `@${t.name} (${t.agent}, ${t.status}${t.currentTaskId ? `, task ${t.currentTaskId}` : ""})`).join("\n");
+}
+
+function spawnAssignment(params: { name: string; agent: string; prompt?: string }): string {
+  const prompt = params.prompt?.trim();
+  if (!prompt) return "check task board";
+  const normalizedPrompt = prompt.replace(/^@/, "").trim().toLowerCase();
+  const name = params.name.replace(/^@/, "").toLowerCase();
+  const agent = params.agent.replace(/^@/, "").toLowerCase();
+  if (normalizedPrompt === name || normalizedPrompt === agent) {
+    return "check task board";
+  }
+  return formatAgentTaskName(prompt, "check task board");
 }
 
 export function registerLeaderTools(pi: ExtensionAPI): void {
@@ -35,26 +47,26 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     renderShell: "self",
     renderCall: emptyToolCall,
     renderResult(result, options, theme, context) {
-      const params = context.args as { name: string; prompt?: string };
-      const details = result.details as { started?: boolean; tools?: string[] } | undefined;
-      const tools = details?.tools;
-      const toolsNote = tools?.length ? ` · tools: ${tools.join(", ")}` : "";
-      return renderLifecycleResult(result, options, theme, context, startedToolLifecycle(
-        "agent",
-        `@${params.name} · ${formatAgentTaskName(params.prompt ?? "", params.name)}${toolsNote}`,
-      ));
+      const params = context.args as { name: string; agent: string; prompt?: string };
+      const assignment = spawnAssignment(params);
+      return renderLifecycleResult(
+        result,
+        options,
+        theme,
+        context,
+        startedToolLifecycle("agent", `@${params.name} started · ${assignment}`),
+      );
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = spawnTeammate(params);
       if (!result.ok) throw new Error(result.error);
       refreshTeamUI(ctx);
-      const granted = getTeammate(params.name)?.tools ?? [];
       const kickoffNote = params.prompt?.trim()
         ? "It received your kickoff prompt and is working on it."
         : "It received the standard board-check kickoff and is running its first turn; it idles once that settles.";
       return {
-        content: [{ type: "text", text: `@${params.name} is alive as ${params.agent} (tools: ${granted.join(", ")}).\n${kickoffNote}\n\n${rosterSummary()}` }],
-        details: { started: true, tools: granted },
+        content: [{ type: "text", text: `@${params.name} is alive as ${params.agent}.\n${kickoffNote}\n\n${rosterSummary()}` }],
+        details: { started: true },
       };
     },
   });
@@ -75,7 +87,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
         "agent",
         `@${name} shut down`,
-        { details: resultDetails(result) },
+        {},
       ));
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -98,8 +110,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     renderCall: emptyToolCall,
     renderResult(result, options, theme, context) {
       const to = String((context.args as { to?: string }).to ?? "");
-      const details = result.details as { outcome?: "steered" | "queued" } | undefined;
-      const outcome = details?.outcome ?? "queued";
+      const outcome = detailField<"steered" | "queued">(result.details, "outcome") ?? "queued";
       return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
         "message",
         outcome,
@@ -108,7 +119,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     },
     async execute(_toolCallId, params) {
       if (params.to === LEADER_RECIPIENT) throw new Error('The leader cannot send a message to itself.');
-      const result = sendLeaderMessage(params.to, params.message);
+      const result = sendLeaderMessage(params.to, params.message, { reopen: params.reopen });
       if (!result.ok) throw new Error(result.error);
       const action = result.outcome === "steered"
         ? "active control stream accepted the steer"

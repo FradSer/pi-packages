@@ -1,16 +1,30 @@
 export const TEAMMATE_REPORT_MESSAGE_TYPE = "agent-teams-report";
+export const TEAMMATE_HARNESS_MESSAGE_TYPE = "agent-teams-harness";
 
 export interface FollowUpReport {
   teammate?: string;
   agent?: string;
   spawnId?: string;
   body: string;
+  /** Worker-authored reports are the default; harness events use a separate envelope. */
+  origin?: "teammate" | "harness";
+  harnessEvent?: {
+    type: string;
+    subject: string;
+  };
   finished?: boolean;
+  /** Original append-only outbox event identifier, retained for session forensics. */
+  eventId?: string;
+  /** Original worker status, including omitted status, retained for session forensics. */
+  status?: "in_progress" | "completed" | "failed";
   health?: {
     state: "stalled";
     silenceMs: number;
   };
   runId?: string;
+  /** Wall-clock time the message was authored; rendered in the envelope so a
+   *  report delivered after a busy period keeps its original timestamp. */
+  timestamp?: number;
 }
 
 export interface FollowUpReportGroup {
@@ -26,6 +40,10 @@ export function groupReportsByTeammate(reports: FollowUpReport[]): FollowUpRepor
       groups.set(`health:${groups.size}:${teammate}`, { teammate, reports: [report] });
       continue;
     }
+    if (report.origin === "harness" || report.harnessEvent) {
+      groups.set(`harness:${groups.size}:${teammate}`, { teammate, reports: [report] });
+      continue;
+    }
     const key = `message:${teammate}`;
     const group = groups.get(key);
     if (group) {
@@ -35,10 +53,6 @@ export function groupReportsByTeammate(reports: FollowUpReport[]): FollowUpRepor
     }
   }
   return [...groups.values()];
-}
-
-export function splitReportsByTeammate(reports: FollowUpReport[]): FollowUpReport[][] {
-  return groupReportsByTeammate(reports).map((group) => group.reports);
 }
 
 export interface FollowUpQueueOptions {
@@ -68,11 +82,13 @@ interface PendingDispatch {
 }
 
 /**
- * Serializes automatic reports sent through Pi's void sendUserMessage API.
+ * Serializes automatic reports sent through Pi's void sendMessage API.
  *
  * The API reports asynchronous preflight failures through the runtime error
  * channel, so this queue uses agent lifecycle events for success and a bounded
- * watchdog for attempts that never reach agent_start.
+ * watchdog for attempts that never reach agent_start. A report arriving during
+ * an active leader run is dispatched to Pi's native follow-up queue; this
+ * queue still serializes later reports until that run settles.
  */
 export class FollowUpQueue {
   private readonly isIdle: FollowUpQueueOptions["isIdle"];
@@ -159,19 +175,13 @@ export class FollowUpQueue {
   }
 
   private pump(): void {
-    if (this.active || this.retryTimer || this.pending.length === 0 || !this.isIdle()) return;
+    if (this.active || this.retryTimer || this.pending.length === 0) return;
     const first = this.pending.shift();
     if (!first) return;
-    const batches = first.retrying ? [first] : [first, ...this.pending.splice(0)];
-    const allReports = batches.flatMap((batch) => batch.reports);
-    const groups = groupReportsByTeammate(allReports);
-    const reports = groups[0]?.reports ?? [];
-    const remainingGroups = groups.slice(1).map((group) => ({
-      reports: group.reports,
-      attempts: 0,
-      retrying: false,
-    }));
-    if (remainingGroups.length > 0) this.pending.unshift(...remainingGroups);
+    // One report per dispatch: every teammate-authored message becomes its own
+    // leader turn, in arrival order. Coalescing would blur when each message
+    // was sent and what the leader was expected to do about each one.
+    const reports = first.reports;
     const content = formatReports(reports);
     const queuedIntoActiveRun = !this.isIdle();
     this.active = {
@@ -235,9 +245,18 @@ export class FollowUpQueue {
 
 export function formatReports(reports: FollowUpReport[]): string {
   return reports
-    .map(({ teammate, body }) => {
+    .map((report) => {
+      const { teammate, body, timestamp, origin, harnessEvent } = report;
+      const at = timestamp !== undefined && Number.isFinite(timestamp)
+        ? ` at="${new Date(timestamp).toISOString()}"`
+        : "";
+      if (origin === "harness" || harnessEvent) {
+        const type = escapeAttribute(harnessEvent?.type ?? "event");
+        const subject = escapeAttribute(harnessEvent?.subject ?? "Agent Teams event");
+        return `<harness-event type="${type}" subject="${subject}"${at}>\n${body}\n</harness-event>`;
+      }
       const name = teammate ?? "teammate";
-      return `<agent-message from="${escapeAttribute(name)}">\n${body}\n</agent-message>`;
+      return `<agent-message from="${escapeAttribute(name)}"${at}>\n${body}\n</agent-message>`;
     })
     .join("\n\n");
 }

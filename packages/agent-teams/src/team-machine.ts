@@ -68,9 +68,11 @@ import {
   spawnResident,
   terminateAllTeammates,
   terminateTeammate,
+  unknownWorkerTools,
+  WORKER_TOOL_UNIVERSE,
   type WorkerProcessResult,
 } from "./spawner.ts";
-import { captureWorktreeDiff, cleanupWorktree, createWorktree } from "./worktree.ts";
+import { captureWorktreeDiff, cleanupWorktree, createWorktree, discardWorktree } from "./worktree.ts";
 import { messageTitle, type InboxMessage, type Teammate, type WorkerUsage } from "./types.ts";
 import type { FollowUpReport } from "./follow-up-queue.ts";
 
@@ -276,6 +278,10 @@ export function currentLeaderModelRef(): string | undefined {
 
 /** Terminate every resident teammate; returns unconfirmed-close diagnostics. */
 export async function teardownTeammates(): Promise<string[]> {
+  // Session shutdown is an intentional lifecycle transition. Mark every
+  // resident before signalling so close callbacks do not misclassify normal
+  // session teardown as an unexpected crash and enqueue a follow-up turn.
+  for (const teammate of livingTeammates()) pendingShutdowns.add(teammate.name);
   const results = await terminateAllTeammates();
   const diagnostics: string[] = [];
   for (const result of results) {
@@ -362,6 +368,11 @@ export function spawnTeammate(input: {
   const invalid = validateSpawnInput(input);
   if (invalid) return { ok: false, error: invalid };
   const resolved = resolveAgent(input.agent, leaderCwd);
+  // Reject tool ids the bare child could never grant before any side effect:
+  // a silent --tools drop here is how reviewers end up blind mid-audit.
+  const requestedTools = input.definition && inlineDefinitionApplies(resolved) ? input.definition.tools : resolved?.tools;
+  const unknownTools = unknownWorkerTools(requestedTools);
+  if (unknownTools.length > 0) return { ok: false, error: unknownWorkerToolsError(unknownTools) };
   let agent: AgentDefinition | undefined = resolved;
   if (input.definition && inlineDefinitionApplies(resolved)) {
     try {
@@ -439,6 +450,16 @@ export function spawnTeammate(input: {
  *  scopes are user-owned and always win over inline input. */
 export function inlineDefinitionApplies(resolved: AgentDefinition | undefined): boolean {
   return !resolved || resolved.scope === "session";
+}
+
+/** Spawn failure for execution-tool ids outside the teammate universe. */
+export function unknownWorkerToolsError(unknown: readonly string[]): string {
+  return [
+    `Unknown tool id${unknown.length === 1 ? "" : "s"} for a teammate: ${unknown.join(", ")}.`,
+    "A teammate child runs a bare pi process (--no-extensions), so only pi built-in tools plus the teammate capability set can be granted.",
+    `Valid ids: ${WORKER_TOOL_UNIVERSE.join(", ")}.`,
+    "MCP or project-extension tools cannot reach a teammate; perform that work in the leader session instead.",
+  ].join(" ");
 }
 
 /** Spawn failure for an unresolvable agent name. Definitions resolve live at
@@ -534,7 +555,8 @@ function discardWorktreeQuietly(name: string): void {
   const handle = liveWorktrees.get(name);
   if (!handle || "error" in handle) return;
   liveWorktrees.delete(name);
-  cleanupWorktree(handle);
+  // A failed spawn never produced work; the empty branch goes too.
+  discardWorktree(handle);
 }
 
 function boardDirectory(): string {
@@ -672,7 +694,13 @@ function nudgeIfUnfinalized(name: string, spawnId: string): void {
   idleNudgesSent.add(key);
   const reminder = `@${name} is now idle but its last report was not marked status="completed" or "failed". Its conclusions may be stuck in the mailbox — ask it to finalize or inspect the /agent-teams console.`;
   deliverToLeader({ from: "harness", subject: `Idle without terminal report: @${name}`, body: reminder });
-  sendUpdate({ teammate: name, body: reminder, finished: false });
+  sendUpdate({
+    teammate: name,
+    body: reminder,
+    origin: "harness",
+    harnessEvent: { type: "unfinalized-report", subject: `@${name} idle without terminal report` },
+    finished: false,
+  });
 }
 
 function failSpawn(name: string, error: string): void {
@@ -711,9 +739,13 @@ export async function shutdownTeammate(name: string): Promise<{ ok: true; body: 
     updateTeammate(name, { status: "stopped", activeTool: undefined });
     idleNudgesSent.delete(`${name}:${teammate.spawnId}`);
     selfFinalizeAttempts.delete(`${name}:${teammate.spawnId}`);
+    // No close event will fire for an already-gone child, so this branch is
+    // the only chance to put the shutdown summary on the delivery channel.
+    const summary = summarizeShutdown(name, released.length, 0, undefined);
+    deliverToLeader({ from: name, subject: "Teammate shut down", body: summary });
     publishStateSnapshot();
     notifyChange();
-    return { ok: true, body: summarizeShutdown(name, released.length, 0, undefined) };
+    return { ok: true, body: summary };
   }
   // Close finalization completes state transitions and reporting.
   return {
@@ -754,19 +786,23 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
   clearWorkerRunEvents(name, teammate.spawnId);
   removeWorkerOutbox(requireStateFile(), name, teammate.spawnId);
 
-  deliverToLeader(requested
-    ? { from: name, subject: "Teammate shut down", body: summarizeShutdown(name, released.length, result.exitCode, result.usage) }
-    : { from: name, subject: "Teammate stopped unexpectedly", body: crashDiagnostic(name, result, released) });
-
-  if (!requested) {
-    const report = {
+  if (requested) {
+    const summary = summarizeShutdown(name, released.length, result.exitCode, result.usage);
+    deliverToLeader({ from: name, subject: "Teammate shut down", body: summary });
+    // A requested shutdown is already represented by the tool lifecycle row;
+    // keep its summary in the console mailbox without starting a leader turn.
+  } else {
+    deliverToLeader({ from: name, subject: "Teammate stopped unexpectedly", body: crashDiagnostic(name, result, released) });
+    const closeReport = {
       teammate: name,
       spawnId: teammate.spawnId,
       body: `@${name} stopped unexpectedly${released.length > 0 ? `; claimed task(s) ${released.map((t) => t.id).join(", ")} returned to the board` : ""}.`,
-      finished: true,
+      origin: "harness" as const,
+      harnessEvent: { type: "unexpected-stop", subject: `@${name} stopped unexpectedly` },
+      finished: false,
     };
-    recordTerminalReport(report);
-    sendUpdate(report);
+    recordTerminalReport(closeReport);
+    sendUpdate(closeReport);
   }
   publishStateSnapshot();
   ensureLivePoll();
@@ -807,17 +843,62 @@ async function finalizeWorktree(name: string): Promise<void> {
   }
   liveWorktrees.delete(name);
   const captured = captureWorktreeDiff(handle);
-  const patchNote = captured.ok && captured.diff.patch.trim()
-    ? `\n\n=== Worktree changes ===\n${captured.diff.diffStat}\n\n${captured.diff.patch}`
-    : captured.ok
-      ? "\n(no worktree changes)"
-      : `\n(worktree diff capture failed: ${captured.error})`;
-  cleanupWorktree(handle);
+  // Cleanup commits any remaining work onto the kept branch before removing
+  // the directory: staging alone would die with the worktree.
+  const cleaned = cleanupWorktree(handle);
+  if (!captured.ok) {
+    // The branch survives cleanup, so nothing is lost; wake the leader with
+    // the recovery path because this requires a decision.
+    const body = `Capturing @${name}'s worktree diff failed (${captured.error}). The branch ${handle.branch} was kept; inspect it manually.`;
+    deliverToLeader({ from: name, subject: "Worktree diff capture failed", body });
+    sendUpdate({
+      teammate: name,
+      origin: "harness",
+      harnessEvent: { type: "worktree-capture-failed", subject: `@${name} worktree diff capture failed` },
+      body,
+      finished: false,
+    });
+    return;
+  }
+  const changed = captured.diff.patch.trim().length > 0;
   deliverToLeader({
     from: name,
     subject: "Worktree diff captured",
-    body: `Teammate @${name}'s worktree diff:${patchNote}`,
+    body: changed
+      ? `Teammate @${name}'s worktree diff:\n\n=== Worktree changes ===\n${captured.diff.diffStat}\n\n${captured.diff.patch}`
+      : `Teammate @${name}'s worktree diff:\n(no worktree changes)`,
   });
+  // Changed work must reach the leader even though the worktree directory is
+  // gone: dispatch a bounded preview plus the branch retrieval command. A
+  // clean worktree carries no information and stays log-only.
+  if (changed) {
+    sendUpdate({
+      teammate: name,
+      spawnId: getTeammate(name)?.spawnId,
+      origin: "harness",
+      harnessEvent: { type: "worktree-changes", subject: `@${name} worktree changes captured` },
+      body: [
+        `Worktree changes captured for @${name} (${captured.diff.diffStat.trim() || "diff"}).`,
+        "",
+        truncated(captured.diff.patch),
+        "",
+        `Full diff: git diff ${handle.baseCommit}..${handle.branch}`,
+      ].join("\n"),
+      finished: false,
+    });
+  }
+  if (!cleaned.ok) {
+    const subject = cleaned.error?.includes("worktree left in place") ? "Worktree cleanup aborted" : "Worktree cleanup issue";
+    const body = `Cleaning up @${name}'s worktree reported problems (${cleaned.error ?? "unknown cleanup failure"}).`;
+    deliverToLeader({ from: name, subject, body });
+    sendUpdate({
+      teammate: name,
+      origin: "harness",
+      harnessEvent: { type: "worktree-cleanup-failed", subject: `@${name} worktree cleanup issue` },
+      body,
+      finished: false,
+    });
+  }
 }
 
 // ── Report outbox draining ────────────────────────────────────────
@@ -855,8 +936,21 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
   if (!isWorkerEvent(record)) return false;
   if (record.worker !== teammate.name || record.spawnId !== teammate.spawnId) return false;
   const ids = getState().workerEventIds;
-  if (ids[`${teammate.spawnId}:${record.id}`]) return false;
-  ids[`${teammate.spawnId}:${record.id}`] = teammate.spawnId;
+  const eventKey = `${teammate.spawnId}:${record.id}`;
+  if (ids[eventKey]) return false;
+  ids[eventKey] = teammate.spawnId;
+  markStateDirty();
+
+  if (teammate.reportSequenceEnded) return false;
+  const terminal = record.status === "completed" || record.status === "failed";
+  if (terminal) {
+    updateTeammate(teammate.name, {
+      reportSequenceEnded: true,
+      status: "idle",
+      activeTool: undefined,
+      sequenceEnded: true,
+    });
+  }
   receiveWorkerMessage({
     id: record.id,
     type: "message",
@@ -864,19 +958,24 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
     spawnId: teammate.spawnId,
     body: record.body,
     status: record.status,
+    timestamp: record.timestamp,
   });
-  if (record.status === "completed" || record.status === "failed") {
-    // The assignment ends; the resident itself stays alive until sequence end.
-    const report = {
-      teammate: teammate.name,
-      agent: teammate.agent,
-      spawnId: teammate.spawnId,
-      body: record.body,
-      finished: true,
-    };
-    recordTerminalReport(report);
-    sendUpdate(report);
-  }
+  // Every accepted teammate-authored report reaches the leader's context as
+  // its own turn; terminal statuses additionally end the report sequence.
+  const finished = terminal;
+  const report = {
+    teammate: teammate.name,
+    agent: teammate.agent,
+    spawnId: teammate.spawnId,
+    body: record.body,
+    origin: "teammate" as const,
+    eventId: record.id,
+    status: record.status,
+    timestamp: record.timestamp ?? Date.now(),
+    finished,
+  };
+  if (finished) recordTerminalReport(report);
+  sendUpdate(report);
   return true;
 }
 
@@ -930,9 +1029,17 @@ function dispatchInboxMessage(teammate: Teammate, message: InboxMessage): void {
 /** Route the leader's addressed send_message through the same delivery path. */
 export type MessageRoutingOutcome = "steered" | "queued";
 
-export function sendLeaderMessage(to: string, message: string): { ok: true; outcome: MessageRoutingOutcome } | { ok: false; error: string } {
+export function sendLeaderMessage(
+  to: string,
+  message: string,
+  options?: { reopen?: boolean },
+): { ok: true; outcome: MessageRoutingOutcome } | { ok: false; error: string } {
   const teammate = getTeammate(to);
   if (!teammate || teammate.status === "stopped") return { ok: false, error: `No living teammate named "${to}".` };
+  if (teammate.reportSequenceEnded && !options?.reopen) {
+    return { ok: false, error: `@${to} already sent a terminal report. Use teammate_spawn for a new assignment or send_message with reopen=true for an explicit follow-up assignment.` };
+  }
+  if (options?.reopen) updateTeammate(to, { reportSequenceEnded: false });
   const envelope: InboxMessage = {
     id: randomUUID(),
     from: "leader",
@@ -1098,6 +1205,15 @@ function resolveGateOutcome(
       // looping: no further resubmit invitations, one leader escalation.
       if (reaction.escalateToLeader) {
         notifyTaskOutcome(subject, `verify failed ${reaction.count} times for ${intent.taskId}: manual attention needed`, detail);
+        // The holder is parked and will not narrate further; the parked task
+        // reaches the leader through the delivery channel itself.
+        sendUpdate({
+          teammate: "task-board",
+          origin: "harness",
+          harnessEvent: { type: "verify-escalation", subject: `Verify gate failed · ${subject}` },
+          body: `Verify gate for "${subject}" (${intent.taskId}) failed ${reaction.count} consecutive times.\n\n${detail}\n\nThe task stays claimed by @${intent.worker}; decide how to proceed.`,
+          finished: false,
+        });
       }
       deliverFeedback(
         intent.worker,
@@ -1294,6 +1410,7 @@ export function wakeIdleTeammates(immediateTaskId?: string): string[] {
     updateTeammate(teammate.name, {
       status: "working",
       sequenceEnded: false,
+      reportSequenceEnded: false,
       lastOutputAt: Date.now(),
       stallNoticeSentAt: undefined,
       ...(dueNotice ? { lastNoticeAt: Date.now() } : {}),

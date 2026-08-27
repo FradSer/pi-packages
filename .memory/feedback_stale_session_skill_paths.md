@@ -14,5 +14,6 @@ Observed Aug 12: after the pi-packages monorepo restructure into `packages/`, se
 2. Verify `settings.json` resolves: from `~/.pi/agent`, each local package entry is relative to `~/.pi/agent` and must point at a dir containing `package.json` (use `pi list`).
 3. The fix is restarting pi / starting a new session — do not "repair" package files or add fallbacks; the on-disk config is the source of truth.
 4. Quick proof a fresh session is fine: the session's own `<available_skills>` block lists `<location>` paths — if they show the new layout, resolution is correct.
+5. When an upstream merge REMOVES a package entirely (e.g. memory replaced by pi-continual-learning in 6dea952), also clean settings.json of both the removed entry and any other already-dead entries, install the successor package entry if it should run locally, and delete the leftover untracked directory shell (`__pycache__`/`node_modules` only — verify no unique source with `git ls-tree HEAD <dir>` before `rm -rf`).
 
 **Related:** [[pi-package-conventions]]

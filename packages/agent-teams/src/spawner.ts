@@ -74,6 +74,30 @@ export function resolveWorkerTools(requested?: string[]): string[] {
   return [...new Set([...requestedOnly, ...WORKER_CAPABILITY_TOOLS])];
 }
 
+/** Pi built-in tool ids a bare teammate process registers. The child runs
+ *  --no-extensions, so this list (plus the capability set) is the complete
+ *  grantable universe; anything else is silently dropped by the child's
+ *  --tools allowlist filter. */
+export const WORKER_BUILTIN_TOOLS: readonly string[] = [
+  "read",
+  "bash",
+  "edit",
+  "write",
+  "grep",
+  "find",
+  "ls",
+  "powershell",
+];
+
+/** Every tool id a teammate can actually receive: pi built-ins plus the capability set. */
+export const WORKER_TOOL_UNIVERSE: readonly string[] = [...WORKER_BUILTIN_TOOLS, ...WORKER_CAPABILITY_TOOLS];
+
+/** Requested tool ids outside the teammate universe — exactly the ones the
+ *  child's --tools allowlist would silently drop. */
+export function unknownWorkerTools(requested?: string[]): string[] {
+  return [...new Set((requested ?? []).filter((tool) => !WORKER_TOOL_UNIVERSE.includes(tool)))];
+}
+
 // ── Process registry ──────────────────────────────────────────────
 
 /** Live children by teammate name — powers steering, prompting, and shutdown. */

@@ -10,14 +10,16 @@ Raw build, deploy, test, and server logs contain far more progress text than an
 agent needs. Streaming those lines into the conversation repeatedly consumes
 context and can trigger unnecessary model turns.
 
-Use `monitor_start` for commands whose output may be noisy, whose completion
-should wake the agent, or whose execution may outlast the current turn. This
-includes long-running processes and finite workflows such as dependency
-installation, builds, tests, deploys, and verification pipelines. After it
-returns, the current agent turn ends immediately. Do not sleep, poll, wait, or
-do follow-up work; wait for the terminal result to wake the agent. Other tools
-and commands remain available and are never blocked by the monitor. The
-terminal result automatically wakes the agent once when:
+Run quick, low-output information commands directly when they return
+promptly with a small amount of data, especially for frequent queries.
+`monitor_start` is not a universal wrapper for every command. Reserve it for
+noisy, long-running, or asynchronous work, including finite workflows such as
+dependency installation, builds, tests, deploys, and verification pipelines.
+After it returns, the current agent turn
+ends immediately. Do not sleep, poll, wait, or do follow-up work; wait for the
+terminal result to wake the agent. Other tools and commands remain available and
+are never blocked by the monitor. The terminal result automatically wakes the
+agent once when:
 
 - `result_pattern` matches: `success`
 - `failure_pattern` matches: `failure`
@@ -93,7 +95,7 @@ sh -c '
 ```
 
 Start the monitor with named `json` captures. The compact tool row uses
-`[monitor] started · <description>`, while the result event uses
+`[monitor] started · <description>`, while the result event row uses
 `[monitor] event · <description>`:
 
 ```text

@@ -77,13 +77,13 @@ runs skip the phase entirely.
 The third pipeline phase treats the repository-root `AGENTS.md` like trained
 weights. Against the same snapshot, a read-only planner proposes at most five
 evidence-cited edits — rewrite, remove, add, or extract addressable units.
-The parent enforces the discipline in code before anything is reviewed:
+The parent enforces the discipline in code before anything is applied:
 
 - Every cited quote must appear verbatim in the snapshot text; unverifiable
   quotes are discarded mechanically, and an operation left without evidence
-  never reaches review.
-- A brand-new unit needs batched evidence (at least two cited occurrences, or
-  a prior-gap fingerprint from the rejection ledger).
+  never reaches the automatic application step.
+- A brand-new unit needs batched evidence (at least two cited occurrences in
+  the current session).
 - The post-edit document must fit the byte budget (default 16 KB ≈ 4k English
   tokens by the bytes/4 heuristic — deliberately tighter than backpass's ~20 KB
   default and Claude Code's 25 KB MEMORY.md load cap; lower it further for
@@ -93,12 +93,11 @@ The parent enforces the discipline in code before anything is reviewed:
 - Narrow instructions are extracted instead of kept: trigger-scoped guidance
   becomes a harness skill prompt; durable detail becomes a memory file.
 
-Each surviving operation is then presented individually for accept/reject,
-only accepted edits are applied in one atomic write (with a pre-apply digest
-for mid-apply shutdown recovery), and rejections are recorded in a capped
-ledger so unchanged proposals cannot come back without new evidence.
-User-level instruction files are never touched; a session without a TUI
-writes nothing. Configure via the per-project settings file:
+After the mechanical gates pass, every surviving operation is applied
+autonomously in one atomic write (with a pre-apply digest for mid-apply
+shutdown recovery). User-level instruction files are never touched, and the
+child planner remains read-only.
+Configure via the per-project settings file:
 
 ```json
 { "autoMemory": true, "agentsMd": { "budgetBytes": 16384 } }

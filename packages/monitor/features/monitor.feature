@@ -24,6 +24,13 @@ Feature: Result-contract background monitoring
     And the guidance remains concise and package-manager generic
     And no monitor is started by the prompt injection itself
 
+  Scenario: Quick low-output information commands run directly
+    Given the agent is deciding whether a shell command needs background monitoring
+    When a command should finish promptly and return a small amount of data for the current turn, especially when queried frequently
+    Then the guidance tells the agent to run it directly
+    And the guidance says monitor_start is not a universal wrapper for every command
+    And monitor_start remains reserved for noisy, long-running, or asynchronous work
+
   Scenario: Monitor usage is not exposed as a package skill
     Given the monitor package is installed
     Then it registers a system prompt hook for monitor guidance
@@ -117,11 +124,12 @@ Feature: Result-contract background monitoring
   Scenario: Terminal result notifications use the compact monitor event style
     Given a monitor reaches a terminal result
     When the result notification is rendered in the TUI
-    Then the collapsed line starts with `[monitor] event · <description>`
-    And the collapsed line appends the configured expansion key as the shared pi-kit ` · <key> to expand` hint
-    And the collapsed line does not hard-code `Ctrl+O`
-    And the collapsed line does not start with `⏺`
-    And the collapsed line is the only rendered monitor event
+    Then the collapsed content line starts with `[monitor] event · <description>`
+    And the collapsed content line appends the configured expansion key as the shared pi-kit ` · <key> to expand` hint
+    And pi-kit paints the monitor event as the shared full-width background band with blank band rows above and below
+    And the collapsed content line does not hard-code `Ctrl+O`
+    And the collapsed content line does not start with `⏺`
+    And the collapsed content line is the only semantic monitor event
 
   Scenario: Captured output is bounded
     Given a monitor is running
@@ -184,3 +192,15 @@ Feature: Result-contract background monitoring
     Then the working directory and token statistics appear first
     And the monitor waiting status appears below the native footer lines
     And the monitor status is not rendered above the editor
+
+  Scenario: A single waiting monitor uses singular status text without an inspect hint
+    Given one result monitor is waiting
+    When the TUI renders the footer
+    Then the monitor status reads `1 monitor waiting`
+    And the monitor status does not include `/monitor to inspect`
+
+  Scenario: Multiple waiting monitors use plural status text without an inspect hint
+    Given two result monitors are waiting
+    When the TUI renders the footer
+    Then the monitor status reads `2 monitors waiting`
+    And the monitor status does not include `/monitor to inspect`

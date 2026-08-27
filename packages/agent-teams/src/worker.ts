@@ -7,8 +7,8 @@
 import { randomUUID } from "node:crypto";
 import * as path from "node:path";
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { eventToolLifecycle } from "@fradser/pi-kit";
-import { emptyToolCall, renderLifecycleResult, resultDetails } from "./tool-render.ts";
+import { detailField, eventToolLifecycle } from "@fradser/pi-kit";
+import { emptyToolCall, renderLifecycleResult } from "./tool-render.ts";
 import { livingTeammates, listTasks } from "./state.ts";
 import { appendInboxMessage, appendWorkerEvent, createTaskIntent, readBoardFile, readRoster } from "./statefile.ts";
 import {
@@ -107,12 +107,12 @@ export function registerTaskListTool(pi: ExtensionAPI): void {
     renderShell: "self",
     renderCall: emptyToolCall,
     renderResult(result, options, theme, context) {
-      const count = (result.details as { count?: number } | undefined)?.count ?? 0;
+      const count = detailField<number>(result.details, "count") ?? 0;
       return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
         "board",
         `${count} task${count === 1 ? "" : "s"}`,
         { label: "listed" },
-      ), resultDetails(result));
+      ));
     },
     async execute() {
       const binding = workerBinding();
@@ -148,11 +148,11 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
     renderCall: emptyToolCall,
     renderResult(result, options, theme, context) {
       const to = String((context.args as { to?: string }).to ?? "");
-      const details = result.details as { outcome?: "queued" } | undefined;
+
       return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
         "message",
-        details?.outcome ?? "queued",
-        { label: `to @${to}`, details: resultDetails(result) },
+        detailField<"steered" | "queued">(result.details, "outcome") ?? "queued",
+        { label: `to @${to}` },
       ));
     },
     async execute(_toolCallId, params) {
@@ -166,12 +166,14 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
           spawnId: binding.spawnId,
           body: params.message,
           status: params.status,
+          timestamp: Date.now(),
         });
         return {
           content: [{ type: "text", text: params.status
             ? `MESSAGING\nREPORT · to=leader · status=${params.status}\nNEXT · harness will deliver this report`
             : 'MESSAGING\nREPORT · to=leader · status=in_progress\nNEXT · send status="completed" or status="failed" to end the assignment' }],
           details: { to: LEADER_RECIPIENT, status: params.status ?? "in_progress", outcome: "queued" },
+          terminate: params.status === "completed" || params.status === "failed",
         };
       }
       if (params.status) throw new Error('status is valid only when to="leader".');
@@ -204,7 +206,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
       return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
         "board",
         taskId,
-        { label: "claimed", details: resultDetails(result) },
+        { label: "claimed" },
       ));
     },
     promptSnippet: "Self-claim a pending board task",
@@ -252,7 +254,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
       return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
         "board",
         taskId,
-        { label: status, details: resultDetails(result) },
+        { label: status },
       ));
     },
     promptSnippet: "Submit a claimed task outcome",

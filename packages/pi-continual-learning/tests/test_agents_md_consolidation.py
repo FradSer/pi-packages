@@ -32,16 +32,13 @@ def evidence(quote: str, occurrences: int = 1, kind: str = "gap") -> dict:
     return {"kind": kind, "quote": quote, "occurrences": occurrences}
 
 
-def add_op(text: str = "- New rule unit", quote: str | None = None, occurrences: int = 2, prior_gap: str | None = None) -> dict:
-    op: dict = {
+def add_op(text: str = "- New rule unit", quote: str | None = None, occurrences: int = 2) -> dict:
+    return {
         "op": "addUnit",
         "placement": "append",
         "text": text,
         "evidence": [evidence(quote or f"observed {text}", occurrences)],
     }
-    if prior_gap is not None:
-        op["priorGap"] = prior_gap
-    return op
 
 
 def rewrite_plan() -> dict:
@@ -93,15 +90,6 @@ def extract_skill_plan() -> dict:
             },
         ],
     }
-
-
-def fingerprint_of(op: dict) -> str:
-    op_json = json.dumps(op)
-    return js(
-        f"import {{ fingerprintOp }} from '{MODULE}';\n"
-        f"const op = {op_json};\n"
-        "console.log(JSON.stringify(fingerprintOp(op)));\n"
-    )  # type: ignore[return-value]
 
 
 # ── plan validation ───────────────────────────────────────────────────
@@ -198,22 +186,17 @@ def test_verify_plan_quotes_drops_unverified_operations() -> None:
     assert result["firstQuote"] == "stale fixtures broke the build again"
 
 
-def test_add_unit_requires_batched_evidence_or_prior_gap() -> None:
-    gaps_json = lambda gaps: json.dumps(gaps)  # noqa: E731
-    dup_quote = add_op(occurrences=1)
-    dup_quote["evidence"] = [evidence("same quote"), evidence("same quote")]  # duplicate quotes never stack
+def test_add_unit_requires_batched_evidence() -> None:
     cases = [
-        (add_op(occurrences=1), [], False),
-        (add_op(occurrences=2), [], True),
-        (dup_quote, [], False),
-        (add_op(occurrences=1, prior_gap="a" * 64), ["a" * 64], True),
-        (add_op(occurrences=1, prior_gap="a" * 64), [], False),
-        ({"op": "removeUnit", "oldText": "- x", "evidence": [evidence("q")]}, [], True),
+        (add_op(occurrences=1), False),
+        (add_op(occurrences=2), True),
+        ({"op": "addUnit", "text": "- Rule", "placement": "append", "evidence": [evidence("same quote"), evidence("same quote")]}, False),
+        ({"op": "removeUnit", "oldText": "- x", "evidence": [evidence("q")]}, True),
     ]
-    for op, gaps, expected in cases:
+    for op, expected in cases:
         op_json = json.dumps(op)
-        result = call_js(f"addUnitEvidenceSufficient({op_json}, new Set({gaps_json(gaps)}))", "addUnitEvidenceSufficient")
-        assert result is expected, (op, gaps, expected, result)
+        result = call_js(f"addUnitEvidenceSufficient({op_json})", "addUnitEvidenceSufficient")
+        assert result is expected, (op, expected, result)
 
 
 # ── simulation ────────────────────────────────────────────────────────
@@ -287,74 +270,6 @@ def test_budget_allows_growth_only_below_budget() -> None:
     assert calls["rejectGrowthAtBudget"] is False
 
 
-# ── rejection ledger ──────────────────────────────────────────────────
-
-
-def test_fingerprint_is_stable_and_discriminates() -> None:
-    a = fingerprint_of(add_op("- Same rule"))
-    b = fingerprint_of(add_op("- Same rule"))
-    c = fingerprint_of(add_op("- Other rule"))
-    assert a == b and a != c
-    assert isinstance(a, str) and len(a) == 64
-
-
-def test_filter_ledger_blocked_requires_new_evidence() -> None:
-    fp = fingerprint_of(add_op("- Same rule", quote="known quote"))
-    ledger = [{
-        "fingerprint": fp,
-        "runId": "run_prior",
-        "op": "addUnit",
-        "summary": "rejected earlier",
-        "evidenceQuotes": ["known quote"],
-        "rejectedAt": "2026-01-01T00:00:00.000Z",
-    }]
-    ops = [add_op("- Same rule", quote="known quote"), add_op("- Same rule", quote="brand new quote"), add_op("- Different")]
-    quotes = [["known quote"], ["brand new quote"], ["other q"]]
-    result = call_js(
-        f"(() => {{ const r = filterLedgerBlocked({json.dumps(ops)}, {json.dumps(quotes)}, {json.dumps(ledger)}); "
-        f"return {{ blocked: r.blocked, keptCount: r.kept.length }}; }})()",
-        "filterLedgerBlocked",
-    )
-    assert result["blocked"] == [0]
-    assert result["keptCount"] == 2
-
-
-def test_rejection_ledger_roundtrip_and_cap(tmp_path: Path) -> None:
-    harness_dir = tmp_path / "harness"
-    harness_dir.mkdir()
-    entries = [
-        {
-            "fingerprint": f"{i:064x}",
-            "runId": f"run_{i}",
-            "op": "removeUnit",
-            "summary": f"rejection {i}",
-            "evidenceQuotes": [f"quote {i}"],
-            "rejectedAt": "2026-01-01T00:00:00.000Z",
-        }
-        for i in range(600)
-    ]
-    dir_json = json.dumps(str(harness_dir))
-    src = (
-        f"import {{ recordAgentsRejections, loadAgentsRejections }} from '{MODULE}';\n"
-        f"await recordAgentsRejections({dir_json}, {json.dumps(entries[:300])});\n"
-        f"await recordAgentsRejections({dir_json}, {json.dumps(entries[300:])});\n"
-        f"const loaded = await loadAgentsRejections({dir_json});\n"
-        "console.log(JSON.stringify({ count: loaded.length, lastFp: loaded.at(-1)?.fingerprint }));\n"
-    )
-    result = js(src)
-    assert result["count"] <= 512
-    assert result["lastFp"] == f"{599:064x}" or isinstance(result["count"], int)
-
-
-def test_load_tolerates_missing_or_invalid_ledger(tmp_path: Path) -> None:
-    missing = tmp_path / "nope"
-    invalid = tmp_path / "bad"
-    invalid.write_text("not json", encoding="utf-8")
-    for target in (missing, invalid):
-        target_json = json.dumps(str(target))
-        result = call_js(f"loadAgentsRejections({target_json})", "loadAgentsRejections")
-        assert result == []
-
 
 # ── user-level protection ─────────────────────────────────────────────
 
@@ -387,34 +302,20 @@ def test_target_resolution_and_user_level_guard(tmp_path: Path) -> None:
     assert result["guardOther"] is False
 
 
-# ── preview formatting ────────────────────────────────────────────────
-
-
-def test_format_preview_covers_each_op_kind() -> None:
-    ops = [
-        rewrite_plan()["operations"][0],
-        {"op": "removeUnit", "oldText": "- stale", "evidence": [evidence("q")]},
-        add_op("- appended"),
-        extract_skill_plan()["operations"][0],
-    ]
-    ops_json = json.dumps(ops)
-    previews = call_js(f"({ops_json}).map(formatOpPreview)", "formatOpPreview")
-    assert all(isinstance(p, str) and p for p in previews)  # type: ignore[union-attr]
-    assert "pnpm" in previews[0]  # type: ignore[index]
-    assert "skillPrompt using-open-artifacts" in previews[3]  # type: ignore[index]
-
-
 # ── wiring and procedure contract ─────────────────────────────────────
 
 
-def test_pipeline_wires_agents_phase_after_harness_phase() -> None:
+def test_pipeline_wires_autonomous_agents_phase_after_harness_phase() -> None:
     inject = (PKG_DIR / "extensions" / "inject-memory.ts").read_text(encoding="utf-8")
-    assert "runAgentsMdConsolidationPhase" in inject
+    agents = (PKG_DIR / "extensions" / "agents-md-consolidation.ts").read_text(encoding="utf-8")
     harness_pos = inject.index("await runHarnessConsolidationPhase(ctx, state, {")
     agents_pos = inject.index("await runAgentsMdConsolidationPhase(ctx, state, {")
     assert harness_pos < agents_pos
     assert "settings.agentsMd?.disabled === true" in inject
     assert "DEFAULT_AGENTS_MD_BUDGET_BYTES" in inject
+    assert "hasUI" not in agents
+    assert "ctx.ui.select" not in agents
+    assert "apply without an interactive prompt" in agents
 
 
 def test_procedure_declares_readonly_boundary_and_discipline() -> None:

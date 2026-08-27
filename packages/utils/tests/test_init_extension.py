@@ -59,6 +59,43 @@ console.log(JSON.stringify({{
         self.assertIn("do not add parent-file references", prompt)
         self.assertIn("@fradser/pi-kit", prompt)
 
+    def test_prompt_is_single_line_for_tui_wrapping(self) -> None:
+        script = f'''
+import {{ buildInitPrompt }} from {json.dumps(INIT_EXTENSION.as_uri())};
+console.log(JSON.stringify(buildInitPrompt("/tmp/example-repo")));
+'''
+        result = subprocess.run(
+            ["bun", "run", "-"],
+            cwd=REPO,
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise AssertionError(f"TypeScript execution failed:\n{result.stderr}")
+        prompt = json.loads(result.stdout)
+        self.assertNotIn("\n", prompt)
+        self.assertNotIn("\r", prompt)
+
+        multiline_script = f'''
+import {{ buildInitPrompt }} from {json.dumps(INIT_EXTENSION.as_uri())};
+console.log(JSON.stringify(buildInitPrompt("/tmp/example-repo", "focus on\\nrelease commands")));
+'''
+        multiline_result = subprocess.run(
+            ["bun", "run", "-"],
+            cwd=REPO,
+            input=multiline_script,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if multiline_result.returncode != 0:
+            raise AssertionError(f"TypeScript execution failed:\n{multiline_result.stderr}")
+        multiline_prompt = json.loads(multiline_result.stdout)
+        self.assertNotIn("\n", multiline_prompt)
+        self.assertNotIn("\r", multiline_prompt)
+
     def test_package_manifest_loads_extensions_directory(self) -> None:
         manifest = json.loads((UTILS_PKG_DIR / "package.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["pi"]["extensions"], ["./index.ts"])

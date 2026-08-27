@@ -30,17 +30,18 @@ class TestSessionsExtension(unittest.TestCase):
     def test_list_directory_sessions_follows_compact_display_pattern(self) -> None:
         content = self.ext_source()
         # Monitor display pattern: tool renders its own shell, an empty call
-        # slot, and exactly one compact result row built from pi-kit labels.
+        # slot, and exactly one compact result row delegated to the shared
+        # pi-kit lifecycle band.
         self.assertIn('renderShell: "self"', content)
         self.assertIn("renderCall: () => new Container()", content)
-        self.assertIn('formatToolEventLabel("listed"', content)
-        # Terminal-event styling: custom-message label color on the
-        # custom-message background, like monitor's monitor-result renderer.
-        self.assertIn('theme.fg("customMessageLabel", theme.bold(formatToolEventLabel("listed"', content)
-        self.assertIn('theme.bg("customMessageBg", text)', content)
-        self.assertIn("new Box(1, 1,", content)
-        self.assertIn('formatExpandHint(keyHint("app.tools.expand", "to expand"), theme)', content)
-        self.assertNotIn('(keyHint("app.tools.expand", "to expand"))', content)
+        self.assertIn('eventToolLifecycle("sessions", summary, { label: "listed", details: rows })', content)
+        # Style-free consumer: pi-kit owns the band geometry and styling; no
+        # hand-built Box or theme calls remain in the sessions renderer.
+        self.assertIn("renderToolLifecycle(", content)
+        self.assertIn('expandHint: keyHint("app.tools.expand", "to expand")', content)
+        self.assertIn("fit: truncateToWidth", content)
+        self.assertNotIn("new Box(", content)
+        self.assertNotIn('theme.bg("customMessageBg"', content)
         # Expanded view reuses the shared task-name truncation for goals.
         self.assertIn("formatAgentTaskName", content)
 
@@ -222,6 +223,10 @@ const renderState = (expanded) =>
     .renderResult({{ content: result.content, details: result.details }}, {{ expanded, isPartial: false }}, theme, {{ isError: false }})
     .render(100)
     .join("\\n");
+const collapsed = renderState(false);
+const collapsedBgCalls = bgCalls.length;
+const expanded = renderState(true);
+const expandedBgCalls = bgCalls.length - collapsedBgCalls;
 const errorRow = toolDef
   .renderResult(
     {{ content: [{{ type: "text", text: "registry read boom\\nsecond line" }}], details: {{}} }},
@@ -236,8 +241,10 @@ console.log(JSON.stringify({{
   callLines: toolDef.renderCall().render(100).length,
   fgCalls,
   bgCalls,
-  collapsed: renderState(false),
-  expanded: renderState(true),
+  collapsed,
+  collapsedBgCalls,
+  expanded,
+  expandedBgCalls,
   errorRow,
 }}));
 
@@ -258,14 +265,22 @@ fs.rmSync(tmpCwd, {{ recursive: true, force: true }});
         data = json.loads(result.stdout)
         self.assertEqual(data["count"], 1)
         self.assertEqual(data["callLines"], 0)
-        # Collapsed: terminal-event style — custom-message label on the
-        # custom-message background, with the expand hint.
+        collapsed_lines = data["collapsed"].split("\n")
+        # Collapsed: the shared band paints a blank full-width row above and
+        # below the single "[sessions] listed · ..." row with its expand hint.
+        self.assertTrue(len(collapsed_lines) >= 3)
+        self.assertEqual(collapsed_lines[0].strip(), "")
+        self.assertEqual(collapsed_lines[-1].strip(), "")
         self.assertIn("[sessions] listed · 1 other session in sd-", data["collapsed"])
-        self.assertIn("to expand", data["collapsed"])
+        self.assertIn("to expand", collapsed_lines[1])
+        self.assertEqual(data["collapsedBgCalls"], len(collapsed_lines) + 1)
         self.assertIn("customMessageLabel", data["fgCalls"])
-        self.assertIn("customMessageBg", data["bgCalls"])
-        # Expanded: same background, one bounded block per session; all
-        # display fields sanitized (no escape sequences survive).
+        # Expanded: same band, one bounded block per session; all display
+        # fields sanitized (no escape sequences survive).
+        expanded_lines = data["expanded"].split("\n")
+        self.assertEqual(expanded_lines[0].strip(), "")
+        self.assertEqual(expanded_lines[-1].strip(), "")
+        self.assertEqual(data["expandedBgCalls"], len(expanded_lines) + 1)
         self.assertIn("· RUNNING · pid ", data["expanded"])
         self.assertIn("Display Test", data["expanded"])
         self.assertIn("Goal  Verify event-style listed row", data["expanded"])

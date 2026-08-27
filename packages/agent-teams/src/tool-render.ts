@@ -1,7 +1,6 @@
 import { keyHint, type Theme } from "@earendil-works/pi-coding-agent";
-import { Text, truncateToWidth } from "@earendil-works/pi-tui";
+import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
-  formatExpandHint,
   formatToolErrorLine,
   renderToolLifecycle,
   type ToolLifecycleSpec,
@@ -9,6 +8,7 @@ import {
 
 export interface ToolResultText {
   content: Array<{ type: string; text?: string }>;
+  details?: unknown;
 }
 
 export function textOf(result: ToolResultText): string {
@@ -22,13 +22,17 @@ export function emptyToolCall(): Text {
 export function renderLifecycleResult(
   result: ToolResultText,
   options: { expanded?: boolean },
-  theme: Pick<Theme, "fg" | "bold">,
+  theme: Pick<Theme, "fg" | "bold" | "bg">,
   context: { isError?: boolean },
   spec: ToolLifecycleSpec,
-  details: readonly string[] = [],
+  details?: readonly string[],
 ): { render: (width: number) => string[]; invalidate: () => void } | Text {
   const text = textOf(result);
-  const effectiveDetails = details.length > 0 ? details : (spec.details ?? []);
+  // One expansion-body rule: detail lines derive from the model-facing content
+  // unless a caller passes explicit lines (only when the human body must
+  // differ from what the model sees).
+  const effectiveDetails = details ?? text.split("\n").filter((line) => line.trim());
+  const expandable = result.details !== undefined || effectiveDetails.length > 0;
   if (context.isError) return new Text(theme.fg("error", formatToolErrorLine(text)), 0, 0);
   return {
     render: (width) => renderToolLifecycle(
@@ -36,13 +40,11 @@ export function renderLifecycleResult(
       {
         width,
         expanded: options.expanded,
-        expandHint: spec.kind === "event" && effectiveDetails.length > 0
-          ? formatExpandHint(keyHint("app.tools.expand", "to expand"), theme)
-          : undefined,
-        titleStyle: (line) => theme.fg("toolTitle", theme.bold(line)),
-        detailStyle: (line) => theme.fg("customMessageText", line),
-        truncate: truncateToWidth,
-        line: (line) => line,
+        expandHint: keyHint("app.tools.expand", "to expand"),
+        expandable,
+        theme,
+        fit: truncateToWidth,
+        visibleWidth,
       },
     ),
     invalidate: () => {},

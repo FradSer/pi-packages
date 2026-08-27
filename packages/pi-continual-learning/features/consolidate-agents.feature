@@ -6,9 +6,9 @@ Feature: AGENTS.md consolidation as the third pipeline phase
   evidence-cited edits to the repository-root AGENTS.md; the parent verifies
   every cited quote in code against that phase's snapshot text, simulates
   the resulting document, enforces a byte budget with zero-sum growth at
-  budget, and writes only the operations the user accepts one by one.
+  budget, and autonomously applies only operations that pass every gate.
   User-level instruction files are never touched; project state is only ever
-  written through accepted operations.
+  written through validated operations.
 
   Scenario: The third phase binds to its own captured session snapshot
     Given the memory phase reported a verified consolidation and the harness phase finished
@@ -21,13 +21,13 @@ Feature: AGENTS.md consolidation as the third pipeline phase
     Given a plan whose operations cite evidence quotes
     When the parent verifies the plan
     Then each quoted snippet is matched verbatim against the snapshot text in code
-    And an operation whose quotes all fail verification is dropped before review
+    And an operation whose quotes all fail verification is dropped before automatic application
     And an operation left without any verified quote never reaches the document
 
   Scenario: New units require batched evidence
     Given an addUnit operation whose verified evidence occurrences total fewer than two
     When the parent validates the plan
-    Then the operation is rejected unless it cites a prior-gap fingerprint recorded in the rejection ledger
+    Then the operation is dropped before application
 
   Scenario: Edits stay small steps
     Given a plan declaring more than five operations
@@ -37,32 +37,24 @@ Feature: AGENTS.md consolidation as the third pipeline phase
   Scenario: The byte budget gates document growth
     Given a current AGENTS.md smaller than the configured budget
     When the simulated post-edit document exceeds the budget
-    Then the plan is rejected before review
+    Then the plan is rejected before automatic application
     When the current document is already at or above the budget
-    Then only plans whose post-edit document is no larger than the current document are accepted
+    Then only plans whose post-edit document is no larger than the current document are automatically applied
 
   Scenario: Narrow instructions are extracted instead of deleted
     Given an extractUnit operation targeting memory or a skill prompt
-    When the parent applies the accepted plan
+    When the parent autonomously applies the validated plan
     Then the extracted unit is removed from AGENTS.md
     And a memory extraction creates a canonical memory file owned by the memory roots
     And a skill-prompt extraction merges into the project-local harness layer
 
-  Scenario: Per-operation human review gates the write
+  Scenario: Validated AGENTS.md changes apply autonomously
     Given a schema-valid, quote-verified, in-budget plan with operations
-    When the session has a TUI
-    Then each operation is presented individually and the user accepts or rejects it
-    And only accepted operations are applied in one atomic write
+    When the planner phase completes
+    Then every surviving operation is applied without a TUI prompt
     And extraction artifacts are written before the document so a failed write never orphans an extracted unit
-    And a post-apply receipt records digests, accepted operations, and rejected fingerprints
-    When the session has no TUI
-    Then no project state is written and the phase reports that review is required
-
-  Scenario: Rejected operations are remembered
-    Given the user rejected one or more reviewed operations
-    When a later consolidation run proposes an operation with the same fingerprint
-    Then the repeated proposal is dropped unless it cites new evidence quotes
-    And the ledger is capped so it cannot grow without bound
+    And a post-apply receipt records digests and applied operation fingerprints
+    And safety validation remains the only gate before the atomic write
 
   Scenario: User-level instruction files are never touched
     Given the consolidated project resolves its instruction target

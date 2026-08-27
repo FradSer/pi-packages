@@ -59,9 +59,9 @@ Feature: Cross-session awareness and directory recap
     Given an agent calling tool "list_directory_sessions"
     When Pi renders the completed tool call in the TUI
     Then the call slot renders no content of its own
-    And the result renders one "[sessions] listed" row styled like monitor terminal events
-    And the styled label sits on the custom-message background with the other-session count and directory
-    And expanding the result reveals a bounded block per session with status, pid, relative age, goal, recap, and recent files
+    And the result delegates to the shared pi-kit lifecycle band instead of hand-built styling
+    And one "[sessions] listed" row paints a full-width custom-message band with a blank band row above and below
+    And expanding the result reveals a bounded block per session with status, pid, relative age, goal, recap, and recent files inside the same band
     And every displayed field is stripped of terminal escape sequences and truncated to bounded lengths
 
   Scenario: Failed list_directory_sessions renders one plain error line

@@ -360,3 +360,9 @@ pyrightconfig.json
 
 # npm/pnpm pack artifacts
 *.tgz
+.artifacts/credentials.json
+.artifacts/config.local.json
+.artifacts/recipes.local/
+.artifacts/fragments.local/
+.artifacts/manifest.local.json
+.artifacts/previews/

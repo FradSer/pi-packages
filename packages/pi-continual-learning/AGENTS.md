@@ -15,8 +15,8 @@ Supporting extension modules cover configuration, secure memory loading,
 canonical project paths, parent-owned consolidation, harness guardrail mining,
 and AGENTS.md consolidation (`extensions/agents-md-consolidation.ts`: plan
 validation, verbatim quote verification against the snapshot, document
-simulation, byte-budget zero-sum gating, rejection ledger, and the interactive
-per-operation review). The read-only child procedures are
+simulation, byte-budget zero-sum gating, and autonomous application). The
+read-only child procedures are
 `procedures/consolidate.md`, `procedures/consolidate-harness.md`, and
 `procedures/consolidate-agents.md`; `scripts/validate-consolidate.py` is
 the dependency-free artifact/privacy validator for the memory phase. BDD contracts are in
@@ -43,8 +43,9 @@ spawn a read-only `--no-extensions` worker, accept one bounded structured plan,
 validate before and after mutation, then write receipts and synchronize only
 safe files to `.memory`. Never let the child mutate memory or expose private
 harness data. The AGENTS.md phase additionally requires code-verified snapshot
-quotes, batched evidence for new units, budget zero-sum at cap, per-operation
-user acceptance before writing, and never targets user-level instruction files.
+quotes, batched evidence for new units, budget zero-sum at cap, autonomous
+application only after mechanical validation, and never targets user-level
+instruction files.
 Reuse `@fradser/pi-kit`; keep its dependency direction intact.
 
 ## Testing and Release

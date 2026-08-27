@@ -115,6 +115,40 @@ def test_bounded_jsonl_parser_rejects_overlong_line() -> None:
     assert "line" in result["error"]
 
 
+def test_oversized_non_plan_telemetry_is_ignored_before_final_plan() -> None:
+    result = run_bun(
+        """
+        import { extractChildPlan } from './packages/pi-continual-learning/extensions/consolidation-run.ts';
+        const telemetry = JSON.stringify({
+          type: 'message_update',
+          assistantMessageEvent: { type: 'thinking_delta', delta: 'x'.repeat(1_100_000) },
+        });
+        const plan = JSON.stringify({
+          type: 'message_end',
+          message: {
+            role: 'assistant',
+            content: JSON.stringify({
+              kind: 'memory-consolidation-plan',
+              version: 1,
+              runId: 'r1',
+              scopeDigest: 'd1',
+              artifactHash: 'h1',
+            }),
+          },
+        });
+        console.log(JSON.stringify(extractChildPlan(
+          telemetry + '\\n' + plan + '\\n',
+          {
+            maxLineBytes: 1024 * 1024,
+            expectedIdentity: { runId: 'r1', scopeDigest: 'd1', artifactHash: 'h1' },
+          },
+        )));
+        """
+    )
+    assert result["ok"] is True
+    assert result["plan"]["runId"] == "r1"
+
+
 def test_child_plan_extraction_handles_output_exceeding_legacy_256k_bound() -> None:
     result = run_bun(
         """
@@ -460,6 +494,13 @@ def test_child_output_uses_streaming_utf8_and_byte_bounded_diagnostics() -> None
     assert "MAX_STDERR_BYTES" in content
 
 
+def test_oversized_telemetry_is_ignored_by_the_streaming_memory_path() -> None:
+    content = source()
+    assert "isIgnorableOversizedJsonlEvent" in content
+    assert "message_update" in content
+    assert "if (isIgnorableOversizedJsonlEvent(line)) return;" in content
+
+
 def test_child_output_limits_terminate_before_more_jsonl_work() -> None:
     content = source()
     assert "stdoutCaptureOverflowed" in content
@@ -467,6 +508,7 @@ def test_child_output_limits_terminate_before_more_jsonl_work() -> None:
     assert "MAX_JSONL_LINE_BYTES" in content
     assert "terminateConsolidationChild(child, 5_000)" in content
     assert "return; // child output limit exceeded" in content
+    assert "isIgnorableOversizedJsonlEvent" in content
 
 
 def test_stale_finish_cannot_clear_replacement_state_or_cleanup() -> None:

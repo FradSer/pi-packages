@@ -137,6 +137,9 @@ export default function (pi: ExtensionAPI) {
   let recapSpinnerFrame = 0;
   let recapSpinnerTimer: NodeJS.Timeout | undefined;
   let shouldRecap = false;
+  let initialPromptRecapStarted = false;
+  let firstPromptRecap: Promise<string | undefined> | undefined;
+  let sessionGeneration = 0;
   let generatingRecap = false;
   let activeRequest:
     | {
@@ -236,13 +239,15 @@ export default function (pi: ExtensionAPI) {
   async function performRecap(
     ctx: ExtensionContext,
     force = false,
+    exchangeOverride?: { user: string; assistant: string },
   ): Promise<string | undefined> {
     if (ctx.mode !== "tui") return undefined;
 
     const model = resolveRecapModel(ctx);
     if (!model) return undefined;
 
-    const exchange = getLastExchange(ctx.sessionManager.getBranch());
+    const exchange =
+      exchangeOverride ?? getLastExchange(ctx.sessionManager.getBranch());
     if (!exchange) return undefined;
 
     const key = [
@@ -467,7 +472,15 @@ export default function (pi: ExtensionAPI) {
 
   // Restore or compute latest recap on session start
   pi.on("session_start", async (_event, ctx) => {
+    sessionGeneration += 1;
+    activeRequest?.controller.abort();
+    activeRequest = undefined;
+    generatingRecap = false;
+    currentRecap = "";
+    completedRequestKey = undefined;
     config = readRecapConfig();
+    shouldRecap = false;
+    initialPromptRecapStarted = false;
     const branch = (ctx.sessionManager?.getBranch?.() ??
       []) as RecapSessionEntry[];
     const savedRecap =
@@ -490,6 +503,14 @@ export default function (pi: ExtensionAPI) {
         ].join("\u0000");
       }
     }
+    initialPromptRecapStarted = Boolean(
+      savedRecap ||
+        branch.some(
+          (entry) =>
+            entry.type === "message" && entry.message?.role === "user",
+        ),
+    );
+    firstPromptRecap = undefined;
     updateRecapWidget(ctx);
     if (ctx.mode === "tui" && config.enabled && !savedRecap) {
       void performRecap(ctx).catch(() => {
@@ -499,9 +520,22 @@ export default function (pi: ExtensionAPI) {
   });
 
   // Track user interactive input to trigger recap on settlement
-  pi.on("input", (event) => {
-    if (event.source === "interactive") {
-      shouldRecap = true;
+  pi.on("input", (event, ctx) => {
+    if (event.source !== "interactive") return;
+
+    shouldRecap = true;
+    const prompt = event.text?.trim();
+    if (!initialPromptRecapStarted && prompt) {
+      initialPromptRecapStarted = true;
+      if (ctx && ctx.mode === "tui" && config.enabled && config.autoRecap) {
+        firstPromptRecap = performRecap(ctx, false, {
+          user: prompt,
+          assistant: "",
+        });
+        void firstPromptRecap.catch(() => {
+          // Background recap must not create an unhandled rejection during teardown.
+        });
+      }
     }
   });
 
@@ -510,6 +544,20 @@ export default function (pi: ExtensionAPI) {
     if (!shouldRecap) return;
     shouldRecap = false;
     if (ctx.mode !== "tui" || !config.enabled || !config.autoRecap) return;
+    if (firstPromptRecap) {
+      const initialRecap = firstPromptRecap;
+      const generation = sessionGeneration;
+      firstPromptRecap = undefined;
+      void initialRecap
+        .then(() => {
+          if (generation !== sessionGeneration) return undefined;
+          return performRecap(ctx);
+        })
+        .catch(() => {
+          // Background recap must not create an unhandled rejection during teardown.
+        });
+      return;
+    }
     void performRecap(ctx).catch(() => {
       // Background recap must not create an unhandled rejection during teardown.
     });

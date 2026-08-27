@@ -29,9 +29,8 @@ export function formatAgentTaskLabel(agentDescription: string, teammate: string,
 }
 
 /** Normalize a task prompt into the compact name shown in the TUI. */
-export function formatAgentTaskName(prompt: string, fallback: string, maxLength = 80): string {
-  const normalized = prompt.replace(/\s+/g, " ").trim() || fallback;
-  return normalized.length <= maxLength ? normalized : `${normalized.slice(0, maxLength - 3)}...`;
+export function formatAgentTaskName(prompt: string, fallback: string): string {
+  return prompt.replace(/\s+/g, " ").trim() || fallback;
 }
 
 /** Lifecycle row kind shared by background and coordination tools. */
@@ -42,32 +41,30 @@ export interface ToolLifecycleSpec {
   kind: ToolLifecycleKind;
   tool: string;
   subject: string;
-  /** Optional semantic label such as `created`, `listed`, or `to @name`. */
+  /** Optional semantic verb such as `created`, `listed`, `gathered`, or `to @name`. */
   label?: string;
   details?: readonly string[];
 }
 
-/** Format the compact tool event label used by background operations. */
-export function formatToolEventLabel(
-  kind: ToolLifecycleKind | "listed" | "created" | "gathered",
-  description: string,
-  tool = "monitor",
-): string {
-  return `[${safeDisplayText(tool)}] ${kind} · ${safeDisplayText(description)}`;
-}
-
-/** Build the common one-line lifecycle title for a tool result. */
+/** Build the common one-line lifecycle title for a tool result.
+ * A missing label omits the middle segment entirely: the generic kind word
+ * ("event"/"started") is layout metadata, not prose worth showing. */
 export function formatToolLifecycleTitle(spec: ToolLifecycleSpec): string {
-  const prefix = spec.label ?? spec.kind;
-  return `[${safeDisplayText(spec.tool)}] ${safeDisplayText(prefix)} · ${safeDisplayText(spec.subject)}`;
+  const tag = `[${safeDisplayText(spec.tool)}]`;
+  if (spec.label === undefined) return `${tag} ${safeDisplayText(spec.subject)}`;
+  return `${tag} ${safeDisplayText(spec.label)} · ${safeDisplayText(spec.subject)}`;
 }
 
 /** Build a started-row specification. */
-export function startedToolLifecycle(tool: string, subject: string): ToolLifecycleSpec {
-  return { kind: "started", tool, subject };
+export function startedToolLifecycle(
+  tool: string,
+  subject: string,
+  options: { label?: string } = {},
+): ToolLifecycleSpec {
+  return { kind: "started", tool, subject, label: options.label };
 }
 
-/** Build an event-row specification with optional expandable details. */
+/** Build an event-row specification with optional semantic verb and expandable details. */
 export function eventToolLifecycle(
   tool: string,
   subject: string,
@@ -87,48 +84,169 @@ export function formatToolErrorLine(value: unknown, fallback = "Tool failed."): 
   return line?.trim() || fallback;
 }
 
-/** Pi-independent adapters for the shared started/event row contract. */
-export interface ToolLifecycleRenderOptions<T> {
-  width: number;
-  expanded?: boolean;
-  expandHint?: string;
-  titleStyle: (text: string) => string;
-  detailStyle: (text: string) => string;
-  truncate: (text: string, width: number) => string;
-  line: (text: string) => T;
+/** Minimal structural view of pi's TUI theme for lifecycle rendering. */
+export interface ToolLifecycleTheme {
+  fg(color: string, text: string): string;
+  bg(color: string, text: string): string;
+  bold(text: string): string;
 }
 
-/**
- * Render one lifecycle row and, when expanded, its bounded detail lines.
- * Consumers provide Pi's Text/Box adapter, theme, and ANSI-aware truncator;
- * pi-kit owns the started-vs-event behavior so extensions cannot drift.
- */
-export function renderToolLifecycle<T>(
-  spec: ToolLifecycleSpec,
-  options: ToolLifecycleRenderOptions<T>,
-): T[] {
-  if (options.width <= 0) return [];
-  const title = options.titleStyle(formatToolLifecycleTitle(spec));
-  const details = formatToolLifecycleDetails(spec);
-  const collapsed = spec.kind === "started" || !options.expanded;
-  if (collapsed) {
-    const hint = spec.kind === "event" && details.length > 0 ? (options.expandHint ?? "") : "";
-    return [options.line(options.truncate(`${title}${hint}`, options.width))];
-  }
+/** Stable per-teammate accent palette for @name segments (report-row language). */
+const AGENT_COLORS = ["success", "warning", "error", "mdLink"] as const;
+
+/** Deterministic accent color key for a teammate name. */
+export function agentColor(name: string): (typeof AGENT_COLORS)[number] {
+  let hash = 0;
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return AGENT_COLORS[Math.abs(hash) % AGENT_COLORS.length];
+}
+
+export interface ToolLifecycleRenderOptions {
+  /** Full band width; content truncates to the inset width inside the band. */
+  width: number;
+  expanded?: boolean;
+  /** Host-resolved expand-key text, e.g. keyHint("app.tools.expand", "to expand"). */
+  expandHint?: string;
+  /** Whether the row has expandable result metadata even when its body is empty. */
+  expandable?: boolean;
+  theme: ToolLifecycleTheme;
+  /** ANSI-aware width fit, e.g. pi-tui's truncateToWidth. */
+  fit: (text: string, width: number, ellipsis?: string, pad?: boolean) => string;
+  /** Visible terminal width, e.g. pi-tui's visibleWidth. */
+  visibleWidth: (text: string) => number;
+}
+
+/** Shared band geometry: every lifecycle row block renders in this style. */
+const BAND_PAD_X = 1;
+const BAND_PAD_Y = 1;
+
+/** pi's theme.bg emits `<bg-ansi><text>\x1b[49m`; recover the leading bg-ansi alone. */
+function bandBgPrefix(theme: ToolLifecycleTheme): string {
+  const painted = theme.bg("customMessageBg", "");
+  return painted.slice(0, -"\x1b[49m".length);
+}
+
+function paintBand(
+  rows: string[],
+  options: Pick<ToolLifecycleRenderOptions, "width" | "theme" | "fit">,
+): string[] {
+  const bg = (line: string) => options.theme.bg("customMessageBg", line);
+  const padRow = () => bg(options.fit("", options.width, "", true));
+  const prefix = bandBgPrefix(options.theme);
   return [
-    options.line(options.truncate(title, options.width)),
-    ...details.map((detail) => options.line(options.truncate(options.detailStyle(detail), options.width))),
+    ...Array.from({ length: BAND_PAD_Y }, padRow),
+    // Truncating styled rows can inject a full SGR reset (\x1b[0m) before the
+    // ellipsis, which also clears the band background for everything after it.
+    // Re-apply the background immediately after every reset so the whole row —
+    // ellipsis and padding included — stays on the uniform band color.
+    ...rows.map((row) =>
+      bg(options.fit(`${" ".repeat(BAND_PAD_X)}${row}`, options.width, "", true).replaceAll("\x1b[0m", `\x1b[0m${prefix}`)),
+    ),
+    ...Array.from({ length: BAND_PAD_Y }, padRow),
   ];
 }
 
+/** Compose the report-row text language: label-colored prefix, colored @names, plain rest. */
+function styleSubject(subject: string, options: ToolLifecycleRenderOptions): string {
+  const { theme } = options;
+  return subject.replace(/@[\w][\w.-]*/g, (token) => theme.fg(agentColor(token.slice(1)), token));
+}
+
 /**
- * Format the dim expand hint appended to a collapsed transcript row
- * (" · ctrl+o to expand"), the same visual language as teammate report
- * rows. Callers pass the configured key text resolved by the host, e.g.
- * keyHint("app.tools.expand", "to expand").
+ * Render one lifecycle row block: the started/event row and, when expanded,
+ * its bounded detail lines, painted as a full-width customMessageBg band with
+ * a blank band row above and below — the shared report-row visual language:
+ * label-colored `[tool] label ·` prefix, per-teammate colored @names, plain
+ * subject text, dim expand hint. pi-kit owns the styling so extensions cannot
+ * drift.
  */
-export function formatExpandHint(keyHintText: string, theme: PiThemeLike): string {
-  return theme.fg("dim", ` · ${keyHintText}`);
+export function renderToolLifecycle(
+  spec: ToolLifecycleSpec,
+  options: ToolLifecycleRenderOptions,
+): string[] {
+  if (options.width <= 0) return [];
+  const { theme, fit } = options;
+  const contentWidth = Math.max(1, options.width - 2 * BAND_PAD_X);
+  const tag = `[${safeDisplayText(spec.tool)}]`;
+  const label = spec.label === undefined ? "" : ` ${safeDisplayText(spec.label)} ·`;
+  const head = theme.fg("customMessageLabel", theme.bold(`${tag}${label}`));
+  const subjectText = safeDisplayText(spec.subject);
+  const details = formatToolLifecycleDetails(spec);
+  // Structured metadata can make a result expandable even when its visible
+  // content body is empty (for example teammate_spawn's { started }).
+  const expandable = options.expandable ?? details.length > 0;
+  // Any lifecycle row with details can expand. Started rows remain compact
+  // until the host toggles them with its standard expand key.
+  const hint = expandable && !options.expanded
+    ? theme.fg("dim", ` · ${options.expandHint ?? "to expand"}`)
+    : "";
+  const title = `${head} ${styleSubject(subjectText, options)}`;
+  const rows = options.expanded
+    ? [
+        fit(title, contentWidth),
+        ...details.map((detail) => fit(theme.fg("customMessageText", detail), contentWidth)),
+      ]
+    : [
+        hint
+          ? options.visibleWidth(hint) >= contentWidth
+            ? fit(hint, contentWidth)
+            : `${fit(title, Math.max(0, contentWidth - options.visibleWidth(hint)))}${hint}`
+          : fit(title, contentWidth),
+      ];
+  return paintBand(rows, options);
+}
+
+/** One collapsed teammate-message row inside the shared band. */
+export interface AgentMessageRowSpec {
+  direction: "from" | "to";
+  teammate: string;
+  count?: number;
+}
+
+export interface AgentMessageBandOptions {
+  theme: ToolLifecycleTheme;
+  /** ANSI-aware width fit, e.g. pi-tui's truncateToWidth. */
+  fit: (text: string, width: number, ellipsis?: string, pad?: boolean) => string;
+  /** Host-resolved expand-key text, e.g. keyHint("app.tools.expand", "to expand"). */
+  expandHint?: string;
+}
+
+/**
+ * Render collapsed teammate-message rows (`[message] from @name · ctrl+o to
+ * expand`) in the same shared band as lifecycle tool rows. Returns a render
+ * component because message renderers do not know the transcript width until
+ * pi calls render().
+ */
+export function renderAgentMessageBand(
+  rows: readonly AgentMessageRowSpec[],
+  options: AgentMessageBandOptions,
+): { render: (width: number) => string[]; invalidate: () => void } {
+  return {
+    render: (width) => {
+      if (width <= 0) return [];
+      const { theme, fit } = options;
+      const contentWidth = Math.max(1, width - 2 * BAND_PAD_X);
+      const hint = theme.fg("dim", ` · ${options.expandHint ?? "to expand"}`);
+      const content = rows.map(({ direction, teammate, count }) => {
+        const label = count === 1 || count === undefined ? "message" : `${count} messages`;
+        const prefix = theme.fg("customMessageLabel", theme.bold(`[${label}] ${direction} `));
+        const name = theme.fg(agentColor(teammate), `@${teammate}`);
+        return fit(`${prefix}${name}${hint}`, contentWidth);
+      });
+      return paintBand(content, { ...options, width });
+    },
+    invalidate: () => {},
+  };
+}
+
+/**
+ * Type-safe read of an optional field from a tool result's untrusted details
+ * record. Returns undefined when details is missing or the key is absent.
+ */
+export function detailField<T>(details: unknown, key: string): T | undefined {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return undefined;
+  const value = (details as Record<string, unknown>)[key];
+  return value === undefined ? undefined : (value as T);
 }
 
 /**

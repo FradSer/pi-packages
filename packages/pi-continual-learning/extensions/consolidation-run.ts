@@ -867,12 +867,21 @@ export function extractChildPlan<T = unknown>(stdout: string | Uint8Array, optio
   const lines = splitLines.at(-1) === "" ? splitLines.slice(0, -1) : splitLines;
   if (lines.length > (options.maxLines ?? MAX_JSONL_LINES)) return { ok: false, error: "child JSONL exceeded the line bound" };
   const candidates: Array<{ plan: unknown; line: number }> = [];
+  const maxLineBytes = options.maxLineBytes ?? MAX_JSONL_LINE_BYTES;
+  const maxPlanBytes = options.maxPlanBytes ?? MAX_PLAN_BYTES;
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index]; if (!line.trim()) continue;
-    if (Buffer.byteLength(line, "utf8") > (options.maxLineBytes ?? MAX_JSONL_LINE_BYTES)) return { ok: false, error: `child JSONL line ${index + 1} exceeded the byte bound` };
+    const overlong = Buffer.byteLength(line, "utf8") > maxLineBytes;
     let event: unknown; try { event = JSON.parse(line); } catch { continue; }
-    const plan = candidateFromEvent(event); if (plan === undefined) continue;
-    if (Buffer.byteLength(jsonText(plan), "utf8") > (options.maxPlanBytes ?? MAX_PLAN_BYTES)) return { ok: false, error: "consolidation plan exceeded the byte bound" };
+    const plan = candidateFromEvent(event);
+    // Streaming telemetry (thinking/tool deltas) can legitimately be larger
+    // than one JSONL line bound. It is not a plan, so ignore it and continue
+    // looking for the final assistant plan. A line that does contain a plan
+    // still fails closed at the line boundary.
+    if (overlong && plan === undefined) continue;
+    if (overlong) return { ok: false, error: `child JSONL line ${index + 1} exceeded the byte bound` };
+    if (plan === undefined) continue;
+    if (Buffer.byteLength(jsonText(plan), "utf8") > maxPlanBytes) return { ok: false, error: "consolidation plan exceeded the byte bound" };
     candidates.push({ plan, line: index + 1 });
   }
   if (!candidates.length) return { ok: false, error: "child output did not contain a structured consolidation plan" };

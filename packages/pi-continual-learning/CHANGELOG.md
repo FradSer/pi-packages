@@ -10,7 +10,7 @@ heritage marker belong to the previous identity.
 
 - Absorbs @fradser/pi-memory 0.2.7 functionality unchanged.
 - Adds layered JSON tool-call guardrails: corrective block reasons, require-gate
-  AND scoping, built-in defaults, and the /guardrails command.
+  AND scoping, built-in defaults, and the /guardrails command (renamed to /harness in 0.2.0).
 
 ## 0.2.7
 

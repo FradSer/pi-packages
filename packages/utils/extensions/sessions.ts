@@ -14,8 +14,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { keyHint, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Box, Container, Text } from "@earendil-works/pi-tui";
-import { formatAgentTaskName, formatExpandHint, formatToolEventLabel, safeDisplayText } from "@fradser/pi-kit";
+import { Container, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { detailField, eventToolLifecycle, formatAgentTaskName, renderToolLifecycle, safeDisplayText } from "@fradser/pi-kit";
 import { Type } from "typebox";
 
 export interface SessionInfo {
@@ -403,30 +403,30 @@ export default function (pi: ExtensionAPI) {
         const firstLine = textOf(result).split("\n")[0] || "Failed to list directory sessions.";
         return new Text(theme.fg("error", safeDisplayText(firstLine)), 0, 0);
       }
-      const details = result.details as { sessions?: SessionInfo[]; cwd?: string } | undefined;
-      const sessions = details?.sessions ?? [];
-      const summary = sessionListSummary(sessions, path.basename(safeDisplayText(details?.cwd ?? "")));
-      const title = theme.fg("customMessageLabel", theme.bold(formatToolEventLabel("listed", summary, "sessions")));
-      const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
-      if (sessions.length === 0) {
-        box.addChild(new Text(title, 0, 0));
-        return box;
-      }
-      if (!options.expanded) {
-        const hint = formatExpandHint(keyHint("app.tools.expand", "to expand"), theme);
-        box.addChild(new Text(`${title}${hint}`, 0, 0));
-        return box;
-      }
-      box.addChild(new Text(title, 0, 0));
+      const sessions = detailField<SessionInfo[]>(result.details, "sessions") ?? [];
+      const summary = sessionListSummary(sessions, path.basename(safeDisplayText(detailField<string>(result.details, "cwd") ?? "")));
       const shown = sessions.slice(0, MAX_DISPLAY_SESSIONS);
-      for (const session of shown) {
-        box.addChild(new Text(theme.fg("customMessageText", formatSessionRow(session)), 0, 0));
-      }
       const hidden = sessions.length - shown.length;
-      if (hidden > 0) {
-        box.addChild(new Text(theme.fg("customMessageText", `  ... +${hidden} more not shown`), 0, 0));
-      }
-      return box;
+      // One detail row per line so the shared band fits and truncates each
+      // line at the actual width.
+      const rows = [
+        ...shown.flatMap((session) => buildSessionLines(session)),
+        ...(hidden > 0 ? [`... +${hidden} more not shown`] : []),
+      ];
+      return {
+        invalidate: () => {},
+        render: (width) => renderToolLifecycle(
+          eventToolLifecycle("sessions", summary, { label: "listed", details: rows }),
+          {
+            width,
+            expanded: options.expanded,
+            expandHint: keyHint("app.tools.expand", "to expand"),
+            theme,
+            fit: truncateToWidth,
+            visibleWidth,
+          },
+        ),
+      };
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const targetCwd = params.cwd ? path.resolve(params.cwd) : ctx.cwd;
@@ -484,7 +484,7 @@ function buildSessionLines(session: SessionInfo): string[] {
   const name = truncatePlain(safeDisplayText(rawName), 60);
   const lines = [`  ${name} · ${session.status.toUpperCase()} · pid ${session.pid} · ${formatSessionAge(session.updatedAt)}`];
   if (session.latestGoal) {
-    lines.push(`    Goal  ${formatAgentTaskName(safeDisplayText(firstLine(session.latestGoal)), "")}`);
+    lines.push(`    Goal  ${truncateToWidth(formatAgentTaskName(safeDisplayText(firstLine(session.latestGoal)), ""), 80)}`);
   }
   if (session.recap) {
     lines.push(`    Recap ${truncatePlain(safeDisplayText(firstLine(session.recap)), MAX_RECAP_LENGTH)}`);
@@ -497,8 +497,4 @@ function buildSessionLines(session: SessionInfo): string[] {
     lines.push(`    Files ${shown.join(", ")}${rest > 0 ? ` (+${rest} more)` : ""}`);
   }
   return lines;
-}
-
-function formatSessionRow(session: SessionInfo): string {
-  return buildSessionLines(session).join("\n");
 }

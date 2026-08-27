@@ -6,6 +6,7 @@ from pathlib import Path
 
 PKG_DIR = Path(__file__).resolve().parents[1]
 REPO = PKG_DIR.parents[1]
+PKG_REL = "packages/pi-continual-learning"
 
 
 def run_bun(source: str) -> dict[str, object]:
@@ -55,20 +56,26 @@ def policy(name: str = "evidence-rule") -> dict:
 # ── plan validation ───────────────────────────────────────────────────
 
 
+def valid_plan() -> dict:
+    return {
+        "kind": "harness-consolidation-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "operations": [
+            {"op": "updatePolicy", "name": "evidence-rule", "policy": policy()},
+            {"op": "disablePolicy", "name": "stale-rule"},
+            {"op": "addSkillPrompt", "name": "using-open-artifacts", "prompt": "Use coda0.com", "target": "system"},
+        ],
+        "evidence": [
+            {"index": 0, "observation": "blocked 3 writes hard-coding px widths", "count": 3},
+            {"index": 1, "observation": "stale rule contradicts current guidance twice", "count": 2},
+            {"index": 2, "observation": "skill invocation went off-target once", "count": 1},
+        ],
+    }
+
+
 def test_valid_plan_with_operations_passes() -> None:
-    errs = validate(
-        {
-            "kind": "harness-consolidation-plan",
-            "version": 1,
-            "schemaVersion": 1,
-            "operations": [
-                {"op": "updatePolicy", "name": "evidence-rule", "policy": policy()},
-                {"op": "disablePolicy", "name": "stale-rule"},
-                {"op": "addSkillPrompt", "name": "using-open-artifacts", "prompt": "Use coda0.com", "target": "system"},
-            ],
-            "evidence": [{"index": 0, "observation": "blocked 3 writes", "count": 3}],
-        }
-    )
+    errs = validate(valid_plan())
     assert errs == []
 
 
@@ -182,11 +189,132 @@ def test_command_registered_as_harness_not_guardrails() -> None:
 
 def test_consolidate_pipeline_gates_harness_phase() -> None:
     src = (PKG_DIR / "extensions" / "inject-memory.ts").read_text(encoding="utf-8")
-    assert 'import { runHarnessConsolidationPhase } from "./harness-consolidation"' in src
-    assert "state.outcome !== \"completed\"" in src or 'state.outcome !== "completed"' in src
-    assert "Harness consolidation needs captured context; skipped (no-context run)." in src
+    assert 'import { runHarnessConsolidationPhase, shouldRunHarnessPhase } from "./harness-consolidation"' in src
+    assert 'shouldRunHarnessPhase(state, opts.noContext)' in src
+    assert 'gate !== "run"' in src
+    assert "skipped (no-context run)" in src
     assert "await startConsolidationPipeline(ctx, dreamState," in src
     assert src.count("await spawnAsyncConsolidation(ctx, state, opts);") == 1
+
+
+def test_plan_requires_version_and_schema_version_one() -> None:
+    plan = valid_plan()
+    errs = validate(plan | {"version": 2})
+    assert any("version must be 1" in e for e in errs)
+    errs = validate(plan | {"schemaVersion": "x"})
+    assert any("schemaVersion must be 1" in e for e in errs)
+
+
+def test_plan_without_evidence_is_rejected_fail_closed() -> None:
+    plan = valid_plan()
+    del plan["evidence"]
+    errs = validate(plan)
+    assert any("evidence must be an array" in e for e in errs)
+
+
+def test_evidence_must_cover_every_operation_index() -> None:
+    plan = valid_plan()
+    plan["evidence"] = [e for e in plan["evidence"] if e["index"] != 1]
+    errs = validate(plan)
+    assert any("operations[1] has no evidence entry" in e for e in errs)
+
+
+def test_evidence_entries_are_shape_checked() -> None:
+    plan = valid_plan()
+    plan["evidence"] = [
+        {"index": 0, "observation": "ok", "count": 1},
+        {"index": 9, "observation": "out of range", "count": 1},
+        {"index": 1, "observation": "", "count": 0},
+        {"index": 2, "observation": "no count"},
+    ]
+    errs = validate(plan)
+    assert any("out of range" in e for e in errs)
+    assert any("observation must be 1..600" in e for e in errs)
+    assert any("count must be a positive integer" in e for e in errs)
+
+
+def test_report_entries_require_bounded_summaries() -> None:
+    plan = valid_plan()
+    plan["report"] = [{"summary": ""}]
+    errs = validate(plan)
+    assert any("1..400 char summary" in e for e in errs)
+
+
+def test_should_run_harness_phase_decision_table() -> None:
+    src = f"""
+        import {{ shouldRunHarnessPhase }} from './{PKG_REL}/extensions/harness-consolidation.ts';
+        const table = {{
+          waitWhileActive: shouldRunHarnessPhase({{ outcome: undefined, active: true, cancelled: false }}),
+          waitUntilOutcome: shouldRunHarnessPhase({{ outcome: undefined, active: false, cancelled: false }}),
+          cancelledStaysWaiting: shouldRunHarnessPhase({{ outcome: "failed", active: false, cancelled: true }}),
+          failedSkips: shouldRunHarnessPhase({{ outcome: "failed", active: false, cancelled: false }}),
+          unverifiedSkips: shouldRunHarnessPhase({{ outcome: "unverified", active: false, cancelled: false }}),
+          completedRuns: shouldRunHarnessPhase({{ outcome: "completed", active: false, cancelled: false }}),
+          noContextSkipsEvenWhenCompleted: shouldRunHarnessPhase({{ outcome: "completed", active: false, cancelled: false }}, true),
+        }};
+        console.log(JSON.stringify(table));
+    """
+    out = run_bun(src)
+    assert out == {
+        "waitWhileActive": "wait",
+        "waitUntilOutcome": "wait",
+        "cancelledStaysWaiting": "wait",
+        "failedSkips": "skip",
+        "unverifiedSkips": "skip",
+        "completedRuns": "run",
+        "noContextSkipsEvenWhenCompleted": "skip-no-context",
+    }
+
+
+def test_receipt_builder_shapes_pre_and_post() -> None:
+    src = f"""
+        import {{ buildHarnessReceipt }} from './{PKG_REL}/extensions/harness-consolidation.ts';
+        const base = {{ runId: "run_x", scopeDigest: "s", snapshotDigest: "a", targetFile: "/t/p", digestBefore: "aa", planDigest: "pd" }};
+        console.log(JSON.stringify({{
+          pre: buildHarnessReceipt({{ ...base, phase: "pre" }}),
+          post: buildHarnessReceipt({{ ...base, phase: "post", digestAfter: "bb", applied: ["disablePolicy:x"] }}),
+        }}));
+    """
+    out = run_bun(src)
+    assert out["pre"]["phase"] == "pre" and "applied" not in out["pre"] and "digestAfter" not in out["pre"]
+    assert out["post"]["phase"] == "post"
+    assert out["post"]["digestAfter"] == "bb" and out["post"]["applied"] == ["disablePolicy:x"]
+    for receipt in (out["pre"], out["post"]):
+        assert receipt["kind"] == "harness-consolidation-receipt"
+        assert receipt["digestBefore"] == "aa" and receipt["planDigest"] == "pd"
+
+
+def test_no_cli_dependency_fails_isolated_without_touching_state(tmp_path: Path) -> None:
+    target = tmp_path / "harness.local.json"
+    target.write_text(json.dumps({"policies": [policy("keep")]}), encoding="utf-8")
+    before = target.read_bytes()
+    script = f"""
+        import {{ runHarnessConsolidationPhase }} from './{PKG_REL}/extensions/harness-consolidation.ts';
+        const notes = [];
+        const state = {{ active: false, generation: 0, cancelled: false }};
+        await runHarnessConsolidationPhase(
+          {{ cwd: {json.dumps(str(tmp_path))}, ui: {{ notify: (m) => notes.push(m) }} }},
+          state,
+          {{ pkgDir: {json.dumps(str(PKG_DIR))}, cwd: {json.dumps(str(tmp_path))}, reason: "test", resolveCli: () => null, targetPath: {json.dumps(str(target))} }},
+        );
+        console.log(JSON.stringify({{ notes, active: state.active, generation: state.generation }}));
+    """
+    result = subprocess.run(["bun", "-e", script], cwd=REPO, capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout.strip().splitlines()[-1])
+    assert any("skipped" in n for n in out["notes"])
+    assert out["active"] is False and out["generation"] == 0
+    assert target.read_bytes() == before
+
+
+def test_phase_writes_pre_receipt_before_apply_and_post_after(tmp_path: Path) -> None:
+    src = (PKG_DIR / "extensions" / "harness-consolidation.ts").read_text(encoding="utf-8")
+    pre_idx = src.index('"harness-pre-receipt.json"')
+    apply_idx = src.index("const applied = await applyHarnessOps(target, ops);")
+    post_idx = src.index('"harness-post-receipt.json"')
+    assert pre_idx < apply_idx < post_idx
+    assert 'sha256Digest(beforeBytes)' in src and 'sha256Digest(postBytes)' in src
+    assert 'postBytes.equals(nowBytes)' in src
 
 
 def test_procedure_declares_readonly_boundary_and_bounds() -> None:

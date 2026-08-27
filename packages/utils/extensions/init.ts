@@ -69,11 +69,16 @@ and the independent directory scope each file covers.
 
 export function buildInitPrompt(cwd: string, focus: string = ""): string {
   const repositoryRoot = JSON.stringify(cwd);
+  const prompt = INIT_PROMPT.split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ")
+    .replace("__REPOSITORY_ROOT__", repositoryRoot);
   const focusSection = focus.trim()
-    ? `\n\nAdditional user focus (apply only when consistent with the repository evidence above):\n${focus.trim()}`
+    ? ` Additional user focus (apply only when consistent with the repository evidence above): ${focus.trim().replace(/\s+/g, " ")}`
     : "";
 
-  return `${INIT_PROMPT.replace("__REPOSITORY_ROOT__", repositoryRoot)}${focusSection}`;
+  return `${prompt}${focusSection}`;
 }
 
 export default function (pi: ExtensionAPI) {

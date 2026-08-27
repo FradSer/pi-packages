@@ -18,6 +18,13 @@ Feature: Harness consolidation alongside memory consolidation
     Then every proposed operation cites concrete observed evidence from that snapshot
     And the parent alone writes any configuration
 
+  Scenario: Oversized non-plan telemetry does not abort harness consolidation
+    Given child output contains an oversized non-plan message_update event followed by a valid final plan
+    When the harness phase extracts the child plan
+    Then the oversized telemetry event is ignored
+    And the valid final plan is still validated and applied autonomously
+    And the user receives no warning about the ignored telemetry event
+
   Scenario: Harness operations are bounded
     Given a harness plan declares more than the configured maximum operations
     Or a single policy payload exceeds the configured byte bound

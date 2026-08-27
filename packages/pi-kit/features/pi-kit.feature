@@ -16,18 +16,25 @@ Feature: Shared pi-kit runtime helpers
     Then accent, muted, dim, border, success, and error callbacks map to theme fg colors
     And the fg callback passes arbitrary colors through
 
-  Scenario: Compact tool event labels share pi-kit formatting
-    Given a monitor tool description
-    When a tool event label is formatted
-    Then started is `[monitor] started · <description>`
-    And terminal events are `[monitor] event · <description>`
-    And synchronous listings support other tools as `[sessions] listed · <description>`
+  Scenario: Lifecycle titles share the spec formatting across tools
+    Given a lifecycle tool and subject
+    When a title is formatted from a ToolLifecycleSpec
+    Then started rows are `[monitor] <subject>`
+    And terminal events are `[monitor] <subject>`
+    And semantic verbs ride the optional label as `[sessions] listed · <subject>` or `[context] gathered · <subject>`
 
   Scenario: Lifecycle tool renderers provide the shared started and event row contract
     Given a tool renderer configured with pi-kit lifecycle primitives
     When the renderer handles a started result
     Then it owns an empty call slot and one width-bounded `[tool] started · <subject>` row
-    And when it handles an expanded event result it reveals bounded detail lines
+    And any collapsed lifecycle row with details reserves width for and preserves the configured expand hint
+    And pi-kit paints every successful row block as a full-width customMessageBg band with one blank band row above and below
+    And a truncated row's ellipsis and padding keep the same band background, because pi-kit re-applies the background after any full SGR reset
+    And the title prefix is label-colored and bold while @teammate names get a stable per-agent accent color from pi-kit's palette
+    And collapsed teammate-message rows use the same band via renderAgentMessageBand as `[message] from @name · <key> to expand`
+    And class-based theme methods retain their receiver when pi-kit applies the background band
+    And a long title truncates before the expand hint instead of truncating the hint
+    And when it handles an expanded result it reveals bounded detail lines
     And an error result is rendered as one plain error row without a lifecycle label
 
   Scenario: Agent task and message labels share pi-kit formatting
@@ -37,6 +44,7 @@ Feature: Shared pi-kit runtime helpers
     And a single incoming message label is "[message] from @calc-1"
     And multiple messages from one teammate are "[2 messages] from @calc-1"
     And outgoing messages can use "[message] to @calc-1"
+    And the task name carries no width cap; fixed panels apply their own explicit width bound
 
   Scenario: Plain text is extracted from string message content
     Given message content that is a plain string

@@ -17,5 +17,5 @@ A native follow-up still runs only after the current tool/steering loop can natu
 - Keep only one package dispatch active. `agent_settled` releases it and schedules the next pending report, preserving FIFO and one-report-per-leader-turn semantics.
 - Match idle-started dispatches in `before_agent_start`/`agent_start`; a watchdog restores a dispatch when no start occurs. Active-run dispatches are already accepted by Pi's follow-up queue and wait for settlement.
 - `sendMainSessionFollowUp` only enqueues. Do not call Pi's void `sendMessage` directly from worker completion paths.
-- The team machine suppresses every report after the first accepted terminal status in a wake-up sequence; a new wake-up resets that boundary. Distinct intermediate reports, including identical bodies before terminal status, remain deliverable, and the same content is not suppressed across assignments.
+- Teammate report discipline belongs at the report-sequence boundary: suppress duplicate bodies within one sequence and reopen reporting only after a new wake-up prompt; preserve distinct intermediate reports and never infer duplicates across assignments.
 - Keep BDD coverage in `features/agent-teams.feature` and the busy-leader serialization regression in `tests/test_teammate_package.py`.

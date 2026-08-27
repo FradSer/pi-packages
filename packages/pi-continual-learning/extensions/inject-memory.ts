@@ -372,6 +372,18 @@ export interface ConsolidationEvidence {
   finalPlan?: unknown;
 }
 
+/** Oversized message_update telemetry is diagnostic stream data, not a plan.
+ * It is safe to ignore after JSON parsing; final plans remain subject to the
+ * per-line bound in the shared extractor. */
+export function isIgnorableOversizedJsonlEvent(line: string): boolean {
+  try {
+    const event = JSON.parse(line) as { type?: unknown; assistantMessageEvent?: unknown };
+    return event?.type === "message_update" && event.assistantMessageEvent !== undefined;
+  } catch {
+    return false;
+  }
+}
+
 export function createConsolidationEvidence(): ConsolidationEvidence {
   return { completedToolWork: false, parentReceiptVerified: false, planCount: 0, lastJsonError: "" };
 }
@@ -800,6 +812,7 @@ async function spawnAsyncConsolidation(
       return;
     }
     if (Buffer.byteLength(line, "utf8") > MAX_JSONL_LINE_BYTES) {
+      if (isIgnorableOversizedJsonlEvent(line)) return;
       stopForOutputLimit(`child JSONL line exceeded ${MAX_JSONL_LINE_BYTES} bytes`);
       return;
     }
@@ -817,9 +830,9 @@ async function spawnAsyncConsolidation(
       if (stdoutCaptureOverflowed) return;
       newline = stdoutBuffer.indexOf("\n");
     }
-    if (Buffer.byteLength(stdoutBuffer, "utf8") > MAX_JSONL_LINE_BYTES) {
-      stopForOutputLimit(`child JSONL line exceeded ${MAX_JSONL_LINE_BYTES} bytes`);
-    }
+    // Do not reject an unterminated telemetry line before it reaches the
+    // parser. The total stdout bound above remains the memory safety circuit;
+    // complete lines are checked by handleJsonLineWithinBounds.
   };
   child.stdout?.on("data", (chunk: Buffer) => {
     if (stdoutCaptureOverflowed) return; // child output limit exceeded
@@ -1075,7 +1088,6 @@ async function startConsolidationPipeline(
       reason: opts.reason,
       budgetBytes: settings.agentsMd?.budgetBytes ?? DEFAULT_AGENTS_MD_BUDGET_BYTES,
       disabled: settings.agentsMd?.disabled === true,
-      hasUI: ctx.mode === "tui",
     });
   })();
 }

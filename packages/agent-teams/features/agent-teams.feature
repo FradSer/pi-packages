@@ -145,6 +145,7 @@ Feature: Agent Teams collaborative organization contract
       Given a living teammate that announced no terminal report
       When the leader shuts that teammate down
       Then the shutdown event line renders with its expandable diagnostics
+      And the requested shutdown does not create a leader follow-up message
 
     Scenario: An unexpected teammate crash is reported to the leader
       Given a resident teammate's child process closes without a shutdown request
@@ -171,7 +172,7 @@ Feature: Agent Teams collaborative organization contract
       When the harness poll checks teammate liveness
       Then the roster records the last output time and a stall notice
       And the leader receives one actionable diagnostic naming the teammate
-      And the transcript renders the health diagnostic as one `[agent] event · @name stalled · silent <duration>` row
+      And the transcript renders the health diagnostic as one `[agent] @name stalled · silent <duration>` row
       And message routing rows never repeat the teammate health state
       And the notice wakes the idle leader without requiring model polling
       And the notice is the last automatic action: continuing, steering, shutting down, or respawning belongs to the leader alone
@@ -241,15 +242,102 @@ Feature: Agent Teams collaborative organization contract
       And the leader validates the teammate identity and spawn identity
       And the message lands in the single leader inbox
       And a status="completed" or status="failed" report ends the current assignment, with the teammate going idle when its current sequence ends
-      And intermediate reports are recorded without interrupting the main session
+      And every leader-bound report, intermediate or terminal, is queued for the leader as its own follow-up turn
       And status is rejected for peer-directed messages
+
+    Scenario: A report enters Pi's native follow-up queue while the leader is active
+      Given the leader is processing an active run
+      When a teammate sends a leader-bound report
+      Then Agent Teams dispatches that report without waiting for agent_settled
+      And Pi retains the report as a follow-up until the current run can end
+      And Agent Teams does not dispatch a later report until the dispatched report settles
+
+    Scenario: Teammate messages are rationed by value instead of throttled
+      Given the worker messaging protocol
+      Then it states that every leader-bound message starts a full leader turn
+      And it forbids bare status pings that carry no new information
+      And it keeps immediate reporting for blockers, plan-changing facts, and final deliverables
+      And it combines the final outcome, evidence, verification, and remaining risks in one substantive terminal report when relevant
+      And it puts status="completed" or status="failed" on that final substantive report
+      And it does not send a separate completion-only message after the final report
+      And it avoids repeating the same findings across reports unless new information changes the conclusion
+      And it keeps terminal status mandatory when the assignment ends
+
+    Scenario: Bounded reviewer assignments end with one substantive report
+      Given a reviewer is completing a bounded assignment for the leader
+      When it has findings, a recommendation, and verification evidence
+      Then one concise terminal report bundles those findings, the recommendation, verification, and remaining risks
+      And earlier leader reports are limited to genuinely new blockers, plan-changing facts, or evidence that changes the conclusion
+      And the reviewer does not send a separate status-only assignment-complete message
+      And after the terminal report, leader reporting resumes only for a new assignment or decision-useful fact
+      And the terminal report carries status="completed" or status="failed"
 
     Scenario: Completion is announced once per spawn incarnation
       Given a teammate delivered several leader-bound reports carrying terminal status within one spawn
-      When the report batches render in the transcript
+      When the reports arrive as separate follow-up messages
       Then exactly one "Teammate finished" entry is appended for that teammate and spawn identity
       And repeated terminal reports from the same spawn stay ordinary report rows without extra finished entries
       And respawning a teammate with the same name announces its completion again
+
+    Scenario: A terminal report closes reporting until a new wake-up or explicit new assignment
+      # A terminal report closes reporting until a new wake-up only when the wake-up is an explicit new assignment.
+      Given a teammate sends a leader-bound report with status="completed" or status="failed"
+      When later reports from that same spawn arrive
+      Then those reports are suppressed instead of starting more leader turns
+      And distinct decision-useful intermediate reports sent before the terminal report remain deliverable
+      And the harness does not emit a duplicate completion-only follow-up
+      When the leader sends an ordinary steer to that teammate
+      Then the steer is rejected without reopening its report sequence
+      When the leader explicitly marks a new assignment with reopen=true
+      Then the teammate receives the new assignment and its report sequence reopens
+      And identical intermediate reports before a terminal status remain deliverable
+
+    Scenario: Delivered report details retain terminal evidence
+      Given a teammate sends a leader-bound report
+      When the parent queues it as a leader follow-up
+      Then the follow-up details retain the outbox event id and status
+      And the status distinguishes an actual terminal report from terminal-looking prose
+
+    Scenario: A terminal worker report ends its current worker turn
+      Given a teammate sends a leader-bound report with status="completed" or status="failed"
+      When its send_message tool result returns
+      Then the result terminates the current worker turn
+      And the harness marks the teammate idle without waiting for another stream event
+      And a status-less or in-progress report does not terminate the turn
+
+    Scenario: Suppressed report events remain replay-safe
+      Given a terminal report has closed a teammate's current report sequence
+      When a later outbox event is suppressed
+      Then its exact event id is still consumed for replay protection
+      And replaying that event does not deliver it after the sequence reopens
+
+    Scenario: Leader-relevant harness events ride the same delivery channel
+      When a worktree teammate shuts down with captured changes
+      Or a verify gate fails repeatedly enough to need manual attention
+      Or a resident teammate stops unexpectedly
+      Then the event is queued for the leader through the same follow-up channel as worker reports
+      And the event uses a harness-event envelope instead of an agent-message envelope
+      And actionable worktree capture or cleanup failures wake the leader through that envelope
+      And purely operational logs stay inspectable in the /agent-teams console without starting leader turns
+
+    Scenario: Malformed report timestamps are rejected safely
+      Given a teammate outbox contains a report with a non-finite timestamp
+      When the harness drains the outbox
+      Then it treats the record as malformed instead of crashing report delivery
+      And it ignores the non-finite timestamp when formatting any retained report
+      And later valid reports remain deliverable
+
+    Scenario: Requested shutdown stays a tool lifecycle event
+      Given a living teammate is shut down by the leader
+      When the shutdown completes
+      Then the transcript shows the requested shutdown through the tool lifecycle row
+      And no asynchronous harness follow-up is sent for the clean shutdown
+
+    Scenario: The leader waits for a terminal report before intentional shutdown
+      Given a teammate is still working on an assignment
+      When the leader considers shutting it down after the work appears complete
+      Then the leader guidance says to wait for status="completed" or status="failed" when possible
+      And intentional shutdown is not treated as proof that the assignment completed
 
     Scenario: A teammate whose last report lacks terminal status is asked to self-finalize first
       Given a teammate sent leader-bound messages but never status="completed" or "failed"
@@ -263,6 +351,13 @@ Feature: Agent Teams collaborative organization contract
       Then the harness delivers one light leader reminder naming that teammate
       And neither request nor reminder repeats within the same spawn incarnation
       And neither fires when every report from that teammate was terminal
+
+    Scenario: A peer-only kickoff does not synthesize a leader report
+      Given a teammate spawned with a kickoff that only communicates with peers
+      When its current turn ends and it goes idle without sending a leader-bound report
+      Then the harness does not synthesize a kickoff-without-report event
+      And the leader remains quiet until the teammate actively sends a report to="leader"
+      And a prompt-less board-check spawn idling also remains quiet
 
     Scenario: The leader addresses a living teammate by name through send_message
       When the leader calls send_message with a teammate name and one message body
@@ -475,7 +570,7 @@ Feature: Agent Teams collaborative organization contract
       Given the leader spawns a teammate with a kickoff prompt
       When the spawn tool call renders in the transcript
       Then it shows one started line identifying the teammate and kickoff task
-      And the line follows the `[agent] started · @name · task-name` shape
+      And the line follows the `[agent] @name started · task-name` shape
       And the started line fits the available TUI width with a trailing ellipsis when needed
       And the full result text stays available behind the standard tool rendering
       And a failed spawn keys off the render context isError flag and renders one plain error line
@@ -484,18 +579,37 @@ Feature: Agent Teams collaborative organization contract
       Given the leader spawns a teammate with a long name and kickoff prompt
       When the started row renders in a narrow transcript
       Then the row stays on one line and does not exceed the available width
+      And the kickoff prompt flows into the title uncapped because only the renderer truncates at the actual width
 
-    Scenario: The roster and spawn render expose the effective tool allowlist
+    Scenario: The teammate_spawn started row shows the assignment without duplicate identity or tools
+      Given the leader spawns @storm-auditor without a kickoff prompt
+      When the started row renders in the transcript
+      Then it shows one `@storm-auditor` identity followed by the board-check assignment
+      And it does not show the role name a second time as the assignment
+      And it does not show the granted tools
+      And the collapsed row carries the standard `ctrl+o to expand` hint even when the tool content body is empty but structured details exist
+      And expanding the row reveals the full spawn result without tool details
+
+    Scenario: The roster and detail view expose the effective tool allowlist
       Given the leader spawns a teammate from a role definition with tools
       Then the roster records the exact tool allowlist granted to the child process
-      And the spawn result names the granted tools before the teammate's first wake
+      And the `/agent-teams` detail view exposes the granted tools when needed for diagnosis
+      And the spawn row does not show the granted tools
       And a role derived inline without a tools field shows only the capability set
-      And missing read or bash for a file-inspecting assignment is visible at spawn time, not after wasted worker turns
+      And missing read or bash for a file-inspecting assignment remains visible in the roster before another worker turn
+
+    Scenario: Spawning rejects unknown execution-tool ids before any side effect
+      Given an agent requesting a tool id pi does not register for teammates
+      When the leader attempts the spawn
+      Then the spawn fails immediately with no teammate, roster entry, worktree, or persisted role
+      And the error names every unknown id instead of silently granting nothing
+      And it lists the valid teammate tool universe and explains that the child runs without extensions
+      And the universe is exactly the pi built-in tools plus the teammate capability set
 
     Scenario: Shutting down renders one collapsible agent event line
       Given the leader shuts down a teammate
       When the shutdown tool call renders in the transcript
-      Then it shows one event line following the `[agent] event · @name shut down` shape
+      Then it shows one event line following the `[agent] @name shut down` shape
       And the collapsed line appends the shared dim expand hint from pi-kit
       And expanding the line reveals the shutdown detail lines such as exit code, released tasks, and usage
       And the event line is never labeled as a monitor event
@@ -509,6 +623,7 @@ Feature: Agent Teams collaborative organization contract
       And the line appends exactly one synchronous routing outcome: steered or queued
       And steered means only that the active control stream accepted the message
       And queued means the harness still owns delivery into a recipient turn
+      And the collapsed line ends with the standard expand hint and expands to reveal the routing result
       And teammate health never appears as a message routing suffix
       And the full result text stays available to the model without a second transcript row
       And a failed send keys off the render context isError flag and renders one plain error line without an outcome suffix
@@ -518,6 +633,7 @@ Feature: Agent Teams collaborative organization contract
       When the task_create tool call renders in the transcript
       Then the call slot renders no content of its own
       And the result renders one `[board] created · <subject>` line truncated to the available width
+      And the collapsed line ends with the standard expand hint and expands to reveal the creation result
       And a failed creation keys off the render context isError flag and renders one plain error line without a created row
 
     Scenario: Every Agent Teams tool uses the shared pi-kit lifecycle renderer
@@ -526,8 +642,16 @@ Feature: Agent Teams collaborative organization contract
       Then it uses pi-kit renderToolLifecycle with either started or event semantics
       And its call slot is empty and its result row is width-bounded
       And expanded event details use pi-kit's shared expansion behavior
+      And rows carrying detail lines render in pi-kit's shared background style
+      And successful rows render inside the shared full-width `[message] from @name` band language, matching the teammate report rows
       And failed results use pi-kit's shared plain error formatting
       And task_list uses the event adapter with the `listed` semantic label
+
+    Scenario: Lifecycle rows survive Pi's class-based Theme
+      Given a theme whose bg method reads instance state like Pi's built-in Theme class
+      When any tool renders a successful result with details
+      Then rendering succeeds without losing the bg receiver
+      And detail rows are painted through the bound bg method
 
     Scenario: Every Agent Teams tool executes through the real tool harness
       Given a fake RPC Pi child and isolated leader and worker state files
@@ -617,6 +741,8 @@ Feature: Agent Teams collaborative organization contract
       When the leader spawns a teammate with that agent
       Then the teammate works in its own worktree on its own branch
       And shutdown captures the diff against the base commit for integration review
+      And cleanup removes the worktree directory but keeps the branch so captured work stays retrievable
+      And a failed capture commit preserves the worktree directory instead of destroying the work
 
     Scenario: Worktree-role setup failure fails the spawn cleanly
       Given an agent definition declares worktree: true and worktree creation fails

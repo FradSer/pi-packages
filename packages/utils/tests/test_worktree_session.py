@@ -166,6 +166,8 @@ console.log(JSON.stringify({{
     def test_tools_queue_transitions_instead_of_claiming_completion(self) -> None:
         script = f"""
 import registerWorktreeSession from {json.dumps(SESSION_EXTENSION.as_uri())};
+import {{ initTheme }} from "@earendil-works/pi-coding-agent";
+initTheme("dark");
 const tools = {{}};
 const sent = [];
 const fakePi = {{
@@ -176,7 +178,7 @@ const fakePi = {{
 registerWorktreeSession(fakePi);
 const enter = await tools.enter_worktree.execute("1", {{ name: "feature-auth" }});
 const exit = await tools.exit_worktree.execute("2", {{}});
-const theme = {{ fg: (_color, text) => text, bold: (text) => text }};
+const theme = {{ fg: (_color, text) => text, bold: (text) => text, bg: (_color, text) => text }};
 const enterRow = tools.enter_worktree.renderResult(
   enter,
   {{ expanded: false, isPartial: false }},
@@ -198,8 +200,10 @@ console.log(JSON.stringify({{ sent, enter, exit, enterRow, exitRow }}));
         self.assertTrue(result["sent"][1]["options"]["expandPromptTemplates"])
         self.assertEqual("queued", result["enter"]["details"]["status"])
         self.assertEqual("queued", result["exit"]["details"]["status"])
-        self.assertEqual("[worktree] enter · feature-auth", result["enterRow"])
-        self.assertEqual("[worktree] exit · current worktree", result["exitRow"])
+        self.assertTrue("[worktree] enter · feature-auth" in result["enterRow"])
+        self.assertIn("to expand", result["enterRow"])
+        self.assertTrue("[worktree] exit · current worktree" in result["exitRow"])
+        self.assertIn("to expand", result["exitRow"])
 
     def test_exit_command_switches_to_parent_and_can_keep_worktree(self) -> None:
         script = f"""
@@ -236,6 +240,34 @@ console.log(JSON.stringify({{ switched, sourceFile, exists: fs.existsSync(ctx.cw
         result = run_ts(script)
         self.assertEqual(result["sourceFile"], result["switched"])
         self.assertTrue(result["exists"])
+
+    def test_render_result_survives_class_based_theme(self) -> None:
+        script = f"""
+import ext from {json.dumps(SESSION_EXTENSION.as_uri())};
+import {{ initTheme }} from "@earendil-works/pi-coding-agent";
+
+initTheme("dark");
+let toolDef;
+ext({{ registerTool: (def) => {{ if (def.name === "enter_worktree") toolDef = def; }}, registerCommand() {{}} }});
+class ClassTheme {{
+  constructor() {{ this.bgColors = new Map([["customMessageBg", "\\u001B[44m"]]); }}
+  fg(_color, text) {{ return text; }}
+  bold(text) {{ return text; }}
+  bg(color, text) {{ return this.bgColors.get(color) + text + "\\u001B[49m"; }}
+}}
+const rendered = toolDef
+  .renderResult(
+    {{ content: [{{ type: "text", text: "Queued enter_worktree; the session transition is pending." }}], details: {{}} }},
+    {{ expanded: true, isPartial: false }},
+    new ClassTheme(),
+    {{ isError: false, args: {{ name: "demo" }} }},
+  )
+  .render(100)
+  .join("\\n");
+console.log(JSON.stringify({{ painted: rendered.includes("\\u001B[44m"), rendered }}));
+"""
+        result = run_ts(script)
+        self.assertTrue(result["painted"], result["rendered"])
 
 
 if __name__ == "__main__":

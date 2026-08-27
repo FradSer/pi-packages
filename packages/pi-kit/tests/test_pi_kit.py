@@ -156,73 +156,242 @@ def test_shared_termination_escalates_after_close_grace_period() -> None:
     assert result == {"terminated": True, "closed": True}
 
 
-def test_tool_event_labels_share_the_compact_monitor_pattern() -> None:
+def test_tool_lifecycle_titles_share_the_compact_monitor_pattern() -> None:
     result = run_typescript(
         f"""
         import {{
           eventToolLifecycle,
-          formatToolEventLabel,
           formatToolLifecycleTitle,
           renderToolLifecycle,
           startedToolLifecycle,
         }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ visibleWidth }} from "@earendil-works/pi-tui";
+        const theme = {{
+          fg: (_color, text) => text,
+          bg: (_color, text) => `<BG>${{text}}</BG>`,
+          bold: (text) => text,
+        }};
+        const fit = (text, width, ellipsis = "...", pad = false) => {{
+          const shortened = text.length > width
+            ? `${{text.slice(0, Math.max(0, width - ellipsis.length))}}${{ellipsis.slice(0, width)}}`
+            : text;
+          return pad ? shortened.padEnd(width) : shortened;
+        }};
+        const render = (spec, options = {{}}) => renderToolLifecycle(spec, {{
+          width: 80,
+          theme,
+          fit,
+          visibleWidth,
+          ...options,
+        }});
+        const startedRows = render(startedToolLifecycle("agent", "@audit started · review"));
+        const eventRows = render(
+          eventToolLifecycle("board", "Fix login", {{ details: ["status=success"] }}),
+          {{ expanded: true }},
+        );
+        const hintedRows = render(
+          eventToolLifecycle("board", "Fix login", {{ details: ["status=success"] }}),
+          {{ expandHint: "ctrl+o to expand" }},
+        );
+        const plain = (line) => line.replace(/<[^>]+>/g, "");
         console.log(JSON.stringify({{
-          started: formatToolEventLabel("started", "运行 monitor 包测试"),
-          event: formatToolEventLabel("event", "运行 monitor 包测试"),
-          listed: formatToolEventLabel("listed", "2 other sessions in pi-packages", "sessions"),
-          agentEvent: formatToolEventLabel("event", "@scribe shut down", "agent"),
-          created: formatToolEventLabel("created", "Fix the login flow", "board"),
-          gathered: formatToolEventLabel("gathered", "3 requests since last commit", "context"),
+          started: formatToolLifecycleTitle(startedToolLifecycle("monitor", "运行 monitor 包测试")),
+          event: formatToolLifecycleTitle(eventToolLifecycle("monitor", "运行 monitor 包测试")),
+          listed: formatToolLifecycleTitle(eventToolLifecycle("sessions", "2 other sessions in pi-packages", {{ label: "listed" }})),
+          agentEvent: formatToolLifecycleTitle(eventToolLifecycle("agent", "@scribe shut down")),
+          created: formatToolLifecycleTitle(eventToolLifecycle("board", "Fix the login flow", {{ label: "created" }})),
+          gathered: formatToolLifecycleTitle(eventToolLifecycle("context", "3 requests since last commit", {{ label: "gathered" }})),
           startedTitle: formatToolLifecycleTitle(startedToolLifecycle("agent", "@audit · review")),
+          labeledStartedTitle: formatToolLifecycleTitle(startedToolLifecycle("agent", "@audit started · review")),
           createdTitle: formatToolLifecycleTitle(eventToolLifecycle("board", "Fix login", {{ label: "created" }})),
-          startedRows: renderToolLifecycle(startedToolLifecycle("agent", "@audit · review"), {{
-            width: 80,
-            expanded: false,
-            titleStyle: (text) => text,
-            detailStyle: (text) => text,
-            truncate: (text, width) => text.slice(0, width),
-            line: (text) => text,
-          }}),
-          eventRows: renderToolLifecycle(eventToolLifecycle("board", "Fix login", {{ details: ["status=success"] }}), {{
-            width: 80,
-            expanded: true,
-            titleStyle: (text) => text,
-            detailStyle: (text) => text,
-            truncate: (text, width) => text.slice(0, width),
-            line: (text) => text,
-          }}),
+          startedBandIsFullWidth: startedRows.length === 3 && startedRows.every((row) => plain(row).length === 80),
+          startedBandHasBlankEdges: plain(startedRows[0]).trim() === "" && plain(startedRows[2]).trim() === "",
+          startedContent: plain(startedRows[1]).trim(),
+          expandedRows: eventRows.length,
+          expandedContent: eventRows.slice(1, -1).map((row) => plain(row).trim()),
+          collapsedHint: plain(hintedRows[1]).trim(),
+          zeroWidth: render(startedToolLifecycle("agent", "@audit"), {{ width: 0 }}),
         }}));
         """
     )
     assert result == {
-        "started": "[monitor] started · 运行 monitor 包测试",
-        "event": "[monitor] event · 运行 monitor 包测试",
+        "started": "[monitor] 运行 monitor 包测试",
+        "event": "[monitor] 运行 monitor 包测试",
         "listed": "[sessions] listed · 2 other sessions in pi-packages",
-        "agentEvent": "[agent] event · @scribe shut down",
+        "agentEvent": "[agent] @scribe shut down",
         "created": "[board] created · Fix the login flow",
         "gathered": "[context] gathered · 3 requests since last commit",
-        "startedTitle": "[agent] started · @audit · review",
+        "startedTitle": "[agent] @audit · review",
+        "labeledStartedTitle": "[agent] @audit started · review",
         "createdTitle": "[board] created · Fix login",
-        "startedRows": ["[agent] started · @audit · review"],
-        "eventRows": ["[board] event · Fix login", "status=success"],
+        "startedBandIsFullWidth": True,
+        "startedBandHasBlankEdges": True,
+        "startedContent": "[agent] @audit started · review",
+        "expandedRows": 4,
+        "expandedContent": ["[board] Fix login", "status=success"],
+        "collapsedHint": "[board] Fix login · ctrl+o to expand",
+        "zeroWidth": [],
     }
 
 
-def test_expand_hint_shares_the_report_row_style() -> None:
+def test_tool_lifecycle_band_preserves_class_theme_receiver() -> None:
     result = run_typescript(
         f"""
-        import {{ formatExpandHint }} from {json.dumps((SRC / "index.ts").as_uri())};
-        const theme = {{ fg: (_color, text) => `<dim>${{text}}</dim>` }};
-        console.log(JSON.stringify({{
-          hint: formatExpandHint("ctrl+o to expand", theme),
-          plain: formatExpandHint("ctrl+o to expand", {{ fg: (_color, text) => text }}),
-        }}));
+        import {{ renderToolLifecycle, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ truncateToWidth, visibleWidth }} from "@earendil-works/pi-tui";
+        class ClassTheme {{
+          constructor() {{ this.bgColors = new Map([["customMessageBg", "\\u001B[44m"]]); }}
+          fg(_color, text) {{ return text; }}
+          bold(text) {{ return text; }}
+          bg(color, text) {{ return this.bgColors.get(color) + text + "\\u001B[49m"; }}
+        }}
+        const rows = renderToolLifecycle(
+          startedToolLifecycle("agent", "@audit", {{ label: "started" }}),
+          {{ width: 80, theme: new ClassTheme(), fit: truncateToWidth, visibleWidth }},
+        );
+        console.log(JSON.stringify({{ painted: rows.some((row) => row.includes("\\u001B[44m")), count: rows.length }}));
+        """
+    )
+    assert result == {"painted": True, "count": 3}
+
+
+def test_expand_hint_uses_the_shared_lifecycle_row_style() -> None:
+    result = run_typescript(
+        f"""
+        import {{ eventToolLifecycle, renderToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ visibleWidth }} from "@earendil-works/pi-tui";
+        const theme = {{
+          fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
+          bg: (_color, text) => text,
+          bold: (text) => text,
+        }};
+        const rows = renderToolLifecycle(
+          eventToolLifecycle("sessions", "1 other session", {{ label: "listed", details: ["Session A"] }}),
+          {{
+            width: 80,
+            expandHint: "ctrl+o to expand",
+            theme,
+            fit: (text) => text,
+            visibleWidth,
+          }},
+        );
+        console.log(JSON.stringify({{ collapsed: rows[1], expanded: renderToolLifecycle(
+          eventToolLifecycle("sessions", "1 other session", {{ label: "listed", details: ["Session A"] }}),
+          {{ width: 80, expanded: true, expandHint: "ctrl+o to expand", theme, fit: (text) => text, visibleWidth }},
+        )[1] }}));
         """
     )
     assert result == {
-        "hint": "<dim> · ctrl+o to expand</dim>",
-        "plain": " · ctrl+o to expand",
+        "collapsed": " <customMessageLabel>[sessions] listed ·</customMessageLabel> 1 other session<dim> · ctrl+o to expand</dim>",
+        "expanded": " <customMessageLabel>[sessions] listed ·</customMessageLabel> 1 other session",
     }
+
+
+def test_truncated_band_rows_keep_the_band_background_after_the_ellipsis() -> None:
+    result = run_typescript(
+        f"""
+        import {{ renderToolLifecycle, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ truncateToWidth, visibleWidth }} from "@earendil-works/pi-tui";
+        const theme = {{
+          fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
+          bg: (_color, text) => `<B>${{text}}\u001b[49m`,
+          bold: (text) => text,
+        }};
+        const subject = "@greeter-alpha · Start the greeting task now: introduce yourself to @greeter-beta and @greeter-gamma and wait for their replies";
+        const rows = renderToolLifecycle(
+          startedToolLifecycle("agent", subject),
+          {{ width: 40, theme, fit: truncateToWidth, visibleWidth }},
+        );
+        const content = rows[1];
+        console.log(JSON.stringify({{
+          truncated: content.includes("..."),
+          resets: (content.match(/\x1b\\[0m/g) ?? []).length,
+          everyResetReappliesBand: content.split("\x1b[0m").slice(1).every((part) => part.startsWith("<B>")),
+          bandCoversEllipsis: content.split("\x1b[0m").some((part) => part.includes("...") && part.startsWith("<B>")),
+          bandStartsRow: content.startsWith("<B>"),
+        }}));
+        """
+    )
+    assert result["truncated"] is True
+    assert result["resets"] > 0
+    assert result["everyResetReappliesBand"] is True
+    assert result["bandCoversEllipsis"] is True
+    assert result["bandStartsRow"] is True
+
+
+def test_collapsed_lifecycle_rows_reserve_width_for_expand_hint() -> None:
+    result = run_typescript(
+        f"""
+        import {{ renderToolLifecycle, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ truncateToWidth, visibleWidth }} from "@earendil-works/pi-tui";
+        const theme = {{
+          fg: (_color, text) => text,
+          bg: (_color, text) => text,
+          bold: (text) => text,
+        }};
+        const rows = renderToolLifecycle(
+          startedToolLifecycle("agent", "@greeter-alpha started · Start the greeting task now: introduce yourself to @greeter-beta and @greeter-gamma"),
+          {{
+            width: 80,
+            expandHint: "ctrl+o to expand",
+            expandable: true,
+            theme,
+            fit: truncateToWidth,
+            visibleWidth,
+          }},
+        );
+        console.log(JSON.stringify({{ row: rows[1].trim(), fits: visibleWidth(rows[1]) <= 80 }}));
+        """
+    )
+    assert result["fits"] is True
+    assert "ctrl+o to expand" in result["row"]
+
+
+def test_agent_message_band_shares_the_report_row_language() -> None:
+    result = run_typescript(
+        f"""
+        import {{ agentColor, renderAgentMessageBand }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const theme = {{
+          fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
+          bg: (_color, text) => text,
+          bold: (text) => text,
+        }};
+        const fit = (text, width, _ellipsis = "", pad = false) =>
+          pad ? text.padEnd(width) : text;
+        const row = renderAgentMessageBand(
+          [{{ direction: "from", teammate: "calc-alpha" }}],
+          {{ theme, fit, expandHint: "ctrl+o to expand" }},
+        );
+        const multi = renderAgentMessageBand(
+          [
+            {{ direction: "from", teammate: "calc-alpha" }},
+            {{ direction: "from", teammate: "scribe", count: 2 }},
+          ],
+          {{ theme, fit }},
+        );
+        console.log(JSON.stringify({{
+          color: agentColor("calc-alpha"),
+          deterministic: agentColor("calc-alpha") === agentColor("calc-alpha"),
+          single: row.render(60),
+          multiSingleBand: multi.render(60),
+          zeroWidth: row.render(0),
+        }}));
+        """
+    )
+    r = result
+    assert r["color"] in ["success", "warning", "error", "mdLink"]
+    assert r["deterministic"] is True
+    assert r["zeroWidth"] == []
+    single = r["single"]
+    assert len(single) == 3
+    assert single[0].strip() == "" and single[-1].strip() == ""
+    assert "<customMessageLabel>[message] from </customMessageLabel>" in single[1]
+    assert f"<{r['color']}>@calc-alpha</{r['color']}>" in single[1]
+    assert "<dim> · ctrl+o to expand</dim>" in single[1]
+    multi_lines = r["multiSingleBand"]
+    assert len(multi_lines) == 4  # one band: pad + 2 rows + pad
+    assert "<customMessageLabel>[message] from </customMessageLabel>" in multi_lines[1]
+    assert "<customMessageLabel>[2 messages] from </customMessageLabel>" in multi_lines[2]
 
 
 def test_safe_display_text_sanitizes_terminal_output() -> None:
@@ -249,6 +418,7 @@ def test_agent_display_helpers_share_labels_and_message_counts() -> None:
           messages: formatAgentMessageLabel("calc-1", "from", 2),
           outgoing: formatAgentMessageLabel("calc-1", "to"),
           taskName: formatAgentTaskName("  inspect   authentication  ", "fallback"),
+          longTaskName: formatAgentTaskName("x".repeat(140), "fallback"),
         }}));
         """
     )
@@ -258,6 +428,7 @@ def test_agent_display_helpers_share_labels_and_message_counts() -> None:
         "messages": "[2 messages] from @calc-1",
         "outgoing": "[message] to @calc-1",
         "taskName": "inspect authentication",
+        "longTaskName": "x" * 140,
     }
 
 

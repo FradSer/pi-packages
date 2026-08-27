@@ -28,3 +28,8 @@ Feature: /init repository guidelines command
   Scenario: /init accepts optional focus from the user
     When the user runs /init focus on package release commands
     Then the additional focus is included in the instruction sent to the agent
+
+  Scenario: /init leaves line wrapping to the TUI
+    When the user runs /init
+    Then the instruction sent to the agent contains no line breaks
+    And the TUI is responsible for wrapping the instruction to fit the screen

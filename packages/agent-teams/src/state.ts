@@ -196,7 +196,9 @@ export function receiveWorkerMessage(event: WorkerReportEvent): boolean {
     subject: messageTitle(event.body),
     body: event.body,
     status: event.status,
-    timestamp: Date.now(),
+    // Keep the authored-at moment so console ordering reflects when the
+    // teammate spoke, not when the leader happened to drain the outbox.
+    timestamp: event.timestamp ?? Date.now(),
   });
   if (state.leaderMailbox.length > MAX_LEADER_MAILBOX_MESSAGES) {
     state.leaderMailbox.splice(0, state.leaderMailbox.length - MAX_LEADER_MAILBOX_MESSAGES);

@@ -25,6 +25,7 @@
 - [project_recap_inline_code_markers.md](project_recap_inline_code_markers.md)
 - [project_recap_persistence_design.md](project_recap_persistence_design.md)
 - [project_teammate_autonomous_and_tui.md](project_teammate_autonomous_and_tui.md)
+- [project_follow-up-queue.md](project_follow-up-queue.md)
 - [project_vision_package_design.md](project_vision_package_design.md)
 - [reference_pi_cli_print_json_usage.md](reference_pi_cli_print_json_usage.md)
 - [reference_pi_custom_component_rendering.md](reference_pi_custom_component_rendering.md)

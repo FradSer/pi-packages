@@ -79,7 +79,7 @@ teammate_spawn({ name: "backend", agent: "worker" })
 - Without a kickoff prompt, the teammate idles until messaged or until claimable work appears.
 - Teammates stay alive between tasks and consume no model tokens while idle.
 - A session-wide cap of 8 living teammates applies.
-- An agent declaring `worktree: true` gets its own Git worktree; its diff is captured at shutdown.
+- An agent declaring `worktree: true` gets its own Git worktree; at shutdown its changes are committed onto the worktree branch, the directory is removed, and the branch is kept so captured work stays retrievable (`git diff <base>..<branch>`).
 - `teammate_shutdown({ name })` stops one teammate and releases its claimed task back to the board.
 
 ## Coordinate Through One Message Primitive and the Board
@@ -104,7 +104,8 @@ task_create({
 send_message({ to, message, status? })
 ```
 
-- Worker report: `to: "leader"`; use optional `status: "completed" | "failed"` for a terminal report.
+- Worker report: `to: "leader"`; use optional `status: "completed" | "failed"` for a terminal report. Every accepted leader-bound report — intermediate or terminal — enters Pi's follow-up queue as its own turn, even while the leader is active; Pi processes it when the current run can naturally end. After the first accepted terminal report in a wake-up sequence, later reports are suppressed until a new wake-up; distinct intermediate reports, including identical bodies before terminal status, remain deliverable, and the same content is not suppressed across assignments. For bounded reviewer assignments, put findings, the recommendation, verification evidence, and remaining risks in one concise terminal report. Use earlier reports only for genuinely new blockers, plan-changing facts, or evidence that changes the conclusion; do not send a separate status-only assignment-complete message or repeat unchanged findings. A terminal report ends the current worker turn. After a terminal report, report to the leader again only for a new assignment or decision-useful fact.
+- Harness lifecycle events use a separate `<harness-event>` envelope. A requested `teammate_shutdown` stays in the tool lifecycle row and console mailbox; it does not start a leader follow-up turn. Unexpected stops and actionable harness events may still wake the leader.
 - Peer mail: `to: "<teammate-name>"`; `status` is invalid.
 - Leader steering or direct assignment: `to: "<teammate-name>"`; the synchronous routing result is `steered` only when the active control stream accepts the message, otherwise `queued` while the harness owns delivery on the next wake-up.
 - Peer mail and reports to the leader are written to an inbox or outbox first, so their synchronous routing result is `queued`; none of these labels claims the recipient has read, understood, or processed the message.
@@ -137,7 +138,7 @@ That is **7 unique tool names**. There are no `teammate_run`, `teammate_fanout`,
 - **Completion is gated, not self-reported**: a task completes only after its effective verify gate passes when one exists; no gate means the submission itself completes it. A gate that keeps failing parks the task with its holder after the second consecutive failure and escalates to the leader once instead of looping.
 - **No caps, heartbeat only**: teammates run without turn-count or duration ceilings. The harness heartbeat tracks silence per working teammate and — after 30 minutes without any RPC output (`PI_TEAMMATE_STALL_NOTICE_MS`, 0 disables) — sends the leader one actionable health event per silence episode. The notice is the last automatic action: continuing, steering, shutting down, or respawning a context-carrying successor belongs to the leader alone. Any output or prompt delivery re-arms it. Health events carry diagnostics separately from message routing: silence duration, spawn age, and lifetime token/cost usage. A teammate with zero lifetime model output and no tool running gets flagged much earlier (5 minutes, `PI_TEAMMATE_SILENT_STALL_MS`, 0 disables): an in-flight request stuck on the provider will not recover by steering, so that notice names shutdown plus respawn as the effective remedy.
 - **One-shot board notices**: an idle teammate is told about a claimable task exactly once; declined tasks never re-wake it, and released tasks re-arm. Notices are paced at least five minutes apart per teammate (`PI_TEAMMATE_NOTICE_PACE_MS` overrides in milliseconds).
-- **One end-of-life line per teammate**: the first terminal report of a spawn incarnation renders the finish entry; shutting that incarnation down afterwards adds no second event row.
+- **One end-of-life line per teammate**: the first terminal report of a spawn incarnation renders the finish entry; shutting that incarnation down afterwards adds no second event row. Requested shutdown is process cleanup only, not proof of assignment completion; wait for the worker's terminal status report when possible. After the first accepted terminal report, later reports are suppressed until a new assignment prompt; distinct intermediate reports remain deliverable.
 - **Failure semantics**: an unexpected crash marks the teammate stopped, reports a diagnostic, and releases its claimed tasks.
 
 ## State and Sessions

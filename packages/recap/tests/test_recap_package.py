@@ -42,6 +42,7 @@ def test_feature_covers_recap_scenarios() -> None:
     assert "Scenario: Recap maintains context continuity using previous recap and last exchange" in feature
     assert "Scenario: Generated recap is persisted to the session" in feature
     assert "Scenario: Existing session restores persisted recap on startup across restarts" in feature
+    assert "Scenario: Session replacement cancels a pending first-prompt recap" in feature
     assert "Scenario: Existing session without saved recap computes initial recap on startup" in feature
     assert "Scenario: Existing recap prevents redundant startup generation" in feature
     assert "Scenario: Headless recap commands do not start generation" in feature
@@ -117,6 +118,168 @@ def test_extract_latest_saved_recap_edge_cases() -> None:
     assert result["blank"] is None
     assert result["wrongType"] is None
     assert result["missingData"] is None
+
+
+
+def test_first_prompt_starts_recap_before_agent_settled_and_refreshes_after_completion() -> None:
+    result = run_typescript(
+        f"""
+        import extensionModule from "{INDEX_URI}";
+        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+
+        let registeredEvents = {{}};
+        let completeCalls = 0;
+        let promptTexts = [];
+        let appendedEntries = [];
+        let resolveInitial;
+        const initialCompletion = new Promise((resolve) => {{ resolveInitial = resolve; }});
+        let branch = [];
+        let setWidgetCall;
+        const fakePi = {{
+          on(event, handler) {{ registeredEvents[event] = handler; }},
+          registerCommand() {{}},
+          appendEntry(customType, data) {{ appendedEntries.push({{ customType, data }}); }},
+        }};
+        initExtension(fakePi);
+        const fakeCtx = {{
+          mode: "tui",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{
+            getBranch: () => branch,
+            getSessionFile: () => undefined,
+          }},
+          ui: {{
+            setWidget: (name, factory) => {{ setWidgetCall = {{ name, factory }}; }},
+            notify: () => {{}},
+          }},
+          modelRegistry: {{
+            find: () => ({{ provider: "mock", id: "m1" }}),
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async (_model, request) => {{
+              completeCalls++;
+              promptTexts.push(request.messages[0].content[0].text);
+              if (completeCalls === 1) await initialCompletion;
+              return {{ role: "assistant", content: [{{ type: "text", text: `Recapped feature X (${{completeCalls}})` }}] }};
+            }},
+          }},
+          model: {{ provider: "mock", id: "m1" }},
+        }};
+
+        await registeredEvents["session_start"]({{}}, fakeCtx);
+        registeredEvents["input"]({{ source: "interactive", text: "Implement feature X" }}, fakeCtx);
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        const callsBeforeSettled = completeCalls;
+        const pendingWidget = setWidgetCall?.factory(
+          {{ requestRender: () => {{}} }},
+          {{ fg: (_name, text) => text }},
+        );
+        const progressLines = pendingWidget?.render(80) ?? [];
+        branch = [
+          {{ type: "message", message: {{ role: "user", content: "Implement feature X" }} }},
+          {{ type: "message", message: {{ role: "assistant", content: "I implemented feature X" }} }},
+        ];
+        const settled = registeredEvents["agent_settled"]({{}}, fakeCtx);
+        const settlementCompleted = await Promise.race([
+          settled.then(() => true),
+          new Promise((resolve) => setTimeout(() => resolve(false), 25)),
+        ]);
+        const callsAfterSettled = completeCalls;
+        resolveInitial();
+        await settled;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        await new Promise((resolve) => setTimeout(resolve, 25));
+
+        console.log(JSON.stringify({{
+          callsBeforeSettled,
+          callsAfterSettled,
+          settlementCompleted,
+          finalCallCount: completeCalls,
+          finalPromptHasAssistantOutcome: promptTexts[1]?.includes("I implemented feature X") ?? false,
+          finalRecapPersisted: appendedEntries.some((entry) => entry.data.recap === "Recapped feature X (2)"),
+          showsProgress: progressLines.some((line) => line.includes("Recapping...")),
+        }}));
+        """
+    )
+    assert result["callsBeforeSettled"] == 1
+    assert result["callsAfterSettled"] == 1
+    assert result["settlementCompleted"] is True
+    assert result["finalCallCount"] == 2
+    assert result["finalPromptHasAssistantOutcome"] is True
+    assert result["finalRecapPersisted"] is True
+    assert result["showsProgress"] is True
+
+
+def test_session_replacement_aborts_pending_first_prompt_recap() -> None:
+    result = run_typescript(
+        f"""
+        import extensionModule from "{INDEX_URI}";
+        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+
+        let registeredEvents = {{}};
+        let completeCalls = 0;
+        let signalAborted = false;
+        let replacementWidgetFactory;
+        let branch = [];
+        const fakePi = {{
+          on(event, handler) {{ registeredEvents[event] = handler; }},
+          registerCommand() {{}},
+          appendEntry() {{}},
+        }};
+        initExtension(fakePi);
+        const createContext = (currentBranch) => ({{
+          mode: "tui",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{ getBranch: () => currentBranch, getSessionFile: () => undefined }},
+          ui: {{
+            setWidget: (_name, factory) => {{
+              if (currentBranch.length > 0) replacementWidgetFactory = factory;
+            }},
+            notify: () => {{}},
+          }},
+          modelRegistry: {{
+            find: () => ({{ provider: "mock", id: "m1" }}),
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async (_model, _request, options) => {{
+              completeCalls++;
+              options.signal.addEventListener("abort", () => {{ signalAborted = true; }}, {{ once: true }});
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              return {{ role: "assistant", content: [{{ type: "text", text: "stale recap" }}] }};
+            }},
+          }},
+          model: {{ provider: "mock", id: "m1" }},
+        }});
+
+        const firstCtx = createContext(branch);
+        await registeredEvents["session_start"]({{}}, firstCtx);
+        registeredEvents["input"]({{ source: "interactive", text: "First session prompt" }}, firstCtx);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        await registeredEvents["session_start"](
+          {{}},
+          createContext([
+            {{ type: "custom", customType: "recap", data: {{ recap: "Replacement recap" }} }},
+          ]),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        const replacementWidget = replacementWidgetFactory
+          ? replacementWidgetFactory(
+              {{ requestRender: () => {{}} }},
+              {{ fg: (_name, text) => text }},
+            )
+          : undefined;
+        const replacementLines = replacementWidget?.render(80) ?? [];
+
+        console.log(JSON.stringify({{
+          completeCalls,
+          signalAborted,
+          replacementPreserved: replacementLines.some((line) => line.includes("Replacement recap")),
+          staleResultDiscarded: !replacementLines.some((line) => line.includes("stale recap")),
+        }}));
+        """
+    )
+    assert result["completeCalls"] == 1
+    assert result["signalAborted"] is True
+    assert result["replacementPreserved"] is True
+    assert result["staleResultDiscarded"] is True
 
 
 def test_startup_does_not_regenerate_when_saved_recap_exists() -> None:

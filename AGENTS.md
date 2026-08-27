@@ -7,8 +7,8 @@ has its own manifest and tests; follow the nearest scoped guide, including
 ## Project Structure & Module Organization
 
 - Workspace packages currently include `agent-teams`, `btw`, `context`,
-  `keyboard`, `mattpocock`, `memory`, `monitor`, `pi-kit`, `plan-mode`,
-  `recap`, `utils`, and `vision`.
+  `keyboard`, `mattpocock`, `memory`, `monitor`, `pi-continual-learning`,
+  `pi-kit`, `plan-mode`, `recap`, `utils`, and `vision`.
 - Extension code lives in `src/`, `extensions/`, or a package-root `index.ts`;
   skills, procedures, references, and bundled agents use their named folders.
 - BDD scenarios are in each package's `features/`; executable tests are in

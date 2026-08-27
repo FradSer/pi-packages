@@ -39,6 +39,15 @@ const HARNESS_PHASE_TIMEOUT_MS = 15 * 60 * 1000;
 const HARNESS_OP_KINDS = ["addPolicy", "updatePolicy", "disablePolicy", "addSkillPrompt", "removeSkillPrompt"] as const;
 export type HarnessOpKind = (typeof HARNESS_OP_KINDS)[number];
 
+/** Terminal gate for the second pipeline phase, shared by callers and tests:
+ * only a finished, verified, context-captured memory phase unlocks it. */
+export type PipelineGateState = { outcome?: string; active: boolean; cancelled: boolean };
+export function shouldRunHarnessPhase(state: PipelineGateState, noContext?: boolean): "run" | "skip-no-context" | "wait" | "skip" {
+  if (noContext) return "skip-no-context";
+  if (state.cancelled || state.outcome === undefined || state.active) return "wait";
+  return state.outcome === "completed" ? "run" : "skip";
+}
+
 export interface HarnessOp {
   op: HarnessOpKind;
   name?: string;
@@ -76,24 +85,28 @@ function boundedString(value: unknown, max: number): value is string {
 
 /** Validate shape and bounds of an extracted harness plan. Identity binding is
  * already enforced by extractChildPlan before this runs. */
+/** Validate shape, bounds, and evidence grounding of an extracted harness
+ * plan. Identity binding is already enforced by extractChildPlan before this
+ * runs. Every proposed operation must cite concrete snapshot evidence via an
+ * evidence entry whose index points back at it — unaudited proposals are
+ * rejected fail-closed. */
 export function validateHarnessPlan(plan: unknown): string[] {
   const p = plan as HarnessConsolidationPlan;
   const errors: string[] = [];
   if (!p || typeof p !== "object" || Array.isArray(p)) return ["plan is not an object"];
   if (p.kind !== HARNESS_PLAN_KIND) errors.push(`kind must be "${HARNESS_PLAN_KIND}"`);
-  if (p.operations === undefined) {
-    // A verified no-op may omit operations entirely.
-    return errors;
-  }
-  if (!Array.isArray(p.operations)) {
+  if (p.version !== undefined && p.version !== 1) errors.push("version must be 1");
+  if (p.schemaVersion !== undefined && p.schemaVersion !== 1) errors.push("schemaVersion must be 1");
+  const ops = Array.isArray(p.operations) ? p.operations : p.operations === undefined ? [] : null;
+  if (ops === null) {
     errors.push("operations must be an array");
     return errors;
   }
-  if (p.operations.length > MAX_HARNESS_OPS) {
+  if (ops.length > MAX_HARNESS_OPS) {
     errors.push(`operations exceed the maximum of ${MAX_HARNESS_OPS}`);
     return errors;
   }
-  p.operations.forEach((raw, i) => {
+  ops.forEach((raw, i) => {
     const op = raw as HarnessOp;
     const label = `operations[${i}]`;
     if (!op || typeof op !== "object") {
@@ -117,21 +130,90 @@ export function validateHarnessPlan(plan: unknown): string[] {
       return;
     }
     if (op.op === "disablePolicy") return;
-    const policyBytes = Buffer.byteLength(JSON.stringify(op.policy ?? null), "utf8");
     if (!op.policy || typeof op.policy !== "object" || Array.isArray(op.policy)) {
       errors.push(`${label}.policy must be an object`);
       return;
     }
+    const policyBytes = Buffer.byteLength(JSON.stringify(op.policy), "utf8");
     if (policyBytes > MAX_POLICY_BYTES) {
       errors.push(`${label}.policy exceeds ${MAX_POLICY_BYTES} bytes`);
       return;
     }
     if (op.policy.action !== "block" && op.policy.action !== "confirm") errors.push(`${label}.policy.action must be "block" or "confirm"`);
-    if (!Array.isArray(op.policy.patterns) || !op.policy.patterns.every((x) => typeof x === "string")) {
+    if (!Array.isArray(op.policy.patterns) || !(op.policy.patterns as unknown[]).every((x) => typeof x === "string")) {
       errors.push(`${label}.policy.patterns must be an array of strings`);
     }
   });
+  // Evidence grounding: every operation index needs at least one citation.
+  if (ops.length > 0) {
+    const evidence = Array.isArray(p.evidence) ? p.evidence : null;
+    if (!evidence) {
+      errors.push("evidence must be an array citing every operation index");
+      return errors;
+    }
+    const cited = new Set<number>();
+    evidence.forEach((raw, i) => {
+      const e = raw as { index?: unknown; observation?: unknown; count?: unknown };
+      if (!e || typeof e !== "object") {
+        errors.push(`evidence[${i}] is not an object`);
+        return;
+      }
+      const idx = typeof e.index === "number" && Number.isInteger(e.index) ? e.index : -1;
+      if (idx < 0 || idx >= ops.length) {
+        errors.push(`evidence[${i}].index out of range`);
+        return;
+      }
+      cited.add(idx);
+      if (!boundedString(e.observation, 600)) errors.push(`evidence[${i}].observation must be 1..600 chars`);
+      const count = e.count;
+      if (typeof count !== "number" || !Number.isInteger(count) || count < 1) errors.push(`evidence[${i}].count must be a positive integer`);
+    });
+    for (let i = 0; i < ops.length; i++) {
+      if (!cited.has(i)) errors.push(`operations[${i}] has no evidence entry`);
+    }
+  }
+  if (p.report !== undefined) {
+    if (!Array.isArray(p.report)) errors.push("report must be an array");
+    else {
+      p.report.forEach((raw, i) => {
+        const r = raw as { summary?: unknown };
+        if (!r || typeof r !== "object" || typeof r.summary !== "string" || r.summary.length === 0 || r.summary.length > 400) {
+          errors.push(`report[${i}] must carry a 1..400 char summary`);
+        }
+      });
+    }
+  }
   return errors;
+}
+
+/** Receipt builder shared by the phase flow and tests. Digests are hex
+ * SHA-256 over exact file bytes so integrity stays verifiable later. */
+export function buildHarnessReceipt(input: {
+  phase: "pre" | "post";
+  runId: string;
+  scopeDigest: string;
+  snapshotDigest: string;
+  targetFile: string;
+  digestBefore: string | null;
+  digestAfter?: string | null;
+  applied?: string[];
+  planDigest: string;
+}): Record<string, unknown> {
+  const base: Record<string, unknown> = {
+    kind: "harness-consolidation-receipt",
+    phase: input.phase,
+    runId: input.runId,
+    scopeDigest: input.scopeDigest,
+    snapshotDigest: input.snapshotDigest,
+    targetFile: input.targetFile,
+    digestBefore: input.digestBefore,
+    planDigest: input.planDigest,
+  };
+  if (input.phase === "post") {
+    base.digestAfter = input.digestAfter ?? null;
+    base.applied = input.applied ?? [];
+  }
+  return base;
 }
 
 async function readLayerFileBytes(filePath: string): Promise<Buffer | null> {
@@ -215,7 +297,14 @@ export async function harnessSurfaceSummary(cwd: string, agentDir?: string): Pro
   return JSON.stringify(summary, null, 1);
 }
 
-interface PhaseOpts { pkgDir: string; cwd: string; reason: string }
+interface PhaseOpts {
+  pkgDir: string;
+  cwd: string;
+  reason: string;
+  /** Test seams: inject a CLI resolver or an explicit absolute target path. */
+  resolveCli?: () => { command: string; args: string[] } | null;
+  targetPath?: string;
+}
 
 /**
  * Second pipeline phase. Requires an already-completed, verified memory phase
@@ -227,6 +316,11 @@ export async function runHarnessConsolidationPhase(
   state: ConsolidationPhaseState & { child?: ChildProcess },
   opts: PhaseOpts,
 ): Promise<void> {
+  const resolveCli = opts.resolveCli ?? resolvePiCli;
+  if (!resolveCli()) {
+    ctx.ui.notify("Harness consolidation skipped: could not resolve the Pi CLI", "warning");
+    return;
+  }
   if (state.active) return;
   state.active = true;
   const generation = state.generation + 1;
@@ -348,29 +442,47 @@ export async function runHarnessConsolidationPhase(
     }
     const plan = (JSON.parse(result.detail) as { plan: unknown }).plan as { operations?: HarnessOp[] };
     const ops = Array.isArray(plan.operations) ? plan.operations : [];
+    const planDigest = sha256Digest(JSON.stringify(plan));
+    const runDir = run.manifest.runDir;
     if (ops.length === 0) {
-      await writeFileAtomic(path.join(run.manifest.runDir, "harness-noop.txt"), "verified no-op\n").catch(() => {});
+      await writeFileAtomic(path.join(runDir, "harness-noop.txt"), "verified no-op\n").catch(() => {});
       ctx.ui.notify("Harness consolidation: verified no-op — no guardrail evidence worth encoding.", "info");
       return;
     }
-    const paths = configPaths(opts.cwd);
-    const target = paths.projectLocal;
-    const digestBefore = (await readLayerFileBytes(target))?.toString("base64") ?? null;
+    const target = opts.targetPath ?? configPaths(opts.cwd).projectLocal;
+    const beforeBytes = await readLayerFileBytes(target);
+    const digestBefore = beforeBytes ? sha256Digest(beforeBytes) : null;
+    // Fail-closed receipt order: the pre-apply receipt must be durably on disk
+    // before any mutation; losing it aborts the apply.
+    const preReceipt = buildHarnessReceipt({
+      phase: "pre",
+      runId: run.manifest.runId,
+      scopeDigest: run.manifest.scopeDigest,
+      snapshotDigest: run.manifest.snapshotDigest,
+      targetFile: target,
+      digestBefore,
+      planDigest,
+    });
+    await writeFileAtomic(path.join(runDir, "harness-pre-receipt.json"), `${JSON.stringify(preReceipt, null, 2)}\n`);
     const applied = await applyHarnessOps(target, ops);
     if (!applied.ok) {
       ctx.ui.notify(`Harness consolidation rejected: ${applied.error.slice(-300)}`, "warning");
       return;
     }
+    // Read back this generation's post-apply bytes immediately so a stale
+    // cleanup can restore the predecessor ONLY when the file still holds them
+    // (a later external write wins and is left untouched).
+    const postBytes = await readLayerFileBytes(target);
     if (!current()) {
-      // Session shut down mid-apply: restore the pre-apply bytes so a dead
-      // generation never leaves mutations behind.
-      if (digestBefore === null) await fs.rm(target, { force: true }).catch(() => {});
-      else await writeFileAtomic(target, Buffer.from(digestBefore, "base64"), 0o600).catch(() => {});
+      const nowBytes = await readLayerFileBytes(target);
+      if (postBytes && nowBytes && postBytes.equals(nowBytes)) {
+        if (!beforeBytes) await fs.rm(target, { force: true }).catch(() => {});
+        else await writeFileAtomic(target, beforeBytes, 0o600).catch(() => {});
+      }
       return;
     }
-    const digestAfter = (await readLayerFileBytes(target))?.toString("base64") ?? null;
-    const receipt = {
-      kind: "harness-consolidation-receipt",
+    const digestAfter = postBytes ? sha256Digest(postBytes) : null;
+    const receipt = buildHarnessReceipt({
       phase: "post",
       runId: run.manifest.runId,
       scopeDigest: run.manifest.scopeDigest,
@@ -379,9 +491,10 @@ export async function runHarnessConsolidationPhase(
       digestBefore,
       digestAfter,
       applied: applied.applied,
-      planDigest: sha256Digest(JSON.stringify(plan)),
-    };
-    await writeFileAtomic(path.join(run.manifest.runDir, "harness-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`).catch(() => {});
+      planDigest,
+    });
+    // Success is only reported from a durably stored post receipt.
+    await writeFileAtomic(path.join(runDir, "harness-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
     ctx.ui.notify(`Harness consolidated: ${applied.applied.length} change(s) applied to ${path.basename(target)} (${ops.length} proposed).`, "info");
   } catch (err) {
     if (current()) ctx.ui.notify(`Harness consolidation failed: ${(err as Error).message.slice(-300)}`, "warning");
