@@ -1,5 +1,16 @@
 # @fradser/pi-vision
 
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies [fde16ae]
+- Updated dependencies [dcf3806]
+- Updated dependencies [dcf3806]
+- Updated dependencies [dcf3806]
+- Updated dependencies [a7fbc11]
+  - @fradser/pi-kit@0.4.0
+
 ## 0.2.6
 
 ### Patch Changes
