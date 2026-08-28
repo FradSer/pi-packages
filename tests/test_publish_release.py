@@ -44,3 +44,9 @@ def test_workflow_uses_node_24_compatible_actions() -> None:
     assert "actions/checkout@v4" not in workflow
     assert "actions/setup-node@v4" not in workflow
     assert "pnpm/action-setup@v4" not in workflow
+
+
+def test_publish_allowlist_includes_skill_router() -> None:
+    assert '"pi-skill-router"' in SCRIPT
+    assert '"pi-mattpocock"' not in SCRIPT
+    assert '"pi-marketingskills"' not in SCRIPT
