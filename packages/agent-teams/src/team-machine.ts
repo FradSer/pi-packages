@@ -531,7 +531,7 @@ function teammateEnv(
   };
 }
 
-function buildKickoffPrompt(
+export function buildKickoffPrompt(
   name: string,
   agentName: string,
   rolePrompt: string,
@@ -546,7 +546,7 @@ function buildKickoffPrompt(
   ].filter(Boolean).join(" ");
   const roleSection = `=== ROLE PROMPT (${agentName}) ===\n${rolePrompt}`;
   const taskSection = kickoff?.trim()
-    ? `=== KICKOFF TASK ===\n${kickoff.trim()}`
+    ? `=== KICKOFF TASK ===\n${kickoff.trim()}\n\nExecute this assigned task directly. Do not call task_list or check the task board unless this task explicitly instructs you to do so.`
     : "=== KICKOFF TASK ===\n(none yet — check the task board with task_list and claim suitable work with task_claim)";
   return `${header}\n\n${roleSection}\n\n${taskSection}`;
 }

@@ -106,6 +106,12 @@ Feature: Agent Teams collaborative organization contract
       And the teammate joins the roster with status starting and then idle
       And the kickoff prompt is delivered as the teammate's first turn
 
+    Scenario: Direct kickoff tasks execute immediately without querying the task board
+      Given a teammate is spawned with an assigned kickoff prompt
+      When the kickoff prompt is constructed
+      Then it instructs the teammate to execute the assigned task directly without checking task_list
+      And worker guidance instructs teammates to use task_list only when idle or notified of unclaimed work
+
     Scenario: Teammate names are unique among living teammates
       Given a teammate named security is on the roster
       When the leader spawns another teammate named security
