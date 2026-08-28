@@ -335,6 +335,27 @@ def test_registry_route_paths_cannot_escape_cache(tmp_path: Path, source_repo: P
     assert routed["systemPrompt"] == "base system prompt"
 
 
+@pytest.mark.parametrize("value", ["false", "yes", "1", '"true"'])
+def test_existing_disable_model_invocation_value_is_replaced(tmp_path: Path, value: str) -> None:
+    repo = tmp_path / "existing-flag"
+    skill_dir = repo / "skills" / "flagged"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        f"---\nname: flagged\ndescription: Existing flag\ndisable-model-invocation: {value}\n---\n\n# flagged\n",
+        encoding="utf-8",
+    )
+    git(repo, "init", "-q", "-b", "main")
+    git(repo, "add", "-A")
+    git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+
+    result = run_harness(tmp_path / "agent", "add", str(repo), "--prefix", "zz")
+    assert result["ok"] is True, result
+    leaf = exposed_root(tmp_path / "agent", str(result["id"])) / "zz-flagged" / "SKILL.md"
+    frontmatter = leaf.read_text(encoding="utf-8").split("---", 2)[1]
+    assert len(re.findall(r"(?m)^disable-model-invocation:", frontmatter)) == 1
+    assert re.search(r"(?m)^disable-model-invocation:\s*true\s*$", frontmatter)
+
+
 def test_crlf_frontmatter_is_wrapped(tmp_path: Path) -> None:
     repo = tmp_path / "crlf"
     skill_dir = repo / "skills" / "crlf-skill"

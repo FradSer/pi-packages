@@ -267,7 +267,9 @@ function wrapSkillContent(content: string, prefixedName: string): string {
   if (!match) throw new Error(`Skill ${prefixedName} has no frontmatter block`);
   const eol = match[1].includes("\r") ? "\r\n" : "\n";
   let frontmatter = match[2].replace(/^name:[^\r\n]*/m, `name: ${prefixedName}`);
-  if (!/^disable-model-invocation:\s*true\s*$/m.test(frontmatter)) {
+  if (/^disable-model-invocation:/m.test(frontmatter)) {
+    frontmatter = frontmatter.replace(/^disable-model-invocation:[^\r\n]*/m, "disable-model-invocation: true");
+  } else {
     frontmatter += `${eol}disable-model-invocation: true`;
   }
   return content.replace(match[0], `${match[1]}${frontmatter}${match[3]}`);
