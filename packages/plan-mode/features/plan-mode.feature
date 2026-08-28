@@ -24,6 +24,12 @@ Feature: Main-session-first plan mode
     Then the plan review overlay is shown
     And worker research remains agent-controlled
 
+  Scenario: Plan completion does not loop review commands to the agent
+    Given the main session completes writing a plan
+    When the planning turn ends
+    Then the plan review overlay is displayed directly without sending review messages to the agent
+    And the active plan request is cleared to prevent repeated review triggers
+
   Scenario: Worker research is decided by the main-session agent
     Given the main session has written a plan
     When the plan marks worker research as required

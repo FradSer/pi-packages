@@ -22,7 +22,6 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
-import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import {
   createPiThemeStyle,
@@ -43,6 +42,7 @@ import { createPlanOverlay, type PlanAction } from "./plan-overlay";
 
 // ── Constants ───────────────────────────────────────────────────────
 
+const CONFIG_DIR_NAME = ".pi";
 const PLAN_REVIEW_TIMEOUT_MS = 30_000;
 
 function planFilePath(sessionFile: string | undefined, cwd: string): string {
@@ -51,7 +51,8 @@ function planFilePath(sessionFile: string | undefined, cwd: string): string {
     .update(sessionFile ?? cwd)
     .digest("hex")
     .slice(0, 16);
-  return path.join(process.env.HOME ?? "~", CONFIG_DIR_NAME, "agent", "plans", `${key}.md`);
+  const agentDir = process.env.PI_CODING_AGENT_DIR ?? path.join(process.env.HOME ?? "~", CONFIG_DIR_NAME, "agent");
+  return path.join(agentDir, "plans", `${key}.md`);
 }
 
 function getPlanPath(ctx: ExtensionContext): string {
@@ -495,6 +496,7 @@ async function enterPlanMode(ctx: ExtensionContext): Promise<void> {
 
 async function exitPlanMode(ctx: ExtensionContext): Promise<void> {
   planModeActive = false;
+  activePlanRequest = undefined;
   setPlanModeIndicator(ctx, false);
   await restoreModel(ctx);
   const active = ctx.model ? modelLabel(ctx.model) : "(none)";
@@ -518,14 +520,14 @@ export default function planMode(extensionApi: ExtensionAPI): void {
     const planContent = fs.existsSync(planPath) ? fs.readFileSync(planPath, "utf-8") : "";
     if (!planContent.trim()) return;
 
+    const request = activePlanRequest;
+    activePlanRequest = undefined;
     planHandling = true;
     try {
       if (requiresWorkerResearch(planContent)) {
-        await runWorkerResearch(ctx, activePlanRequest, planContent);
+        await runWorkerResearch(ctx, request, planContent);
       } else {
-        // Send command message to trigger command handler with ExtensionCommandContext
-        // This allows newSession to be available for implement-fresh action
-        pi.sendUserMessage("/plan review");
+        await showPlanReview(ctx, request);
       }
     } finally {
       planHandling = false;

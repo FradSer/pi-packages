@@ -1,11 +1,15 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import * as os from "node:os";
 import { dirname, join } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { nonEmpty, parseModelRef } from "@fradser/pi-kit";
 
 export interface PlanModeConfig {
   provider?: string;
   model?: string;
+}
+
+function getAgentDir(): string {
+  return process.env.PI_CODING_AGENT_DIR ?? join(process.env.HOME ?? os.homedir(), ".pi", "agent");
 }
 
 const CONFIG_PATH = join(getAgentDir(), "plan-mode.json");
