@@ -78,12 +78,6 @@ importers:
         specifier: '*'
         version: 0.84.1
 
-  packages/matt-pocock:
-    dependencies:
-      '@earendil-works/pi-coding-agent':
-        specifier: '*'
-        version: 0.84.1(ws@8.21.3)(zod@4.4.3)
-
   packages/monitor:
     dependencies:
       '@earendil-works/pi-coding-agent':
@@ -130,6 +124,12 @@ importers:
       '@fradser/pi-kit':
         specifier: workspace:*
         version: link:../pi-kit
+
+  packages/skill-router:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '*'
+        version: 0.84.1(ws@8.21.3)(zod@4.4.3)
 
   packages/utils:
     dependencies:

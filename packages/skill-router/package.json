@@ -1,0 +1,34 @@
+{
+  "name": "pi-skill-router",
+  "version": "0.1.0",
+  "description": "Route to externally hosted skill collections: clone GitHub skill repos, wrap them as hidden leaves behind visible gateways, and get focused suggestions",
+  "keywords": [
+    "pi-package",
+    "skills",
+    "skill-router",
+    "routing"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
