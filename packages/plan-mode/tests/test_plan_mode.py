@@ -469,7 +469,129 @@ def test_empty_explore_output_reports_actionable_diagnostic():
     assert "structure: Worker produced no structured result." in result["aggregate"]
 
 
-def test_parse_model_ref():
+def test_plan_review_fresh_session_action_uses_command_context():
+    result = run_typescript(f"""
+        import * as crypto from "node:crypto";
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        import importedPlanMode from {json.dumps((PACKAGE / "src" / "index.ts").as_uri())};
+        const planMode = importedPlanMode.default ?? importedPlanMode;
+
+        const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "plan-mode-fresh-session-"));
+        process.env.HOME = tmpHome;
+
+        const newSessionCalls = [];
+        const freshSessionMessages = [];
+        const registeredCommands = new Map();
+        const eventHandlers = new Map();
+
+        const fakePi = {{
+          sendUserMessage: () => {{}},
+          registerCommand: (name, def) => {{
+            registeredCommands.set(name, def);
+          }},
+          on: (event, handler) => {{
+            eventHandlers.set(event, handler);
+          }},
+          setModel: async () => true,
+        }};
+
+        const sessionFile = path.join(tmpHome, "session.jsonl");
+        const fakeCommandCtx = {{
+          cwd: tmpHome,
+          hasUI: true,
+          mode: "tui",
+          model: {{ provider: "anthropic", id: "claude-3" }},
+          modelRegistry: {{
+            find: () => ({{ provider: "anthropic", id: "claude-3" }}),
+            getAvailable: () => [],
+          }},
+          sessionManager: {{
+            getSessionFile: () => sessionFile,
+          }},
+          ui: {{
+            notify: () => {{}},
+            setWidget: () => {{}},
+            custom: async (factory, opts) => "implement-fresh",
+          }},
+          newSession: async (opts) => {{
+            newSessionCalls.push(opts);
+            const freshCtx = {{
+              ui: {{ notify: () => {{}} }},
+              sendUserMessage: async (msg) => freshSessionMessages.push(msg),
+            }};
+            await opts.withSession(freshCtx);
+            return {{ cancelled: false }};
+          }},
+        }};
+
+        const fakeAgentEndCtx = {{
+          cwd: tmpHome,
+          hasUI: true,
+          mode: "tui",
+          model: {{ provider: "anthropic", id: "claude-3" }},
+          modelRegistry: {{
+            find: () => ({{ provider: "anthropic", id: "claude-3" }}),
+            getAvailable: () => [],
+          }},
+          sessionManager: {{
+            getSessionFile: () => sessionFile,
+          }},
+          ui: {{
+            notify: () => {{}},
+            setWidget: () => {{}},
+            custom: async (factory, opts) => "implement-fresh",
+          }},
+          // Note: agent_end ctx does NOT have newSession
+        }};
+
+        planMode(fakePi);
+
+        // 1. Start planning via /plan
+        const planCmd = registeredCommands.get("plan");
+        await planCmd.handler("test plan request", fakeCommandCtx);
+
+        // 2. Main session writes plan file
+        const planDir = path.join(tmpHome, ".pi", "agent", "plans");
+        fs.mkdirSync(planDir, {{ recursive: true }});
+        const key = crypto.createHash("sha256").update(sessionFile).digest("hex").slice(0, 16);
+        const planPath = path.join(planDir, `${{key}}.md`);
+        fs.writeFileSync(planPath, "# Test Plan\\n\\nWorker research: not-needed");
+
+        // 3. Agent turn ends (triggering auto showPlanReview with fakeAgentEndCtx)
+        const agentEndHandler = eventHandlers.get("agent_end");
+        await agentEndHandler({{}}, fakeAgentEndCtx);
+
+        fs.rmSync(tmpHome, {{ recursive: true, force: true }});
+
+        console.log(JSON.stringify({{
+          newSessionCalled: newSessionCalls.length === 1,
+          freshSessionMessageReceived: freshSessionMessages.length === 1,
+        }}));
+    """)
+    assert result["newSessionCalled"] is True
+    assert result["freshSessionMessageReceived"] is True
+
+
+def test_tilde_expansion_in_agent_dir_and_plan_paths():
+    result = run_typescript(f"""
+        import * as os from "node:os";
+        import * as path from "node:path";
+        import {{ readPlanModeConfig, planModeConfigPath }} from {json.dumps((PACKAGE / "src" / "config.ts").as_uri())};
+
+        process.env.PI_CODING_AGENT_DIR = "~/custom-agent-dir";
+        const configPath = planModeConfigPath();
+        const expectedPrefix = path.join(os.homedir(), "custom-agent-dir");
+
+        console.log(JSON.stringify({{
+          configPath,
+          expandsTilde: configPath.startsWith(expectedPrefix),
+          noLiteralTilde: !configPath.includes("~"),
+        }}));
+    """)
+    assert result["expandsTilde"] is True
+    assert result["noLiteralTilde"] is True
     result = run_typescript("""
         // Inline parseModelRef to avoid import issues
         function parseModelRef(value) {

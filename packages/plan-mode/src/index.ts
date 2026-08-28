@@ -15,6 +15,7 @@
 
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import type {
   ExtensionAPI,
@@ -45,13 +46,23 @@ import { createPlanOverlay, type PlanAction } from "./plan-overlay";
 const CONFIG_DIR_NAME = ".pi";
 const PLAN_REVIEW_TIMEOUT_MS = 30_000;
 
+function expandTilde(filepath: string): string {
+  if (filepath === "~" || filepath.startsWith("~/")) {
+    const home = process.env.HOME ?? os.homedir();
+    return path.join(home, filepath.slice(1));
+  }
+  return filepath;
+}
+
 function planFilePath(sessionFile: string | undefined, cwd: string): string {
   const key = crypto
     .createHash("sha256")
     .update(sessionFile ?? cwd)
     .digest("hex")
     .slice(0, 16);
-  const agentDir = process.env.PI_CODING_AGENT_DIR ?? path.join(process.env.HOME ?? "~", CONFIG_DIR_NAME, "agent");
+  const agentDir = process.env.PI_CODING_AGENT_DIR
+    ? expandTilde(process.env.PI_CODING_AGENT_DIR)
+    : path.join(process.env.HOME ?? os.homedir(), CONFIG_DIR_NAME, "agent");
   return path.join(agentDir, "plans", `${key}.md`);
 }
 
@@ -91,6 +102,7 @@ let planModeActive = false;
 let previousModelId: string | undefined;
 let config: PlanModeConfig;
 let activePlanRequest: string | undefined;
+let lastCommandCtx: ExtensionCommandContext | undefined;
 let planHandling = false;
 
 const planWorkerUpdates = new Map<string, PlanWorkerUpdate>();
@@ -271,8 +283,10 @@ async function showPlanReview(ctx: ExtensionContext, _request: string): Promise<
   }
   if (action === "implement-fresh") {
     await exitPlanMode(ctx);
-    const commandCtx = ctx as ExtensionCommandContext;
-    if (typeof commandCtx.newSession !== "function") {
+    const commandCtx = (typeof (ctx as ExtensionCommandContext).newSession === "function")
+      ? (ctx as ExtensionCommandContext)
+      : lastCommandCtx;
+    if (!commandCtx || typeof commandCtx.newSession !== "function") {
       ctx.ui.notify("Fresh session unavailable — implementing in the current session.", "warning");
       pi.sendUserMessage(`The plan has been written to ${planPath}. Please implement it now.\n\n${planContent}`);
       return;
@@ -537,6 +551,7 @@ export default function planMode(extensionApi: ExtensionAPI): void {
   pi.registerCommand("plan", {
     description: "Plan mode — read-only exploration and planning before implementation",
     handler: async (args, ctx) => {
+      lastCommandCtx = ctx;
       const prompt = args.trim();
       const sub = prompt.toLowerCase();
 
@@ -654,6 +669,7 @@ export default function planMode(extensionApi: ExtensionAPI): void {
     clearPlanWorkerWidget(ctx);
     setPlanModeIndicator(ctx, false);
     activePlanRequest = undefined;
+    lastCommandCtx = undefined;
     planHandling = false;
   });
 
