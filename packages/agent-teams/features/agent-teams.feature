@@ -241,6 +241,31 @@ Feature: Agent Teams collaborative organization contract
       Then no peer message body is delivered to the leader as a follow-up or report
       And peer messages are inspectable in the /agent-teams console instead
 
+    Scenario: Peer-message delivery is auditable without claiming it was read
+      Given teammate analyst sends a peer message to teammate critic
+      When the harness routes the message into critic's turn or pending delivery queue
+      Then the peer transcript records the message as harness-delivered
+      And the transcript does not claim that critic read, accepted, or answered it
+
+    Scenario: A facilitated discussion keeps participant reports out of the leader turn
+      Given teammates are conducting a peer discussion with a named moderator
+      When a non-moderator needs to challenge or answer another participant
+      Then it addresses that participant through send_message instead of reporting the exchange to the leader
+      And it sends the leader only one terminal contribution after the moderator requests closure
+      And the moderator's terminal report cites the peer discussion before synthesis
+
+    Scenario: Late reports from a stopped teammate are archived instead of waking the leader
+      Given a teammate has reports pending in the automatic follow-up queue
+      When that teammate is shut down before those reports dispatch
+      Then its pending reports remain inspectable as archived diagnostics
+      And they do not start another leader turn
+
+    Scenario: A report written while shutdown is closing is archived too
+      Given a teammate writes a leader report before its child process closes for a requested shutdown
+      When the harness drains that final outbox during close handling
+      Then the report is archived as a shutdown diagnostic
+      And it does not start another leader turn
+
     Scenario: Reports to the leader use the unified send_message primitive
       Given a teammate is working
       When it calls send_message with to="leader", one message body, and an optional status

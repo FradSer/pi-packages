@@ -37,6 +37,7 @@ import {
   releaseTasksOf,
   receiveWorkerMessage,
   setPeerInboxOffset,
+  setPeerDeliveryState,
   updateTeammate,
   updateTeammateProgress,
 } from "./state.ts";
@@ -182,6 +183,7 @@ let leaderCwd = "";
 /** Live view of the leader session's current model, resolved at spawn time. */
 let leaderModelRef: () => string | undefined = () => undefined;
 let sendUpdate: (report: FollowUpReport) => void = () => {};
+let archiveQueuedReports: (spawnId: string) => FollowUpReport[] = () => [];
 let notifyChange: () => void = () => {};
 
 const pendingShutdowns = new Set<string>();
@@ -205,6 +207,8 @@ const liveWorktrees = new Map<string, ReturnType<typeof createWorktree>>();
 
 export interface MachineHooks {
   sendUpdate: (report: FollowUpReport) => void;
+  /** Suppress reports whose delivery remains harness-owned when shutdown starts. */
+  archiveQueuedReports?: (spawnId: string) => FollowUpReport[];
   notifyChange: () => void;
 }
 
@@ -219,6 +223,7 @@ export function initTeamMachine(
   runtimeStateFile = stateFilePath(sessionFile, leaderCwd);
   boardFile = boardFilePath(sessionFile, leaderCwd);
   sendUpdate = hooks.sendUpdate;
+  archiveQueuedReports = hooks.archiveQueuedReports ?? (() => []);
   notifyChange = hooks.notifyChange;
   // Resume: reload a persisted board; claims die with their holders.
   const persisted = readBoardFile(boardFile);
@@ -235,6 +240,7 @@ export function shutdownTeamMachine(): void {
   leaderModelRef = () => undefined;
   setVerifyGateRunner(undefined);
   sendUpdate = () => {};
+  archiveQueuedReports = () => [];
   notifyChange = () => {};
   pendingShutdowns.clear();
   verifyingTasks.clear();
@@ -726,6 +732,7 @@ export async function shutdownTeammate(name: string): Promise<{ ok: true; body: 
   const teammate = getTeammate(name);
   if (!teammate || teammate.status === "stopped") return { ok: false, error: `No living teammate named "${name}".` };
   pendingShutdowns.add(name);
+  archiveReportsForConsole(archiveQueuedReports(teammate.spawnId));
   const terminated = await terminateTeammate(name);
   if (!terminated) {
     // The child was already gone; synthesize the close bookkeeping.
@@ -787,6 +794,10 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
   removeWorkerOutbox(requireStateFile(), name, teammate.spawnId);
 
   if (requested) {
+    // The close handler drains a final outbox after shutdown was requested.
+    // Archive that spawn again so any report written during termination cannot
+    // become a delayed leader follow-up.
+    archiveReportsForConsole(archiveQueuedReports(spawnId));
     const summary = summarizeShutdown(name, released.length, result.exitCode, result.usage);
     deliverToLeader({ from: name, subject: "Teammate shut down", body: summary });
     // A requested shutdown is already represented by the tool lifecycle row;
@@ -821,6 +832,17 @@ function crashDiagnostic(name: string, result: WorkerProcessResult, released: Ar
     released.length > 0 ? `Released claimed task(s): ${released.map((t) => t.id).join(", ")}.` : undefined,
     result.stdout?.trim() ? `Last output: ${result.stdout.trim()}` : undefined,
   ].filter(Boolean).join("\n");
+}
+
+/** Retain reports the follow-up queue suppressed so the teammate detail view
+ * can show what was archived without turning it into another leader prompt. */
+function archiveReportsForConsole(reports: FollowUpReport[]): void {
+  for (const report of reports) {
+    if (!report.eventId) continue;
+    const message = getState().leaderMailbox.find((candidate) => candidate.id === report.eventId);
+    if (message) message.archived = true;
+  }
+  if (reports.length > 0) markStateDirty();
 }
 
 function summarizeShutdown(
@@ -942,6 +964,7 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
   markStateDirty();
 
   if (teammate.reportSequenceEnded) return false;
+  const archived = pendingShutdowns.has(teammate.name);
   const terminal = record.status === "completed" || record.status === "failed";
   if (terminal) {
     updateTeammate(teammate.name, {
@@ -959,7 +982,7 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
     body: record.body,
     status: record.status,
     timestamp: record.timestamp,
-  });
+  }, { archived });
   // Every accepted teammate-authored report reaches the leader's context as
   // its own turn; terminal statuses additionally end the report sequence.
   const finished = terminal;
@@ -973,6 +996,7 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
     status: record.status,
     timestamp: record.timestamp ?? Date.now(),
     finished,
+    ...(archived ? { archived: true } : {}),
   };
   if (finished) recordTerminalReport(report);
   sendUpdate(report);
@@ -1016,10 +1040,14 @@ function parseInboxMessage(record: unknown): InboxMessage | undefined {
 }
 
 function dispatchInboxMessage(teammate: Teammate, message: InboxMessage): void {
-  const delivered = teammate.status === "working"
+  const routed = teammate.status === "working"
     ? sendWorkerSteer(teammate.name, formatDelivery([message]))
     : false;
-  if (delivered) return;
+  if (routed) {
+    setPeerDeliveryState(message.id, "routed");
+    return;
+  }
+  setPeerDeliveryState(message.id, "queued");
   const queued = pendingDeliveries.get(teammate.name) ?? [];
   queued.push(message);
   pendingDeliveries.set(teammate.name, queued);
@@ -1402,6 +1430,7 @@ export function wakeIdleTeammates(immediateTaskId?: string): string[] {
     const noticed = prioritized.slice(0, WAKE_NOTICE_TASK_LIMIT);
     const prompt = buildWakePrompt(deliveries, noticed, dueNotice);
     if (!deliverPrompt(teammate.name, prompt)) continue;
+    for (const delivery of deliveries) setPeerDeliveryState(delivery.id, "routed");
     notified.push(teammate.name);
     pendingDeliveries.delete(teammate.name);
     if (dueNotice) markTasksNoticed(teammate.name, noticed.map((task) => task.id));

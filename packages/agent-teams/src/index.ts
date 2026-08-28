@@ -164,6 +164,7 @@ export default function (pi: ExtensionAPI) {
     ensureTeamWidget(ctx);
     initTeamMachine(ctx, {
       sendUpdate: sendMainSessionFollowUp,
+      archiveQueuedReports: (spawnId) => followUpQueue?.archiveSpawn(spawnId) ?? [],
       notifyChange: () => refreshTeamUI(leaderCtx),
     });
     ctx.ui.setStatus("teammate", undefined);

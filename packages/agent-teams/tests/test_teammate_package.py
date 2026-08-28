@@ -1198,6 +1198,30 @@ def test_follow_up_queue_serializes_and_retries_with_backoff() -> None:
     assert payload["failuresObserved"] is True
 
 
+def test_follow_up_queue_archives_stopped_spawn_reports_before_dispatch() -> None:
+    payload = run_node(
+        f'''\
+        import {{ FollowUpQueue }} from "{(SRC / "follow-up-queue.ts").as_uri()}";
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const dispatches = [];
+        const queue = new FollowUpQueue({{
+          isIdle: () => true,
+          prepareOnDispatch: true,
+          dispatch: (reports) => dispatches.push(reports.map((report) => report.body).join(",")),
+        }});
+        queue.enqueue({{ teammate: "late", spawnId: "old", body: "late report" }});
+        queue.archiveSpawn("old");
+        await sleep(10);
+        console.log(JSON.stringify({{
+          noDispatch: dispatches.length === 0,
+          pendingEmpty: queue.pendingCount === 0,
+          archived: queue.archivedCount,
+        }}));
+        '''
+    )
+    assert payload == {"noDispatch": True, "pendingEmpty": True, "archived": 1}
+
+
 def test_follow_up_queue_dispatches_each_report_as_its_own_turn() -> None:
     payload = run_node(
         f'''\

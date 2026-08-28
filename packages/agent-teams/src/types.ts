@@ -127,6 +127,9 @@ export interface MailboxMessage {
   subject: string;
   body: string;
   status?: "in_progress" | "completed" | "failed";
+  /** The harness retained this report for console inspection after shutdown;
+   * it never initiated a leader follow-up. */
+  archived?: boolean;
   timestamp: number;
 }
 
@@ -261,4 +264,7 @@ export interface TeamState {
   peerInboxOffsets: Record<string, number>;
   /** Delivered peer message ids per inbox, capped FIFO for deduplication. */
   peerDeliveredIds: Record<string, string[]>;
+  /** Harness-owned peer-delivery transition by message id. This records queueing
+   * or control-stream acceptance only; it never asserts recipient processing. */
+  peerDeliveryStates: Record<string, "queued" | "routed">;
 }
