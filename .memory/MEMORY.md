@@ -18,6 +18,7 @@
 - [project_keyboard_orphaned_unread_cleanup.md](project_keyboard_orphaned_unread_cleanup.md)
 - [project_monitor_display_pattern.md](project_monitor_display_pattern.md)
 - [project_monitor_optimization.md](project_monitor_optimization.md)
+- [project_matt_pocock_router.md](project_matt_pocock_router.md)
 - [project_pi_kit_internal_dependency.md](project_pi_kit_internal_dependency.md)
 - [project_pi_package_conventions.md](project_pi_package_conventions.md)
 - [project_pi_package_npm_publishing.md](project_pi_package_npm_publishing.md)

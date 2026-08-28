@@ -114,14 +114,14 @@ pi install npm:@fradser/pi-agent-teams
 pi install npm:@fradser/pi-context
 ```
 
-### [`mattpocock`](packages/mattpocock/)
+### [`matt-pocock`](packages/matt-pocock/)
 
-提供适配 Pi 的 BDD、TDD、实现、评审、调试、架构、调研、规划、教学和 skill 编写工作流。
+提供 `/matt-pocock` 持久化 Pi 工作流 harness，覆盖适配 Pi 的 BDD、TDD、实现、评审、调试、架构、调研、规划、教学和 skill 编写 procedure。
 
-**安装：**
+**从本地检出安装：**
 
 ```bash
-pi install npm:pi-mattpocock
+pi install /path/to/pi-packages/packages/matt-pocock
 ```
 
 ## 开发

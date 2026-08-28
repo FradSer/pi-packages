@@ -114,14 +114,14 @@ Provides DeepWiki, Context7, and Exa retrieval tools through native Pi extension
 pi install npm:@fradser/pi-context
 ```
 
-### [`mattpocock`](packages/mattpocock/)
+### [`matt-pocock`](packages/matt-pocock/)
 
-Provides Pi-adapted BDD, TDD, implementation, review, debugging, architecture, research, planning, teaching, and skill-writing workflows.
+Provides `/matt-pocock`, a persisted Pi workflow harness for BDD, TDD, implementation, review, debugging, architecture, research, planning, teaching, and skill-writing procedures.
 
-**Install:**
+**Install from a local checkout:**
 
 ```bash
-pi install npm:pi-mattpocock
+pi install /path/to/pi-packages/packages/matt-pocock
 ```
 
 ## Development

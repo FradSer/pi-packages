@@ -36,7 +36,7 @@ jobs:
       #
       # Publish is intentionally scoped: `changeset publish` / `pnpm publish -r`
       # would also sweep every never-published workspace package (code-context,
-      # lark, mattpocock, ...) because they carry version numbers. Only the
+      # lark, matt-pocock, ...) because they carry version numbers. Only the
       # packages in PUBLISH_SCOPE are ever published here — keep it in sync
       # with what the user wants on npm.
       - name: Create Release Pull Request or Publish

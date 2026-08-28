@@ -16,7 +16,8 @@ Feature: Package-root index entry points
     Then the root entry registers each extension exactly once
     And registration does not depend on directory discovery order
 
-  Scenario: Skill-only packages keep a skill-only manifest
-    Given a package contains skills but no runtime extension
+  Scenario: Workflow harness packages use a package-root extension
+    Given a package orchestrates internal workflow procedures
     When its package manifest is inspected
-    Then it does not declare a synthetic extension entry
+    Then its extension entry is exactly "./index.ts"
+    And its procedures are not declared as recursively discoverable skills

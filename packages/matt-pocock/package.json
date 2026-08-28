@@ -1,0 +1,39 @@
+{
+  "name": "pi-matt-pocock",
+  "version": "0.0.0",
+  "description": "BDD-first engineering and productivity skills adapted from Matt Pocock's skills",
+  "keywords": [
+    "pi-package",
+    "bdd",
+    "tdd",
+    "engineering",
+    "code-review",
+    "planning",
+    "productivity"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "procedures",
+    "TODO.md",
+    "LICENSE",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
