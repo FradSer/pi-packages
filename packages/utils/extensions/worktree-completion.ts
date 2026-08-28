@@ -17,6 +17,7 @@ import type { AutocompleteItem } from "@earendil-works/pi-tui";
 export interface WorktreeRoots {
 	currentRoot: string | null;
 	foreignRoots: string[];
+	managedWorktreeDir: string | null;
 }
 
 function canonicalize(candidate: string): string {
@@ -78,7 +79,7 @@ function runGit(cwd: string, args: string[]): string | null {
  */
 export function collectWorktreeRoots(cwd: string): WorktreeRoots {
 	const porcelain = runGit(cwd, ["worktree", "list", "--porcelain"]);
-	if (!porcelain) return { currentRoot: null, foreignRoots: [] };
+	if (!porcelain) return { currentRoot: null, foreignRoots: [], managedWorktreeDir: null };
 
 	interface Entry {
 		bare: boolean;
@@ -110,7 +111,13 @@ export function collectWorktreeRoots(cwd: string): WorktreeRoots {
 			: entries
 					.map((entry) => entry.root)
 					.filter((root) => root !== currentRoot);
-	return { currentRoot, foreignRoots };
+
+	const mainRoot = entries[0]?.root ?? currentRoot;
+	const managedWorktreeDir = mainRoot
+		? path.join(mainRoot, ".pi", "worktrees")
+		: null;
+
+	return { currentRoot, foreignRoots, managedWorktreeDir };
 }
 
 /**
@@ -127,20 +134,22 @@ export function suggestionToPath(value: string): string {
 	) {
 		candidate = candidate.slice(1, -1);
 	}
-	return candidate.replace(/\/+$/, "");
+	return candidate.replace(/[\\/]+$/, "");
 }
 
 function isInside(candidate: string, root: string): boolean {
 	return candidate === root || candidate.startsWith(`${root}${path.sep}`);
 }
 
-/** True when the suggestion resolves inside a non-current git worktree root. */
+/** True when the suggestion resolves inside a non-current git worktree root or managed worktrees dir. */
 export function isInForeignWorktree(
 	value: string,
 	basePath: string,
 	roots: WorktreeRoots,
 ): boolean {
-	if (roots.foreignRoots.length === 0) return false;
+	if (!roots.currentRoot && roots.foreignRoots.length === 0 && !roots.managedWorktreeDir) {
+		return false;
+	}
 
 	let candidate = suggestionToPath(value);
 	if (!candidate) return false;
@@ -153,8 +162,46 @@ export function isInForeignWorktree(
 		? candidate
 		: path.resolve(base, candidate);
 
+	const canonicalAbsolute = canonicalizeBestEffort(absolute);
+
+	// Inside the current worktree, hide the internal .pi/worktrees directory
+	if (roots.currentRoot) {
+		const ownManagedDir = canonicalizeBestEffort(
+			path.join(roots.currentRoot, ".pi", "worktrees"),
+		);
+		if (isInside(canonicalAbsolute, ownManagedDir)) {
+			return true;
+		}
+	}
+
+	// Outside the current worktree, hide the repo's managed .pi/worktrees directory
+	if (roots.managedWorktreeDir) {
+		const canonicalManaged = canonicalizeBestEffort(roots.managedWorktreeDir);
+		if (isInside(canonicalAbsolute, canonicalManaged)) {
+			if (roots.currentRoot && isInside(canonicalAbsolute, roots.currentRoot)) {
+				return false;
+			}
+			return true;
+		}
+	}
+
 	for (const root of roots.foreignRoots) {
-		if (isInside(canonicalizeBestEffort(absolute), root)) return true;
+		if (isInside(canonicalAbsolute, root)) return true;
+	}
+	return false;
+}
+
+export function isItemInForeignWorktree<T extends AutocompleteItem>(
+	item: T,
+	basePath: string,
+	roots: WorktreeRoots,
+): boolean {
+	if (isInForeignWorktree(item.value, basePath, roots)) return true;
+	if (
+		item.description &&
+		isInForeignWorktree(item.description, basePath, roots)
+	) {
+		return true;
 	}
 	return false;
 }
@@ -164,9 +211,15 @@ export function filterForeignWorktreeItems<T extends AutocompleteItem>(
 	basePath: string,
 	roots: WorktreeRoots,
 ): T[] {
-	if (roots.foreignRoots.length === 0) return items;
+	if (
+		!roots.currentRoot &&
+		roots.foreignRoots.length === 0 &&
+		!roots.managedWorktreeDir
+	) {
+		return items;
+	}
 	return items.filter(
-		(item) => !isInForeignWorktree(item.value, basePath, roots),
+		(item) => !isItemInForeignWorktree(item, basePath, roots),
 	);
 }
 
@@ -207,7 +260,9 @@ export default function registerWorktreeCompletion(pi: ExtensionAPI): void {
 				const cwd = activeCwd;
 				if (!cwd) return result;
 				const roots = getWorktreeRoots(cwd);
-				if (roots.foreignRoots.length === 0) return result;
+				if (!roots.currentRoot && roots.foreignRoots.length === 0 && !roots.managedWorktreeDir) {
+					return result;
+				}
 				return {
 					...result,
 					items: filterForeignWorktreeItems(result.items, cwd, roots),
