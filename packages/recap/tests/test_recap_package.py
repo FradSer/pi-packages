@@ -33,6 +33,7 @@ def test_feature_covers_recap_scenarios() -> None:
     assert "Feature: Session Recap" in feature
     assert "Scenario: Recap widget is displayed above the editor by default" in feature
     assert "Scenario: Recap is informative and scannable" in feature
+    assert "Scenario: Recap reflects only evidenced progress" in feature
     assert "Scenario: /recap opens an interactive management menu" in feature
     assert "Scenario: Generate recap now bypasses same-exchange deduplication" in feature
     assert "Scenario: Model selection supports custom provider and model overrides" in feature
@@ -844,6 +845,30 @@ def test_build_recap_prompt_with_and_without_previous_recap() -> None:
     )
     assert result["hasPrevious"] is True
     assert result["noPrevious"] is True
+
+
+def test_first_prompt_recap_prompt_distinguishes_planned_work_from_completed_work() -> None:
+    result = run_typescript(
+        f"""
+        import {{ buildRecapPrompt }} from "{RECAP_URI}";
+
+        const prompt = buildRecapPrompt(
+          "参考 /Users/FradSer/Documents/Home Lab/esp32-keyboard，我希望在 firmware/linux/ 开发遥控器，先实践左右滑动联动 HDMI 屏幕翻页",
+          "",
+        );
+
+        console.log(JSON.stringify({{
+          identifiesStartingWork: prompt.includes("starting") || prompt.includes("planned"),
+          forbidsUnsupportedClaims: prompt.includes("Do not claim") && prompt.includes("not evidenced"),
+          distinguishesAccessFromConnection: prompt.includes("not evidence that a connection was made"),
+          includesUserRequest: prompt.includes("firmware/linux/") && prompt.includes("HDMI"),
+        }}));
+        """
+    )
+    assert result["identifiesStartingWork"] is True
+    assert result["forbidsUnsupportedClaims"] is True
+    assert result["distinguishesAccessFromConnection"] is True
+    assert result["includesUserRequest"] is True
 
 
 def test_build_recap_prompt_language_rules() -> None:

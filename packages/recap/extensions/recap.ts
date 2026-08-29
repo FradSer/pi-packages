@@ -113,12 +113,17 @@ export function buildRecapPrompt(
     langRule = `- Always output in ${language}.`;
   }
 
+  const hasAssistantOutcome = assistant.trim().length > 0;
   const lines = [
     "You are an informative session recap generator.",
     "Summarise the latest session progress in one single-line recap of at most 120 characters.",
     "Include only the action, target, and result or current progress.",
     "Rules:",
     "- Maintain continuous context: update and advance the previous recap with the latest work done.",
+    "- Treat user requests, plans, references, and desired outcomes as intent, not evidence that work occurred.",
+    "- Access, permission, capability, or a referenced path is not evidence that a connection was made or a file was inspected.",
+    "- Report an action, file change, connection, configuration, debugging step, or result only when the exchange explicitly evidences it.",
+    "- Do not claim actions, files, connections, or results that are not evidenced.",
     "- State the specific action, target components/files, and key outcome or current progress.",
     "- Output ONLY the summary text. No quotes, no markdown, no conversational filler, no prefixes.",
     "- Single line only (no newlines).",
@@ -126,6 +131,12 @@ export function buildRecapPrompt(
     "- Be concrete and scannable rather than vague.",
     "- Do not explain, advise, greet, repeat the prompt, or mention this conversation.",
   ];
+
+  if (!hasAssistantOutcome) {
+    lines.push(
+      "- The assistant has not reported an outcome yet: describe the work as starting, planned, or requested, never as completed or currently being debugged.",
+    );
+  }
 
   if (previousRecap?.trim()) {
     lines.push("", "=== Previous recap ===", previousRecap.trim());

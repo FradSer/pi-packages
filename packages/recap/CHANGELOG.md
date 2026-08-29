@@ -1,5 +1,12 @@
 # @fradser/pi-recap
 
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @fradser/pi-kit@0.4.1
+
 ## 0.1.7
 
 ### Patch Changes

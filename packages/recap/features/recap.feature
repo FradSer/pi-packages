@@ -23,11 +23,23 @@ Feature: Session Recap
     And the completed turn can later refresh the recap with its outcome
     And settling the turn is not delayed by the in-progress recap
 
+  Scenario: In-progress recap does not claim requested work is complete
+    Given a new TUI session with no previous recap
+    When the first prompt is being recapped before the assistant responds
+    Then the recap prompt identifies the work as starting or planned
+    And it forbids claiming actions, files, connections, or results that are not evidenced
+
   Scenario: Recap is informative and scannable
     Given a raw model summary
     When cleaned and formatted
     Then the recap text is a single line with specific action, target, and outcome
     And quotes, markdown wrappers, and redundant prefixes are stripped
+
+  Scenario: Recap reflects only evidenced progress
+    Given a user request with a plan and desired outcome but no assistant result
+    When the recap prompt is built
+    Then the request is treated as planned work rather than completed work
+    And unsupported actions, files, connections, and results are forbidden
 
   Scenario: Generated recap is persisted to the session
     Given a newly generated recap for the current exchange
