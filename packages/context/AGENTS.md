@@ -37,7 +37,7 @@ dependency; do not invent a replacement or add one without verified need.
 Before editing, inspect the local manifest, workflow, and extension behavior.
 For external contracts, use `context_context7`; use `context_deepwiki` for
 public repository architecture and `context_exa` for current usage patterns
-when `EXA_API_KEY` is available, falling back to clone or web fetch. Update a
+(keyless by default, full-text with `EXA_API_KEY`), falling back to clone or web fetch. Update a
 BDD scenario before behavior changes, then extend `tests/` and the HTTP harness
 for registration, fallback, timeout, abort, and configuration cases. Add a
 Changeset for published changes and use Conventional Commit scopes such as

@@ -5,7 +5,8 @@
  * support (docs/usage.md), so these tools call the public REST APIs directly:
  *   - context_deepwiki  → https://mcp.deepwiki.com/mcp (DeepWiki's public JSON-RPC/SSE API)
  *   - context_context7  → https://context7.com/api/v1/{search,docs}
- *   - context_exa       → https://api.exa.ai/search  (needs EXA_API_KEY)
+ *   - context_exa       → https://mcp.exa.ai/mcp (public keyless JSON-RPC/SSE API);
+ *                         https://api.exa.ai/search when EXA_API_KEY is set (full-text results)
  *
  * Pure HTTP tools — available in interactive and non-interactive runs alike.
  */
@@ -50,15 +51,17 @@ async function httpJson(
 }
 
 /**
- * DeepWiki's public API is a JSON-RPC-over-HTTP/SSE endpoint (mcp.deepwiki.com).
- * Call a tool directly — no MCP client or sidecar process needed.
+ * DeepWiki and Exa expose public JSON-RPC-over-HTTP/SSE endpoints
+ * (mcp.deepwiki.com, mcp.exa.ai). Call a tool directly — no MCP client or
+ * sidecar process needed.
  */
-async function deepwikiCall(
+async function mcpCall(
+	endpoint: string,
 	tool: string,
 	args: Record<string, unknown>,
 	signal: AbortSignal | undefined,
 ): Promise<string> {
-	const res = await fetch(DEEPWIKI_MCP, {
+	const res = await fetch(endpoint, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
@@ -68,7 +71,7 @@ async function deepwikiCall(
 		signal: requestSignal(signal),
 	});
 	const body = await res.text();
-	if (!res.ok) throw new Error(`DeepWiki HTTP ${res.status}: ${body.slice(0, 200)}`);
+	if (!res.ok) throw new Error(`${endpoint} HTTP ${res.status}: ${body.slice(0, 200)}`);
 
 	// SSE frames: `event: message` + one or more `data:` lines, blank-line terminated.
 	// Join multiline payloads, keep the last frame with data.
@@ -87,15 +90,23 @@ async function deepwikiCall(
 		}
 	}
 	if (currentData.length > 0) payload = currentData.join("\n");
-	if (payload === null) throw new Error("DeepWiki: no data frame in response");
+	if (payload === null) throw new Error(`${endpoint}: no data frame in response`);
 
 	const data = JSON.parse(payload);
-	if (data.error) throw new Error(`DeepWiki: ${data.error.message ?? JSON.stringify(data.error)}`);
+	if (data.error) throw new Error(`${endpoint}: ${data.error.message ?? JSON.stringify(data.error)}`);
 	const content = data.result?.content;
 	if (Array.isArray(content)) {
 		return content.map((c) => (typeof c?.text === "string" ? c.text : JSON.stringify(c))).join("\n");
 	}
 	return JSON.stringify(data.result ?? data);
+}
+
+function deepwikiCall(
+	tool: string,
+	args: Record<string, unknown>,
+	signal: AbortSignal | undefined,
+): Promise<string> {
+	return mcpCall(DEEPWIKI_MCP, tool, args, signal);
 }
 
 const DeepWikiParams = Type.Object({
@@ -132,7 +143,7 @@ export function registerContextTools(pi: ExtensionAPI): void {
 			"mode=ask answers a specific question with sources. No API key required.",
 		promptSnippet: "Look up AI-generated documentation for a public GitHub repo from DeepWiki",
 		promptGuidelines: [
-			"Use context_deepwiki to fetch structured repo documentation via DeepWiki instead of cloning when you only need a high-level understanding.",
+			"When the user asks about a public GitHub repository, call context_deepwiki proactively to fetch structured repo documentation instead of cloning when you only need a high-level understanding.",
 		],
 		parameters: DeepWikiParams,
 		executionMode: "sequential",
@@ -161,7 +172,7 @@ export function registerContextTools(pi: ExtensionAPI): void {
 			"Anonymous usage is rate-limited; set CONTEXT7_API_KEY (Authorization: Bearer) for per-key quota.",
 		promptSnippet: "Look up version-aware library documentation from Context7",
 		promptGuidelines: [
-			"Use context_context7 to look up library docs instead of guessing APIs from memory. Anonymous usage is rate-limited; set CONTEXT7_API_KEY for higher quota.",
+			"Before answering how to use a library or framework API, call context_context7 proactively to look up the docs instead of guessing APIs from memory. Anonymous usage is rate-limited; set CONTEXT7_API_KEY for higher quota.",
 		],
 		parameters: Context7Params,
 		executionMode: "sequential",
@@ -221,24 +232,29 @@ export function registerContextTools(pi: ExtensionAPI): void {
 		label: "Exa web/code search",
 		description:
 			"Search the web for real-world code patterns, comparisons, and up-to-date information via Exa. " +
-			"Requires the EXA_API_KEY environment variable. Returns titles, URLs, and text snippets.",
+			"Works without an API key (public endpoint); set EXA_API_KEY for full-text results via the REST API. " +
+			"Returns titles, URLs, and text snippets.",
 		promptSnippet: "Search the web for real-world code patterns, comparisons, and up-to-date information via Exa",
 		promptGuidelines: [
-			"Use context_exa to search the web when you need current information, code patterns, or comparisons. Requires EXA_API_KEY to be set.",
+			"When the user asks to search the web or you need current information, code patterns, or comparisons, call context_exa immediately with a precise query. No API key is required.",
 		],
 		parameters: ExaParams,
 		executionMode: "sequential",
 
 		async execute(_toolCallId, params, signal) {
+			const numResults = Math.max(1, Math.min(10, Math.floor(params.numResults ?? 5)));
+
 			const apiKey = process.env.EXA_API_KEY;
 			if (!apiKey) {
-				return textResult(
-					"context_exa: EXA_API_KEY is not set. Set EXA_API_KEY to enable Exa search, " +
-						"or fall back to web search via curl / GitHub search.",
+				const out = await mcpCall(
+					"https://mcp.exa.ai/mcp",
+					"web_search_exa",
+					{ query: params.query, numResults },
+					signal,
 				);
+				return textResult(truncate(out));
 			}
 
-			const numResults = Math.max(1, Math.min(10, Math.floor(params.numResults ?? 5)));
 			const { ok, status, body } = await httpJson(
 				"https://api.exa.ai/search",
 				{

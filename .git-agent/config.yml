@@ -17,3 +17,13 @@ scopes:
       description: Published Pi extensions, skills, and integrations in packages/; does not cover repository release scripts.
     - name: scripts
       description: Release publishing automation in scripts/; does not cover package runtime behavior.
+    - name: teams
+      description: Agent coordination, spawner logic, and UI rendering in packages/agent-teams/; does not cover memory or kit.
+    - name: kit
+      description: Core runtime, process lifecycles, and shared tool interfaces in packages/pi-kit/; does not cover agent team coordination.
+    - name: plan
+      description: Plan-mode workers, overlay management, and execution orchestration in packages/plan-mode/; does not cover general agents.
+    - name: mon
+      description: System monitoring, diagnostic output, and event deduping in packages/monitor/; does not cover core pi-kit.
+    - name: utils
+      description: General purpose extensions, npm guards, and worktree utilities in packages/utils/; does not cover release scripts.

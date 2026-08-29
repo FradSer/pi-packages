@@ -17,10 +17,12 @@ const MANIFEST_FILES = ["package.json", "pyproject.toml", "go.mod", "Cargo.toml"
 const CONTEXT_GUIDANCE = `
 ## Context retrieval
 
-- Use \`context_deepwiki\` for public GitHub repo architecture and DeepWiki Q&A.
-- Use \`context_context7\` for up-to-date library/API docs (optionally focused by topic).
-- Use \`context_exa\` for web/code search when EXA_API_KEY is set; otherwise fall back to \`bash\` + \`curl\`.
-- Use \`git clone --depth=1\` to /tmp plus \`read\`/\`bash\` for private repos or deep inspection; always clean up.
+Use these tools proactively — do not answer from memory when a lookup would be more accurate:
+
+- The user asks to search/搜索/查找 something on the web, or you need current facts, real-world code patterns, or comparisons: call \`context_exa\` immediately. It works without an API key (public Exa endpoint); EXA_API_KEY upgrades it to full-text results.
+- You are about to answer how to use a library or framework API: call \`context_context7\` first (optionally focused by topic) and answer from the fetched docs.
+- The user asks about a public GitHub repository (architecture, how it works, targeted Q&A): call \`context_deepwiki\` (structure/contents/ask) before considering a clone.
+- Private repos or deep line-level inspection: \`git clone --depth=1\` to /tmp plus \`read\`/\`bash\`; always clean up.
 - Prefer small intermediate summaries over dumping raw API payloads into the conversation.
 - The \`/context <targets...> [--method=...]\` command loads the full workflow when the user asks to research or understand code.
 `;

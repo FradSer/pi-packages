@@ -8,11 +8,11 @@ Retrieve code context for any repo, library, or natural-language code/technology
 |--------|------|--------------|
 | DeepWiki | `context_deepwiki` | always, no key |
 | Context7 | `context_context7` | always, optional `CONTEXT7_API_KEY` for higher quota |
-| Exa | `context_exa` | requires `EXA_API_KEY` |
+| Exa | `context_exa` | no key required (public endpoint); optional `EXA_API_KEY` for full-text results |
 | Git clone | `bash` + `read` | always |
 | Web search+fetch | `bash` + `curl` | always |
 
-If a native tool is unavailable or errors (e.g. `EXA_API_KEY` unset), skip it and use the documented clone/web fallback. Report which methods ran. There are no Pi built-ins named `WebSearch`/`WebFetch`/`Task` — do not invent them.
+If a native tool errors or is unreachable, skip it and use the documented clone/web fallback. Report which methods ran. There are no Pi built-ins named `WebSearch`/`WebFetch`/`Task` — do not invent them.
 
 ## Invocation
 
@@ -26,7 +26,7 @@ Classify each target:
 
 - GitHub slug (`owner/repo`) or git URL → repo — DeepWiki (`context_deepwiki`), else clone.
 - Bare package name or `name@version` → library — Context7 (`context_context7`), else web + clone of docs repo when known.
-- Anything else → natural-language — Exa (`context_exa`) when `EXA_API_KEY` is set, else web search via `curl`.
+- Anything else → natural-language — Exa (`context_exa`, works without an API key); fall back to web search via `curl` if it errors.
 
 When `--method=` is passed, use the intersection of allowed and applicable methods. Empty intersection → skip and report.
 

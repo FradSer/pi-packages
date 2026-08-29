@@ -70,14 +70,17 @@ async function main(): Promise<void> {
     );
 
     delete process.env.EXA_API_KEY;
-    let requestedWithoutKey = false;
-    globalThis.fetch = (async () => {
-      requestedWithoutKey = true;
-      throw new Error("no request should be made");
+    let keylessUrl = "";
+    globalThis.fetch = (async (url) => {
+      keylessUrl = String(url);
+      return new Response(
+        'event: message\ndata: {"result":{"content":[{"type":"text","text":"Title: React URL: https://react.dev"}]}}\n\n',
+        { status: 200 },
+      );
     }) as typeof fetch;
-    const missingKey = await tool("context_exa").execute("no-key", { query: "react" });
-    assert.match(missingKey.content[0]?.text ?? "", /EXA_API_KEY is not set/);
-    assert.equal(requestedWithoutKey, false);
+    const keyless = await tool("context_exa").execute("no-key", { query: "react" });
+    assert.match(keylessUrl, /^https:\/\/mcp\.exa\.ai\/mcp/);
+    assert.match(keyless.content[0]?.text ?? "", /Title: React/);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalExaKey === undefined) {

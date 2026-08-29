@@ -26,7 +26,7 @@ Run `/context` followed by a natural-language question, repository slug, library
 
 `--method=` accepts `deepwiki,context7,exa,clone,web,all` (comma-separated). With no target, the command reads dependency manifests in the current directory (`package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`) and uses detected dependencies as targets.
 
-The full workflow (target classification, per-method process, fallbacks, selection guide) lives in `references/workflow.md` and is injected into the turn when `/context` runs. Lightweight tool-selection guidance is always present in the system prompt.
+The full workflow (target classification, per-method process, fallbacks, selection guide) lives in `references/workflow.md` and is injected into the turn when `/context` runs. Proactive tool-selection guidance is always present in the system prompt: it routes natural-language search requests (e.g. "帮我搜索") to `context_exa` (no API key needed), library/API questions to `context_context7`, and public-repo questions to `context_deepwiki`.
 
 ## Runtime requirements
 
@@ -34,7 +34,7 @@ The full workflow (target classification, per-method process, fallbacks, selecti
 |--------|--------------|-------|
 | DeepWiki | Always (native tool `context_deepwiki`) | No API key required |
 | Context7 | Always (native tool `context_context7`) | Optional `CONTEXT7_API_KEY` (Bearer) for per-key quota |
-| Exa | Native tool `context_exa` | Requires `EXA_API_KEY` env var |
+| Exa | Always (native tool `context_exa`) | No key required (public endpoint); optional `EXA_API_KEY` for full-text results |
 | Git clone | Always | Pi `bash` + `read` |
 | Web fetch | Always | `curl`/HTTP via `bash` |
 
@@ -44,7 +44,7 @@ All three retrieval tools are registered by this package's root extension entry 
 
 1. **DeepWiki** — AI-generated repo docs via `context_deepwiki` (`mode: structure | contents | ask`).
 2. **Context7** — up-to-date library docs via `context_context7` (`query` + optional `topic`).
-3. **Exa** — web/code search via `context_exa` (`query` + optional `numResults`, requires `EXA_API_KEY`).
+3. **Exa** — web/code search via `context_exa` (`query` + optional `numResults`); keyless via the public `mcp.exa.ai` endpoint, or full-text via `api.exa.ai` when `EXA_API_KEY` is set.
 4. **Git clone** — `git clone --depth=1` to `/tmp`, `read` key files, clean up.
 5. **Web search+fetch** — `bash` + `curl` against official docs, GitHub issues, changelogs.
 
@@ -73,7 +73,7 @@ context/
 
 - Pi with extensions + custom tools
 - Network access for external lookups
-- `EXA_API_KEY` for the Exa method (optional for the other four)
+- `EXA_API_KEY` (optional) upgrades the Exa method to full-text results; all five methods work without any key
 
 ## Best Practices
 

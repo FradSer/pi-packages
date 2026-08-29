@@ -72,6 +72,7 @@ class TestContextToolsExtension(unittest.TestCase):
         self.assertIn("mcp.deepwiki.com", content)
         self.assertIn("context7.com", content)
         self.assertIn("api.exa.ai", content)
+        self.assertIn("mcp.exa.ai", content, "keyless public Exa endpoint missing")
         self.assertIn("EXA_API_KEY", content)
         self.assertIn("StringEnum", content)
         self.assertNotIn("Type.Union", content)
@@ -85,6 +86,22 @@ class TestContextToolsExtension(unittest.TestCase):
     def test_workflow_reference_names_native_tools(self):
         for tool in ("context_deepwiki", "context_context7", "context_exa"):
             self.assertIn(tool, read(os.path.join("references", "workflow.md")))
+
+    def test_no_stale_exa_key_requirement_anywhere(self):
+        """Exa works keyless — no shipped doc may claim EXA_API_KEY is required."""
+        for rel in (
+            "README.md",
+            "AGENTS.md",
+            os.path.join("references", "workflow.md"),
+            os.path.join("extensions", "context-tools.ts"),
+            os.path.join("extensions", "context-command.ts"),
+        ):
+            content = read(rel)
+            self.assertNotIn("requires `EXA_API_KEY`", content, rel)
+            self.assertNotIn("requires EXA_API_KEY", content, rel)
+            self.assertNotIn("Requires the EXA_API_KEY", content, rel)
+            self.assertNotIn("when `EXA_API_KEY` is set, else", content, rel)
+            self.assertNotIn("when `EXA_API_KEY` is available", content, rel)
 
 
 class TestContextCommandExtension(unittest.TestCase):
@@ -103,6 +120,21 @@ class TestContextCommandExtension(unittest.TestCase):
         self.assertIn("context_context7", content)
         self.assertIn("context_exa", content)
         self.assertIn("/context", content)
+
+    def test_guidance_is_proactive_with_triggers(self):
+        """Guidance must state trigger conditions, not a passive capability list."""
+        content = read(os.path.join("extensions", "context-command.ts"))
+        self.assertIn("proactively", content)
+        self.assertIn("search/", content, "web-search trigger missing")
+        self.assertIn("library or framework API", content)
+        self.assertIn("public GitHub repository", content)
+
+    def test_guidance_states_keyless_exa(self):
+        """Guidance must state Exa needs no key — an unevaluated conditional gets skipped."""
+        content = read(os.path.join("extensions", "context-command.ts"))
+        self.assertIn("works without an API key", content)
+        self.assertIn("EXA_API_KEY upgrades", content)
+        self.assertNotIn("is unavailable", content)
 
 
 class TestReadmeContract(unittest.TestCase):
@@ -147,6 +179,13 @@ class TestFeatureContract(unittest.TestCase):
             "fails so Pi records an error result",
             "EXA_API_KEY is not configured",
             "configured request timeout elapses",
+            "proactive use of context_exa",
+            "proactive use of context_context7",
+            "proactive use of context_deepwiki",
+            "public keyless Exa endpoint at mcp.exa.ai",
+            "EXA_API_KEY is configured",
+            "queries api.exa.ai with the key",
+            "states context_exa works without an API key",
         ):
             self.assertIn(phrase, feature)
 
@@ -160,13 +199,14 @@ class TestHttpBehavior(unittest.TestCase):
         self.assertRegex(content, r"httpJson\([\s\S]*signal: AbortSignal \| undefined")
         self.assertRegex(content, r"deepwikiCall\([\s\S]*signal: AbortSignal \| undefined")
 
-    def test_operational_http_failures_are_thrown_but_missing_key_is_informational(self):
+    def test_operational_http_failures_are_thrown_and_exa_needs_no_key(self):
         content = read(os.path.join("extensions", "context-tools.ts"))
         self.assertIn("throw new Error(`Context7 search failed", content)
         self.assertIn("throw new Error(`Context7 docs failed", content)
         self.assertIn("throw new Error(`Exa search failed", content)
         self.assertNotIn("catch (err)", content)
-        self.assertIn("EXA_API_KEY is not set", content)
+        self.assertNotIn("EXA_API_KEY is not set", content)
+        self.assertIn("web_search_exa", content)
 
     def test_native_tools_abort_and_signal_operational_failures_at_runtime(self):
         workspace_dir = os.path.dirname(os.path.dirname(CC_PKG_DIR))
