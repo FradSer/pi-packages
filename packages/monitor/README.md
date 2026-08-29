@@ -15,11 +15,13 @@ promptly with a small amount of data, especially for frequent queries.
 `monitor_start` is not a universal wrapper for every command. Reserve it for
 noisy, long-running, or asynchronous work, including finite workflows such as
 dependency installation, builds, tests, deploys, and verification pipelines.
-After it returns, the current agent turn
-ends immediately. Do not sleep, poll, wait, or do follow-up work; wait for the
-terminal result to wake the agent. Other tools and commands remain available and
-are never blocked by the monitor. The terminal result automatically wakes the
-agent once when:
+In interactive sessions, `monitor_start` returns a compact acknowledgement and
+ends the current agent turn. Do not sleep, poll, wait, or do follow-up work;
+wait for the terminal result to wake the agent. In `pi --print` and JSON
+sessions, it instead waits inside the tool call and returns that same terminal
+result directly, so it is not lost after the one-shot run ends. Other tools and
+commands remain available and are never blocked by the monitor. The terminal
+result is delivered once when:
 
 - `result_pattern` matches: `success`
 - `failure_pattern` matches: `failure`
@@ -96,7 +98,7 @@ sh -c '
 
 Start the monitor with named `json` captures. The compact tool row uses
 `[monitor] started · <description>`, while the result event row uses
-`[monitor] event · <description>`:
+`[monitor] event · <description> · <status>`:
 
 ```text
 monitor_start
@@ -112,7 +114,7 @@ row appends the same dim ` · <configured expand key> to expand` hint used by
 team-mate report rows (shared via `@fradser/pi-kit`):
 
 ```text
-[monitor] event · test suite result · <configured expand key> to expand
+[monitor] event · test suite result · success · <configured expand key> to expand
 
 status=success
 elapsed=8.4s
@@ -137,6 +139,117 @@ monitor_start
 
 Avoid broad patterns such as `success|error|ready`. A result pattern is a
 terminal contract, not a general log filter.
+
+## Verified scenarios and examples
+
+The following patterns demonstrate how the monitor isolates runtime noise while
+guaranteeing precise model-facing deliverables.
+
+### Case 1: High-noise build with JSON sentinel success
+
+Hundreds of compilation lines are hidden outside the model context; only the
+final structured sentinel reaches the agent.
+
+```text
+monitor_start
+  command='python3 -c "[print(f\"compiling module_{i}.o\") for i in range(200)]; print(\"__PI_MONITOR_RESULT__ {\\\"modules\\\": 200, \\\"status\\\": \\\"success\\\"}\")"'
+  description="build project"
+  result_pattern='__PI_MONITOR_RESULT__ (?<json>\{.*\})'
+```
+
+Agent tool result:
+
+```text
+Monitor: build project
+status=success
+elapsed=33ms
+result={"modules":200,"status":"success"}
+```
+
+### Case 2: Stderr failure pattern with source-labelled diagnostic tail
+
+Noisy intermediate setup is omitted, and the error capture is returned along with
+a bounded tail showing where the error came from (`[stderr]`).
+
+```text
+monitor_start
+  command='python3 -c "import sys; print(\"configuring...\"); print(\"FATAL: migration failed: column exists\", file=sys.stderr); sys.exit(1)"'
+  description="database migration"
+  result_pattern="MIGRATION_OK"
+  failure_pattern="FATAL: (?<error>.*)"
+```
+
+Agent tool result:
+
+```text
+Monitor: database migration
+status=failure
+elapsed=28ms
+capture.error=migration failed: column exists
+output=["[stderr] FATAL: migration failed: column exists","[stdout] configuring..."]
+```
+
+### Case 3: Command exits zero without sentinel (result_missing)
+
+If a process finishes without emitting the required success sentinel, the
+monitor prevents false positives by reporting `result_missing`.
+
+```text
+monitor_start
+  command="echo 'Task finished without contract'"
+  description="silent finish probe"
+  result_pattern="EXPECTED_SENTINEL_XYZ"
+```
+
+Agent tool result:
+
+```text
+Monitor: silent finish probe
+status=result_missing
+elapsed=7ms
+expected=EXPECTED_SENTINEL_XYZ
+exit_code=0
+output=["[stdout] Task finished without contract"]
+```
+
+### Case 4: Timeout enforcement
+
+Commands exceeding their deadline are killed (SIGTERM + SIGKILL escalation) and
+reported cleanly without hanging the turn.
+
+```text
+monitor_start
+  command="sleep 5"
+  description="timeout probe"
+  result_pattern="NEVER_MATCH"
+  timeout_ms=800
+```
+
+Agent tool result:
+
+```text
+Monitor: timeout probe
+status=timeout
+elapsed=802ms
+reason=timeout
+timeout_ms=800
+```
+
+### Case 5: Interactive TUI lifecycle
+
+In interactive sessions, `monitor_start` immediately returns an acknowledgement
+and ends the agent turn (`terminate: true`), preventing polling loops while
+giving the model a reference `monitor_id`:
+
+```text
+Monitor started: interactive web service
+monitor_id=monitor_1
+terminal_result=pending
+```
+
+When the command completes, the agent is woken once via a steering custom message
+carrying the terminal report, while the human-facing TUI renders a compact
+lifecycle band.
 
 ## Diagnostics
 
@@ -174,8 +287,13 @@ The retained history and terminal diagnostic tail are bounded:
 - Both stdout and stderr are scanned for `result_pattern` and `failure_pattern`.
 - The first terminal match wins and stops the process group.
 - Named regex captures are returned in `captures`.
-- The monitor start tool returns a concise status containing the description,
-  then terminates the current turn. Internal monitor ids are not exposed.
+- Interactive monitor starts return the description, a model-facing
+  `monitor_id`, and `terminal_result=pending`, then terminate the current turn.
+  The id stays out of compact human-facing TUI rows and identifies a specific
+  monitor for `monitor_stop`.
+- In print and JSON modes, monitor start waits for the contracted terminal
+  result and returns its compact report directly without terminating the turn
+  or sending a custom terminal message.
 - The model-facing terminal report uses native Pi custom-message content
   with compact `key=value` text. A named capture called `json` is parsed into
   `result` and emitted as compact JSON; complete structured data remains in

@@ -9,10 +9,26 @@ Feature: Result-contract background monitoring
   Scenario: Starting a monitor requires a success result contract
     When monitor_start runs with a command, description, and result pattern
     Then a background process is spawned for the command
-    And the tool returns immediately without blocking
+    And an interactive tool call returns immediately without blocking
     And the tool result terminates the current agent turn
     And the agent remains idle until the terminal result arrives
     And ordinary stdout and stderr do not wake the agent
+
+  Scenario: Starting a monitor gives the agent a usable acknowledgement without adding TUI noise
+    Given monitor_start accepts a monitor description
+    When an interactive monitor is started
+    Then the model-facing tool result identifies the started monitor and its monitor id
+    And the tool result states that a terminal result is pending
+    And the compact TUI startup row contains only `[monitor] started · <description>`
+    And the compact TUI startup row does not contain the monitor id
+
+  Scenario: A noninteractive monitor returns its terminal result in the same tool call
+    Given monitor_start runs in print or JSON mode
+    When a monitor reaches a terminal result
+    Then the tool waits for that terminal result instead of relying on a queued message
+    And the tool result contains the compact terminal report and structured terminal details
+    And the tool result does not terminate the current agent turn
+    And no terminal custom message is sent
 
   Scenario: Concise system guidance covers finite installation and verification commands
     Given the agent is deciding whether a shell command needs background monitoring
@@ -124,7 +140,7 @@ Feature: Result-contract background monitoring
   Scenario: Terminal result notifications use the compact monitor event style
     Given a monitor reaches a terminal result
     When the result notification is rendered in the TUI
-    Then the collapsed content line starts with `[monitor] event · <description>`
+    Then the collapsed content line starts with `[monitor] event · <description> · <status>`
     And the collapsed content line appends the configured expansion key as the shared pi-kit ` · <key> to expand` hint
     And pi-kit paints the monitor event as the shared full-width background band with blank band rows above and below
     And the collapsed content line does not hard-code `Ctrl+O`
@@ -145,7 +161,7 @@ Feature: Result-contract background monitoring
 
   Scenario: Stopping a monitor manually
     Given a monitor is running
-    And the /monitor console exposes its monitor id
+    And monitor_start has returned its monitor id to the agent
     When monitor_stop runs with its monitor id
     Then the process group receives SIGTERM followed by SIGKILL after the grace period
     And a SIGTERM-resistant descendant still receives SIGKILL escalation after the shell child closes

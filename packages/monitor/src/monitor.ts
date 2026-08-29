@@ -51,6 +51,8 @@ export interface Monitor {
   completedAt?: number;
   status: MonitorStatus;
   terminal?: MonitorTerminalResult;
+  /** Whether a terminal result should be injected into the agent as a custom message. */
+  notifyTerminal: boolean;
   retainedLogLines: number;
   droppedLogLines: number;
 }
@@ -97,12 +99,19 @@ export interface StartMonitorArgs {
   failurePattern?: string;
   timeoutMs?: number;
   cwd?: string;
+  notifyTerminal?: boolean;
+}
+
+export interface MonitorTerminalEvent {
+  monitor: Monitor;
+  result: MonitorTerminalResult;
 }
 
 /** Session-scoped result-contract monitors with bounded terminal diagnostics. */
 export class MonitorManager {
   private active = new Map<string, InternalMonitor>();
   private history: ArchivedMonitor[] = [];
+  private terminalWaiters = new Map<string, Array<(event: MonitorTerminalEvent) => void>>();
   private counter = 0;
 
   constructor(private readonly events: MonitorEvents) {}
@@ -152,6 +161,30 @@ export class MonitorManager {
       ...this.list(),
       ...this.history.map((entry) => entry.monitor),
     ];
+  }
+
+  waitForTerminal(id: string, signal?: AbortSignal): Promise<MonitorTerminalEvent> {
+    const archived = this.history.find((entry) => entry.monitor.id === id)?.monitor;
+    if (archived?.terminal) return Promise.resolve({ monitor: archived, result: archived.terminal });
+    if (!this.active.has(id)) return Promise.reject(new Error(`No monitor with id ${id}.`));
+    return new Promise((resolve, reject) => {
+      const onAbort = () => {
+        this.removeTerminalWaiter(id, waiter);
+        reject(signal?.reason ?? new Error("Monitor wait aborted."));
+      };
+      const waiter = (event: MonitorTerminalEvent) => {
+        signal?.removeEventListener("abort", onAbort);
+        resolve(event);
+      };
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+      signal?.addEventListener("abort", onAbort, { once: true });
+      const waiters = this.terminalWaiters.get(id) ?? [];
+      waiters.push(waiter);
+      this.terminalWaiters.set(id, waiters);
+    });
   }
 
   tail(id: string, tailLines = MAX_RESULT_OUTPUT_LINES): MonitorOutput | undefined {
@@ -208,6 +241,7 @@ export class MonitorManager {
       timeoutMs: normalizeTimeout(args.timeoutMs),
       startedAt: Date.now(),
       status: "running",
+      notifyTerminal: args.notifyTerminal ?? true,
       retainedLogLines: 0,
       droppedLogLines: 0,
       resultMatcher,
@@ -420,7 +454,25 @@ export class MonitorManager {
     this.active.delete(monitor.id);
     const publicMonitor = this.public(monitor);
     this.archive(publicMonitor, monitor.logs);
+    this.resolveTerminalWaiters(publicMonitor, terminal);
     if (notify) this.events.onTerminal(publicMonitor, terminal);
+  }
+
+  private removeTerminalWaiter(
+    id: string,
+    waiter: (event: MonitorTerminalEvent) => void,
+  ): void {
+    const waiters = this.terminalWaiters.get(id);
+    if (!waiters) return;
+    const remaining = waiters.filter((entry) => entry !== waiter);
+    if (remaining.length === 0) this.terminalWaiters.delete(id);
+    else this.terminalWaiters.set(id, remaining);
+  }
+
+  private resolveTerminalWaiters(monitor: Monitor, result: MonitorTerminalResult): void {
+    const waiters = this.terminalWaiters.get(monitor.id);
+    this.terminalWaiters.delete(monitor.id);
+    for (const resolve of waiters ?? []) resolve({ monitor, result });
   }
 
   private detachOutput(monitor: InternalMonitor): void {
@@ -480,6 +532,7 @@ export class MonitorManager {
       completedAt: monitor.completedAt,
       status: monitor.status,
       terminal: monitor.terminal,
+      notifyTerminal: monitor.notifyTerminal,
       retainedLogLines: monitor.logs.length,
       droppedLogLines: monitor.droppedLogLines,
     };
