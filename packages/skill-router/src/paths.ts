@@ -20,3 +20,19 @@ export function cacheDir(root: string, cacheKey: string): string {
 export function exposedDir(root: string, collectionId: string): string {
   return join(root, "exposed", collectionId);
 }
+
+export function gatewayDir(root: string, collectionId: string, gateway: string): string {
+  return join(root, "exposed", collectionId, gateway);
+}
+
+export function leafSkillsDir(root: string, collectionId: string): string {
+  return join(root, "exposed", collectionId, "skills");
+}
+
+export function leafSkillDir(root: string, collectionId: string, skillName: string): string {
+  return join(root, "exposed", collectionId, "skills", skillName);
+}
+
+export function leafSkillFile(root: string, collectionId: string, skillName: string): string {
+  return join(root, "exposed", collectionId, "skills", skillName, "SKILL.md");
+}

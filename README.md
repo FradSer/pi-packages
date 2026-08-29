@@ -114,9 +114,19 @@ Provides DeepWiki, Context7, and Exa retrieval tools through native Pi extension
 pi install npm:@fradser/pi-context
 ```
 
+### [`matt-pocock`](packages/matt-pocock/)
+
+Provides `/matt-pocock`, a persisted Pi workflow harness for BDD, TDD, implementation, review, debugging, architecture, research, planning, teaching, and skill-writing procedures.
+
+**Install from a local checkout:**
+
+```bash
+pi install /path/to/pi-packages/packages/matt-pocock
+```
+
 ### [`skill-router`](packages/skill-router/)
 
-Routes to externally hosted skill collections: add any GitHub skill repository (for example `mattpocock/skills` or `coreyhaines31/marketingskills`) through the `/skill-router` menu, and selected skills are wrapped as hidden, prefixed leaves behind a model-visible gateway with focused routing suggestions. Ships no skill content; collections are never npm packages.
+Routes to externally hosted skill collections: add any GitHub skill repository through the `/skill-router` menu, and selected skills are wrapped as hidden, prefixed leaves behind a model-visible gateway with focused routing suggestions. Ships no skill content; collections are never npm packages.
 
 **Install:**
 

@@ -10,20 +10,53 @@ Feature: External skill collection routing
     Then its manifest exposes the extension entry point
     And its manifest declares no packaged skills
 
-  Scenario: Adding a GitHub collection materializes wrapped skills
+  Scenario: Adding a GitHub collection materializes sub-skills and gateway
     Given a skill collection repository containing two skills
-    When the user adds the repository with prefix "mp"
+    When the user adds the repository
     Then the repository is cloned into the router cache directory
-    And each selected skill is copied into the exposed collection with a prefixed name
-    And every exposed leaf declares disable-model-invocation
+    And each selected skill is materialized in the collection skills directory
     And a visible gateway skill is generated for the collection
-    And the collection registry records source, prefix, and selection
+    And the collection registry records source, gateway, and selection
+
+  Scenario: Sub-skills are not exposed as global slash commands
+    Given an installed collection with sub-skills
+    When Pi asks extensions for additional resource paths
+    Then the router returns only the gateway directory
+    And sub-skills are not returned as global skill paths
+
+  Scenario: A collection gateway uses its shared skill namespace
+    Given a collection whose skills all begin with "lark-"
+    When the user adds the collection
+    Then the visible gateway is named "lark"
+    And the router does not require a prefix
+
+  Scenario: A remote collection uses its source identity for its internal id
+    Given the user adds the repository "larksuite/cli"
+    When the router materializes the collection
+    Then the internal collection id is "larksuite-cli"
+    And the materialized internal files live under that id
 
   Scenario: Selecting a subset of skills routes only those skills
     Given a skill collection repository containing two skills
     When the user adds the repository selecting only one skill
     Then only that skill is materialized into the exposed collection
     And the registry selection records only that skill
+
+  Scenario: Invalid fixture skills are ignored during discovery
+    Given a collection repository containing a SKILL.md with unclosed frontmatter
+    When the user adds the repository
+    Then the malformed file is not offered as a skill
+    And valid skills are still available to install
+
+  Scenario: Nested test fixtures are ignored during discovery
+    Given a collection repository containing a SKILL.md below a test directory
+    When the user adds the repository
+    Then the fixture is not offered as a skill
+
+  Scenario: Adding a collection visibly reports progress
+    Given the user starts adding a collection
+    When the router clones and scans the repository
+    Then Pi displays a loading message until the operation settles
 
   Scenario: Exposed collections are discovered by Pi
     Given an installed collection with materialized skills
@@ -70,7 +103,7 @@ Feature: External skill collection routing
   Scenario: Changing a collection selection is explicit
     Given an installed collection and an upstream skill that is not selected
     When the user selects that skill for routing
-    Then the selected skill is materialized with the collection prefix
+    Then the selected skill is materialized into the collection skills directory
     And the registry records the new selection
 
   Scenario: Removing a collection deletes its exposed skills
@@ -86,7 +119,7 @@ Feature: External skill collection routing
     And no partial exposed directory remains
 
   Scenario: Invalid registry entries fail closed
-    Given a registry containing a duplicate prefix or unknown mode
+    Given a registry containing duplicate collection ids or unknown mode
     When the router loads its configuration
     Then it ignores the invalid collection
     And it does not add collection guidance for that collection
@@ -163,11 +196,6 @@ Feature: External skill collection routing
     When the collection is updated
     Then the route path follows the skill's new location
 
-  Scenario: Generated names never collide
-    Given a gateway name equal to a prefixed leaf name
-    When the user adds the collection
-    Then the install fails with a collision error
-
   Scenario: Malformed registry entries fail closed
     Given a registry entry with a non-boolean enabled flag or duplicate id
     When the router loads its configuration
@@ -176,4 +204,4 @@ Feature: External skill collection routing
   Scenario: Skills with CRLF frontmatter are wrapped correctly
     Given a repository skill whose SKILL.md uses CRLF line endings
     When the collection is materialized
-    Then the exposed leaf has the prefixed name and disable-model-invocation
+    Then the sub-skill is materialized into the collection skills directory

@@ -62,7 +62,7 @@ def source_repo(tmp_path: Path) -> Path:
 @pytest.fixture
 def installed_collection(tmp_path: Path, source_repo: Path) -> dict[str, object]:
     agent_dir = tmp_path / "agent"
-    result = run_harness(agent_dir, "add", str(source_repo), "--prefix", "mp")
+    result = run_harness(agent_dir, "add", str(source_repo))
     assert result["ok"] is True, result
     return {"agent_dir": agent_dir, "add": result}
 
@@ -89,9 +89,9 @@ def test_manifest_declares_extension_only_and_no_packaged_skills() -> None:
     assert f"**Package version:** {manifest['version']}" in (PACKAGE / "README.md").read_text(encoding="utf-8")
 
 
-def test_add_collection_materializes_wrapped_skills(tmp_path: Path, source_repo: Path) -> None:
+def test_add_collection_materializes_subskills_and_gateway(tmp_path: Path, source_repo: Path) -> None:
     agent_dir = tmp_path / "agent"
-    result = run_harness(agent_dir, "add", str(source_repo), "--prefix", "mp")
+    result = run_harness(agent_dir, "add", str(source_repo))
     assert result["ok"] is True, result
     collection_id = str(result["id"])
 
@@ -99,26 +99,24 @@ def test_add_collection_materializes_wrapped_skills(tmp_path: Path, source_repo:
     assert any(cache.iterdir()), "repository must be cloned into the router cache"
 
     exposed = exposed_root(agent_dir, collection_id)
-    leaf = exposed / "mp-bug-diagnosis" / "SKILL.md"
+    leaf = exposed / "skills" / "bug-diagnosis" / "SKILL.md"
     assert leaf.is_file()
     frontmatter = leaf.read_text(encoding="utf-8").split("---", 2)[1]
-    assert re.search(r"(?m)^name: mp-bug-diagnosis$", frontmatter)
-    assert "disable-model-invocation: true" in frontmatter
+    assert re.search(r"(?m)^name: bug-diagnosis$", frontmatter)
     assert "Diagnose tricky bugs systematically" in frontmatter
-    assert (exposed / "mp-bug-diagnosis" / "references" / "notes.md").is_file()
-    assert (exposed / "mp-code-review" / "SKILL.md").is_file()
+    assert (exposed / "skills" / "bug-diagnosis" / "references" / "notes.md").is_file()
+    assert (exposed / "skills" / "code-review" / "SKILL.md").is_file()
 
     gateway = (exposed / collection_id / "SKILL.md").read_text(encoding="utf-8")
     gateway_frontmatter = gateway.split("---", 2)[1]
     assert re.search(rf"(?m)^name: {re.escape(collection_id)}$", gateway_frontmatter)
     assert "disable-model-invocation: true" not in gateway_frontmatter
-    assert "mp-bug-diagnosis" in gateway
-    assert "mp-code-review" in gateway
+    assert "bug-diagnosis" in gateway
+    assert "code-review" in gateway
 
     registry = read_registry(agent_dir)
     [entry] = registry["collections"]
     assert entry["id"] == collection_id
-    assert entry["prefix"] == "mp"
     assert entry["enabled"] is True
     assert entry["source"]["repo"] == str(source_repo)
     assert {route["skill"] for route in entry["routes"]} == {"bug-diagnosis", "code-review"}
@@ -129,34 +127,48 @@ def test_add_collection_materializes_wrapped_skills(tmp_path: Path, source_repo:
 
 def test_add_with_subset_selection_materializes_only_selected(tmp_path: Path, source_repo: Path) -> None:
     agent_dir = tmp_path / "agent"
-    result = run_harness(agent_dir, "add", str(source_repo), "--prefix", "mp", "--skills", "bug-diagnosis")
+    result = run_harness(agent_dir, "add", str(source_repo), "--skills", "bug-diagnosis")
     assert result["ok"] is True, result
     exposed = exposed_root(agent_dir, str(result["id"]))
-    assert (exposed / "mp-bug-diagnosis" / "SKILL.md").is_file()
-    assert not (exposed / "mp-code-review").exists()
+    assert (exposed / "skills" / "bug-diagnosis" / "SKILL.md").is_file()
+    assert not (exposed / "skills" / "code-review").exists()
     [entry] = read_registry(agent_dir)["collections"]
     assert [route["skill"] for route in entry["routes"]] == ["bug-diagnosis"]
 
 
-def test_add_rejects_duplicate_prefix(tmp_path: Path, source_repo: Path) -> None:
+def test_collection_uses_shared_skill_namespace_as_gateway(tmp_path: Path) -> None:
+    repo = tmp_path / "lark-source"
+    write_skill(repo, "skills/lark-doc", "lark-doc", "Edit Lark documents")
+    write_skill(repo, "skills/lark-calendar", "lark-calendar", "Manage Lark calendars")
+    git(repo, "init", "-q", "-b", "main")
+    git(repo, "add", "-A")
+    git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+
     agent_dir = tmp_path / "agent"
-    first = run_harness(agent_dir, "add", str(source_repo), "--prefix", "mp", "--id", "one")
+    result = run_harness(agent_dir, "add", str(repo))
+    assert result["ok"] is True, result
+    assert result["gateway"] == "lark"
+    assert (exposed_root(agent_dir, str(result["id"])) / "lark" / "SKILL.md").is_file()
+
+
+
+def test_add_rejects_duplicate_gateway_or_id(tmp_path: Path, source_repo: Path) -> None:
+    agent_dir = tmp_path / "agent"
+    first = run_harness(agent_dir, "add", str(source_repo), "--id", "one", "--gateway", "shared")
     assert first["ok"] is True, first
-    second = run_harness(agent_dir, "add", str(source_repo), "--prefix", "mp", "--id", "two")
+    second = run_harness(agent_dir, "add", str(source_repo), "--id", "two", "--gateway", "shared")
     assert second["ok"] is False
-    assert "prefix" in str(second["error"]).lower()
+    assert "gateway" in str(second["error"]).lower() or "installed" in str(second["error"]).lower()
 
 
-def test_resources_discover_returns_exposed_collection(installed_collection: dict[str, object]) -> None:
+def test_resources_discover_returns_only_gateway(installed_collection: dict[str, object]) -> None:
     agent_dir = installed_collection["agent_dir"]
     collection_id = str(installed_collection["add"]["id"])
     result = run_harness(agent_dir, "discover")
     assert result["ok"] is True
-    assert result["skillPaths"] == [str(exposed_root(agent_dir, collection_id))]
+    assert result["skillPaths"] == [str(exposed_root(agent_dir, collection_id) / collection_id)]
     names = {skill["name"] for skill in result["skills"]}
-    assert names == {collection_id, "mp-bug-diagnosis", "mp-code-review"}
-    for skill in result["skills"]:
-        assert skill["disableModelInvocation"] is (skill["name"] != collection_id)
+    assert names == {collection_id}
 
 
 def test_route_high_confidence_suggests_leaf_with_real_path(installed_collection: dict[str, object]) -> None:
@@ -165,9 +177,9 @@ def test_route_high_confidence_suggests_leaf_with_real_path(installed_collection
     result = run_harness(agent_dir, "route", "please diagnose this bug")
     assert result["ok"] is True
     system_prompt = str(result["systemPrompt"])
-    assert "mp-bug-diagnosis" in system_prompt
+    assert "bug-diagnosis" in system_prompt
     assert collection_id in system_prompt
-    assert str(exposed_root(agent_dir, collection_id) / "mp-bug-diagnosis" / "SKILL.md") in system_prompt
+    assert str(exposed_root(agent_dir, collection_id) / "skills" / "bug-diagnosis" / "SKILL.md") in system_prompt
     assert result["prompt"] == "please diagnose this bug"
     assert result["message"] is None
     assert "<skill name=" not in system_prompt
@@ -180,18 +192,37 @@ def test_route_unmatched_prompt_has_no_guidance(installed_collection: dict[str, 
 
 def test_route_explicit_invocations_bypass(installed_collection: dict[str, object]) -> None:
     agent_dir = installed_collection["agent_dir"]
-    slash = run_harness(agent_dir, "route", "/skill:mp-bug-diagnosis investigate this bug")
+    collection_id = str(installed_collection["add"]["id"])
+    slash = run_harness(agent_dir, "route", f"/skill:{collection_id} investigate this bug")
     assert slash["systemPrompt"] == "base system prompt"
-    embedded = run_harness(agent_dir, "route", "please use /skill:mp-bug-diagnosis to investigate this bug")
+    embedded = run_harness(agent_dir, "route", f"please use /skill:{collection_id} to investigate this bug")
     assert embedded["systemPrompt"] == "base system prompt"
-    punctuated = run_harness(agent_dir, "route", "please use /skill:mp-bug-diagnosis, then investigate this bug")
+    punctuated = run_harness(agent_dir, "route", f"please use /skill:{collection_id}, then investigate this bug")
     assert punctuated["systemPrompt"] == "base system prompt"
-    surrounded = run_harness(agent_dir, "route", "please use (/skill:mp-bug-diagnosis) to investigate this bug")
+    surrounded = run_harness(agent_dir, "route", f"please use (/skill:{collection_id}) to investigate this bug")
     assert surrounded["systemPrompt"] == "base system prompt"
-    expanded = run_harness(agent_dir, "route", '<skill name="mp-bug-diagnosis">diagnose this bug</skill>')
+    expanded = run_harness(agent_dir, "route", f'<skill name="{collection_id}">diagnose this bug</skill>')
     assert expanded["systemPrompt"] == "base system prompt"
     other_slash = run_harness(agent_dir, "route", "/status: diagnose this bug")
-    assert "mp-bug-diagnosis" in str(other_slash["systemPrompt"])
+    assert "bug-diagnosis" in str(other_slash["systemPrompt"])
+
+
+def test_route_picks_most_specific_matching_skill(tmp_path: Path) -> None:
+    repo = tmp_path / "multi"
+    write_skill(repo, "skills/lark-approval", "lark-approval", "Approval workflows in Lark")
+    write_skill(repo, "skills/lark-doc", "lark-doc", "Edit and update Lark documents")
+    git(repo, "init", "-q", "-b", "main")
+    git(repo, "add", "-A")
+    git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+
+    agent_dir = tmp_path / "agent"
+    added = run_harness(agent_dir, "add", str(repo), "--id", "lark-suite", "--gateway", "lark-suite")
+    assert added["ok"] is True, added
+
+    routed = run_harness(agent_dir, "route", "Please update a Lark doc and share it with the team")
+    assert routed["ok"] is True
+    assert "lark-doc" in routed["systemPrompt"]
+    assert "lark-approval" not in routed["systemPrompt"]
 
 
 def test_disabled_collection_is_neither_exposed_nor_routed(installed_collection: dict[str, object]) -> None:
@@ -218,8 +249,8 @@ def test_update_rematerializes_selection_and_ignores_new_skills(
     result = run_harness(agent_dir, "update", collection_id)
     assert result["ok"] is True, result
     exposed = exposed_root(agent_dir, collection_id)
-    assert not (exposed / "mp-refactor").exists(), "new upstream skills stay unrouted until selected"
-    frontmatter = (exposed / "mp-bug-diagnosis" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[1]
+    assert not (exposed / "skills" / "refactor").exists(), "new upstream skills stay unrouted until selected"
+    frontmatter = (exposed / "skills" / "bug-diagnosis" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[1]
     assert "Diagnose tricky bugs methodically" in frontmatter
     [entry] = read_registry(agent_dir)["collections"]
     assert {route["skill"] for route in entry["routes"]} == {"bug-diagnosis", "code-review"}
@@ -227,14 +258,14 @@ def test_update_rematerializes_selection_and_ignores_new_skills(
 
 def test_selection_change_explicitly_adds_upstream_skill(tmp_path: Path, source_repo: Path) -> None:
     agent_dir = tmp_path / "agent"
-    added = run_harness(agent_dir, "add", str(source_repo), "--prefix", "mp", "--skills", "bug-diagnosis")
+    added = run_harness(agent_dir, "add", str(source_repo), "--skills", "bug-diagnosis")
     assert added["ok"] is True, added
     collection_id = str(added["id"])
 
     selected = run_harness(agent_dir, "select", collection_id, "bug-diagnosis", "code-review")
     assert selected["ok"] is True, selected
     exposed = exposed_root(agent_dir, collection_id)
-    assert (exposed / "mp-code-review" / "SKILL.md").is_file()
+    assert (exposed / "skills" / "code-review" / "SKILL.md").is_file()
     [entry] = read_registry(agent_dir)["collections"]
     assert {route["skill"] for route in entry["routes"]} == {"bug-diagnosis", "code-review"}
 
@@ -260,7 +291,7 @@ def test_duplicate_upstream_skill_names_fail_materialization(tmp_path: Path) -> 
     git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
 
     agent_dir = tmp_path / "agent"
-    result = run_harness(agent_dir, "add", str(repo), "--prefix", "zz")
+    result = run_harness(agent_dir, "add", str(repo))
     assert result["ok"] is False
     assert "collision" in str(result["error"]).lower() or "duplicate" in str(result["error"]).lower()
     exposed = agent_dir / "skill-router" / "exposed"
@@ -278,20 +309,29 @@ def test_invalid_registry_entries_fail_closed(tmp_path: Path, source_repo: Path)
                 "collections": [
                     {
                         "id": "bad-mode",
-                        "prefix": "zz",
                         "gateway": "bad-mode",
                         "mode": "auto",
                         "enabled": True,
-                        "source": {"repo": str(source_repo), "ref": "main"},
+                        "description": "x",
+                        "source": {"repo": str(source_repo), "url": str(source_repo), "ref": "main", "cacheKey": "x"},
                         "routes": [{"skill": "bug-diagnosis", "path": "skills/bug-diagnosis", "terms": ["bug"]}],
                     },
                     {
-                        "id": "dupe-prefix",
-                        "prefix": "zz",
-                        "gateway": "dupe-prefix",
+                        "id": "dupe-id",
+                        "gateway": "dupe-gw",
                         "mode": "suggest",
                         "enabled": True,
-                        "source": {"repo": str(source_repo), "ref": "main"},
+                        "description": "y",
+                        "source": {"repo": str(source_repo), "url": str(source_repo), "ref": "main", "cacheKey": "x"},
+                        "routes": [{"skill": "bug-diagnosis", "path": "skills/bug-diagnosis", "terms": ["bug"]}],
+                    },
+                    {
+                        "id": "dupe-id",
+                        "gateway": "dupe-gw",
+                        "mode": "suggest",
+                        "enabled": True,
+                        "description": "z",
+                        "source": {"repo": str(source_repo), "url": str(source_repo), "ref": "main", "cacheKey": "x"},
                         "routes": [{"skill": "bug-diagnosis", "path": "skills/bug-diagnosis", "terms": ["bug"]}],
                     },
                 ]
@@ -318,7 +358,6 @@ def test_registry_route_paths_cannot_escape_cache(tmp_path: Path, source_repo: P
                 "collections": [
                     {
                         "id": "evil",
-                        "prefix": "zz",
                         "gateway": "evil",
                         "mode": "suggest",
                         "enabled": True,
@@ -348,12 +387,59 @@ def test_existing_disable_model_invocation_value_is_replaced(tmp_path: Path, val
     git(repo, "add", "-A")
     git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
 
-    result = run_harness(tmp_path / "agent", "add", str(repo), "--prefix", "zz")
+    result = run_harness(tmp_path / "agent", "add", str(repo))
     assert result["ok"] is True, result
-    leaf = exposed_root(tmp_path / "agent", str(result["id"])) / "zz-flagged" / "SKILL.md"
+    leaf = exposed_root(tmp_path / "agent", str(result["id"])) / "skills" / "flagged" / "SKILL.md"
     frontmatter = leaf.read_text(encoding="utf-8").split("---", 2)[1]
     assert len(re.findall(r"(?m)^disable-model-invocation:", frontmatter)) == 1
     assert re.search(r"(?m)^disable-model-invocation:\s*true\s*$", frontmatter)
+
+
+def test_unclosed_frontmatter_is_not_discovered(tmp_path: Path) -> None:
+    repo = tmp_path / "mixed-skills"
+    valid = repo / "skills" / "valid"
+    invalid = repo / "examples" / "bad"
+    valid.mkdir(parents=True)
+    invalid.mkdir(parents=True)
+    (valid / "SKILL.md").write_text(
+        "---\nname: valid\ndescription: Valid skill\n---\n\n# Valid\n",
+        encoding="utf-8",
+    )
+    (invalid / "SKILL.md").write_text(
+        "---\nname: bad-skill-unclosed\ndescription: Missing closing delimiter\n",
+        encoding="utf-8",
+    )
+    git(repo, "init", "-q", "-b", "main")
+    git(repo, "add", "-A")
+    git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+
+    result = run_harness(tmp_path / "agent", "add", str(repo))
+    assert result["ok"] is True, result
+    assert result["skills"] == ["valid"]
+
+
+def test_nested_test_fixtures_are_not_discovered(tmp_path: Path) -> None:
+    repo = tmp_path / "mixed-skills"
+    write_skill(repo, "skills/valid", "valid", "Valid skill")
+    write_skill(repo, "scripts/check/tests/fixture", "fixture", "Test fixture")
+    git(repo, "init", "-q", "-b", "main")
+    git(repo, "add", "-A")
+    git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+
+    result = run_harness(tmp_path / "agent", "add", str(repo))
+    assert result["ok"] is True, result
+    assert result["skills"] == ["valid"]
+
+
+def test_collection_add_flow_uses_a_native_loading_overlay() -> None:
+    source = (PACKAGE / "src" / "menu.ts").read_text(encoding="utf-8")
+    feature = (PACKAGE / "features" / "skill-router.feature").read_text(encoding="utf-8")
+
+    assert "Adding a collection visibly reports progress" in feature
+    assert "ctx.ui.custom<LoadingOutcome<T>>" in source
+    assert "Cloning and scanning ${spec.repo}..." in source
+    assert "Installing ${repo}..." in source
+    assert "Updating ${collection.id}..." in source
 
 
 def test_crlf_frontmatter_is_wrapped(tmp_path: Path) -> None:
@@ -369,12 +455,12 @@ def test_crlf_frontmatter_is_wrapped(tmp_path: Path) -> None:
     git(repo, "config", "core.autocrlf", "false")
 
     agent_dir = tmp_path / "agent"
-    result = run_harness(agent_dir, "add", str(repo), "--prefix", "zz")
+    result = run_harness(agent_dir, "add", str(repo))
     assert result["ok"] is True, result
-    leaf = exposed_root(agent_dir, str(result["id"])) / "zz-crlf-skill" / "SKILL.md"
+    leaf = exposed_root(agent_dir, str(result["id"])) / "skills" / "crlf-skill" / "SKILL.md"
     content = leaf.read_text(encoding="utf-8")
     frontmatter = content.split("---", 2)[1]
-    assert re.search(r"name: zz-crlf-skill", frontmatter)
+    assert re.search(r"name: crlf-skill", frontmatter)
     assert "disable-model-invocation: true" in frontmatter
 
 
@@ -391,12 +477,12 @@ def test_local_repos_with_same_basename_get_distinct_caches(tmp_path: Path) -> N
     first = make_repo(tmp_path / "one" / "repo", "bug-diagnosis", "First repo skill")
     second = make_repo(tmp_path / "two" / "repo", "code-review", "Second repo skill")
     agent_dir = tmp_path / "agent"
-    added_first = run_harness(agent_dir, "add", str(first), "--prefix", "aa", "--id", "first")
+    added_first = run_harness(agent_dir, "add", str(first), "--id", "first")
     assert added_first["ok"] is True, added_first
-    added_second = run_harness(agent_dir, "add", str(second), "--prefix", "bb", "--id", "second")
+    added_second = run_harness(agent_dir, "add", str(second), "--id", "second")
     assert added_second["ok"] is True, added_second
-    first_leaf = exposed_root(agent_dir, "first") / "aa-bug-diagnosis" / "SKILL.md"
-    second_leaf = exposed_root(agent_dir, "second") / "bb-code-review" / "SKILL.md"
+    first_leaf = exposed_root(agent_dir, "first") / "skills" / "bug-diagnosis" / "SKILL.md"
+    second_leaf = exposed_root(agent_dir, "second") / "skills" / "code-review" / "SKILL.md"
     assert "First repo skill" in first_leaf.read_text(encoding="utf-8")
     assert "Second repo skill" in second_leaf.read_text(encoding="utf-8")
 
@@ -414,7 +500,7 @@ def test_symlinked_skill_dir_is_rejected_and_outside_file_untouched(tmp_path: Pa
     git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
 
     agent_dir = tmp_path / "agent"
-    result = run_harness(agent_dir, "add", str(repo), "--prefix", "zz")
+    result = run_harness(agent_dir, "add", str(repo))
     assert result["ok"] is False
     assert "symlink" in str(result["error"]).lower()
     assert target.read_text(encoding="utf-8") == "---\nname: outside\ndescription: do not touch\n---\n"
@@ -428,7 +514,7 @@ def test_symlinked_exposed_root_is_rejected(tmp_path: Path, source_repo: Path) -
     (root / "exposed").parent.mkdir(parents=True)
     (root / "exposed").symlink_to(outside, target_is_directory=True)
 
-    result = run_harness(agent_dir, "add", str(source_repo), "--prefix", "zz")
+    result = run_harness(agent_dir, "add", str(source_repo))
     assert result["ok"] is False
     assert "symlink" in str(result["error"]).lower()
     assert list(outside.iterdir()) == []
@@ -442,7 +528,7 @@ def test_symlinked_router_root_is_rejected(tmp_path: Path, source_repo: Path) ->
     root.parent.mkdir(parents=True)
     root.symlink_to(outside, target_is_directory=True)
 
-    result = run_harness(agent_dir, "add", str(source_repo), "--prefix", "zz")
+    result = run_harness(agent_dir, "add", str(source_repo))
     assert result["ok"] is False
     assert "symlink" in str(result["error"]).lower()
     assert list(outside.iterdir()) == []
@@ -457,15 +543,15 @@ def test_nested_skill_definitions_are_not_exposed_as_leaves(tmp_path: Path) -> N
     git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
 
     agent_dir = tmp_path / "agent"
-    result = run_harness(agent_dir, "add", str(repo), "--prefix", "zz", "--skills", "outer")
+    result = run_harness(agent_dir, "add", str(repo), "--skills", "outer")
     assert result["ok"] is True, result
     discovered = run_harness(agent_dir, "discover")
-    assert {skill["name"] for skill in discovered["skills"]} == {str(result["id"]), "zz-outer"}
+    assert {skill["name"] for skill in discovered["skills"]} == {str(result["id"])}
 
 
 def test_symlinked_git_metadata_and_cache_are_rejected(tmp_path: Path, source_repo: Path) -> None:
     agent_dir = tmp_path / "agent"
-    added = run_harness(agent_dir, "add", str(source_repo), "--prefix", "zz")
+    added = run_harness(agent_dir, "add", str(source_repo))
     assert added["ok"] is True, added
     collection_id = str(added["id"])
     registry = read_registry(agent_dir)
@@ -484,7 +570,7 @@ def test_symlinked_git_metadata_and_cache_are_rejected(tmp_path: Path, source_re
 
 def test_external_gitdir_metadata_is_rejected(tmp_path: Path, source_repo: Path) -> None:
     agent_dir = tmp_path / "agent"
-    added = run_harness(agent_dir, "add", str(source_repo), "--prefix", "zz")
+    added = run_harness(agent_dir, "add", str(source_repo))
     assert added["ok"] is True, added
     collection_id = str(added["id"])
     [entry] = read_registry(agent_dir)["collections"]
@@ -507,7 +593,6 @@ def test_malicious_cache_key_fails_closed(tmp_path: Path, source_repo: Path) -> 
                 "collections": [
                     {
                         "id": "evil",
-                        "prefix": "zz",
                         "gateway": "evil",
                         "mode": "suggest",
                         "enabled": True,
@@ -536,7 +621,6 @@ def test_malicious_git_ref_fails_closed(tmp_path: Path, source_repo: Path) -> No
                 "collections": [
                     {
                         "id": "evil",
-                        "prefix": "zz",
                         "gateway": "evil",
                         "mode": "suggest",
                         "enabled": True,
@@ -563,10 +647,10 @@ def test_pinned_tag_ref_survives_update(tmp_path: Path) -> None:
     git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "v2")
 
     agent_dir = tmp_path / "agent"
-    added = run_harness(agent_dir, "add", f"{repo}@v1", "--prefix", "zz")
+    added = run_harness(agent_dir, "add", f"{repo}@v1")
     assert added["ok"] is True, added
     collection_id = str(added["id"])
-    leaf = exposed_root(agent_dir, collection_id) / "zz-bug-diagnosis" / "SKILL.md"
+    leaf = exposed_root(agent_dir, collection_id) / "skills" / "bug-diagnosis" / "SKILL.md"
     assert "Version one" in leaf.read_text(encoding="utf-8")
     [entry] = read_registry(agent_dir)["collections"]
     assert entry["source"]["ref"] == "v1"
@@ -584,11 +668,11 @@ def test_different_refs_use_independent_caches(tmp_path: Path) -> None:
     git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "head")
 
     agent_dir = tmp_path / "agent"
-    first = run_harness(agent_dir, "add", f"{repo}@v1", "--prefix", "v1", "--id", "tagged")
+    first = run_harness(agent_dir, "add", f"{repo}@v1", "--id", "tagged")
     assert first["ok"] is True, first
-    second = run_harness(agent_dir, "add", str(repo), "--prefix", "hd", "--id", "head")
+    second = run_harness(agent_dir, "add", str(repo), "--id", "head")
     assert second["ok"] is True, second
-    tagged_leaf = exposed_root(agent_dir, "tagged") / "v1-bug-diagnosis" / "SKILL.md"
+    tagged_leaf = exposed_root(agent_dir, "tagged") / "skills" / "bug-diagnosis" / "SKILL.md"
     assert "Main version" in tagged_leaf.read_text(encoding="utf-8")
     updated = run_harness(agent_dir, "select", "tagged", "bug-diagnosis")
     assert updated["ok"] is True, updated
@@ -599,9 +683,9 @@ def test_different_refs_use_independent_caches(tmp_path: Path) -> None:
 
 def test_duplicate_source_ref_is_rejected(tmp_path: Path, source_repo: Path) -> None:
     agent_dir = tmp_path / "agent"
-    first = run_harness(agent_dir, "add", str(source_repo), "--prefix", "one", "--id", "one")
+    first = run_harness(agent_dir, "add", str(source_repo), "--id", "one")
     assert first["ok"] is True, first
-    second = run_harness(agent_dir, "add", str(source_repo), "--prefix", "two", "--id", "two")
+    second = run_harness(agent_dir, "add", str(source_repo), "--id", "two")
     assert second["ok"] is False
     assert "cache" in str(second["error"]).lower() or "source" in str(second["error"]).lower()
     assert len(read_registry(agent_dir)["collections"]) == 1
@@ -621,22 +705,16 @@ def test_update_remaps_moved_skill_path(tmp_path: Path, source_repo: Path, insta
     [entry] = read_registry(agent_dir)["collections"]
     paths = {route["skill"]: route["path"] for route in entry["routes"]}
     assert paths["bug-diagnosis"] == "workflows/bug-diagnosis"
-    assert (exposed_root(agent_dir, collection_id) / "mp-bug-diagnosis" / "SKILL.md").is_file()
+    assert (exposed_root(agent_dir, collection_id) / "skills" / "bug-diagnosis" / "SKILL.md").is_file()
 
 
-def test_gateway_cannot_collide_with_leaf_or_other_gateway(tmp_path: Path, source_repo: Path) -> None:
+def test_gateway_cannot_collide_with_other_gateway(tmp_path: Path, source_repo: Path) -> None:
     agent_dir = tmp_path / "agent"
-    colliding_leaf = run_harness(
-        agent_dir, "add", str(source_repo), "--prefix", "mp", "--gateway", "mp-bug-diagnosis"
-    )
-    assert colliding_leaf["ok"] is False
-    assert "collid" in str(colliding_leaf["error"]).lower() or "gateway" in str(colliding_leaf["error"]).lower()
-
-    first = run_harness(agent_dir, "add", str(source_repo), "--prefix", "mp", "--id", "one", "--gateway", "shared")
+    first = run_harness(agent_dir, "add", str(source_repo), "--id", "one", "--gateway", "shared")
     assert first["ok"] is True, first
-    second = run_harness(agent_dir, "add", str(source_repo), "--prefix", "bb", "--id", "two", "--gateway", "shared")
+    second = run_harness(agent_dir, "add", str(source_repo), "--id", "two", "--gateway", "shared")
     assert second["ok"] is False
-    assert "gateway" in str(second["error"]).lower()
+    assert "gateway" in str(second["error"]).lower() or "installed" in str(second["error"]).lower()
 
 
 def test_duplicate_upstream_names_fail_even_when_selecting_subset(tmp_path: Path) -> None:
@@ -650,7 +728,7 @@ def test_duplicate_upstream_names_fail_even_when_selecting_subset(tmp_path: Path
     git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
 
     agent_dir = tmp_path / "agent"
-    result = run_harness(agent_dir, "add", str(repo), "--prefix", "zz", "--skills", "unique-skill")
+    result = run_harness(agent_dir, "add", str(repo), "--skills", "unique-skill")
     assert result["ok"] is False
     assert "duplicate" in str(result["error"]).lower() or "collision" in str(result["error"]).lower()
 
@@ -661,7 +739,6 @@ def test_malformed_enabled_and_duplicate_ids_fail_closed(tmp_path: Path, source_
     root.mkdir(parents=True)
     entry = {
         "id": "one",
-        "prefix": "zz",
         "gateway": "one",
         "mode": "suggest",
         "description": "x",
@@ -686,7 +763,7 @@ def test_malformed_enabled_and_duplicate_ids_fail_closed(tmp_path: Path, source_
 def test_feature_contract_covers_external_hosting() -> None:
     feature = (PACKAGE / "features" / "skill-router.feature").read_text(encoding="utf-8")
     assert "ships no skill content" in feature
-    assert "materializes wrapped skills" in feature
+    assert "materializes sub-skills and gateway" in feature
     assert "resources_discover" in feature
     assert "Explicit skill invocations are never rerouted" in feature
     assert "re-materializes the preserved selection" in feature

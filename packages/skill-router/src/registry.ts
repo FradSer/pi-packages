@@ -18,7 +18,6 @@ export interface CollectionSource {
 
 export interface RegistryCollection {
   id: string;
-  prefix: string;
   gateway: string;
   mode: "suggest";
   enabled: boolean;
@@ -90,7 +89,7 @@ function parseSource(value: unknown): CollectionSource | undefined {
 
 function parseCollection(value: unknown): RegistryCollection | undefined {
   if (!isRecord(value)) return;
-  if (!isSlug(value.id) || !isSlug(value.prefix) || !isSlug(value.gateway) || value.mode !== "suggest") return;
+  if (!isSlug(value.id) || !isSlug(value.gateway) || value.mode !== "suggest") return;
   if (typeof value.description !== "string" || !Array.isArray(value.routes)) return;
   if (value.enabled !== undefined && typeof value.enabled !== "boolean") return;
   const source = parseSource(value.source);
@@ -99,12 +98,11 @@ function parseCollection(value: unknown): RegistryCollection | undefined {
   const parsedRoutes = value.routes.map(parseRoute);
   if (parsedRoutes.some((route) => route === undefined)) return;
   const routes = parsedRoutes as RegistryRoute[];
-  const nativeNames = [value.gateway, ...routes.map((route) => `${value.prefix}-${route.skill}`)];
-  if (new Set(nativeNames).size !== nativeNames.length) return;
+  const routeSkillNames = routes.map((route) => route.skill);
+  if (new Set(routeSkillNames).size !== routeSkillNames.length) return;
 
   return {
     id: value.id,
-    prefix: value.prefix,
     gateway: value.gateway,
     mode: "suggest",
     enabled: value.enabled !== false,
@@ -114,7 +112,7 @@ function parseCollection(value: unknown): RegistryCollection | undefined {
   };
 }
 
-/** Load the registry, dropping structurally invalid entries and any prefix shared by multiple collections. */
+/** Load the registry, dropping structurally invalid entries and duplicate gateways or ids. */
 export function loadCollections(root: string): RegistryCollection[] {
   const path = registryPath(root);
   if (!existsSync(path)) return [];
@@ -131,24 +129,24 @@ export function loadCollections(root: string): RegistryCollection[] {
     .filter((collection): collection is RegistryCollection => collection !== undefined);
 
   const idCounts = new Map<string, number>();
-  const prefixCounts = new Map<string, number>();
+  const gatewayCounts = new Map<string, number>();
   const cacheCounts = new Map<string, number>();
   const sourceCounts = new Map<string, number>();
-  const nativeNameCounts = new Map<string, number>();
   for (const collection of collections) {
     idCounts.set(collection.id, (idCounts.get(collection.id) ?? 0) + 1);
-    prefixCounts.set(collection.prefix, (prefixCounts.get(collection.prefix) ?? 0) + 1);
+    gatewayCounts.set(collection.gateway, (gatewayCounts.get(collection.gateway) ?? 0) + 1);
     cacheCounts.set(collection.source.cacheKey, (cacheCounts.get(collection.source.cacheKey) ?? 0) + 1);
     const sourceKey = `${collection.source.url}\0${collection.source.ref}`;
     sourceCounts.set(sourceKey, (sourceCounts.get(sourceKey) ?? 0) + 1);
-    const nativeNames = [collection.gateway, ...collection.routes.map((route) => `${collection.prefix}-${route.skill}`)];
-    for (const name of nativeNames) nativeNameCounts.set(name, (nativeNameCounts.get(name) ?? 0) + 1);
   }
   return collections.filter((collection) => {
     const sourceKey = `${collection.source.url}\0${collection.source.ref}`;
-    if (idCounts.get(collection.id) !== 1 || prefixCounts.get(collection.prefix) !== 1 || cacheCounts.get(collection.source.cacheKey) !== 1 || sourceCounts.get(sourceKey) !== 1) return false;
-    const nativeNames = [collection.gateway, ...collection.routes.map((route) => `${collection.prefix}-${route.skill}`)];
-    return nativeNames.every((name) => nativeNameCounts.get(name) === 1);
+    return (
+      idCounts.get(collection.id) === 1 &&
+      gatewayCounts.get(collection.gateway) === 1 &&
+      cacheCounts.get(collection.source.cacheKey) === 1 &&
+      sourceCounts.get(sourceKey) === 1
+    );
   });
 }
 

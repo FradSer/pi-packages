@@ -114,9 +114,19 @@ pi install npm:@fradser/pi-agent-teams
 pi install npm:@fradser/pi-context
 ```
 
+### [`matt-pocock`](packages/matt-pocock/)
+
+提供 `/matt-pocock` 持久化 Pi 工作流 harness，覆盖适配 Pi 的 BDD、TDD、实现、评审、调试、架构、调研、规划、教学和 skill 编写 procedure。
+
+**从本地检出安装：**
+
+```bash
+pi install /path/to/pi-packages/packages/matt-pocock
+```
+
 ### [`skill-router`](packages/skill-router/)
 
-路由到外部托管的 skill 集合：通过 `/skill-router` 菜单添加任意 GitHub skill 仓库（例如 `mattpocock/skills` 或 `coreyhaines31/marketingskills`），所选 skill 会被封装为带前缀的隐藏叶子，挂在模型可见的网关之后，并提供精准的路由建议。包本身不携带任何 skill 内容，集合也不再是独立 npm 包。
+路由到外部托管的 skill 集合：通过 `/skill-router` 菜单添加任意 GitHub skill 仓库，所选 skill 会被封装为带前缀的隐藏叶子，挂在模型可见的网关之后，并提供精准的路由建议。包本身不携带任何 skill 内容，集合也不再是独立 npm 包。
 
 **安装：**
 

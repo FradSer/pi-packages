@@ -28,15 +28,15 @@ pnpm --dir packages/skill-router pack --dry-run
   packages.
 - **User-level managed directory**: `<agentDir>/skill-router/` holds
   `collections.json` (registry), `cache/` (raw clones), and `exposed/`
-  (materialized wrapped skills). Agent dir resolves from
+  (materialized gateway and sub-skills). Agent dir resolves from
   `PI_CODING_AGENT_DIR` or `~/.pi/agent`, matching sibling packages.
-- **Wrapping**: leaves are copied with a `<prefix>-` name rewrite and
-  `disable-model-invocation: true`; one visible gateway is generated per
-  collection. Prefixes are unique across collections; duplicate upstream
-  skill names inside one collection fail the install.
+- **Exposure & Routing**: only the collection gateway skill is exposed to Pi's
+  `resources_discover` hook, so sub-skills never clutter the `/` command menu.
+  Sub-skills retain natural upstream names without prefixes; the router suggests
+  the exact file path in `before_agent_start`.
 - **Atomicity**: materialization builds a temporary directory and renames it;
   failures leave no partial exposed directory and do not touch the registry.
-- **Fail Closed**: invalid registry entries are dropped; prefixes shared by
-  multiple collections disable all of them.
+- **Fail Closed**: invalid registry entries are dropped; duplicate collection
+  ids, gateways, caches, or sources disable the conflicting entries.
 - **No Side Effects**: the router never mutates user prompts, injects full
   leaf instructions, or reroutes explicit slash / `<skill>` invocations.

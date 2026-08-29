@@ -8,8 +8,9 @@ has its own manifest and tests; follow the nearest scoped guide, including
 
 - Workspace packages currently include `agent-teams`, `btw`, `context`,
   `keyboard`, `monitor`, `pi-continual-learning`, `pi-kit`, `plan-mode`,
-  `recap`, `skill-router`, `utils`, and `vision`. The skill-router package
-  routes externally hosted skill collections and ships no collection content.
+  `recap`, `matt-pocock`, `skill-router`, `utils`, and `vision`. The
+  skill-router package routes externally hosted skill collections and ships no
+  collection content; matt-pocock provides the persisted workflow harness.
 - Extension code lives in `src/`, `extensions/`, or a package-root `index.ts`;
   skills, procedures, references, and bundled agents use their named folders.
 - BDD scenarios are in each package's `features/`; executable tests are in

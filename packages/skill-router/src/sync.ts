@@ -33,7 +33,6 @@ export interface UpstreamSkill {
 
 export interface AddCollectionOptions {
   repo: string;
-  prefix: string;
   id?: string;
   gateway?: string;
   description?: string;
@@ -139,13 +138,13 @@ function copySkillFiles(source: string, destination: string): void {
   }
 }
 
-function copyWrappedSkill(source: string, destination: string, prefixedName: string): void {
+function copyWrappedSkill(source: string, destination: string, skillName: string): void {
   const sourceSkillFile = join(source, "SKILL.md");
   if (!existsSync(sourceSkillFile) || lstatSync(sourceSkillFile).isSymbolicLink()) {
-    throw new Error(`Selected skill "${prefixedName}" has an unsafe SKILL.md`);
+    throw new Error(`Selected skill "${skillName}" has an unsafe SKILL.md`);
   }
   copySkillFiles(source, destination);
-  writeFileSync(join(destination, "SKILL.md"), wrapSkillContent(readFileSync(sourceSkillFile, "utf8"), prefixedName), "utf8");
+  writeFileSync(join(destination, "SKILL.md"), wrapSkillContent(readFileSync(sourceSkillFile, "utf8"), skillName), "utf8");
 }
 
 function assertSafeCacheDirectory(destination: string): void {
@@ -203,10 +202,16 @@ function frontmatterValue(frontmatter: string, key: string): string | undefined 
   return match?.[1]?.trim().replace(/^["']|["']$/g, "");
 }
 
+const FRONTMATTER_BLOCK = /^(---\r?\n)([\s\S]*?)(\r?\n---)(?=\r?\n|$)/;
+
+function isIgnoredSkillDirectory(entry: string): boolean {
+  return entry === ".git" || entry === "node_modules" || entry === "test" || entry === "tests" || entry === "testdata" || entry === "fixtures";
+}
+
 export function scanSkills(repoDir: string, dir = repoDir): UpstreamSkill[] {
   const skills: UpstreamSkill[] = [];
   for (const entry of readdirSync(dir)) {
-    if (entry === ".git" || entry === "node_modules") continue;
+    if (isIgnoredSkillDirectory(entry)) continue;
     const full = join(dir, entry);
     const stats = lstatSync(full);
     if (stats.isSymbolicLink()) {
@@ -226,9 +231,9 @@ export function scanSkills(repoDir: string, dir = repoDir): UpstreamSkill[] {
       }
     }
     if (existsSync(skillFile)) {
-      const frontmatter = readFileSync(skillFile, "utf8").split("---", 3)[1] ?? "";
-      const name = frontmatterValue(frontmatter, "name");
-      const description = frontmatterValue(frontmatter, "description");
+      const frontmatter = readFileSync(skillFile, "utf8").match(FRONTMATTER_BLOCK)?.[2];
+      const name = frontmatter && frontmatterValue(frontmatter, "name");
+      const description = frontmatter && frontmatterValue(frontmatter, "description");
       if (name && description && isSlug(name)) {
         const relative = full.slice(repoDir.length + 1).split(sep).join("/");
         skills.push({ name, description, path: relative });
@@ -250,23 +255,42 @@ function assertUniqueUpstreamNames(skills: UpstreamSkill[]): void {
   }
 }
 
-/** Derive routing terms from a skill name: the spaced phrase, each token, and naive singulars. */
-export function deriveTerms(name: string): string[] {
+const STOP_WORDS = new Set([
+  "and", "the", "for", "with", "from", "that", "this", "use", "when", "you",
+  "your", "can", "are", "all", "its", "into", "skill", "skills",
+]);
+
+/** Derive routing terms from a skill name and optional description. */
+export function deriveTerms(name: string, description = ""): string[] {
   const tokens = name.split("-");
   const terms = new Set<string>([tokens.join(" "), ...tokens]);
   for (const token of tokens) {
     if (token.length > 3 && token.endsWith("s") && !/(ss|is|us)$/.test(token)) {
       terms.add(token.slice(0, -1));
     }
+    if (token === "doc" || token === "docs") {
+      terms.add("doc");
+      terms.add("docs");
+      terms.add("document");
+      terms.add("documents");
+    }
   }
+
+  if (description) {
+    const descWords = description.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
+    for (const word of descWords) {
+      if (!STOP_WORDS.has(word)) terms.add(word);
+    }
+  }
+
   return [...terms];
 }
 
-function wrapSkillContent(content: string, prefixedName: string): string {
-  const match = content.match(/^(---\r?\n)([\s\S]*?)(\r?\n---)/);
-  if (!match) throw new Error(`Skill ${prefixedName} has no frontmatter block`);
+function wrapSkillContent(content: string, name: string): string {
+  const match = content.match(FRONTMATTER_BLOCK);
+  if (!match) throw new Error(`Skill ${name} has no frontmatter block`);
   const eol = match[1].includes("\r") ? "\r\n" : "\n";
-  let frontmatter = match[2].replace(/^name:[^\r\n]*/m, `name: ${prefixedName}`);
+  let frontmatter = match[2].replace(/^name:[^\r\n]*/m, `name: ${name}`);
   if (/^disable-model-invocation:/m.test(frontmatter)) {
     frontmatter = frontmatter.replace(/^disable-model-invocation:[^\r\n]*/m, "disable-model-invocation: true");
   } else {
@@ -277,7 +301,7 @@ function wrapSkillContent(content: string, prefixedName: string): string {
 
 function gatewayContent(collection: RegistryCollection, leaves: UpstreamSkill[]): string {
   const lines = leaves.map(
-    (leaf) => `- \`/skill:${collection.prefix}-${leaf.name}\` — ${leaf.description}`,
+    (leaf) => `- **${leaf.name}** — ${leaf.description}`,
   );
   return [
     "---",
@@ -288,8 +312,8 @@ function gatewayContent(collection: RegistryCollection, leaves: UpstreamSkill[])
     `# ${collection.gateway}`,
     "",
     `Skill collection synced from \`${collection.source.repo}\` (\`${collection.source.ref}\`) by pi-skill-router.`,
-    `Leaf skills are hidden from automatic model selection. Invoke one explicitly with its slash command,`,
-    `or follow the router's suggestion when it matches your request.`,
+    `Sub-skills are routed internally and not exposed as global slash commands.`,
+    `The router automatically suggests reading relevant sub-skills when matching your request.`,
     "",
     "## Skills",
     "",
@@ -333,12 +357,9 @@ function swapExposed(temporary: string, exposed: string): ExposedSwap {
 function materialize(root: string, collection: RegistryCollection, leaves: UpstreamSkill[], repoDir: string): ExposedSwap {
   ensureDirectoryNotSymlink(root, "root");
   ensureDirectoryNotSymlink(join(root, "exposed"), "exposed");
-  const names = collection.routes.map((route) => `${collection.prefix}-${route.skill}`);
+  const names = collection.routes.map((route) => route.skill);
   if (new Set(names).size !== names.length) {
-    throw new Error(`Skill name collision in collection "${collection.id}": duplicate upstream skill names share one prefix`);
-  }
-  if (names.includes(collection.gateway)) {
-    throw new Error(`Gateway "${collection.gateway}" collides with a leaf skill name`);
+    throw new Error(`Skill name collision in collection "${collection.id}": duplicate upstream skill names`);
   }
 
   const exposed = exposedDir(root, collection.id);
@@ -353,8 +374,8 @@ function materialize(root: string, collection: RegistryCollection, leaves: Upstr
       if (!existsSync(skillFile)) {
         throw new Error(`Selected skill "${route.skill}" no longer exists at ${route.path}`);
       }
-      const destination = join(temporary, `${collection.prefix}-${route.skill}`);
-      copyWrappedSkill(source, destination, `${collection.prefix}-${route.skill}`);
+      const destination = join(temporary, "skills", route.skill);
+      copyWrappedSkill(source, destination, route.skill);
       const destinationReal = realpathSync(destination);
       if (!destinationReal.startsWith(temporaryReal + sep)) {
         throw new Error(`Refusing materialization escaping the exposed directory: ${route.path}`);
@@ -434,32 +455,32 @@ function defaultDescription(spec: RepoSpec): string {
   return `Skill collection synced from ${spec.repo}. Invoke its gateway to list the wrapped skills.`;
 }
 
+export function defaultCollectionId(spec: RepoSpec): string {
+  return spec.url.startsWith("https://github.com/")
+    ? slugify(spec.repo.replace("/", "-"))
+    : spec.name;
+}
+
+function sharedSkillNamespace(skills: UpstreamSkill[]): string | undefined {
+  const [first] = skills;
+  if (!first) return undefined;
+  const namespace = first.name.split("-", 1)[0];
+  if (!namespace || !skills.every((skill) => skill.name.startsWith(`${namespace}-`))) return undefined;
+  return namespace;
+}
+
 function assertNameSpaceAvailable(
   existing: RegistryCollection[],
-  candidate: { id: string; prefix: string; gateway: string; leafNames: string[]; sourceUrl?: string; sourceRef?: string },
+  candidate: { id: string; gateway: string; sourceUrl?: string; sourceRef?: string },
 ): void {
   if (existing.some((collection) => collection.id === candidate.id)) {
     throw new Error(`Collection id "${candidate.id}" is already installed`);
-  }
-  if (existing.some((collection) => collection.prefix === candidate.prefix)) {
-    throw new Error(`Prefix "${candidate.prefix}" is already used by another collection`);
   }
   if (existing.some((collection) => collection.source.url === candidate.sourceUrl && collection.source.ref === candidate.sourceRef)) {
     throw new Error(`Source ${candidate.sourceUrl}@${candidate.sourceRef} is already installed`);
   }
   if (existing.some((collection) => collection.gateway === candidate.gateway)) {
     throw new Error(`Gateway "${candidate.gateway}" is already used by another collection`);
-  }
-  const takenLeafNames = new Set(
-    existing.flatMap((collection) => collection.routes.map((route) => `${collection.prefix}-${route.skill}`)),
-  );
-  if (takenLeafNames.has(candidate.gateway) || candidate.leafNames.includes(candidate.gateway)) {
-    throw new Error(`Gateway "${candidate.gateway}" collides with a leaf skill name`);
-  }
-  for (const leaf of candidate.leafNames) {
-    if (existing.some((collection) => collection.gateway === leaf) || takenLeafNames.has(leaf)) {
-      throw new Error(`Leaf skill "${leaf}" collides with an existing skill name`);
-    }
   }
 }
 
@@ -470,12 +491,8 @@ export async function addCollection(root: string, options: AddCollectionOptions)
 function addCollectionLocked(root: string, options: AddCollectionOptions): AddCollectionResult {
   prepareManagedDirectories(root);
   const spec = parseRepoSpec(options.repo);
-  if (!isSlug(options.prefix)) throw new Error(`Invalid prefix "${options.prefix}": use lowercase letters, digits, and hyphens`);
-  const id = options.id ?? spec.name;
+  const id = options.id ?? defaultCollectionId(spec);
   if (!isSlug(id)) throw new Error(`Invalid collection id "${id}"`);
-  const gateway = options.gateway ?? id;
-  if (!isSlug(gateway)) throw new Error(`Invalid gateway name "${gateway}"`);
-
   const existing = loadCollections(root);
 
   const cache = cacheDir(root, spec.cacheKey);
@@ -493,24 +510,26 @@ function addCollectionLocked(root: string, options: AddCollectionOptions): AddCo
           return found;
         });
 
+  const namespace = sharedSkillNamespace(selected);
+  const gateway = options.gateway
+    ?? (namespace && !existing.some((collection) => collection.gateway === namespace) ? namespace : id);
+  if (!isSlug(gateway)) throw new Error(`Invalid gateway name "${gateway}"`);
+
   assertNameSpaceAvailable(existing, {
     id,
-    prefix: options.prefix,
     gateway,
-    leafNames: selected.map((skill) => `${options.prefix}-${skill.name}`),
     sourceUrl: spec.url,
     sourceRef: spec.ref ?? resolvedRef,
   });
 
   const collection: RegistryCollection = {
     id,
-    prefix: options.prefix,
     gateway,
     mode: "suggest",
     enabled: true,
     description: options.description ?? defaultDescription(spec),
     source: { repo: spec.repo, url: spec.url, ref: spec.ref ?? resolvedRef, cacheKey: spec.cacheKey },
-    routes: selected.map<RegistryRoute>((skill) => ({ skill: skill.name, path: skill.path, terms: deriveTerms(skill.name) })),
+    routes: selected.map<RegistryRoute>((skill) => ({ skill: skill.name, path: skill.path, terms: deriveTerms(skill.name, skill.description) })),
   };
 
   const swap = materialize(root, collection, selected, cache);
@@ -583,12 +602,12 @@ export async function updateCollectionSelection(root: string, id: string, select
     const existingRoutes = new Map(collection.routes.map((route) => [route.skill, route]));
     const routes = uniqueSelected.map<RegistryRoute>((name) => {
       const skill = upstreamByName.get(name)!;
-      return existingRoutes.get(name) ?? { skill: name, path: skill.path, terms: deriveTerms(name) };
+      return existingRoutes.get(name) ?? { skill: name, path: skill.path, terms: deriveTerms(name, skill.description) };
     }).map((route) => ({ ...route, path: upstreamByName.get(route.skill)!.path }));
     const updated: RegistryCollection = { ...collection, routes };
     assertNameSpaceAvailable(
       collections.filter((entry) => entry.id !== id),
-      { id, prefix: collection.prefix, gateway: collection.gateway, leafNames: routes.map((route) => `${collection.prefix}-${route.skill}`) },
+      { id, gateway: collection.gateway },
     );
 
     const swap = materialize(root, updated, routes.map((route) => upstreamByName.get(route.skill)!), cache);
@@ -669,7 +688,7 @@ export function exposedSkillPaths(root: string): string[] {
   if (!isExistingDirectoryWithoutSymlink(root) || !isExistingDirectoryWithoutSymlink(exposedRoot)) return [];
   return loadCollections(root)
     .filter((collection) => collection.enabled)
-    .map((collection) => exposedDir(root, collection.id))
+    .map((collection) => join(exposedDir(root, collection.id), collection.gateway))
     .filter((path) => {
       if (!isExistingDirectoryWithoutSymlink(path)) return false;
       try {

@@ -1,9 +1,11 @@
 import type { Skill } from "@earendil-works/pi-coding-agent";
+import { leafSkillFile, routerRoot } from "./paths";
 import type { RegistryCollection } from "./registry";
 
 export interface RouteMatch {
   collectionId: string;
-  skill: Skill;
+  skillName: string;
+  skillPath: string;
 }
 
 function termMatches(prompt: string, term: string): boolean {
@@ -15,19 +17,36 @@ export function routePrompt(
   prompt: string,
   collections: RegistryCollection[],
   availableSkills: ReadonlyMap<string, Skill>,
+  root = routerRoot(),
 ): RouteMatch | undefined {
   const normalizedPrompt = prompt.toLowerCase();
+  let bestMatch: RouteMatch | undefined;
+  let bestScore = 0;
+
   for (const collection of collections) {
     if (!collection.enabled || collection.mode !== "suggest") continue;
     if (!availableSkills.has(collection.gateway)) continue;
+
     for (const route of collection.routes) {
-      const skill = availableSkills.get(`${collection.prefix}-${route.skill}`);
-      if (skill && route.terms.some((term) => termMatches(normalizedPrompt, term))) {
-        return { collectionId: collection.id, skill };
+      const matchingTerms = route.terms.filter((term) => termMatches(normalizedPrompt, term));
+      if (matchingTerms.length === 0) continue;
+
+      const maxTermLength = Math.max(...matchingTerms.map((term) => term.length));
+      const totalLength = matchingTerms.reduce((sum, term) => sum + term.length, 0);
+      const score = maxTermLength * 10 + totalLength + matchingTerms.length * 5;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = {
+          collectionId: collection.id,
+          skillName: route.skill,
+          skillPath: leafSkillFile(root, collection.id, route.skill),
+        };
       }
     }
   }
-  return undefined;
+
+  return bestMatch;
 }
 
 export function isExplicitSkillInvocation(prompt: string): boolean {
@@ -39,9 +58,8 @@ export function routingGuidance(match: RouteMatch): string {
   return [
     "## Skill collection suggestion",
     "",
-    `The user's request strongly matches the \`${match.collectionId}\` skill collection.`,
-    `The user can explicitly invoke \`/skill:${match.skill.name}\` to load that workflow.`,
-    `If the user has not invoked it, read \`${match.skill.filePath}\` before applying its workflow.`,
+    `The user's request strongly matches the \`${match.collectionId}\` skill collection (\`${match.skillName}\`).`,
+    `Read \`${match.skillPath}\` before applying its workflow.`,
     "This is a suggestion, not a replacement for your judgment. Do not load unrelated collection skills.",
   ].join("\n");
 }

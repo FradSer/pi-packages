@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Skill } from "@earendil-works/pi-coding-agent";
 
@@ -37,27 +37,32 @@ function frontmatterValue(frontmatter: string, key: string): string | undefined 
 }
 
 function scanSkillDir(root: string, dir: string, skills: Skill[]): void {
+  const directSkillFile = join(dir, "SKILL.md");
+  if (existsSync(directSkillFile) && statSync(directSkillFile).isFile()) {
+    try {
+      const content = readFileSync(directSkillFile, "utf8");
+      const frontmatter = content.split("---", 3)[1] ?? "";
+      const name = frontmatterValue(frontmatter, "name");
+      if (name) {
+        skills.push({
+          name,
+          description: frontmatterValue(frontmatter, "description") ?? "",
+          filePath: directSkillFile,
+          baseDir: dir,
+          disableModelInvocation: frontmatter.includes("disable-model-invocation: true"),
+          sourceInfo: { path: root, source: "test", scope: "temporary" as const, origin: "top-level" as const },
+        });
+        return;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   for (const entry of readdirSync(dir)) {
     if (entry === ".git" || entry === "node_modules") continue;
     const full = join(dir, entry);
     if (!statSync(full).isDirectory()) continue;
-    const skillFile = join(full, "SKILL.md");
-    try {
-      const content = readFileSync(skillFile, "utf8");
-      const frontmatter = content.split("---", 3)[1] ?? "";
-      const name = frontmatterValue(frontmatter, "name");
-      if (!name) continue;
-      skills.push({
-        name,
-        description: frontmatterValue(frontmatter, "description") ?? "",
-        filePath: skillFile,
-        baseDir: full,
-        disableModelInvocation: frontmatter.includes("disable-model-invocation: true"),
-        sourceInfo: { path: root, source: "test", scope: "temporary" as const, origin: "top-level" as const },
-      });
-    } catch {
-      // not a skill directory
-    }
     scanSkillDir(root, full, skills);
   }
 }
@@ -95,7 +100,6 @@ async function main(): Promise<void> {
       try {
         const added = await sync.addCollection(root, {
           repo,
-          prefix: flags.prefix,
           id: flags.id,
           gateway: flags.gateway,
           description: flags.description,

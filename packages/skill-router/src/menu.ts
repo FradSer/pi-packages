@@ -15,6 +15,47 @@ import {
 
 const RELOAD_HINT = "Run /reload (or restart pi) to apply skill changes.";
 
+type LoadingOutcome<T> =
+  | { status: "success"; value: T }
+  | { status: "error"; error: unknown };
+
+async function runWithLoading<T>(ctx: ExtensionCommandContext, message: string, action: () => T | Promise<T>): Promise<T> {
+  if (!ctx.hasUI) return action();
+
+  const outcome = await ctx.ui.custom<LoadingOutcome<T>>((tui, theme, _keybindings, done) => {
+    const frames = ["-", "\\", "|", "/"];
+    let frame = 0;
+    const interval = setInterval(() => {
+      frame = (frame + 1) % frames.length;
+      tui.requestRender();
+    }, 80);
+    interval.unref?.();
+    setTimeout(() => {
+      Promise.resolve()
+        .then(action)
+        .then(
+          (value) => done({ status: "success", value }),
+          (error) => done({ status: "error", error }),
+        );
+    }, 0);
+    return {
+      render: () => [` ${theme.fg("accent", frames[frame])} ${theme.fg("muted", message)}`],
+      invalidate: () => {},
+      dispose: () => clearInterval(interval),
+    };
+  }, {
+    overlay: true,
+    overlayOptions: {
+      anchor: "bottom-center",
+      width: "100%",
+      margin: { bottom: 0 },
+    },
+  });
+
+  if (outcome.status === "error") throw outcome.error;
+  return outcome.value;
+}
+
 async function pickSkills(ctx: ExtensionCommandContext, skills: UpstreamSkill[]): Promise<string[] | "all" | undefined> {
   const all = await ctx.ui.confirm("Skill selection", `Route all ${skills.length} skills found in this repository?`);
   if (all) return "all";
@@ -39,12 +80,13 @@ async function addFlow(ctx: ExtensionCommandContext): Promise<void> {
   if (!repo) return;
 
   let fetched: { cache: string; ref: string; skills: UpstreamSkill[] };
-  let suggestedPrefix: string;
   try {
     const spec = parseRepoSpec(repo);
-    suggestedPrefix = spec.name.slice(0, 3).replace(/[^a-z0-9]/g, "") || "mp";
-    ctx.ui.notify(`Cloning ${spec.repo}...`, "info");
-    fetched = fetchCollectionSkills(routerRoot(), spec);
+    fetched = await runWithLoading(
+      ctx,
+      `Cloning and scanning ${spec.repo}...`,
+      () => fetchCollectionSkills(root, spec),
+    );
     if (fetched.skills.length === 0) {
       ctx.ui.notify(`No skills (SKILL.md with name and description) found in ${spec.repo}.`, "warning");
       return;
@@ -57,11 +99,12 @@ async function addFlow(ctx: ExtensionCommandContext): Promise<void> {
   const selection = await pickSkills(ctx, fetched.skills);
   if (!selection) return;
 
-  const prefix = await ctx.ui.input("Collection prefix", suggestedPrefix);
-  if (!prefix) return;
-
   try {
-    const result = await addCollection(root, { repo, prefix, skills: selection });
+    const result = await runWithLoading(
+      ctx,
+      `Installing ${repo}...`,
+      () => addCollection(root, { repo, skills: selection }),
+    );
     ctx.ui.notify(`Installed "${result.id}" with ${result.skills.length} skills. ${RELOAD_HINT}`, "info");
   } catch (error) {
     ctx.ui.notify(`Failed to install collection: ${error instanceof Error ? error.message : String(error)}`, "error");
@@ -76,7 +119,7 @@ async function pickCollection(ctx: ExtensionCommandContext, action: string) {
   }
   const choice = await ctx.ui.select(
     `${action}: choose a collection`,
-    collections.map((collection) => `${collection.id} (${collection.prefix}-*, ${collection.routes.length} skills${collection.enabled ? "" : ", disabled"})`),
+    collections.map((collection) => `${collection.id} (${collection.routes.length} skills${collection.enabled ? "" : ", disabled"})`),
   );
   if (!choice) return;
   return collections.find((collection) => choice.startsWith(`${collection.id} (`));
@@ -114,7 +157,11 @@ async function updateFlow(ctx: ExtensionCommandContext): Promise<void> {
   const collection = await pickCollection(ctx, "Update collection");
   if (!collection) return;
   try {
-    const result = await updateCollection(routerRoot(), collection.id);
+    const result = await runWithLoading(
+      ctx,
+      `Updating ${collection.id}...`,
+      () => updateCollection(routerRoot(), collection.id),
+    );
     const notes = [`Updated "${result.id}": ${result.kept.length} skills re-materialized.`];
     if (result.dropped.length > 0) notes.push(`Removed upstream: ${result.dropped.join(", ")}.`);
     if (result.newUpstream.length > 0) notes.push(`New upstream skills not routed: ${result.newUpstream.join(", ")}.`);
@@ -154,7 +201,7 @@ async function listFlow(ctx: ExtensionCommandContext): Promise<void> {
     "Installed collections (esc to go back)",
     collections.map(
       (collection) =>
-        `${collection.id} — ${collection.source.repo}@${collection.source.ref} — prefix ${collection.prefix}- — ${collection.routes.length} skills — ${collection.enabled ? "enabled" : "disabled"}`,
+        `${collection.id} — ${collection.source.repo}@${collection.source.ref} — ${collection.routes.length} skills — ${collection.enabled ? "enabled" : "disabled"}`,
     ),
   );
 }
