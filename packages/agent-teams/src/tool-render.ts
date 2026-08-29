@@ -1,8 +1,9 @@
 import { keyHint, type Theme } from "@earendil-works/pi-coding-agent";
-import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   formatToolErrorLine,
   renderToolLifecycle,
+  safeDisplayText,
   type ToolLifecycleSpec,
 } from "@fradser/pi-kit";
 
@@ -35,18 +36,23 @@ export function renderLifecycleResult(
   const expandable = result.details !== undefined || effectiveDetails.length > 0;
   if (context.isError) return new Text(theme.fg("error", formatToolErrorLine(text)), 0, 0);
   return {
-    render: (width) => renderToolLifecycle(
-      { ...spec, details: effectiveDetails },
-      {
-        width,
-        expanded: options.expanded,
-        expandHint: keyHint("app.tools.expand", "to expand"),
-        expandable,
-        theme,
-        fit: truncateToWidth,
-        visibleWidth,
-      },
-    ),
+    render: (width) => {
+      const details = options.expanded
+        ? effectiveDetails.flatMap((line) => wrapTextWithAnsi(safeDisplayText(line), Math.max(1, width - 2)))
+        : effectiveDetails;
+      return renderToolLifecycle(
+        { ...spec, details },
+        {
+          width,
+          expanded: options.expanded,
+          expandHint: keyHint("app.tools.expand", "to expand"),
+          expandable,
+          theme,
+          fit: truncateToWidth,
+          visibleWidth,
+        },
+      );
+    },
     invalidate: () => {},
   };
 }

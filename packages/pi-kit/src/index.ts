@@ -44,6 +44,9 @@ export interface ToolLifecycleSpec {
   /** Optional semantic verb such as `created`, `listed`, `gathered`, or `to @name`. */
   label?: string;
   details?: readonly string[];
+  /** Default bounds expanded details to 50 lines; opt in only when every
+   * line is required for a user-visible readback. */
+  detailLimit?: number | "all";
 }
 
 /** Build the common one-line lifecycle title for a tool result.
@@ -68,14 +71,26 @@ export function startedToolLifecycle(
 export function eventToolLifecycle(
   tool: string,
   subject: string,
-  options: { label?: string; details?: readonly string[] } = {},
+  options: { label?: string; details?: readonly string[]; detailLimit?: number | "all" } = {},
 ): ToolLifecycleSpec {
-  return { kind: "event", tool, subject, label: options.label, details: options.details };
+  return {
+    kind: "event",
+    tool,
+    subject,
+    label: options.label,
+    details: options.details,
+    detailLimit: options.detailLimit,
+  };
 }
 
-/** Return a bounded lifecycle detail block for an expanded result. */
+/** Return lifecycle details with a safe default bound. An explicit `all` is
+ * reserved for user-requested readbacks that would otherwise lose data. */
 export function formatToolLifecycleDetails(spec: ToolLifecycleSpec, maxLines = 50): string[] {
-  return (spec.details ?? []).slice(0, Math.max(0, maxLines)).map((line) => safeDisplayText(line));
+  const limit = spec.detailLimit === "all"
+    ? undefined
+    : Math.max(0, typeof spec.detailLimit === "number" ? spec.detailLimit : maxLines);
+  const details = spec.details ?? [];
+  return (limit === undefined ? details : details.slice(0, limit)).map((line) => safeDisplayText(line));
 }
 
 /** Return the first safe non-empty line from a failed tool result. */

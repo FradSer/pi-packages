@@ -110,17 +110,32 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     renderCall: emptyToolCall,
     renderResult(result, options, theme, context) {
       const to = String((context.args as { to?: string }).to ?? "");
-      const outcome = detailField<"steered" | "queued">(result.details, "outcome") ?? "queued";
+      const outcome = detailField<"steered" | "queued" | "not-sent">(result.details, "outcome") ?? "queued";
+      const subject = outcome === "not-sent" ? "terminal report available" : outcome;
       return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
         "message",
-        outcome,
-        { label: `to @${to}` },
+        subject,
+        { label: `to @${to}`, detailLimit: outcome === "not-sent" ? "all" : undefined },
       ));
     },
     async execute(_toolCallId, params) {
       if (params.to === LEADER_RECIPIENT) throw new Error('The leader cannot send a message to itself.');
       const result = sendLeaderMessage(params.to, params.message, { reopen: params.reopen });
       if (!result.ok) throw new Error(result.error);
+      if (result.outcome === "not-sent") {
+        return {
+          content: [{
+            type: "text",
+            text: [
+              "ROUTING · not sent",
+              "NEXT · No new message was delivered. Read the recorded report below; use reopen=true only for a distinct new assignment.",
+              `NOTE · @${params.to} already sent a terminal report. Delivery to your context is automatic; asking it to resend produces a duplicate leader turn.`,
+              `RECORDED TERMINAL REPORT · ${result.terminalReport}`,
+            ].join("\n"),
+          }],
+          details: { outcome: "not-sent", terminalReportAvailable: true },
+        };
+      }
       const action = result.outcome === "steered"
         ? "active control stream accepted the steer"
         : "harness will deliver the queued message on the next wake-up";
@@ -128,6 +143,10 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       // A stray status field (copied from worker report patterns) must not
       // block delivery — it carries no meaning on leader-sent messages.
       if (params.status) text += `\nNOTE · status ignored for leader-directed steering`;
+      if (result.priorTerminalReport) {
+        text += `\nNOTE · @${params.to} already sent a terminal report (below); it reaches your context automatically. A steer asking it to repeat that report produces a duplicate delivery — use reopen only for a distinct new assignment.`;
+        text += `\nPRIOR TERMINAL REPORT · ${result.priorTerminalReport}`;
+      }
       return {
         content: [{ type: "text", text }],
         details: { outcome: result.outcome },

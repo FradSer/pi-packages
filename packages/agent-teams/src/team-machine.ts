@@ -1057,16 +1057,37 @@ function dispatchInboxMessage(teammate: Teammate, message: InboxMessage): void {
 /** Route the leader's addressed send_message through the same delivery path. */
 export type MessageRoutingOutcome = "steered" | "queued";
 
+export type SendLeaderMessageResult =
+  | { ok: true; outcome: MessageRoutingOutcome; priorTerminalReport?: string }
+  | { ok: true; outcome: "not-sent"; terminalReport: string }
+  | { ok: false; error: string };
+
+/** Body of the teammate's recorded terminal report, when its latest leader
+ * mailbox entry carries terminal status. Lets the leader read the report
+ * directly instead of steering the teammate into a duplicate resend. */
+function recordedTerminalReportBody(name: string): string | undefined {
+  const mailbox = getState().leaderMailbox;
+  for (let i = mailbox.length - 1; i >= 0; i--) {
+    const message = mailbox[i];
+    if (message.from !== name) continue;
+    return message.status === "completed" || message.status === "failed" ? message.body : undefined;
+  }
+  return undefined;
+}
+
 export function sendLeaderMessage(
   to: string,
   message: string,
   options?: { reopen?: boolean },
-): { ok: true; outcome: MessageRoutingOutcome } | { ok: false; error: string } {
+): SendLeaderMessageResult {
   const teammate = getTeammate(to);
   if (!teammate || teammate.status === "stopped") return { ok: false, error: `No living teammate named "${to}".` };
   if (teammate.reportSequenceEnded && !options?.reopen) {
+    const prior = recordedTerminalReportBody(to);
+    if (prior) return { ok: true, outcome: "not-sent", terminalReport: prior };
     return { ok: false, error: `@${to} already sent a terminal report. Use teammate_spawn for a new assignment or send_message with reopen=true for an explicit follow-up assignment.` };
   }
+  const priorTerminalReport = teammate.reportSequenceEnded ? recordedTerminalReportBody(to) : undefined;
   if (options?.reopen) updateTeammate(to, { reportSequenceEnded: false });
   const envelope: InboxMessage = {
     id: randomUUID(),
@@ -1076,12 +1097,12 @@ export function sendLeaderMessage(
     timestamp: Date.now(),
   };
   const steered = teammate.status === "working" && sendWorkerSteer(teammate.name, formatDelivery([envelope]));
-  if (steered) return { ok: true, outcome: "steered" };
+  if (steered) return { ok: true, outcome: "steered", ...(priorTerminalReport ? { priorTerminalReport } : {}) };
   const queued = pendingDeliveries.get(teammate.name) ?? [];
   queued.push(envelope);
   pendingDeliveries.set(teammate.name, queued);
   ensureLivePoll();
-  return { ok: true, outcome: "queued" };
+  return { ok: true, outcome: "queued", ...(priorTerminalReport ? { priorTerminalReport } : {}) };
 }
 
 function continueMaybeCompact(inbox: string, inboxName: string, offset: number): void {

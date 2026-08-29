@@ -34,7 +34,8 @@ Feature: Shared pi-kit runtime helpers
     And collapsed teammate-message rows use the same band via renderAgentMessageBand as `[message] from @name · <key> to expand`
     And class-based theme methods retain their receiver when pi-kit applies the background band
     And a long title truncates before the expand hint instead of truncating the hint
-    And when it handles an expanded result it reveals bounded detail lines
+    And when it handles an expanded result it reveals at most 50 detail lines by default
+    And a lifecycle spec with detailLimit="all" preserves every expanded detail line
     And an error result is rendered as one plain error row without a lifecycle label
 
   Scenario: Agent task and message labels share pi-kit formatting

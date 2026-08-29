@@ -323,6 +323,15 @@ Feature: Agent Teams collaborative organization contract
       Then the teammate receives the new assignment and its report sequence reopens
       And identical intermediate reports before a terminal status remain deliverable
 
+    Scenario: The leader reads a recorded terminal report without forcing a resend
+      Given a teammate's terminal report is recorded and its delivery to the leader is automatic
+      When the leader addresses that teammate with an ordinary send_message
+      Then no new message is delivered and the result returns the recorded terminal report body
+      And it warns that asking the teammate to resend produces a duplicate leader turn
+      When the leader reopens that teammate for a distinct assignment
+      Then the result again includes the recorded terminal report and the duplicate warning
+      And the leader never needs to ask a teammate to repeat an already-sent report
+
     Scenario: Delivered report details retain terminal evidence
       Given a teammate sends a leader-bound report
       When the parent queues it as a leader follow-up
@@ -658,6 +667,15 @@ Feature: Agent Teams collaborative organization contract
       And teammate health never appears as a message routing suffix
       And the full result text stays available to the model without a second transcript row
       And a failed send keys off the render context isError flag and renders one plain error line without an outcome suffix
+
+    Scenario: Reading a terminal report renders a structured message event
+      Given a living teammate already sent a terminal report
+      When the leader addresses it without reopen=true
+      Then no new message is delivered
+      And the collapsed row follows `[message] to @name · terminal report available` with the standard expand hint
+      And expanding the row reveals the non-delivery reason, duplicate-resend warning, and recorded report
+      And expanded detail text wraps to terminal width without omitting any part of the warning or report
+      And a missing teammate still renders as one plain error line
 
     Scenario: Creating a board task renders one created line
       Given the leader creates a board task

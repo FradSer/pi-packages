@@ -1700,6 +1700,75 @@ def test_leader_send_message_ignores_stray_status_instead_of_throwing(tmp_path: 
     assert payload["normal"].startswith("MESSAGING\nQUEUED · to=@audit")
 
 
+def test_send_message_renders_recorded_terminal_report_without_resend(tmp_path: Path) -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "The leader reads a recorded terminal report without forcing a resend" in feature
+    assert "Reading a terminal report renders a structured message event" in feature
+    payload = run_node(
+        f'''\
+        import {{ registerLeaderTools }} from "{(SRC / "tools.ts").as_uri()}";
+        import {{ initTheme }} from "@earendil-works/pi-coding-agent";
+        import {{ initTeamMachine, shutdownTeamMachine, drainTeammateOutboxes }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ registerTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ stateFilePath, workerOutboxPath, appendWorkerEvent }} from "{(SRC / "statefile.ts").as_uri()}";
+        initTheme("dark");
+        const tools = [];
+        registerLeaderTools({{ registerTool(tool) {{ tools.push(tool); }}, registerCommand() {{}} }});
+        const send = tools.find((tool) => tool.name === "send_message");
+        const theme = {{ fg: (_color, text) => text, bold: (text) => text, bg: (_color, text) => text }};
+        const dir = process.env.PI_TEST_DIR;
+        initTeamMachine(
+          {{ sessionManager: {{ getSessionFile: () => undefined }}, cwd: dir, model: undefined }},
+          {{ sendUpdate() {{}}, notifyChange() {{}} }},
+        );
+        registerTeammate({{ name: "audit", agent: "reviewer", spawnId: "s1", pid: 0, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const outbox = workerOutboxPath(stateFilePath(undefined, dir), "audit", "s1");
+        const reportTail = "REPORT-END-6d42";
+        const report = `VERDICT: PASS with evidence ${{"x".repeat(6_000)}} ${{reportTail}}`;
+        appendWorkerEvent(outbox, {{ id: "evt1", type: "message", worker: "audit", spawnId: "s1", body: report, status: "completed" }});
+        drainTeammateOutboxes();
+        const readback = await send.execute("t1", {{ to: "audit", message: "please resend your report" }});
+        const render = (expanded, width = 120) => send.renderResult(
+          readback,
+          {{ expanded }},
+          theme,
+          {{ args: {{ to: "audit", message: "please resend your report" }} }},
+        ).render(width);
+        const reopened = (await send.execute("t2", {{ to: "audit", message: "audit the follow-up patch", reopen: true }})).content[0].text;
+        shutdownTeamMachine();
+        console.log(JSON.stringify({{
+          readback: readback.content[0].text,
+          details: readback.details,
+          collapsed: render(false),
+          expanded: render(true),
+          narrowExpanded: render(true, 30),
+          reportTail,
+          reopened,
+        }}));
+        ''',
+        env_overrides={"PI_TEST_DIR": str(tmp_path)},
+    )
+    assert "ROUTING · not sent" in payload["readback"]
+    assert "VERDICT: PASS with evidence" in payload["readback"]
+    assert payload["details"]["terminalReportAvailable"] is True
+    assert payload["details"]["outcome"] == "not-sent"
+    assert len(payload["collapsed"]) == 3
+    assert "[message] to @audit · terminal report available" in payload["collapsed"][1]
+    assert "to expand" in payload["collapsed"][1]
+    assert all("VERDICT: PASS with evidence" not in line for line in payload["collapsed"])
+    expanded = " ".join("\n".join(payload["expanded"]).split())
+    assert "No new message was delivered" in expanded
+    assert "duplicate leader turn" in expanded
+    assert "VERDICT: PASS with evidence" in expanded
+    # detailLimit="all" preserves a long report at narrow width; the tail
+    # would disappear if pi-kit's default 50-detail cap applied.
+    assert len(payload["narrowExpanded"]) > 53
+    assert any(payload["reportTail"] in line for line in payload["narrowExpanded"])
+    assert payload["reopened"].startswith("MESSAGING\nQUEUED · to=@audit")
+    assert "duplicate delivery" in payload["reopened"]
+    assert "PRIOR TERMINAL REPORT · VERDICT: PASS with evidence" in payload["reopened"]
+
+
 def test_task_create_explains_execution_state_and_current_session(tmp_path: Path) -> None:
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "Creating a task reports the next execution action" in feature
@@ -2608,8 +2677,10 @@ def test_terminal_report_closes_reporting_and_suppresses_following_reports(tmp_p
         console.log(JSON.stringify({{
           afterTerminal,
           sentBodies: sent.slice(0, afterTerminal.sent).map((report) => report.body),
-          rejectedSteer: rejectedSteer.ok ? "accepted" : rejectedSteer.error,
+          rejectedSteer: rejectedSteer.ok ? rejectedSteer.outcome : rejectedSteer.error,
+          rejectedReport: rejectedSteer.ok && rejectedSteer.outcome === "not-sent" ? rejectedSteer.terminalReport : null,
           reopened: reopened.ok,
+          reopenedPrior: reopened.ok ? (reopened.priorTerminalReport ?? null) : null,
           afterNewSequence: sent.length,
           mailboxAfterNewSequence: getState().leaderMailbox.length,
           mailboxBodies: getState().leaderMailbox.map((message) => message.body),
@@ -2619,17 +2690,23 @@ def test_terminal_report_closes_reporting_and_suppresses_following_reports(tmp_p
         shutdownTeamMachine();
         '''
     )
+    rejected_steer = str(payload.pop("rejectedSteer"))
+    rejected_report = payload.pop("rejectedReport")
     assert payload == {
         "afterTerminal": {"sent": 3, "mailbox": 3, "closed": True, "idle": True, "sequenceEnded": True},
         "sentBodies": ["analysis", "recommendation", "review complete"],
-        "rejectedSteer": "@w already sent a terminal report. Use teammate_spawn for a new assignment or send_message with reopen=true for an explicit follow-up assignment.",
         "reopened": True,
+        "reopenedPrior": "review complete",
         "afterNewSequence": 4,
         "mailboxAfterNewSequence": 4,
         "mailboxBodies": ["analysis", "recommendation", "review complete", "follow-up complete"],
         "replayBeforeWake": 3,
         "replayAfterWake": 3,
     }
+    assert rejected_steer == "not-sent"
+    # The leader reads the recorded report directly from the structured result
+    # instead of steering the teammate into a duplicate resend.
+    assert rejected_report == "review complete"
 
 
 def test_worktree_cleanup_preserves_directory_when_commit_fails(tmp_path: Path) -> None:

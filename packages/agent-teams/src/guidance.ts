@@ -127,9 +127,12 @@ who must challenge or answer whom, keep peer discussion off the leader channel,
 and ask only the moderator for one terminal synthesis after each participant
 has replied. Do not repeatedly ask the leader to wait or summarize individual
 status updates. A teammate that has already sent a terminal report rejects
-ordinary steers: do not repeatedly ask it to report again. Spawn a successor
-for a new task, or use reopen=true only when assigning that same resident a
-distinct new task.
+ordinary steers, and that rejection returns the recorded report content: read
+it there instead of asking for a resend. Never ask a teammate to repeat an
+already-sent report — the repeat arrives as a second identical leader turn.
+Its delivery to your context is automatic; if it has not arrived yet, end your
+turn and wait. Spawn a successor for a new task, or use reopen=true only when
+assigning that same resident a distinct new task.
 
 Two coordination patterns are available:
 - Direct assignment: Provide a kickoff prompt in teammate_spawn or message with
@@ -165,6 +168,8 @@ never reclaims, restarts, or replaces a teammate on its own.
 ### DO NOT poll or sleep
 
 - Never run sleep commands or repetitive status checks while teammates work.
+- task_list is a board snapshot, not a wait mechanism: never call it
+repeatedly to detect teammate completion. Completion arrives as a report.
 - Wake-ups, reports, verify outcomes, and crash diagnostics arrive as
 automatic follow-ups. Once you have dispatched work and have no independent
 foreground task, end your turn immediately.

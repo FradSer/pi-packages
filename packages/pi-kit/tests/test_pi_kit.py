@@ -234,6 +234,22 @@ def test_tool_lifecycle_titles_share_the_compact_monitor_pattern() -> None:
     }
 
 
+def test_lifecycle_details_default_to_fifty_lines_unless_explicitly_unbounded() -> None:
+    feature = (PACKAGE / "features" / "pi-kit.feature").read_text(encoding="utf-8")
+    assert 'detailLimit="all" preserves every expanded detail line' in feature
+    result = run_typescript(
+        f"""
+        import {{ eventToolLifecycle, formatToolLifecycleDetails }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const details = Array.from({{ length: 51 }}, (_, index) => `line-${{index}}`);
+        console.log(JSON.stringify({{
+          bounded: formatToolLifecycleDetails(eventToolLifecycle("message", "report", {{ details }})).length,
+          unbounded: formatToolLifecycleDetails(eventToolLifecycle("message", "report", {{ details, detailLimit: "all" }})).length,
+        }}));
+        """
+    )
+    assert result == {"bounded": 50, "unbounded": 51}
+
+
 def test_tool_lifecycle_band_preserves_class_theme_receiver() -> None:
     result = run_typescript(
         f"""
