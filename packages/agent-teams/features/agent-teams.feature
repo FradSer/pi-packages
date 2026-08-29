@@ -106,6 +106,12 @@ Feature: Agent Teams collaborative organization contract
       And the teammate joins the roster with status starting and then idle
       And the kickoff prompt is delivered as the teammate's first turn
 
+    Scenario: Direct kickoff tasks execute immediately without querying the task board
+      Given a teammate is spawned with an assigned kickoff prompt
+      When the kickoff prompt is constructed
+      Then it instructs the teammate to execute the assigned task directly without checking task_list
+      And worker guidance instructs teammates to use task_list only when idle or notified of unclaimed work
+
     Scenario: Teammate names are unique among living teammates
       Given a teammate named security is on the roster
       When the leader spawns another teammate named security
@@ -234,6 +240,31 @@ Feature: Agent Teams collaborative organization contract
       When the harness routes the traffic
       Then no peer message body is delivered to the leader as a follow-up or report
       And peer messages are inspectable in the /agent-teams console instead
+
+    Scenario: Peer-message delivery is auditable without claiming it was read
+      Given teammate analyst sends a peer message to teammate critic
+      When the harness routes the message into critic's turn or pending delivery queue
+      Then the peer transcript records the message as harness-delivered
+      And the transcript does not claim that critic read, accepted, or answered it
+
+    Scenario: A facilitated discussion keeps participant reports out of the leader turn
+      Given teammates are conducting a peer discussion with a named moderator
+      When a non-moderator needs to challenge or answer another participant
+      Then it addresses that participant through send_message instead of reporting the exchange to the leader
+      And it sends the leader only one terminal contribution after the moderator requests closure
+      And the moderator's terminal report cites the peer discussion before synthesis
+
+    Scenario: Late reports from a stopped teammate are archived instead of waking the leader
+      Given a teammate has reports pending in the automatic follow-up queue
+      When that teammate is shut down before those reports dispatch
+      Then its pending reports remain inspectable as archived diagnostics
+      And they do not start another leader turn
+
+    Scenario: A report written while shutdown is closing is archived too
+      Given a teammate writes a leader report before its child process closes for a requested shutdown
+      When the harness drains that final outbox during close handling
+      Then the report is archived as a shutdown diagnostic
+      And it does not start another leader turn
 
     Scenario: Reports to the leader use the unified send_message primitive
       Given a teammate is working

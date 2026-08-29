@@ -39,6 +39,106 @@ def test_plan_mode_feature_covers_live_worker_widget_and_diagnostics():
     assert "Scenario: Plan writer completion requires a fresh non-empty plan" in feature
     assert "Scenario: Finished plan worker tool activity does not remain current" in feature
     assert "Scenario: Plan review reserves space for its action menu" in feature
+    assert "Scenario: Plan completion does not loop review commands to the agent" in feature
+
+
+def test_plan_completion_does_not_loop_review_messages_to_agent():
+    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
+    assert 'pi.sendUserMessage("/plan review")' not in source
+    assert 'showPlanReview(ctx, request)' in source or 'showPlanReview(ctx, activePlanRequest)' in source
+
+
+def test_plan_completion_invokes_review_directly_and_clears_active_request():
+    result = run_typescript(f"""
+        import * as crypto from "node:crypto";
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        import importedPlanMode from {json.dumps((PACKAGE / "src" / "index.ts").as_uri())};
+        const planMode = importedPlanMode.default ?? importedPlanMode;
+
+        const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "plan-mode-test-"));
+        process.env.HOME = tmpHome;
+
+        const sentUserMessages = [];
+        const customUiCalls = [];
+        const registeredCommands = new Map();
+        const eventHandlers = new Map();
+
+        const fakePi = {{
+          sendUserMessage: (msg, opts) => {{
+            sentUserMessages.push({{ msg, opts }});
+          }},
+          registerCommand: (name, def) => {{
+            registeredCommands.set(name, def);
+          }},
+          on: (event, handler) => {{
+            eventHandlers.set(event, handler);
+          }},
+          setModel: async () => true,
+        }};
+
+        const sessionFile = path.join(tmpHome, "session.jsonl");
+        const fakeCtx = {{
+          cwd: tmpHome,
+          hasUI: true,
+          mode: "tui",
+          model: {{ provider: "anthropic", id: "claude-3" }},
+          modelRegistry: {{
+            find: () => ({{ provider: "anthropic", id: "claude-3" }}),
+            getAvailable: () => [],
+          }},
+          sessionManager: {{
+            getSessionFile: () => sessionFile,
+          }},
+          ui: {{
+            notify: () => {{}},
+            setWidget: () => {{}},
+            custom: async (factory, opts) => {{
+              customUiCalls.push({{ opts }});
+              return "stay";
+            }},
+          }},
+        }};
+
+        planMode(fakePi);
+
+        // 1. Start planning
+        const planCmd = registeredCommands.get("plan");
+        await planCmd.handler("test plan request", fakeCtx);
+
+        // 2. Main session writes plan file
+        const planDir = path.join(tmpHome, ".pi", "agent", "plans");
+        fs.mkdirSync(planDir, {{ recursive: true }});
+        // Generate the hash key matching planFilePath
+        const key = crypto.createHash("sha256").update(sessionFile).digest("hex").slice(0, 16);
+        const planPath = path.join(planDir, `${{key}}.md`);
+        fs.writeFileSync(planPath, "# Test Plan\\n\\nWorker research: not-needed");
+
+        // 3. Agent turn ends
+        const agentEndHandler = eventHandlers.get("agent_end");
+        await agentEndHandler({{}}, fakeCtx);
+
+        const firstReviewCount = customUiCalls.length;
+        const reviewCommandsSent = sentUserMessages.filter(m => m.msg === "/plan review");
+
+        // 4. Subsequent agent turn ends (e.g. user talked, turn finished)
+        await agentEndHandler({{}}, fakeCtx);
+        const secondReviewCount = customUiCalls.length;
+
+        fs.rmSync(tmpHome, {{ recursive: true, force: true }});
+
+        console.log(JSON.stringify({{
+          sentUserMessagesCount: sentUserMessages.length,
+          reviewCommandsSentCount: reviewCommandsSent.length,
+          firstReviewCount,
+          secondReviewCount,
+        }}));
+    """)
+
+    assert result["reviewCommandsSentCount"] == 0, f"Expected no /plan review sent to agent, got {result['reviewCommandsSentCount']}"
+    assert result["firstReviewCount"] == 1, f"Expected exactly 1 review overlay shown on completion, got {result['firstReviewCount']}"
+    assert result["secondReviewCount"] == 1, f"Expected review overlay not to repeat on next agent_end, got {result['secondReviewCount']}"
 
 
 def test_plan_mode_prompts_prioritize_exploration_and_mention_builtin_workers():
@@ -369,7 +469,129 @@ def test_empty_explore_output_reports_actionable_diagnostic():
     assert "structure: Worker produced no structured result." in result["aggregate"]
 
 
-def test_parse_model_ref():
+def test_plan_review_fresh_session_action_uses_command_context():
+    result = run_typescript(f"""
+        import * as crypto from "node:crypto";
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        import importedPlanMode from {json.dumps((PACKAGE / "src" / "index.ts").as_uri())};
+        const planMode = importedPlanMode.default ?? importedPlanMode;
+
+        const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "plan-mode-fresh-session-"));
+        process.env.HOME = tmpHome;
+
+        const newSessionCalls = [];
+        const freshSessionMessages = [];
+        const registeredCommands = new Map();
+        const eventHandlers = new Map();
+
+        const fakePi = {{
+          sendUserMessage: () => {{}},
+          registerCommand: (name, def) => {{
+            registeredCommands.set(name, def);
+          }},
+          on: (event, handler) => {{
+            eventHandlers.set(event, handler);
+          }},
+          setModel: async () => true,
+        }};
+
+        const sessionFile = path.join(tmpHome, "session.jsonl");
+        const fakeCommandCtx = {{
+          cwd: tmpHome,
+          hasUI: true,
+          mode: "tui",
+          model: {{ provider: "anthropic", id: "claude-3" }},
+          modelRegistry: {{
+            find: () => ({{ provider: "anthropic", id: "claude-3" }}),
+            getAvailable: () => [],
+          }},
+          sessionManager: {{
+            getSessionFile: () => sessionFile,
+          }},
+          ui: {{
+            notify: () => {{}},
+            setWidget: () => {{}},
+            custom: async (factory, opts) => "implement-fresh",
+          }},
+          newSession: async (opts) => {{
+            newSessionCalls.push(opts);
+            const freshCtx = {{
+              ui: {{ notify: () => {{}} }},
+              sendUserMessage: async (msg) => freshSessionMessages.push(msg),
+            }};
+            await opts.withSession(freshCtx);
+            return {{ cancelled: false }};
+          }},
+        }};
+
+        const fakeAgentEndCtx = {{
+          cwd: tmpHome,
+          hasUI: true,
+          mode: "tui",
+          model: {{ provider: "anthropic", id: "claude-3" }},
+          modelRegistry: {{
+            find: () => ({{ provider: "anthropic", id: "claude-3" }}),
+            getAvailable: () => [],
+          }},
+          sessionManager: {{
+            getSessionFile: () => sessionFile,
+          }},
+          ui: {{
+            notify: () => {{}},
+            setWidget: () => {{}},
+            custom: async (factory, opts) => "implement-fresh",
+          }},
+          // Note: agent_end ctx does NOT have newSession
+        }};
+
+        planMode(fakePi);
+
+        // 1. Start planning via /plan
+        const planCmd = registeredCommands.get("plan");
+        await planCmd.handler("test plan request", fakeCommandCtx);
+
+        // 2. Main session writes plan file
+        const planDir = path.join(tmpHome, ".pi", "agent", "plans");
+        fs.mkdirSync(planDir, {{ recursive: true }});
+        const key = crypto.createHash("sha256").update(sessionFile).digest("hex").slice(0, 16);
+        const planPath = path.join(planDir, `${{key}}.md`);
+        fs.writeFileSync(planPath, "# Test Plan\\n\\nWorker research: not-needed");
+
+        // 3. Agent turn ends (triggering auto showPlanReview with fakeAgentEndCtx)
+        const agentEndHandler = eventHandlers.get("agent_end");
+        await agentEndHandler({{}}, fakeAgentEndCtx);
+
+        fs.rmSync(tmpHome, {{ recursive: true, force: true }});
+
+        console.log(JSON.stringify({{
+          newSessionCalled: newSessionCalls.length === 1,
+          freshSessionMessageReceived: freshSessionMessages.length === 1,
+        }}));
+    """)
+    assert result["newSessionCalled"] is True
+    assert result["freshSessionMessageReceived"] is True
+
+
+def test_tilde_expansion_in_agent_dir_and_plan_paths():
+    result = run_typescript(f"""
+        import * as os from "node:os";
+        import * as path from "node:path";
+        import {{ readPlanModeConfig, planModeConfigPath }} from {json.dumps((PACKAGE / "src" / "config.ts").as_uri())};
+
+        process.env.PI_CODING_AGENT_DIR = "~/custom-agent-dir";
+        const configPath = planModeConfigPath();
+        const expectedPrefix = path.join(os.homedir(), "custom-agent-dir");
+
+        console.log(JSON.stringify({{
+          configPath,
+          expandsTilde: configPath.startsWith(expectedPrefix),
+          noLiteralTilde: !configPath.includes("~"),
+        }}));
+    """)
+    assert result["expandsTilde"] is True
+    assert result["noLiteralTilde"] is True
     result = run_typescript("""
         // Inline parseModelRef to avoid import issues
         function parseModelRef(value) {

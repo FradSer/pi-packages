@@ -127,7 +127,24 @@ console.log(JSON.stringify({{
         self.assertTrue(self.is_foreign(".pi/worktrees/foo/src/index.ts", self.main))
         self.assertTrue(self.is_foreign('@".pi/worktrees/foo/src/index.ts"', self.main))
         self.assertTrue(self.is_foreign(".pi/worktrees/foo/", self.main))
-        self.assertFalse(self.is_foreign(".pi/worktrees", self.main))
+        self.assertTrue(self.is_foreign(".pi/worktrees", self.main))
+        self.assertTrue(self.is_foreign(".pi/worktrees/", self.main))
+        self.assertTrue(self.is_foreign("@.pi/worktrees", self.main))
+        self.assertTrue(self.is_foreign("@.pi/worktrees/", self.main))
+        self.assertTrue(self.is_foreign('@".pi/worktrees"', self.main))
+        self.assertTrue(self.is_foreign('@".pi/worktrees/"', self.main))
+
+    def test_main_repo_without_linked_worktrees_still_hides_pi_worktrees(self) -> None:
+        clean_repo = self.base / "clean-repo"
+        clean_repo.mkdir()
+        make_git_repo(clean_repo)
+        (clean_repo / ".pi" / "worktrees").mkdir(parents=True)
+        (clean_repo / ".pi" / "worktrees" / "stale.txt").write_text("temp")
+        self.assertTrue(self.is_foreign(".pi/worktrees", clean_repo))
+        self.assertTrue(self.is_foreign(".pi/worktrees/", clean_repo))
+        self.assertTrue(self.is_foreign(".pi/worktrees/stale.txt", clean_repo))
+        self.assertFalse(self.is_foreign(".pi/agents", clean_repo))
+        self.assertFalse(self.is_foreign("src/index.ts", clean_repo))
 
     def test_worktree_hides_main_and_siblings(self) -> None:
         self.assertTrue(self.is_foreign("../main-repo/README.md", self.wt_b))
@@ -145,13 +162,32 @@ import {{ collectWorktreeRoots, filterForeignWorktreeItems }} from {json.dumps(C
 const roots = collectWorktreeRoots({json.dumps(str(self.main))});
 const items = [
   {{ value: "src/index.ts", label: "index.ts" }},
+  {{ value: ".pi/worktrees/", label: "worktrees/" }},
+  {{ value: ".pi/worktrees", label: "worktrees" }},
+  {{ value: "@agent-teams-status", label: "agent-teams-status", description: ".pi/worktrees/pi-artifact-and-design/.changeset/agent-teams-status-truth-and-classifier.md" }},
+  {{ value: "@agent-teams/", label: "agent-teams/", description: ".pi/worktrees/pi-artifact-and-design/packages/agent-teams/" }},
   {{ value: "../wt-b/src/index.ts", label: "index.ts", description: "../wt-b/src/index.ts" }},
   {{ value: "../wt-c/", label: "wt-c/" }},
+  {{ value: ".pi/agents/", label: "agents/" }},
 ];
 console.log(JSON.stringify(filterForeignWorktreeItems(items, {json.dumps(str(self.main))}, roots)));
 """
         result = run_ts(script)
-        self.assertEqual(["src/index.ts"], [item["value"] for item in result])
+        self.assertEqual(["src/index.ts", ".pi/agents/"], [item["value"] for item in result])
+
+    def test_nested_pi_worktree_session_filters_sibling_and_parent_worktrees_dir(self) -> None:
+        wt_foo = self.main / ".pi" / "worktrees" / "foo"
+        wt_bar = self.main / ".pi" / "worktrees" / "bar"
+        for name in ("foo", "bar"):
+            subprocess.run(["git", "worktree", "add", f".pi/worktrees/{name}", "-b", f"branch-{name}"],
+                           cwd=self.main, capture_output=True, text=True, check=True)
+
+        self.assertFalse(self.is_foreign("src/index.ts", wt_foo))
+        self.assertFalse(self.is_foreign("README.md", wt_foo))
+        self.assertTrue(self.is_foreign("../bar/src/index.ts", wt_foo))
+        self.assertTrue(self.is_foreign("../../.pi/worktrees", wt_foo))
+        self.assertTrue(self.is_foreign("../../.pi/worktrees/", wt_foo))
+        self.assertTrue(self.is_foreign("../../README.md", wt_foo))
 
     def test_bare_repository_session_filters_linked_worktrees(self) -> None:
         source = self.base / "bare-source"

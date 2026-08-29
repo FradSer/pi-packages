@@ -18,7 +18,7 @@ import {
 } from "./console-viewport.ts";
 import { fitTeammateRow, formatTeammateLabel, runningTeammateActivity } from "./activity.ts";
 import { MODEL_INHERIT_ALIAS, discoverAgents, resolveAgent, type AgentDefinition } from "./agents.ts";
-import { getState, getTeammate, getTeamDefaultModel, listTasks, listTeammates, livingTeammates, setTeamDefaultModel } from "./state.ts";
+import { getPeerDeliveryState, getState, getTeammate, getTeamDefaultModel, listTasks, listTeammates, livingTeammates, setTeamDefaultModel } from "./state.ts";
 import {
   currentLeaderModelRef,
   ensureLivePoll,
@@ -135,6 +135,7 @@ function cap(text: string | undefined, maxBytes = 2000): string {
 // ── Detail builders ───────────────────────────────────────────────
 
 interface PeerMailLine {
+  id: string;
   direction: "sent" | "received";
   counterpart: string;
   subject: string;
@@ -168,6 +169,7 @@ function readPeerMail(teammateName: string): PeerMailLine[] {
         if (!message.id || !message.from || !message.subject) continue;
         if (message.from !== teammateName && recipient !== teammateName) continue;
         lines.push({
+          id: message.id,
           direction: message.from === teammateName ? "sent" : "received",
           counterpart: message.from === teammateName ? recipient : message.from,
           subject: message.subject,
@@ -219,7 +221,8 @@ function buildTeammateDetail(name: string): string[] {
   lines.push("", `== reports to leader (${reports.length}) ==`);
   if (reports.length === 0) lines.push("  (none)");
   for (const report of reports) {
-    lines.push(`  -> [${report.subject}] ${new Date(report.timestamp).toLocaleString()}`, ...indent(cap(report.body)), "");
+    const archive = report.archived ? " · archived after shutdown" : "";
+    lines.push(`  ->${archive} [${report.subject}] ${new Date(report.timestamp).toLocaleString()}`, ...indent(cap(report.body)), "");
   }
 
   const peer = readPeerMail(name);
@@ -227,7 +230,10 @@ function buildTeammateDetail(name: string): string[] {
   if (peer.length === 0) lines.push("  (none)");
   for (const mail of peer) {
     const arrow = mail.direction === "sent" ? `to @${mail.counterpart}` : `from @${mail.counterpart}`;
-    lines.push(`  ${arrow} [${mail.subject}] ${new Date(mail.timestamp).toLocaleString()}`, ...indent(cap(mail.body)), "");
+    const routing = mail.direction === "sent"
+      ? getPeerDeliveryState(mail.id) ?? "written"
+      : "received";
+    lines.push(`  ${arrow} · ${routing} [${mail.subject}] ${new Date(mail.timestamp).toLocaleString()}`, ...indent(cap(mail.body)), "");
   }
   return lines;
 }

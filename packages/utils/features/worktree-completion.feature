@@ -13,11 +13,17 @@ Feature: git worktree-aware @ completions
     When the built-in provider suggests "../wt-b/src/index.ts"
     Then the suggestion is dropped
 
-  Scenario: A linked worktree hides sibling worktrees and the main checkout
-    Given a git repository with linked worktrees at wt-b and wt-c
-    And a pi session running inside wt-b
-    When the built-in provider suggests "../../<main>/README.md" or "../wt-c/src/index.ts"
-    Then both suggestions are dropped
+  Scenario: Main checkout hides .pi/worktrees directory and its contents
+    Given a git repository with or without linked worktrees
+    And a pi session running in the repository root
+    When the built-in provider suggests ".pi/worktrees", ".pi/worktrees/", or ".pi/worktrees/foo/src/index.ts"
+    Then all of those suggestions are dropped
+
+  Scenario: A linked worktree hides sibling worktrees, parent worktrees dir, and the main checkout
+    Given a git repository with linked worktrees at .pi/worktrees/foo and .pi/worktrees/bar
+    And a pi session running inside .pi/worktrees/foo
+    When the built-in provider suggests "../../README.md", "../bar/src/index.ts", or "../../.pi/worktrees"
+    Then all of those suggestions are dropped
 
   Scenario: Own worktree paths stay visible
     Given a pi session running inside a linked worktree

@@ -1,5 +1,12 @@
 # @fradser/pi-plan-mode
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @fradser/pi-kit@0.4.1
+
 ## 0.1.3
 
 ### Patch Changes

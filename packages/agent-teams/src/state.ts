@@ -19,6 +19,8 @@ import { nonEmpty } from "@fradser/pi-kit";
 export const MAX_LEADER_MAILBOX_MESSAGES = 4096;
 /** FIFO cap of remembered peer message ids per inbox (dedup guard). */
 export const MAX_PEER_DELIVERED_IDS = 512;
+/** Bounded forensic routing history; mailbox files retain the full peer transcript. */
+export const MAX_PEER_DELIVERY_STATES = 4096;
 export const MAX_TASK_DEPENDENCIES = 32;
 
 function emptyState(): TeamState {
@@ -31,6 +33,7 @@ function emptyState(): TeamState {
     workerEventIds: {},
     peerInboxOffsets: {},
     peerDeliveredIds: {},
+    peerDeliveryStates: {},
   };
 }
 
@@ -186,7 +189,7 @@ export function deliverToLeader(msg: Omit<MailboxMessage, "id" | "timestamp">): 
 }
 
 /** Apply a validated report event exactly once by event id. */
-export function receiveWorkerMessage(event: WorkerReportEvent): boolean {
+export function receiveWorkerMessage(event: WorkerReportEvent, options?: { archived?: boolean }): boolean {
   const sender = getTeammate(event.worker);
   if (!sender || sender.spawnId !== event.spawnId) return false;
   if (state.leaderMailbox.some((message) => message.id === event.id)) return false;
@@ -196,6 +199,7 @@ export function receiveWorkerMessage(event: WorkerReportEvent): boolean {
     subject: messageTitle(event.body),
     body: event.body,
     status: event.status,
+    archived: options?.archived,
     // Keep the authored-at moment so console ordering reflects when the
     // teammate spoke, not when the leader happened to drain the outbox.
     timestamp: event.timestamp ?? Date.now(),
@@ -228,6 +232,22 @@ export function getPeerInboxOffset(inboxName: string): number {
 export function setPeerInboxOffset(inboxName: string, offset: number): void {
   state.peerInboxOffsets[inboxName] = offset;
   markStateDirty();
+}
+
+/** Record only the harness-controlled routing transition, never recipient read. */
+export function setPeerDeliveryState(messageId: string, routing: "queued" | "routed"): void {
+  state.peerDeliveryStates ??= {};
+  if (!(messageId in state.peerDeliveryStates)
+    && Object.keys(state.peerDeliveryStates).length >= MAX_PEER_DELIVERY_STATES) {
+    const oldest = Object.keys(state.peerDeliveryStates)[0];
+    if (oldest) delete state.peerDeliveryStates[oldest];
+  }
+  state.peerDeliveryStates[messageId] = routing;
+  markStateDirty();
+}
+
+export function getPeerDeliveryState(messageId: string): "queued" | "routed" | undefined {
+  return state.peerDeliveryStates?.[messageId];
 }
 
 // ── Board: creation and queries ───────────────────────────────────

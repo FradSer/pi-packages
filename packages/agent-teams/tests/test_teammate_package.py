@@ -377,6 +377,30 @@ def test_wake_prompt_composes_deliveries_and_paced_notice() -> None:
     assert payload["paceMs"] == 5 * 60 * 1000
 
 
+def test_direct_kickoff_executes_without_checking_task_list() -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Direct kickoff tasks execute immediately without querying the task board" in feature
+    guidance = source("guidance.ts")
+    assert "When you have an assigned task" in guidance
+    assert "without calling task_list" in guidance
+
+    payload = run_node(
+        f'''\
+        import {{ buildKickoffPrompt }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const withTask = buildKickoffPrompt("w1", "worker", "role", "implement feature X", "none");
+        const withoutTask = buildKickoffPrompt("w1", "worker", "role", undefined, "none");
+        console.log(JSON.stringify({{
+          withTaskHasDirectInstruction: withTask.includes("Execute this assigned task directly. Do not call task_list"),
+          withTaskHasBody: withTask.includes("implement feature X"),
+          withoutTaskChecksBoard: withoutTask.includes("check the task board with task_list and claim suitable work with task_claim"),
+        }}));
+        '''
+    )
+    assert payload["withTaskHasDirectInstruction"] is True
+    assert payload["withTaskHasBody"] is True
+    assert payload["withoutTaskChecksBoard"] is True
+
+
 def test_notice_pacing_defaults_to_minutes_and_is_configurable() -> None:
     default_payload = run_node(
         f'''\
@@ -1172,6 +1196,30 @@ def test_follow_up_queue_serializes_and_retries_with_backoff() -> None:
     )
     assert payload["dispatchedTwice"] is True
     assert payload["failuresObserved"] is True
+
+
+def test_follow_up_queue_archives_stopped_spawn_reports_before_dispatch() -> None:
+    payload = run_node(
+        f'''\
+        import {{ FollowUpQueue }} from "{(SRC / "follow-up-queue.ts").as_uri()}";
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const dispatches = [];
+        const queue = new FollowUpQueue({{
+          isIdle: () => true,
+          prepareOnDispatch: true,
+          dispatch: (reports) => dispatches.push(reports.map((report) => report.body).join(",")),
+        }});
+        queue.enqueue({{ teammate: "late", spawnId: "old", body: "late report" }});
+        queue.archiveSpawn("old");
+        await sleep(10);
+        console.log(JSON.stringify({{
+          noDispatch: dispatches.length === 0,
+          pendingEmpty: queue.pendingCount === 0,
+          archived: queue.archivedCount,
+        }}));
+        '''
+    )
+    assert payload == {"noDispatch": True, "pendingEmpty": True, "archived": 1}
 
 
 def test_follow_up_queue_dispatches_each_report_as_its_own_turn() -> None:

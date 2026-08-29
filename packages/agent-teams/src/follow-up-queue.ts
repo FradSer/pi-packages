@@ -106,6 +106,10 @@ export class FollowUpQueue {
   private watchdogTimer: ReturnType<typeof setTimeout> | undefined;
   private generation = 0;
   private deadLetter: FollowUpReport[] = [];
+  /** Reports suppressed after their teammate was intentionally stopped. They
+   * remain inspectable in runtime diagnostics but never begin a leader turn. */
+  private archived: FollowUpReport[] = [];
+  private archivedSpawnIds = new Set<string>();
 
   constructor(options: FollowUpQueueOptions) {
     this.isIdle = options.isIdle;
@@ -119,8 +123,29 @@ export class FollowUpQueue {
   }
 
   enqueue(report: FollowUpReport): void {
+    if (report.spawnId && this.archivedSpawnIds.has(report.spawnId)) {
+      this.archived.push(report);
+      return;
+    }
     this.pending.push({ reports: [report], attempts: 0, retrying: false });
     this.schedulePump();
+  }
+
+  /** Archive pending reports from one stopped spawn before they can wake the leader.
+   * A dispatch already accepted by Pi cannot be retracted, so it is deliberately
+   * left alone; this method only changes transitions the harness still owns. */
+  archiveSpawn(spawnId: string): FollowUpReport[] {
+    this.archivedSpawnIds.add(spawnId);
+    const moved: FollowUpReport[] = [];
+    for (const batch of this.pending) {
+      const retained = batch.reports.filter((report) => report.spawnId !== spawnId);
+      const archived = batch.reports.filter((report) => report.spawnId === spawnId);
+      this.archived.push(...archived);
+      moved.push(...archived);
+      batch.reports = retained;
+    }
+    this.pending = this.pending.filter((batch) => batch.reports.length > 0);
+    return moved;
   }
 
   /** Match the active dispatch to the prompt that Pi is about to start. */
@@ -148,6 +173,8 @@ export class FollowUpQueue {
     this.generation++;
     this.pending = [];
     this.deadLetter = [];
+    this.archived = [];
+    this.archivedSpawnIds.clear();
     this.active = undefined;
     this.pumpScheduled = false;
     this.clearRetryTimer();
@@ -161,6 +188,14 @@ export class FollowUpQueue {
 
   get deadLetterCount(): number {
     return this.deadLetter.length;
+  }
+
+  get archivedCount(): number {
+    return this.archived.length;
+  }
+
+  archivedReportsFor(spawnId: string): FollowUpReport[] {
+    return this.archived.filter((report) => report.spawnId === spawnId);
   }
 
   private schedulePump(): void {
