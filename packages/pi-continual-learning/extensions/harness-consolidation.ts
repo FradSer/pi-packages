@@ -28,7 +28,7 @@ import {
   MAX_STDOUT_BYTES,
   type ConsolidationRun,
 } from "./consolidation-run";
-import { DEFAULT_POLICIES, mergeLayers } from "./guardrail-engine";
+import { DEFAULT_POLICIES, mergeLayers, validatePolicyDeclaration } from "./guardrail-engine";
 import { configPaths, loadLayers } from "./guardrail-config";
 
 export const HARNESS_PLAN_KIND = "harness-consolidation-plan";
@@ -134,14 +134,14 @@ export function validateHarnessPlan(plan: unknown): string[] {
       errors.push(`${label}.policy must be an object`);
       return;
     }
-    const policyBytes = Buffer.byteLength(JSON.stringify(op.policy), "utf8");
+    const policy = { ...op.policy, name: op.name };
+    const policyBytes = Buffer.byteLength(JSON.stringify(policy), "utf8");
     if (policyBytes > MAX_POLICY_BYTES) {
       errors.push(`${label}.policy exceeds ${MAX_POLICY_BYTES} bytes`);
       return;
     }
-    if (op.policy.action !== "block" && op.policy.action !== "confirm") errors.push(`${label}.policy.action must be "block" or "confirm"`);
-    if (!Array.isArray(op.policy.patterns) || !(op.policy.patterns as unknown[]).every((x) => typeof x === "string")) {
-      errors.push(`${label}.policy.patterns must be an array of strings`);
+    for (const policyError of validatePolicyDeclaration(policy)) {
+      errors.push(`${label}.policy ${policyError}`);
     }
   });
   // Evidence grounding: every operation index needs at least one citation.

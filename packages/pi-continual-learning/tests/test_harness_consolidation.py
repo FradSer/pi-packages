@@ -107,6 +107,20 @@ def test_oversized_policy_payload_is_rejected() -> None:
     assert any("8192 bytes" in e for e in errs)
 
 
+def test_policy_operations_require_runtime_supported_schema() -> None:
+    legacy = {
+        "name": "legacy",
+        "action": "confirm",
+        "scope": {"commands": ["node live.mjs"]},
+        "rule": "check first",
+    }
+    errs = validate({
+        "kind": "harness-consolidation-plan",
+        "operations": [{"op": "addPolicy", "name": "legacy", "policy": legacy}],
+    })
+    assert any("unsupported field(s): scope, rule" in error for error in errs)
+
+
 def test_skill_prompt_requires_target_and_prompt() -> None:
     errs = validate(
         {"kind": "harness-consolidation-plan", "operations": [{"op": "addSkillPrompt", "name": "s"}]}

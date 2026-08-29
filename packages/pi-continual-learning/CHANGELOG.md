@@ -1,5 +1,12 @@
 # pi-continual-learning
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @fradser/pi-kit@0.4.1
+
 ## 0.2.0
 
 ### Minor Changes

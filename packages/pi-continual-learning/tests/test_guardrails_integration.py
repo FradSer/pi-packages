@@ -11,7 +11,9 @@ SCENARIOS = """
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { initTheme } from "@earendil-works/pi-coding-agent";
 
+initTheme("dark");
 const out = [];
 function record(name, value) {
   out.push(JSON.stringify({ name, ...value }));
@@ -20,12 +22,24 @@ function record(name, value) {
 // ── mock ExtensionAPI ────────────────────────────────────────────────
 const hooks = {};
 const commands = {};
+const renderers = {};
+const entryRenderers = {};
+const entries = [];
 const pi = {
   on: (name, fn) => {
     (hooks[name] ??= []).push(fn);
   },
   registerCommand: (name, def) => {
     commands[name] = def;
+  },
+  registerMessageRenderer: (name, renderer) => {
+    renderers[name] = renderer;
+  },
+  registerEntryRenderer: (name, renderer) => {
+    entryRenderers[name] = renderer;
+  },
+  appendEntry: (customType, data) => {
+    entries.push({ customType, data });
   },
 };
 
@@ -158,12 +172,21 @@ fs.writeFileSync(
   const denied = await callTool("bash", { command: "wipe--workspace now" }, denyCtx);
   const expiredCtx = { ...baseCtx, hasUI: true, ui: { select: selecting(undefined) } };
   const expired = await callTool("bash", { command: "wipe--workspace now" }, expiredCtx);
+  const lastPolicyEntry = entries.find((e) => e.data?.kind === "policy-matched" && e.data?.outcome === "allowed once");
+  const renderer = entryRenderers["harness-event"];
+  const renderedAllowed = renderer?.(lastPolicyEntry, { expanded: true }, {
+    fg: (_c, t) => t,
+    bg: (_c, t) => t,
+    bold: (t) => t,
+  })?.render(200).join("\\n") ?? "";
   record("confirm-action", {
     headlessBlocked: headless[0]?.block === true && /no UI available/.test(headless[0]?.reason ?? ""),
     dialogBounded: typeof askedTimeout === "number" && Number.isFinite(askedTimeout) && askedTimeout > 0,
     allowedOnce: allowed.length === 0,
     deniedBlocked: denied[0]?.block === true && /user choice/.test(denied[0]?.reason ?? ""),
     timeoutFailsClosed: expired[0]?.block === true && /timed out/.test(expired[0]?.reason ?? ""),
+    entryRecorded: lastPolicyEntry?.data?.policy === "danger-wipe" && lastPolicyEntry?.data?.action === "confirm",
+    entryRenderUsesReason: renderedAllowed.includes("[harness] policy allowed · Destructive workspace wipe needs confirmation") && renderedAllowed.includes("outcome=allowed once"),
   });
 }
 
@@ -291,26 +314,61 @@ await new Promise((r) => setTimeout(r, 20));
   const firstUser = await userHandler(userEvent(), sharedTurnCtx);
   const duplicateUser = await userHandler(userEvent(), sharedTurnCtx);
   const nextTurnUser = await userHandler(userEvent(), { ...baseCtx });
+  const systemEvent = entries.find((e) => e.data?.kind === "skill-prompt" && e.data?.prompt === "inner guidance");
+  const renderer = entryRenderers["harness-event"];
+  const theme = {
+    fg: (_color, text) => text,
+    bg: (_color, text) => text,
+    bold: (text) => text,
+  };
+  const rendered = renderer?.(systemEvent, { expanded: true }, theme)?.render(200).join("\\n") ?? "";
+  const longPrompt = "Live guidance requires one active poller and records every accepted event without truncating the expanded prompt.";
+  const longEvent = {
+    customType: "harness-event",
+    data: {
+      kind: "skill-prompt",
+      skill: "impeccable",
+      target: "system",
+      prompt: longPrompt,
+      source: "project.local",
+      file: path.join(project, ".pi", "harness.local.json"),
+    },
+  };
+  const collapsedRows = renderer?.(longEvent, { expanded: false }, theme)?.render(50) ?? [];
+  const expandedRows = renderer?.(longEvent, { expanded: true }, theme)?.render(50) ?? [];
   record("skill-prompts", {
     projectWins: first.event.systemPrompt === "base system\\n\\ninner guidance",
     idempotent: second.event.systemPrompt === first.event.systemPrompt,
     rawIgnored: raw.event.systemPrompt === "raw system" && raw.results.length === 0,
     malformedIgnored: fake.results.length === 0,
-    userMessage: user.results.length === 1 && user.results[0].message?.content === "user guidance" && user.results[0].message?.display === false,
+    userMessage: user.results.length === 1 && user.results[0].message?.content === "user guidance" && user.results[0].message?.display === false && user.results[0].message?.details?.target === "user",
     userDedupedInTurn: firstUser?.message?.content === "user guidance" && duplicateUser === undefined,
     userReinjectedNextTurn: nextTurnUser?.message?.content === "user guidance",
+    systemEventIsVisible: systemEvent?.customType === "harness-event",
+    systemEventUsesPrompt: systemEvent?.data?.kind === "skill-prompt" && systemEvent?.data?.prompt === "inner guidance",
+    systemEventIdentifiesSource: systemEvent?.data?.source === "project" && systemEvent?.data?.file === path.join(project, ".pi", "harness.json"),
+    systemEventRenderUsesPrompt: rendered.includes("[harness] skill prompt · inner guidance") && rendered.includes("source=project"),
+    expandHintUsesKeybinding: collapsedRows.some((row) => row.toLowerCase().includes("ctrl+o to expand")), 
+    expandedPromptIsComplete: longPrompt.split(" ").every((word) => expandedRows.join("\\n").includes(word)),
   });
 }
 
 // ── S7: /harness command reports surface, headless-safe ───────────
 {
   let notified = "";
+  const messages = [];
   const cmdCtx = { ...baseCtx, ui: { notify: (msg) => (notified = msg) } };
+  pi.sendUserMessage = (content, options) => messages.push({ content, options });
   await commands.harness.handler("", cmdCtx);
+  await commands.harness.handler("Block edits that add hard-coded colors", cmdCtx);
   record("command-surface", {
     listsPolicies: notified.includes("ui-fixed-width") && notified.includes("block-curl-prod"),
     showsPaths: notified.includes("harness.json") && notified.includes(".local"),
     invalidSkillReported: notified.includes("bad--skill") && notified.includes("violates the Pi skill-name rules"),
+    promptRouted: messages.length === 1 && messages[0].options?.deliverAs === "followUp" &&
+      messages[0].content.includes("Block edits that add hard-coded colors") &&
+      messages[0].content.includes(path.join(agentDir, "harness.local.json")) &&
+      !messages[0].content.includes(path.join(project, ".pi", "harness.local.json")),
   });
 }
 
@@ -351,6 +409,7 @@ def test_s3_confirm_action_headless_interactive_and_bounded() -> None:
     s = ALL["confirm-action"]
     assert s["headlessBlocked"] and s["dialogBounded"]
     assert s["allowedOnce"] and s["deniedBlocked"] and s["timeoutFailsClosed"]
+    assert s["entryRecorded"] and s["entryRenderUsesReason"]
 
 
 def test_s4_standard_agent_dir_user_layer_disable_and_extend() -> None:
@@ -368,8 +427,12 @@ def test_s6_skill_prompts_are_layered_and_idempotent() -> None:
     assert s["projectWins"] and s["idempotent"]
     assert s["rawIgnored"] and s["malformedIgnored"] and s["userMessage"]
     assert s["userDedupedInTurn"] and s["userReinjectedNextTurn"]
+    assert s["systemEventIsVisible"] and s["systemEventUsesPrompt"]
+    assert s["systemEventIdentifiesSource"] and s["systemEventRenderUsesPrompt"]
+    assert s["expandHintUsesKeybinding"] and s["expandedPromptIsComplete"]
 
 
-def test_s7_command_reports_surface() -> None:
+def test_s7_command_reports_surface_and_routes_prompt() -> None:
     s = ALL["command-surface"]
     assert s["listsPolicies"] and s["showsPaths"] and s["invalidSkillReported"]
+    assert s["promptRouted"]

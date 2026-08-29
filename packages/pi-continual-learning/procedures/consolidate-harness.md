@@ -46,6 +46,20 @@ the approximate occurrence count). Never propose an operation from
 parametric plausibility alone. Propose nothing when the evidence does not
 clearly generalize beyond a one-off accident.
 
+## Policy declaration contract
+
+For `addPolicy` and `updatePolicy`, the `policy` object must use only these
+runtime-supported fields: `name`, `tools`, `paths`, `pattern`, `patterns`,
+`require`, `action`, and `reason`. Use exactly one non-empty `pattern` string or
+non-empty `patterns` string array; `tools` and `paths` are optional string
+arrays. A `require` gate, when present, has a required `pattern` and optional
+`path`, for example `{ "path": "...", "pattern": "..." }`.
+Do not use legacy or descriptive-only fields such as `scope` or `rule`: they do
+not affect tool-call evaluation and will be rejected by the parent validator.
+`reason` is the corrective guidance shown when a policy blocks or asks for
+confirmation. Guardrails only decide whether a matching tool call is blocked or
+confirmed; they do not execute multi-step checks or repair a runtime.
+
 ## Bounds
 
 At most 12 operations total. Each `policy` payload must stay under 8 KiB of

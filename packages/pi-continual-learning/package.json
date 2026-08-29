@@ -1,6 +1,6 @@
 {
   "name": "pi-continual-learning",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Continual learning for Pi at the harness and prompt surfaces — declarative tool-call guardrails plus memory retrieval, injection, and consolidation. Model weights are out of scope.",
   "keywords": [
     "pi-package",

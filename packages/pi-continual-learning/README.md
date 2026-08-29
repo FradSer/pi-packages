@@ -23,12 +23,14 @@ pi install npm:pi-continual-learning
 | --- | --- |
 | `/memory` | Memory management menu: instructions, model, consolidation, settings |
 | `/consolidate` | Consolidate now: memory first, then harness guardrails and project AGENTS.md mined from session history |
-| `/harness` | Show active tool-call guardrails: sources, policies, config paths |
+| `/harness` | Show active tool-call guardrails, or create a global rule from a prompt |
 
 ## Guardrails configuration
 
 Policies layer innermost-last; a policy name defined in several layers
-resolves to the innermost definition, and any layer can disable names:
+resolves to the innermost definition, and any layer can disable names. Every
+policy is validated against the runtime schema before it can become active;
+unknown fields are rejected with a diagnostic rather than silently ignored:
 
 1. Built-in defaults ship with the package.
 2. Pi agent directory `harness.json` (+ `harness.local.json`; defaults to `~/.pi/agent`, honors `PI_CODING_AGENT_DIR`)
@@ -51,11 +53,23 @@ Policy shape:
 }
 ```
 
+Only the declarative policy fields shown above are supported: `name`, `tools`,
+`paths`, `pattern` or `patterns`, optional `require`, `action`, and `reason`.
+Fields such as `scope` and `rule` are not aliases and are rejected. Guardrails
+are tool-call gates: they block or ask for confirmation when a regex matches;
+they do not run multi-step checks, probe services, or repair runtime state.
+
 A generalized example — AI-generated UI widths violating layout rules — ships
 at `examples/ui-width.harness.json`: edits touching UI files that contain
 fixed pixel widths above the threshold are blocked with design guidance, while
 the same text in non-UI files passes through. Drop the file's contents into
 your project `.pi/harness.json` to activate it.
+
+To create a global rule directly, pass a natural-language request: `/harness
+block edits that add hard-coded colors`. The request is sent as a follow-up with
+an explicit write protocol for `~/.pi/agent/harness.local.json`. It reads that
+exact global file, creates it there when missing, preserves existing entries,
+and verifies the result; it does not search for a project-local harness file.
 
 Built-in defaults cover known-futile automation: interactive auth commands
 (`npm/pnpm/yarn login|adduser|logout`) and OTP-via-file/chat routing are

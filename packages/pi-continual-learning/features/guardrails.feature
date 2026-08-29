@@ -19,6 +19,7 @@ Feature: Generic tool-call guardrails from layered config
     When the model invokes bash with a matching command
     Then the call is blocked
     And the block reason names the policy and states the correct procedure
+    And the transcript records a display-only harness policy-blocked event with the policy reason
 
   Scenario: Non-matching calls pass through untouched
     Given the same policy set
@@ -28,9 +29,9 @@ Feature: Generic tool-call guardrails from layered config
   Scenario: Confirm actions defer to the user when UI exists
     Given a policy with the confirm action
     When a matching call arrives in an interactive session
-    Then the user is asked to allow or deny it through a select dialog
-    And choosing Allow once proceeds without blocking
-    And choosing Block returns a block reason naming the user's choice
+    Then the user is asked to allow or deny it through a select dialog with the policy reason
+    And choosing Allow once proceeds without blocking and records a policy-allowed event
+    And choosing Block returns a block reason naming the user's choice and records a policy-blocked event
     And without UI the call is blocked instead of silently allowed
 
   Scenario: An unanswered confirm dialog fails closed after a bounded wait
@@ -64,3 +65,27 @@ Feature: Generic tool-call guardrails from layered config
     When the user runs /harness
     Then the command reports sources, policy names, and the config paths
     And it works headlessly without interactive UI
+
+  Scenario: A /harness prompt creates a global rule
+    Given the user provides a natural-language harness rule request
+    When the user runs /harness with that request
+    Then the command sends one follow-up with an explicit file-creation protocol
+    And the protocol targets only ~/.pi/agent/harness.local.json
+    And a missing target is initialized there instead of being searched for elsewhere
+    And it preserves existing rules and asks the agent to verify the resulting JSON
+
+  Scenario: A matching skill prompt records the applied prompt in the transcript
+    Given a project-local skill prompt for an expanded skill
+    When the skill prompt is injected into the system prompt
+    Then the transcript records a display-only harness skill-prompt event with the actual prompt as its subject
+    And the event details identify its target, configuration layer, and configuration file
+    And the collapsed event does not substitute the configuration filename for the prompt
+    And its standard expand-key hint remains visible when the prompt is truncated
+    And expansion wraps the complete prompt rather than truncating it
+
+  Scenario: Unsupported policy fields are rejected with actionable schema diagnostics
+    Given a policy uses legacy scope and rule fields instead of declarative fields
+    When the guardrail configuration is loaded
+    Then the malformed policy is skipped
+    And the diagnostic names the unsupported fields and the accepted tools, paths, pattern, action, and reason fields
+    And a valid declarative policy in the same layer remains active

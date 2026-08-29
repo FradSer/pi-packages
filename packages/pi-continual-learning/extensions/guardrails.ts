@@ -10,7 +10,11 @@
  */
 
 import fs from "node:fs";
+import type { Stats } from "node:fs";
+import path from "node:path";
 import { parseSkillBlock, type ExtensionAPI, type BeforeAgentStartEvent } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { eventToolLifecycle, renderToolLifecycle, safeDisplayText } from "@fradser/pi-kit";
 import { DEFAULT_POLICIES, evaluate, mergeLayers } from "./guardrail-engine.ts";
 import { configPaths, loadLayers } from "./guardrail-config.ts";
 import type { PolicyLayer, ResolvedConfig } from "./guardrail-types.ts";
@@ -18,6 +22,43 @@ import type { PolicyLayer, ResolvedConfig } from "./guardrail-types.ts";
 interface ResolvedWithPaths {
   config: ResolvedConfig;
   paths: ReturnType<typeof configPaths>;
+}
+
+interface HarnessSkillPromptEvent {
+  kind: "skill-prompt";
+  skill: string;
+  target: "system" | "user";
+  prompt: string;
+  source: string;
+  file: string;
+}
+
+interface HarnessPolicyEvent {
+  kind: "policy-matched";
+  policy: string;
+  action: "block" | "confirm";
+  tool: string;
+  reason: string;
+  outcome: "allowed once" | "blocked by rule" | "blocked by user choice" | "blocked: confirmation timed out" | "no UI available to confirm";
+  source: string;
+  file: string;
+}
+
+type HarnessEventData = HarnessSkillPromptEvent | HarnessPolicyEvent;
+
+function harnessSourcePath(source: string | undefined, paths: ReturnType<typeof configPaths>): string {
+  switch (source) {
+    case "user":
+      return paths.user;
+    case "user.local":
+      return paths.userLocal;
+    case "project":
+      return paths.project;
+    case "project.local":
+      return paths.projectLocal;
+    default:
+      return "(built-in)";
+  }
 }
 
 function defaultLayer(): PolicyLayer {
@@ -32,10 +73,79 @@ function appendSystemGuidance(systemPrompt: string, guidance: string): string {
   return systemPrompt ? `${systemPrompt}\n\n${guidance}` : guidance;
 }
 
+async function readGlobalHarnessTarget(targetFile: string): Promise<Buffer | null> {
+  let stat: Stats;
+  try {
+    stat = await fs.promises.lstat(targetFile);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+  if (stat.isSymbolicLink() || !stat.isFile()) {
+    throw new Error(`Global harness target is not a regular file: ${targetFile}`);
+  }
+  return fs.promises.readFile(targetFile);
+}
+
+export async function ensureGlobalHarnessTarget(targetFile: string): Promise<{ path: string; created: boolean }> {
+  const existing = await readGlobalHarnessTarget(targetFile);
+  if (existing) return { path: targetFile, created: false };
+
+  await fs.promises.mkdir(path.dirname(targetFile), { recursive: true });
+  const initial = `${JSON.stringify({ policies: [], disabled: [], skillPrompts: {} }, null, 2)}\n`;
+  let handle: fs.promises.FileHandle | undefined;
+  let created = false;
+  try {
+    handle = await fs.promises.open(targetFile, "wx", 0o600);
+    await handle.writeFile(initial, "utf8");
+    await handle.sync();
+    created = true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  } finally {
+    await handle?.close().catch(() => {});
+  }
+
+  const verified = await readGlobalHarnessTarget(targetFile);
+  if (!verified) throw new Error(`Global harness target could not be read after initialization: ${targetFile}`);
+  try {
+    const parsed = JSON.parse(verified.toString("utf8")) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error(`Global harness target is not a JSON object: ${targetFile}`);
+    }
+  } catch (error) {
+    throw new Error(`Global harness target could not be verified: ${(error as Error).message}`);
+  }
+  return { path: targetFile, created };
+}
+
+export function buildHarnessRulePrompt(request: string, targetFile: string): string {
+  return [
+    "Create or update one global Pi harness rule from the user's request below. This is an explicit write task, not a research task.",
+    "",
+    `User request: ${request}`,
+    "",
+    "Required creation protocol:",
+    `- The only allowed target is ${targetFile}, the global personal harness.local.json. Do not modify project harness files, the shared harness.json, memory, or unrelated files.`,
+    `- Treat ${targetFile} as authoritative. Do not use find, fffind, grep, rg, read-directory, or any other discovery step to locate a different harness file.`,
+    `- Execute this exact sequence: read ${targetFile} directly; if it is missing, immediately call the write tool with path=${targetFile}; then read ${targetFile} again to verify it.`,
+    `- If ${targetFile} returns ENOENT, create it at that exact path instead of searching elsewhere. The write tool creates missing parent directories.`,
+    `- For a missing target, write this complete initial JSON object before adding the requested rule: {"policies":[],"disabled":[],"skillPrompts":{}}.`,
+    "- Preserve every existing policy, disabled entry, and skill prompt, and make the smallest change that satisfies the request.",
+    "- Translate the request into a concrete declarative policy or skillPrompts entry with a stable, descriptive name.",
+    "- A policy may use only name, tools, paths, pattern or patterns, optional require, action, and reason. Do not write scope or rule: those fields are unsupported and the policy will be rejected.",
+    "- Guardrails are regex-based tool-call gates only: use action=block or action=confirm with a reason; do not represent runtime probes, token checks, process cleanup, or any multi-step automation as policy behavior.",
+    "- Keep the rule narrowly scoped to the requested tools, argument paths, and content; choose block or confirm deliberately.",
+    `- Write the complete valid JSON back to ${targetFile}, then read that same path back and verify the resulting structure and behavior. Do not stop after describing the rule.`,
+    "- If the request is ambiguous or cannot be represented safely, explain the issue instead of guessing or changing a different file.",
+    "- Do not merely explain what should be done: perform the change and report the exact rule name and file changed.",
+  ].join("\n");
+}
+
 export function skillPromptTarget(
   event: Pick<BeforeAgentStartEvent, "prompt">,
   config: ResolvedConfig,
-): { name: string; prompt: string; target: "system" | "user" } | undefined {
+): { name: string; prompt: string; target: "system" | "user"; source?: string } | undefined {
   const skill = parseSkillBlock(event.prompt);
   if (!skill) return undefined;
   const guidance = config.skillPrompts[skill.name];
@@ -74,17 +184,95 @@ function resolveConfig(cwd: string, agentDir?: string): ResolvedWithPaths {
 }
 
 export default function registerGuardrails(pi: ExtensionAPI) {
+  pi.registerEntryRenderer("harness-event", (entry, { expanded }, theme) => {
+    const details = entry.data as HarnessEventData | undefined;
+    if (details?.kind === "policy-matched") {
+      const reason = safeDisplayText(details.reason);
+      const isAllowed = details.outcome === "allowed once";
+      const label = details.action === "confirm"
+        ? (isAllowed ? "policy allowed" : "policy blocked")
+        : "policy blocked";
+      return {
+        render: (width) => {
+          const detailWidth = Math.max(1, width - 2);
+          const event = eventToolLifecycle("harness", reason, {
+            label,
+            details: [
+              `policy=${details.policy}`,
+              `action=${details.action}`,
+              `outcome=${details.outcome}`,
+              `tool=${details.tool}`,
+              `source=${details.source}`,
+              `file=${details.file}`,
+              "",
+              "reason:",
+              ...wrapTextWithAnsi(reason, detailWidth),
+            ],
+          });
+          return renderToolLifecycle(event, {
+            width,
+            expanded,
+            expandHint: "ctrl+o to expand",
+            theme,
+            fit: truncateToWidth,
+            visibleWidth,
+          });
+        },
+        invalidate: () => {},
+      };
+    }
+
+    const prompt = safeDisplayText(details?.prompt);
+    return {
+      render: (width) => {
+        const detailWidth = Math.max(1, width - 2);
+        const event = eventToolLifecycle("harness", prompt, {
+          label: details?.kind === "skill-prompt" ? "skill prompt" : "event",
+          details: details
+            ? [
+                `skill=${details.skill}`,
+                `target=${details.target}`,
+                `source=${details.source}`,
+                `file=${details.file}`,
+                "",
+                "prompt:",
+                ...wrapTextWithAnsi(prompt, detailWidth),
+              ]
+            : undefined,
+        });
+        return renderToolLifecycle(event, {
+          width,
+          expanded,
+          expandHint: "ctrl+o to expand",
+          theme,
+          fit: truncateToWidth,
+          visibleWidth,
+        });
+      },
+      invalidate: () => {},
+    };
+  });
+
   pi.on("before_agent_start", (event, ctx) => {
     const cwd = ctx.cwd || process.cwd();
-    const { config } = resolveConfig(cwd);
+    const { config, paths } = resolveConfig(cwd);
     const matched = skillPromptTarget(event, config);
     if (!matched) return undefined;
+    if (matched.target === "user" && injectedUserPromptContexts.has(ctx)) return undefined;
+    if (matched.target === "user") injectedUserPromptContexts.add(ctx);
+    const details: HarnessSkillPromptEvent = {
+      kind: "skill-prompt",
+      skill: matched.name,
+      target: matched.target,
+      prompt: matched.prompt,
+      source: matched.source ?? "unknown",
+      file: harnessSourcePath(matched.source, paths),
+    };
+    pi.appendEntry("harness-event", details);
 
     if (matched.target === "system") {
       return { systemPrompt: appendSystemGuidance(event.systemPrompt, matched.prompt) };
     }
-    if (injectedUserPromptContexts.has(ctx)) return undefined;
-    injectedUserPromptContexts.add(ctx);
     return {
       message: {
         customType: "skill-prompt-guidance",
@@ -97,39 +285,98 @@ export default function registerGuardrails(pi: ExtensionAPI) {
 
   pi.on("tool_call", async (event, ctx) => {
     const cwd = ctx.cwd || process.cwd();
-    const { config } = resolveConfig(cwd);
+    const { config, paths } = resolveConfig(cwd);
     const decision = evaluate(config, {
       toolName: event.toolName,
       args: (event.input ?? {}) as Record<string, unknown>,
     });
     if (!decision) return undefined;
 
+    const source = decision.source ?? "unknown";
+    const file = harnessSourcePath(decision.source, paths);
+    const cleanReason = decision.cleanReason ?? decision.reason;
+
     if (decision.action === "confirm") {
       if (!ctx.hasUI) {
+        pi.appendEntry("harness-event", {
+          kind: "policy-matched",
+          policy: decision.policyName,
+          action: "confirm",
+          tool: event.toolName,
+          reason: cleanReason,
+          outcome: "no UI available to confirm",
+          source,
+          file,
+        });
         return { block: true, reason: `${decision.reason}\n(no UI available to confirm)` };
       }
       const choice = await ctx.ui.select(
-        `harness: ${decision.policyName}\n\nAllow this call?`,
+        `harness: ${decision.policyName}\n\n${cleanReason}\n\nAllow this call?`,
         ["Allow once", "Block"],
         { timeout: GUARDRAILS_CONFIRM_TIMEOUT_MS },
       );
-      if (choice === "Allow once") return undefined;
+      if (choice === "Allow once") {
+        pi.appendEntry("harness-event", {
+          kind: "policy-matched",
+          policy: decision.policyName,
+          action: "confirm",
+          tool: event.toolName,
+          reason: cleanReason,
+          outcome: "allowed once",
+          source,
+          file,
+        });
+        return undefined;
+      }
       // select resolves undefined on timeout — the same fail-closed outcome
       // as an explicit Block, with a reason that says which happened.
       const timedOut = choice === undefined;
+      const outcome = timedOut ? "blocked: confirmation timed out" : "blocked by user choice";
+      pi.appendEntry("harness-event", {
+        kind: "policy-matched",
+        policy: decision.policyName,
+        action: "confirm",
+        tool: event.toolName,
+        reason: cleanReason,
+        outcome,
+        source,
+        file,
+      });
       return {
         block: true,
-        reason: `${decision.reason}\n(${timedOut ? "blocked: confirmation timed out" : "blocked by user choice"})`,
+        reason: `${decision.reason}\n(${outcome})`,
       };
     }
 
+    pi.appendEntry("harness-event", {
+      kind: "policy-matched",
+      policy: decision.policyName,
+      action: "block",
+      tool: event.toolName,
+      reason: cleanReason,
+      outcome: "blocked by rule",
+      source,
+      file,
+    });
     return { block: true, reason: decision.reason };
   });
 
   pi.registerCommand("harness", {
-    description: "Show active tool-call guardrails: sources, policies, config paths",
-    handler: async (_args, ctx) => {
+    description: "Show active guardrails or create a global rule from a prompt",
+    handler: async (rawArgs, ctx) => {
+      const request = rawArgs.trim();
       const cwd = ctx.cwd || process.cwd();
+      if (request) {
+        const targetFile = configPaths(cwd).userLocal;
+        try {
+          await ensureGlobalHarnessTarget(targetFile);
+        } catch (error) {
+          ctx.ui.notify(`Cannot prepare global harness target: ${(error as Error).message}`, "error");
+          return;
+        }
+        pi.sendUserMessage(buildHarnessRulePrompt(request, targetFile), { deliverAs: "followUp" });
+        return;
+      }
       const { config, paths } = resolveConfig(cwd);
       const lines = [
         `policies: ${config.policies.length ? config.policies.map((p) => p.name).join(", ") : "(none)"}`,

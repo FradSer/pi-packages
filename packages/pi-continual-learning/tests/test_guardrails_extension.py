@@ -126,6 +126,117 @@ def test_innermost_policy_definition_wins() -> None:
     assert "inner reason" in str(hit_inner["reason"])
 
 
+def test_harness_prompt_routes_a_direct_global_rule_request() -> None:
+    source = """
+        import { buildHarnessRulePrompt } from './packages/pi-continual-learning/extensions/guardrails.ts';
+        console.log(JSON.stringify(buildHarnessRulePrompt('Block edits that add hard-coded colors', '/tmp/agent/harness.local.json')));
+    """
+    result = run_bun(source)
+    prompt = result
+    assert 'Block edits that add hard-coded colors' in str(prompt)
+    assert '/tmp/agent/harness.local.json' in str(prompt)
+    assert 'global Pi harness rule' in str(prompt)
+    assert 'Preserve every existing policy' in str(prompt)
+    assert 'Do not use find, fffind, grep, rg, read-directory, or any other discovery step' in str(prompt)
+    assert 'Execute this exact sequence' in str(prompt)
+    assert 'returns ENOENT' in str(prompt)
+    assert 'Do not merely explain' in str(prompt)
+    assert 'Do not write scope or rule' in str(prompt)
+    assert 'tool-call gates only' in str(prompt)
+
+
+def test_global_harness_target_initializes_exact_path_and_preserves_existing(tmp_path: Path) -> None:
+    missing = tmp_path / 'agent' / 'harness.local.json'
+    existing = tmp_path / 'existing' / 'harness.local.json'
+    existing.parent.mkdir()
+    original = {
+        'policies': [{'name': 'keep', 'pattern': 'keep', 'action': 'block', 'reason': 'keep'}],
+        'disabled': ['disabled-rule'],
+        'skillPrompts': {'review': {'prompt': 'keep this', 'target': 'system'}},
+        'custom': {'preserve': True},
+    }
+    existing.write_text(json.dumps(original), encoding='utf-8')
+    source = f"""
+        import fs from 'node:fs/promises';
+        import {{ ensureGlobalHarnessTarget }} from './packages/pi-continual-learning/extensions/guardrails.ts';
+        const missing = await ensureGlobalHarnessTarget({json.dumps(str(missing))});
+        const before = await fs.readFile({json.dumps(str(existing))}, 'utf8');
+        const reused = await ensureGlobalHarnessTarget({json.dumps(str(existing))});
+        const after = await fs.readFile({json.dumps(str(existing))}, 'utf8');
+        console.log(JSON.stringify({{
+          created: missing.created,
+          missingPath: missing.path,
+          initialized: JSON.parse(await fs.readFile({json.dumps(str(missing))}, 'utf8')),
+          reused: reused.created,
+          preservedBytes: before === after,
+          preserved: JSON.parse(after),
+        }}));
+    """
+    result = run_bun(source)
+    assert result['created'] is True
+    assert result['missingPath'] == str(missing)
+    assert result['initialized'] == {'policies': [], 'disabled': [], 'skillPrompts': {}}
+    assert result['reused'] is False
+    assert result['preservedBytes'] is True
+    assert result['preserved'] == original
+
+
+def test_global_harness_target_rejects_symlinks(tmp_path: Path) -> None:
+    target = tmp_path / 'harness.local.json'
+    outside = tmp_path / 'outside.json'
+    outside.write_text('{}', encoding='utf-8')
+    target.symlink_to(outside)
+    source = f"""
+        import {{ ensureGlobalHarnessTarget }} from './packages/pi-continual-learning/extensions/guardrails.ts';
+        try {{ await ensureGlobalHarnessTarget({json.dumps(str(target))}); console.log(JSON.stringify({{ rejected: false }})); }}
+        catch (error) {{ console.log(JSON.stringify({{ rejected: /regular file/.test(String(error)) }})); }}
+    """
+    result = run_bun(source)
+    assert result['rejected'] is True
+
+
+def test_legacy_scope_and_rule_fields_are_rejected_with_schema_guidance() -> None:
+    legacy = {
+        "name": "impeccable-live-runtime-stability",
+        "action": "confirm",
+        "scope": {"commands": ["node live.mjs"]},
+        "rule": "verify the live server before restarting",
+    }
+    valid = {
+        "name": "valid-live-runtime-stability",
+        "tools": ["bash"],
+        "paths": ["command"],
+        "pattern": r"node\\s+.*live\\.mjs",
+        "action": "confirm",
+        "reason": "Verify the live server before restarting.",
+    }
+    merged = merge_only(json.dumps([{"source": "project", "policies": [legacy, valid]}]))
+    assert "impeccable-live-runtime-stability" not in merged["names"]
+    assert "valid-live-runtime-stability" in merged["names"]
+    diagnostics = " ".join(str(error) for error in merged["errors"])
+    assert "unsupported field(s): scope, rule" in diagnostics
+    assert "tools, paths, pattern, patterns" in diagnostics
+    assert "reason" in diagnostics
+
+
+def test_policy_declaration_requires_one_supported_pattern_form() -> None:
+    source = """
+        import { validatePolicyDeclaration } from './packages/pi-continual-learning/extensions/guardrail-engine.ts';
+        const results = {
+          missing: validatePolicyDeclaration({ name: 'missing' }),
+          both: validatePolicyDeclaration({ name: 'both', pattern: 'a', patterns: ['b'] }),
+          empty: validatePolicyDeclaration({ name: 'empty', patterns: [] }),
+          valid: validatePolicyDeclaration({ name: 'valid', tools: ['bash'], paths: ['command'], pattern: 'live', action: 'confirm', reason: 'check first' }),
+        };
+        console.log(JSON.stringify(results));
+    """
+    result = run_bun(source)
+    assert any("requires a non-empty pattern" in str(error) for error in result["missing"])
+    assert any("not both" in str(error) for error in result["both"])
+    assert any("non-empty array" in str(error) for error in result["empty"])
+    assert result["valid"] == []
+
+
 def test_disabled_names_and_invalid_regex_are_tolerated() -> None:
     layers = json.dumps(
         [
@@ -145,4 +256,4 @@ def test_disabled_names_and_invalid_regex_are_tolerated() -> None:
     assert "bad-paths" not in merged["names"]
     assert "ok" in merged["names"]
     assert any("invalid regex" in str(e) for e in merged["errors"])
-    assert any("non-string tools, paths, or patterns" in str(e) for e in merged["errors"])
+    assert any("paths must be an array of strings" in str(e) for e in merged["errors"])

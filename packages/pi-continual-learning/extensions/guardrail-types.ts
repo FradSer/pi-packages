@@ -31,6 +31,8 @@ export interface SkillPrompt {
   prompt: string;
   /** Where Pi should receive the guidance. */
   target: "system" | "user";
+  /** Configuration layer that supplied this prompt; assigned during merge. */
+  source?: string;
 }
 
 export interface PolicyLayer {
