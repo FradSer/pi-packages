@@ -26,7 +26,7 @@ Run `/context` followed by a natural-language question, repository slug, library
 
 `--method=` accepts `deepwiki,context7,exa,clone,web,all` (comma-separated). With no target, the command reads dependency manifests in the current directory (`package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`) and uses detected dependencies as targets.
 
-The full workflow (target classification, per-method process, fallbacks, selection guide) lives in `references/workflow.md` and is injected into the turn when `/context` runs. Proactive tool-selection guidance is always present in the system prompt: it routes natural-language search requests (e.g. "帮我搜索") to `context_exa` (no API key needed), library/API questions to `context_context7`, and public-repo questions to `context_deepwiki`.
+The full workflow (target classification, per-method process, fallbacks, selection guide) lives in `references/workflow.md` and is injected into the research turn when `/context` runs. Its visible transcript is one expandable `[context] workflow` message: the collapsed row shows only the requested targets and methods; expand it to inspect the full instruction. Proactive tool-selection guidance is always present in the system prompt: it routes natural-language search requests (e.g. "帮我搜索") to `context_exa` (no API key needed), library/API questions to `context_context7`, and public-repo questions to `context_deepwiki`.
 
 ## Runtime requirements
 

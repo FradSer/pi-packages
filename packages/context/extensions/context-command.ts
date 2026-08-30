@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { eventToolLifecycle, renderToolLifecycle } from "@fradser/pi-kit";
 
 const PKG_DIR =
   typeof __dirname === "string"
@@ -13,6 +15,7 @@ const WORKFLOW_PATH = join(PKG_DIR, "..", "references", "workflow.md");
 const METHOD_FLAG = "--method=";
 const ALL_METHODS = ["deepwiki", "context7", "exa", "clone", "web", "all"] as const;
 const MANIFEST_FILES = ["package.json", "pyproject.toml", "go.mod", "Cargo.toml"];
+const CONTEXT_WORKFLOW_MESSAGE_TYPE = "context-workflow";
 
 const CONTEXT_GUIDANCE = `
 ## Context retrieval
@@ -28,6 +31,11 @@ Use these tools proactively — do not answer from memory when a lookup would be
 `;
 
 interface ParsedArgs {
+  targets: string[];
+  methods: string[];
+}
+
+interface ContextWorkflowDetails {
   targets: string[];
   methods: string[];
 }
@@ -87,7 +95,7 @@ function loadWorkflow(): string {
   return readFileSync(WORKFLOW_PATH, "utf8");
 }
 
-function buildUserPrompt(args: ParsedArgs, cwd: string): string {
+function buildWorkflowPrompt(args: ParsedArgs, cwd: string): { prompt: string; details: ContextWorkflowDetails } {
   const workflow = loadWorkflow();
   const targets = args.targets.length > 0 ? args.targets : detectDependencies(cwd);
   const header = [
@@ -99,10 +107,49 @@ function buildUserPrompt(args: ParsedArgs, cwd: string): string {
     "---",
     "",
   ].join("\n");
-  return header + workflow;
+  return { prompt: header + workflow, details: { targets, methods: args.methods } };
+}
+
+function workflowSubject(details: ContextWorkflowDetails): string {
+  const targets = details.targets.length > 0 ? details.targets.join(", ") : "no targets";
+  return `${targets} · ${details.methods.join(",")}`;
+}
+
+function sendWorkflow(pi: ExtensionAPI, prompt: string, details: ContextWorkflowDetails): void {
+  pi.sendMessage(
+    {
+      customType: CONTEXT_WORKFLOW_MESSAGE_TYPE,
+      content: prompt,
+      display: true,
+      details,
+    },
+    { deliverAs: "followUp", triggerTurn: true },
+  );
 }
 
 export function registerContextCommand(pi: ExtensionAPI): void {
+  pi.registerMessageRenderer(CONTEXT_WORKFLOW_MESSAGE_TYPE, (message, { expanded }, theme) => {
+    const details = message.details as ContextWorkflowDetails;
+    return {
+      render: (width: number) => renderToolLifecycle(
+        eventToolLifecycle("context", workflowSubject(details), {
+          label: "workflow",
+          details: String(message.content).split("\n"),
+          detailLimit: "all",
+        }),
+        {
+          width,
+          expanded,
+          expandHint: "ctrl+o to expand",
+          theme,
+          fit: truncateToWidth,
+          visibleWidth,
+        },
+      ),
+      invalidate: () => {},
+    };
+  });
+
   pi.on("before_agent_start", async (event) => ({
     systemPrompt: event.systemPrompt + CONTEXT_GUIDANCE,
   }));
@@ -112,8 +159,9 @@ export function registerContextCommand(pi: ExtensionAPI): void {
       "Retrieve code context for repos, libraries, or a natural-language question via DeepWiki, Context7, Exa, clone, or web.",
     handler: async (rawArgs, ctx) => {
       const args = parseArgs(rawArgs.trim());
-      const prompt = buildUserPrompt(args, ctx.cwd);
-      pi.sendUserMessage(prompt, { deliverAs: "followUp" });
+      const { prompt, details } = buildWorkflowPrompt(args, ctx.cwd);
+      sendWorkflow(pi, prompt, details);
+      await ctx.waitForIdle();
     },
   });
 }

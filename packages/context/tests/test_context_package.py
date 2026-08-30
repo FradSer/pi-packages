@@ -33,7 +33,9 @@ class TestContextManifest(unittest.TestCase):
         self.assertIn("references", data.get("files", []))
         self.assertIn("@earendil-works/pi-coding-agent", data.get("peerDependencies", {}))
         self.assertIn("@earendil-works/pi-ai", data.get("peerDependencies", {}))
+        self.assertIn("@earendil-works/pi-tui", data.get("peerDependencies", {}))
         self.assertIn("typebox", data.get("peerDependencies", {}))
+        self.assertEqual(data.get("dependencies", {}).get("@fradser/pi-kit"), "workspace:*")
         self.assertNotIn(".mcp.json", data.get("files", []))
         self.assertNotIn("skills", data.get("files", []))
 
@@ -108,7 +110,8 @@ class TestContextCommandExtension(unittest.TestCase):
     def test_registers_context_command(self):
         content = read(os.path.join("extensions", "context-command.ts"))
         self.assertIn('registerCommand("context"', content)
-        self.assertIn("sendUserMessage", content)
+        self.assertIn("sendMessage", content)
+        self.assertIn('CONTEXT_WORKFLOW_MESSAGE_TYPE = "context-workflow"', content)
         self.assertIn("references", content)
         self.assertIn("workflow.md", content)
 
@@ -136,6 +139,125 @@ class TestContextCommandExtension(unittest.TestCase):
         self.assertIn("EXA_API_KEY upgrades", content)
         self.assertNotIn("is unavailable", content)
 
+    def test_context_command_sends_one_collapsible_workflow_message(self):
+        """The full workflow is model context but renders as one expandable lifecycle row."""
+        workspace_dir = os.path.dirname(os.path.dirname(CC_PKG_DIR))
+        candidates = glob.glob(
+            os.path.join(
+                workspace_dir,
+                "node_modules",
+                ".pnpm",
+                "esbuild@*",
+                "node_modules",
+                "esbuild",
+                "bin",
+                "esbuild",
+            )
+        )
+        self.assertTrue(candidates, "test requires the workspace esbuild binary")
+        build_dir = os.path.join(CC_PKG_DIR, ".test-build")
+        extension = os.path.join(build_dir, "context-command.mjs")
+        script = f"""
+import assert from "node:assert/strict";
+import {{ registerContextCommand }} from {json.dumps("file://" + extension)};
+
+const commands = new Map();
+const renderers = new Map();
+const messages = [];
+const pi = {{
+  on() {{}},
+  registerCommand(name, command) {{ commands.set(name, command); }},
+  registerMessageRenderer(name, renderer) {{ renderers.set(name, renderer); }},
+  sendMessage(message, options) {{ messages.push({{ message, options }}); }},
+}};
+registerContextCommand(pi);
+
+const command = commands.get("context");
+let waited = false;
+await command.handler("react --method=context7", {{ cwd: process.cwd(), waitForIdle: async () => {{ waited = true; }} }});
+assert.equal(waited, true);
+assert.equal(messages.length, 1);
+const [sent] = messages;
+assert.equal(sent.message.customType, "context-workflow");
+assert.equal(sent.message.display, true);
+assert.deepEqual(sent.message.details.targets, ["react"]);
+assert.deepEqual(sent.message.details.methods, ["context7"]);
+assert.deepEqual(sent.options, {{ deliverAs: "followUp", triggerTurn: true }});
+assert.match(sent.message.content, /Run the \\/context workflow/);
+
+const renderer = renderers.get("context-workflow");
+assert.ok(renderer, "context workflow needs a custom message renderer");
+const theme = {{
+  fg: (_color, text) => text,
+  bg: (_color, text) => text,
+  bold: (text) => text,
+}};
+const collapsed = renderer(sent.message, {{ expanded: false }}, theme).render(120).join("\\n");
+const expanded = renderer(sent.message, {{ expanded: true }}, theme).render(120).join("\\n");
+assert.match(collapsed, /\\[context\\] workflow · react · context7/);
+assert.doesNotMatch(collapsed, /Retrieve code context for any repo/);
+assert.match(expanded, /Run the \\/context workflow/);
+assert.match(expanded, /Retrieve code context for any repo/);
+"""
+        try:
+            os.makedirs(build_dir, exist_ok=True)
+            build = subprocess.run(
+                [
+                    candidates[0],
+                    "packages/context/extensions/context-command.ts",
+                    "--bundle",
+                    "--platform=node",
+                    "--format=esm",
+                    "--external:@earendil-works/pi-coding-agent",
+                    "--external:@earendil-works/pi-tui",
+                    "--external:@fradser/pi-kit",
+                    f"--outfile={extension}",
+                ],
+                cwd=workspace_dir,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+            self.assertEqual(build.returncode, 0, f"{build.stderr}\\n{build.stdout}")
+            result = subprocess.run(
+                ["node", "--input-type=module", "--eval", script],
+                cwd=workspace_dir,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, f"{result.stderr}\\n{result.stdout}")
+        finally:
+            shutil.rmtree(build_dir, ignore_errors=True)
+
+    def test_context_command_completes_without_stale_extensions_in_print_mode(self):
+        """The command keeps single-shot Pi alive until the workflow completes."""
+        workspace_dir = os.path.dirname(os.path.dirname(CC_PKG_DIR))
+        result = subprocess.run(
+            [
+                "pi",
+                "--print",
+                "--mode",
+                "json",
+                "--no-session",
+                "--tools",
+                "context_context7",
+                "/context react --method=context7",
+            ],
+            cwd=workspace_dir,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('"name":"context_context7"', result.stdout)
+        self.assertIn('"type":"agent_settled"', result.stdout)
+        self.assertNotIn("Extension error", result.stderr)
+        self.assertNotIn("stale after session replacement or reload", result.stderr)
+
 
 class TestReadmeContract(unittest.TestCase):
     def test_readme_has_no_mcp_claims(self):
@@ -156,6 +278,7 @@ class TestReadmeContract(unittest.TestCase):
         """README documents /context, not any skill path."""
         content = read("README.md")
         self.assertIn("/context", content)
+        self.assertIn("one expandable `[context] workflow` message", content)
         self.assertNotIn("/skill:context", content)
         self.assertNotIn("/skill:get-context", content)
         self.assertNotIn("/skill:code-context", content)

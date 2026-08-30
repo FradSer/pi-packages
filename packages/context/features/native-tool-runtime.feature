@@ -23,6 +23,20 @@ Feature: Native context tool behavior
     Then it states context_exa works without an API key via the public Exa endpoint
     And it notes EXA_API_KEY upgrades Exa to the full REST API
 
+  Scenario: The /context workflow is one collapsible transcript message
+    Given the context package is installed in Pi
+    When I run /context react --method=context7
+    Then Pi receives the complete workflow instruction as one custom follow-up message and starts the research turn
+    And the command waits for that research turn to settle before returning
+    And the collapsed transcript row identifies the requested target and method
+    And expanding that row reveals the complete workflow instruction
+
+  Scenario: A /context workflow completes without stale extension contexts
+    Given the context package is installed alongside the live Pi package configuration
+    When I run /context react --method=context7 in Pi print mode
+    Then the research turn calls context_context7
+    And no extension reports a stale session context error
+
   Scenario: An in-flight provider lookup is cancelled by Pi
     Given a context lookup is waiting for an HTTP response
     When Pi aborts the tool execution signal

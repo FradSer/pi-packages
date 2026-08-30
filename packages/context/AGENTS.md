@@ -29,8 +29,9 @@ calls rather than MCP servers. Forward Pi abort signals and retain the
 30-second request timeout. Keep `/context` workflow loading separate from HTTP
 tool implementation. API keys belong in environment variables; missing Exa
 credentials should be informative, while operational HTTP failures should be
-reported as tool errors. This package currently has no `@fradser/pi-kit`
-dependency; do not invent a replacement or add one without verified need.
+reported as tool errors. The `/context` transcript message uses the shared
+`@fradser/pi-kit` lifecycle renderer. Keep its collapsed summary compact and
+place the complete workflow only in expandable detail lines.
 
 ## Testing and Research
 
