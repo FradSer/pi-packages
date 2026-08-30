@@ -66,3 +66,9 @@ Feature: git worktree-aware @ completions
     And a pi session that started in the repository root
     When the session is replaced into .pi/worktrees/foo and the provider suggests "../README.md"
     Then the suggestion is dropped
+
+  Scenario: Filtering stays outermost when another @ provider is installed later
+    Given a git repository with linked worktrees under .pi/worktrees
+    And a later @ provider returns both package and .pi/worktrees suggestions
+    When the provider suggests paths while a session runs in the repository root
+    Then suggestions inside .pi/worktrees are dropped

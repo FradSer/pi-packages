@@ -207,8 +207,9 @@ console.log(JSON.stringify(filterForeignWorktreeItems(items, {json.dumps(str(sel
         script = f"""
 process.env.PATH = "/nonexistent-shim:" + process.env.PATH;
 import registerWorktreeCompletion from {json.dumps(COMPLETION_EXTENSION.as_uri())};
-let handler = null;
-registerWorktreeCompletion({{ on: (_e, h) => {{ handler = h; }} }});
+const handlers = new Map();
+registerWorktreeCompletion({{ on: (event, handler) => handlers.set(event, handler) }});
+const handler = handlers.get("session_start");
 if (!handler) throw new Error("session_start handler was not registered");
 
 let factory = null;
@@ -217,6 +218,7 @@ const ctx = {{
   ui: {{ addAutocompleteProvider: (f) => {{ factory = f; }} }},
 }};
 handler({{}}, ctx);
+handlers.get("resources_discover")({{ cwd: ctx.cwd, reason: "startup" }}, ctx);
 if (!factory) throw new Error("autocomplete provider factory was not registered");
 
 const current = {{
@@ -259,6 +261,56 @@ console.log(JSON.stringify({{
         self.assertTrue(report["applyDelegates"])
         self.assertTrue(report["triggerDelegates"])
 
+    def test_later_at_provider_cannot_bypass_worktree_filter(self) -> None:
+        script = f"""
+import registerWorktreeCompletion from {json.dumps(COMPLETION_EXTENSION.as_uri())};
+const handlers = new Map();
+const factories = [];
+const pi = {{ on: (event, handler) => handlers.set(event, handler) }};
+const ctx = {{
+  cwd: {json.dumps(str(self.main))},
+  ui: {{ addAutocompleteProvider: (factory) => factories.push(factory) }},
+}};
+registerWorktreeCompletion(pi);
+handlers.get("session_start")({{}}, ctx);
+
+// A later provider such as FFF can return its own @ results without delegating.
+factories.push((current) => ({{
+  async getSuggestions() {{
+    return {{
+      prefix: "@packages/utils/",
+      items: [
+        {{ value: "@packages/utils/", label: "utils/", description: "packages/utils/" }},
+        {{ value: "@.pi/worktrees/pi-artifact-and-design/packages/utils/", label: "utils/", description: ".pi/worktrees/pi-artifact-and-design/packages/utils/" }},
+      ],
+    }};
+  }},
+  applyCompletion: (...args) => current.applyCompletion(...args),
+  shouldTriggerFileCompletion: (...args) => current.shouldTriggerFileCompletion?.(...args) ?? true,
+}}));
+handlers.get("resources_discover")({{ cwd: ctx.cwd, reason: "startup" }}, ctx);
+
+let provider = {{
+  async getSuggestions() {{ return null; }},
+  applyCompletion(...args) {{ return args; }},
+  shouldTriggerFileCompletion() {{ return true; }},
+}};
+for (const factory of factories) provider = factory(provider);
+const result = await provider.getSuggestions([], 0, 0, {{ signal: new AbortController().signal }});
+console.log(JSON.stringify(result.items.map((item) => item.value)));
+"""
+        result = subprocess.run(
+            ["node", "--input-type=module"],
+            cwd=REPO,
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode:
+            raise AssertionError(f"Node runner failed:\\n{result.stderr}")
+        self.assertEqual(["@packages/utils/"], json.loads(result.stdout))
+
     def test_filtering_follows_session_replacement_cwd(self) -> None:
         script = f"""
 import registerWorktreeCompletion from {json.dumps(COMPLETION_EXTENSION.as_uri())};
@@ -270,11 +322,14 @@ const makeCtx = (cwd) => ({{
   ui: {{ addAutocompleteProvider: (f) => {{ factory = f; }} }},
 }});
 registerWorktreeCompletion(pi);
-handlers.get("session_start")({{}}, makeCtx({json.dumps(str(self.main))}));
+const mainCtx = makeCtx({json.dumps(str(self.main))});
+handlers.get("session_start")({{}}, mainCtx);
+handlers.get("resources_discover")({{ cwd: mainCtx.cwd, reason: "startup" }}, mainCtx);
 const current = {{ async getSuggestions() {{ return {{ items: [{{ value: "../main-repo/README.md" }}, {{ value: "src/index.ts" }}] }}; }} }};
 const provider = factory(current);
 const before = await provider.getSuggestions([], 0, 0, {{}});
-handlers.get("session_start")({{}}, makeCtx({json.dumps(str(self.wt_b))}));
+const worktreeCtx = makeCtx({json.dumps(str(self.wt_b))});
+handlers.get("session_start")({{}}, worktreeCtx);
 const after = await provider.getSuggestions([], 0, 0, {{}});
 console.log(JSON.stringify({{
   beforeKeptMainReadme: before.items.some((item) => item.value === "../main-repo/README.md"),

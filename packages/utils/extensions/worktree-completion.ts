@@ -12,7 +12,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { AutocompleteItem } from "@earendil-works/pi-tui";
+import type {
+	AutocompleteItem,
+	AutocompleteProvider,
+} from "@earendil-works/pi-tui";
 
 export interface WorktreeRoots {
 	currentRoot: string | null;
@@ -223,7 +226,6 @@ export function filterForeignWorktreeItems<T extends AutocompleteItem>(
 	);
 }
 
-let registered = false;
 let cache: { cwd: string; roots: WorktreeRoots } | null = null;
 
 /**
@@ -241,51 +243,65 @@ export function getWorktreeRoots(cwd: string): WorktreeRoots {
 	return cache.roots;
 }
 
+function worktreeCompletionProvider(
+	current: AutocompleteProvider,
+): AutocompleteProvider {
+	return {
+		async getSuggestions(lines, cursorLine, cursorCol, options) {
+			const result = await current.getSuggestions(
+				lines,
+				cursorLine,
+				cursorCol,
+				options,
+			);
+			if (!result || result.items.length === 0) return result;
+
+			const cwd = activeCwd;
+			if (!cwd) return result;
+			const roots = getWorktreeRoots(cwd);
+			if (
+				!roots.currentRoot &&
+				roots.foreignRoots.length === 0 &&
+				!roots.managedWorktreeDir
+			) {
+				return result;
+			}
+			return {
+				...result,
+				items: filterForeignWorktreeItems(result.items, cwd, roots),
+			};
+		},
+		applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
+			return current.applyCompletion(
+				lines,
+				cursorLine,
+				cursorCol,
+				item,
+				prefix,
+			);
+		},
+		shouldTriggerFileCompletion(lines, cursorLine, cursorCol) {
+			return (
+				current.shouldTriggerFileCompletion?.(
+					lines,
+					cursorLine,
+					cursorCol,
+				) ?? true
+			);
+		},
+	};
+}
+
 export default function registerWorktreeCompletion(pi: ExtensionAPI): void {
 	pi.on("session_start", (_event, ctx) => {
 		activeCwd = ctx.cwd;
-		if (registered) return;
-		registered = true;
-
-		ctx.ui.addAutocompleteProvider((current) => ({
-			async getSuggestions(lines, cursorLine, cursorCol, options) {
-				const result = await current.getSuggestions(
-					lines,
-					cursorLine,
-					cursorCol,
-					options,
-				);
-				if (!result || result.items.length === 0) return result;
-
-				const cwd = activeCwd;
-				if (!cwd) return result;
-				const roots = getWorktreeRoots(cwd);
-				if (!roots.currentRoot && roots.foreignRoots.length === 0 && !roots.managedWorktreeDir) {
-					return result;
-				}
-				return {
-					...result,
-					items: filterForeignWorktreeItems(result.items, cwd, roots),
-				};
-			},
-			applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
-				return current.applyCompletion(
-					lines,
-					cursorLine,
-					cursorCol,
-					item,
-					prefix,
-				);
-			},
-			shouldTriggerFileCompletion(lines, cursorLine, cursorCol) {
-				return (
-					current.shouldTriggerFileCompletion?.(
-						lines,
-						cursorLine,
-						cursorCol,
-					) ?? true
-				);
-			},
-		}));
+	});
+	pi.on("resources_discover", (_event, ctx) => {
+		activeCwd = ctx.cwd;
+		// resources_discover runs after every session_start handler, so this
+		// wrapper stays outermost even when another package replaces @ completion.
+		// It must be registered on every bind because session replacement resets
+		// the interactive autocomplete wrapper list.
+		ctx.ui.addAutocompleteProvider(worktreeCompletionProvider);
 	});
 }

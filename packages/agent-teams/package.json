@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-agent-teams",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Multi-agent team system for Pi \u2014 resident teammates, shared task board, and peer-to-peer messaging",
   "keywords": [
     "pi-package",

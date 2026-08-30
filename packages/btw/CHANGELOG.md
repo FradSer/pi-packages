@@ -1,5 +1,12 @@
 # @fradser/pi-btw
 
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies
+  - @fradser/pi-kit@0.4.1
+
 ## 0.2.6
 
 ### Patch Changes

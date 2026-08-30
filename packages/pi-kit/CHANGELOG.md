@@ -1,5 +1,11 @@
 # @fradser/pi-kit
 
+## 0.4.1
+
+### Patch Changes
+
+- Republish the shared lifecycle helpers, including `eventToolLifecycle` and `renderToolLifecycle`, in the package artifact.
+
 ## 0.4.0
 
 ### Minor Changes

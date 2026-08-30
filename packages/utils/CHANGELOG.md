@@ -1,5 +1,12 @@
 # @fradser/pi-utils
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @fradser/pi-kit@0.4.1
+
 ## 0.4.0
 
 ### Minor Changes
