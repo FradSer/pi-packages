@@ -220,3 +220,26 @@ Feature: Result-contract background monitoring
     When the TUI renders the footer
     Then the monitor status reads `2 monitors waiting`
     And the monitor status does not include `/monitor to inspect`
+
+  Scenario: Bash tool call with high timeout is intercepted and redirected to monitor_start
+    Given the monitor extension is loaded
+    When the model calls the bash tool with a timeout of 30 seconds or greater
+    Then the tool call is blocked by the monitor guardrail
+    And the blocking reason explains that direct synchronous execution is not allowed
+    And the blocking reason provides an actionable monitor_start suggestion with sentinel wrapping and timeout_ms
+
+  Scenario: Bash tool call matching long-running or hardware-flashing signature is intercepted
+    Given the monitor extension is loaded
+    When the model calls the bash tool with a command matching hardware flashing, remote pipelines, or blocking operations
+    Then the tool call is blocked by the monitor guardrail
+    And the blocking reason guides the model to use monitor_start instead
+
+  Scenario: Synchronous bash execution with an allow-sync escape comment is allowed
+    Given the monitor extension is loaded
+    When the model calls the bash tool with a long-running command containing `# allow-sync`
+    Then the tool call is not blocked by the monitor guardrail
+
+  Scenario: Guardrail can be disabled or configured via environment variables
+    Given the monitor extension is loaded
+    When PI_MONITOR_GUARD_BASH is set to "false"
+    Then bash tool calls with high timeouts are not blocked

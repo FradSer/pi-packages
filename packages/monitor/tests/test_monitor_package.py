@@ -343,7 +343,6 @@ def test_monitor_start_terminates_only_interactive_agent_turns() -> None:
     assert "manager.waitForTerminal(monitor.id, signal)" in start_tool
     assert "monitorStartRequestedInTurn" not in extension
     assert "monitorStartPendingInTurn" not in extension
-    assert 'pi.on("tool_call"' not in extension
 
 
 def test_registered_monitor_tool_terminates_and_wakes_once() -> None:
@@ -954,3 +953,151 @@ def test_terminal_diagnostics_are_bounded_after_completion() -> None:
         if (result.status !== "result_missing") throw new Error(JSON.stringify(terminals));
         ''',
     )
+
+
+def test_bash_guard_blocks_high_timeout_and_gives_recipe() -> None:
+    run_typescript(
+        r'''
+        import { evaluateBashGuard } from "./packages/monitor/src/guard.ts";
+
+        const event = {
+          toolName: "bash",
+          toolCallId: "call-1",
+          input: {
+            command: "echo test",
+            timeout: 300,
+          },
+        };
+
+        const decision = evaluateBashGuard(event, { enabled: true, timeoutThresholdSeconds: 30 });
+        if (!decision?.block) throw new Error("Expected decision.block to be true");
+        if (!decision.reason.includes("[Harness Guardrail: Synchronous bash blocked for long-running operation]")) {
+          throw new Error("Missing header in reason: " + decision.reason);
+        }
+        if (!decision.reason.includes("300s")) {
+          throw new Error("Missing timeout in reason: " + decision.reason);
+        }
+        if (!decision.reason.includes("timeout_ms: 300000")) {
+          throw new Error("Missing timeout_ms in recipe: " + decision.reason);
+        }
+        if (!decision.reason.includes("__PI_MONITOR_OK__")) {
+          throw new Error("Missing sentinel in recipe: " + decision.reason);
+        }
+        ''',
+    )
+
+
+def test_bash_guard_blocks_hardware_flashing_and_remote_ssh() -> None:
+    run_typescript(
+        r'''
+        import { evaluateBashGuard } from "./packages/monitor/src/guard.ts";
+
+        const hardwareCommands = [
+          'ssh cm5 "/opt/face-agent-venv/bin/python -m esptool --chip esp32p4 erase-region 0x10000 && esptool write-flash 0x10000 app.bin"',
+          'esptool.py --chip esp32 write_flash 0x10000 firmware.bin',
+          'openocd -f board/esp32.cfg -c "program build/firmware.bin 0x10000 verify exit"',
+          'pio run -t upload',
+          'dfu-util -a 0 -s 0x08000000:leave -D build/firmware.bin',
+          'sleep 60',
+        ];
+
+        for (const command of hardwareCommands) {
+          const event = {
+            toolName: "bash",
+            toolCallId: "call-1",
+            input: { command },
+          };
+          const decision = evaluateBashGuard(event, { enabled: true, timeoutThresholdSeconds: 30 });
+          if (!decision?.block) {
+            throw new Error(`Expected command to be blocked: ${command}`);
+          }
+        }
+        ''',
+    )
+
+
+def test_bash_guard_allows_safe_quick_commands_and_escape_hatch() -> None:
+    run_typescript(
+        r'''
+        import { evaluateBashGuard } from "./packages/monitor/src/guard.ts";
+
+        const safeCommands = [
+          { command: "git status", timeout: 10 },
+          { command: "ls -la", timeout: 5 },
+          { command: "pnpm test" },
+          { command: "python3 -c 'print(1)'" },
+        ];
+
+        for (const input of safeCommands) {
+          const event = { toolName: "bash", toolCallId: "call-1", input };
+          const decision = evaluateBashGuard(event, { enabled: true, timeoutThresholdSeconds: 30 });
+          if (decision?.block) {
+            throw new Error(`Expected safe command to pass: ${JSON.stringify(input)}`);
+          }
+        }
+
+        // Escape hatch with # allow-sync or // allow-sync
+        const escapedCommands = [
+          { command: "esptool write-flash 0x10000 app.bin # allow-sync", timeout: 300 },
+          { command: "ssh cm5 'esptool write-flash' // allow-sync", timeout: 300 },
+        ];
+
+        for (const input of escapedCommands) {
+          const event = { toolName: "bash", toolCallId: "call-1", input };
+          const decision = evaluateBashGuard(event, { enabled: true, timeoutThresholdSeconds: 30 });
+          if (decision?.block) {
+            throw new Error(`Expected escaped command to pass: ${JSON.stringify(input)}`);
+          }
+        }
+        ''',
+    )
+
+
+def test_monitor_extension_registers_tool_call_guard() -> None:
+    run_typescript(
+        r'''
+        import * as extensionModule from "./packages/monitor/index.ts";
+
+        const handlers = new Map();
+        const pi = {
+          registerTool() {},
+          registerMessageRenderer() {},
+          registerCommand() {},
+          on(name, handler) {
+            const current = handlers.get(name) ?? [];
+            current.push(handler);
+            handlers.set(name, current);
+          },
+          sendMessage() {},
+        };
+
+        extensionModule.default(pi);
+        const toolCallHandlers = handlers.get("tool_call");
+        if (!toolCallHandlers || toolCallHandlers.length === 0) {
+          throw new Error("tool_call handler not registered");
+        }
+
+        const blockEvent = {
+          toolName: "bash",
+          toolCallId: "call-1",
+          input: {
+            command: 'ssh cm5 "esptool write-flash 0x10000 app.bin"',
+            timeout: 300,
+          },
+        };
+
+        let blocked = false;
+        for (const handler of toolCallHandlers) {
+          const decision = await handler(blockEvent, {});
+          if (decision?.block) {
+            blocked = true;
+            if (!decision.reason.includes("[Harness Guardrail:")) {
+              throw new Error("Unexpected reason: " + decision.reason);
+            }
+          }
+        }
+
+        if (!blocked) throw new Error("tool_call handler did not block long-running command");
+        ''',
+    )
+

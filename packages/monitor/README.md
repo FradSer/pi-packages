@@ -311,4 +311,13 @@ The retained history and terminal diagnostic tail are bounded:
   wait forever.
 - All active monitors are stopped on session shutdown.
 
+## Synchronous bash guardrail
+
+To prevent synchronous blocking, turn deadlocks, and RPC timeouts on long-running commands, the extension registers a deterministic `tool_call` guardrail for `bash`. Direct synchronous execution is blocked and redirected to `monitor_start` with an actionable parameter recipe when:
+
+- `timeout` is explicitly set to 30 seconds or greater (`timeout >= 30`);
+- the command matches long-running/hardware signatures (e.g. `esptool`, `erase-region`, `write-flash`, `openocd`, `dfu-util`, `pio run -t upload`, remote composite SSH commands, or blocking operations).
+
+To run a command synchronously in `bash` despite matching the guardrail, append `# allow-sync` or `// allow-sync` to the command line, or configure `PI_MONITOR_GUARD_BASH=false`.
+
 Monitor usage guidance is injected through the extension's system prompt hook; no package skill is required.
