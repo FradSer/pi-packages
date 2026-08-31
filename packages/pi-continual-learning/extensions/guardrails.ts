@@ -51,10 +51,10 @@ interface HarnessSkillPromptEvent {
 interface HarnessPolicyEvent {
   kind: "policy-matched";
   policy: string;
-  action: "block" | "confirm";
+  action: "block" | "confirm" | "observe";
   tool: string;
   reason: string;
-  outcome: "allowed once" | "blocked by rule" | "blocked by user choice" | "blocked: confirmation timed out" | "no UI available to confirm";
+  outcome: "observed" | "allowed once" | "blocked by rule" | "blocked by user choice" | "blocked: confirmation timed out" | "no UI available to confirm";
   source: string;
   file: string;
 }
@@ -165,6 +165,9 @@ export function skillPromptTarget(
   if (!skill) return undefined;
   const guidance = config.skillPrompts[skill.name];
   if (!guidance) return undefined;
+  if (guidance.userMessagePattern && !new RegExp(guidance.userMessagePattern).test(skill.userMessage ?? "")) {
+    return undefined;
+  }
   return { name: skill.name, ...guidance };
 }
 
@@ -203,10 +206,11 @@ export default function registerGuardrails(pi: ExtensionAPI) {
     const details = entry.data as HarnessEventData | undefined;
     if (details?.kind === "policy-matched") {
       const reason = safeDisplayText(details.reason);
-      const isAllowed = details.outcome === "allowed once";
-      const label = details.action === "confirm"
-        ? (isAllowed ? "policy allowed" : "policy blocked")
-        : "policy blocked";
+      const label = details.action === "observe"
+        ? "policy observed"
+        : details.action === "confirm" && details.outcome === "allowed once"
+          ? "policy allowed"
+          : "policy blocked";
       return {
         render: (width) => {
           const detailWidth = Math.max(1, width - 2);
@@ -317,6 +321,20 @@ export default function registerGuardrails(pi: ExtensionAPI) {
     const source = decision.source ?? "unknown";
     const file = harnessSourcePath(decision.source, paths);
     const cleanReason = decision.cleanReason ?? decision.reason;
+
+    if (decision.action === "observe") {
+      pi.appendEntry("harness-event", {
+        kind: "policy-matched",
+        policy: decision.policyName,
+        action: "observe",
+        tool: event.toolName,
+        reason: cleanReason,
+        outcome: "observed",
+        source,
+        file,
+      });
+      return undefined;
+    }
 
     if (decision.action === "confirm") {
       if (!ctx.hasUI) {

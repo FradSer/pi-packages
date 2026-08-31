@@ -6,6 +6,7 @@
 - [feedback_memory_menu_inline_consolidation.md](feedback_memory_menu_inline_consolidation.md)
 - [feedback_no_custom_interaction_tools.md](feedback_no_custom_interaction_tools.md)
 - [feedback_no_global_input_interception.md](feedback_no_global_input_interception.md)
+- [feedback_pi_package_done_includes_live_install.md](feedback_pi_package_done_includes_live_install.md)
 - [feedback_pi_package_npm_naming.md](feedback_pi_package_npm_naming.md)
 - [feedback_pipe_buffering_watch_filters.md](feedback_pipe_buffering_watch_filters.md)
 - [feedback_skills_host_agnostic.md](feedback_skills_host_agnostic.md)

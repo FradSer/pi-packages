@@ -288,6 +288,7 @@ def test_state_machine_roster_and_board_rules() -> None:
         const emptySubject = createTask({{ subject: "  " }});
         const claimBlocked = applyClaimIntent({{ taskId: dependent.task.id, worker: "security", spawnId: "sa", timestamp: 1 }});
         const claimOk = applyClaimIntent({{ taskId: gate.task.id, worker: "security", spawnId: "sa", timestamp: 1 }});
+        registerTeammate({{ name: "ghost", agent: "worker", spawnId: "sx", pid: 2, status: "idle", isolation: "none", createdAt: 2, updatedAt: 2 }});
         const doubleClaim = applyClaimIntent({{ taskId: gate.task.id, worker: "ghost", spawnId: "sx", timestamp: 2 }});
         const wrongHolder = applySubmissionIntent({{ taskId: gate.task.id, worker: "ghost", spawnId: "sx", status: "completed", timestamp: 3 }});
         const submitted = applySubmissionIntent({{ taskId: gate.task.id, worker: "security", spawnId: "sa", status: "completed", result: "clean", timestamp: 4 }});
@@ -383,6 +384,8 @@ def test_direct_kickoff_executes_without_checking_task_list() -> None:
     guidance = source("guidance.ts")
     assert "When you have an assigned task" in guidance
     assert "without calling task_list" in guidance
+    assert "terminal report is the sole completion signal" in guidance
+    assert "direct-assignment teammate or reviewer is still working" in guidance
 
     payload = run_node(
         f'''\
@@ -482,7 +485,8 @@ def test_board_notices_are_one_shot_and_verify_loops_escalate() -> None:
     # Released tasks re-arm notices for every living teammate.
     assert machine.count("rearmTaskNotice(intent.taskId)") >= 1
     wake = machine[machine.index("export function wakeIdleTeammates") :]
-    assert "freshClaimableTasks(teammate.noticedTaskIds, claimableTasks())" in wake
+    assert "freshClaimableTasks(teammate.noticedTaskIds, claimableTasks().filter" in wake
+    assert "const boardEligible = teammate.assignment === undefined" in wake
     assert "markTasksNoticed(teammate.name" in wake
 
 
@@ -539,8 +543,9 @@ def test_unknown_agent_spawn_error_is_actionable() -> None:
 def test_task_lookups_ignore_prototype_property_names() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, createTask, getTask, applyClaimIntent, loadBoard }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, createTask, getTask, applyClaimIntent, loadBoard, registerTeammate }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
+        registerTeammate({{ name: "w", agent: "worker", spawnId: "s", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const depBefore = createTask({{ subject: "real work", dependsOn: ["constructor"] }});
         const made = createTask({{ subject: "Constructor" }});
         const resolved = getTask("constructor");
@@ -642,7 +647,7 @@ def test_stale_verify_result_cannot_complete_a_new_holding(tmp_path: Path) -> No
         const id = made.task.id;
         applyClaimIntent({{ taskId: id, worker: "w", spawnId: "s1", timestamp: 1 }});
         let releaseStaleGate;
-        setVerifyGateRunner(() => new Promise((resolve) => {{ releaseStaleGate = () => resolve({{ ok: true, detail: "stale pass" }}); }}));
+        setVerifyGateRunner(() => new Promise((resolve) => {{ releaseStaleGate = () => resolve({{ kind: "pass" }}); }}));
         attemptSubmission("w", "s1", id, "completed");
         processTaskIntents();
         await tick();
@@ -654,7 +659,7 @@ def test_stale_verify_result_cannot_complete_a_new_holding(tmp_path: Path) -> No
         await tick();
         const staleCompleted = getTask(id).status === "completed";
         let releaseFreshGate;
-        setVerifyGateRunner(() => new Promise((resolve) => {{ releaseFreshGate = () => resolve({{ ok: true, detail: "fresh pass" }}); }}));
+        setVerifyGateRunner(() => new Promise((resolve) => {{ releaseFreshGate = () => resolve({{ kind: "pass" }}); }}));
         attemptSubmission("w", "s1", id, "completed");
         processTaskIntents();
         await tick();
@@ -694,15 +699,15 @@ def test_verify_review_verdict_protocol() -> None:
         '''
     )
     assert payload["promptHasGate"] is True
-    assert payload["pass"] == {"ok": True}
-    assert payload["passLowerCase"] == {"ok": True}
-    assert payload["passTrailingProse"] == {"ok": True}
-    assert payload["passWithJunkRejected"]["ok"] is False
-    assert payload["failWithReason"]["ok"] is False
+    assert payload["pass"] == {"kind": "pass"}
+    assert payload["passLowerCase"] == {"kind": "pass"}
+    assert payload["passTrailingProse"] == {"kind": "pass"}
+    assert payload["passWithJunkRejected"]["kind"] == "inconclusive"
+    assert payload["failWithReason"]["kind"] == "fail"
     assert "overflow at 400px" in payload["failWithReason"]["detail"]
-    assert payload["failExtraSpaces"]["ok"] is False
+    assert payload["failExtraSpaces"]["kind"] == "fail"
     assert "spaced reasons" in payload["failExtraSpaces"]["detail"]
-    assert payload["missing"]["ok"] is False
+    assert payload["missing"]["kind"] == "inconclusive"
     assert payload["missingDetailTruncated"] is True
 
 
@@ -1800,7 +1805,7 @@ def test_task_create_handoff_formats_each_execution_state() -> None:
     payload = run_node(
         f'''\
         import {{ formatBoardTaskCreation }} from "{(SRC / "team-machine.ts").as_uri()}";
-        const base = {{ ok: true, id: "task", notifiedTeammates: [], livingTeammates: 0, claimable: true }};
+        const base = {{ ok: true, id: "task", notifiedTeammates: [], livingTeammates: 0, claimable: true, supersededTaskIds: [] }};
         console.log(JSON.stringify({{
           noWorker: formatBoardTaskCreation("task", base),
           notified: formatBoardTaskCreation("task", {{ ...base, livingTeammates: 1, notifiedTeammates: ["reviewer"] }}),
@@ -1811,7 +1816,7 @@ def test_task_create_handoff_formats_each_execution_state() -> None:
     )
     assert "teammate_spawn" in str(payload["noWorker"])
     assert "@reviewer" in str(payload["notified"])
-    assert "no idle teammate" in str(payload["busy"])
+    assert "no eligible idle teammate" in str(payload["busy"])
     assert "waits for dependencies" in str(payload["blocked"])
 
 
@@ -2437,7 +2442,8 @@ def test_worker_tool_grant_is_visible_at_spawn() -> None:
     grant_index = machine.index("tools: resolveWorkerTools(agent.tools)")
     spawn_window = machine[grant_index:grant_index + 1200]
     assert spawn_window.index("publishStateSnapshot()") < spawn_window.index("spawnResident({")
-    assert "status: t.status, tools: t.tools" in machine
+    assert "status: t.status," in machine
+    assert "tools: t.tools," in machine
     assert "tools?: string[]" in types
     # Spawn rows identify the assignment; tool grants remain available in the roster/detail view.
     assert "details: { started: true }" in tools_src
@@ -2861,7 +2867,7 @@ def test_leader_bound_harness_events_dispatch_through_the_queue() -> None:
     # Verify-gate escalation narrates the parked task through the channel.
     gate = machine[machine.index("function resolveGateOutcome") :]
     assert 'teammate: "task-board"' in gate
-    assert gate.count("sendUpdate({") == 1
+    assert gate.count("sendUpdate({") >= 2
     # Worktree diffs dispatch a bounded preview with branch retrieval; the full
     # patch stays in the mailbox log.
     fin = machine[machine.index("async function finalizeWorktree") :]

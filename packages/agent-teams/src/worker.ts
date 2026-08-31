@@ -66,10 +66,29 @@ function dependenciesMet(task: BoardTask, tasks: Map<string, BoardTask>): boolea
 }
 
 function taskCounts(tasks: BoardTask[], byId: Map<string, BoardTask>): string {
-  const counts = { pending: 0, claimed: 0, completed: 0 };
+  const counts = { pending: 0, claimed: 0, completed: 0, superseded: 0 };
   for (const task of tasks) counts[task.status] += 1;
   const claimable = tasks.filter((task) => task.status === "pending" && dependenciesMet(task, byId)).length;
-  return `tasks=${tasks.length} · pending=${counts.pending} (${claimable} claimable) · claimed=${counts.claimed} · completed=${counts.completed}`;
+  return `tasks=${tasks.length} · pending=${counts.pending} (${claimable} claimable) · claimed=${counts.claimed} · completed=${counts.completed} · superseded=${counts.superseded}`;
+}
+
+function resourcesConflict(left: readonly string[] | undefined, right: readonly string[] | undefined): boolean {
+  return (left ?? []).some((a) => (right ?? []).some((b) => a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`)));
+}
+
+function claimRejection(binding: WorkerBinding, task: BoardTask): string | undefined {
+  const self = readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker);
+  if (self?.assignment) {
+    const state = self.assignment.closed ? "closed pending leader reopen" : "active";
+    return `You already own ${state} ${self.assignment.kind} assignment "${self.assignment.id}". Finish it through its matching protocol before claiming board work.`;
+  }
+  const conflict = readRoster(binding.rosterFile).find((entry) => entry.name !== binding.worker
+    && entry.assignment && !entry.assignment.closed
+    && resourcesConflict(task.resources, entry.assignment.resources));
+  if (conflict) {
+    return `Task "${task.id}" conflicts with @${conflict.name}'s ${conflict.assignment?.kind} assignment "${conflict.assignment?.id}".`;
+  }
+  return undefined;
 }
 
 function taskStatusLabel(task: BoardTask, tasks: Map<string, BoardTask>): string {
@@ -121,7 +140,7 @@ export function registerTaskListTool(pi: ExtensionAPI): void {
       const roster = binding
         ? readRoster(binding.rosterFile)
             .filter((entry) => entry.status !== "stopped")
-            .map((entry) => `@${entry.name} (${entry.agent}, ${entry.status})`)
+            .map((entry) => `@${entry.name} (${entry.agent}, ${entry.status}${entry.assignment ? `, ${entry.assignment.kind} ${entry.assignment.id}` : ""})`)
             .join("\n")
         : livingTeammates().map((t) => `@${t.name} (${t.agent}, ${t.status}${t.currentTaskId ? `, task ${t.currentTaskId}` : ""})`).join("\n");
       const leaderHint = !binding && !roster && tasks.some((task) => task.status === "pending")
@@ -206,7 +225,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
       return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
         "board",
         taskId,
-        { label: "claimed" },
+        { label: "claim queued" },
       ));
     },
     promptSnippet: "Self-claim a pending board task",
@@ -226,6 +245,11 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
       }
       for (const task of candidates) {
         if (task.status !== "pending" || !dependenciesMet(task, byId)) continue;
+        const rejected = claimRejection(binding, task);
+        if (rejected) {
+          if (params.taskId) throw new Error(rejected);
+          continue;
+        }
         const won = createTaskIntent(binding.claimsDir, task.id, {
           taskId: task.id,
           worker: binding.worker,
@@ -234,7 +258,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
         });
         if (won) {
           return {
-            content: [{ type: "text", text: `BOARD · current session\nCLAIMED · ${task.id} · ${task.subject}\nOWNER · @${binding.worker}\nNEXT · do the work, then task_submit` }],
+            content: [{ type: "text", text: `BOARD · current session\nCLAIM INTENT QUEUED · ${task.id} · ${task.subject}\nREQUESTER · @${binding.worker}\nNEXT · wait for harness Claim accepted feedback; do not start work until it arrives` }],
             details: { taskId: task.id, subject: task.subject, worker: binding.worker },
           };
         }

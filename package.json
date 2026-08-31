@@ -5,6 +5,7 @@
   "description": "Monorepo of Frad's pi packages — skills and extensions published to npm and listed on pi.dev/packages",
   "scripts": {
     "test": "pytest packages",
+    "check:install": "node scripts/check-installation.mjs",
     "example:sdk": "tsx examples/sdk-session.ts",
     "publish": "pnpm -r publish --access public",
     "publish:dry-run": "pnpm -r pack"

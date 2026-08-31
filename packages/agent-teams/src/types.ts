@@ -14,6 +14,15 @@ export const TeammateStatus = Type.Union(
 );
 export type TeammateStatus = Static<typeof TeammateStatus>;
 
+export interface WorkerAssignment {
+  id: string;
+  kind: "direct" | "board";
+  /** Resource tags prevent concurrent mutating assignments from overlapping. */
+  resources: string[];
+  /** A terminal direct assignment is closed until the leader explicitly reopens it. */
+  closed?: boolean;
+}
+
 /** A named, long-lived child Pi process on the team roster. */
 export interface Teammate {
   /** Unique among living teammates; also the mailbox and roster key. */
@@ -30,6 +39,12 @@ export interface Teammate {
   isolation: "worktree" | "none";
   /** Board task currently claimed by this teammate, if any. */
   currentTaskId?: string;
+  /** The one assignment this worker is allowed to execute. Direct assignments
+   * and board claims are mutually exclusive until the leader opens another. */
+  assignment?: WorkerAssignment;
+  /** Most recent assignment retained for successor handoff after release or shutdown. */
+  lastAssignment?: WorkerAssignment;
+  lastTaskId?: string;
   /** Effective launch model reference ("provider/model"); absent when Pi picks its default. */
   model?: string;
   /** Live assistant text assembled from the RPC stream. */
@@ -72,6 +87,7 @@ export const TaskStatus = Type.Union(
     Type.Literal("pending"),
     Type.Literal("claimed"),
     Type.Literal("completed"),
+    Type.Literal("superseded"),
   ],
   { description: "Board lifecycle of a task" },
 );
@@ -87,8 +103,13 @@ export interface BoardTask {
   /** Completion gate: a review prompt a fresh one-shot reviewer answers with
    *  VERDICT: PASS or FAIL; overrides the agent-role default. */
   verify?: string;
+  /** Mutating work must use stable resource tags such as `firmware/sub-node`.
+   *  A resource conflicts with itself and any slash-prefixed descendant. */
+  resources: string[];
   status: TaskStatus;
   claimedBy?: string;
+  /** Replacement task that made this task obsolete. */
+  supersededBy?: string;
   result?: string;
   errorMessage?: string;
   createdAt: number;
@@ -186,6 +207,8 @@ export const TeammateSpawnParams = Type.Object({
   name: Type.String({ minLength: 1, description: "Teammate name, unique among living teammates; used for messaging and claiming" }),
   agent: Type.String({ description: "Agent definition name; an inline definition may create this role in memory for the current session" }),
   prompt: Type.Optional(Type.String({ description: "Optional kickoff prompt delivered as the teammate's first turn; omit to let it wait for messages or board claims" })),
+  resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Stable resource tags owned by this direct assignment. Overlapping board claims are rejected until it closes." })),
+  handoffFrom: Type.Optional(Type.String({ minLength: 1, description: "Stopped teammate whose assignment, claim, and recent reports should be summarized in this successor kickoff." })),
   definition: Type.Optional(Type.Object({
     description: Type.String({ description: "Routing contract for the generated role" }),
     tools: Type.Optional(Type.Array(Type.String(), { description: "Pi tool ids for the generated role; only pi built-ins (read, bash, edit, write, grep, find, ls, powershell) are grantable — teammates run without extensions, so MCP/extension ids fail the spawn" })),
@@ -212,7 +235,9 @@ export const TaskCreateParams = Type.Object({
   description: Type.Optional(Type.String({ description: "Full task description for the claiming teammate" }),
   ),
   dependsOn: Type.Optional(Type.Array(Type.String(), { description: "Task ids that must complete before this task is claimable" })),
-  verify: Type.Optional(Type.String({ description: "Completion gate: a review prompt a fresh reviewer answers with VERDICT: PASS or FAIL. Overrides any agent-role default verify." })),
+  verify: Type.Optional(Type.String({ description: "Completion gate: a fresh reviewer judges the acceptance criteria. Explicit PASS/FAIL completes or returns the task; an inconclusive review escalates without counting as failure." })),
+  resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Stable resource tags this task mutates, e.g. firmware/sub-node. Overlapping active tags cannot be claimed concurrently." })),
+  supersedes: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Obsolete task ids this new task replaces. Superseded work cannot be claimed or completed." })),
 });
 
 /** Shared leader/worker read-only board view. */
@@ -227,6 +252,7 @@ export const SendMessageParams = Type.Object({
   to: Type.String({ minLength: 1, description: 'Recipient: a teammate name on the roster, or "leader" to report to the team leader' }),
   message: Type.String({ description: "Message content; the first line becomes the title shown in the console" }),
   reopen: Type.Optional(Type.Boolean({ description: "Leader only: explicitly start a new assignment after the teammate reported completion" })),
+  resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Leader only: resource tags for a reopened direct assignment. Ignored for worker reports." })),
   status: Type.Optional(Type.Union([
     Type.Literal("in_progress"),
     Type.Literal("completed"),

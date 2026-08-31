@@ -48,16 +48,18 @@ Policy shape:
   "paths": ["content", "newText", "edits.newText"],
   "patterns": ["width:\\s*\\d{3,}px"],
   "action": "block",
-  // The block reason is fed back to the model as the more correct prompt:
+  // The policy reason is fed back when a call is blocked or confirmed,
+  // and appears in the display-only transcript event for observe:
   "reason": "Fixed pixel widths break responsiveness. Use design tokens or responsive units."
 }
 ```
 
 Only the declarative policy fields shown above are supported: `name`, `tools`,
 `paths`, `pattern` or `patterns`, optional `require`, `action`, and `reason`.
-Fields such as `scope` and `rule` are not aliases and are rejected. Guardrails
-are tool-call gates: they block or ask for confirmation when a regex matches;
-they do not run multi-step checks, probe services, or repair runtime state.
+Fields such as `scope` and `rule` are not aliases and are rejected. A matching
+policy can `block`, `confirm`, or `observe`: observe leaves the call untouched
+and records a display-only harness event with its reason. Policies do not run
+multi-step checks, probe services, or repair runtime state.
 
 A generalized example — AI-generated UI widths violating layout rules — ships
 at `examples/ui-width.harness.json`: edits touching UI files that contain
@@ -139,6 +141,11 @@ project, project-local), with the innermost definition winning by skill name.
     "using-open-artifacts": {
       "prompt": "Use coda0.com as the default instance unless the user specifies another host.",
       "target": "system"
+    },
+    "impeccable": {
+      "prompt": "For Live on macOS, use open <served app URL>, never helper serverPort or agent-browser; then keep one foreground live-poll.mjs active.",
+      "target": "system",
+      "userMessagePattern": "^live$"
     }
   }
 }
@@ -148,8 +155,11 @@ project, project-local), with the innermost definition winning by skill name.
 `target: "user"` form delivers a hidden custom context message because Pi's
 `before_agent_start` hook cannot rewrite the already-expanded user message;
 both targets are matched only against Pi's complete expanded skill XML, not a
-raw `/skill:` command or arbitrary XML-looking text. Guidance is appended
-idempotently when a hook is evaluated more than once.
+raw `/skill:` command or arbitrary XML-looking text. An optional
+`userMessagePattern` narrows a prompt to the expanded block's user-message
+suffix (for example `^live$`); it is a regular expression and invalid patterns
+are skipped with a configuration diagnostic. Guidance is appended idempotently
+when a hook is evaluated more than once.
 
 ## Memory
 

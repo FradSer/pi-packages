@@ -57,8 +57,14 @@ arrays. A `require` gate, when present, has a required `pattern` and optional
 Do not use legacy or descriptive-only fields such as `scope` or `rule`: they do
 not affect tool-call evaluation and will be rejected by the parent validator.
 `reason` is the corrective guidance shown when a policy blocks or asks for
-confirmation. Guardrails only decide whether a matching tool call is blocked or
-confirmed; they do not execute multi-step checks or repair a runtime.
+confirmation, and the display-only transcript text for `action: "observe"`.
+An observe policy records the matching call while leaving it untouched. Guardrails
+do not execute multi-step checks or repair a runtime.
+
+For `addSkillPrompt`, an optional `userMessagePattern` may be a non-empty regular
+expression. It is matched against the user-message suffix of Pi's complete
+expanded skill block, so command-specific guidance applies only to the intended
+skill invocation. Omit it when guidance should apply to every invocation.
 
 ## Bounds
 

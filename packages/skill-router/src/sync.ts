@@ -215,7 +215,20 @@ export function scanSkills(repoDir: string, dir = repoDir): UpstreamSkill[] {
     const full = join(dir, entry);
     const stats = lstatSync(full);
     if (stats.isSymbolicLink()) {
-      throw new Error(`Refusing symlinked entry inside the repository: ${full.slice(repoDir.length + 1)}`);
+      // Repositories such as marketingskills use symlinked metadata files
+      // (for example CLAUDE.md). They are outside the skill tree and do not
+      // need to be copied; directory symlinks remain rejected to avoid
+      // traversing outside the cloned repository.
+      let targetStats: ReturnType<typeof statSync>;
+      try {
+        targetStats = statSync(full);
+      } catch {
+        throw new Error(`Refusing broken symlink inside the repository: ${full.slice(repoDir.length + 1)}`);
+      }
+      if (targetStats.isDirectory()) {
+        throw new Error(`Refusing symlinked entry inside the repository: ${full.slice(repoDir.length + 1)}`);
+      }
+      continue;
     }
     if (!stats.isDirectory()) continue;
     const skillFile = join(full, "SKILL.md");
@@ -299,25 +312,12 @@ function wrapSkillContent(content: string, name: string): string {
   return content.replace(match[0], `${match[1]}${frontmatter}${match[3]}`);
 }
 
-function gatewayContent(collection: RegistryCollection, leaves: UpstreamSkill[]): string {
-  const lines = leaves.map(
-    (leaf) => `- **${leaf.name}** — ${leaf.description}`,
-  );
+function gatewayContent(collection: RegistryCollection, _leaves: UpstreamSkill[]): string {
   return [
     "---",
     `name: ${collection.gateway}`,
     `description: ${collection.description}`,
     "---",
-    "",
-    `# ${collection.gateway}`,
-    "",
-    `Skill collection synced from \`${collection.source.repo}\` (\`${collection.source.ref}\`) by pi-skill-router.`,
-    `Sub-skills are routed internally and not exposed as global slash commands.`,
-    `The router automatically suggests reading relevant sub-skills when matching your request.`,
-    "",
-    "## Skills",
-    "",
-    ...lines,
     "",
   ].join("\n");
 }

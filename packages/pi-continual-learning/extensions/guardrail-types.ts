@@ -18,8 +18,8 @@ export interface Policy {
   /** AND-gate: must also match somewhere in the args before pattern(s) are
    * considered. Scopes a policy to a class of calls (e.g. only UI files). */
   require?: { path?: string; pattern: string };
-  /** block (default) refuses the call with the reason; confirm asks the user. */
-  action?: "block" | "confirm";
+  /** block (default) refuses the call; confirm asks the user; observe reports and proceeds. */
+  action?: "block" | "confirm" | "observe";
   /** The corrective guidance fed back to the model when the call is blocked. */
   reason: string;
   /** Layer that supplied this policy; set during merge, not authored. */
@@ -31,6 +31,8 @@ export interface SkillPrompt {
   prompt: string;
   /** Where Pi should receive the guidance. */
   target: "system" | "user";
+  /** Optional regex that must match the expanded skill's user message. */
+  userMessagePattern?: string;
   /** Configuration layer that supplied this prompt; assigned during merge. */
   source?: string;
 }

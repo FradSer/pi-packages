@@ -120,7 +120,10 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     },
     async execute(_toolCallId, params) {
       if (params.to === LEADER_RECIPIENT) throw new Error('The leader cannot send a message to itself.');
-      const result = sendLeaderMessage(params.to, params.message, { reopen: params.reopen });
+      const result = sendLeaderMessage(params.to, params.message, {
+        reopen: params.reopen,
+        resources: params.resources,
+      });
       if (!result.ok) throw new Error(result.error);
       if (result.outcome === "not-sent") {
         return {
@@ -174,8 +177,9 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const tasks = listTasks();
-      if (params.dependsOn?.some((dep) => !tasks.some((task) => task.id === dep))) {
-        throw new Error(`Unknown dependency id in [${params.dependsOn.join(", ")}].`);
+      const referenced = [...(params.dependsOn ?? []), ...(params.supersedes ?? [])];
+      if (referenced.some((id) => !tasks.some((task) => task.id === id))) {
+        throw new Error(`Unknown task id in [${referenced.join(", ")}].`);
       }
       const created = createBoardTask(params);
       if (!created.ok) throw new Error(created.error);
@@ -186,6 +190,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
           notifiedTeammates: created.notifiedTeammates,
           livingTeammates: created.livingTeammates,
           claimable: created.claimable,
+          supersededTaskIds: created.supersededTaskIds,
         },
       };
     },

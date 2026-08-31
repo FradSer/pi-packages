@@ -112,6 +112,52 @@ Feature: Agent Teams collaborative organization contract
       Then it instructs the teammate to execute the assigned task directly without checking task_list
       And worker guidance instructs teammates to use task_list only when idle or notified of unclaimed work
 
+    Scenario: Direct-assignment completion does not require a board snapshot
+      Given a teammate has a direct assignment or review kickoff
+      When the leader waits for its result
+      Then the teammate's terminal report is the sole completion signal
+      And the leader does not call task_list merely to see whether the teammate is still working
+      And task_list remains available when task-board state is needed for a concrete coordination decision
+
+    Scenario: A terminal direct assignment cannot drift into board work
+      Given a teammate completed a direct assignment with a terminal leader report
+      And pending board work exists
+      When the teammate becomes idle
+      Then the harness does not send a board notice to that teammate
+      And task_claim rejects board work until the leader explicitly opens a new assignment
+
+    Scenario: Reopen cannot replace active direct work
+      Given a teammate owns an active direct assignment for resource "firmware/sub-node"
+      When the leader attempts reopen=true with another direct assignment
+      Then the harness rejects the reopen until the original assignment is terminal or released
+      And the original resource reservation remains active
+
+    Scenario: Generic wake-up cannot reopen a closed direct assignment
+      Given a teammate terminally completed a direct assignment for resource "firmware/sub-node"
+      When peer or harness mail wakes it before the leader sends another assignment
+      Then its terminal direct assignment remains closed
+      And an ordinary leader steer is rejected until reopen=true
+
+    Scenario: A board claim remains open until task_submit completes it
+      Given a teammate claimed a board task
+      When it sends a terminal leader report without task_submit
+      Then the task remains claimed by that teammate
+      And the harness asks the teammate to submit the board outcome
+      And the teammate cannot claim another board task
+
+    Scenario: Resource-scoped assignments cannot overlap
+      Given one living teammate owns an active assignment for resource "firmware/sub-node"
+      When another teammate claims a task scoped to "firmware/sub-node/app"
+      Then the harness rejects the claim with the conflicting assignment
+      And unrelated resources remain claimable
+
+    Scenario: A successor receives structured handoff context
+      Given a stalled teammate has an active assignment, board claim, and leader reports
+      When the leader spawns a successor with handoffFrom set to that teammate
+      Then the successor kickoff includes the prior assignment, claim, and recent reports
+      And the successor does not automatically inherit the prior claim
+      And handoffFrom is rejected until the predecessor is stopped
+
     Scenario: Teammate names are unique among living teammates
       Given a teammate named security is on the roster
       When the leader spawns another teammate named security
@@ -412,6 +458,12 @@ Feature: Agent Teams collaborative organization contract
       When an event arrives bearing the previous spawn identity
       Then the event is rejected
 
+    Scenario: Stale submission reducers cannot complete a same-named replacement
+      Given a task was re-claimed by a teammate with a fresh spawn identity
+      When an old spawn submits completion for the same teammate name
+      Then the reducer rejects it
+      And the fresh holder keeps the claim
+
   Rule: The task board is shared coordination state
 
     Scenario: The leader creates tasks; teammates never do
@@ -438,6 +490,14 @@ Feature: Agent Teams collaborative organization contract
       Then exactly one claimer wins the atomic claim
       And the losing racer receives a claim failure instead of a shared claim
       And the winner's roster entry records the claimed task
+
+    Scenario: Claim intent is not work authorization
+      Given a worker exclusively creates a claim marker
+      When the leader reducer has not yet accepted it
+      Then task_claim reports a queued claim intent rather than ownership
+      And the worker is instructed not to start work
+      When the reducer accepts the claim
+      Then the harness sends Claim accepted and authorizes work
 
     Scenario: Dependencies gate claimability
       Given a task depends on an incomplete task
@@ -496,6 +556,22 @@ Feature: Agent Teams collaborative organization contract
       And a VERDICT: FAIL keeps the task claimed and feeds the reviewer's findings back to the teammate
       And without any verify prompt the submission itself completes the task
 
+    Scenario: A missing verifier verdict is inconclusive, not a failed task
+      Given a completion review returns findings without a VERDICT line
+      When the harness asks once for a machine-readable verdict and it is still absent
+      Then the task remains claimed without incrementing verify-failure count
+      And the leader receives an inconclusive-verification decision request
+      And after an explicit leader steer to the board holder the task may accept a new completed outcome with a fresh clarification allowance
+      And the harness rejects completed submissions while that inconclusive task is parked
+      And a rejected reopen request does not unpark the task
+      And an ordinary leader steer can unpark an active board holder even after its terminal leader report
+
+    Scenario: A task cannot replace an in-flight verification submission
+      Given a claimed task has a completion review or verdict clarification running
+      When its holder submits another completed outcome
+      Then the harness rejects it without replacing the active submission identity
+      And the holder waits for the current verification to settle
+
     Scenario: Failed submissions keep the task claimable by its holder
       Given a teammate submits a failed outcome for its task
       Then the task is released back to pending
@@ -518,12 +594,47 @@ Feature: Agent Teams collaborative organization contract
       When submissions fail verification a second consecutive time
       Then the task remains claimed by the holder without another resubmit invitation
       And the leader receives one escalation naming the task and the reviewer's findings
+      And the harness rejects completed resubmissions until an explicit leader steer to that board holder
       And further failed submissions stay quiet toward the leader until a new holding begins
+
+    Scenario: A replacement task supersedes obsolete board work
+      Given a pending or claimed board task was replaced by a newer leader plan
+      When the leader creates a task that supersedes it
+      Then the obsolete task is marked superseded and cannot be claimed or completed
+      And a previous live holder keeps its resource reservation until it acknowledges cancellation or stops
+      And the harness tells that holder to stop writing and acknowledge cancellation
+      And board notices never advertise superseded work
+
+    Scenario: A persisted superseded task releases its dead holder on resume
+      Given a superseded task was held when its session stopped
+      When a later session loads the board without that worker
+      Then the task remains superseded for audit
+      And its stale claimedBy field is cleared
+      And it reserves no resource in the new session
+
+    Scenario: Superseding a prerequisite migrates downstream dependencies
+      Given pending task B depends on pending task A
+      When the leader creates replacement R that supersedes A
+      Then B depends on R instead of A
+      And B becomes claimable after R completes
+      And a replacement cannot both depend on and supersede the same task
+      And a replacement that depends on B is rejected before creating the A-B-R cycle
+      And superseding an already-superseded A targets its latest replacement before validation
+      And superseding a completed task is rejected without retargeting downstream work
+      And superseding A is rejected when A's latest replacement is completed
+
+    Scenario: New work follows an existing supersession chain
+      Given task A was superseded by replacement R
+      When the leader creates task B with dependsOn A
+      Then B depends on R instead of A
+      And B is claimable after R completes
+      But a persisted superseded task without supersededBy is rejected as an invalid dependency
 
     Scenario: A stopped holder leaves no verify-failure residue
       Given a teammate accumulated verify failures on its claimed tasks
       When the teammate stops and its claimed tasks are released
       Then no verify-failure record remains keyed to the released holder incarnation
+      And inconclusive and explicit-failure parks are cleared on both close paths
 
     Scenario: A verify result belongs to exactly one submission
       Given a claimed task whose verify review is running
@@ -551,6 +662,14 @@ Feature: Agent Teams collaborative organization contract
       Then only the leader process writes the board file
       And workers express intent through exclusive-create marker files
       And a malformed intent is consumed and reported as a diagnostic without blocking others
+      And an intent requires non-empty taskId, worker, spawnId, and finite timestamp
+
+    Scenario: Submission markers require a completed or failed status
+      Given a claimed task with no completion gate
+      When a malformed submission marker carries another status value
+      Then the harness consumes it as a diagnostic
+      And the task remains claimed and incomplete
+      And every exported submission reducer rejects the same malformed status
 
   Rule: The harness wakes idle teammates, the leader model never polls
 

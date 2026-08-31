@@ -1,8 +1,8 @@
 # Repository Guidelines
 
-This is a pnpm monorepo of native Pi packages. Each directory under `packages/`
-has its own manifest and tests; follow the nearest scoped guide, including
-`packages/context/AGENTS.md`.
+This is a pnpm monorepo of native Pi packages. Manifest-backed workspace
+packages live under `packages/*`, with scoped contributor rules in the nearest
+`AGENTS.md` (including `packages/context/AGENTS.md`).
 
 ## Project Structure & Module Organization
 
@@ -15,9 +15,9 @@ has its own manifest and tests; follow the nearest scoped guide, including
   skills, procedures, references, and bundled agents use their named folders.
 - BDD scenarios are in each package's `features/`; executable tests are in
   `tests/`. Release metadata lives in `.changeset/` and `.github/workflows/`.
-- `pi-kit` is the shared runtime and intentionally has no Pi manifest. `plan-mode`
-  is a workspace package but is not in the current `scripts/publish-release.mjs`
-  allowlist; check that script before changing release behavior.
+- `pi-kit` is the shared runtime and intentionally has no Pi manifest. The
+  release script publishes an explicit allowlist in dependency order; check
+  `scripts/publish-release.mjs` before changing package release behavior.
 
 ## Build, Test, and Development Commands
 
@@ -38,10 +38,10 @@ For the SDK example, run `pnpm example:sdk`.
 ## Coding Style & Naming Conventions
 
 Use ESM TypeScript targeting Node 20 or newer, follow surrounding indentation,
-and keep package, command, and tool names explicit and stable. Pi package
-manifests use the `pi-package` keyword, an explicit `pi` resource declaration
-when applicable, and complete `files` entries; imported Pi core packages are
-peer dependencies. `pi-kit` has no `pi` field or runtime dependencies. Do not
+and keep package, command, and tool names explicit and stable. Runtime package
+manifests use an explicit `pi.extensions` entry and complete `files` entries;
+Pi core imports are peer dependencies, while reusable `@fradser/pi-kit` is a
+workspace dependency. `pi-kit` has no `pi` field or runtime dependencies. Do not
 add Claude Code plugin artifacts or Claude-only skill frontmatter. Use pnpm
 commands such as `pnpm add` instead of hand-editing dependency manifests.
 
@@ -71,13 +71,36 @@ Every published-package update requires a Changeset. Do not hand-edit package
 versions for ordinary changes: GitHub Actions runs the Changesets workflow,
 opens the version PR, and publishes after that PR is merged.
 
+Package work is done only when the package is installed in the live agent
+config and exercised once in a real Pi run: `pnpm check:install` must pass
+(workspace pi packages vs `~/.pi/agent/settings.json`), plus one live
+`pi --print` smoke run touching the new surface. Package tests are necessary
+but never sufficient — an uninstalled package fails silently (no error, only
+absence). Renaming or moving a package directory must update `settings.json`
+in the same task; cleaning a dead entry without installing the successor is
+data loss.
+
 ## Pi UI and Extension Rules
 
 - Interactive popups use `ctx.ui.custom`; do not intercept terminal input globally.
   Respect the established `packages/btw` wrapping, scrolling, theme, and cleanup
   patterns. Keep passive widgets display-only.
-- `package.json`: `"keywords": ["pi-package"]`, `"pi": { "skills": [...], "extensions": [...] }`; extensions packages declare `"peerDependencies": { "@earendil-works/pi-coding-agent": "*" }`.
+- Published extension manifests declare `"pi": { "extensions": ["./index.ts"] }`
+  and declare imported Pi core packages as peer dependencies. Packages that
+  ship skills or other resources list them explicitly in `files`.
 - `files` must include everything that ships (`skills`/`extensions`/`procedures`/`references`/`scripts`).
+- **Progressive tool disclosure:** Register every custom tool so it can be
+  activated at runtime, but keep only capabilities useful in ordinary sessions
+  active initially. A tool whose purpose depends on an explicit workflow,
+  mode, or durable state must remain inactive until that transition succeeds;
+  enable it with `pi.setActiveTools()` at the transition, preserve unrelated
+  active tools, and remove it again on every exit, cancellation, or invalid
+  state-restoration path. Scope its description, `promptSnippet`, and
+  `promptGuidelines` to the prerequisite state. Prefer this availability
+  boundary over a tool-call guardrail: a guardrail remains defense in depth,
+  not routine routing after the model has already selected an irrelevant tool.
+  Cover initial inactive, activation, restoration, and exit behavior in BDD
+  and an executable active-tool-list test, then verify it in a live Pi run.
 - **Never** add `.claude-plugin`, `${CLAUDE_PLUGIN_ROOT}`, or Claude-only skill frontmatter (`allowed-tools`, `user-invocable`, `argument-hint`, `model`). Skill frontmatter: `name`, `description`, optional `disable-model-invocation`.
 
 ## Tool Result Text and Coordination-State Semantics
@@ -131,7 +154,10 @@ collapsed row unless required to distinguish the operation.
 
 ## Command menus vs skills (settled UX)
 
-- `memory`/`btw` expose workflows as **pi menu commands** (`/memory`, `/btw`), not skills: `pi.registerCommand(...)` + `ctx.ui.select` + the full procedure embedded via `pi.sendUserMessage(..., { deliverAs: "followUp" })` with `{{PKG_DIR}}` substituted at send time. Keep this pattern; do not reintroduce per-workflow skills. (The former `git-agent` package follows the same pattern from `~/Developer/FradSer/git-agent/git-agent-pi-package`; the former `git`/`github` packages moved to pure skills in `~/Developer/FradSer/skills`.)
+- Workflow surfaces are native Pi commands, not per-workflow skills. The
+  `pi-continual-learning` `/memory` menu loads its selected procedure as a
+  follow-up; `/btw` is a separate interactive read-only overlay. Keep command
+  registration and procedure loading aligned with each package's guide.
 - Skill names are global — avoid collisions (the old `commit`/`commit-and-push` clash between `git` and `git-agent` was resolved by moving to menus; the git/github skills now live in `~/Developer/FradSer/skills`).
 - Natural-language routing ("commit this", "create a PR") is preserved with small `before_agent_start` GUIDANCE blocks, not skills.
 
@@ -148,7 +174,7 @@ Interactive extension UI mirrors `packages/btw/src/overlay.ts`:
 ## Extension gotchas (hard-won)
 
 - **Never drive a widget with `ctx.ui.onTerminalInput`** — the listener runs before pi's keybindings and breaks the model selector, prompt history, and dialogs. Interactive UI = `ctx.ui.custom` (owns input) or `ctx.ui.select/confirm/input`. A `setWidget` is display-only.
-- **Alignment with native rows**: pi's native loader row is ` ⠋ Working...` — one leading space before the spinner. Custom widget/spinner rows must match (e.g. ` ⠴ Dreaming... · <activity>`) so the spinner columns align — see `packages/memory/extensions/inject-memory.ts`.
+- **Alignment with native rows**: pi's native loader row is ` ⠋ Working...` — one leading space before the spinner. Custom widget/spinner rows must match (e.g. ` ⠴ Dreaming... · <activity>`) so the spinner columns align — see `packages/pi-continual-learning/extensions/inject-memory.ts`.
 - `ctx.ui.custom` `render(width)` must fit the terminal: word-wrap with `wrapTextWithAnsi`, truncate with `truncateToWidth`.
 - pi negotiates the **Kitty keyboard protocol** (flags=7) with supporting terminals (Ghostty): Esc arrives as `\x1b[27u`, Shift+↑/↓ as `\x1b[1;2:1A`/`\x1b[1;2:1B` (event suffix). Match keys with CSI-u-aware regexes; filter releases with `isKeyRelease`.
 - Shared worker state between extension and child processes goes through a **shared JSON file** written atomically (tmp + rename); merge worker writes back on a poll/exit and never let a worker's write un-read a message the user already read.

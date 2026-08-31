@@ -54,6 +54,7 @@ export interface HarnessOp {
   policy?: Record<string, unknown>;
   prompt?: string;
   target?: string;
+  userMessagePattern?: string;
 }
 
 export interface HarnessConsolidationPlan {
@@ -122,6 +123,16 @@ export function validateHarnessPlan(plan: unknown): string[] {
       if (op.op === "addSkillPrompt") {
         if (!boundedString(op.prompt, MAX_SKILL_PROMPT_CHARS)) errors.push(`${label}.prompt must be 1..${MAX_SKILL_PROMPT_CHARS} chars`);
         if (op.target !== "system" && op.target !== "user") errors.push(`${label}.target must be "system" or "user"`);
+        if (op.userMessagePattern !== undefined) {
+          if (!boundedString(op.userMessagePattern, 500)) errors.push(`${label}.userMessagePattern must be 1..500 chars`);
+          else {
+            try {
+              new RegExp(op.userMessagePattern);
+            } catch {
+              errors.push(`${label}.userMessagePattern must be a valid regular expression`);
+            }
+          }
+        }
       }
       return;
     }
@@ -267,7 +278,11 @@ export async function applyHarnessOps(
       if (!disabled.includes(op.name as string)) disabled.push(op.name as string);
       applied.push(`disablePolicy:${op.name}`);
     } else if (op.op === "addSkillPrompt") {
-      skillPrompts[op.name as string] = { prompt: op.prompt, target: op.target };
+      skillPrompts[op.name as string] = {
+        prompt: op.prompt,
+        target: op.target,
+        ...(op.userMessagePattern !== undefined ? { userMessagePattern: op.userMessagePattern } : {}),
+      };
       applied.push(`addSkillPrompt:${op.name}`);
     } else if (op.op === "removeSkillPrompt") {
       delete skillPrompts[op.name as string];

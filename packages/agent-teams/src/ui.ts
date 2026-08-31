@@ -247,7 +247,8 @@ function buildTaskDetail(taskId: string): string[] {
     `[${task.id}] ${task.subject}`,
     "",
     "== task ==",
-    `  Status: ${task.status}${task.claimedBy ? ` (@${task.claimedBy})` : ""}`,
+    `  Status: ${task.status}${task.claimedBy ? ` (@${task.claimedBy})` : ""}${task.supersededBy ? ` → superseded by ${task.supersededBy}` : ""}`,
+    ...((task.resources?.length ?? 0) > 0 ? [`  Resources: ${task.resources.join(", ")}`] : []),
     ...(task.description ? [`  Description:`, ...indent(cap(task.description))] : []),
     ...(task.dependsOn.length > 0
       ? [`  Depends on: ${task.dependsOn.join(", ")} (${task.dependsOn.every((dep) => byId.get(dep)?.status === "completed") ? "met" : "unmet"})`]
@@ -502,7 +503,7 @@ export function openTeamConsole(ctx: {
     const headerLine = (): string => {
       const alive = livingTeammates();
       const tasks = listTasks();
-      return `team  ${alive.length} alive · ${alive.filter(isWorking).length} working · ${getRoles().length} roles · board ${tasks.filter((task) => task.status === "pending").length}p/${tasks.filter((task) => task.status === "claimed").length}c/${tasks.filter((task) => task.status === "completed").length}d · model ${getTeamDefaultModel() ?? "auto"} · ${page}`;
+      return `team  ${alive.length} alive · ${alive.filter(isWorking).length} working · ${getRoles().length} roles · board ${tasks.filter((task) => task.status === "pending").length}p/${tasks.filter((task) => task.status === "claimed").length}c/${tasks.filter((task) => task.status === "completed").length}d/${tasks.filter((task) => task.status === "superseded").length}s · model ${getTeamDefaultModel() ?? "auto"} · ${page}`;
     };
 
     interface ContentLine {
@@ -545,9 +546,11 @@ export function openTeamConsole(ctx: {
       const holder = task.claimedBy ? style.dim(` @${task.claimedBy}`) : "";
       const statusText = task.status === "completed"
         ? style.success("✓")
-        : task.status === "claimed"
-          ? theme.fg("warning", "◐ claimed")
-          : style.dim("○ pending");
+        : task.status === "superseded"
+          ? style.dim("⊘ superseded")
+          : task.status === "claimed"
+            ? theme.fg("warning", "◐ claimed")
+            : style.dim("○ pending");
       return `${marker}${label} ${statusText} ${theme.fg("customMessageText", task.subject)}${holder}`;
     };
 

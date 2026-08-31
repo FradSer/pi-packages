@@ -1,4 +1,4 @@
-# Skill Router Package Guidelines
+# Repository Guidelines
 
 `packages/skill-router/` publishes `pi-skill-router`, a native Pi package that
 routes to externally hosted skill collections. It ships no skill content:
@@ -33,10 +33,12 @@ pnpm --dir packages/skill-router pack --dry-run
 - **Exposure & Routing**: only the collection gateway skill is exposed to Pi's
   `resources_discover` hook, so sub-skills never clutter the `/` command menu.
   Sub-skills retain natural upstream names without prefixes; the router suggests
-  the exact file path in `before_agent_start`.
+  the exact file path in `before_agent_start`. Explicit `/skill:<name>` and
+  expanded `<skill name="...">` invocations are never rerouted.
 - **Atomicity**: materialization builds a temporary directory and renames it;
   failures leave no partial exposed directory and do not touch the registry.
 - **Fail Closed**: invalid registry entries are dropped; duplicate collection
   ids, gateways, caches, or sources disable the conflicting entries.
-- **No Side Effects**: the router never mutates user prompts, injects full
-  leaf instructions, or reroutes explicit slash / `<skill>` invocations.
+- **No Side Effects**: the router never mutates user prompts or injects full
+  leaf instructions. Other slash commands remain routable; only explicit skill
+  invocations are skipped.

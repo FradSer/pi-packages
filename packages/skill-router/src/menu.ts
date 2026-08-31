@@ -1,4 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { CancellableLoader } from "@earendil-works/pi-tui";
 import { routerRoot } from "./paths";
 import { loadCollections } from "./registry";
 import {
@@ -10,6 +11,7 @@ import {
   setCollectionEnabled,
   updateCollection,
   updateCollectionSelection,
+  defaultCollectionId,
   type UpstreamSkill,
 } from "./sync";
 
@@ -23,32 +25,38 @@ async function runWithLoading<T>(ctx: ExtensionCommandContext, message: string, 
   if (!ctx.hasUI) return action();
 
   const outcome = await ctx.ui.custom<LoadingOutcome<T>>((tui, theme, _keybindings, done) => {
-    const frames = ["-", "\\", "|", "/"];
-    let frame = 0;
-    const interval = setInterval(() => {
-      frame = (frame + 1) % frames.length;
-      tui.requestRender();
-    }, 80);
-    interval.unref?.();
+    const loader = new CancellableLoader(
+      tui,
+      (text) => theme.fg("accent", text),
+      (text) => theme.fg("muted", text),
+      message,
+    );
+    loader.start();
     setTimeout(() => {
       Promise.resolve()
         .then(action)
         .then(
-          (value) => done({ status: "success", value }),
-          (error) => done({ status: "error", error }),
+          (value) => {
+            loader.stop();
+            done({ status: "success", value });
+          },
+          (error) => {
+            loader.stop();
+            done({ status: "error", error });
+          },
         );
     }, 0);
     return {
-      render: () => [` ${theme.fg("accent", frames[frame])} ${theme.fg("muted", message)}`],
+      render: (width) => loader.render(width),
       invalidate: () => {},
-      dispose: () => clearInterval(interval),
+      dispose: () => loader.stop(),
     };
   }, {
     overlay: true,
     overlayOptions: {
       anchor: "bottom-center",
       width: "100%",
-      margin: { bottom: 0 },
+      margin: { bottom: 4 },
     },
   });
 
@@ -96,6 +104,14 @@ async function addFlow(ctx: ExtensionCommandContext): Promise<void> {
     return;
   }
 
+  const defaultId = defaultCollectionId(parseRepoSpec(repo));
+  const customId = await ctx.ui.input(
+    `Collection skill name (default: ${defaultId})`,
+    defaultId,
+  );
+  if (customId === undefined) return;
+  const id = customId.trim() || defaultId;
+
   const selection = await pickSkills(ctx, fetched.skills);
   if (!selection) return;
 
@@ -103,7 +119,7 @@ async function addFlow(ctx: ExtensionCommandContext): Promise<void> {
     const result = await runWithLoading(
       ctx,
       `Installing ${repo}...`,
-      () => addCollection(root, { repo, skills: selection }),
+      () => addCollection(root, { repo, id, skills: selection }),
     );
     ctx.ui.notify(`Installed "${result.id}" with ${result.skills.length} skills. ${RELOAD_HINT}`, "info");
   } catch (error) {

@@ -16,6 +16,7 @@ Feature: External skill collection routing
     Then the repository is cloned into the router cache directory
     And each selected skill is materialized in the collection skills directory
     And a visible gateway skill is generated for the collection
+    And the gateway contains only the collection skill content
     And the collection registry records source, gateway, and selection
 
   Scenario: Sub-skills are not exposed as global slash commands
@@ -57,6 +58,12 @@ Feature: External skill collection routing
     Given the user starts adding a collection
     When the router clones and scans the repository
     Then Pi displays a loading message until the operation settles
+
+  Scenario: Adding a collection allows a custom skill name
+    Given the repository default name is "coreyhaines31-marketingskills"
+    When the user adds the repository
+    Then Pi offers that default name for editing
+    And the selected custom name is used for the collection
 
   Scenario: Exposed collections are discovered by Pi
     Given an installed collection with materialized skills
@@ -150,6 +157,11 @@ Feature: External skill collection routing
     Given a repository skill directory that is a symlink to an outside directory
     When the user adds the repository
     Then the install fails without modifying the outside directory
+
+  Scenario: Symlinked repository metadata files are ignored
+    Given a repository contains a symlinked metadata file outside its skill directories
+    When the user adds the repository
+    Then valid skills are still discovered and materialized
 
   Scenario: Symlinked managed directories are rejected
     Given the router exposed directory is a symlink to an outside directory

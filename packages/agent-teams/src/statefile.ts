@@ -79,15 +79,15 @@ export function appendInboxMessage(file: string, message: { id: string; from: st
 }
 
 /** Publish the worker-readable roster of living teammates. */
-export function writeRoster(file: string, teammates: Array<{ name: string; agent: string; status: string; tools?: string[] }>): void {
+export function writeRoster(file: string, teammates: Array<{ name: string; agent: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }>): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   writeJsonAtomic(file, { teammates });
 }
 
 /** Read the roster from inside a teammate process; unknown roster = empty. */
-export function readRoster(file: string): Array<{ name: string; agent: string; status: string; tools?: string[] }> {
+export function readRoster(file: string): Array<{ name: string; agent: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }> {
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as { teammates?: Array<{ name: string; agent: string; status: string; tools?: string[] }> };
+    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as { teammates?: Array<{ name: string; agent: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }> };
     return Array.isArray(parsed.teammates) ? parsed.teammates : [];
   } catch {
     return [];
@@ -237,11 +237,18 @@ export function takeTaskIntent(dir: string): { intent?: TaskIntent; diagnostic?:
       const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as Partial<TaskIntent>;
       fs.rmSync(file, { force: true });
       if (
-        typeof parsed.taskId !== "string"
-        || typeof parsed.worker !== "string"
-        || typeof parsed.spawnId !== "string"
+        typeof parsed.taskId !== "string" || parsed.taskId.trim() === ""
+        || typeof parsed.worker !== "string" || parsed.worker.trim() === ""
+        || typeof parsed.spawnId !== "string" || parsed.spawnId.trim() === ""
+        || typeof parsed.timestamp !== "number" || !Number.isFinite(parsed.timestamp)
       ) {
-        return { diagnostic: `malformed task intent "${name}" was consumed (missing taskId/worker/spawnId)` };
+        return { diagnostic: `malformed task intent "${name}" was consumed (requires non-empty taskId/worker/spawnId and finite timestamp)` };
+      }
+      if (parsed.status !== undefined && parsed.status !== "completed" && parsed.status !== "failed") {
+        return { diagnostic: `malformed task intent "${name}" was consumed (invalid submission status)` };
+      }
+      if (typeof parsed.result !== "undefined" && typeof parsed.result !== "string") {
+        return { diagnostic: `malformed task intent "${name}" was consumed (invalid submission result)` };
       }
       return { intent: parsed as TaskIntent };
     } catch {

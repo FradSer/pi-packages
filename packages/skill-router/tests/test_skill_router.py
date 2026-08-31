@@ -111,8 +111,11 @@ def test_add_collection_materializes_subskills_and_gateway(tmp_path: Path, sourc
     gateway_frontmatter = gateway.split("---", 2)[1]
     assert re.search(rf"(?m)^name: {re.escape(collection_id)}$", gateway_frontmatter)
     assert "disable-model-invocation: true" not in gateway_frontmatter
-    assert "bug-diagnosis" in gateway
-    assert "code-review" in gateway
+    assert f"name: {collection_id}" in gateway_frontmatter
+    assert "Skill collection synced from" in gateway_frontmatter
+    assert "bug-diagnosis" not in gateway
+    assert "code-review" not in gateway
+    assert gateway.endswith("\n")
 
     registry = read_registry(agent_dir)
     [entry] = registry["collections"]
@@ -437,9 +440,12 @@ def test_collection_add_flow_uses_a_native_loading_overlay() -> None:
 
     assert "Adding a collection visibly reports progress" in feature
     assert "ctx.ui.custom<LoadingOutcome<T>>" in source
+    assert "CancellableLoader" in source
+    assert "margin: { bottom: 4 }" in source
     assert "Cloning and scanning ${spec.repo}..." in source
     assert "Installing ${repo}..." in source
     assert "Updating ${collection.id}..." in source
+    assert "Collection skill name (default: ${defaultId})" in source
 
 
 def test_crlf_frontmatter_is_wrapped(tmp_path: Path) -> None:
@@ -485,6 +491,17 @@ def test_local_repos_with_same_basename_get_distinct_caches(tmp_path: Path) -> N
     second_leaf = exposed_root(agent_dir, "second") / "skills" / "code-review" / "SKILL.md"
     assert "First repo skill" in first_leaf.read_text(encoding="utf-8")
     assert "Second repo skill" in second_leaf.read_text(encoding="utf-8")
+
+
+def test_symlinked_repository_metadata_file_is_ignored(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path / "metadata", "marketing", "Marketing workflows")
+    outside = tmp_path / "outside.md"
+    outside.write_text("# metadata\n", encoding="utf-8")
+    (repo / "CLAUDE.md").symlink_to(outside)
+
+    result = run_harness(tmp_path / "agent", "add", str(repo))
+    assert result["ok"] is True, result
+    assert result["skills"] == ["marketing"]
 
 
 def test_symlinked_skill_dir_is_rejected_and_outside_file_untouched(tmp_path: Path) -> None:

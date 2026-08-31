@@ -64,7 +64,13 @@ def valid_plan() -> dict:
         "operations": [
             {"op": "updatePolicy", "name": "evidence-rule", "policy": policy()},
             {"op": "disablePolicy", "name": "stale-rule"},
-            {"op": "addSkillPrompt", "name": "using-open-artifacts", "prompt": "Use coda0.com", "target": "system"},
+            {
+                "op": "addSkillPrompt",
+                "name": "using-open-artifacts",
+                "prompt": "Use coda0.com",
+                "target": "system",
+                "userMessagePattern": "^publish",
+            },
         ],
         "evidence": [
             {"index": 0, "observation": "blocked 3 writes hard-coding px widths", "count": 3},
@@ -165,7 +171,7 @@ def test_update_disable_and_skill_prompt_roundtrip(tmp_path: Path) -> None:
             {"op": "updatePolicy", "name": "r1", "policy": policy("r1") | {"action": "confirm"}},
             {"op": "updatePolicy", "name": "r2", "policy": policy("r2")},
             {"op": "disablePolicy", "name": "r2"},
-            {"op": "addSkillPrompt", "name": "sk", "prompt": "p", "target": "user"},
+            {"op": "addSkillPrompt", "name": "sk", "prompt": "p", "target": "user", "userMessagePattern": "^live$"},
             {"op": "removeSkillPrompt", "name": "sk"},
         ],
     )
@@ -175,6 +181,21 @@ def test_update_disable_and_skill_prompt_roundtrip(tmp_path: Path) -> None:
     assert after["policies"][0]["action"] == "confirm"
     assert after["disabled"] == ["r2"]
     assert after["skillPrompts"] == {}
+
+
+def test_skill_prompt_pattern_is_persisted_and_invalid_pattern_is_rejected(tmp_path: Path) -> None:
+    out, _ = apply_ops(
+        tmp_path,
+        [{"op": "addSkillPrompt", "name": "impeccable", "prompt": "p", "target": "system", "userMessagePattern": "^live$"}],
+    )
+    assert out["ok"] is True
+    assert out["after"]["skillPrompts"]["impeccable"]["userMessagePattern"] == "^live$"
+    errs = validate({
+        "kind": "harness-consolidation-plan",
+        "operations": [{"op": "addSkillPrompt", "name": "impeccable", "prompt": "p", "target": "system", "userMessagePattern": "(["}],
+        "evidence": [{"index": 0, "observation": "Live prompts were repeatedly misapplied", "count": 2}],
+    })
+    assert any("userMessagePattern must be a valid regular expression" in error for error in errs)
 
 
 def test_invalid_existing_json_is_reported_not_overwritten(tmp_path: Path) -> None:

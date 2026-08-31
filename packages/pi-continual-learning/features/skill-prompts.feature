@@ -34,3 +34,15 @@ Feature: Skill-invocation prompt guidance
     And no interactive UI is available
     When the expanded skill invocation reaches before_agent_start
     Then guidance is appended without prompting or failing
+
+  Scenario: Command-specific guidance matches the expanded user message
+    Given a skill prompt with a userMessagePattern regular expression
+    When the complete expanded skill invocation has a matching user message
+    Then the guidance is injected
+    And a different user message for the same skill receives no guidance
+
+  Scenario: Invalid command-specific guidance is skipped safely
+    Given a skill prompt with an invalid userMessagePattern regular expression
+    When the harness configuration is loaded
+    Then the skill prompt is skipped with a diagnostic
+    And valid sibling skill prompts remain active

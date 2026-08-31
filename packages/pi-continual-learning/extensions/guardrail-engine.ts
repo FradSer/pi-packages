@@ -108,8 +108,13 @@ export function validatePolicyDeclaration(raw: unknown): string[] {
       }
     }
   }
-  if (declaration.action !== undefined && declaration.action !== "block" && declaration.action !== "confirm") {
-    errors.push('action must be "block" or "confirm"');
+  if (
+    declaration.action !== undefined &&
+    declaration.action !== "block" &&
+    declaration.action !== "confirm" &&
+    declaration.action !== "observe"
+  ) {
+    errors.push('action must be "block", "confirm", or "observe"');
   }
   if (declaration.reason !== undefined && (typeof declaration.reason !== "string" || !declaration.reason.trim())) {
     errors.push("reason must be a non-empty string when provided");
@@ -169,7 +174,22 @@ export function mergeLayers(layers: PolicyLayer[]): ResolvedConfig {
         errors.push(`${layer.source}: skill prompt "${name}" target must be system or user and was skipped`);
         continue;
       }
-      skillPrompts.set(name, { prompt: entry.prompt, target: entry.target, source: layer.source });
+      if (entry.userMessagePattern !== undefined) {
+        if (typeof entry.userMessagePattern !== "string" || !entry.userMessagePattern.trim()) {
+          errors.push(`${layer.source}: skill prompt "${name}" userMessagePattern must be a non-empty regular expression string and was skipped`);
+          continue;
+        }
+        if (!compile(entry.userMessagePattern)) {
+          errors.push(`${layer.source}: skill prompt "${name}" userMessagePattern is an invalid regex and was skipped`);
+          continue;
+        }
+      }
+      skillPrompts.set(name, {
+        prompt: entry.prompt,
+        target: entry.target,
+        ...(typeof entry.userMessagePattern === "string" ? { userMessagePattern: entry.userMessagePattern } : {}),
+        source: layer.source,
+      });
     }
     for (const raw of layer.policies ?? []) {
       const declarationErrors = validatePolicyDeclaration(raw);
@@ -233,7 +253,7 @@ function normalizePolicy(
             pattern: requirement.pattern,
           }
         : undefined,
-    action: raw.action === "confirm" ? "confirm" : "block",
+    action: raw.action === "confirm" || raw.action === "observe" ? raw.action : "block",
     reason:
       typeof raw.reason === "string" && raw.reason.trim()
         ? raw.reason
@@ -249,7 +269,7 @@ export interface ToolCallInput {
 
 export interface Decision {
   policyName: string;
-  action: "block" | "confirm";
+  action: "block" | "confirm" | "observe";
   reason: string;
   cleanReason?: string;
   source?: string;

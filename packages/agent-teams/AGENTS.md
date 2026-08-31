@@ -30,4 +30,7 @@ Reference implementation: `packages/monitor/src/index.ts` (`monitor_start` + `mo
 
 ## Testing and release
 
-Update `features/agent-teams.feature` before behavior changes, then update `tests/`. Keep `package.json` `pi.extensions`, peer dependencies, `files` entries, bundled `agents/`, README, and changelog/release metadata aligned. This extension depends on `@fradser/pi-kit` via `workspace:*`; pi-kit must publish before this package.
+Update `features/agent-teams.feature` before behavior changes, then update
+`tests/`. Keep `package.json` `pi.extensions`, peer dependencies, `files`
+entries, the `references/` role reference, README, and changelog/release
+metadata aligned. This extension depends on `@fradser/pi-kit` via `workspace:*`; pi-kit must publish before this package.
