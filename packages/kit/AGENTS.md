@@ -6,7 +6,7 @@
 
 ## Commands
 
-From the repository root, run `python3 -m pytest packages/pi-kit/tests/ -q` for focused tests, `pnpm test` for the monorepo suite, and `npx tsc --noEmit -p packages/pi-kit/tsconfig.json` for strict typechecking. Use `pnpm --dir packages/pi-kit pack --dry-run` to verify package contents and exports.
+From the repository root, run `python3 -m pytest packages/kit/tests/ -q` for focused tests, `pnpm test` for the monorepo suite, and `npx tsc --noEmit -p packages/kit/tsconfig.json` for strict typechecking. Use `pnpm --dir packages/kit pack --dry-run` to verify package contents and exports.
 
 ## Style and architecture
 

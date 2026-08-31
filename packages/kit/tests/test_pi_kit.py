@@ -12,7 +12,7 @@ SRC = PACKAGE / "src"
 CONSUMERS = [
     "agent-teams",
     "btw",
-    "pi-continual-learning",
+    "continual-learning",
     "recap",
     "utils",
     "vision",
@@ -35,6 +35,8 @@ def run_typescript(script: str) -> dict[str, object]:
 
 def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
     feature = (PACKAGE / "features" / "pi-kit.feature").read_text(encoding="utf-8")
+    root_feature = (REPO / "features" / "package-root-entry.feature").read_text(encoding="utf-8")
+    assert "Package directories use concise names independently of npm package names" in root_feature
     assert "Feature: Shared pi-kit runtime helpers" in feature
     assert "Scenario: Spinner frames match pi's native loader" in feature
     assert "Scenario: Theme style language is adapted from any pi theme" in feature
@@ -646,7 +648,7 @@ def test_enter_model_population_and_on_empty_handler() -> None:
     assert result["notifications"] == []
 
 
-def test_pi_kit_manifest_is_a_pure_runtime_dependency() -> None:
+def test_kit_manifest_is_a_pure_runtime_dependency() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert manifest["name"] == "@fradser/pi-kit"
     assert "pi" not in manifest
@@ -656,7 +658,7 @@ def test_pi_kit_manifest_is_a_pure_runtime_dependency() -> None:
     assert "src" in manifest["files"]
 
 
-def test_pi_kit_has_no_consumer_imports() -> None:
+def test_kit_has_no_consumer_imports() -> None:
     consumer_names = {json.loads((REPO / "packages" / c / "package.json").read_text())["name"] for c in CONSUMERS}
     for source in SRC.glob("*.ts"):
         text = source.read_text(encoding="utf-8")
@@ -725,7 +727,7 @@ def test_model_search_text_and_search_picker_behavior() -> None:
     assert result["emptySelected"] is None
 
 
-def test_consumers_declare_pi_kit_as_workspace_dependency() -> None:
+def test_consumers_declare_kit_as_workspace_dependency() -> None:
     for consumer in CONSUMERS:
         manifest = json.loads((REPO / "packages" / consumer / "package.json").read_text(encoding="utf-8"))
         assert manifest.get("dependencies", {}).get("@fradser/pi-kit") == "workspace:*", (
@@ -736,7 +738,7 @@ def test_consumers_declare_pi_kit_as_workspace_dependency() -> None:
         )
 
 
-def test_publish_allowlist_orders_pi_kit_before_consumers() -> None:
+def test_publish_allowlist_orders_kit_before_consumers() -> None:
     script = (REPO / "scripts" / "publish-release.mjs").read_text(encoding="utf-8")
     kit_position = script.index('"@fradser/pi-kit"')
     assert kit_position > 0, "publish allowlist must include @fradser/pi-kit"
