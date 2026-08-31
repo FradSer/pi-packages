@@ -11,7 +11,7 @@ EXTENSIONS = PACKAGE / "extensions"
 RECAP_URI = (EXTENSIONS / "recap.ts").as_uri()
 INDEX_URI = (EXTENSIONS / "index.ts").as_uri()
 CONFIG_URI = (EXTENSIONS / "config.ts").as_uri()
-PIKIT_URI = (REPO / "packages" / "pi-kit" / "src" / "index.ts").as_uri()
+PIKIT_URI = (REPO / "packages" / "kit" / "src" / "index.ts").as_uri()
 
 
 def run_typescript(script: str) -> dict[str, object]:
