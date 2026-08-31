@@ -23,6 +23,10 @@ def run_bun(source: str, env: dict[str, str] | None = None) -> dict[str, object]
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
+def initialize_git_repo(repo: Path) -> None:
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+
+
 def test_scope_key_does_not_collide_for_path_punctuation() -> None:
     result = run_bun(
         """
@@ -54,6 +58,98 @@ def test_real_and_symlinked_project_paths_share_scope_lock() -> None:
         assert result["physical"]["cwd"] == result["alias"]["cwd"]
         assert result["physical"]["scopeKey"] == result["alias"]["scopeKey"]
         assert result["physical"]["lockFile"] == result["alias"]["lockFile"]
+
+
+def test_non_project_without_existing_mirror_disables_public_memory() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        workspace = root / "workspace"
+        agent = root / "agent"
+        workspace.mkdir()
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+            const memory = resolveMemoryPaths({json.dumps(str(workspace))});
+            console.log(JSON.stringify({{ publicDir: memory.publicDir }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert result == {}
+
+
+def test_non_project_with_legacy_mirror_disables_public_memory() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        workspace = root / "workspace"
+        agent = root / "agent"
+        (workspace / ".memory").mkdir(parents=True)
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+            const memory = resolveMemoryPaths({json.dumps(str(workspace))});
+            console.log(JSON.stringify({{ publicDir: memory.publicDir }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert result == {}
+
+
+def test_nested_directory_with_legacy_mirror_disables_public_memory() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        repo = root / "repo"
+        nested = repo / "nested"
+        agent = root / "agent"
+        (repo / ".git").mkdir(parents=True)
+        (nested / ".memory").mkdir(parents=True)
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+            const memory = resolveMemoryPaths({json.dumps(str(nested))});
+            console.log(JSON.stringify({{ publicDir: memory.publicDir }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert result == {}
+
+
+def test_git_project_root_that_contains_agent_directory_keeps_public_memory() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        repo = root / "repo"
+        agent = repo / ".pi" / "agent"
+        repo.mkdir()
+        initialize_git_repo(repo)
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+            const memory = resolveMemoryPaths({json.dumps(str(repo))});
+            console.log(JSON.stringify({{ publicDir: memory.publicDir }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert result == {"publicDir": str(repo.resolve() / ".memory")}
+
+
+def test_agent_directory_disables_public_memory_even_when_legacy_mirror_exists() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        agent = root / "agent"
+        (agent / ".memory").mkdir(parents=True)
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+            const memory = resolveMemoryPaths({json.dumps(str(agent))});
+            console.log(JSON.stringify({{ publicDir: memory.publicDir }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert result == {}
 
 
 def test_first_run_lock_race_reports_contention() -> None:
@@ -91,6 +187,7 @@ def test_loader_rejects_symlinked_memory_files_and_orders_entries() -> None:
         repo = root / "repo"
         agent = root / "agent"
         (repo / ".memory").mkdir(parents=True)
+        initialize_git_repo(repo)
         (root / "secret.md").write_text("private", encoding="utf-8")
         (repo / ".memory" / "z.md").write_text("z", encoding="utf-8")
         (repo / ".memory" / "a.md").write_text("a", encoding="utf-8")
@@ -114,6 +211,7 @@ def test_loader_uses_strict_memory_filename_policy() -> None:
         repo = root / "repo"
         agent = root / "agent"
         (repo / ".memory").mkdir(parents=True)
+        initialize_git_repo(repo)
         (repo / ".memory" / "valid_name.md").write_text("valid", encoding="utf-8")
         (repo / ".memory" / "prompt!.md").write_text("punctuation", encoding="utf-8")
         (repo / ".memory" / "upper.MD").write_text("upper", encoding="utf-8")
@@ -175,6 +273,7 @@ def test_loader_reads_only_bounded_bytes_before_truncating() -> None:
         agent = root / "agent"
         memory = repo / ".memory"
         memory.mkdir(parents=True)
+        initialize_git_repo(repo)
         (memory / "large.md").write_bytes(b"x" * 1_000_000)
         result = run_bun(
             f"""
@@ -383,7 +482,8 @@ def test_mirror_drift_is_normalized_before_the_run() -> None:
         root = Path(tmp)
         repo = root / "repo"
         agent = root / "agent"
-        (repo).mkdir()
+        repo.mkdir()
+        initialize_git_repo(repo)
         result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
@@ -448,6 +548,7 @@ def test_missing_harness_root_imports_public_instead_of_deleting() -> None:
         repo = root / "repo"
         agent = root / "agent"
         repo.mkdir()
+        initialize_git_repo(repo)
         result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};

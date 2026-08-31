@@ -554,7 +554,8 @@ async function runConsolidationValidator(
     "--check", check,
   ];
   if (receiptPath) {
-    args.push("--receipt", receiptPath, "--harness", run.manifest.harnessDir, "--public", run.manifest.publicDir, "--expected-receipt-phase", "post");
+    args.push("--receipt", receiptPath, "--harness", run.manifest.harnessDir, "--expected-receipt-phase", "post");
+    if (run.manifest.publicDir) args.push("--public", run.manifest.publicDir);
     if (receiptAfterMs !== undefined) args.push("--expected-receipt-after", String(receiptAfterMs / 1000));
   }
   let rawStdout: string;
@@ -675,7 +676,7 @@ async function spawnAsyncConsolidation(
     .replaceAll("{{RUN_DIR}}", run.manifest.runDir)
     .replaceAll("{{SNAPSHOT_PATH}}", run.manifest.snapshotPath)
     .replaceAll("{{HARNESS_DIR}}", run.manifest.harnessDir)
-    .replaceAll("{{PUBLIC_DIR}}", run.manifest.publicDir)
+    .replaceAll("{{PUBLIC_DIR}}", run.manifest.publicDir ?? "(disabled for this non-project directory)")
     .replaceAll("{{REPO_ROOT}}", run.manifest.cwd);
 
   const taskText = [
@@ -692,7 +693,7 @@ async function spawnAsyncConsolidation(
     `- Immutable manifest: ${path.join(run.manifest.runDir, "manifest.json")}`,
     `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
     `- Harness memory dir: ${harnessDir}`,
-    `- Public memory dir: ${run.manifest.publicDir}`,
+    `- Public memory dir: ${run.manifest.publicDir ?? "disabled for this non-project directory"}`,
     "- Do not write to either memory directory.",
     "- Your final assistant message must be one JSON object containing schemaVersion, runId, scopeKey, snapshotDigest, selected, and operations.",
     "",
@@ -1204,7 +1205,7 @@ export default function (pi: ExtensionAPI) {
             `Auto-memory: ${status}`,
             `Memory model: ${configuredMemoryModel()}`,
             `Harness memory: ${harnessDir}`,
-            `Public memory: ${cwd}/.memory`,
+            `Public memory: ${memoryPaths.publicDir ?? "disabled for this non-project directory"}`,
             `Consolidate procedure: ${procedureFile}`,
           ].join("\n"),
           "info",

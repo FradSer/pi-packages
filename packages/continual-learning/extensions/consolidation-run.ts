@@ -350,7 +350,7 @@ export interface ConsolidationManifest {
   scopeKey: string;
   scopeDigest: string;
   harnessDir: string;
-  publicDir: string;
+  publicDir?: string;
   runDir: string;
   contextEnabled: boolean;
   contextMode: "snapshot" | "no-context";
@@ -601,6 +601,8 @@ async function listMemoryRootFiles(root: string): Promise<Map<string, string>> {
  * full-scope consolidation becomes unrunnable until manual repair.
  */
 export async function normalizeMirrorDrift(memory: MemoryPaths, cwdVariants: readonly string[] = []): Promise<MirrorNormalization> {
+  const publicDir = memory.publicDir;
+  if (!publicDir) return { repaired: [], removed: [] };
   await migrateLegacyMemoryDirs(memory, cwdVariants).catch(() => {});
   const harnessStat = await fsp.lstat(memory.harnessDir).then(
     () => true,
@@ -610,17 +612,17 @@ export async function normalizeMirrorDrift(memory: MemoryPaths, cwdVariants: rea
     },
   );
   const harnessFiles = await listMemoryRootFiles(memory.harnessDir);
-  const publicFiles = await listMemoryRootFiles(memory.publicDir);
+  const publicFiles = await listMemoryRootFiles(publicDir);
   if (!harnessStat && harnessFiles.size === 0) {
     // No canonical root yet: import the public mirror instead of deleting it.
     if (publicFiles.size === 0) return { repaired: [], removed: [] };
     await ensureMemoryRoot(memory.harnessDir);
     for (const [, publicName] of [...publicFiles].sort(([a], [b]) => a.localeCompare(b))) {
-      const content = (await readBoundedRegularFile(path.join(memory.publicDir, publicName), MAX_MEMORY_BYTES)).toString("utf8");
+      const content = (await readBoundedRegularFile(path.join(publicDir, publicName), MAX_MEMORY_BYTES)).toString("utf8");
       await writeMemoryFile(path.join(memory.harnessDir, publicName), content);
     }
     await updateMemoryIndex(memory.harnessDir, new Set());
-    await updateMemoryIndex(memory.publicDir, new Set());
+    await updateMemoryIndex(publicDir, new Set());
     return {
       repaired: [...publicFiles.values()].sort().map((name) => ({ name, direction: "public-to-harness" as const })),
       removed: [],
@@ -637,7 +639,7 @@ export async function normalizeMirrorDrift(memory: MemoryPaths, cwdVariants: rea
   // Newer mtime wins for drifted pairs; ties fall back to the harness copy.
   const copyNewer = async (harnessName: string, publicName: string): Promise<void> => {
     const harnessFile = path.join(memory.harnessDir, harnessName);
-    const publicFile = path.join(memory.publicDir, publicName);
+    const publicFile = path.join(publicDir, publicName);
     const [harnessStat, publicStat] = await Promise.all([fsp.lstat(harnessFile), fsp.lstat(publicFile)]);
     const fromHarness = harnessStat.mtimeMs >= publicStat.mtimeMs;
     await copyBytes(
@@ -650,24 +652,24 @@ export async function normalizeMirrorDrift(memory: MemoryPaths, cwdVariants: rea
   for (const [key, publicName] of [...publicFiles].sort(([a], [b]) => a.localeCompare(b))) {
     const harnessName = harnessFiles.get(key);
     if (!harnessName || privateNames.has(key)) {
-      await fsp.rm(path.join(memory.publicDir, publicName), { force: true });
+      await fsp.rm(path.join(publicDir, publicName), { force: true });
       removed.add(publicName);
       continue;
     }
     const harnessHash = await sha256File(path.join(memory.harnessDir, harnessName), MAX_MEMORY_BYTES);
-    const publicHash = await sha256File(path.join(memory.publicDir, publicName), MAX_MEMORY_BYTES);
+    const publicHash = await sha256File(path.join(publicDir, publicName), MAX_MEMORY_BYTES);
     if (harnessHash === publicHash) continue;
     await copyNewer(harnessName, publicName);
   }
   for (const [key, harnessName] of [...harnessFiles].sort(([a], [b]) => a.localeCompare(b))) {
     if (privateNames.has(key) || publicFiles.has(key)) continue;
-    await copyBytes("harness-to-public", harnessName, path.join(memory.harnessDir, harnessName), path.join(memory.publicDir, harnessName));
+    await copyBytes("harness-to-public", harnessName, path.join(memory.harnessDir, harnessName), path.join(publicDir, harnessName));
   }
   if (removed.size > 0 || repairLog.size > 0 || harnessFiles.size > 0 || publicFiles.size > 0) {
     await ensureMemoryRoot(memory.harnessDir);
-    await ensureMemoryRoot(memory.publicDir);
+    await ensureMemoryRoot(publicDir);
     await updateMemoryIndex(memory.harnessDir, privateNames);
-    await updateMemoryIndex(memory.publicDir, new Set());
+    await updateMemoryIndex(publicDir, new Set());
   }
   return { repaired: [...repairLog.values()].sort((left, right) => left.name.localeCompare(right.name)), removed: [...removed].sort() };
 }
@@ -699,7 +701,7 @@ export async function createConsolidationRun(ctx: ExtensionContext, cwd: string,
       harnessDir: paths.memory.harnessDir, publicDir: paths.memory.publicDir, runDir: paths.runDir,
       contextEnabled: !noContext, contextMode: noContext ? "no-context" : "snapshot", snapshotPath: paths.snapshotFile,
       snapshotDigest, createdAt: contextManifest.createdAt,
-      sourceHashes: { harness: await hashMemoryRoot(paths.memory.harnessDir), public: await hashMemoryRoot(paths.memory.publicDir) },
+      sourceHashes: { harness: await hashMemoryRoot(paths.memory.harnessDir), public: paths.memory.publicDir ? await hashMemoryRoot(paths.memory.publicDir) : {} },
     };
     await writeJsonAtomic(paths.manifestFile, manifest);
     return { manifest, paths, lockPath: paths.lockFile, lock, released: false, normalization };
@@ -1309,29 +1311,30 @@ export async function applyConsolidationPlan(
     return { name: operationName, kind, classification, ...(kind !== "delete" ? { content: item.content as string } : {}) };
   });
 
-  const roots = [run.manifest.harnessDir, run.manifest.publicDir];
+  const publicDir = run.manifest.publicDir;
+  const roots = [run.manifest.harnessDir, ...(publicDir ? [publicDir] : [])];
   const rootStates = await Promise.all(roots.map(captureRootState));
-  const currentSourceHashes = { harness: await hashMemoryRoot(run.manifest.harnessDir), public: await hashMemoryRoot(run.manifest.publicDir) };
+  const currentSourceHashes = { harness: await hashMemoryRoot(run.manifest.harnessDir), public: publicDir ? await hashMemoryRoot(publicDir) : {} };
   if (digest(currentSourceHashes) !== digest(run.manifest.sourceHashes)) throw new Error("Memory sources changed after the consolidation snapshot; refusing stale apply.");
   await ensureMemoryRoot(run.manifest.harnessDir);
-  await ensureMemoryRoot(run.manifest.publicDir);
+  if (publicDir) await ensureMemoryRoot(publicDir);
   const privateNames = await readPrivateIndexNames(run.manifest.harnessDir);
-  const publicPrivateNames = await readPrivateIndexNames(run.manifest.publicDir);
+  const publicPrivateNames = publicDir ? await readPrivateIndexNames(publicDir) : new Set<string>();
   if (publicPrivateNames.size > 0) throw new Error("Public memory index contains harness-only entries.");
   const transactionFiles = [...new Set([
-    ...selected.flatMap((name) => [memoryFilePath(run.manifest.harnessDir, name), memoryFilePath(run.manifest.publicDir, name)]),
+    ...selected.flatMap((name) => [memoryFilePath(run.manifest.harnessDir, name), ...(publicDir ? [memoryFilePath(publicDir, name)] : [])]),
     path.join(run.manifest.harnessDir, "MEMORY.md"),
-    path.join(run.manifest.publicDir, "MEMORY.md"),
+    ...(publicDir ? [path.join(publicDir, "MEMORY.md")] : []),
   ])];
   const snapshots = await captureMemoryFiles(transactionFiles);
-  const snapshotSourceHashes = { harness: await hashMemoryRoot(run.manifest.harnessDir), public: await hashMemoryRoot(run.manifest.publicDir) };
+  const snapshotSourceHashes = { harness: await hashMemoryRoot(run.manifest.harnessDir), public: publicDir ? await hashMemoryRoot(publicDir) : {} };
   if (digest(snapshotSourceHashes) !== digest(run.manifest.sourceHashes)) throw new Error("Memory sources changed while capturing the consolidation transaction; refusing stale apply.");
   try {
     ensureActive();
     if (selected.length === 0) {
       await ensureMemoryIndex(run.manifest.harnessDir, privateNames);
       ensureActive();
-      await ensureMemoryIndex(run.manifest.publicDir, new Set());
+      if (publicDir) await ensureMemoryIndex(publicDir, new Set());
     } else {
       for (const operation of normalizedOperations) {
         ensureActive();
@@ -1339,28 +1342,28 @@ export async function applyConsolidationPlan(
           await removeMemoryFile(run.manifest.harnessDir, operation.name);
           privateNames.delete(operation.name.toLowerCase());
           ensureActive();
-          await removeMemoryFile(run.manifest.publicDir, operation.name);
+          if (publicDir) await removeMemoryFile(publicDir, operation.name);
         } else {
           await writeMemoryFileInRoot(run.manifest.harnessDir, operation.name, operation.content!);
           ensureActive();
           if (operation.classification === "safe") {
             privateNames.delete(operation.name.toLowerCase());
-            await writeMemoryFileInRoot(run.manifest.publicDir, operation.name, operation.content!);
+            if (publicDir) await writeMemoryFileInRoot(publicDir, operation.name, operation.content!);
           } else {
             privateNames.add(operation.name.toLowerCase());
-            await removeMemoryFile(run.manifest.publicDir, operation.name);
+            if (publicDir) await removeMemoryFile(publicDir, operation.name);
           }
         }
       }
       ensureActive();
       await updateMemoryIndex(run.manifest.harnessDir, privateNames, ensureActive);
       ensureActive();
-      await updateMemoryIndex(run.manifest.publicDir, new Set(), ensureActive);
+      if (publicDir) await updateMemoryIndex(publicDir, new Set(), ensureActive);
     }
     ensureActive();
     return {
       selected: [...selected].sort(),
-      finalState: { harness: await hashMemoryRoot(run.manifest.harnessDir), public: await hashMemoryRoot(run.manifest.publicDir) },
+      finalState: { harness: await hashMemoryRoot(run.manifest.harnessDir), public: publicDir ? await hashMemoryRoot(publicDir) : {} },
     };
   } catch (error) {
     try {

@@ -229,8 +229,10 @@ export async function loadAndDeduplicateMemories(
   const paths = resolveMemoryPaths(cwd);
   await migrateLegacyMemoryDirs(paths, [cwd]).catch(() => {});
   const memories = new Map<string, MemoryEntry>();
-  for (const entry of await readSource(paths.publicDir, "public", options)) {
-    memories.set(entry.filename, entry);
+  if (paths.publicDir) {
+    for (const entry of await readSource(paths.publicDir, "public", options)) {
+      memories.set(entry.filename, entry);
+    }
   }
   for (const entry of await readSource(paths.harnessDir, "harness", options)) {
     memories.set(entry.filename, entry);

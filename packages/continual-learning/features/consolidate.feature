@@ -105,6 +105,17 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     Then it creates only the required empty roots and indexes
     And it reports a verified no-op result without changing unrelated project files
 
+  Scenario: A non-project parent directory never becomes a public memory mirror
+    Given the current directory has no .memory directory and is not a Git worktree root
+    When memory paths are resolved
+    Then its public memory mirror is disabled
+    And consolidation never creates a .memory directory there
+
+  Scenario: The Pi agent configuration directory never becomes a public memory mirror
+    Given the current directory is the Pi agent configuration directory
+    When memory paths are resolved
+    Then its public memory mirror is disabled even if a .memory directory exists
+
   Scenario: Project scope key is distinct from the run scope digest
     Given the parent supplies a project scope key and a different run scope digest
     When the structured validator checks the consolidation plan
