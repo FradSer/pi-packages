@@ -27,6 +27,48 @@ class TestSessionsExtension(unittest.TestCase):
         self.assertIn('session_start', content)
         self.assertIn('session_shutdown', content)
 
+    def test_list_directory_sessions_is_disclosed_only_while_peer_sessions_exist(self) -> None:
+        script = f"""
+import ext, {{ getSessionFileKey, writeSessionInfo }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+const cwd = path.join(os.tmpdir(), "disclose-sessions-" + Date.now());
+fs.mkdirSync(cwd, {{ recursive: true }});
+let handlers = {{}};
+let activeTools = ["read", "list_directory_sessions", "unrelated_tool"];
+const pi = {{
+  registerTool() {{}}, registerCommand() {{}},
+  on(name, handler) {{ handlers[name] = handler; }},
+  getActiveTools() {{ return activeTools; }},
+  setActiveTools(names) {{ activeTools = names; }},
+}};
+ext(pi);
+await handlers.session_start({{}}, {{ cwd, sessionManager: {{ getSessionFile: () => "self.jsonl" }} }});
+const initiallyInactive = [...activeTools];
+const sleeper = Bun.spawn(["sleep", "30"], {{ stdout: "ignore", stderr: "ignore" }});
+writeSessionInfo({{
+  sessionId: "peer", pid: sleeper.pid, cwd, startedAt: Date.now(), updatedAt: Date.now(), status: "idle",
+}});
+await handlers.before_agent_start({{ prompt: "work", systemPrompt: "base" }}, {{ cwd, sessionManager: {{ getSessionFile: () => "self.jsonl" }} }});
+const peerActive = [...activeTools];
+fs.rmSync(path.join(os.homedir(), ".pi", "agent", "directory-sessions", getSessionFileKey(cwd)), {{ recursive: true, force: true }});
+await handlers.agent_settled({{}}, {{ cwd }});
+console.log(JSON.stringify({{ initiallyInactive, peerActive, settled: activeTools }}));
+sleeper.kill();
+fs.rmSync(cwd, {{ recursive: true, force: true }});
+"""
+        result = subprocess.run(["bun", "run", "-"], cwd=REPO, input=script, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            raise AssertionError(f"TypeScript execution failed:\n{result.stderr}")
+        data = json.loads(result.stdout)
+        self.assertNotIn("list_directory_sessions", data["initiallyInactive"])
+        self.assertIn("list_directory_sessions", data["peerActive"])
+        self.assertIn("unrelated_tool", data["peerActive"])
+        self.assertNotIn("list_directory_sessions", data["settled"])
+        self.assertIn("unrelated_tool", data["settled"])
+
     def test_list_directory_sessions_follows_compact_display_pattern(self) -> None:
         content = self.ext_source()
         # Monitor display pattern: tool renders its own shell, an empty call

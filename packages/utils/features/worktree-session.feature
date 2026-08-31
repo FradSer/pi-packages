@@ -50,6 +50,16 @@ Feature: EnterWorktree and ExitWorktree session switching
     When EnterWorktree is called with a path that is not a registered git worktree
     Then the operation fails without creating a session or deleting files
 
+  Scenario: ExitWorktree is progressively disclosed by replacement-session state
+    Given the Pi extension is loaded in a normal session
+    Then enter_worktree remains active for the model
+    And exit_worktree is inactive for the model
+    When the session is restored as an EnterWorktree replacement session
+    Then exit_worktree is active for the model without removing unrelated active tools
+    And enter_worktree remains active for the model
+    When the replacement session exits
+    Then exit_worktree is inactive again while enter_worktree remains active
+
   Scenario: EnterWorktree and ExitWorktree tools queue their session commands
     Given the Pi extension is loaded
     When the model calls EnterWorktree or ExitWorktree

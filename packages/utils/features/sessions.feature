@@ -55,6 +55,16 @@ Feature: Cross-session awareness and directory recap
     When executed
     Then it returns structured info about all active sessions in the current directory
 
+  Scenario: list_directory_sessions is progressively disclosed for peer sessions
+    Given the Pi extension starts with no other session in its directory
+    Then list_directory_sessions is inactive for the model
+    When a peer session is registered in the directory
+    And the agent is about to start
+    Then list_directory_sessions is active for the model
+    When the peer session is no longer present
+    And the agent settles
+    Then list_directory_sessions is inactive again without removing unrelated active tools
+
   Scenario: Tool list_directory_sessions renders one compact transcript row
     Given an agent calling tool "list_directory_sessions"
     When Pi renders the completed tool call in the TUI

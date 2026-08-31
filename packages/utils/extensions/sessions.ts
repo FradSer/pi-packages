@@ -294,12 +294,31 @@ export default function (pi: ExtensionAPI) {
     writeSessionInfo(info);
   }
 
+  function setSessionToolActive(active: boolean): void {
+    if (typeof pi.getActiveTools !== "function") return;
+    const activeTools = pi.getActiveTools();
+    const isActive = activeTools.includes("list_directory_sessions");
+    if (isActive === active) return;
+    pi.setActiveTools(
+      active
+        ? [...activeTools, "list_directory_sessions"]
+        : activeTools.filter((tool) => tool !== "list_directory_sessions"),
+    );
+  }
+
+  function syncSessionTool(ctxCwd: string): SessionInfo[] {
+    const peers = cleanAndListDirectorySessions(ctxCwd, currentSessionId);
+    setSessionToolActive(peers.length > 0);
+    return peers;
+  }
+
   pi.on("session_start", async (_event, ctx) => {
     const file = ctx.sessionManager?.getSessionFile();
     if (file) {
       currentSessionId = path.basename(file, ".jsonl");
     }
     updateSelf(ctx.cwd, "idle");
+    syncSessionTool(ctx.cwd);
   });
 
   pi.on("session_info_changed", async (event, ctx) => {
@@ -316,7 +335,7 @@ export default function (pi: ExtensionAPI) {
     currentGoal = event.prompt.trim().slice(0, 300);
     updateSelf(ctx.cwd, "running");
 
-    const otherSessions = cleanAndListDirectorySessions(ctx.cwd, currentSessionId);
+    const otherSessions = syncSessionTool(ctx.cwd);
     if (otherSessions.length > 0) {
       const recapText = formatCrossSessionRecap(otherSessions);
       return {
@@ -327,10 +346,12 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("agent_settled", async (_event, ctx) => {
     updateSelf(ctx.cwd, "idle");
+    syncSessionTool(ctx.cwd);
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {
     removeSessionInfo(ctx.cwd, currentSessionId);
+    setSessionToolActive(false);
   });
 
   pi.on("tool_call", async (event, ctx) => {
@@ -448,6 +469,7 @@ export default function (pi: ExtensionAPI) {
       };
     },
   });
+
 }
 
 /** Extracts the first text block of a tool result. */

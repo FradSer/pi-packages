@@ -416,6 +416,28 @@ const enterWorktreeParameters = Type.Object({
 });
 
 export default function registerWorktreeSession(pi: ExtensionAPI): void {
+	function setWorktreeToolActive(name: "enter_worktree" | "exit_worktree", active: boolean): void {
+		if (typeof pi.getActiveTools !== "function") return;
+		const activeTools = pi.getActiveTools();
+		const isActive = activeTools.includes(name);
+		if (isActive === active) return;
+		pi.setActiveTools(active ? [...activeTools, name] : activeTools.filter((tool) => tool !== name));
+	}
+
+	function syncWorktreeTools(ctx: Pick<ExtensionContext, "sessionManager">): void {
+		setWorktreeToolActive("exit_worktree", readWorktreeSessionState(ctx) !== null);
+	}
+
+	if (typeof pi.on === "function") {
+		pi.on("session_start", async (_event, ctx) => {
+			syncWorktreeTools(ctx);
+		});
+
+		pi.on("session_shutdown", async () => {
+			setWorktreeToolActive("exit_worktree", false);
+		});
+	}
+
 	pi.registerCommand("enter-worktree", {
 		description: "Create or enter a git worktree in a replacement Pi session",
 		handler: async (args, ctx) => {
@@ -481,4 +503,5 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 			};
 		},
 	});
+
 }

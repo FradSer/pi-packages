@@ -163,6 +163,38 @@ console.log(JSON.stringify({{
             check=True,
         )
 
+    def test_exit_worktree_is_disclosed_only_for_replacement_sessions(self) -> None:
+        script = f"""
+import ext from {json.dumps(SESSION_EXTENSION.as_uri())};
+const handlers = {{}};
+let activeTools = ["read", "enter_worktree", "exit_worktree", "unrelated_tool"];
+const pi = {{
+  registerCommand() {{}}, registerTool() {{}},
+  on(name, handler) {{ handlers[name] = handler; }},
+  getActiveTools() {{ return activeTools; }},
+  setActiveTools(names) {{ activeTools = names; }},
+}};
+ext(pi);
+await handlers.session_start({{}}, {{ sessionManager: {{ getBranch: () => [] }} }});
+const initiallyInactive = [...activeTools];
+const replacementState = {{
+  baseCommit: "abc", created: true, parentSession: "/tmp/parent.jsonl", path: "/tmp/worktree", repoRoot: "/tmp/repo",
+}};
+await handlers.session_start({{}}, {{ sessionManager: {{ getBranch: () => [{{ type: "custom", customType: "pi-utils-worktree-session", data: replacementState }}] }} }});
+const replacementActive = [...activeTools];
+await handlers.session_shutdown({{}}, {{}});
+console.log(JSON.stringify({{ initiallyInactive, replacementActive, shutdown: activeTools }}));
+"""
+        result = run_ts(script)
+        self.assertIn("enter_worktree", result["initiallyInactive"])
+        self.assertNotIn("exit_worktree", result["initiallyInactive"])
+        self.assertIn("enter_worktree", result["replacementActive"])
+        self.assertIn("exit_worktree", result["replacementActive"])
+        self.assertIn("unrelated_tool", result["replacementActive"])
+        self.assertIn("enter_worktree", result["shutdown"])
+        self.assertNotIn("exit_worktree", result["shutdown"])
+        self.assertIn("unrelated_tool", result["shutdown"])
+
     def test_tools_queue_transitions_instead_of_claiming_completion(self) -> None:
         script = f"""
 import registerWorktreeSession from {json.dumps(SESSION_EXTENSION.as_uri())};
