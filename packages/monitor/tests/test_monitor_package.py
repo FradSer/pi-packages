@@ -541,6 +541,30 @@ def test_success_sentinel_omits_progress_output_from_terminal_result() -> None:
     )
 
 
+def test_nonparticipating_optional_named_capture_is_omitted_without_crashing() -> None:
+    run_typescript(
+        r'''
+        import { MonitorManager } from "./packages/monitor/src/monitor.ts";
+
+        const terminals = [];
+        const manager = new MonitorManager({
+          onTerminal: (monitor, result) => terminals.push({ monitor, result }),
+        });
+        manager.start({
+          command: `printf 'READY\n'`,
+          description: "optional capture",
+          resultPattern: String.raw`READY(?<optional> x)?`,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        if (terminals.length !== 1) throw new Error(JSON.stringify(terminals));
+        const result = terminals[0].result;
+        if (result.status !== "success" || result.captures?.optional !== undefined) {
+          throw new Error(JSON.stringify(result));
+        }
+        ''',
+    )
+
+
 def test_success_sentinel_returns_one_structured_terminal_result() -> None:
     run_typescript(
         r'''

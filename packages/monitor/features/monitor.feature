@@ -74,6 +74,7 @@ Feature: Result-contract background monitoring
     When a line from stdout or stderr matches the result pattern
     Then the matched line and named captures are recorded
     And a named json capture is parsed as structured data when valid
+    And optional named capture groups that did not participate are omitted without crashing the Pi session
     And the process is stopped
     And the agent is woken exactly once with status "success"
     And the model-facing result uses compact key-value text instead of pretty JSON

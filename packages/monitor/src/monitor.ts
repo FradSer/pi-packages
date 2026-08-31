@@ -563,10 +563,12 @@ function buildMatchedResult(
 ): MonitorTerminalResult {
   const captures = match.groups
     ? Object.fromEntries(
-      Object.entries(match.groups).map(([name, value]) => [
-        name,
-        value.slice(0, name === "json" ? MAX_RESULT_JSON_BYTES : MAX_RESULT_TEXT),
-      ]),
+      Object.entries(match.groups)
+        .filter((entry): entry is [string, string] => typeof entry[1] === "string")
+        .map(([name, value]) => [
+          name,
+          value.slice(0, name === "json" ? MAX_RESULT_JSON_BYTES : MAX_RESULT_TEXT),
+        ]),
     )
     : undefined;
   const terminal: MonitorTerminalResult = {
