@@ -28,7 +28,10 @@ Use ESM TypeScript targeting Node 20+, with explicit, stable Pi command and tool
 names. Keep command behavior in its corresponding extension and keep
 `index.ts` as composition-only wiring. Preserve Pi session/context semantics;
 interactive choices should use Pi UI APIs rather than global terminal-input
-listeners. Reuse `@fradser/pi-kit` helpers when applicable; it is a workspace
+listeners. Treat every other registered worktree as a foreign checkout: the
+`read` tool must block files beneath it and direct the agent to
+`enter_worktree`; only a replacement session rooted in that worktree may read
+its files. Reuse `@fradser/pi-kit` helpers when applicable; it is a workspace
 runtime dependency, not a peer dependency.
 
 ## Testing and Releases

@@ -116,7 +116,9 @@ partially rewritten.
 Editor file suggestions (`@`) are filtered to the session's own git worktree:
 a session in main never suggests linked worktree contents, and a session
 inside a linked worktree never suggests sibling worktrees or the main
-checkout. Worktree roots are discovered once per session via
+checkout. The built-in `read` tool also blocks direct reads from a foreign
+worktree and directs the agent to `enter_worktree`; only a replacement session
+rooted in that worktree may read its files. Worktree roots are discovered once per session via
 `git worktree list --porcelain`; outside a git repository nothing is filtered.
 Quoted and `@`-prefixed values are resolved (relative, absolute, and `~/`
 forms) before the containment check.
