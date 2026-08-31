@@ -375,45 +375,7 @@ await new Promise((r) => setTimeout(r, 20));
   });
 }
 
-// ── S8: matt_pocock_ask is available only within active workflow state ─
-{
-  const workflow = {
-    type: "custom",
-    customType: "matt-pocock-workflow",
-    data: { route: "idea-to-ship", procedure: "grilling", phase: "shaping" },
-  };
-  const exited = {
-    type: "custom",
-    customType: "matt-pocock-workflow",
-    data: { active: false },
-  };
-  const inactive = await callTool("matt_pocock_ask", { question: "Scope?" }, {
-    ...baseCtx,
-    sessionManager: { getBranch: () => [] },
-  });
-  const active = await callTool("matt_pocock_ask", { question: "Scope?" }, {
-    ...baseCtx,
-    sessionManager: { getBranch: () => [workflow] },
-  });
-  const afterExit = await callTool("matt_pocock_ask", { question: "Scope?" }, {
-    ...baseCtx,
-    sessionManager: { getBranch: () => [workflow, exited] },
-  });
-  const workflowStateWithActiveFalse = await callTool("matt_pocock_ask", { question: "Scope?" }, {
-    ...baseCtx,
-    sessionManager: { getBranch: () => [{ ...workflow, data: { ...workflow.data, active: false } }] },
-  });
-  record("matt-pocock-ask-workflow-gate", {
-    inactiveBlocked: inactive[0]?.block === true
-      && /ask it directly in the conversation/.test(inactive[0]?.reason ?? "")
-      && !/Start one with matt_pocock_workflow/.test(inactive[0]?.reason ?? ""),
-    activePassed: active.length === 0,
-    exitBlocksAgain: afterExit[0]?.block === true,
-    workflowStateWins: workflowStateWithActiveFalse.length === 0,
-  });
-}
-
-// ── S9: /harness command reports surface, headless-safe ───────────
+// ── S8: /harness command reports surface, headless-safe ───────────
 {
   let notified = "";
   const messages = [];
@@ -421,14 +383,22 @@ await new Promise((r) => setTimeout(r, 20));
   pi.sendUserMessage = (content, options) => messages.push({ content, options });
   await commands.harness.handler("", cmdCtx);
   await commands.harness.handler("Block edits that add hard-coded colors", cmdCtx);
+  await commands.harness.handler("--global Block edits globally", cmdCtx);
+  await commands.harness.handler("--shared Block edits in repo", cmdCtx);
   record("command-surface", {
     listsPolicies: notified.includes("ui-fixed-width") && notified.includes("block-curl-prod"),
     showsPaths: notified.includes("harness.json") && notified.includes(".local"),
     invalidSkillReported: notified.includes("bad--skill") && notified.includes("violates the Pi skill-name rules"),
-    promptRouted: messages.length === 1 && messages[0].options?.deliverAs === "followUp" &&
+    defaultTargetsProjectLocal: messages.length >= 1 && messages[0].options?.deliverAs === "followUp" &&
       messages[0].content.includes("Block edits that add hard-coded colors") &&
-      messages[0].content.includes(path.join(agentDir, "harness.local.json")) &&
-      !messages[0].content.includes(path.join(project, ".pi", "harness.local.json")),
+      messages[0].content.includes(path.join(project, ".pi", "harness.local.json")) &&
+      !messages[0].content.includes(path.join(agentDir, "harness.local.json")),
+    globalFlagTargetsUserLocal: messages.length >= 2 && messages[1].options?.deliverAs === "followUp" &&
+      messages[1].content.includes("Block edits globally") &&
+      messages[1].content.includes(path.join(agentDir, "harness.local.json")),
+    sharedFlagTargetsProject: messages.length >= 3 && messages[2].options?.deliverAs === "followUp" &&
+      messages[2].content.includes("Block edits in repo") &&
+      messages[2].content.includes(path.join(project, ".pi", "harness.json")),
   });
 }
 
@@ -498,12 +468,9 @@ def test_s7_skill_prompts_are_layered_and_idempotent() -> None:
     assert s["expandHintUsesKeybinding"] and s["expandedPromptIsComplete"]
 
 
-def test_s8_matt_pocock_ask_requires_active_workflow() -> None:
-    s = ALL["matt-pocock-ask-workflow-gate"]
-    assert s["inactiveBlocked"] and s["activePassed"] and s["exitBlocksAgain"] and s["workflowStateWins"]
-
-
-def test_s9_command_reports_surface_and_routes_prompt() -> None:
+def test_s8_command_reports_surface_and_routes_prompt() -> None:
     s = ALL["command-surface"]
     assert s["listsPolicies"] and s["showsPaths"] and s["invalidSkillReported"]
-    assert s["promptRouted"]
+    assert s["defaultTargetsProjectLocal"]
+    assert s["globalFlagTargetsUserLocal"]
+    assert s["sharedFlagTargetsProject"]

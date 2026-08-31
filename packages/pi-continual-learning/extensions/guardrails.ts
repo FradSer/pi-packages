@@ -19,21 +19,6 @@ import { DEFAULT_POLICIES, evaluate, mergeLayers } from "./guardrail-engine.ts";
 import { configPaths, loadLayers } from "./guardrail-config.ts";
 import type { PolicyLayer, ResolvedConfig } from "./guardrail-types.ts";
 
-const MATT_POCOCK_WORKFLOW_ENTRY = "matt-pocock-workflow";
-
-export function hasActiveMattPocockWorkflow(entries: unknown[]): boolean {
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const entry = entries[index] as { type?: unknown; customType?: unknown; data?: unknown } | undefined;
-    if (entry?.type !== "custom" || entry.customType !== MATT_POCOCK_WORKFLOW_ENTRY) continue;
-    const data = entry.data as Record<string, unknown> | undefined;
-    if (typeof data?.route === "string" && typeof data?.procedure === "string" && typeof data?.phase === "string") {
-      return true;
-    }
-    if (data?.active === false) return false;
-  }
-  return false;
-}
-
 interface ResolvedWithPaths {
   config: ResolvedConfig;
   paths: ReturnType<typeof configPaths>;
@@ -88,7 +73,7 @@ function appendSystemGuidance(systemPrompt: string, guidance: string): string {
   return systemPrompt ? `${systemPrompt}\n\n${guidance}` : guidance;
 }
 
-async function readGlobalHarnessTarget(targetFile: string): Promise<Buffer | null> {
+async function readHarnessTarget(targetFile: string): Promise<Buffer | null> {
   let stat: Stats;
   try {
     stat = await fs.promises.lstat(targetFile);
@@ -97,13 +82,13 @@ async function readGlobalHarnessTarget(targetFile: string): Promise<Buffer | nul
     throw error;
   }
   if (stat.isSymbolicLink() || !stat.isFile()) {
-    throw new Error(`Global harness target is not a regular file: ${targetFile}`);
+    throw new Error(`Harness target is not a regular file: ${targetFile}`);
   }
   return fs.promises.readFile(targetFile);
 }
 
-export async function ensureGlobalHarnessTarget(targetFile: string): Promise<{ path: string; created: boolean }> {
-  const existing = await readGlobalHarnessTarget(targetFile);
+export async function ensureHarnessTarget(targetFile: string): Promise<{ path: string; created: boolean }> {
+  const existing = await readHarnessTarget(targetFile);
   if (existing) return { path: targetFile, created: false };
 
   await fs.promises.mkdir(path.dirname(targetFile), { recursive: true });
@@ -121,27 +106,91 @@ export async function ensureGlobalHarnessTarget(targetFile: string): Promise<{ p
     await handle?.close().catch(() => {});
   }
 
-  const verified = await readGlobalHarnessTarget(targetFile);
-  if (!verified) throw new Error(`Global harness target could not be read after initialization: ${targetFile}`);
+  const verified = await readHarnessTarget(targetFile);
+  if (!verified) throw new Error(`Harness target could not be read after initialization: ${targetFile}`);
   try {
     const parsed = JSON.parse(verified.toString("utf8")) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error(`Global harness target is not a JSON object: ${targetFile}`);
+      throw new Error(`Harness target is not a JSON object: ${targetFile}`);
     }
   } catch (error) {
-    throw new Error(`Global harness target could not be verified: ${(error as Error).message}`);
+    throw new Error(`Harness target could not be verified: ${(error as Error).message}`);
   }
   return { path: targetFile, created };
 }
 
-export function buildHarnessRulePrompt(request: string, targetFile: string): string {
+export const ensureGlobalHarnessTarget = ensureHarnessTarget;
+
+export interface ResolvedHarnessTarget {
+  request: string;
+  targetFile: string;
+  scope: "project.local" | "project" | "user.local" | "user";
+  scopeLabel: string;
+}
+
+export function resolveHarnessTarget(
+  rawArgs: string,
+  cwd: string,
+  agentDir?: string,
+): ResolvedHarnessTarget {
+  const paths = configPaths(cwd, agentDir);
+  const trimmed = rawArgs.trim();
+
+  let scope: "project.local" | "project" | "user.local" | "user" = "project.local";
+  let request = trimmed;
+
+  const flagMatch = trimmed.match(
+    /^(--global-shared|--user-shared|--global|--user-local|--user|--shared|--project-local|--project|--repo|--local|-g|-p|-l)\b\s*(.*)$/i,
+  );
+
+  if (flagMatch) {
+    const flag = flagMatch[1].toLowerCase();
+    request = flagMatch[2].trim();
+    if (flag === "--global-shared" || flag === "--user-shared") {
+      scope = "user";
+    } else if (flag === "--global" || flag === "--user" || flag === "--user-local" || flag === "-g") {
+      scope = "user.local";
+    } else if (flag === "--shared" || flag === "--project" || flag === "--repo" || flag === "-p") {
+      scope = "project";
+    } else {
+      scope = "project.local";
+    }
+  }
+
+  let targetFile: string;
+  let scopeLabel: string;
+  switch (scope) {
+    case "user":
+      targetFile = paths.user;
+      scopeLabel = "global shared harness.json";
+      break;
+    case "user.local":
+      targetFile = paths.userLocal;
+      scopeLabel = "global personal harness.local.json";
+      break;
+    case "project":
+      targetFile = paths.project;
+      scopeLabel = "project shared harness.json (git-tracked)";
+      break;
+    case "project.local":
+    default:
+      targetFile = paths.projectLocal;
+      scopeLabel = "project personal harness.local.json";
+      break;
+  }
+
+  return { request, targetFile, scope, scopeLabel };
+}
+
+export function buildHarnessRulePrompt(request: string, targetFile: string, scopeLabel?: string): string {
+  const label = scopeLabel ?? (targetFile.endsWith("harness.local.json") ? "personal harness.local.json" : "harness.json");
   return [
-    "Create or update one global Pi harness rule from the user's request below. This is an explicit write task, not a research task.",
+    "Create or update one Pi harness rule from the user's request below. This is an explicit write task, not a research task.",
     "",
     `User request: ${request}`,
     "",
     "Required creation protocol:",
-    `- The only allowed target is ${targetFile}, the global personal harness.local.json. Do not modify project harness files, the shared harness.json, memory, or unrelated files.`,
+    `- The only allowed target is ${targetFile}, the ${label}. Do not modify other harness files, memory, or unrelated files.`,
     `- Treat ${targetFile} as authoritative. Do not use find, fffind, grep, rg, read-directory, or any other discovery step to locate a different harness file.`,
     `- Execute this exact sequence: read ${targetFile} directly; if it is missing, immediately call the write tool with path=${targetFile}; then read ${targetFile} again to verify it.`,
     `- If ${targetFile} returns ENOENT, create it at that exact path instead of searching elsewhere. The write tool creates missing parent directories.`,
@@ -303,13 +352,6 @@ export default function registerGuardrails(pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", async (event, ctx) => {
-    if (event.toolName === "matt_pocock_ask" && !hasActiveMattPocockWorkflow(ctx.sessionManager.getBranch())) {
-      return {
-        block: true,
-        reason: "[guardrails:matt-pocock-ask-requires-workflow] matt_pocock_ask is available only while a Matt Pocock workflow is active. If this is an ordinary question, ask it directly in the conversation instead of starting a workflow.",
-      };
-    }
-
     const cwd = ctx.cwd || process.cwd();
     const { config, paths } = resolveConfig(cwd);
     const decision = evaluate(config, {
@@ -402,19 +444,18 @@ export default function registerGuardrails(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("harness", {
-    description: "Show active guardrails or create a global rule from a prompt",
+    description: "Show active guardrails or create a rule from a prompt (default: project-local, --global for user, --shared for repo)",
     handler: async (rawArgs, ctx) => {
-      const request = rawArgs.trim();
       const cwd = ctx.cwd || process.cwd();
+      const { request, targetFile, scopeLabel } = resolveHarnessTarget(rawArgs, cwd);
       if (request) {
-        const targetFile = configPaths(cwd).userLocal;
         try {
-          await ensureGlobalHarnessTarget(targetFile);
+          await ensureHarnessTarget(targetFile);
         } catch (error) {
-          ctx.ui.notify(`Cannot prepare global harness target: ${(error as Error).message}`, "error");
+          ctx.ui.notify(`Cannot prepare harness target: ${(error as Error).message}`, "error");
           return;
         }
-        pi.sendUserMessage(buildHarnessRulePrompt(request, targetFile), { deliverAs: "followUp" });
+        pi.sendUserMessage(buildHarnessRulePrompt(request, targetFile, scopeLabel), { deliverAs: "followUp" });
         return;
       }
       const { config, paths } = resolveConfig(cwd);

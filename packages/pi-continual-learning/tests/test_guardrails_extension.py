@@ -126,16 +126,58 @@ def test_innermost_policy_definition_wins() -> None:
     assert "inner reason" in str(hit_inner["reason"])
 
 
-def test_harness_prompt_routes_a_direct_global_rule_request() -> None:
+def test_harness_target_resolution_defaults_to_project_local_and_supports_flags() -> None:
+    source = """
+        import { resolveHarnessTarget } from './packages/pi-continual-learning/extensions/guardrails.ts';
+        const cwd = '/tmp/my-project';
+        const agentDir = '/tmp/user/agent';
+        console.log(JSON.stringify({
+          defaultTarget: resolveHarnessTarget('Block edits that add hard-coded colors', cwd, agentDir),
+          globalFlag: resolveHarnessTarget('--global Block edits', cwd, agentDir),
+          globalShort: resolveHarnessTarget('-g Block edits', cwd, agentDir),
+          sharedFlag: resolveHarnessTarget('--shared Block edits', cwd, agentDir),
+          projectFlag: resolveHarnessTarget('--project Block edits', cwd, agentDir),
+          repoFlag: resolveHarnessTarget('--repo Block edits', cwd, agentDir),
+          projectLocalFlag: resolveHarnessTarget('--local Block edits', cwd, agentDir),
+          globalSharedFlag: resolveHarnessTarget('--global-shared Block edits', cwd, agentDir),
+        }));
+    """
+    result = run_bun(source)
+    assert result["defaultTarget"]["scope"] == "project.local"
+    assert result["defaultTarget"]["targetFile"] == "/tmp/my-project/.pi/harness.local.json"
+    assert result["defaultTarget"]["request"] == "Block edits that add hard-coded colors"
+
+    assert result["globalFlag"]["scope"] == "user.local"
+    assert result["globalFlag"]["targetFile"] == "/tmp/user/agent/harness.local.json"
+    assert result["globalFlag"]["request"] == "Block edits"
+
+    assert result["globalShort"]["scope"] == "user.local"
+    assert result["globalShort"]["targetFile"] == "/tmp/user/agent/harness.local.json"
+
+    assert result["sharedFlag"]["scope"] == "project"
+    assert result["sharedFlag"]["targetFile"] == "/tmp/my-project/.pi/harness.json"
+    assert result["sharedFlag"]["request"] == "Block edits"
+
+    assert result["projectFlag"]["scope"] == "project"
+    assert result["repoFlag"]["scope"] == "project"
+
+    assert result["projectLocalFlag"]["scope"] == "project.local"
+    assert result["projectLocalFlag"]["targetFile"] == "/tmp/my-project/.pi/harness.local.json"
+
+    assert result["globalSharedFlag"]["scope"] == "user"
+    assert result["globalSharedFlag"]["targetFile"] == "/tmp/user/agent/harness.json"
+
+
+def test_harness_prompt_routes_a_direct_rule_request() -> None:
     source = """
         import { buildHarnessRulePrompt } from './packages/pi-continual-learning/extensions/guardrails.ts';
-        console.log(JSON.stringify(buildHarnessRulePrompt('Block edits that add hard-coded colors', '/tmp/agent/harness.local.json')));
+        console.log(JSON.stringify(buildHarnessRulePrompt('Block edits that add hard-coded colors', '/tmp/project/.pi/harness.local.json', 'project personal harness.local.json')));
     """
     result = run_bun(source)
     prompt = result
     assert 'Block edits that add hard-coded colors' in str(prompt)
-    assert '/tmp/agent/harness.local.json' in str(prompt)
-    assert 'global Pi harness rule' in str(prompt)
+    assert '/tmp/project/.pi/harness.local.json' in str(prompt)
+    assert 'project personal harness.local.json' in str(prompt)
     assert 'Preserve every existing policy' in str(prompt)
     assert 'Do not use find, fffind, grep, rg, read-directory, or any other discovery step' in str(prompt)
     assert 'Execute this exact sequence' in str(prompt)
@@ -193,24 +235,6 @@ def test_global_harness_target_rejects_symlinks(tmp_path: Path) -> None:
     """
     result = run_bun(source)
     assert result['rejected'] is True
-
-
-def test_matt_pocock_ask_requires_a_current_workflow_and_honors_exit() -> None:
-    source = """
-        import { hasActiveMattPocockWorkflow } from './packages/pi-continual-learning/extensions/guardrails.ts';
-        const workflow = { type: 'custom', customType: 'matt-pocock-workflow', data: {
-          route: 'idea-to-ship', procedure: 'grilling', phase: 'shaping',
-        }};
-        const exited = { type: 'custom', customType: 'matt-pocock-workflow', data: { active: false } };
-        console.log(JSON.stringify({
-          inactive: hasActiveMattPocockWorkflow([]),
-          active: hasActiveMattPocockWorkflow([workflow]),
-          exited: hasActiveMattPocockWorkflow([workflow, exited]),
-          workflowStateWins: hasActiveMattPocockWorkflow([{ ...workflow, data: { ...workflow.data, active: false } }]),
-        }));
-    """
-    result = run_bun(source)
-    assert result == {"inactive": False, "active": True, "exited": False, "workflowStateWins": True}
 
 
 def test_invalid_skill_prompt_user_message_pattern_is_skipped_without_hiding_valid_siblings() -> None:

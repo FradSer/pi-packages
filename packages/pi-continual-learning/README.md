@@ -23,7 +23,7 @@ pi install npm:pi-continual-learning
 | --- | --- |
 | `/memory` | Memory management menu: instructions, model, consolidation, settings |
 | `/consolidate` | Consolidate now: memory first, then harness guardrails and project AGENTS.md mined from session history |
-| `/harness` | Show active tool-call guardrails, or create a global rule from a prompt |
+| `/harness` | Show active tool-call guardrails, or create a rule from a prompt (default: project personal `.pi/harness.local.json`, `--shared` for project repo, `--global` for user) |
 
 ## Guardrails configuration
 
@@ -67,21 +67,18 @@ fixed pixel widths above the threshold are blocked with design guidance, while
 the same text in non-UI files passes through. Drop the file's contents into
 your project `.pi/harness.json` to activate it.
 
-To create a global rule directly, pass a natural-language request: `/harness
-block edits that add hard-coded colors`. The request is sent as a follow-up with
-an explicit write protocol for `~/.pi/agent/harness.local.json`. It reads that
-exact global file, creates it there when missing, preserves existing entries,
-and verifies the result; it does not search for a project-local harness file.
+To create a rule directly, pass a natural-language request: `/harness
+block edits that add hard-coded colors`. By default, it targets the project
+personal layer at `<project>/.pi/harness.local.json`. Use `--shared` (or `--project`,
+`--repo`) to target the git-tracked `<project>/.pi/harness.json`, or `--global`
+(or `--user`) to target `~/.pi/agent/harness.local.json`. The request is sent as a
+follow-up with an explicit write protocol: it reads that exact target file,
+creates it there when missing, preserves existing entries, and verifies the
+result without wandering to other layers.
 
 Built-in defaults cover known-futile automation: interactive auth commands
 (`npm/pnpm/yarn login|adduser|logout`) and OTP-via-file/chat routing are
 blocked with guidance to hand those steps to the user's own terminal.
-
-`matt_pocock_ask` is also gated by the current session branch: it can run only
-after `matt_pocock_workflow` has recorded an active workflow. The Matt Pocock
-harness supplies `/matt-pocock end` as the explicit exit mechanism; its exit
-record immediately disables further structured interview prompts until a new
-workflow starts.
 
 ### Harness consolidation
 

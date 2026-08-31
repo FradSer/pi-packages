@@ -18,11 +18,13 @@ export interface ConfigPaths {
 export function configPaths(cwd: string, agentDir?: string): ConfigPaths {
   // Shared with the absorbed memory surface: honors PI_CODING_AGENT_DIR.
   const base = agentDir ?? getAgentDir();
+  const hasProjectAgent = fs.existsSync(path.join(cwd, ".pi", "agent"));
+  const projectDir = hasProjectAgent ? path.join(cwd, ".pi", "agent") : path.join(cwd, ".pi");
   return {
     user: path.join(base, "harness.json"),
     userLocal: path.join(base, "harness.local.json"),
-    project: path.join(cwd, ".pi", "harness.json"),
-    projectLocal: path.join(cwd, ".pi", "harness.local.json"),
+    project: path.join(projectDir, "harness.json"),
+    projectLocal: path.join(projectDir, "harness.local.json"),
   };
 }
 
@@ -61,14 +63,27 @@ function readLayer(source: string, filePath: string): PolicyLayer | undefined {
 export function loadLayers(cwd: string, agentDir?: string): PolicyLayer[] {
   const paths = configPaths(cwd, agentDir);
   const layers: PolicyLayer[] = [];
-  for (const [source, file] of [
-    ["user", paths.user],
-    ["user.local", paths.userLocal],
-    ["project", paths.project],
-    ["project.local", paths.projectLocal],
-  ] as const) {
-    const layer = readLayer(source, file);
-    if (layer) layers.push(layer);
-  }
+
+  const altProject = paths.project.includes(path.join(".pi", "agent"))
+    ? path.join(cwd, ".pi", "harness.json")
+    : path.join(cwd, ".pi", "agent", "harness.json");
+  const altProjectLocal = paths.projectLocal.includes(path.join(".pi", "agent"))
+    ? path.join(cwd, ".pi", "harness.local.json")
+    : path.join(cwd, ".pi", "agent", "harness.local.json");
+
+  const userLayer = readLayer("user", paths.user);
+  if (userLayer) layers.push(userLayer);
+
+  const userLocalLayer = readLayer("user.local", paths.userLocal);
+  if (userLocalLayer) layers.push(userLocalLayer);
+
+  const projFile = fs.existsSync(paths.project) ? paths.project : (fs.existsSync(altProject) ? altProject : paths.project);
+  const projLayer = readLayer("project", projFile);
+  if (projLayer) layers.push(projLayer);
+
+  const projLocalFile = fs.existsSync(paths.projectLocal) ? paths.projectLocal : (fs.existsSync(altProjectLocal) ? altProjectLocal : paths.projectLocal);
+  const projLocalLayer = readLayer("project.local", projLocalFile);
+  if (projLocalLayer) layers.push(projLocalLayer);
+
   return layers;
 }

@@ -27,15 +27,6 @@ Feature: Generic tool-call guardrails from layered config
     Then the call proceeds without confirmation or blocking
     And the transcript records one display-only harness policy-observed event with the policy reason
 
-  Scenario: Matt Pocock interview questions require an active workflow
-    Given no Matt Pocock workflow is active in the current session branch
-    When the model calls matt_pocock_ask
-    Then the call is blocked with guidance to ask directly in the conversation instead of starting a workflow
-    When the current branch records an active Matt Pocock workflow
-    Then matt_pocock_ask proceeds
-    And a later Matt Pocock workflow exit record blocks matt_pocock_ask again
-    And a workflow-shaped state takes precedence over an active false flag on that same record
-
   Scenario: Non-matching calls pass through untouched
     Given the same policy set
     When the model invokes a tool that matches no pattern
@@ -81,11 +72,14 @@ Feature: Generic tool-call guardrails from layered config
     Then the command reports sources, policy names, and the config paths
     And it works headlessly without interactive UI
 
-  Scenario: A /harness prompt creates a global rule
+  Scenario: A /harness prompt creates a rule in the specified or default target
     Given the user provides a natural-language harness rule request
-    When the user runs /harness with that request
-    Then the command sends one follow-up with an explicit file-creation protocol
-    And the protocol targets only ~/.pi/agent/harness.local.json
+    When the user runs /harness with that request without scope flags
+    Then the command targets the project personal layer at .pi/harness.local.json by default
+    When the user specifies --global or --user
+    Then the command targets ~/.pi/agent/harness.local.json
+    When the user specifies --shared or --project
+    Then the command targets the project shared layer at .pi/harness.json
     And a missing target is initialized there instead of being searched for elsewhere
     And it preserves existing rules and asks the agent to verify the resulting JSON
 
