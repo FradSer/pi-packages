@@ -38,6 +38,7 @@ def test_feature_covers_the_workflow_harness_contract() -> None:
         "The workflow tool advertises every valid procedure name",
         "An unknown procedure soft-lands on the route default",
         "A stale restored workflow explicitly ends after validation fails",
+        "Structured interview questions are available only during an active workflow",
         "Agent asks the user questions via interactive selection tool",
         "The package has no recursively discoverable child skills",
         "Deferred automation remains documented",
@@ -101,6 +102,8 @@ def test_workflow_tool_schema_advertises_every_registered_procedure_and_alias() 
           registerTool(tool) { tools.set(tool.name, tool); },
           appendEntry() {},
           sendUserMessage() {},
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
         };
         mattPocock(pi);
 
@@ -212,6 +215,8 @@ def test_session_start_restores_persisted_workflow_and_visible_status() -> None:
           appendEntry() {},
           sendMessage(message, options) { restored.push({ message, options }); },
           sendUserMessage() {},
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
         };
         const ctx = {
           sessionManager: {
@@ -255,6 +260,8 @@ def test_session_start_with_an_unavailable_procedure_clears_state_with_actionabl
           appendEntry(customType, data) { entries.push({ customType, data }); },
           sendMessage() {},
           sendUserMessage() {},
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
         };
         const ctx = {
           sessionManager: {
@@ -296,6 +303,8 @@ def test_unknown_tool_procedure_soft_lands_on_the_route_default() -> None:
           registerTool(tool) { tools.set(tool.name, tool); },
           appendEntry(customType, data) { entries.push({ customType, data }); },
           sendUserMessage() {},
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
         };
         const ctx = { ui: { setStatus() {} } };
 
@@ -338,6 +347,8 @@ def test_command_activates_a_route_injects_a_procedure_and_adds_compact_guidance
           registerTool() {},
           appendEntry(customType, data) { entries.push({ customType, data }); },
           sendUserMessage(content, options) { messages.push({ content, options }); },
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
         };
         const ctx = {
           sessionManager: { getBranch: () => [] },
@@ -384,6 +395,8 @@ def test_transition_is_manual_and_injects_only_the_selected_procedure() -> None:
           registerTool() {},
           appendEntry(customType, data) { entries.push({ customType, data }); },
           sendUserMessage(content, options) { messages.push({ content, options }); },
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
         };
         let selection = "code-review";
         const ctx = {
@@ -423,6 +436,8 @@ def test_inactive_session_receives_workflow_routing_guidance() -> None:
           registerTool() {},
           appendEntry() {},
           sendUserMessage() {},
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
         };
         const ctx = {
           sessionManager: { getBranch: () => [] },
@@ -458,6 +473,8 @@ def test_agent_can_autonomously_activate_workflow_via_tool() -> None:
           registerTool(tool) { tools.set(tool.name, tool); },
           appendEntry(customType, data) { entries.push({ customType, data }); },
           sendUserMessage(content, options) { messages.push({ content, options }); },
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
         };
         const ctx = {
           sessionManager: { getBranch: () => [] },
@@ -499,6 +516,8 @@ def test_hard_bug_tight_red_loop_alias_activates_diagnosing_bugs_at_reproduce() 
           registerTool(tool) { tools.set(tool.name, tool); },
           appendEntry(customType, data) { entries.push({ customType, data }); },
           sendUserMessage() {},
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
         };
         const ctx = { ui: { setStatus() {} } };
 
@@ -535,6 +554,8 @@ def test_wayfinding_clarify_goal_alias_activates_wayfinder() -> None:
           registerTool(tool) { tools.set(tool.name, tool); },
           appendEntry(customType, data) { entries.push({ customType, data }); },
           sendUserMessage() {},
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
         };
         const ctx = { ui: { setStatus() {} } };
 
@@ -558,6 +579,59 @@ def test_wayfinding_clarify_goal_alias_activates_wayfinder() -> None:
     assert "Route: wayfinding\nPhase: discovery" in result["execution"]["content"][0]["text"]
 
 
+def test_matt_pocock_ask_is_inactive_outside_a_workflow_and_removed_on_exit() -> None:
+    result = run_typescript("""
+        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+        const mattPocock = importedMattPocock.default ?? importedMattPocock;
+
+        const events = new Map();
+        const commands = new Map();
+        const tools = new Map();
+        let activeTools = ["bash", "matt_pocock_workflow", "matt_pocock_ask"];
+        const pi = {
+          on(name, handler) { events.set(name, handler); },
+          registerCommand(name, command) { commands.set(name, command); },
+          registerTool(tool) { tools.set(tool.name, tool); },
+          appendEntry() {},
+          sendMessage() {},
+          sendUserMessage() {},
+          getActiveTools() { return activeTools; },
+          setActiveTools(names) { activeTools = names; },
+        };
+        const inactiveContext = {
+          hasUI: true,
+          sessionManager: { getBranch: () => [] },
+          ui: { setStatus() {}, notify() {} },
+        };
+        const restoredContext = {
+          hasUI: true,
+          sessionManager: {
+            getBranch: () => [{
+              type: "custom",
+              customType: "matt-pocock-workflow",
+              data: { route: "hard-bug", procedure: "diagnosing-bugs", phase: "feedback-loop" },
+            }],
+          },
+          ui: { setStatus() {}, notify() {} },
+        };
+
+        mattPocock(pi);
+        await events.get("session_start")({}, inactiveContext);
+        const inactive = [...activeTools];
+        await tools.get("matt_pocock_workflow").execute("call-1", { route: "hard-bug" }, undefined, undefined, inactiveContext);
+        const workflowActive = [...activeTools];
+        await commands.get("matt-pocock").handler("end", inactiveContext);
+        const ended = [...activeTools];
+        activeTools = ["bash", "matt_pocock_workflow"];
+        await events.get("session_start")({}, restoredContext);
+        console.log(JSON.stringify({ inactive, workflowActive, ended, restored: activeTools }));
+    """)
+    assert "matt_pocock_ask" not in result["inactive"]
+    assert "matt_pocock_ask" in result["workflowActive"]
+    assert "matt_pocock_ask" not in result["ended"]
+    assert "matt_pocock_ask" in result["restored"]
+
+
 def test_matt_pocock_ask_tool_selection_custom_input_and_timeout() -> None:
     result = run_typescript("""
         import importedMattPocock from "./packages/matt-pocock/src/index.ts";
@@ -570,6 +644,8 @@ def test_matt_pocock_ask_tool_selection_custom_input_and_timeout() -> None:
           registerTool(tool) { tools.set(tool.name, tool); },
           appendEntry() {},
           sendUserMessage() {},
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
         };
 
         let selectChoice = "Option A (Recommended)";
@@ -641,6 +717,8 @@ def test_matt_pocock_ask_tui_rendering_uses_pi_kit_lifecycle() -> None:
           registerMessageRenderer(name, renderer) { renderers.set(name, renderer); },
           appendEntry() {},
           sendUserMessage() {},
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
         };
 
         mattPocock(pi);

@@ -82,6 +82,17 @@ Feature: Matt Pocock workflow harness
     Then it records an explicit workflow exit for other extensions
     And it warns with the valid procedures for that route
 
+  Scenario: Structured interview questions are available only during an active workflow
+    Given the structured interview tool is initially active
+    When the session starts without a Matt Pocock workflow
+    Then the active tool list excludes matt_pocock_ask
+    When the agent activates a Matt Pocock workflow
+    Then the active tool list includes matt_pocock_ask
+    When the workflow ends
+    Then the active tool list excludes matt_pocock_ask again
+    When the session restores an active Matt Pocock workflow
+    Then the active tool list includes matt_pocock_ask
+
   Scenario: Agent asks the user questions via interactive selection tool
     Given an active grilling or interview procedure
     When the agent calls the matt_pocock_ask tool with question and options

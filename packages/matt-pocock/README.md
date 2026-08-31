@@ -27,8 +27,10 @@ It will be published as `pi-matt-pocock` after its first-release bootstrap.
 
 The harness injects only the chosen procedure, persists its current route and
 phase in the Pi session, restores that state on restart, and adds concise
-phase guidance to agent turns. The user manually transitions phases; the
-harness does not infer completion from model or tool activity.
+phase guidance to agent turns. Its structured interview tool is available only
+while a workflow is active, so ordinary questions remain in the conversation.
+The user manually transitions phases; the harness does not infer completion
+from model or tool activity.
 
 Procedures are internal Markdown resources rather than Pi skills, so generic
 workflow names such as `tdd`, `code-review`, and `research` never collide with

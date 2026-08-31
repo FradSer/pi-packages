@@ -67,6 +67,21 @@ function safeExpandHint(): string {
 
 let activeWorkflow: WorkflowState | undefined;
 
+function setInterviewToolActive(active: boolean): void {
+  const tools = pi.getActiveTools();
+  const nextTools = active
+    ? [...new Set([...tools, "matt_pocock_ask"])]
+    : tools.filter((tool) => tool !== "matt_pocock_ask");
+  pi.setActiveTools(nextTools);
+}
+
+function endWorkflow(ctx: ExtensionContext): void {
+  activeWorkflow = undefined;
+  pi.appendEntry(WORKFLOW_STATE_ENTRY, { active: false });
+  setInterviewToolActive(false);
+  ctx.ui.setStatus("matt-pocock", undefined);
+}
+
 function persistWorkflow(state: WorkflowState): void {
   activeWorkflow = state;
   pi.appendEntry(WORKFLOW_STATE_ENTRY, state);
@@ -93,6 +108,7 @@ function injectProcedure(content: string): void {
 function activateWorkflow(state: WorkflowState, ctx: ExtensionContext): void {
   const content = loadWorkflowProcedure(state);
   persistWorkflow(state);
+  setInterviewToolActive(true);
   ctx.ui.setStatus("matt-pocock", undefined);
   injectProcedure(content);
 }
@@ -133,9 +149,7 @@ async function showMenu(ctx: ExtensionCommandContext): Promise<void> {
     await chooseTransition(ctx);
     return;
   }
-  activeWorkflow = undefined;
-  pi.appendEntry(WORKFLOW_STATE_ENTRY, { active: false });
-  ctx.ui.setStatus("matt-pocock", undefined);
+  endWorkflow(ctx);
   ctx.ui.notify("Matt Pocock workflow ended.", "info");
 }
 
@@ -181,6 +195,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     const restoredWorkflow = latestWorkflowState(ctx.sessionManager.getBranch());
     if (!restoredWorkflow) {
       activeWorkflow = undefined;
+      setInterviewToolActive(false);
       ctx.ui.setStatus("matt-pocock", undefined);
       return;
     }
@@ -188,6 +203,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     try {
       const content = loadWorkflowProcedure(restoredWorkflow);
       activeWorkflow = restoredWorkflow;
+      setInterviewToolActive(true);
       ctx.ui.setStatus("matt-pocock", undefined);
       pi.sendMessage({
         customType: "matt-pocock-procedure",
@@ -196,9 +212,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         details: activeWorkflow,
       }, { deliverAs: "nextTurn" });
     } catch (error) {
-      activeWorkflow = undefined;
-      pi.appendEntry(WORKFLOW_STATE_ENTRY, { active: false });
-      ctx.ui.setStatus("matt-pocock", undefined);
+      endWorkflow(ctx);
       ctx.ui.notify(`Could not restore Matt Pocock workflow: ${String(error)}`, "warning");
     }
   });
@@ -309,6 +323,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         : "";
       const content = `${correction}${loadWorkflowProcedure(state)}`;
       persistWorkflow(state);
+      setInterviewToolActive(true);
       ctx.ui.setStatus("matt-pocock", undefined);
 
       return {
@@ -321,10 +336,10 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
   pi.registerTool({
     name: "matt_pocock_ask",
     label: "Matt Pocock Ask",
-    description: "Ask the user an interactive question with recommended options, timeout handling, and custom answer input using Pi UI selection.",
-    promptSnippet: "Ask the user a structured question with suggested choices, timeout fallback, and custom answer support",
+    description: "Ask a structured interview or workflow decision question during the current Matt Pocock workflow using Pi UI selection.",
+    promptSnippet: "Ask a structured question during the active Matt Pocock workflow",
     promptGuidelines: [
-      "Use matt_pocock_ask when interviewing the user or asking for workflow decisions (e.g. during grilling/shaping/scoping). Provide 2-4 options, put the recommended option first or mark it '(Recommended)', and specify a timeout.",
+      "Use matt_pocock_ask only during the active Matt Pocock workflow for interview or workflow decisions (e.g. grilling/shaping/scoping). Provide 2-4 options, put the recommended option first or mark it '(Recommended)', and specify a timeout.",
     ],
     parameters: Type.Object({
       question: Type.String({ description: "The interview or decision question to ask the user." }),
@@ -505,9 +520,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         return;
       }
       if (command === "end") {
-        activeWorkflow = undefined;
-        pi.appendEntry(WORKFLOW_STATE_ENTRY, { active: false });
-        ctx.ui.setStatus("matt-pocock", undefined);
+        endWorkflow(ctx);
         ctx.ui.notify("Matt Pocock workflow ended.", "info");
         return;
       }
