@@ -341,7 +341,7 @@ def test_plan_mode_restricts_git_to_read_only_subcommands():
 
 def test_plan_mode_and_pi_kit_do_not_use_wall_clock_worker_timeouts():
     source = (PACKAGE / "src" / "plan-worker.ts").read_text(encoding="utf-8")
-    kit = (REPO / "packages" / "pi-kit" / "src" / "index.ts").read_text(encoding="utf-8")
+    kit = (REPO / "packages" / "kit" / "src" / "index.ts").read_text(encoding="utf-8")
     assert "timeoutMs" not in source
     assert "timedOut" not in source
     assert "timeoutMs" not in kit
@@ -349,7 +349,7 @@ def test_plan_mode_and_pi_kit_do_not_use_wall_clock_worker_timeouts():
 
 
 def test_plan_worker_does_not_pass_unsupported_cwd_flag():
-    kit = (REPO / "packages" / "pi-kit" / "src" / "index.ts").read_text(encoding="utf-8")
+    kit = (REPO / "packages" / "kit" / "src" / "index.ts").read_text(encoding="utf-8")
     assert '"--cwd", cwd' not in kit
 
 
@@ -371,7 +371,7 @@ def test_plan_workers_are_restricted_to_read_only_host_capabilities():
 
 
 def test_pi_kit_clears_finished_tool_activity():
-    kit = (REPO / "packages" / "pi-kit" / "src" / "index.ts").read_text(encoding="utf-8")
+    kit = (REPO / "packages" / "kit" / "src" / "index.ts").read_text(encoding="utf-8")
     tool_end = kit[kit.index('case "toolcall_end":'):kit.index("default:", kit.index('case "toolcall_end":'))]
     assert "state.activeTool = undefined;" in tool_end
 
