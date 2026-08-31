@@ -54,7 +54,7 @@ pi install npm:@fradser/pi-vision
 pi install npm:@fradser/pi-btw
 ```
 
-### [`pi-continual-learning`](packages/pi-continual-learning/)
+### [`pi-continual-learning`](packages/continual-learning/)
 
 harness 与提示词表面的持续学习：声明式工具调用 guardrails（拦截并给出更正指引），以及记忆检索、注入与手动整合。模型权重不在范围内。
 
@@ -151,7 +151,7 @@ npx tsc --noEmit --strict --skipLibCheck --target ES2022 \
 
 在包目录执行 `pnpm pack --dry-run` 可以检查将要发布的文件。
 
-共享运行时辅助（TUI 旋转帧/主题样式原语、消息文本提取）位于内部包 [`@fradser/pi-kit`](packages/pi-kit/)。它不是 Pi 包，不能用 `pi install` 安装；消费包在 `dependencies` 中以 `"@fradser/pi-kit": "workspace:*"` 声明它。
+共享运行时辅助（TUI 旋转帧/主题样式原语、消息文本提取）位于内部包 [`@fradser/pi-kit`](packages/kit/)。它不是 Pi 包，不能用 `pi install` 安装；消费包在 `dependencies` 中以 `"@fradser/pi-kit": "workspace:*"` 声明它。
 
 ## 添加包
 

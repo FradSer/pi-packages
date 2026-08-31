@@ -1,29 +1,33 @@
 scopes:
-    - name: cc
-      description: code context analysis and research utilities in packages/context/; does not cover git or project-specific tools.
-    - name: git
-      description: git workflow automation, hooks, and commit management in packages/git/; does not cover github platform integrations.
-    - name: gh
-      description: github issue, pull request, and review workflows in packages/github/; does not cover core git operations.
-    - name: lark
-      description: lark platform integration, including drive, docs, calendar, and apps in packages/lark/; does not cover code-context or git.
-    - name: mem
-      description: shared memory, state management, and persistence logic in packages/memory/; does not cover application-specific skill definitions.
-    - name: ga
-      description: git agent hooks, extensions, and commit skills in packages/git-agent/; does not cover core git workflows
-    - name: examples
-      description: SDK usage example in examples/; does not cover publish automation or package implementations.
-    - name: packages
-      description: Published Pi extensions, skills, and integrations in packages/; does not cover repository release scripts.
-    - name: scripts
-      description: Release publishing automation in scripts/; does not cover package runtime behavior.
-    - name: teams
-      description: Agent coordination, spawner logic, and UI rendering in packages/agent-teams/; does not cover memory or kit.
+    - name: ctx
+      description: Code-context retrieval extensions and research workflows in packages/context/; does not cover package-local runtime logic.
+    - name: cl
+      description: Harness guardrails, memory retrieval, injection, and consolidation in packages/continual-learning/; does not cover the shared kit runtime.
     - name: kit
-      description: Core runtime, process lifecycles, and shared tool interfaces in packages/pi-kit/; does not cover agent team coordination.
-    - name: plan
-      description: Plan-mode workers, overlay management, and execution orchestration in packages/plan-mode/; does not cover general agents.
+      description: Shared runtime, process lifecycles, and tool interfaces in packages/kit/; does not cover consumer package behavior.
+    - name: tm
+      description: Agent coordination, worker spawning, task-board state, and UI rendering in packages/agent-teams/; does not cover shared kit internals.
+    - name: btw
+      description: Read-only side-question overlay and child-session behavior in packages/btw/; does not cover other package runtimes.
+    - name: key
+      description: Keyboard integration, lighting state, and global session records in packages/keyboard/; does not cover other package runtimes.
+    - name: mp
+      description: Persisted Matt Pocock workflow routes, procedures, and command integration in packages/matt-pocock/; does not cover other package runtimes.
     - name: mon
-      description: System monitoring, diagnostic output, and event deduping in packages/monitor/; does not cover core pi-kit.
-    - name: utils
-      description: General purpose extensions, npm guards, and worktree utilities in packages/utils/; does not cover release scripts.
+      description: Background command monitoring, result contracts, diagnostics, and event handling in packages/monitor/; does not cover shared kit internals.
+    - name: plan
+      description: Planning workers, overlay management, and execution orchestration in packages/plan-mode/; does not cover general-purpose utilities.
+    - name: rc
+      description: Session recap generation, persistence, and display behavior in packages/recap/; does not cover other package runtimes.
+    - name: sr
+      description: External skill-collection routing and command behavior in packages/skill-router/; does not cover other package runtimes.
+    - name: util
+      description: General-purpose extensions, npm guards, sessions, and worktree utilities in packages/utils/; does not cover release automation.
+    - name: vis
+      description: Text-model image analysis bridging and vision model configuration in packages/vision/; does not cover other package runtimes.
+    - name: rel
+      description: Package manifests, Changesets, release allowlists, and publishing automation in .changeset/ and scripts/; does not cover runtime package behavior.
+    - name: repo
+      description: Repository-wide documentation, contributor guidance, workspace configuration, and shared package conventions; does not cover package-specific implementation details.
+    - name: ex
+      description: SDK usage examples in examples/; does not cover package implementations or release automation.

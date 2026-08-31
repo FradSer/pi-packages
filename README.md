@@ -54,7 +54,7 @@ Answers side questions in a read-only overlay without adding them to the current
 pi install npm:@fradser/pi-btw
 ```
 
-### [`pi-continual-learning`](packages/pi-continual-learning/)
+### [`pi-continual-learning`](packages/continual-learning/)
 
 Continual learning at the harness and prompt surfaces: declarative tool-call guardrails with corrective guidance, plus memory retrieval, injection, and manual consolidation. Model weights are out of scope.
 
@@ -151,7 +151,7 @@ npx tsc --noEmit --strict --skipLibCheck --target ES2022 \
 
 Use `pnpm pack --dry-run` from a package directory to inspect its published files.
 
-Shared runtime helpers (TUI spinner/theme primitives, message text extraction) live in the internal [`@fradser/pi-kit`](packages/pi-kit/) package. It is not a Pi package and is not installable with `pi install`; consumers declare it as `"@fradser/pi-kit": "workspace:*"` under `dependencies`.
+Shared runtime helpers (TUI spinner/theme primitives, message text extraction) live in the internal [`@fradser/pi-kit`](packages/kit/) package. It is not a Pi package and is not installable with `pi install`; consumers declare it as `"@fradser/pi-kit": "workspace:*"` under `dependencies`.
 
 ## Adding a package
 

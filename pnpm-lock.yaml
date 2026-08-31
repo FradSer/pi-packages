@@ -40,7 +40,7 @@ importers:
         version: 0.84.1
       '@fradser/pi-kit':
         specifier: workspace:*
-        version: link:../pi-kit
+        version: link:../kit
       typebox:
         specifier: '*'
         version: 1.3.12
@@ -55,7 +55,7 @@ importers:
         version: 0.84.1
       '@fradser/pi-kit':
         specifier: workspace:*
-        version: link:../pi-kit
+        version: link:../kit
 
   packages/context:
     dependencies:
@@ -70,10 +70,19 @@ importers:
         version: 0.84.1
       '@fradser/pi-kit':
         specifier: workspace:*
-        version: link:../pi-kit
+        version: link:../kit
       typebox:
         specifier: '*'
         version: 1.3.12
+
+  packages/continual-learning:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '*'
+        version: 0.84.1(ws@8.21.3)(zod@4.4.3)
+      '@fradser/pi-kit':
+        specifier: workspace:*
+        version: link:../kit
 
   packages/keyboard:
     dependencies:
@@ -83,6 +92,8 @@ importers:
       '@earendil-works/pi-tui':
         specifier: '*'
         version: 0.84.1
+
+  packages/kit: {}
 
   packages/matt-pocock:
     dependencies:
@@ -94,7 +105,7 @@ importers:
         version: 0.84.1
       '@fradser/pi-kit':
         specifier: workspace:*
-        version: link:../pi-kit
+        version: link:../kit
 
   packages/monitor:
     dependencies:
@@ -106,21 +117,10 @@ importers:
         version: 0.84.1
       '@fradser/pi-kit':
         specifier: workspace:*
-        version: link:../pi-kit
+        version: link:../kit
       typebox:
         specifier: '*'
         version: 1.3.12
-
-  packages/pi-continual-learning:
-    dependencies:
-      '@earendil-works/pi-coding-agent':
-        specifier: '*'
-        version: 0.84.1(ws@8.21.3)(zod@4.4.3)
-      '@fradser/pi-kit':
-        specifier: workspace:*
-        version: link:../pi-kit
-
-  packages/pi-kit: {}
 
   packages/plan-mode:
     dependencies:
@@ -129,7 +129,7 @@ importers:
         version: 0.84.1(ws@8.21.3)(zod@4.4.3)
       '@fradser/pi-kit':
         specifier: workspace:*
-        version: link:../pi-kit
+        version: link:../kit
 
   packages/recap:
     dependencies:
@@ -141,7 +141,7 @@ importers:
         version: 0.84.1
       '@fradser/pi-kit':
         specifier: workspace:*
-        version: link:../pi-kit
+        version: link:../kit
 
   packages/skill-router:
     dependencies:
@@ -159,7 +159,7 @@ importers:
         version: 0.84.1
       '@fradser/pi-kit':
         specifier: workspace:*
-        version: link:../pi-kit
+        version: link:../kit
 
   packages/vision:
     dependencies:
@@ -171,7 +171,7 @@ importers:
         version: 0.84.1(ws@8.21.3)(zod@4.4.3)
       '@fradser/pi-kit':
         specifier: workspace:*
-        version: link:../pi-kit
+        version: link:../kit
 
 packages:
 

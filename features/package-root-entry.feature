@@ -23,3 +23,17 @@ Feature: Package-root index entry points
     And its manifest exposes no packaged skills
     And the root index.ts file exists
     And the root index.ts file is included in the published files
+
+  Scenario: Package directories use concise names independently of npm package names
+    Given the continual-learning and kit packages have published npm names
+    When the workspace resolves package directories and dependencies
+    Then their directories are named continual-learning and kit
+    And workspace dependency links target the kit directory
+
+  Scenario: Commit scopes describe the current package layout
+    Given git-agent uses the repository scope configuration
+    When package ownership descriptions are resolved
+    Then every configured package directory names a current workspace package
+    And every package directory has a dedicated scope
+    And scope names are concise, unique identifiers
+    And no scope description points to a removed package directory
