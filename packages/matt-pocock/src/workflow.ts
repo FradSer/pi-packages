@@ -81,14 +81,30 @@ export function transitionProcedures(route: string): string[] {
   return phaseProcedures[route] ?? [];
 }
 
+const procedureAliases: Record<string, string> = {
+  "tight-red-loop": "diagnosing-bugs",
+  "clarify-goal": "wayfinder",
+};
+
 export function normalizeProcedureName(procedure: string): string {
-  return procedure.trim().replace(/\.md$/i, "");
+  const normalized = procedure.trim().replace(/\.md$/i, "");
+  return procedureAliases[normalized] ?? normalized;
+}
+
+export function transitionProcedureOptions(route: string): string[] {
+  const procedures = new Set(transitionProcedures(route));
+  for (const [alias, procedure] of Object.entries(procedureAliases)) {
+    if (procedures.has(procedure)) procedures.add(alias);
+  }
+  return [...procedures];
 }
 
 const procedurePhases: Record<string, string> = {
   "grill-with-docs": "shaping",
   "grill-me": "shaping",
   grilling: "shaping",
+  "diagnosing-bugs": "feedback-loop",
+  wayfinder: "mapping",
 };
 
 export function phaseForProcedure(procedure: string): string {

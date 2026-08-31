@@ -52,6 +52,36 @@ Feature: Matt Pocock workflow harness
     And the tool returns the procedure instructions
     And the session records the workflow state
 
+  Scenario: A hard-bug workflow accepts the tight-red-loop entry point
+    Given the agent is diagnosing a hard bug
+    When it activates the tight-red-loop procedure at the reproduce phase
+    Then the harness loads the diagnosing-bugs instructions
+    And the session records the diagnosing-bugs procedure at the reproduce phase
+
+  Scenario: A wayfinding workflow accepts the clarify-goal entry point
+    Given the agent is starting a large ambiguous initiative
+    When it activates the clarify-goal procedure for the wayfinding route
+    Then the harness loads the wayfinder instructions
+    And the session records the wayfinder procedure without rejecting the request
+
+  Scenario: The workflow tool advertises every valid procedure name
+    Given the matt_pocock_workflow tool schema
+    Then the procedure parameter enumerates every bundled route procedure and known alias
+    And every route procedure resolves to a bundled procedure file
+
+  Scenario: An unknown procedure soft-lands on the route default
+    Given the agent activates wayfinding with an invented procedure name
+    When the harness processes the tool call
+    Then it activates the wayfinder default procedure at the mapping phase
+    And the tool result names the rejected procedure and the valid alternatives
+    And it instructs the agent not to switch routes
+
+  Scenario: A stale restored workflow explicitly ends after validation fails
+    Given the session branch contains a workflow state with an unavailable procedure
+    When the harness fails to restore that workflow
+    Then it records an explicit workflow exit for other extensions
+    And it warns with the valid procedures for that route
+
   Scenario: Agent asks the user questions via interactive selection tool
     Given an active grilling or interview procedure
     When the agent calls the matt_pocock_ask tool with question and options

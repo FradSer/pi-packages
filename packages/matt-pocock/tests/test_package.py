@@ -33,6 +33,11 @@ def test_feature_covers_the_workflow_harness_contract() -> None:
         "Active work receives concise phase guidance",
         "Inactive sessions receive workflow routing guidance",
         "Agent autonomously starts or transitions a workflow via tool",
+        "A hard-bug workflow accepts the tight-red-loop entry point",
+        "A wayfinding workflow accepts the clarify-goal entry point",
+        "The workflow tool advertises every valid procedure name",
+        "An unknown procedure soft-lands on the route default",
+        "A stale restored workflow explicitly ends after validation fails",
         "Agent asks the user questions via interactive selection tool",
         "The package has no recursively discoverable child skills",
         "Deferred automation remains documented",
@@ -80,6 +85,50 @@ def test_procedure_links_and_hitl_template_resolve_within_the_package() -> None:
     assert "hitl-loop.template.sh" in debugging
     assert "scripts/hitl-loop.template.sh" not in debugging
     assert (PROCEDURES / "hitl-loop.template.sh").is_file()
+
+
+def test_workflow_tool_schema_advertises_every_registered_procedure_and_alias() -> None:
+    result = run_typescript("""
+        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+        import { procedurePath } from "./packages/matt-pocock/src/procedures.ts";
+        import { normalizeProcedureName, transitionProcedures, workflowRoutes } from "./packages/matt-pocock/src/workflow.ts";
+        const mattPocock = importedMattPocock.default ?? importedMattPocock;
+
+        const tools = new Map();
+        const pi = {
+          on() {},
+          registerCommand() {},
+          registerTool(tool) { tools.set(tool.name, tool); },
+          appendEntry() {},
+          sendUserMessage() {},
+        };
+        mattPocock(pi);
+
+        const tool = tools.get("matt_pocock_workflow");
+        const routes = workflowRoutes().map(({ route }) => route);
+        const registered = routes.flatMap((route) => transitionProcedures(route));
+        const schema = tool.parameters;
+        console.log(JSON.stringify({
+          variants: schema.anyOf.map((variant) => ({
+            route: variant.properties.route.const,
+            procedures: variant.properties.procedure.enum,
+          })),
+          registered,
+          resolved: registered.map((procedure) => procedurePath(normalizeProcedureName(procedure))),
+        }));
+    """)
+    assert {variant["route"] for variant in result["variants"]} == {
+        "idea-to-ship", "hard-bug", "triage", "wayfinding", "architecture",
+    }
+    procedures_by_route = {variant["route"]: set(variant["procedures"]) for variant in result["variants"]}
+    assert procedures_by_route["hard-bug"] == {"diagnosing-bugs", "implement", "code-review", "tight-red-loop"}
+    assert procedures_by_route["wayfinding"] == {
+        "wayfinder", "research", "prototype", "to-spec", "to-tickets", "implement", "code-review", "clarify-goal",
+    }
+    assert all(set(procedures) <= set(result["registered"]) | {"tight-red-loop", "clarify-goal"}
+               for procedures in procedures_by_route.values())
+    assert len(result["resolved"]) == len(result["registered"])
+    assert all(path.endswith(".md") for path in result["resolved"])
 
 
 def test_bare_command_opens_one_workflow_router_menu() -> None:
@@ -191,7 +240,50 @@ def test_session_start_restores_persisted_workflow_and_visible_status() -> None:
     assert "Matt Pocock workflow active: hard-bug · feedback-loop." in result["prompt"]["systemPrompt"]
 
 
-def test_invalid_tool_procedure_does_not_persist_a_broken_workflow() -> None:
+def test_session_start_with_an_unavailable_procedure_clears_state_with_actionable_warning() -> None:
+    result = run_typescript("""
+        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+        const mattPocock = importedMattPocock.default ?? importedMattPocock;
+
+        const events = new Map();
+        const notices = [];
+        const entries = [];
+        const pi = {
+          on(name, handler) { events.set(name, handler); },
+          registerCommand() {},
+          registerTool() {},
+          appendEntry(customType, data) { entries.push({ customType, data }); },
+          sendMessage() {},
+          sendUserMessage() {},
+        };
+        const ctx = {
+          sessionManager: {
+            getBranch: () => [{
+              type: "custom",
+              customType: "matt-pocock-workflow",
+              data: { route: "wayfinding", procedure: "missing-procedure", phase: "discovery" },
+            }],
+          },
+          ui: { setStatus() {}, notify(message, level) { notices.push({ message, level }); } },
+        };
+
+        mattPocock(pi);
+        await events.get("session_start")({}, ctx);
+        const prompt = await events.get("before_agent_start")({ systemPrompt: "base" }, ctx);
+        console.log(JSON.stringify({ notices, entries, prompt }));
+    """)
+    assert result["notices"][0]["level"] == "warning"
+    warning = result["notices"][0]["message"]
+    assert "Valid procedures: wayfinder, research, prototype" in warning
+    assert "Do not switch routes" in warning
+    assert result["entries"] == [{
+        "customType": "matt-pocock-workflow",
+        "data": {"active": False},
+    }]
+    assert "## Available Engineering Workflows" in result["prompt"]["systemPrompt"]
+
+
+def test_unknown_tool_procedure_soft_lands_on_the_route_default() -> None:
     result = run_typescript("""
         import importedMattPocock from "./packages/matt-pocock/src/index.ts";
         const mattPocock = importedMattPocock.default ?? importedMattPocock;
@@ -208,19 +300,26 @@ def test_invalid_tool_procedure_does_not_persist_a_broken_workflow() -> None:
         const ctx = { ui: { setStatus() {} } };
 
         mattPocock(pi);
-        let error;
-        try {
-          await tools.get("matt_pocock_workflow").execute("call-1", {
-            route: "hard-bug",
-            procedure: "missing-procedure",
-          }, undefined, undefined, ctx);
-        } catch (caught) {
-          error = String(caught);
-        }
-        console.log(JSON.stringify({ entries, error }));
+        const execution = await tools.get("matt_pocock_workflow").execute("call-1", {
+          route: "wayfinding",
+          procedure: "missing-procedure",
+          phase: "discovery",
+        }, undefined, undefined, ctx);
+        console.log(JSON.stringify({ entries, execution }));
     """)
-    assert result["entries"] == []
-    assert "not available for route hard-bug" in result["error"]
+    assert result["entries"] == [{
+        "customType": "matt-pocock-workflow",
+        "data": {
+            "route": "wayfinding",
+            "procedure": "wayfinder",
+            "phase": "mapping",
+        },
+    }]
+    result_text = result["execution"]["content"][0]["text"]
+    assert 'requested procedure "missing-procedure"' in result_text
+    assert "Valid procedures for wayfinding: wayfinder, research, prototype" in result_text
+    assert "Do not switch routes" in result_text
+    assert "Wayfinder" in result_text
 
 
 def test_command_activates_a_route_injects_a_procedure_and_adds_compact_guidance() -> None:
@@ -385,6 +484,78 @@ def test_agent_can_autonomously_activate_workflow_via_tool() -> None:
     assert "# Diagnosing Bugs" in result["execution"]["content"][0]["text"]
     assert result["statuses"][-1] is None
     assert "Matt Pocock workflow active: hard-bug · feedback-loop." in result["prompt"]["systemPrompt"]
+
+
+def test_hard_bug_tight_red_loop_alias_activates_diagnosing_bugs_at_reproduce() -> None:
+    result = run_typescript("""
+        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+        const mattPocock = importedMattPocock.default ?? importedMattPocock;
+
+        const tools = new Map();
+        const entries = [];
+        const pi = {
+          on() {},
+          registerCommand() {},
+          registerTool(tool) { tools.set(tool.name, tool); },
+          appendEntry(customType, data) { entries.push({ customType, data }); },
+          sendUserMessage() {},
+        };
+        const ctx = { ui: { setStatus() {} } };
+
+        mattPocock(pi);
+        const execution = await tools.get("matt_pocock_workflow").execute("call-1", {
+          route: "hard-bug",
+          procedure: "tight-red-loop",
+          phase: "reproduce",
+        }, undefined, undefined, ctx);
+        console.log(JSON.stringify({ entries, execution }));
+    """)
+    assert result["entries"] == [{
+        "customType": "matt-pocock-workflow",
+        "data": {
+            "route": "hard-bug",
+            "procedure": "diagnosing-bugs",
+            "phase": "reproduce",
+        },
+    }]
+    assert "# Diagnosing Bugs" in result["execution"]["content"][0]["text"]
+    assert "Route: hard-bug\nPhase: reproduce" in result["execution"]["content"][0]["text"]
+
+
+def test_wayfinding_clarify_goal_alias_activates_wayfinder() -> None:
+    result = run_typescript("""
+        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+        const mattPocock = importedMattPocock.default ?? importedMattPocock;
+
+        const tools = new Map();
+        const entries = [];
+        const pi = {
+          on() {},
+          registerCommand() {},
+          registerTool(tool) { tools.set(tool.name, tool); },
+          appendEntry(customType, data) { entries.push({ customType, data }); },
+          sendUserMessage() {},
+        };
+        const ctx = { ui: { setStatus() {} } };
+
+        mattPocock(pi);
+        const execution = await tools.get("matt_pocock_workflow").execute("call-1", {
+          route: "wayfinding",
+          procedure: "clarify-goal",
+          phase: "discovery",
+        }, undefined, undefined, ctx);
+        console.log(JSON.stringify({ entries, execution }));
+    """)
+    assert result["entries"] == [{
+        "customType": "matt-pocock-workflow",
+        "data": {
+            "route": "wayfinding",
+            "procedure": "wayfinder",
+            "phase": "discovery",
+        },
+    }]
+    assert "Wayfinder" in result["execution"]["content"][0]["text"]
+    assert "Route: wayfinding\nPhase: discovery" in result["execution"]["content"][0]["text"]
 
 
 def test_matt_pocock_ask_tool_selection_custom_input_and_timeout() -> None:

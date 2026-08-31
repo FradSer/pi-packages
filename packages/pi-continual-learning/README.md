@@ -75,6 +75,12 @@ Built-in defaults cover known-futile automation: interactive auth commands
 (`npm/pnpm/yarn login|adduser|logout`) and OTP-via-file/chat routing are
 blocked with guidance to hand those steps to the user's own terminal.
 
+`matt_pocock_ask` is also gated by the current session branch: it can run only
+after `matt_pocock_workflow` has recorded an active workflow. The Matt Pocock
+harness supplies `/matt-pocock end` as the explicit exit mechanism; its exit
+record immediately disables further structured interview prompts until a new
+workflow starts.
+
 ### Harness consolidation
 
 After a verified memory consolidation, `/consolidate` runs a second read-only

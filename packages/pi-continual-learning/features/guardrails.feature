@@ -21,6 +21,15 @@ Feature: Generic tool-call guardrails from layered config
     And the block reason names the policy and states the correct procedure
     And the transcript records a display-only harness policy-blocked event with the policy reason
 
+  Scenario: Matt Pocock interview questions require an active workflow
+    Given no Matt Pocock workflow is active in the current session branch
+    When the model calls matt_pocock_ask
+    Then the call is blocked with guidance to ask directly in the conversation instead of starting a workflow
+    When the current branch records an active Matt Pocock workflow
+    Then matt_pocock_ask proceeds
+    And a later Matt Pocock workflow exit record blocks matt_pocock_ask again
+    And a workflow-shaped state takes precedence over an active false flag on that same record
+
   Scenario: Non-matching calls pass through untouched
     Given the same policy set
     When the model invokes a tool that matches no pattern

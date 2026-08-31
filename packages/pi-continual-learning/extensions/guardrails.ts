@@ -19,6 +19,21 @@ import { DEFAULT_POLICIES, evaluate, mergeLayers } from "./guardrail-engine.ts";
 import { configPaths, loadLayers } from "./guardrail-config.ts";
 import type { PolicyLayer, ResolvedConfig } from "./guardrail-types.ts";
 
+const MATT_POCOCK_WORKFLOW_ENTRY = "matt-pocock-workflow";
+
+export function hasActiveMattPocockWorkflow(entries: unknown[]): boolean {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index] as { type?: unknown; customType?: unknown; data?: unknown } | undefined;
+    if (entry?.type !== "custom" || entry.customType !== MATT_POCOCK_WORKFLOW_ENTRY) continue;
+    const data = entry.data as Record<string, unknown> | undefined;
+    if (typeof data?.route === "string" && typeof data?.procedure === "string" && typeof data?.phase === "string") {
+      return true;
+    }
+    if (data?.active === false) return false;
+  }
+  return false;
+}
+
 interface ResolvedWithPaths {
   config: ResolvedConfig;
   paths: ReturnType<typeof configPaths>;
@@ -284,6 +299,13 @@ export default function registerGuardrails(pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", async (event, ctx) => {
+    if (event.toolName === "matt_pocock_ask" && !hasActiveMattPocockWorkflow(ctx.sessionManager.getBranch())) {
+      return {
+        block: true,
+        reason: "[guardrails:matt-pocock-ask-requires-workflow] matt_pocock_ask is available only while a Matt Pocock workflow is active. If this is an ordinary question, ask it directly in the conversation instead of starting a workflow.",
+      };
+    }
+
     const cwd = ctx.cwd || process.cwd();
     const { config, paths } = resolveConfig(cwd);
     const decision = evaluate(config, {

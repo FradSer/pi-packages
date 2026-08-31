@@ -20,6 +20,7 @@ import {
   latestWorkflowState,
   normalizeProcedureName,
   phaseForProcedure,
+  transitionProcedureOptions,
   transitionProcedures,
   WORKFLOW_STATE_ENTRY,
   workflowGuidance,
@@ -33,6 +34,26 @@ function stringEnum<T extends readonly string[]>(values: T, options?: Record<str
     enum: [...values],
     ...options,
   });
+}
+
+function workflowRouteParameters<T extends string>(route: T) {
+  return Type.Object({
+    route: Type.Literal(route, { description: "Target engineering workflow route." }),
+    procedure: Type.Optional(stringEnum(transitionProcedureOptions(route), {
+      description: `Specific ${route} procedure. Omit it to use the route default.`,
+    })),
+    phase: Type.Optional(Type.String({ description: "Target workflow phase." })),
+  });
+}
+
+function workflowToolParameters() {
+  return Type.Union([
+    workflowRouteParameters("idea-to-ship"),
+    workflowRouteParameters("hard-bug"),
+    workflowRouteParameters("triage"),
+    workflowRouteParameters("wayfinding"),
+    workflowRouteParameters("architecture"),
+  ]);
 }
 
 function safeExpandHint(): string {
@@ -51,11 +72,16 @@ function persistWorkflow(state: WorkflowState): void {
   pi.appendEntry(WORKFLOW_STATE_ENTRY, state);
 }
 
+function unavailableProcedureMessage(route: string, procedure: string): string {
+  const allowedProcedures = transitionProcedures(route);
+  const defaultProcedure = findWorkflowRoute(route)?.procedure ?? allowedProcedures[0];
+  return `Procedure ${procedure} is not available for route ${route}. Valid procedures: ${allowedProcedures.join(", ")}. Omit procedure to use the route default (${defaultProcedure}). Do not switch routes to work around a procedure error.`;
+}
+
 function loadWorkflowProcedure(state: WorkflowState): string {
   const normalized = normalizeProcedureName(state.procedure);
-  const allowedProcedures = transitionProcedures(state.route);
-  if (!allowedProcedures.includes(normalized)) {
-    throw new Error(`Procedure ${state.procedure} is not available for route ${state.route}`);
+  if (!transitionProcedures(state.route).includes(normalized)) {
+    throw new Error(unavailableProcedureMessage(state.route, state.procedure));
   }
   return procedurePrompt(state.route, normalized, state.phase);
 }
@@ -171,6 +197,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       }, { deliverAs: "nextTurn" });
     } catch (error) {
       activeWorkflow = undefined;
+      pi.appendEntry(WORKFLOW_STATE_ENTRY, { active: false });
       ctx.ui.setStatus("matt-pocock", undefined);
       ctx.ui.notify(`Could not restore Matt Pocock workflow: ${String(error)}`, "warning");
     }
@@ -225,13 +252,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     promptGuidelines: [
       "Use matt_pocock_workflow when the task matches a structured engineering workflow: idea-to-ship for features, hard-bug for difficult bugs, triage for raw issues, wayfinding for large ambiguous goals, or architecture for refactoring.",
     ],
-    parameters: Type.Object({
-      route: stringEnum(["idea-to-ship", "hard-bug", "triage", "wayfinding", "architecture"] as const, {
-        description: "Target engineering workflow route to activate or transition.",
-      }),
-      procedure: Type.Optional(Type.String({ description: "Specific procedure to activate or transition to." })),
-      phase: Type.Optional(Type.String({ description: "Target workflow phase." })),
-    }),
+    parameters: workflowToolParameters(),
     renderShell: "self",
     renderCall: () => new Text("", 0, 0),
     renderResult(result, options, theme, context) {
@@ -273,15 +294,20 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       if (!route) {
         throw new Error(`Unknown Matt Pocock route: ${params.route}`);
       }
-      const procedure = params.procedure ? normalizeProcedureName(params.procedure) : route.procedure;
-      const phase = params.phase ?? (params.procedure ? phaseForProcedure(procedure) : route.phase);
-      const state: WorkflowState = {
-        route: route.route,
-        procedure,
-        phase,
-      };
-
-      const content = loadWorkflowProcedure(state);
+      const requestedProcedure = params.procedure ? normalizeProcedureName(params.procedure) : route.procedure;
+      const allowedProcedures = transitionProcedures(route.route);
+      const fallsBackToRouteDefault = !allowedProcedures.includes(requestedProcedure);
+      const state: WorkflowState = fallsBackToRouteDefault
+        ? { route: route.route, procedure: route.procedure, phase: route.phase }
+        : {
+          route: route.route,
+          procedure: requestedProcedure,
+          phase: params.phase ?? (params.procedure ? phaseForProcedure(requestedProcedure) : route.phase),
+        };
+      const correction = fallsBackToRouteDefault && params.procedure
+        ? `Note: requested procedure "${params.procedure}" is not available for route ${route.route}; activated the route default "${route.procedure}" at phase "${route.phase}" instead. Valid procedures for ${route.route}: ${allowedProcedures.join(", ")}. Do not switch routes to work around a procedure error.\n\n`
+        : "";
+      const content = `${correction}${loadWorkflowProcedure(state)}`;
       persistWorkflow(state);
       ctx.ui.setStatus("matt-pocock", undefined);
 

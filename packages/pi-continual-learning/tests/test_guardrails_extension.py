@@ -195,6 +195,24 @@ def test_global_harness_target_rejects_symlinks(tmp_path: Path) -> None:
     assert result['rejected'] is True
 
 
+def test_matt_pocock_ask_requires_a_current_workflow_and_honors_exit() -> None:
+    source = """
+        import { hasActiveMattPocockWorkflow } from './packages/pi-continual-learning/extensions/guardrails.ts';
+        const workflow = { type: 'custom', customType: 'matt-pocock-workflow', data: {
+          route: 'idea-to-ship', procedure: 'grilling', phase: 'shaping',
+        }};
+        const exited = { type: 'custom', customType: 'matt-pocock-workflow', data: { active: false } };
+        console.log(JSON.stringify({
+          inactive: hasActiveMattPocockWorkflow([]),
+          active: hasActiveMattPocockWorkflow([workflow]),
+          exited: hasActiveMattPocockWorkflow([workflow, exited]),
+          workflowStateWins: hasActiveMattPocockWorkflow([{ ...workflow, data: { ...workflow.data, active: false } }]),
+        }));
+    """
+    result = run_bun(source)
+    assert result == {"inactive": False, "active": True, "exited": False, "workflowStateWins": True}
+
+
 def test_legacy_scope_and_rule_fields_are_rejected_with_schema_guidance() -> None:
     legacy = {
         "name": "impeccable-live-runtime-stability",

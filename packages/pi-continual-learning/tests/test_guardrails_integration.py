@@ -353,6 +353,44 @@ await new Promise((r) => setTimeout(r, 20));
   });
 }
 
+// ── S8: matt_pocock_ask is available only within active workflow state ─
+{
+  const workflow = {
+    type: "custom",
+    customType: "matt-pocock-workflow",
+    data: { route: "idea-to-ship", procedure: "grilling", phase: "shaping" },
+  };
+  const exited = {
+    type: "custom",
+    customType: "matt-pocock-workflow",
+    data: { active: false },
+  };
+  const inactive = await callTool("matt_pocock_ask", { question: "Scope?" }, {
+    ...baseCtx,
+    sessionManager: { getBranch: () => [] },
+  });
+  const active = await callTool("matt_pocock_ask", { question: "Scope?" }, {
+    ...baseCtx,
+    sessionManager: { getBranch: () => [workflow] },
+  });
+  const afterExit = await callTool("matt_pocock_ask", { question: "Scope?" }, {
+    ...baseCtx,
+    sessionManager: { getBranch: () => [workflow, exited] },
+  });
+  const workflowStateWithActiveFalse = await callTool("matt_pocock_ask", { question: "Scope?" }, {
+    ...baseCtx,
+    sessionManager: { getBranch: () => [{ ...workflow, data: { ...workflow.data, active: false } }] },
+  });
+  record("matt-pocock-ask-workflow-gate", {
+    inactiveBlocked: inactive[0]?.block === true
+      && /ask it directly in the conversation/.test(inactive[0]?.reason ?? "")
+      && !/Start one with matt_pocock_workflow/.test(inactive[0]?.reason ?? ""),
+    activePassed: active.length === 0,
+    exitBlocksAgain: afterExit[0]?.block === true,
+    workflowStateWins: workflowStateWithActiveFalse.length === 0,
+  });
+}
+
 // ── S7: /harness command reports surface, headless-safe ───────────
 {
   let notified = "";
@@ -430,6 +468,11 @@ def test_s6_skill_prompts_are_layered_and_idempotent() -> None:
     assert s["systemEventIsVisible"] and s["systemEventUsesPrompt"]
     assert s["systemEventIdentifiesSource"] and s["systemEventRenderUsesPrompt"]
     assert s["expandHintUsesKeybinding"] and s["expandedPromptIsComplete"]
+
+
+def test_s8_matt_pocock_ask_requires_active_workflow() -> None:
+    s = ALL["matt-pocock-ask-workflow-gate"]
+    assert s["inactiveBlocked"] and s["activePassed"] and s["exitBlocksAgain"] and s["workflowStateWins"]
 
 
 def test_s7_command_reports_surface_and_routes_prompt() -> None:
