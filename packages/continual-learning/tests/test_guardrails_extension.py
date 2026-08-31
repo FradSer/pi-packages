@@ -31,7 +31,7 @@ def defaults_layer() -> str:
 
 def evaluate(layers_json: str, tool_name: str, args: dict) -> dict[str, object]:
     src = f"""
-        import {{ DEFAULT_POLICIES, evaluate, mergeLayers }} from './packages/pi-continual-learning/extensions/guardrail-engine.ts';
+        import {{ DEFAULT_POLICIES, evaluate, mergeLayers }} from './packages/continual-learning/extensions/guardrail-engine.ts';
         const layers = {layers_json}.map((l) =>
           l.source === "built-in defaults" ? {{ ...l, policies: DEFAULT_POLICIES }} : l,
         );
@@ -44,7 +44,7 @@ def evaluate(layers_json: str, tool_name: str, args: dict) -> dict[str, object]:
 
 def merge_only(layers_json: str) -> dict[str, object]:
     src = f"""
-        import {{ DEFAULT_POLICIES, mergeLayers }} from './packages/pi-continual-learning/extensions/guardrail-engine.ts';
+        import {{ DEFAULT_POLICIES, mergeLayers }} from './packages/continual-learning/extensions/guardrail-engine.ts';
         const layers = {layers_json}.map((l) =>
           l.source === "built-in defaults" ? {{ ...l, policies: DEFAULT_POLICIES }} : l,
         );
@@ -128,7 +128,7 @@ def test_innermost_policy_definition_wins() -> None:
 
 def test_harness_target_resolution_defaults_to_project_local_and_supports_flags() -> None:
     source = """
-        import { resolveHarnessTarget } from './packages/pi-continual-learning/extensions/guardrails.ts';
+        import { resolveHarnessTarget } from './packages/continual-learning/extensions/guardrails.ts';
         const cwd = '/tmp/my-project';
         const agentDir = '/tmp/user/agent';
         console.log(JSON.stringify({
@@ -170,7 +170,7 @@ def test_harness_target_resolution_defaults_to_project_local_and_supports_flags(
 
 def test_harness_prompt_routes_a_direct_rule_request() -> None:
     source = """
-        import { buildHarnessRulePrompt } from './packages/pi-continual-learning/extensions/guardrails.ts';
+        import { buildHarnessRulePrompt } from './packages/continual-learning/extensions/guardrails.ts';
         console.log(JSON.stringify(buildHarnessRulePrompt('Block edits that add hard-coded colors', '/tmp/project/.pi/harness.local.json', 'project personal harness.local.json')));
     """
     result = run_bun(source)
@@ -200,7 +200,7 @@ def test_global_harness_target_initializes_exact_path_and_preserves_existing(tmp
     existing.write_text(json.dumps(original), encoding='utf-8')
     source = f"""
         import fs from 'node:fs/promises';
-        import {{ ensureGlobalHarnessTarget }} from './packages/pi-continual-learning/extensions/guardrails.ts';
+        import {{ ensureGlobalHarnessTarget }} from './packages/continual-learning/extensions/guardrails.ts';
         const missing = await ensureGlobalHarnessTarget({json.dumps(str(missing))});
         const before = await fs.readFile({json.dumps(str(existing))}, 'utf8');
         const reused = await ensureGlobalHarnessTarget({json.dumps(str(existing))});
@@ -229,7 +229,7 @@ def test_global_harness_target_rejects_symlinks(tmp_path: Path) -> None:
     outside.write_text('{}', encoding='utf-8')
     target.symlink_to(outside)
     source = f"""
-        import {{ ensureGlobalHarnessTarget }} from './packages/pi-continual-learning/extensions/guardrails.ts';
+        import {{ ensureGlobalHarnessTarget }} from './packages/continual-learning/extensions/guardrails.ts';
         try {{ await ensureGlobalHarnessTarget({json.dumps(str(target))}); console.log(JSON.stringify({{ rejected: false }})); }}
         catch (error) {{ console.log(JSON.stringify({{ rejected: /regular file/.test(String(error)) }})); }}
     """
@@ -250,7 +250,7 @@ def test_invalid_skill_prompt_user_message_pattern_is_skipped_without_hiding_val
         ]
     )
     source = f"""
-        import {{ mergeLayers }} from './packages/pi-continual-learning/extensions/guardrail-engine.ts';
+        import {{ mergeLayers }} from './packages/continual-learning/extensions/guardrail-engine.ts';
         const result = mergeLayers({layers});
         console.log(JSON.stringify({{ skillPrompts: result.skillPrompts, errors: result.errors }}));
     """
@@ -286,7 +286,7 @@ def test_legacy_scope_and_rule_fields_are_rejected_with_schema_guidance() -> Non
 
 def test_policy_declaration_requires_one_supported_pattern_form() -> None:
     source = """
-        import { validatePolicyDeclaration } from './packages/pi-continual-learning/extensions/guardrail-engine.ts';
+        import { validatePolicyDeclaration } from './packages/continual-learning/extensions/guardrail-engine.ts';
         const results = {
           missing: validatePolicyDeclaration({ name: 'missing' }),
           both: validatePolicyDeclaration({ name: 'both', pattern: 'a', patterns: ['b'] }),

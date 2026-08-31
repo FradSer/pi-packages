@@ -6,7 +6,7 @@ from pathlib import Path
 
 PKG_DIR = Path(__file__).resolve().parents[1]
 REPO = PKG_DIR.parents[1]
-MODULE = "./packages/pi-continual-learning/extensions/agents-md-consolidation.ts"
+MODULE = "./packages/continual-learning/extensions/agents-md-consolidation.ts"
 
 
 def js(source: str) -> dict[str, object] | list[object]:

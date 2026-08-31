@@ -8,7 +8,7 @@
 
 ## Project Structure
 
-`packages/pi-continual-learning/` publishes `pi-continual-learning`, a native extension with no
+`packages/continual-learning/` publishes `pi-continual-learning`, a native extension with no
 skill surface. Package-root `index.ts` loads `extensions/inject-memory.ts`,
 which owns `/memory`, `/consolidate`, memory injection, and lifecycle cleanup.
 Supporting extension modules cover configuration, secure memory loading,
@@ -27,9 +27,9 @@ the dependency-free artifact/privacy validator for the memory phase. BDD contrac
 Run focused checks with:
 
 ```bash
-python3 -m pytest packages/pi-continual-learning/tests/ -q
+python3 -m pytest packages/continual-learning/tests/ -q
 npx tsc --noEmit -p tsconfig.extensions.json
-pnpm --dir packages/pi-continual-learning pack --dry-run
+pnpm --dir packages/continual-learning pack --dry-run
 ```
 
 There is no separate build step; Pi loads the shipped TypeScript entry point.

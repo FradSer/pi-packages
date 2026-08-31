@@ -6,7 +6,7 @@ from pathlib import Path
 
 PKG_DIR = Path(__file__).resolve().parents[1]
 REPO = PKG_DIR.parents[1]
-PKG_REL = "packages/pi-continual-learning"
+PKG_REL = "packages/continual-learning"
 
 
 def run_bun(source: str) -> dict[str, object]:
@@ -23,7 +23,7 @@ def run_bun(source: str) -> dict[str, object]:
 
 def validate(plan: dict) -> list[str]:
     src = f"""
-        import {{ validateHarnessPlan }} from './packages/pi-continual-learning/extensions/harness-consolidation.ts';
+        import {{ validateHarnessPlan }} from './packages/continual-learning/extensions/harness-consolidation.ts';
         console.log(JSON.stringify(validateHarnessPlan({json.dumps(plan)})));
     """
     return run_bun(src)  # type: ignore[return-value]
@@ -32,7 +32,7 @@ def validate(plan: dict) -> list[str]:
 def apply_ops(tmp_path: Path, ops: list[dict]) -> tuple[dict, Path]:
     target = tmp_path / "harness.local.json"
     src = f"""
-        import {{ applyHarnessOps }} from './packages/pi-continual-learning/extensions/harness-consolidation.ts';
+        import {{ applyHarnessOps }} from './packages/continual-learning/extensions/harness-consolidation.ts';
         const result = await applyHarnessOps({json.dumps(str(target))}, {json.dumps(ops)});
         let after = null;
         try {{ after = JSON.parse(await Bun.file({json.dumps(str(target))}).text()); }} catch {{}}
@@ -154,7 +154,7 @@ def test_add_policy_conflict_rejects_whole_plan_without_writing(tmp_path: Path) 
         {"op": "addPolicy", "name": "dup", "policy": policy("dup")},
     ]
     src = f"""
-        import {{ applyHarnessOps }} from './packages/pi-continual-learning/extensions/harness-consolidation.ts';
+        import {{ applyHarnessOps }} from './packages/continual-learning/extensions/harness-consolidation.ts';
         const result = await applyHarnessOps({json.dumps(str(target))}, {json.dumps(ops)});
         console.log(JSON.stringify(result));
     """
@@ -203,7 +203,7 @@ def test_invalid_existing_json_is_reported_not_overwritten(tmp_path: Path) -> No
     target.write_text("{not json", encoding="utf-8")
     before = target.read_bytes()
     src = f"""
-        import {{ applyHarnessOps }} from './packages/pi-continual-learning/extensions/harness-consolidation.ts';
+        import {{ applyHarnessOps }} from './packages/continual-learning/extensions/harness-consolidation.ts';
         const result = await applyHarnessOps({json.dumps(str(target))}, []);
         console.log(JSON.stringify(result));
     """

@@ -53,7 +53,7 @@ def test_impeccable_live_guidance_is_injected_only_for_matching_expanded_user_me
               registerEntryRenderer: () => {{}},
               appendEntry: () => {{}},
             }};
-            const extension = await import("./packages/pi-continual-learning/index.ts");
+            const extension = await import("./packages/continual-learning/index.ts");
             extension.default(pi);
 
             const expanded = (userMessage) =>

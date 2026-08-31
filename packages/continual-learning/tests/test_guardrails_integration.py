@@ -43,7 +43,7 @@ const pi = {
   },
 };
 
-const mod = await import("./packages/pi-continual-learning/index.ts");
+const mod = await import("./packages/continual-learning/index.ts");
 mod.default(pi);
 
 async function callTool(toolName, args, ctx) {
