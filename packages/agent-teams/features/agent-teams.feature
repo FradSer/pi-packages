@@ -679,12 +679,15 @@ Feature: Agent Teams collaborative organization contract
       When the harness delivers a BOARD NOTICE for eligible unassigned work
       Then task_list and task_claim become active
       And task_submit remains inactive until the harness accepts a claim
-      When the harness delivers Claim accepted for that teammate
+      When the harness records an accepted board assignment for that teammate
       Then task_list and task_claim are removed and task_submit becomes active
+      And an unrelated prompt that says Claim accepted does not activate task_submit
       When the teammate submits its accepted task outcome
       Then task_list, task_claim, and task_submit are removed
       When the teammate session shuts down before submission
       Then task_list, task_claim, and task_submit are removed
+      When a new worker session starts after a terminal leader report before submission
+      Then task_list and task_claim remain inactive while task_submit stays active for the claimed task
       And unrelated active tools remain active throughout
 
   Rule: The harness wakes idle teammates, the leader model never polls
@@ -755,6 +758,8 @@ Feature: Agent Teams collaborative organization contract
       When the final teammate stops and the board becomes empty
       Then all conditionally revealed leader controls are removed
       And task_create remains active
+      When the leader session shuts down
+      Then all conditionally revealed leader controls are removed
       And long team orchestration guidance is absent
 
   Rule: Leader tool surface is exact

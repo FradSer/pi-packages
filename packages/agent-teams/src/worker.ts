@@ -44,8 +44,14 @@ function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
   };
   return {
     update(prompt) {
-      if (prompt.includes("Claim accepted")) state = "claimed";
-      else if (prompt.includes("=== BOARD NOTICE ===")) state = "notice";
+      const binding = workerBinding();
+      const rosterEntry = binding
+        ? readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker)
+        : undefined;
+      const assignment = rosterEntry?.assignment;
+      if (assignment?.kind === "board" && !assignment.closed) state = "claimed";
+      else if (!assignment && prompt.includes("=== BOARD NOTICE ===")) state = "notice";
+      else state = "none";
       apply();
     },
     reset() {

@@ -219,6 +219,7 @@ export default function (pi: ExtensionAPI) {
     leaderPi = undefined;
     leaderCtx = undefined;
     resetState();
+    refreshLeaderToolDisclosure();
   });
 }
 
