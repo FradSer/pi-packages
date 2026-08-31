@@ -21,6 +21,12 @@ Feature: Generic tool-call guardrails from layered config
     And the block reason names the policy and states the correct procedure
     And the transcript records a display-only harness policy-blocked event with the policy reason
 
+  Scenario: Observe actions report a matching call without blocking it
+    Given a policy with the observe action
+    When the model invokes a matching tool call
+    Then the call proceeds without confirmation or blocking
+    And the transcript records one display-only harness policy-observed event with the policy reason
+
   Scenario: Matt Pocock interview questions require an active workflow
     Given no Matt Pocock workflow is active in the current session branch
     When the model calls matt_pocock_ask
@@ -39,8 +45,8 @@ Feature: Generic tool-call guardrails from layered config
     Given a policy with the confirm action
     When a matching call arrives in an interactive session
     Then the user is asked to allow or deny it through a select dialog with the policy reason
-    And choosing Allow once proceeds without blocking and records a policy-allowed event
-    And choosing Block returns a block reason naming the user's choice and records a policy-blocked event
+    And choosing Allow once proceeds without blocking and records one policy-allowed event
+    And choosing Block returns a block reason naming the user's choice and records one policy-blocked event
     And without UI the call is blocked instead of silently allowed
 
   Scenario: An unanswered confirm dialog fails closed after a bounded wait

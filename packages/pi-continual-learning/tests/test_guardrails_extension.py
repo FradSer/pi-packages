@@ -213,6 +213,29 @@ def test_matt_pocock_ask_requires_a_current_workflow_and_honors_exit() -> None:
     assert result == {"inactive": False, "active": True, "exited": False, "workflowStateWins": True}
 
 
+def test_invalid_skill_prompt_user_message_pattern_is_skipped_without_hiding_valid_siblings() -> None:
+    layers = json.dumps(
+        [
+            {
+                "source": "project",
+                "skillPrompts": {
+                    "broken": {"prompt": "bad", "target": "system", "userMessagePattern": "(["},
+                    "valid": {"prompt": "good", "target": "system", "userMessagePattern": "^live$"},
+                },
+            }
+        ]
+    )
+    source = f"""
+        import {{ mergeLayers }} from './packages/pi-continual-learning/extensions/guardrail-engine.ts';
+        const result = mergeLayers({layers});
+        console.log(JSON.stringify({{ skillPrompts: result.skillPrompts, errors: result.errors }}));
+    """
+    result = run_bun(source)
+    assert "broken" not in result["skillPrompts"]
+    assert result["skillPrompts"]["valid"]["userMessagePattern"] == "^live$"
+    assert any("broken" in error and "invalid regex" in error for error in result["errors"])
+
+
 def test_legacy_scope_and_rule_fields_are_rejected_with_schema_guidance() -> None:
     legacy = {
         "name": "impeccable-live-runtime-stability",

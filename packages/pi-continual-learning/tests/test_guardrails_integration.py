@@ -185,12 +185,34 @@ fs.writeFileSync(
     allowedOnce: allowed.length === 0,
     deniedBlocked: denied[0]?.block === true && /user choice/.test(denied[0]?.reason ?? ""),
     timeoutFailsClosed: expired[0]?.block === true && /timed out/.test(expired[0]?.reason ?? ""),
+    singleEventForAllowed: entries.filter((e) => e.data?.kind === "policy-matched" && e.data?.policy === "danger-wipe" && e.data?.outcome === "allowed once").length === 1,
     entryRecorded: lastPolicyEntry?.data?.policy === "danger-wipe" && lastPolicyEntry?.data?.action === "confirm",
     entryRenderUsesReason: renderedAllowed.includes("[harness] policy allowed · Destructive workspace wipe needs confirmation") && renderedAllowed.includes("outcome=allowed once"),
   });
 }
 
-// ── S4: standard agent-dir override shares memory's user layer ──────
+// ── S4: observe action records a matching call but proceeds ─────────
+{
+  const projectHarness = JSON.parse(fs.readFileSync(path.join(project, ".pi", "harness.json"), "utf8"));
+  projectHarness.policies.push({
+    name: "observe-live",
+    tools: ["bash"],
+    paths: ["command"],
+    pattern: "live\\\\.mjs",
+    action: "observe",
+    reason: "Live boot uses the current helper state.",
+  });
+  fs.writeFileSync(path.join(project, ".pi", "harness.json"), JSON.stringify(projectHarness));
+  await new Promise((r) => setTimeout(r, 20));
+  const observed = await callTool("bash", { command: "node live.mjs" }, baseCtx);
+  const observedEntry = entries.find((e) => e.data?.kind === "policy-matched" && e.data?.policy === "observe-live");
+  record("observe-action", {
+    proceeded: observed.length === 0,
+    recorded: observedEntry?.data?.action === "observe" && observedEntry?.data?.outcome === "observed",
+  });
+}
+
+// ── S5: standard agent-dir override shares memory's user layer ──────
 process.env.PI_CODING_AGENT_DIR = agentDir;
 fs.writeFileSync(
   path.join(agentDir, "harness.json"),
@@ -226,7 +248,7 @@ await new Promise((r) => setTimeout(r, 20));
   });
 }
 
-// ── S5: cache invalidation on later user-file edit ───────────────────
+// ── S6: cache invalidation on later user-file edit ───────────────────
 {
   const later = JSON.parse(
     fs.readFileSync(path.join(agentDir, "harness.json"), "utf8"),
@@ -257,7 +279,7 @@ await new Promise((r) => setTimeout(r, 20));
   });
 }
 
-// ── S6: layered skill prompt injection uses Pi's expanded skill shape ──
+// ── S7: layered skill prompt injection uses Pi's expanded skill shape ──
 fs.writeFileSync(
   path.join(agentDir, "harness.json"),
   JSON.stringify({
@@ -391,7 +413,7 @@ await new Promise((r) => setTimeout(r, 20));
   });
 }
 
-// ── S7: /harness command reports surface, headless-safe ───────────
+// ── S9: /harness command reports surface, headless-safe ───────────
 {
   let notified = "";
   const messages = [];
@@ -447,20 +469,26 @@ def test_s3_confirm_action_headless_interactive_and_bounded() -> None:
     s = ALL["confirm-action"]
     assert s["headlessBlocked"] and s["dialogBounded"]
     assert s["allowedOnce"] and s["deniedBlocked"] and s["timeoutFailsClosed"]
+    assert s["singleEventForAllowed"]
     assert s["entryRecorded"] and s["entryRenderUsesReason"]
 
 
-def test_s4_standard_agent_dir_user_layer_disable_and_extend() -> None:
+def test_s4_observe_action_records_without_blocking() -> None:
+    s = ALL["observe-action"]
+    assert s["proceeded"] and s["recorded"]
+
+
+def test_s5_standard_agent_dir_user_layer_disable_and_extend() -> None:
     s = ALL["user-layer"]
     assert s["standardDirHonored"] and s["disabledBuiltInGone"] and s["userRuleFires"]
 
 
-def test_s5_cache_invalidates_on_later_user_edit() -> None:
+def test_s6_cache_invalidates_on_later_user_edit() -> None:
     s = ALL["cache-invalidation"]
     assert s["freshRuleSeen"] and s["oldRuleRetired"]
 
 
-def test_s6_skill_prompts_are_layered_and_idempotent() -> None:
+def test_s7_skill_prompts_are_layered_and_idempotent() -> None:
     s = ALL["skill-prompts"]
     assert s["projectWins"] and s["idempotent"]
     assert s["rawIgnored"] and s["malformedIgnored"] and s["userMessage"]
@@ -475,7 +503,7 @@ def test_s8_matt_pocock_ask_requires_active_workflow() -> None:
     assert s["inactiveBlocked"] and s["activePassed"] and s["exitBlocksAgain"] and s["workflowStateWins"]
 
 
-def test_s7_command_reports_surface_and_routes_prompt() -> None:
+def test_s9_command_reports_surface_and_routes_prompt() -> None:
     s = ALL["command-surface"]
     assert s["listsPolicies"] and s["showsPaths"] and s["invalidSkillReported"]
     assert s["promptRouted"]
