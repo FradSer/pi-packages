@@ -11,9 +11,9 @@ import { buildTeamLeaderGuidance, WORKER_GUIDANCE } from "./guidance.ts";
 import { clearSessionAgents } from "./agents.ts";
 import { formatSilenceDuration, initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, teardownTeammates } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
-import { resetState } from "./state.ts";
+import { livingTeammates, listTasks, resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
-import { registerLeaderTools, registerTeamCommand } from "./tools.ts";
+import { refreshLeaderToolDisclosure, registerLeaderTools, registerTeamCommand } from "./tools.ts";
 import { registerWorkerCapabilities, workerBinding } from "./worker.ts";
 import { agentColor, eventToolLifecycle, formatAgentMessagePrefix, renderAgentMessageBand, renderToolLifecycle } from "@fradser/pi-kit";
 import { FollowUpQueue, groupReportsByTeammate, TEAMMATE_HARNESS_MESSAGE_TYPE, TEAMMATE_REPORT_MESSAGE_TYPE, type FollowUpReport } from "./follow-up-queue.ts";
@@ -37,6 +37,10 @@ function extractHealthReport(details: unknown): FollowUpReport | undefined {
   return report?.health?.state === "stalled" ? report : undefined;
 }
 
+export function hasActiveTeamState(): boolean {
+  return livingTeammates().length > 0 || listTasks().length > 0;
+}
+
 function extractHarnessReport(details: unknown): FollowUpReport | undefined {
   const report = details as FollowUpReport | undefined;
   return report?.origin === "harness" || report?.harnessEvent ? report : undefined;
@@ -44,10 +48,17 @@ function extractHarnessReport(details: unknown): FollowUpReport | undefined {
 
 export default function (pi: ExtensionAPI) {
   if (workerBinding()) {
-    pi.on("before_agent_start", async (event) => ({
-      systemPrompt: event.systemPrompt + WORKER_GUIDANCE,
-    }));
-    registerWorkerCapabilities(pi);
+    const workerToolDisclosure = registerWorkerCapabilities(pi);
+    pi.on("session_start", async () => {
+      workerToolDisclosure.reset();
+    });
+    pi.on("before_agent_start", async (event) => {
+      workerToolDisclosure.update(event.prompt);
+      return { systemPrompt: event.systemPrompt + WORKER_GUIDANCE };
+    });
+    pi.on("session_shutdown", async () => {
+      workerToolDisclosure.reset();
+    });
     return;
   }
 
@@ -142,6 +153,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     clearSessionAgents();
     resetState();
+    refreshLeaderToolDisclosure();
     followUpQueue?.reset();
     leaderCtx = ctx;
     followUpQueue = new FollowUpQueue({
@@ -165,17 +177,24 @@ export default function (pi: ExtensionAPI) {
     initTeamMachine(ctx, {
       sendUpdate: sendMainSessionFollowUp,
       archiveQueuedReports: (spawnId) => followUpQueue?.archiveSpawn(spawnId) ?? [],
-      notifyChange: () => refreshTeamUI(leaderCtx),
+      notifyChange: () => {
+        refreshTeamUI(leaderCtx);
+        refreshLeaderToolDisclosure();
+      },
     });
     ctx.ui.setStatus("teammate", undefined);
     refreshTeamUI(ctx);
+    refreshLeaderToolDisclosure();
     void cleanupExpiredStateDirs(STATE_DIR_MAX_AGE_MS);
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
     followUpQueue?.onBeforeAgentStart(event.prompt);
+    const teamIsActive = hasActiveTeamState();
     return {
-      systemPrompt: event.systemPrompt + buildTeamLeaderGuidance(ctx?.cwd ?? process.cwd()),
+      systemPrompt: teamIsActive
+        ? event.systemPrompt + buildTeamLeaderGuidance(ctx?.cwd ?? process.cwd())
+        : event.systemPrompt,
     };
   });
 

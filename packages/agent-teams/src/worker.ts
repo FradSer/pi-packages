@@ -21,6 +21,40 @@ import {
   type BoardTask,
 } from "./types.ts";
 
+const BOARD_DISCLOSURE_TOOLS = ["task_list", "task_claim", "task_submit"] as const;
+type BoardDisclosure = "none" | "notice" | "claimed";
+
+export interface WorkerToolDisclosure {
+  update(prompt: string): void;
+  reset(): void;
+}
+
+function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
+  let state: BoardDisclosure = "none";
+  const apply = () => {
+    if (typeof pi.getActiveTools !== "function" || typeof pi.setActiveTools !== "function") return;
+    const active = pi.getActiveTools();
+    const withoutBoardControls = active.filter((tool) => !BOARD_DISCLOSURE_TOOLS.includes(tool as typeof BOARD_DISCLOSURE_TOOLS[number]));
+    const revealed = state === "notice"
+      ? ["task_list", "task_claim"]
+      : state === "claimed"
+        ? ["task_submit"]
+        : [];
+    pi.setActiveTools([...withoutBoardControls, ...revealed]);
+  };
+  return {
+    update(prompt) {
+      if (prompt.includes("Claim accepted")) state = "claimed";
+      else if (prompt.includes("=== BOARD NOTICE ===")) state = "notice";
+      apply();
+    },
+    reset() {
+      state = "none";
+      apply();
+    },
+  };
+}
+
 export interface WorkerBinding {
   worker: string;
   spawnId: string;
@@ -156,7 +190,8 @@ export function registerTaskListTool(pi: ExtensionAPI): void {
   });
 }
 
-export function registerWorkerCapabilities(pi: ExtensionAPI): void {
+export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosure {
+  const disclosure = createWorkerToolDisclosure(pi);
   pi.registerTool({
     name: "send_message",
     promptSnippet: "Send a message to the leader or a teammate",
@@ -297,7 +332,8 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
         timestamp: Date.now(),
       });
       if (!won) throw new Error(`A submission for "${params.taskId}" is already pending.`);
-          const task = loadBoardTasks(binding).find((candidate) => candidate.id === params.taskId);
+      disclosure.reset();
+      const task = loadBoardTasks(binding).find((candidate) => candidate.id === params.taskId);
       const roleVerify = process.env.PI_TEAMMATE_VERIFY_DEFAULT?.trim();
       const verify = params.status === "completed"
         ? task?.verify
@@ -315,4 +351,6 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): void {
       };
     },
   });
+
+  return disclosure;
 }

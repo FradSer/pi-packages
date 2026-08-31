@@ -11,6 +11,22 @@ import {
   spawnTeammate,
 } from "./team-machine.ts";
 import { listTasks, livingTeammates } from "./state.ts";
+
+const DYNAMIC_LEADER_TOOLS = ["teammate_shutdown", "send_message", "task_list"] as const;
+let leaderToolApi: Pick<ExtensionAPI, "getActiveTools" | "setActiveTools"> | undefined;
+
+/** Keep spawn as the entry point; reveal follow-on controls only when relevant. */
+export function refreshLeaderToolDisclosure(): void {
+  if (!leaderToolApi || typeof leaderToolApi.getActiveTools !== "function" || typeof leaderToolApi.setActiveTools !== "function") return;
+  const active = leaderToolApi.getActiveTools();
+  const withoutDynamic = active.filter((tool) => !DYNAMIC_LEADER_TOOLS.includes(tool as typeof DYNAMIC_LEADER_TOOLS[number]));
+  const revealed = [
+    ...(livingTeammates().length > 0 ? ["teammate_shutdown", "send_message"] : []),
+    ...(listTasks().length > 0 ? ["task_list"] : []),
+  ];
+  leaderToolApi.setActiveTools([...withoutDynamic, ...revealed]);
+}
+
 import { LEADER_RECIPIENT, SendMessageParams, TeammateShutdownParams, TeammateSpawnParams, TaskCreateParams } from "./types.ts";
 import { registerTaskListTool } from "./worker.ts";
 import { openTeamConsole, refreshTeamUI } from "./ui.ts";
@@ -61,6 +77,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       const result = spawnTeammate(params);
       if (!result.ok) throw new Error(result.error);
       refreshTeamUI(ctx);
+      refreshLeaderToolDisclosure();
       const kickoffNote = params.prompt?.trim()
         ? "It received your kickoff prompt and is working on it."
         : "It received the standard board-check kickoff and is running its first turn; it idles once that settles.";
@@ -94,6 +111,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       const result = await shutdownTeammate(params.name);
       if (!result.ok) throw new Error(result.error);
       refreshTeamUI(ctx);
+      refreshLeaderToolDisclosure();
       return { content: [{ type: "text", text: result.body }], details: {} };
     },
   });
@@ -184,6 +202,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       const created = createBoardTask(params);
       if (!created.ok) throw new Error(created.error);
       refreshTeamUI(ctx);
+      refreshLeaderToolDisclosure();
       return {
         content: [{ type: "text", text: formatBoardTaskCreation(params.subject, created) }],
         details: {
@@ -197,6 +216,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
   });
 
   registerTaskListTool(pi);
+  leaderToolApi = pi;
 }
 
 function teamStatusSummary(): string {

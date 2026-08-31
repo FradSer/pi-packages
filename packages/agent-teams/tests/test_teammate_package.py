@@ -1112,6 +1112,27 @@ def test_project_agent_overrides_user_scope(tmp_path: Path) -> None:
     assert payload["personalGitManaged"] is False
 
 
+def test_leader_guidance_is_disclosed_only_for_active_team_state() -> None:
+    payload = run_node(
+        f'''\
+        import {{ hasActiveTeamState }} from "{(SRC / "index.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, updateTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        resetState();
+        const inactive = hasActiveTeamState();
+        registerTeammate({{ name: "worker", agent: "worker", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const rosterActive = hasActiveTeamState();
+        updateTeammate("worker", {{ status: "stopped" }});
+        createTask({{ subject: "board work" }});
+        const boardActive = hasActiveTeamState();
+        console.log(JSON.stringify({{ inactive, rosterActive, boardActive }}));
+        '''
+    )
+    assert payload == {"inactive": False, "rosterActive": True, "boardActive": True}
+    index_ts = source("index.ts")
+    assert "teamIsActive" in index_ts
+    assert "? event.systemPrompt + buildTeamLeaderGuidance" in index_ts
+
+
 def test_guidance_is_static_and_team_shaped() -> None:
     guidance = source("guidance.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
@@ -1603,6 +1624,75 @@ def test_send_message_routing_row_stays_single_and_carries_only_routing_outcome(
     assert payload["noDuplicateSentence"] is True
     assert payload["errorIsExactPlainLine"] is True
     assert payload["shutdownErrorIsPlainLine"] is True
+
+
+def test_leader_tools_are_progressively_disclosed_by_team_and_board_state() -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Leader controls follow living-team and board state" in feature
+    payload = run_node(
+        f'''\
+        import {{ registerLeaderTools, refreshLeaderToolDisclosure }} from "{(SRC / "tools.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, updateTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        let active = ["read", "teammate_spawn", "teammate_shutdown", "send_message", "task_create", "task_list"];
+        const pi = {{ registerTool() {{}}, getActiveTools() {{ return active; }}, setActiveTools(next) {{ active = next; }} }};
+        resetState();
+        registerLeaderTools(pi);
+        refreshLeaderToolDisclosure();
+        const initial = [...active];
+        registerTeammate({{ name: "worker", agent: "worker", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        refreshLeaderToolDisclosure();
+        const living = [...active];
+        updateTeammate("worker", {{ status: "stopped" }});
+        createTask({{ subject: "persisted board work" }});
+        refreshLeaderToolDisclosure();
+        const board = [...active];
+        console.log(JSON.stringify({{ initial, living, board }}));
+        '''
+    )
+    assert payload["initial"] == ["read", "teammate_spawn", "task_create"]
+    assert payload["living"] == ["read", "teammate_spawn", "task_create", "teammate_shutdown", "send_message"]
+    assert payload["board"] == ["read", "teammate_spawn", "task_create", "task_list"]
+
+
+def test_worker_board_tools_are_progressively_disclosed() -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Worker board controls follow board-notice and claim transitions" in feature
+    payload = run_node(
+        f'''\
+        import {{ registerWorkerCapabilities }} from "{(SRC / "worker.ts").as_uri()}";
+        let active = ["read", "bash", "send_message", "task_list", "task_claim", "task_submit"];
+        const tools = [];
+        const pi = {{
+          registerTool(tool) {{ tools.push(tool); }},
+          getActiveTools() {{ return active; }},
+          setActiveTools(next) {{ active = next; }},
+        }};
+        const workerToolDisclosure = registerWorkerCapabilities(pi);
+        workerToolDisclosure.reset();
+        const initially = [...active];
+        workerToolDisclosure.update("=== BOARD NOTICE ===\\nUnclaimed tasks: t_1 (review)");
+        const noticed = [...active];
+        workerToolDisclosure.update("=== INBOX (1 new) ===\\nClaim accepted\\nYou own the assignment.");
+        const claimed = [...active];
+        Object.assign(process.env, {{
+          PI_TEAMMATE_WORKER_NAME: "worker", PI_TEAMMATE_SPAWN_ID: "s1",
+          PI_TEAMMATE_OUTBOX_FILE: "/tmp/disclosure-outbox.jsonl", PI_TEAMMATE_INBOX_FILE: "/tmp/disclosure-inbox.jsonl",
+          PI_TEAMMATE_ROSTER_FILE: "/tmp/disclosure-roster.json", PI_TEAMMATE_BOARD_FILE: "/tmp/disclosure-board.json",
+          PI_TEAMMATE_CLAIMS_DIR: "/tmp/disclosure-claims", PI_TEAMMATE_SUBMISSIONS_DIR: "/tmp/disclosure-submissions",
+        }});
+        const submit = tools.find((tool) => tool.name === "task_submit");
+        await submit.execute("submit", {{ taskId: `t-disclosure-${{Date.now()}}`, status: "failed" }});
+        const afterSubmit = [...active];
+        workerToolDisclosure.update("=== BOARD NOTICE ===\\nUnclaimed tasks: t_2 (review)");
+        workerToolDisclosure.reset();
+        console.log(JSON.stringify({{ initially, noticed, claimed, afterSubmit, afterShutdown: active }}));
+        '''
+    )
+    assert payload["initially"] == ["read", "bash", "send_message"]
+    assert payload["noticed"] == ["read", "bash", "send_message", "task_list", "task_claim"]
+    assert payload["claimed"] == ["read", "bash", "send_message", "task_submit"]
+    assert payload["afterSubmit"] == ["read", "bash", "send_message"]
+    assert payload["afterShutdown"] == ["read", "bash", "send_message"]
 
 
 def test_worker_send_message_reports_peer_and_leader_writes_as_queued() -> None:

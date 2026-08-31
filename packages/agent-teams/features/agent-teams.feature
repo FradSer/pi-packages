@@ -671,6 +671,22 @@ Feature: Agent Teams collaborative organization contract
       And the task remains claimed and incomplete
       And every exported submission reducer rejects the same malformed status
 
+  Rule: Worker board controls are progressively disclosed
+
+    Scenario: Worker board controls follow board-notice and claim transitions
+      Given a spawned teammate starts without a board assignment
+      Then only send_message is active from the teammate capability set
+      When the harness delivers a BOARD NOTICE for eligible unassigned work
+      Then task_list and task_claim become active
+      And task_submit remains inactive until the harness accepts a claim
+      When the harness delivers Claim accepted for that teammate
+      Then task_list and task_claim are removed and task_submit becomes active
+      When the teammate submits its accepted task outcome
+      Then task_list, task_claim, and task_submit are removed
+      When the teammate session shuts down before submission
+      Then task_list, task_claim, and task_submit are removed
+      And unrelated active tools remain active throughout
+
   Rule: The harness wakes idle teammates, the leader model never polls
 
     Scenario: Idle teammates are poked only when there is something to do
@@ -722,6 +738,24 @@ Feature: Agent Teams collaborative organization contract
       When before_agent_start builds the leader guidance
       Then it warns that a definition without tools grants only the capability set
       And it instructs respawning with read and bash when a teammate reports missing capabilities instead of steering it
+
+  Rule: Leader controls are progressively disclosed
+
+    Scenario: Leader controls follow living-team and board state
+      Given the leader starts with no living teammates and no board tasks
+      Then teammate_spawn remains active as the entry point
+      And teammate_shutdown, send_message, and task_list are inactive
+      And task_create remains active to create the first board item
+      And long team orchestration guidance is absent
+      When one teammate becomes living
+      Then teammate_shutdown and send_message become active
+      And long team orchestration guidance becomes active
+      When the board has one or more task items
+      Then task_list becomes active regardless of living teammates
+      When the final teammate stops and the board becomes empty
+      Then all conditionally revealed leader controls are removed
+      And task_create remains active
+      And long team orchestration guidance is absent
 
   Rule: Leader tool surface is exact
 
