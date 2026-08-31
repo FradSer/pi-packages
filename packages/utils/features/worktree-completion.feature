@@ -19,6 +19,18 @@ Feature: git worktree-aware @ completions
     When the built-in provider suggests ".pi/worktrees", ".pi/worktrees/", or ".pi/worktrees/foo/src/index.ts"
     Then all of those suggestions are dropped
 
+  Scenario: A session cannot read a foreign worktree directly
+    Given a git repository with a linked worktree at .pi/worktrees/foo
+    And a pi session running in the repository root
+    When the read tool is called for ".pi/worktrees/foo/src/index.ts"
+    Then the read is blocked
+    And its result tells the agent to use enter_worktree before reading
+
+  Scenario: A session can read files in its own worktree
+    Given a pi session running inside .pi/worktrees/foo
+    When the read tool is called for "src/index.ts"
+    Then the read is allowed
+
   Scenario: A linked worktree hides sibling worktrees, parent worktrees dir, and the main checkout
     Given a git repository with linked worktrees at .pi/worktrees/foo and .pi/worktrees/bar
     And a pi session running inside .pi/worktrees/foo

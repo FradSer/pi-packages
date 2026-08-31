@@ -11,7 +11,10 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+	isToolCallEventType,
+	type ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
 import type {
 	AutocompleteItem,
 	AutocompleteProvider,
@@ -209,6 +212,10 @@ export function isItemInForeignWorktree<T extends AutocompleteItem>(
 	return false;
 }
 
+export function foreignWorktreeReadReason(filePath: string): string {
+	return `Blocked read of a different git worktree: ${filePath}. Use enter_worktree to switch the Pi session to that registered worktree before reading its files.`;
+}
+
 export function filterForeignWorktreeItems<T extends AutocompleteItem>(
 	items: T[],
 	basePath: string,
@@ -303,5 +310,10 @@ export default function registerWorktreeCompletion(pi: ExtensionAPI): void {
 		// It must be registered on every bind because session replacement resets
 		// the interactive autocomplete wrapper list.
 		ctx.ui.addAutocompleteProvider(worktreeCompletionProvider);
+	});
+	pi.on("tool_call", (event, ctx) => {
+		if (!isToolCallEventType("read", event)) return;
+		if (!isInForeignWorktree(event.input.path, ctx.cwd, getWorktreeRoots(ctx.cwd))) return;
+		return { block: true, reason: foreignWorktreeReadReason(event.input.path) };
 	});
 }

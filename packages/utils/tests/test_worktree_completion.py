@@ -134,6 +134,26 @@ console.log(JSON.stringify({{
         self.assertTrue(self.is_foreign('@".pi/worktrees"', self.main))
         self.assertTrue(self.is_foreign('@".pi/worktrees/"', self.main))
 
+    def test_read_guard_blocks_foreign_worktree_and_allows_own_files(self) -> None:
+        subprocess.run(["git", "worktree", "add", ".pi/worktrees/foo", "-b", "foo"],
+                       cwd=self.main, capture_output=True, text=True, check=True)
+        foreign = self.main / ".pi" / "worktrees" / "foo" / "src" / "index.ts"
+        own = self.main / "src" / "index.ts"
+        script = f"""
+import registerWorktreeCompletion from {json.dumps(COMPLETION_EXTENSION.as_uri())};
+const handlers = new Map();
+registerWorktreeCompletion({{ on: (event, handler) => handlers.set(event, handler) }});
+const guard = handlers.get("tool_call");
+const ctx = {{ cwd: {json.dumps(str(self.main))} }};
+const blocked = guard({{ toolName: "read", input: {{ path: {json.dumps(str(foreign))} }} }}, ctx);
+const allowed = guard({{ toolName: "read", input: {{ path: {json.dumps(str(own))} }} }}, ctx);
+console.log(JSON.stringify({{ blocked, allowed: allowed ?? null }}));
+"""
+        result = run_ts(script)
+        self.assertTrue(result["blocked"]["block"])
+        self.assertIn("enter_worktree", result["blocked"]["reason"])
+        self.assertIsNone(result["allowed"])
+
     def test_main_repo_without_linked_worktrees_still_hides_pi_worktrees(self) -> None:
         clean_repo = self.base / "clean-repo"
         clean_repo.mkdir()
