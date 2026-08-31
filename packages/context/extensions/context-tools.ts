@@ -11,9 +11,10 @@
  * Pure HTTP tools — available in interactive and non-interactive runs alike.
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { truncateHead, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
+import { DEFAULT_MAX_LINES, truncateHead, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
+import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { createToolLifecycleResultRenderer, eventToolLifecycle, safeDisplayText } from "@fradser/pi-kit";
 import { Type } from "typebox";
 
 const MAX_CHARS = 60_000;
@@ -25,8 +26,42 @@ interface ToolTextResult {
 	details: Record<string, unknown>;
 }
 
+interface ToolResultForRendering {
+	content: unknown;
+	details?: unknown;
+}
+
 function textResult(text: string, details: Record<string, unknown> = {}): ToolTextResult {
 	return { content: [{ type: "text", text }], details };
+}
+
+function emptyToolCall(): Text {
+	return new Text("", 0, 0);
+}
+
+function compactSubject(value: unknown): string {
+	const normalized = safeDisplayText(value).replace(/\s+/g, " ").trim();
+	return normalized.length <= 120 ? normalized : `${normalized.slice(0, 117)}...`;
+}
+
+function renderContextResult(
+	result: ToolResultForRendering,
+	options: { expanded?: boolean },
+	theme: { fg(color: string, text: string): string; bg(color: string, text: string): string; bold(text: string): string },
+	context: { isError?: boolean },
+	subject: string,
+) {
+	return createToolLifecycleResultRenderer<ToolResultForRendering, Text>({
+		createSpec: (_result, _text, details) => eventToolLifecycle("context", subject, {
+			label: "retrieved",
+			details,
+			detailLimit: 50,
+		}),
+		expandHint: "ctrl+o to expand",
+		fit: truncateToWidth,
+		visibleWidth,
+		renderError: (line, errorTheme) => new Text(errorTheme.fg("error", line), 0, 0),
+	})(result, options, theme, context);
 }
 
 function truncate(text: string): string {
@@ -147,6 +182,16 @@ export function registerContextTools(pi: ExtensionAPI): void {
 		],
 		parameters: DeepWikiParams,
 		executionMode: "sequential",
+		renderShell: "self",
+		renderCall: emptyToolCall,
+		renderResult(result, options, theme, context) {
+			const params = context.args as { owner?: string; repo?: string; mode?: string; question?: string };
+			const target = `${params.owner ?? "repository"}/${params.repo ?? ""}`.replace(/\/$/, "");
+			const subject = params.mode === "ask"
+				? `${target} · ${compactSubject(params.question ?? "question")}`
+				: `${target} · ${params.mode ?? "docs"}`;
+			return renderContextResult(result, options, theme, context, subject);
+		},
 
 		async execute(_toolCallId, params, signal) {
 			const repo = `${params.owner}/${params.repo}`;
@@ -176,6 +221,15 @@ export function registerContextTools(pi: ExtensionAPI): void {
 		],
 		parameters: Context7Params,
 		executionMode: "sequential",
+		renderShell: "self",
+		renderCall: emptyToolCall,
+		renderResult(result, options, theme, context) {
+			const params = context.args as { query?: string; topic?: string };
+			const subject = params.topic
+				? `${compactSubject(params.query ?? "library")} · ${compactSubject(params.topic)}`
+				: compactSubject(params.query ?? "library");
+			return renderContextResult(result, options, theme, context, subject);
+		},
 
 		async execute(_toolCallId, params, signal) {
 			const headers: Record<string, string> = {};
@@ -240,6 +294,12 @@ export function registerContextTools(pi: ExtensionAPI): void {
 		],
 		parameters: ExaParams,
 		executionMode: "sequential",
+		renderShell: "self",
+		renderCall: emptyToolCall,
+		renderResult(result, options, theme, context) {
+			const params = context.args as { query?: string };
+			return renderContextResult(result, options, theme, context, compactSubject(params.query ?? "search"));
+		},
 
 		async execute(_toolCallId, params, signal) {
 			const numResults = Math.max(1, Math.min(10, Math.floor(params.numResults ?? 5)));

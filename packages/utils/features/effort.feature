@@ -40,6 +40,11 @@ Feature: /effort thinking-level command
     When the user runs /effort
     Then only "off" is offered
 
+  Scenario: Effort status notifications use the shared Pi-kit notification adapter
+    Given the /effort command needs to report a validation or selection outcome
+    When it notifies the user
+    Then it delegates notification sanitization and delivery to pi-kit
+
   Scenario: Non-TUI sessions get a plain notification
     Given a session without UI
     When the user runs /effort

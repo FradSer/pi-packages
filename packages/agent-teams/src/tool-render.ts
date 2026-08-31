@@ -1,9 +1,8 @@
 import { keyHint, type Theme } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
+  createToolLifecycleResultRenderer,
   formatToolErrorLine,
-  renderToolLifecycle,
-  safeDisplayText,
   type ToolLifecycleSpec,
 } from "@fradser/pi-kit";
 
@@ -33,28 +32,15 @@ export function renderLifecycleResult(
   // unless a caller passes explicit lines (only when the human body must
   // differ from what the model sees).
   const effectiveDetails = details ?? text.split("\n").filter((line) => line.trim());
-  const expandable = result.details !== undefined || effectiveDetails.length > 0;
   if (context.isError) return new Text(theme.fg("error", formatToolErrorLine(text)), 0, 0);
-  return {
-    render: (width) => {
-      const details = options.expanded
-        ? effectiveDetails.flatMap((line) => wrapTextWithAnsi(safeDisplayText(line), Math.max(1, width - 2)))
-        : effectiveDetails;
-      return renderToolLifecycle(
-        { ...spec, details },
-        {
-          width,
-          expanded: options.expanded,
-          expandHint: keyHint("app.tools.expand", "to expand"),
-          expandable,
-          theme,
-          fit: truncateToWidth,
-          visibleWidth,
-        },
-      );
-    },
-    invalidate: () => {},
-  };
+  return createToolLifecycleResultRenderer({
+    createSpec: () => ({ ...spec, details: effectiveDetails }),
+    expandHint: keyHint("app.tools.expand", "to expand"),
+    fit: truncateToWidth,
+    visibleWidth,
+    wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+    renderError: (line, currentTheme) => new Text(currentTheme.fg("error", line), 0, 0),
+  })(result, options, theme, context);
 }
 
 export function resultDetails(result: ToolResultText): string[] {

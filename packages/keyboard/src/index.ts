@@ -2,6 +2,7 @@ import type {
   ExtensionAPI,
   ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
+import { notifyPi } from "@fradser/pi-kit";
 import { readKeyboardConfig, writeKeyboardConfig } from "./config";
 import { fetchKeyboardStatus } from "./driver";
 import { KeyboardStateMachine } from "./state-machine";
@@ -147,14 +148,14 @@ export default function (pi: ExtensionAPI): void {
       if (trimmed === "on") {
         sm.updateConfig({ enabled: true });
         writeKeyboardConfig(sm.getConfig());
-        ctx.ui.notify("Keyboard lighting indicator enabled", "info");
+        notifyPi(ctx.ui, "Keyboard lighting indicator enabled", "info");
         return;
       }
 
       if (trimmed === "off") {
         sm.updateConfig({ enabled: false });
         writeKeyboardConfig(sm.getConfig());
-        ctx.ui.notify("Keyboard lighting indicator disabled", "info");
+        notifyPi(ctx.ui, "Keyboard lighting indicator disabled", "info");
         return;
       }
 
@@ -168,9 +169,9 @@ export default function (pi: ExtensionAPI): void {
         const targetState = (parts[1] || "thinking") as KeyboardState;
         if (targetState in KEYBOARD_STATE_DEFINITIONS) {
           await sm.transitionTo(targetState, true);
-          ctx.ui.notify(`Testing state: ${KEYBOARD_STATE_DEFINITIONS[targetState].labelZh}`, "info");
+          notifyPi(ctx.ui, `Testing state: ${KEYBOARD_STATE_DEFINITIONS[targetState].labelZh}`, "info");
         } else {
-          ctx.ui.notify(`Unknown test state. Options: ${Object.keys(KEYBOARD_STATE_DEFINITIONS).join(", ")}`, "error");
+          notifyPi(ctx.ui, `Unknown test state. Options: ${Object.keys(KEYBOARD_STATE_DEFINITIONS).join(", ")}`, "error");
         }
         return;
       }
@@ -194,7 +195,7 @@ async function showStatus(ctx: ExtensionCommandContext, sm: KeyboardStateMachine
     `Hardware Status  : ${hw.connected ? `Connected (${hw.device?.product || "VIA Keyboard"})` : "Not connected / Not detected"}`,
   ];
 
-  ctx.ui.notify(lines.join("\n"), "info");
+  notifyPi(ctx.ui, lines.join("\n"), "info");
 }
 
 async function openKeyboardMenu(
@@ -224,7 +225,7 @@ async function openKeyboardMenu(
     const next = !config.enabled;
     sm.updateConfig({ enabled: next });
     writeKeyboardConfig(sm.getConfig());
-    ctx.ui.notify(`Keyboard lighting indicator is now ${next ? "ON" : "OFF"}`, "info");
+    notifyPi(ctx.ui, `Keyboard lighting indicator is now ${next ? "ON" : "OFF"}`, "info");
     return;
   }
 
@@ -237,7 +238,7 @@ async function openKeyboardMenu(
       const chosenState = stateKeys[idx];
       if (chosenState) {
         await sm.transitionTo(chosenState, true);
-        ctx.ui.notify(`Applied state: ${KEYBOARD_STATE_DEFINITIONS[chosenState].labelZh}`, "info");
+        notifyPi(ctx.ui, `Applied state: ${KEYBOARD_STATE_DEFINITIONS[chosenState].labelZh}`, "info");
       }
     }
     return;
@@ -259,7 +260,7 @@ async function openKeyboardMenu(
       const zone = zoneMap[zoneChoice] || "all";
       sm.updateConfig({ zone });
       writeKeyboardConfig(sm.getConfig());
-      ctx.ui.notify(`Active zone set to: ${zone.toUpperCase()}`, "info");
+      notifyPi(ctx.ui, `Active zone set to: ${zone.toUpperCase()}`, "info");
     }
     return;
   }
@@ -277,7 +278,7 @@ async function openKeyboardMenu(
       const scale = scaleMap[scaleChoice] ?? 1.0;
       sm.updateConfig({ brightnessScale: scale });
       writeKeyboardConfig(sm.getConfig());
-      ctx.ui.notify(`Brightness scale set to ${Math.round(scale * 100)}%`, "info");
+      notifyPi(ctx.ui, `Brightness scale set to ${Math.round(scale * 100)}%`, "info");
     }
     return;
   }

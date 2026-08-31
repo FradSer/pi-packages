@@ -9,6 +9,9 @@ import {
   modelSearchText,
   PI_SPINNER_FRAMES,
   PI_SPINNER_INTERVAL_MS,
+  notifyPi,
+  renderPiPanel,
+  renderPiWidgetRow,
   sortModels,
   type SearchPicker,
 } from "@fradser/pi-kit";
@@ -91,13 +94,13 @@ export function ensureTeamWidget(ctx?: { ui?: ExtensionUIContext; mode?: string 
         if (working.length === 0) return [];
         const lines: string[] = [];
         for (const teammate of working) {
-          lines.push(fitTeammateRow(
+          lines.push(renderPiWidgetRow(fitTeammateRow(
             PI_SPINNER_FRAMES[spinnerFrame],
             style.fg(colorFor(teammate.name), teammate.name),
             runningTeammateActivity(teammate) + stallSuffix(teammate),
-            width,
+            Math.max(1, width - 1),
             (activity) => theme.bold(style.fg("accent", activity)),
-          ));
+          ), width, truncateToWidth));
         }
         return lines;
       },
@@ -415,7 +418,6 @@ export function openTeamConsole(ctx: {
 
     const renderPicker = (width: number): string[] => {
       if (!picker) return [];
-      const border = style.border("─".repeat(Math.max(1, width)));
       const results = picker.results();
       const selected = picker.selectedIndex();
       if (selected < pickerOffset) pickerOffset = selected;
@@ -436,16 +438,19 @@ export function openTeamConsole(ctx: {
         const display = model.name && model.name !== model.id ? style.dim(model.name) : "";
         return truncateToWidth(`${marker}${theme.fg("customMessageText", modelLabel(model))} ${display} ${tags}`.replace(/\s+$/g, ""), Math.max(10, width - 1));
       });
-      return [
-        border,
-        style.accent(truncateToWidth(`teammate model  ${teamDefault ?? "auto (Pi default)"}`, width)),
-        "",
-        truncateToWidth(`${style.accent("❯ ")}${picker.query()}▏  ${style.dim(`${results.length} models`)}`, Math.max(10, width - 1)),
-        ...rows,
-        "",
-        truncateToWidth(style.dim("type to filter · ↑↓ select · enter set/clear · esc cancel"), Math.max(10, width - 1)),
-        border,
-      ];
+      return renderPiPanel({
+        width,
+        style,
+        fit: truncateToWidth,
+        title: `teammate model  ${teamDefault ?? "auto (Pi default)"}`,
+        body: [
+          "",
+          `${style.accent("❯ ")}${picker.query()}▏  ${style.dim(`${results.length} models`)}`,
+          ...rows,
+          "",
+        ],
+        footer: "type to filter · ↑↓ select · enter set/clear · esc cancel",
+      });
     };
 
     function handlePickerInput(data: string): void {
@@ -465,10 +470,10 @@ export function openTeamConsole(ctx: {
         if (!picked) return;
         if (isClearEntry(picked)) {
           setTeamDefaultModel(undefined);
-          ctx.ui.notify("Teammate model cleared — Pi picks its default", "info");
+          notifyPi(ctx.ui, "Teammate model cleared — Pi picks its default", "info");
         } else {
           setTeamDefaultModel(modelLabel(picked));
-          ctx.ui.notify(`Teammate model set to ${modelLabel(picked)} for this session`, "info");
+          notifyPi(ctx.ui, `Teammate model set to ${modelLabel(picked)} for this session`, "info");
         }
         closeModelPicker();
         return;
@@ -584,7 +589,6 @@ export function openTeamConsole(ctx: {
     const listViewport = (): number => Math.max(1, tui.terminal.rows - LIST_CHROME_LINES);
 
     const renderList = (width: number): string[] => {
-      const border = style.border("─".repeat(Math.max(1, width)));
       const content = buildContent();
       const viewport = listViewport();
       const selection = currentPageSelection(currentRows().length);
@@ -599,16 +603,14 @@ export function openTeamConsole(ctx: {
         : style.dim(page === "roster"
             ? "↑↓ select · enter open · tab board · x shutdown · m model · esc/q close"
             : "↑↓ select · enter open · tab roster · esc/q close");
-      return [
-        border,
-        style.accent(truncateToWidth(headerLine(), width)),
-        "",
-        ...content.slice(listOffset, listOffset + viewport)
-          .map((line) => truncateToWidth(line.text, Math.max(10, width - 1))),
-        "",
-        truncateToWidth(footer, Math.max(10, width - 1)),
-        border,
-      ];
+      return renderPiPanel({
+        width,
+        style,
+        fit: truncateToWidth,
+        title: headerLine(),
+        body: content.slice(listOffset, listOffset + viewport).map((line) => line.text),
+        footer,
+      });
     };
 
     const currentPageSelection = (rowCount: number): number => {
@@ -620,20 +622,16 @@ export function openTeamConsole(ctx: {
       detailKind === "task" ? `[${detailKey}]` : detailKind === "role" ? `@${detailKey} · role` : `@${detailKey}`;
 
     const renderDetail = (width: number): string[] => {
-      const border = style.border("─".repeat(Math.max(1, width)));
       const source = detailSource();
       const detail = windowLines(source, width);
-      const footer = style.dim(`  ${detail.range} · ↑↓ scroll · pgup/pgdn page · home/end jump · esc back · q close`);
-      const lines = [
-        border,
-        style.accent(truncateToWidth(`agent-teams  ${detailTitle()}`, width)),
-        "",
-        ...detail.lines.map((line) => `  ${line}`),
-        "",
-        footer,
-        border,
-      ];
-      return lines.map((line) => truncateToWidth(line, Math.max(10, width - 1)));
+      return renderPiPanel({
+        width,
+        style,
+        fit: truncateToWidth,
+        title: `agent-teams  ${detailTitle()}`,
+        body: detail.lines,
+        footer: `${detail.range} · ↑↓ scroll · pgup/pgdn page · home/end jump · esc back · q close`,
+      });
     };
 
     const detailSource = (): string[] => {
@@ -696,7 +694,7 @@ export function openTeamConsole(ctx: {
           if (ctx.modelRegistry && ctx.modelRegistry.getAvailable().length > 0) {
             openModelPicker();
           } else {
-            ctx.ui.notify("No models are available in the model registry.", "warning");
+            notifyPi(ctx.ui, "No models are available in the model registry.", "warning");
           }
           return;
         }
@@ -764,8 +762,8 @@ export function openTeamConsole(ctx: {
 
 async function shutdownFromConsole(ctx: { ui: ExtensionUIContext }, name: string): Promise<void> {
   const result = await shutdownTeammate(name);
-  if (result.ok) ctx.ui.notify(result.body, "info");
-  else ctx.ui.notify(result.error, "error");
+  if (result.ok) notifyPi(ctx.ui, result.body, "info");
+  else notifyPi(ctx.ui, result.error, "error");
 }
 
 function clampIndex(index: number, rowCount: number): number {

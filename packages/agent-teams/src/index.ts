@@ -15,7 +15,7 @@ import { livingTeammates, listTasks, resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
 import { refreshLeaderToolDisclosure, registerLeaderTools, registerTeamCommand } from "./tools.ts";
 import { registerWorkerCapabilities, workerBinding } from "./worker.ts";
-import { agentColor, eventToolLifecycle, formatAgentMessagePrefix, renderAgentMessageBand, renderToolLifecycle } from "@fradser/pi-kit";
+import { agentColor, createToolLifecycleMessageRenderer, eventToolLifecycle, formatAgentMessagePrefix, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
 import { FollowUpQueue, groupReportsByTeammate, TEAMMATE_HARNESS_MESSAGE_TYPE, TEAMMATE_REPORT_MESSAGE_TYPE, type FollowUpReport } from "./follow-up-queue.ts";
 import { Box, Markdown, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
@@ -69,45 +69,29 @@ export default function (pi: ExtensionAPI) {
     return new Text(theme.fg("success", `Teammate @${name} finished.`), 0, 0);
   });
   pi.registerMessageRenderer(TEAMMATE_HEALTH_MESSAGE_TYPE, (message, { expanded }, theme) => {
-    const health = extractHealthReport(message.details);
-    if (!health?.health) return new Text(String(message.content), 0, 0);
-    const spec = eventToolLifecycle(
-      "agent",
-      `@${health.teammate} ${health.health.state} · silent ${formatSilenceDuration(health.health.silenceMs)}`,
-      { details: String(message.content).split("\n").filter((line) => line.trim()) },
-    );
-    return {
-      render: (width: number) => renderToolLifecycle(spec, {
-        width,
-        expanded,
-        expandHint: keyHint("app.tools.expand", "to expand"),
-        theme,
-        fit: truncateToWidth,
-        visibleWidth,
+    const healthReport = extractHealthReport(message.details);
+    const health = healthReport?.health;
+    if (!health || !healthReport) return new Text(String(message.content), 0, 0);
+    const subject = `@${healthReport.teammate} ${health.state} · silent ${formatSilenceDuration(health.silenceMs)}`;
+    return createToolLifecycleMessageRenderer({
+      createSpec: () => eventToolLifecycle("agent", subject, {
+        details: healthReport.body.split("\n").filter((line) => line.trim()),
       }),
-      invalidate: () => {},
-    };
+      expandHint: keyHint("app.tools.expand", "to expand"),
+      fit: truncateToWidth,
+      visibleWidth,
+    })(message, { expanded }, theme);
   });
   pi.registerMessageRenderer(TEAMMATE_HARNESS_MESSAGE_TYPE, (message, { expanded }, theme) => {
     const report = extractHarnessReport(message.details);
     if (!report) return new Text(String(message.content), 0, 0);
     const event = report.harnessEvent;
-    const spec = eventToolLifecycle(
-      "agent",
-      event?.subject ?? "Agent Teams event",
-      { details: report.body.split("\n").filter((line) => line.trim()) },
-    );
-    return {
-      render: (width: number) => renderToolLifecycle(spec, {
-        width,
-        expanded,
-        expandHint: keyHint("app.tools.expand", "to expand"),
-        theme,
-        fit: truncateToWidth,
-        visibleWidth,
-      }),
-      invalidate: () => {},
-    };
+    return createToolLifecycleMessageRenderer({
+      createSpec: () => eventToolLifecycle("agent", event?.subject ?? "Agent Teams event"),
+      expandHint: keyHint("app.tools.expand", "to expand"),
+      fit: truncateToWidth,
+      visibleWidth,
+    })(message, { expanded }, theme);
   });
   pi.registerMessageRenderer(TEAMMATE_REPORT_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) => {
     const reports = extractReports(message.details);
@@ -171,7 +155,9 @@ export default function (pi: ExtensionAPI) {
         display: true,
         details: reports.length === 1 ? reports[0] : { reports },
       }, { triggerTurn: true, deliverAs: "followUp" }),
-      onFailure: (message) => leaderCtx?.ui.notify(message, "warning"),
+      onFailure: (message) => {
+        if (leaderCtx) notifyPi(leaderCtx.ui, message, "warning");
+      },
     });
     ensureTeamWidget(ctx);
     initTeamMachine(ctx, {
@@ -210,7 +196,7 @@ export default function (pi: ExtensionAPI) {
     stopUiTimers();
     const diagnostics = await teardownTeammates();
     for (const message of diagnostics) {
-      ctx.ui.notify(message, "warning");
+      notifyPi(ctx.ui, message, "warning");
     }
     shutdownTeamMachine();
     removeRuntimeDir(ctx);

@@ -1,5 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { CancellableLoader } from "@earendil-works/pi-tui";
+import { CancellableLoader, truncateToWidth } from "@earendil-works/pi-tui";
+import { createPiThemeStyle, notifyPi, renderPiPanel } from "@fradser/pi-kit";
 import { routerRoot } from "./paths";
 import { loadCollections } from "./registry";
 import {
@@ -25,10 +26,11 @@ async function runWithLoading<T>(ctx: ExtensionCommandContext, message: string, 
   if (!ctx.hasUI) return action();
 
   const outcome = await ctx.ui.custom<LoadingOutcome<T>>((tui, theme, _keybindings, done) => {
+    const style = createPiThemeStyle(theme);
     const loader = new CancellableLoader(
       tui,
-      (text) => theme.fg("accent", text),
-      (text) => theme.fg("muted", text),
+      style.accent,
+      style.muted,
       message,
     );
     loader.start();
@@ -47,7 +49,14 @@ async function runWithLoading<T>(ctx: ExtensionCommandContext, message: string, 
         );
     }, 0);
     return {
-      render: (width) => loader.render(width),
+      render: (width) => renderPiPanel({
+        width,
+        style,
+        fit: truncateToWidth,
+        title: "Skill Router",
+        body: loader.render(Math.max(1, width - 2)),
+        footer: "esc cancel",
+      }),
       invalidate: () => {},
       dispose: () => loader.stop(),
     };
@@ -96,11 +105,11 @@ async function addFlow(ctx: ExtensionCommandContext): Promise<void> {
       () => fetchCollectionSkills(root, spec),
     );
     if (fetched.skills.length === 0) {
-      ctx.ui.notify(`No skills (SKILL.md with name and description) found in ${spec.repo}.`, "warning");
+      notifyPi(ctx.ui, `No skills (SKILL.md with name and description) found in ${spec.repo}.`, "warning");
       return;
     }
   } catch (error) {
-    ctx.ui.notify(`Failed to fetch repository: ${error instanceof Error ? error.message : String(error)}`, "error");
+    notifyPi(ctx.ui, `Failed to fetch repository: ${error instanceof Error ? error.message : String(error)}`, "error");
     return;
   }
 
@@ -121,16 +130,16 @@ async function addFlow(ctx: ExtensionCommandContext): Promise<void> {
       `Installing ${repo}...`,
       () => addCollection(root, { repo, id, skills: selection }),
     );
-    ctx.ui.notify(`Installed "${result.id}" with ${result.skills.length} skills. ${RELOAD_HINT}`, "info");
+    notifyPi(ctx.ui, `Installed "${result.id}" with ${result.skills.length} skills. ${RELOAD_HINT}`, "info");
   } catch (error) {
-    ctx.ui.notify(`Failed to install collection: ${error instanceof Error ? error.message : String(error)}`, "error");
+    notifyPi(ctx.ui, `Failed to install collection: ${error instanceof Error ? error.message : String(error)}`, "error");
   }
 }
 
 async function pickCollection(ctx: ExtensionCommandContext, action: string) {
   const collections = loadCollections(routerRoot());
   if (collections.length === 0) {
-    ctx.ui.notify("No collections installed. Use Add collection first.", "warning");
+    notifyPi(ctx.ui, "No collections installed. Use Add collection first.", "warning");
     return;
   }
   const choice = await ctx.ui.select(
@@ -149,7 +158,7 @@ async function selectionFlow(ctx: ExtensionCommandContext): Promise<void> {
     const selected = new Set(collection.routes.map((route) => route.skill));
     const remaining = upstream.filter((name) => !selected.has(name));
     if (remaining.length === 0) {
-      ctx.ui.notify("All upstream skills are already selected.", "info");
+      notifyPi(ctx.ui, "All upstream skills are already selected.", "info");
       return;
     }
     while (remaining.length > 0) {
@@ -163,9 +172,9 @@ async function selectionFlow(ctx: ExtensionCommandContext): Promise<void> {
     }
     if (selected.size === collection.routes.length) return;
     const result = await updateCollectionSelection(routerRoot(), collection.id, [...selected]);
-    ctx.ui.notify(`Updated "${result.id}" with ${result.selected.length} routed skills. ${RELOAD_HINT}`, "info");
+    notifyPi(ctx.ui, `Updated "${result.id}" with ${result.selected.length} routed skills. ${RELOAD_HINT}`, "info");
   } catch (error) {
-    ctx.ui.notify(`Selection update failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+    notifyPi(ctx.ui, `Selection update failed: ${error instanceof Error ? error.message : String(error)}`, "error");
   }
 }
 
@@ -181,9 +190,9 @@ async function updateFlow(ctx: ExtensionCommandContext): Promise<void> {
     const notes = [`Updated "${result.id}": ${result.kept.length} skills re-materialized.`];
     if (result.dropped.length > 0) notes.push(`Removed upstream: ${result.dropped.join(", ")}.`);
     if (result.newUpstream.length > 0) notes.push(`New upstream skills not routed: ${result.newUpstream.join(", ")}.`);
-    ctx.ui.notify(`${notes.join(" ")} ${RELOAD_HINT}`, "info");
+    notifyPi(ctx.ui, `${notes.join(" ")} ${RELOAD_HINT}`, "info");
   } catch (error) {
-    ctx.ui.notify(`Update failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+    notifyPi(ctx.ui, `Update failed: ${error instanceof Error ? error.message : String(error)}`, "error");
   }
 }
 
@@ -194,9 +203,9 @@ async function removeFlow(ctx: ExtensionCommandContext): Promise<void> {
   if (!confirmed) return;
   try {
     removeCollection(routerRoot(), collection.id);
-    ctx.ui.notify(`Removed "${collection.id}". ${RELOAD_HINT}`, "info");
+    notifyPi(ctx.ui, `Removed "${collection.id}". ${RELOAD_HINT}`, "info");
   } catch (error) {
-    ctx.ui.notify(`Remove failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+    notifyPi(ctx.ui, `Remove failed: ${error instanceof Error ? error.message : String(error)}`, "error");
   }
 }
 
@@ -204,13 +213,13 @@ async function toggleFlow(ctx: ExtensionCommandContext): Promise<void> {
   const collection = await pickCollection(ctx, "Enable/disable collection");
   if (!collection) return;
   const updated = setCollectionEnabled(routerRoot(), collection.id, !collection.enabled);
-  ctx.ui.notify(`"${updated.id}" is now ${updated.enabled ? "enabled" : "disabled"}. ${RELOAD_HINT}`, "info");
+  notifyPi(ctx.ui, `"${updated.id}" is now ${updated.enabled ? "enabled" : "disabled"}. ${RELOAD_HINT}`, "info");
 }
 
 async function listFlow(ctx: ExtensionCommandContext): Promise<void> {
   const collections = loadCollections(routerRoot());
   if (collections.length === 0) {
-    ctx.ui.notify("No collections installed.", "info");
+    notifyPi(ctx.ui, "No collections installed.", "info");
     return;
   }
   await ctx.ui.select(

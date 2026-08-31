@@ -38,6 +38,34 @@ Feature: Shared pi-kit runtime helpers
     And a lifecycle spec with detailLimit="all" preserves every expanded detail line
     And an error result is rendered as one plain error row without a lifecycle label
 
+  Scenario: Overlay panels use the shared frame layout
+    Given an overlay has a header, body lines, and a footer
+    When it uses renderPiPanel
+    Then the panel has shared full-width border, padded header and footer lines
+    And every emitted line is width-bounded by the supplied ANSI-aware fit helper
+
+  Scenario: Passive console widgets use the shared row layout
+    Given a package displays a one-line status widget
+    When it uses renderPiWidgetRow
+    Then the row has the native one-space leading alignment and is width-bounded
+
+  Scenario: Custom transcript messages use the standard lifecycle renderer
+    Given a package sends a custom transcript message with a lifecycle spec
+    When it creates the reusable pi-kit message renderer
+    Then Pi receives a width-aware component using renderToolLifecycle
+    And the renderer carries the shared expand hint and lifecycle band unchanged
+
+  Scenario: Custom native tools use the standard lifecycle result renderer
+    Given a native tool result with text content and optional structured details
+    When it creates a reusable pi-kit tool lifecycle renderer
+    Then a successful result renders the shared lifecycle band
+    And an error delegates its plain sanitized error row to the host renderer
+
+  Scenario: Notifications use the shared portable UI abstraction
+    Given a package needs to notify through ctx.ui
+    When it calls notifyPi
+    Then the message is sanitized and forwarded with the requested notification level
+
   Scenario: Agent task and message labels share pi-kit formatting
     Given an agent task and a teammate name
     When the shared display helpers format them

@@ -15,6 +15,7 @@
 
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { notifyPi } from "@fradser/pi-kit";
 
 type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
@@ -71,19 +72,20 @@ export default function (pi: ExtensionAPI) {
       if (raw) {
         const level = ALIASES[raw.toLowerCase()];
         if (!level) {
-          ctx.ui.notify(
+          notifyPi(
+            ctx.ui,
             `Unknown thinking level "${raw}" — use one of: ${LEVELS.join(", ")} (or min/med/xh/0)`,
             "error",
           );
           return;
         }
         pi.setThinkingLevel(level);
-        ctx.ui.notify(`Thinking level set to ${level}`, "info");
+        notifyPi(ctx.ui, `Thinking level set to ${level}`, "info");
         return;
       }
 
       if (!ctx.hasUI) {
-        ctx.ui.notify(`Thinking level: ${current} — pass a level, e.g. /effort max`, "info");
+        notifyPi(ctx.ui, `Thinking level: ${current} — pass a level, e.g. /effort max`, "info");
         return;
       }
 
@@ -100,7 +102,7 @@ export default function (pi: ExtensionAPI) {
 
       const selected = (choice.replace(" (current)", "") as ThinkingLevel);
       pi.setThinkingLevel(selected);
-      ctx.ui.notify(`Thinking level set to ${selected}`, "info");
+      notifyPi(ctx.ui, `Thinking level set to ${selected}`, "info");
     },
   });
 }

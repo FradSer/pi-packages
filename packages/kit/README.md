@@ -16,12 +16,17 @@ no skills, and no extensions. Consumer packages declare it as
   to the shared overlay/console style language:
   `accent` / `muted` / `dim` / `border` / `success` / `error` / `fg`.
   See `packages/btw` for the canonical layout that consumes it.
+- `renderPiPanel({ width, style, fit, title, body, footer })` — standard bordered panel geometry for overlays and full-screen consoles. Consumers keep interaction, scrolling, and Markdown rendering; pi-kit supplies the shared frame.
+- `renderPiWidgetRow(content, width, fit)` — one leading-space, width-bounded passive status-widget row aligned with Pi's native rows.
 
 ### Messages
 
 - `extractTextContent(content, separator = "\n")` — plain text from a pi
   message content value (string or content-block array). Non-text blocks
   contribute nothing; callers own trim/empty semantics.
+- `createToolLifecycleMessageRenderer(options)` — structural custom-message renderer factory using the lifecycle band.
+- `createToolLifecycleResultRenderer(options)` — structural native-tool result renderer factory; callers provide the host-native error component.
+- `notifyPi(ui, message, level)` — sanitized forwarding to Pi's native notification surface.
 
 ## Rules
 

@@ -34,6 +34,18 @@ def test_extension_registers_memory_and_consolidate_commands() -> None:
     assert "loadAndDeduplicateMemories" in content
 
 
+def test_dreaming_widget_uses_shared_pi_kit_tui_primitives() -> None:
+    content = source()
+    assert "PI_SPINNER_FRAMES" in content
+    assert "PI_SPINNER_INTERVAL_MS" in content
+    assert "createPiThemeStyle" in content
+    assert "const style = createPiThemeStyle(theme);" in content
+    assert "style.accent(frame)" in content
+    assert "style.muted(` · ${dreamingActivity}`)" in content
+    assert "notifyPi(ctx.ui" in content
+    assert "ctx.ui.notify" not in content
+
+
 def test_consolidation_contract_is_parent_owned() -> None:
     content = source()
     assert "createConsolidationRun" in content

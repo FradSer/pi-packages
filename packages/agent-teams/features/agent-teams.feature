@@ -1,4 +1,5 @@
 Feature: Agent Teams collaborative organization contract
+  All interactive panels use pi-kit's shared panel geometry rather than package-owned borders or footer rows.
   Agent Teams gives Pi a Claude-Code-style team layer: named resident
   teammates, a shared local task board with self-claim, and peer-to-peer
   messaging between teammates. Agents are declarative Markdown files

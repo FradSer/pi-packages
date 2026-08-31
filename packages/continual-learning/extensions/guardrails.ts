@@ -14,7 +14,7 @@ import type { Stats } from "node:fs";
 import path from "node:path";
 import { parseSkillBlock, type ExtensionAPI, type BeforeAgentStartEvent } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { eventToolLifecycle, renderToolLifecycle, safeDisplayText } from "@fradser/pi-kit";
+import { createToolLifecycleMessageRenderer, eventToolLifecycle, notifyPi, safeDisplayText } from "@fradser/pi-kit";
 import { DEFAULT_POLICIES, evaluate, mergeLayers } from "./guardrail-engine.ts";
 import { configPaths, loadLayers } from "./guardrail-config.ts";
 import type { PolicyLayer, ResolvedConfig } from "./guardrail-types.ts";
@@ -260,65 +260,49 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         : details.action === "confirm" && details.outcome === "allowed once"
           ? "policy allowed"
           : "policy blocked";
-      return {
-        render: (width) => {
-          const detailWidth = Math.max(1, width - 2);
-          const event = eventToolLifecycle("harness", reason, {
-            label,
-            details: [
-              `policy=${details.policy}`,
-              `action=${details.action}`,
-              `outcome=${details.outcome}`,
-              `tool=${details.tool}`,
-              `source=${details.source}`,
-              `file=${details.file}`,
-              "",
-              "reason:",
-              ...wrapTextWithAnsi(reason, detailWidth),
-            ],
-          });
-          return renderToolLifecycle(event, {
-            width,
-            expanded,
-            expandHint: "ctrl+o to expand",
-            theme,
-            fit: truncateToWidth,
-            visibleWidth,
-          });
-        },
-        invalidate: () => {},
-      };
+      return createToolLifecycleMessageRenderer({
+        createSpec: () => eventToolLifecycle("harness", reason, {
+          label,
+          details: [
+            `policy=${details.policy}`,
+            `action=${details.action}`,
+            `outcome=${details.outcome}`,
+            `tool=${details.tool}`,
+            `source=${details.source}`,
+            `file=${details.file}`,
+            "",
+            "reason:",
+            reason,
+          ],
+        }),
+        expandHint: "ctrl+o to expand",
+        fit: truncateToWidth,
+        visibleWidth,
+        wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+      })({ content: "", details }, { expanded }, theme);
     }
 
     const prompt = safeDisplayText(details?.prompt);
-    return {
-      render: (width) => {
-        const detailWidth = Math.max(1, width - 2);
-        const event = eventToolLifecycle("harness", prompt, {
-          label: details?.kind === "skill-prompt" ? "skill prompt" : "event",
-          details: details
-            ? [
-                `skill=${details.skill}`,
-                `target=${details.target}`,
-                `source=${details.source}`,
-                `file=${details.file}`,
-                "",
-                "prompt:",
-                ...wrapTextWithAnsi(prompt, detailWidth),
-              ]
-            : undefined,
-        });
-        return renderToolLifecycle(event, {
-          width,
-          expanded,
-          expandHint: "ctrl+o to expand",
-          theme,
-          fit: truncateToWidth,
-          visibleWidth,
-        });
-      },
-      invalidate: () => {},
-    };
+    return createToolLifecycleMessageRenderer({
+      createSpec: () => eventToolLifecycle("harness", prompt, {
+        label: details?.kind === "skill-prompt" ? "skill prompt" : "event",
+        details: details
+          ? [
+              `skill=${details.skill}`,
+              `target=${details.target}`,
+              `source=${details.source}`,
+              `file=${details.file}`,
+              "",
+              "prompt:",
+              prompt,
+            ]
+          : undefined,
+      }),
+      expandHint: "ctrl+o to expand",
+      fit: truncateToWidth,
+      visibleWidth,
+      wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+    })({ content: "", details }, { expanded }, theme);
   });
 
   pi.on("before_agent_start", (event, ctx) => {
@@ -452,7 +436,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         try {
           await ensureHarnessTarget(targetFile);
         } catch (error) {
-          ctx.ui.notify(`Cannot prepare harness target: ${(error as Error).message}`, "error");
+          notifyPi(ctx.ui, `Cannot prepare harness target: ${(error as Error).message}`, "error");
           return;
         }
         pi.sendUserMessage(buildHarnessRulePrompt(request, targetFile, scopeLabel), { deliverAs: "followUp" });
@@ -475,7 +459,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
           ...config.errors.slice(0, 5).map((e) => `  - ${e}`),
         );
       }
-      ctx.ui.notify(lines.join("\n"), "info");
+      notifyPi(ctx.ui, lines.join("\n"), "info");
     },
   });
 }

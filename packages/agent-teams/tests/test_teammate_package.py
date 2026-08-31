@@ -1428,7 +1428,7 @@ def test_spawn_uses_shared_started_lifecycle_renderer() -> None:
 
 def test_spawn_started_line_fits_narrow_tui_width() -> None:
     tools = source("tool-render.ts")
-    assert "renderToolLifecycle(" in tools
+    assert "createToolLifecycleResultRenderer(" in tools
     assert "fit: truncateToWidth" in tools
     assert "started line fits the available TUI width" in (
         PACKAGE / "features" / "agent-teams.feature"
@@ -2278,7 +2278,8 @@ def test_stall_report_has_a_distinct_agent_health_event_renderer() -> None:
     assert "TEAMMATE_HEALTH_MESSAGE_TYPE" in index_ts
     assert "registerMessageRenderer(TEAMMATE_HEALTH_MESSAGE_TYPE" in index_ts
     assert 'eventToolLifecycle(' in index_ts
-    assert '`@${health.teammate} ${health.health.state} · silent ${formatSilenceDuration(health.health.silenceMs)}`' in index_ts
+    assert 'healthReport.teammate' in index_ts
+    assert 'formatSilenceDuration(health.silenceMs)' in index_ts
     assert "formatAgentHealthReport" in machine
 
 

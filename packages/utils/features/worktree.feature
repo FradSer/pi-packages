@@ -13,6 +13,11 @@ Feature: git worktree path redirect
     Then the command is rewritten to `mkdir -p .pi/worktrees && git worktree add .pi/worktrees/foo feature/foo`
     And the user is notified of the redirect
 
+  Scenario: Worktree redirect notifications use the shared Pi-kit notification adapter
+    Given a git worktree add path is redirected
+    When the extension notifies the user of that redirect
+    Then it delegates notification sanitization and delivery to pi-kit
+
   Scenario: A path already inside .pi/worktrees is left untouched
     Given the agent runs `git worktree add .pi/worktrees/foo feature/foo`
     When the bash tool call is intercepted

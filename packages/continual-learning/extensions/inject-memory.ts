@@ -28,8 +28,12 @@ import { promisify } from "node:util";
 import * as nodeFs from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth } from "@earendil-works/pi-tui";
 import {
+  createPiThemeStyle,
+  renderPiWidgetRow,
   enterModelFromInput,
+  notifyPi,
   modelRef,
   parseModelRef,
   PI_SPINNER_FRAMES,
@@ -436,6 +440,7 @@ function setDreamingWidget(ctx: ExtensionContext): void {
   }
 
   ctx.ui.setWidget("memory-dreaming", (tui, theme) => {
+    const style = createPiThemeStyle(theme);
     let frameIndex = 0;
     dreamingTimer = setInterval(() => {
       frameIndex++;
@@ -444,17 +449,12 @@ function setDreamingWidget(ctx: ExtensionContext): void {
     dreamingTimer.unref?.();
 
     return {
-      render: (_width: number) => {
+      render: (width: number) => {
         const frame = PI_SPINNER_FRAMES[frameIndex % PI_SPINNER_FRAMES.length];
-        const icon = theme?.fg ? theme.fg("accent", frame) : frame;
-        const text = theme?.fg ? theme.fg("accent", "Dreaming...") : "Dreaming...";
-        const detail = dreamingActivity
-          ? theme?.fg
-            ? theme.fg("muted", ` · ${dreamingActivity}`)
-            : ` · ${dreamingActivity}`
-          : "";
-        // Leading space aligns the spinner with the native " ⠋ Working...\" row.
-        return [` ${icon} ${text}${detail}`];
+        const icon = style.accent(frame);
+        const text = style.accent("Dreaming...");
+        const detail = dreamingActivity ? style.muted(` · ${dreamingActivity}`) : "";
+        return [renderPiWidgetRow(`${icon} ${text}${detail}`, width, truncateToWidth)];
       },
       invalidate: () => {},
       dispose: () => {
@@ -497,32 +497,32 @@ async function chooseMemoryModel(ctx: ExtensionContext): Promise<void> {
   );
   if (!result) return;
   saveMemoryConfig(result);
-  ctx.ui.notify(`Memory model set to ${result.provider}/${result.model}`, "info");
+  notifyPi(ctx.ui, `Memory model set to ${result.provider}/${result.model}`, "info");
 }
 
 async function enterMemoryModel(ctx: ExtensionContext): Promise<void> {
   const result = await enterModelFromInput(ctx.ui, ctx.modelRegistry, modelRef(memoryConfig), { label: "Memory model" });
   if (!result) return;
   if (!isAllowedMemoryModel(ctx, result.provider, result.model)) {
-    ctx.ui.notify(`Model ${result.provider}/${result.model} is not allowed for memory workers`, "error");
+    notifyPi(ctx.ui, `Model ${result.provider}/${result.model} is not allowed for memory workers`, "error");
     return;
   }
   saveMemoryConfig(result);
-  ctx.ui.notify(`Memory model set to ${result.provider}/${result.model}`, "info");
+  notifyPi(ctx.ui, `Memory model set to ${result.provider}/${result.model}`, "info");
 }
 
 async function setMemoryModel(value: string, ctx: ExtensionContext): Promise<void> {
   const ref = parseModelRef(value);
   if (!ref) {
-    ctx.ui.notify("Enter a model in provider/model format", "error");
+    notifyPi(ctx.ui, "Enter a model in provider/model format", "error");
     return;
   }
   if (!isAllowedMemoryModel(ctx, ref.provider, ref.model)) {
-    ctx.ui.notify(`Model ${ref.provider}/${ref.model} is not allowed for memory workers`, "error");
+    notifyPi(ctx.ui, `Model ${ref.provider}/${ref.model} is not allowed for memory workers`, "error");
     return;
   }
   saveMemoryConfig(ref);
-  ctx.ui.notify(`Memory model set to ${ref.provider}/${ref.model}`, "info");
+  notifyPi(ctx.ui, `Memory model set to ${ref.provider}/${ref.model}`, "info");
 }
 
 function clearDreamingWidget(ctx: ExtensionContext): void {
@@ -614,11 +614,11 @@ async function spawnAsyncConsolidation(
 ): Promise<boolean> {
   const attempt = opts.attempt ?? 0;
   if (state.active && attempt === 0) {
-    ctx.ui.notify("Memory consolidation is already running in background.", "info");
+    notifyPi(ctx.ui, "Memory consolidation is already running in background.", "info");
     return false;
   }
   if (memoryConfigState.invalid) {
-    ctx.ui.notify(`Memory consolidation is blocked: ${memoryConfigState.invalid}`, "error");
+    notifyPi(ctx.ui, `Memory consolidation is blocked: ${memoryConfigState.invalid}`, "error");
     return false;
   }
   state.active = true;
@@ -637,7 +637,7 @@ async function spawnAsyncConsolidation(
     if (isGenerationCurrent()) {
       state.active = false;
       state.outcome = "failed";
-      ctx.ui.notify(`Memory consolidation setup failed: ${(err as Error).message}`, "error");
+      notifyPi(ctx.ui, `Memory consolidation setup failed: ${(err as Error).message}`, "error");
     }
     return false;
   }
@@ -650,7 +650,7 @@ async function spawnAsyncConsolidation(
     if (isGenerationCurrent()) {
       state.active = false;
       state.outcome = "failed";
-      ctx.ui.notify(`Memory consolidation setup failed: ${(err as Error).message}`, "error");
+      notifyPi(ctx.ui, `Memory consolidation setup failed: ${(err as Error).message}`, "error");
     }
     return false;
   }
@@ -661,7 +661,7 @@ async function spawnAsyncConsolidation(
   state.run = run;
   const selectedScope = parentSelectedScope(run, Boolean(opts.noContext));
   if (run.normalization.repaired.length > 0 || run.normalization.removed.length > 0) {
-    ctx.ui.notify(
+    notifyPi(ctx.ui,
       `Memory consolidation normalized mirrors before planning: ${run.normalization.repaired.length} repaired, ${run.normalization.removed.length} removed`,
       "info",
     );
@@ -705,7 +705,7 @@ async function spawnAsyncConsolidation(
     if (isGenerationCurrent()) {
       state.active = false;
       state.outcome = "failed";
-      ctx.ui.notify("Memory consolidation: could not resolve the Pi CLI", "error");
+      notifyPi(ctx.ui, "Memory consolidation: could not resolve the Pi CLI", "error");
     }
     await releaseConsolidationRun(run);
     return false;
@@ -747,7 +747,7 @@ async function spawnAsyncConsolidation(
     if (isGenerationCurrent()) state.outcome = "failed";
     state.active = false;
     await releaseConsolidationRun(run);
-    if (isGenerationCurrent()) ctx.ui.notify(`Memory consolidation spawn failed: ${(err as Error).message}`, "error");
+    if (isGenerationCurrent()) notifyPi(ctx.ui, `Memory consolidation spawn failed: ${(err as Error).message}`, "error");
     return false;
   }
 
@@ -875,10 +875,10 @@ async function spawnAsyncConsolidation(
    */
   const retryPlanPhase = async (reason: string): Promise<void> => {
     if (attempt > 0) {
-      ctx.ui.notify(`Memory dreaming failed: ${reason.slice(-300)}`, "error");
+      notifyPi(ctx.ui, `Memory dreaming failed: ${reason.slice(-300)}`, "error");
       return;
     }
-    ctx.ui.notify(`Memory consolidation plan was rejected (${reason.slice(-160)}); retrying once with a fresh planner…`, "info");
+    notifyPi(ctx.ui, `Memory consolidation plan was rejected (${reason.slice(-160)}); retrying once with a fresh planner…`, "info");
     await releaseConsolidationRun(run, { keepArtifacts: true });
     state.run = undefined;
     await spawnAsyncConsolidation(ctx, state, { ...opts, attempt: attempt + 1 });
@@ -924,7 +924,7 @@ async function spawnAsyncConsolidation(
         await persistRunDiagnostics();
         if (!ownsCurrentRun()) return;
         state.outcome = "failed";
-        ctx.ui.notify(`Memory dreaming failed to start: ${error.message}`, "error");
+        notifyPi(ctx.ui, `Memory dreaming failed to start: ${error.message}`, "error");
       } else if (code === 0) {
         const extracted = stdoutCaptureOverflowed
           ? { ok: false as const, error: `child stdout exceeded ${MAX_STDOUT_BYTES} bytes` }
@@ -957,7 +957,7 @@ async function spawnAsyncConsolidation(
             await retryPlanPhase(`missing exactly one schema-valid consolidation plan${detail ? ` (${detail.slice(-300)})` : ""}`);
             return;
           }
-          ctx.ui.notify(
+          notifyPi(ctx.ui,
             `Memory dreaming finished without verified consolidation: missing exactly one schema-valid consolidation plan${detail ? ` (${detail.slice(-300)})` : ""}`,
             "warning",
           );
@@ -1000,10 +1000,10 @@ async function spawnAsyncConsolidation(
           const missing = missingConsolidationEvidence(evidence);
           if (missing.length === 0) {
             state.outcome = "completed";
-            ctx.ui.notify("Memory dreaming complete — memory consolidated.", "info");
+            notifyPi(ctx.ui, "Memory dreaming complete — memory consolidated.", "info");
           } else {
             state.outcome = "unverified";
-            ctx.ui.notify(`Memory dreaming finished without verified consolidation: missing ${missing.join(", ")}`, "warning");
+            notifyPi(ctx.ui, `Memory dreaming finished without verified consolidation: missing ${missing.join(", ")}`, "warning");
           }
         }
       } else {
@@ -1015,7 +1015,7 @@ async function spawnAsyncConsolidation(
           return;
         }
         state.outcome = "failed";
-        ctx.ui.notify(`Memory dreaming failed: ${errReason.slice(-300)}`, "error");
+        notifyPi(ctx.ui, `Memory dreaming failed: ${errReason.slice(-300)}`, "error");
       }
     } catch (finishError: unknown) {
       if (ownsCurrentRun()) {
@@ -1027,7 +1027,7 @@ async function spawnAsyncConsolidation(
           return;
         }
         state.outcome = "failed";
-        ctx.ui.notify(`Memory consolidation verification failed: ${message}`, "error");
+        notifyPi(ctx.ui, `Memory consolidation verification failed: ${message}`, "error");
       }
     } finally {
       try {
@@ -1073,7 +1073,7 @@ async function startConsolidationPipeline(
     const gate = shouldRunHarnessPhase(state, opts.noContext);
     if (gate !== "run" && gate !== "skip-no-context") return;
     if (opts.noContext) {
-      ctx.ui.notify("Harness and AGENTS.md consolidation need captured context; skipped (no-context run).", "info");
+      notifyPi(ctx.ui, "Harness and AGENTS.md consolidation need captured context; skipped (no-context run).", "info");
       return;
     }
     await runHarnessConsolidationPhase(ctx, state, {
@@ -1102,7 +1102,7 @@ async function editInstructions(ctx: ExtensionCommandContext, filePath: string):
   }
 
   if (typeof ctx.ui.editor !== "function") {
-    ctx.ui.notify(`Instructions file: ${filePath}`, "info");
+    notifyPi(ctx.ui, `Instructions file: ${filePath}`, "info");
     return;
   }
 
@@ -1111,7 +1111,7 @@ async function editInstructions(ctx: ExtensionCommandContext, filePath: string):
 
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, edited, "utf-8");
-  ctx.ui.notify(`Saved ${filePath}`, "info");
+  notifyPi(ctx.ui, `Saved ${filePath}`, "info");
 }
 
 // ── extension ──────────────────────────────────────────────────────
@@ -1175,7 +1175,7 @@ export default function (pi: ExtensionAPI) {
         return;
       }
       if (command === "show" || command === "status") {
-        ctx.ui.notify(`Memory model: ${configuredMemoryModel()}\nConfig file: ${memoryConfigPath()}`, "info");
+        notifyPi(ctx.ui, `Memory model: ${configuredMemoryModel()}\nConfig file: ${memoryConfigPath()}`, "info");
         return;
       }
 
@@ -1200,7 +1200,7 @@ export default function (pi: ExtensionAPI) {
       ];
 
       if (!ctx.hasUI) {
-        ctx.ui.notify(
+        notifyPi(ctx.ui,
           [
             `Auto-memory: ${status}`,
             `Memory model: ${configuredMemoryModel()}`,
@@ -1222,10 +1222,10 @@ export default function (pi: ExtensionAPI) {
         await enterMemoryModel(ctx);
       } else if (choice.startsWith("Consolidate memory now")) {
         if (dreamState.active) {
-          ctx.ui.notify("Memory consolidation is already running in background.", "info");
+          notifyPi(ctx.ui, "Memory consolidation is already running in background.", "info");
           return;
         }
-        ctx.ui.notify("Starting memory consolidation in the background…", "info");
+        notifyPi(ctx.ui, "Starting memory consolidation in the background…", "info");
         await startConsolidationPipeline(ctx, dreamState, {
           pkgDir,
           cwd,
@@ -1236,7 +1236,7 @@ export default function (pi: ExtensionAPI) {
         await editInstructions(ctx, path.join(home, "AGENTS.md"));
       } else if (choice.startsWith("Edit project instructions")) {
         if (!projectInstructions.path) {
-          ctx.ui.notify("Pi did not expose a project instruction file", "warning");
+          notifyPi(ctx.ui, "Pi did not expose a project instruction file", "warning");
         } else {
           await editInstructions(ctx, projectInstructions.path);
         }
@@ -1244,14 +1244,14 @@ export default function (pi: ExtensionAPI) {
         await fs.mkdir(harnessDir, { recursive: true });
         if (ctx.mode === "tui" && process.platform === "darwin") {
           await pi.exec("open", [harnessDir]);
-          ctx.ui.notify(`Opened ${harnessDir}`, "info");
+          notifyPi(ctx.ui, `Opened ${harnessDir}`, "info");
         } else {
-          ctx.ui.notify(`Memory folder: ${harnessDir}`, "info");
+          notifyPi(ctx.ui, `Memory folder: ${harnessDir}`, "info");
         }
       } else if (choice.startsWith("Toggle auto-memory")) {
         const next = { ...settings, autoMemory: !settings.autoMemory };
         await writeSettings(next, cwd);
-        ctx.ui.notify(`Auto-memory: ${next.autoMemory ? "on" : "off"}`, "info");
+        notifyPi(ctx.ui, `Auto-memory: ${next.autoMemory ? "on" : "off"}`, "info");
       }
     },
   });
@@ -1265,7 +1265,7 @@ export default function (pi: ExtensionAPI) {
     handler: async (rawArgs, ctx) => {
       const args = rawArgs.trim();
       if (args !== "" && args !== "no-context") {
-        ctx.ui.notify("Usage: /consolidate [no-context]", "error");
+        notifyPi(ctx.ui, "Usage: /consolidate [no-context]", "error");
         return;
       }
       const cwd = ctx.cwd || process.cwd();
@@ -1273,16 +1273,16 @@ export default function (pi: ExtensionAPI) {
       const procedureFile = path.join(pkgDir, "procedures", "consolidate.md");
 
       if (!ctx.hasUI) {
-        ctx.ui.notify(`Consolidate procedure: ${procedureFile}`, "info");
+        notifyPi(ctx.ui, `Consolidate procedure: ${procedureFile}`, "info");
         return;
       }
 
       if (dreamState.active) {
-        ctx.ui.notify("Memory consolidation is already running.", "info");
+        notifyPi(ctx.ui, "Memory consolidation is already running.", "info");
         return;
       }
 
-      ctx.ui.notify("Starting memory consolidation in the background…", "info");
+      notifyPi(ctx.ui, "Starting memory consolidation in the background…", "info");
       await startConsolidationPipeline(ctx, dreamState, {
         pkgDir,
         cwd,

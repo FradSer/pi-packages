@@ -79,6 +79,17 @@ class TestContextToolsExtension(unittest.TestCase):
         self.assertIn("StringEnum", content)
         self.assertNotIn("Type.Union", content)
 
+    def test_native_tools_own_their_lifecycle_transcript_surfaces(self):
+        """Every native retrieval tool suppresses Pi defaults and uses pi-kit's lifecycle row."""
+        content = read(os.path.join("extensions", "context-tools.ts"))
+        self.assertIn('renderShell: "self"', content)
+        self.assertIn("renderCall: emptyToolCall", content)
+        self.assertIn("renderResult(result, options, theme, context)", content)
+        self.assertIn("createToolLifecycleResultRenderer", content)
+        self.assertIn("eventToolLifecycle", content)
+        self.assertIn('eventToolLifecycle("context", subject', content)
+        self.assertIn("detailLimit: 50", content)
+
     def test_workflow_reference_has_no_mcp_references(self):
         """The workflow reference routes to the native tools, never MCP servers."""
         content = read(os.path.join("references", "workflow.md"))

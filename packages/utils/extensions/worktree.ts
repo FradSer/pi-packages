@@ -8,6 +8,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
+import { notifyPi } from "@fradser/pi-kit";
 
 interface ShellToken {
 	end: number;
@@ -238,7 +239,8 @@ export default function (pi: ExtensionAPI) {
 		if (rewritten === command) return;
 
 		event.input.command = rewritten;
-		ctx.ui.notify(
+		notifyPi(
+			ctx.ui,
 			"worktree path redirected to .pi/worktrees/ — linked worktrees stay inside the repo",
 			"info",
 		);

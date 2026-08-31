@@ -152,12 +152,20 @@ def test_feature_file_exists() -> None:
     feature = PACKAGE / "features" / "image-bridge.feature"
     assert feature.is_file()
     content = feature.read_text(encoding="utf-8")
+    assert "Scenario: Vision feedback uses the shared TUI notification abstraction" in content
+    assert "portable notification helper" in content
     assert "preserves the complete original prompt" in content
     assert "does not replace, remove, rewrite, or add an internal message" in content
     assert "transient provider context" in content
     assert "multimodal main model" in content
     assert "Preserve the provider context when image analysis fails" in content
     assert "completed analysis is retained only for the active prompt" in content
+
+
+def test_notifications_use_pi_kits_portable_helper() -> None:
+    source = read_source("index.ts")
+    assert "notifyPi" in source
+    assert "ctx.ui.notify(" not in source
 
 
 def test_extension_registers_image_bridge_and_configuration_command() -> None:

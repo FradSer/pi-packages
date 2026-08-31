@@ -79,7 +79,7 @@ fs.rmSync(cwd, {{ recursive: true, force: true }});
         self.assertIn('eventToolLifecycle("sessions", summary, { label: "listed", details: rows })', content)
         # Style-free consumer: pi-kit owns the band geometry and styling; no
         # hand-built Box or theme calls remain in the sessions renderer.
-        self.assertIn("renderToolLifecycle(", content)
+        self.assertIn("createToolLifecycleResultRenderer(", content)
         self.assertIn('expandHint: keyHint("app.tools.expand", "to expand")', content)
         self.assertIn("fit: truncateToWidth", content)
         self.assertNotIn("new Box(", content)

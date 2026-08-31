@@ -66,6 +66,11 @@ Feature: EnterWorktree and ExitWorktree session switching
     Then the tool queues the corresponding user command
     And the tool result reports that the transition is queued rather than complete
 
+  Scenario: Worktree session notifications use the shared Pi-kit notification adapter
+    Given EnterWorktree or ExitWorktree has a status or error for the user
+    When the command reports that outcome
+    Then it delegates notification sanitization and delivery to pi-kit
+
   Scenario: Worktree transition tools render compact started lifecycle rows
     Given the Pi extension is loaded in TUI mode
     When the model calls EnterWorktree or ExitWorktree

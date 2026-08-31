@@ -189,12 +189,13 @@ def test_terminal_report_uses_native_custom_message_content() -> None:
 def test_monitor_report_renderer_uses_compact_event_style_and_configured_hint() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     assert 'registerMessageRenderer("monitor-result"' in extension
-    assert 'renderToolLifecycle(' in extension
+    assert 'createToolLifecycleMessageRenderer(' in extension
     assert 'eventToolLifecycle("monitor", subject, {' in extension
     assert 'extractTerminalDescription(' in extension
     assert 'extractTerminalStatus(' in extension
     assert 'label: "event"' in extension
-    assert 'startedToolLifecycle("monitor", safeDisplayText(context.args.description), { label: "started" })' in extension
+    assert 'createToolLifecycleResultRenderer(' in extension
+    assert 'startedToolLifecycle("monitor", subject, { label: "started" })' in extension
     assert 'theme,' in extension and 'fit: truncateToWidth' in extension
     assert "formatExpandHint(keyHint(\"app.tools.expand\", \"to expand\"), theme)" not in extension
     assert '(keyHint("app.tools.expand", "to expand"))' not in extension
@@ -292,14 +293,14 @@ def test_monitor_docs_use_configured_expansion_key() -> None:
 def test_monitor_start_uses_compact_event_style() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     start_tool = extension.split('name: "monitor_start"', 1)[1].split('name: "monitor_stop"', 1)[0]
-    assert 'formatToolLifecycleTitle(' in start_tool
+    assert 'createToolLifecycleResultRenderer(' in start_tool
     assert 'startedToolLifecycle(' in start_tool
-    assert 'safeDisplayText(context.args.description), { label: "started" })' in start_tool
+    assert 'const subject = safeDisplayText(context.args.description)' in start_tool
     assert '[monitor] event · ${safeDisplayText(monitor.description)}' not in start_tool
     assert 'content: [{ type: "text", text: formatStartMessage(monitor) }]' in start_tool
     assert 'monitorId: monitor.id' in start_tool
     assert 'renderCall: () => new Container()' in start_tool
-    assert 'renderResult(_result, _options, theme, context)' in start_tool
+    assert 'renderResult(result, options, theme, context)' in start_tool
     assert 'renderShell: "self"' in start_tool
     assert "formatStartMessage(monitor)" in start_tool
     assert "Success contract:" not in start_tool

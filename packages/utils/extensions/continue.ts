@@ -11,6 +11,7 @@
 
 import fs from "node:fs";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { notifyPi } from "@fradser/pi-kit";
 
 export interface ContinuationTarget {
   promptText: string;
@@ -174,7 +175,7 @@ async function performContinuation(
 ): Promise<void> {
   const target = resolveContinuation(ctx, args);
   if (!target) {
-    ctx.ui.notify("Cannot continue because there is no previous model request.", "error");
+    notifyPi(ctx.ui, "Cannot continue because there is no previous model request.", "error");
     return;
   }
 

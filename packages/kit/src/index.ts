@@ -129,6 +129,8 @@ export interface ToolLifecycleRenderOptions {
   fit: (text: string, width: number, ellipsis?: string, pad?: boolean) => string;
   /** Visible terminal width, e.g. pi-tui's visibleWidth. */
   visibleWidth: (text: string) => number;
+  /** Optional ANSI-aware detail wrapper, e.g. pi-tui's wrapTextWithAnsi. */
+  wrapDetail?: (text: string, width: number) => string[];
 }
 
 /** Shared band geometry: every lifecycle row block renders in this style. */
@@ -199,7 +201,12 @@ export function renderToolLifecycle(
   const rows = options.expanded
     ? [
         fit(title, contentWidth),
-        ...details.map((detail) => fit(theme.fg("customMessageText", detail), contentWidth)),
+        ...details.flatMap((detail) => {
+          const wrapped = options.wrapDetail
+            ? options.wrapDetail(detail, contentWidth)
+            : [detail];
+          return wrapped.map((line) => fit(theme.fg("customMessageText", line), contentWidth));
+        }),
       ]
     : [
         hint
@@ -252,6 +259,115 @@ export function renderAgentMessageBand(
     },
     invalidate: () => {},
   };
+}
+
+/** A structural custom-message component accepted by Pi without importing Pi runtime types. */
+export interface PiMessageComponent {
+  render(width: number): string[];
+  invalidate(): void;
+}
+
+/** Structural message input used by custom transcript renderers. */
+export interface PiCustomMessageLike {
+  content: unknown;
+  details?: unknown;
+}
+
+/** Shared host-independent renderer inputs for custom messages and native tools. */
+export interface ToolLifecycleRendererOptions<T> {
+  createSpec: (value: T, text: string, details: string[]) => ToolLifecycleSpec;
+  expandHint?: string;
+  fit: ToolLifecycleRenderOptions["fit"];
+  visibleWidth: ToolLifecycleRenderOptions["visibleWidth"];
+  wrapDetail?: ToolLifecycleRenderOptions["wrapDetail"];
+}
+
+/**
+ * Build a Pi custom-message renderer around the standard lifecycle band.
+ * Pi supplies the width, expansion state, and theme at render time; keeping
+ * those parameters structural lets extension packages retain their own Pi API
+ * version while every row still follows pi-kit's contract.
+ */
+export function createToolLifecycleMessageRenderer(
+  options: ToolLifecycleRendererOptions<PiCustomMessageLike>,
+): (
+  message: PiCustomMessageLike,
+  state: { expanded?: boolean },
+  theme: ToolLifecycleTheme,
+) => PiMessageComponent {
+  return (message, state, theme) => {
+    const text = extractTextContent(message.content);
+    const details = textLines(message.details === undefined ? text : message.details);
+    const spec = options.createSpec(message, text, details);
+    return lifecycleComponent(spec, {
+      expanded: state.expanded,
+      expandable: message.details !== undefined || details.length > 0,
+      expandHint: options.expandHint,
+      theme,
+      fit: options.fit,
+      visibleWidth: options.visibleWidth,
+      wrapDetail: options.wrapDetail,
+    });
+  };
+}
+
+/**
+ * Build a native-tool result renderer. Hosts retain control of their native
+ * error component while successful results always use the lifecycle band.
+ */
+export function createToolLifecycleResultRenderer<T extends PiCustomMessageLike, E>(
+  options: ToolLifecycleRendererOptions<T> & {
+    renderError: (line: string, theme: ToolLifecycleTheme) => E;
+  },
+): (
+  result: T,
+  state: { expanded?: boolean },
+  theme: ToolLifecycleTheme,
+  context: { isError?: boolean },
+) => PiMessageComponent | E {
+  return (result, state, theme, context) => {
+    const text = extractTextContent(result.content);
+    if (context.isError) return options.renderError(formatToolErrorLine(text), theme);
+    const details = textLines(text);
+    const spec = options.createSpec(result, text, details);
+    return lifecycleComponent(spec, {
+      expanded: state.expanded,
+      expandable: result.details !== undefined || details.length > 0,
+      expandHint: options.expandHint,
+      theme,
+      fit: options.fit,
+      visibleWidth: options.visibleWidth,
+      wrapDetail: options.wrapDetail,
+    });
+  };
+}
+
+function lifecycleComponent(
+  spec: ToolLifecycleSpec,
+  options: Omit<ToolLifecycleRenderOptions, "width">,
+): PiMessageComponent {
+  return {
+    render: (width) => renderToolLifecycle(spec, { width, ...options }),
+    invalidate: () => {},
+  };
+}
+
+function textLines(value: unknown): string[] {
+  return extractTextContent(value).split("\n").filter((line) => line.trim());
+}
+
+/** Minimal structural `ctx.ui` surface for notifications. */
+export interface PiNotificationUi {
+  notify(message: string, level?: "info" | "warning" | "error"): void;
+}
+
+/** Sanitize and forward a notification through Pi's native UI. */
+export function notifyPi(
+  ui: PiNotificationUi,
+  message: unknown,
+  level: "info" | "warning" | "error" = "info",
+): void {
+  ui.notify(safeDisplayText(message), level);
 }
 
 /**
@@ -309,6 +425,52 @@ export function createPiThemeStyle(theme: PiThemeLike): PiThemeStyle {
     error: (s) => theme.fg("error", s),
     fg: (color, s) => theme.fg(color, s),
   };
+}
+
+/** The small style subset needed for the standard overlay/console frame. */
+export interface PiPanelStyle {
+  accent(text: string): string;
+  dim(text: string): string;
+  border(text: string): string;
+}
+
+/** Inputs for the standard bordered Pi overlay/console panel. */
+export interface PiPanelOptions {
+  width: number;
+  style: PiPanelStyle;
+  /** ANSI-aware width fit, e.g. pi-tui's truncateToWidth. */
+  fit: (text: string, width: number, ellipsis?: string, pad?: boolean) => string;
+  title: string;
+  body: readonly string[];
+  footer: string;
+}
+
+/**
+ * Render Pi's shared panel language: border, accented header, two-space body
+ * inset, dim footer, border. Interactive overlays own their input and scroll
+ * state; this helper owns the stable geometry so they cannot drift.
+ */
+export function renderPiPanel(options: PiPanelOptions): string[] {
+  if (options.width <= 0) return [];
+  const { width, style, fit } = options;
+  const row = (text: string) => fit(`  ${text}`, width, "", true);
+  const border = style.border("─".repeat(Math.max(1, width)));
+  return [
+    border,
+    row(style.accent(options.title)),
+    ...options.body.map(row),
+    row(style.dim(options.footer)),
+    border,
+  ];
+}
+
+/** Render a passive widget row aligned with Pi's native leading-space rows. */
+export function renderPiWidgetRow(
+  content: string,
+  width: number,
+  fit: (text: string, width: number, ellipsis?: string, pad?: boolean) => string,
+): string {
+  return width <= 0 ? "" : fit(` ${content}`, width, "", true);
 }
 
 // ── Overlay layout helpers ──────────────────────────────────────────

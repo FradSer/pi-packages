@@ -2,6 +2,11 @@ Feature: Transparent image reading for text-only models
   The vision extension bridges image input to a configured vision model
   before a text-only main model receives the prompt.
 
+  Scenario: Vision feedback uses the shared TUI notification abstraction
+    Given a vision command needs to notify the user
+    When it displays information, warnings, or errors
+    Then it uses pi-kit's portable notification helper with the requested level
+
   Scenario: Read attached images before a text-only model runs
     Given the active model does not support image input
     And a vision provider and model are configured

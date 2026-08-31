@@ -17,7 +17,7 @@ import { realpathSync } from "node:fs";
 import path from "node:path";
 import type { ChildProcess } from "node:child_process";
 import { getAgentDir, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { resolvePiCli, spawnPiChild } from "@fradser/pi-kit";
+import { notifyPi, resolvePiCli, spawnPiChild } from "@fradser/pi-kit";
 import {
   createConsolidationRun,
   extractChildPlan,
@@ -476,7 +476,7 @@ export async function runAgentsMdConsolidationPhase(
     }
   } catch (err) {
     state.active = false;
-    if (current()) ctx.ui.notify(`AGENTS.md consolidation skipped: ${(err as Error).message}`, "warning");
+    if (current()) notifyPi(ctx.ui, `AGENTS.md consolidation skipped: ${(err as Error).message}`, "warning");
     return;
   }
 
@@ -484,13 +484,13 @@ export async function runAgentsMdConsolidationPhase(
   try {
     const finalTarget = resolveAgentsTargetFile(opts.cwd, getAgentDir());
     if (!finalTarget.path) {
-      ctx.ui.notify(`AGENTS.md consolidation skipped: ${finalTarget.skipReason}`, "info");
+      notifyPi(ctx.ui, `AGENTS.md consolidation skipped: ${finalTarget.skipReason}`, "info");
       return;
     }
     const targetPath = finalTarget.path;
     const docBytes = await readRegularFileIfExists(targetPath, MAX_AGENTS_MD_FILE_BYTES);
     if (!docBytes) {
-      ctx.ui.notify("AGENTS.md consolidation: no project AGENTS.md found; nothing to consolidate.", "info");
+      notifyPi(ctx.ui, "AGENTS.md consolidation: no project AGENTS.md found; nothing to consolidate.", "info");
       return;
     }
     const preBytes = docBytes.byteLength;
@@ -587,13 +587,13 @@ export async function runAgentsMdConsolidationPhase(
 
     if (!result.ok) {
       await writeFileAtomic(path.join(run.manifest.runDir, "agents-error.txt"), result.detail.slice(-8_000)).catch(() => {});
-      ctx.ui.notify(`AGENTS.md consolidation finished without changes: ${result.detail.slice(-300)}`, "warning");
+      notifyPi(ctx.ui, `AGENTS.md consolidation finished without changes: ${result.detail.slice(-300)}`, "warning");
       return;
     }
     const rawPlan = (JSON.parse(result.detail) as { plan: unknown }).plan;
     const shape = validateAgentsMdPlan(rawPlan);
     if (!shape.ok) {
-      ctx.ui.notify(`AGENTS.md plan rejected: ${shape.errors.join("; ").slice(-300)}`, "warning");
+      notifyPi(ctx.ui, `AGENTS.md plan rejected: ${shape.errors.join("; ").slice(-300)}`, "warning");
       return;
     }
     const quoteCheck = verifyPlanQuotes(shape.operations, snapshotText);
@@ -601,17 +601,17 @@ export async function runAgentsMdConsolidationPhase(
     const droppedCount = quoteCheck.dropped.length + quoteCheck.operations.length - candidateOps.length;
     if (candidateOps.length === 0) {
       await writeFileAtomic(path.join(run.manifest.runDir, "agents-noop.txt"), "verified no-op\n").catch(() => {});
-      ctx.ui.notify(`AGENTS.md consolidation: verified no-op${droppedCount > 0 ? ` (${droppedCount} operation(s) failed evidence gates)` : ""}.`, "info");
+      notifyPi(ctx.ui, `AGENTS.md consolidation: verified no-op${droppedCount > 0 ? ` (${droppedCount} operation(s) failed evidence gates)` : ""}.`, "info");
       return;
     }
     const ops = candidateOps;
     const simulated = simulateAgentsOps(doc, ops);
     if (!simulated.ok) {
-      ctx.ui.notify(`AGENTS.md plan rejected during simulation: ${simulated.error.slice(-300)}`, "warning");
+      notifyPi(ctx.ui, `AGENTS.md plan rejected during simulation: ${simulated.error.slice(-300)}`, "warning");
       return;
     }
     if (!budgetAllows(preBytes, Buffer.byteLength(simulated.doc, "utf8"), opts.budgetBytes)) {
-      ctx.ui.notify(`AGENTS.md plan rejected: post-edit size exceeds the ${opts.budgetBytes}-byte budget and is not zero-sum.`, "warning");
+      notifyPi(ctx.ui, `AGENTS.md plan rejected: post-edit size exceeds the ${opts.budgetBytes}-byte budget and is not zero-sum.`, "warning");
       return;
     }
 
@@ -622,7 +622,7 @@ export async function runAgentsMdConsolidationPhase(
 
     const resimulated = simulateAgentsOps(doc, ops);
     if (!resimulated.ok || !budgetAllows(preBytes, Buffer.byteLength(resimulated.doc, "utf8"), opts.budgetBytes)) {
-      ctx.ui.notify("AGENTS.md plan failed re-validation; nothing was written.", "warning");
+      notifyPi(ctx.ui, "AGENTS.md plan failed re-validation; nothing was written.", "warning");
       return;
     }
 
@@ -692,9 +692,9 @@ export async function runAgentsMdConsolidationPhase(
     await writeFileAtomic(path.join(run.manifest.runDir, "agents-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`).catch(() => {});
     const parts = [`${ops.length} edit(s) applied`];
     if (extractionNotes.length > 0) parts.push(`extractions: ${extractionNotes.join(", ")}`);
-    ctx.ui.notify(`AGENTS.md consolidated: ${parts.join(" · ")} (${path.basename(targetPath)}).`, "info");
+    notifyPi(ctx.ui, `AGENTS.md consolidated: ${parts.join(" · ")} (${path.basename(targetPath)}).`, "info");
   } catch (err) {
-    if (current()) ctx.ui.notify(`AGENTS.md consolidation failed: ${(err as Error).message.slice(-300)}`, "warning");
+    if (current()) notifyPi(ctx.ui, `AGENTS.md consolidation failed: ${(err as Error).message.slice(-300)}`, "warning");
   } finally {
     const owned = current();
     try {

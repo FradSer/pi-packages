@@ -29,9 +29,11 @@ import {
   enterModelFromInput,
   modelLabel,
   modelRef,
+  notifyPi,
   parseModelRef,
   PI_SPINNER_FRAMES,
   PI_SPINNER_INTERVAL_MS,
+  renderPiWidgetRow,
   sortModels,
 } from "@fradser/pi-kit";
 import { type PlanModeConfig, readPlanModeConfig, writePlanModeConfig } from "./config";
@@ -123,8 +125,7 @@ function renderPlanWorkerLines(width: number, theme: { fg(color: string, text: s
     const phase = theme.fg("muted", `(${worker.label})`);
     const activity = worker.detail ?? "Working...";
     const detail = ` · ${activity}`;
-    const line = ` ${marker} ${name} ${phase}${detail}`;
-    return truncateToWidth(line, Math.max(10, width - 1));
+    return renderPiWidgetRow(`${marker} ${name} ${phase}${detail}`, width, truncateToWidth);
   });
 }
 
@@ -173,8 +174,8 @@ function setPlanModeIndicator(ctx: ExtensionContext, active: boolean): void {
   }
   ctx.ui.setWidget("plan-mode-indicator", (_tui, theme) => ({
     render: (width: number) => {
-      const line = ` ${theme.fg("warning", "⏸")} ${theme.fg("warning", "plan mode on")}`;
-      return [truncateToWidth(line, Math.max(10, width - 1))];
+      const line = `${theme.fg("warning", "⏸")} ${theme.fg("warning", "plan mode on")}`;
+      return [renderPiWidgetRow(line, width, truncateToWidth)];
     },
     invalidate: () => {},
   }), { placement: "belowEditor" });
@@ -213,14 +214,14 @@ Use workers only where they add useful independent research. Do not rewrite the 
 
 async function showPlanReview(ctx: ExtensionContext, _request: string): Promise<void> {
   if (!ctx.hasUI) {
-    ctx.ui.notify(`Plan written to ${getPlanPath(ctx)}`, "info");
+    notifyPi(ctx.ui, `Plan written to ${getPlanPath(ctx)}`, "info");
     return;
   }
 
   const planPath = getPlanPath(ctx);
   const planContent = fs.existsSync(planPath) ? fs.readFileSync(planPath, "utf-8") : "";
   if (!planContent.trim()) {
-    ctx.ui.notify(`The main session has not written a plan to ${planPath} yet.`, "warning");
+    notifyPi(ctx.ui, `The main session has not written a plan to ${planPath} yet.`, "warning");
     return;
   }
 
@@ -287,7 +288,7 @@ async function showPlanReview(ctx: ExtensionContext, _request: string): Promise<
       ? (ctx as ExtensionCommandContext)
       : lastCommandCtx;
     if (!commandCtx || typeof commandCtx.newSession !== "function") {
-      ctx.ui.notify("Fresh session unavailable — implementing in the current session.", "warning");
+      notifyPi(ctx.ui, "Fresh session unavailable — implementing in the current session.", "warning");
       pi.sendUserMessage(`The plan has been written to ${planPath}. Please implement it now.\n\n${planContent}`);
       return;
     }
@@ -295,7 +296,7 @@ async function showPlanReview(ctx: ExtensionContext, _request: string): Promise<
     await commandCtx.newSession({
       parentSession,
       withSession: async (newCtx) => {
-        newCtx.ui.notify("Fresh implementation session started with plan context.", "info");
+        notifyPi(newCtx.ui, "Fresh implementation session started with plan context.", "info");
         await newCtx.sendUserMessage(`Implement this plan:\n\n${planContent}`);
       },
     });
@@ -311,7 +312,7 @@ function requiresWorkerResearch(planContent: string): boolean {
 async function runWorkerResearch(ctx: ExtensionContext, request: string, planContent: string): Promise<void> {
   const planPath = getPlanPath(ctx);
   const workerModel = modelRef(config) ?? (ctx.model ? modelLabel(ctx.model) : undefined);
-  ctx.ui.notify(`Starting optional worker research... Plan will be written to ${planPath}`, "info");
+  notifyPi(ctx.ui, `Starting optional worker research... Plan will be written to ${planPath}`, "info");
   startPlanWorkerWidget(ctx);
   try {
     const result = await runPlanWorker({
@@ -320,18 +321,18 @@ async function runWorkerResearch(ctx: ExtensionContext, request: string, planCon
       planPath,
       model: workerModel,
       signal: ctx.signal,
-      onProgress: (message) => ctx.ui.notify(message, "info"),
+      onProgress: (message) => notifyPi(ctx.ui, message, "info"),
       onUpdate: updatePlanWorkerWidget,
     });
     if (result.exitCode !== 0) {
-      ctx.ui.notify(`Worker research failed: ${result.stderr}`, "error");
+      notifyPi(ctx.ui, `Worker research failed: ${result.stderr}`, "error");
       return;
     }
-    ctx.ui.notify("Optional worker research complete.", "info");
+    notifyPi(ctx.ui, "Optional worker research complete.", "info");
     await showPlanReview(ctx, request);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    ctx.ui.notify(`Worker research error: ${message}`, "error");
+    notifyPi(ctx.ui, `Worker research error: ${message}`, "error");
   } finally {
     clearPlanWorkerWidget(ctx);
   }
@@ -378,7 +379,7 @@ async function switchToPlanModel(ctx: ExtensionContext): Promise<void> {
   if (!config.provider || !config.model) return;
   const target = ctx.modelRegistry.find(config.provider, config.model);
   if (!target) {
-    ctx.ui.notify(
+    notifyPi(ctx.ui,
       `Plan model ${config.provider}/${config.model} not found in registry`,
       "warning",
     );
@@ -387,7 +388,7 @@ async function switchToPlanModel(ctx: ExtensionContext): Promise<void> {
   if (ctx.model) previousModelId = modelLabel(ctx.model);
   const ok = await pi.setModel(target);
   if (!ok) {
-    ctx.ui.notify(
+    notifyPi(ctx.ui,
       `Could not switch to plan model ${modelLabel(target)} — no API key?`,
       "warning",
     );
@@ -466,14 +467,14 @@ async function chooseModel(ctx: ExtensionCommandContext): Promise<void> {
     if (!result) return;
     config = { ...config, ...result };
     writePlanModeConfig(config);
-    ctx.ui.notify(`Plan model set to ${result.provider}/${result.model}`, "info");
+    notifyPi(ctx.ui, `Plan model set to ${result.provider}/${result.model}`, "info");
     return;
   }
 
   if (choice === "Clear plan model (use session model)") {
     config = { provider: undefined, model: undefined };
     writePlanModeConfig(config);
-    ctx.ui.notify("Plan model cleared — will use the session model", "info");
+    notifyPi(ctx.ui, "Plan model cleared — will use the session model", "info");
     return;
   }
 
@@ -481,7 +482,7 @@ async function chooseModel(ctx: ExtensionCommandContext): Promise<void> {
   if (selected) {
     config = { provider: selected.provider, model: selected.id };
     writePlanModeConfig(config);
-    ctx.ui.notify(`Plan model set to ${modelLabel(selected)}`, "info");
+    notifyPi(ctx.ui, `Plan model set to ${modelLabel(selected)}`, "info");
   }
 }
 
@@ -492,7 +493,7 @@ function showStatus(ctx: ExtensionContext): void {
     `Session model: ${ctx.model ? modelLabel(ctx.model) : "(none)"}`,
     `Plan file: ${getPlanPath(ctx)}`,
   ];
-  ctx.ui.notify(lines.join("\n"), "info");
+  notifyPi(ctx.ui, lines.join("\n"), "info");
 }
 
 // ── Enter / Exit ────────────────────────────────────────────────────
@@ -502,7 +503,7 @@ async function enterPlanMode(ctx: ExtensionContext): Promise<void> {
   await switchToPlanModel(ctx);
   setPlanModeIndicator(ctx, true);
   const active = ctx.model ? modelLabel(ctx.model) : "(none)";
-  ctx.ui.notify(
+  notifyPi(ctx.ui,
     `Plan mode enabled. Read-only exploration. Model: ${active}`,
     "info",
   );
@@ -514,7 +515,7 @@ async function exitPlanMode(ctx: ExtensionContext): Promise<void> {
   setPlanModeIndicator(ctx, false);
   await restoreModel(ctx);
   const active = ctx.model ? modelLabel(ctx.model) : "(none)";
-  ctx.ui.notify(`Plan mode disabled. Model: ${active}`, "info");
+  notifyPi(ctx.ui, `Plan mode disabled. Model: ${active}`, "info");
 }
 
 // ── Extension ───────────────────────────────────────────────────────
@@ -557,7 +558,7 @@ export default function planMode(extensionApi: ExtensionAPI): void {
 
       if (!sub) {
         if (!ctx.hasUI) {
-          ctx.ui.notify("Usage: /plan start | /plan exit | /plan model | /plan status", "error");
+          notifyPi(ctx.ui, "Usage: /plan start | /plan exit | /plan model | /plan status", "error");
           return;
         }
         await showMenu(ctx);
@@ -589,21 +590,21 @@ export default function planMode(extensionApi: ExtensionAPI): void {
         if (rest) {
           const ref = parseModelRef(rest);
           if (!ref) {
-            ctx.ui.notify("Usage: /plan model provider/model", "error");
+            notifyPi(ctx.ui, "Usage: /plan model provider/model", "error");
             return;
           }
           const found = ctx.modelRegistry.find(ref.provider, ref.model);
           if (!found) {
-            ctx.ui.notify(`Model ${ref.provider}/${ref.model} not found in registry`, "error");
+            notifyPi(ctx.ui, `Model ${ref.provider}/${ref.model} not found in registry`, "error");
             return;
           }
           config = { ...config, ...ref };
           writePlanModeConfig(config);
-          ctx.ui.notify(`Plan model set to ${ref.provider}/${ref.model}`, "info");
+          notifyPi(ctx.ui, `Plan model set to ${ref.provider}/${ref.model}`, "info");
           return;
         }
         if (!ctx.hasUI) {
-          ctx.ui.notify("Usage: /plan model provider/model", "error");
+          notifyPi(ctx.ui, "Usage: /plan model provider/model", "error");
           return;
         }
         await chooseModel(ctx);

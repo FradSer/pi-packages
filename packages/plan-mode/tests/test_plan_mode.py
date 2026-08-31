@@ -24,7 +24,12 @@ def run_typescript(script: str) -> dict[str, object]:
 
 def test_plan_mode_feature_covers_live_worker_widget_and_diagnostics():
     feature = (PACKAGE / "features" / "plan-mode.feature").read_text(encoding="utf-8")
+    assert "Scenario: Plan feedback uses the shared TUI notification abstraction" in feature
+    assert "portable notification helper" in feature
     assert "Feature: Plan worker diagnostics and CLI compatibility" in feature
+    assert "Scenario: Plan overlays and widgets use pi-kit's shared TUI renderers" in feature
+    assert "shared panel renderer" in feature
+    assert "shared widget-row renderer" in feature
     assert "Scenario: Plan workers render a live above-editor status widget" in feature
     assert "Scenario: The main-session plan is shown before optional research" in feature
     assert "Scenario: Plan worker failures remain visible until cleanup" in feature
@@ -40,6 +45,13 @@ def test_plan_mode_feature_covers_live_worker_widget_and_diagnostics():
     assert "Scenario: Finished plan worker tool activity does not remain current" in feature
     assert "Scenario: Plan review reserves space for its action menu" in feature
     assert "Scenario: Plan completion does not loop review commands to the agent" in feature
+
+
+def test_notifications_use_pi_kits_portable_helper():
+    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
+    assert "notifyPi" in source
+    assert "ctx.ui.notify(" not in source
+    assert "newCtx.ui.notify(" not in source
 
 
 def test_plan_completion_does_not_loop_review_messages_to_agent():
@@ -213,7 +225,7 @@ def test_plan_mode_worker_rows_use_shared_task_activity_format():
     assert 'const name = theme.bold(worker.id);' in source
     assert 'const phase = theme.fg("muted", `(${worker.label})`);' in source
     assert 'const detail = ` · ${activity}`;' in source
-    assert 'const line = ` ${marker} ${name} ${phase}${detail}`;' in source
+    assert 'renderPiWidgetRow(`${marker} ${name} ${phase}${detail}`, width, truncateToWidth)' in source
     assert 'const activity = worker.detail ?? "Working...";' in source
     assert 'const detail = ` · ${activity}`;' in source
 
@@ -374,6 +386,13 @@ def test_pi_kit_clears_finished_tool_activity():
     kit = (REPO / "packages" / "kit" / "src" / "index.ts").read_text(encoding="utf-8")
     tool_end = kit[kit.index('case "toolcall_end":'):kit.index("default:", kit.index('case "toolcall_end":'))]
     assert "state.activeTool = undefined;" in tool_end
+
+
+def test_plan_overlay_uses_shared_panel_and_widget_renderers():
+    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
+    overlay = (PACKAGE / "src" / "plan-overlay.ts").read_text(encoding="utf-8")
+    assert "renderPiPanel" in overlay
+    assert "renderPiWidgetRow" in source
 
 
 def test_plan_overlay_reserves_action_menu_space():

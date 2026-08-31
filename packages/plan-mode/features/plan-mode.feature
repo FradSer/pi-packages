@@ -42,10 +42,21 @@ Feature: Main-session-first plan mode
     Then a "plan mode on" marker is shown below the input editor
     And the marker is removed when plan mode is exited
 
+Scenario: Plan feedback uses the shared TUI notification abstraction
+  Given a plan-mode command needs to notify the user
+  When it displays information, warnings, or errors
+  Then it uses pi-kit's portable notification helper with the requested level
+
 Feature: Plan worker diagnostics and CLI compatibility
   As a user running /plan
   I want plan workers to have the same visible running state as teammates
   So that I can tell which exploration or writing phase is active and diagnose failures
+
+  Scenario: Plan overlays and widgets use pi-kit's shared TUI renderers
+    Given plan mode displays a review overlay or passive status widget
+    When the TUI is rendered
+    Then its panel frame uses pi-kit's shared panel renderer
+    And its passive rows use pi-kit's shared widget-row renderer
 
   Scenario: Plan workers render a live above-editor status widget
     Given /plan starts explore and plan-writer workers

@@ -5,6 +5,11 @@ Feature: Read-only side questions
   Background:
     Given the pi-btw-fradser extension is installed
 
+  Scenario: Side-question feedback uses the shared TUI notification abstraction
+    Given a side-question command needs to display validation feedback
+    When it notifies the user
+    Then it uses pi-kit's portable notification helper with the requested level
+
   Scenario: A child Pi run is configured read-only
     When a side question starts
     Then the child runs in print JSON mode without a session
@@ -37,6 +42,11 @@ Feature: Read-only side questions
     When the btw overlay opens
     Then the overlay is rendered directly over the main session input area
     And the overlay has no bottom margin
+
+  Scenario: Side-question overlay uses pi-kit's shared panel frame
+    Given an interactive side question overlay
+    When its conversation is rendered
+    Then it uses pi-kit's shared panel renderer for the border, header, body, and footer
 
   Scenario: Multi-turn overlay maintains turns and aggregates token usage
     Given an interactive side question overlay

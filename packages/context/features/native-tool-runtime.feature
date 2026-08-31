@@ -37,6 +37,13 @@ Feature: Native context tool behavior
     Then the research turn calls context_context7
     And no extension reports a stale session context error
 
+  Scenario: Native retrieval tools use compact expandable lifecycle transcript rows
+    Given the context package is installed in Pi
+    When the agent calls context_deepwiki, context_context7, or context_exa
+    Then its default tool-call transcript is replaced with an empty custom call surface
+    And its result is rendered as a compact context lifecycle row
+    And expanding that row reveals a safe bounded rendering of the retrieval result
+
   Scenario: An in-flight provider lookup is cancelled by Pi
     Given a context lookup is waiting for an HTTP response
     When Pi aborts the tool execution signal

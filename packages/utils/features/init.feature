@@ -29,6 +29,11 @@ Feature: /init repository guidelines command
     When the user runs /init focus on package release commands
     Then the additional focus is included in the instruction sent to the agent
 
+  Scenario: /init follow-up status uses the shared Pi-kit notification adapter
+    Given the agent is busy when the user runs /init
+    When the command queues the guide task as a follow-up
+    Then its user notification delegates sanitization and delivery to pi-kit
+
   Scenario: /init leaves line wrapping to the Pi TUI
     When the user runs /init
     Then the instruction sent to the agent keeps paragraph and bullet line breaks

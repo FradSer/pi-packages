@@ -54,6 +54,17 @@ def test_feature_covers_keyboard_scenarios() -> None:
     assert "Scenario: /keyboard command allows manual state testing and toggle" in feature
 
 
+def test_keyboard_command_notifications_use_native_ui_surface() -> None:
+    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
+    feature = (PACKAGE / "features" / "keyboard.feature").read_text(encoding="utf-8")
+
+    assert "Keyboard state notifications use Pi's native notification surface" in feature
+    assert "notifyPi" in source
+    assert "ctx.ui.notify" not in source
+    assert "ctx.ui.custom" not in source
+    assert "ctx.ui.setWidget" not in source
+
+
 def test_state_definitions_match_requirements() -> None:
     result = run_typescript(
         f"""

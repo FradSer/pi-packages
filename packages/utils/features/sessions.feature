@@ -65,6 +65,11 @@ Feature: Cross-session awareness and directory recap
     And the agent settles
     Then list_directory_sessions is inactive again without removing unrelated active tools
 
+  Scenario: Directory session notifications use the shared Pi-kit notification adapter
+    Given the /sessions command needs to report its session recap
+    When it notifies the user
+    Then it delegates notification sanitization and delivery to pi-kit
+
   Scenario: Tool list_directory_sessions renders one compact transcript row
     Given an agent calling tool "list_directory_sessions"
     When Pi renders the completed tool call in the TUI

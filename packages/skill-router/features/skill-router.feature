@@ -58,6 +58,7 @@ Feature: External skill collection routing
     Given the user starts adding a collection
     When the router clones and scans the repository
     Then Pi displays a loading message until the operation settles
+    And the loading overlay uses the shared Pi-kit theme style callbacks
 
   Scenario: Adding a collection allows a custom skill name
     Given the repository default name is "coreyhaines31-marketingskills"

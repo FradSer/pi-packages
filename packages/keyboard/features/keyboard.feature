@@ -134,3 +134,7 @@ Feature: Pi Keyboard Lighting Indicator
     Then all keyboard lighting updates are disabled
     When the user runs "/keyboard test thinking"
     Then the keyboard lighting displays the blue thinking state
+
+  Scenario: Keyboard state notifications use Pi's native notification surface
+    Given the keyboard extension reports an interactive command outcome
+    Then it uses ctx.ui.notify without a custom notification renderer

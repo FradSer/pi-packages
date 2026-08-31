@@ -61,7 +61,7 @@ class TestContinueExtension(unittest.TestCase):
     def test_empty_session_refuses_without_provider_request(self) -> None:
         content = self.ext_source()
         self.assertIn("there is no previous model request", content)
-        self.assertIn('ui.notify', content)
+        self.assertIn('notifyPi(ctx.ui', content)
 
     def test_strip_removes_contiguous_trailing_failures_only(self) -> None:
         content = self.ext_source()

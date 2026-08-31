@@ -6,6 +6,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { notifyPi } from "@fradser/pi-kit";
 
 const INIT_PROMPT = `
 Generate and maintain contributor guidance for this repository.
@@ -56,7 +57,7 @@ export default function (pi: ExtensionAPI) {
         pi.sendUserMessage(prompt);
       } else {
         pi.sendUserMessage(prompt, { deliverAs: "followUp" });
-        ctx.ui.notify("Repository guide task queued as a follow-up", "info");
+        notifyPi(ctx.ui, "Repository guide task queued as a follow-up", "info");
       }
     },
   });

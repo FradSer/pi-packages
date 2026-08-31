@@ -19,7 +19,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createPiThemeStyle } from "@fradser/pi-kit";
+import { createPiThemeStyle, notifyPi } from "@fradser/pi-kit";
 import { buildConversationContext } from "./context";
 import { createBtwOverlay } from "./overlay";
 import { runBtw } from "./spawner";
@@ -33,11 +33,11 @@ export default function (pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const question = args.trim();
       if (!question) {
-        ctx.ui.notify("btw: empty question — usage: /btw <question>", "error");
+        notifyPi(ctx.ui, "btw: empty question — usage: /btw <question>", "error");
         return;
       }
       if (ctx.mode !== "tui") {
-        ctx.ui.notify("btw requires interactive (TUI) mode", "error");
+        notifyPi(ctx.ui, "btw requires interactive (TUI) mode", "error");
         return;
       }
 

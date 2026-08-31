@@ -31,6 +31,10 @@ def run_typescript(script: str) -> dict[str, object]:
 def test_feature_covers_recap_scenarios() -> None:
     feature = (PACKAGE / "features" / "recap.feature").read_text(encoding="utf-8")
     assert "Feature: Session Recap" in feature
+    assert "Scenario: Recap feedback uses the shared TUI notification abstraction" in feature
+    assert "portable notification helper" in feature
+    assert "Scenario: Recap widget uses pi-kit's shared row renderer" in feature
+    assert "shared widget-row renderer" in feature
     assert "Scenario: Recap widget is displayed above the editor by default" in feature
     assert "Scenario: Recap is informative and scannable" in feature
     assert "Scenario: Recap reflects only evidenced progress" in feature
@@ -52,6 +56,12 @@ def test_feature_covers_recap_scenarios() -> None:
     assert "Scenario: Recap generation times out safely" in feature
     assert "Scenario: Recap ignores thinking-only provider output" in feature
     assert "Scenario: Recap skips unchanged persistence" in feature
+
+
+def test_notifications_use_pi_kits_portable_helper() -> None:
+    source = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
+    assert "notifyPi" in source
+    assert "ctx.ui.notify(" not in source
 
 
 def test_extract_latest_saved_recap_logic() -> None:
@@ -962,12 +972,13 @@ def test_widget_refresh_ignores_disposed_context() -> None:
 
 def test_recap_marker_matches_native_working_spinner_indent() -> None:
     extension = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
-    assert 'lines.push(` ${theme.fg("accent", `${spinner} Recapping...`)}`);' in extension
+    assert 'renderPiWidgetRow(theme.fg("accent", `${spinner} Recapping...`), width, truncateToWidth)' in extension
     assert "const prefix = i === 0 ? firstPrefix : indent;" in extension
     assert 'const icon = theme.fg("accent", "✦");' in extension
-    assert 'const firstPrefix = ` ${icon} ${label} `;' in extension
+    assert 'const firstPrefix = `${icon} ${label} `;' in extension
     assert 'const indent = " ".repeat(prefixWidth);' in extension
     assert "wrapTextWithAnsi(currentRecap, contentWidth)" in extension
+    assert "renderPiWidgetRow" in extension
     assert "continuation lines align with the first recap character rather than the marker" in (PACKAGE / "features" / "recap.feature").read_text(encoding="utf-8")
 
 

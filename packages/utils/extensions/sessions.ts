@@ -15,7 +15,7 @@ import os from "node:os";
 import path from "node:path";
 import { keyHint, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Container, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { detailField, eventToolLifecycle, formatAgentTaskName, renderToolLifecycle, safeDisplayText } from "@fradser/pi-kit";
+import { createToolLifecycleResultRenderer, detailField, eventToolLifecycle, formatAgentTaskName, notifyPi, safeDisplayText } from "@fradser/pi-kit";
 import { Type } from "typebox";
 
 export interface SessionInfo {
@@ -387,7 +387,7 @@ export default function (pi: ExtensionAPI) {
     const recapText = formatCrossSessionRecap(allSessions);
 
     if (!recapText) {
-      ctx.ui.notify("No active or recent sessions found in this directory.", "info");
+      notifyPi(ctx.ui, "No active or recent sessions found in this directory.", "info");
       return;
     }
 
@@ -397,7 +397,7 @@ export default function (pi: ExtensionAPI) {
         ["Close"]
       );
     } else {
-      ctx.ui.notify(recapText, "info");
+      notifyPi(ctx.ui, recapText, "info");
     }
   };
 
@@ -434,20 +434,13 @@ export default function (pi: ExtensionAPI) {
         ...shown.flatMap((session) => buildSessionLines(session)),
         ...(hidden > 0 ? [`... +${hidden} more not shown`] : []),
       ];
-      return {
-        invalidate: () => {},
-        render: (width) => renderToolLifecycle(
-          eventToolLifecycle("sessions", summary, { label: "listed", details: rows }),
-          {
-            width,
-            expanded: options.expanded,
-            expandHint: keyHint("app.tools.expand", "to expand"),
-            theme,
-            fit: truncateToWidth,
-            visibleWidth,
-          },
-        ),
-      };
+      return createToolLifecycleResultRenderer({
+        createSpec: () => eventToolLifecycle("sessions", summary, { label: "listed", details: rows }),
+        expandHint: keyHint("app.tools.expand", "to expand"),
+        fit: truncateToWidth,
+        visibleWidth,
+        renderError: (line, currentTheme) => new Text(currentTheme.fg("error", line), 0, 0),
+      })(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const targetCwd = params.cwd ? path.resolve(params.cwd) : ctx.cwd;

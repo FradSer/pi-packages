@@ -13,10 +13,11 @@ import {
   type MarkdownTheme,
   matchesKey,
   type TUI,
+  truncateToWidth,
 } from "@earendil-works/pi-tui";
 import {
   buildMarkdownThemeCallbacks,
-  padLine,
+  renderPiPanel,
   type PiThemeStyle,
 } from "@fradser/pi-kit";
 
@@ -163,15 +164,10 @@ export function createPlanOverlay(
       const maxBody = maxPlanBody(tui.terminal.rows);
       const contentWidth = Math.max(20, width - 4);
 
-      const border = style.border("─".repeat(Math.max(1, width)));
-      const lines: string[] = [];
-
-      // Top border + header
-      lines.push(border);
-      lines.push(padLine(`  ${style.accent("Plan ready")}  ${style.dim(options.planPath)}`, width));
-      lines.push("");
+      const body: string[] = [];
 
       // Plan content (scrollable)
+
       const mdLines = markdown.render(contentWidth).map((line) =>
         line.includes("__OVERLAY_SEPARATOR__") ? "__OVERLAY_SEPARATOR__" : line,
       );
@@ -183,38 +179,35 @@ export function createPlanOverlay(
       for (const line of windowLines) {
         if (line === "__OVERLAY_SEPARATOR__") {
           const separator = style.dim("─".repeat(Math.max(1, width - 4)));
-          lines.push(`${" ".repeat(2)}${separator}${" ".repeat(2)}`);
+          body.push(separator);
         } else {
-          lines.push(padLine(`  ${line}`, width));
+          body.push(line);
         }
       }
 
-      // Spacer
       const remainingSpace = maxBody - windowLines.length;
-      for (let i = 0; i < remainingSpace; i++) {
-        lines.push("");
-      }
+      for (let i = 0; i < remainingSpace; i++) body.push("");
 
-      // Action menu
-      lines.push("");
-      lines.push(padLine(`  ${style.muted("What would you like to do?")}`, width));
-      lines.push("");
+      body.push("");
+      body.push(style.muted("What would you like to do?"));
+      body.push("");
 
       for (let i = 0; i < ACTIONS.length; i++) {
         const action = ACTIONS[i];
         const isSelected = i === selectedIndex;
         const prefix = isSelected ? style.accent("❯") : " ";
         const label = isSelected ? style.accent(action.label) : style.muted(action.label);
-        lines.push(padLine(`  ${prefix} ${i + 1}. ${label}`, width));
+        body.push(`${prefix} ${i + 1}. ${label}`);
       }
 
-      // Footer
-      lines.push("");
-      const footer = style.dim("↑↓ navigate · enter select · esc close · pgup/pgdn scroll");
-      lines.push(padLine(`  ${footer}`, width));
-      lines.push(border);
-
-      return lines;
+      return renderPiPanel({
+        width,
+        style,
+        fit: truncateToWidth,
+        title: `Plan ready  ${style.dim(options.planPath)}`,
+        body,
+        footer: "↑↓ navigate · enter select · esc close · pgup/pgdn scroll",
+      });
     },
 
     invalidate() {

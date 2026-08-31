@@ -9,6 +9,16 @@ Feature: Session Recap
   Background:
     Given the pi-recap-fradser package is installed
 
+  Scenario: Recap feedback uses the shared TUI notification abstraction
+    Given a recap command needs to notify the user
+    When it displays information, warnings, or errors
+    Then it uses pi-kit's portable notification helper with the requested level
+
+  Scenario: Recap widget uses pi-kit's shared row renderer
+    Given an active session in TUI mode displays a recap
+    When its status or recap content is rendered
+    Then every passive recap row uses pi-kit's shared widget-row renderer
+
   Scenario: Recap widget is displayed above the editor by default
     Given an active session in TUI mode
     When a turn completes with a user request and assistant response

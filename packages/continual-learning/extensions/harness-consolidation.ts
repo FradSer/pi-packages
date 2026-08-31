@@ -14,7 +14,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { ChildProcess } from "node:child_process";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { resolvePiCli, spawnPiChild } from "@fradser/pi-kit";
+import { notifyPi, resolvePiCli, spawnPiChild } from "@fradser/pi-kit";
 import {
   createConsolidationRun,
   extractChildPlan,
@@ -333,7 +333,7 @@ export async function runHarnessConsolidationPhase(
 ): Promise<void> {
   const resolveCli = opts.resolveCli ?? resolvePiCli;
   if (!resolveCli()) {
-    ctx.ui.notify("Harness consolidation skipped: could not resolve the Pi CLI", "warning");
+    notifyPi(ctx.ui, "Harness consolidation skipped: could not resolve the Pi CLI", "warning");
     return;
   }
   if (state.active) return;
@@ -353,7 +353,7 @@ export async function runHarnessConsolidationPhase(
     }
   } catch (err) {
     state.active = false;
-    if (current()) ctx.ui.notify(`Harness consolidation skipped: ${(err as Error).message}`, "warning");
+    if (current()) notifyPi(ctx.ui, `Harness consolidation skipped: ${(err as Error).message}`, "warning");
     return;
   }
 
@@ -452,7 +452,7 @@ export async function runHarnessConsolidationPhase(
 
     if (!result.ok) {
       await writeFileAtomic(path.join(run.manifest.runDir, "harness-error.txt"), result.detail.slice(-8_000)).catch(() => {});
-      ctx.ui.notify(`Harness consolidation finished without applying changes: ${result.detail.slice(-300)}`, "warning");
+      notifyPi(ctx.ui, `Harness consolidation finished without applying changes: ${result.detail.slice(-300)}`, "warning");
       return;
     }
     const plan = (JSON.parse(result.detail) as { plan: unknown }).plan as { operations?: HarnessOp[] };
@@ -461,7 +461,7 @@ export async function runHarnessConsolidationPhase(
     const runDir = run.manifest.runDir;
     if (ops.length === 0) {
       await writeFileAtomic(path.join(runDir, "harness-noop.txt"), "verified no-op\n").catch(() => {});
-      ctx.ui.notify("Harness consolidation: verified no-op — no guardrail evidence worth encoding.", "info");
+      notifyPi(ctx.ui, "Harness consolidation: verified no-op — no guardrail evidence worth encoding.", "info");
       return;
     }
     const target = opts.targetPath ?? configPaths(opts.cwd).projectLocal;
@@ -481,7 +481,7 @@ export async function runHarnessConsolidationPhase(
     await writeFileAtomic(path.join(runDir, "harness-pre-receipt.json"), `${JSON.stringify(preReceipt, null, 2)}\n`);
     const applied = await applyHarnessOps(target, ops);
     if (!applied.ok) {
-      ctx.ui.notify(`Harness consolidation rejected: ${applied.error.slice(-300)}`, "warning");
+      notifyPi(ctx.ui, `Harness consolidation rejected: ${applied.error.slice(-300)}`, "warning");
       return;
     }
     // Read back this generation's post-apply bytes immediately so a stale
@@ -510,9 +510,9 @@ export async function runHarnessConsolidationPhase(
     });
     // Success is only reported from a durably stored post receipt.
     await writeFileAtomic(path.join(runDir, "harness-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
-    ctx.ui.notify(`Harness consolidated: ${applied.applied.length} change(s) applied to ${path.basename(target)} (${ops.length} proposed).`, "info");
+    notifyPi(ctx.ui, `Harness consolidated: ${applied.applied.length} change(s) applied to ${path.basename(target)} (${ops.length} proposed).`, "info");
   } catch (err) {
-    if (current()) ctx.ui.notify(`Harness consolidation failed: ${(err as Error).message.slice(-300)}`, "warning");
+    if (current()) notifyPi(ctx.ui, `Harness consolidation failed: ${(err as Error).message.slice(-300)}`, "warning");
   } finally {
     const owned = current();
     try {

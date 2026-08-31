@@ -106,6 +106,11 @@ Feature: Matt Pocock workflow harness
     And the package contains no SKILL.md file
     And its procedures remain plain Markdown resources
 
+  Scenario: Workflow notifications use the shared Pi-kit notification adapter
+    Given the workflow command needs to notify the user of a status or validation outcome
+    When it emits that notification
+    Then it delegates notification sanitization and delivery to pi-kit
+
   Scenario: Deferred automation remains documented
     Given the first harness version is packaged
     When TODO.md is inspected

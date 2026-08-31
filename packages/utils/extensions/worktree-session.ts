@@ -18,9 +18,10 @@ import {
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
+	createToolLifecycleResultRenderer,
 	eventToolLifecycle,
 	formatToolErrorLine,
-	renderToolLifecycle,
+	notifyPi,
 	safeDisplayText,
 } from "@fradser/pi-kit";
 import { Type } from "typebox";
@@ -48,21 +49,16 @@ function renderWorktreeToolResult(
 	const separator = subject.indexOf(" ");
 	const action = separator === -1 ? subject : subject.slice(0, separator);
 	const target = separator === -1 ? "" : subject.slice(separator + 1);
-	const spec = eventToolLifecycle("worktree", target, {
-		label: action,
-		details: worktreeToolText(result).split("\n").map((line) => line.trim()).filter(Boolean),
-	});
-	return {
-		invalidate: () => {},
-		render: (width) => renderToolLifecycle(spec, {
-			width,
-			expanded: options.expanded,
-			expandHint: keyHint("app.tools.expand", "to expand"),
-			theme,
-			fit: truncateToWidth,
-			visibleWidth,
+	return createToolLifecycleResultRenderer({
+		createSpec: () => eventToolLifecycle("worktree", target, {
+			label: action,
+			details: worktreeToolText(result).split("\n").map((line) => line.trim()).filter(Boolean),
 		}),
-	};
+		expandHint: keyHint("app.tools.expand", "to expand"),
+		fit: truncateToWidth,
+		visibleWidth,
+		renderError: (line, currentTheme) => new Text(currentTheme.fg("error", line), 0, 0),
+	})(result, options, theme, context);
 }
 
 export interface WorktreeRecord {
@@ -293,16 +289,16 @@ function formatTargetLabel(state: WorktreeSessionState): string {
 async function switchIntoWorktree(ctx: ExtensionCommandContext, request: EnterWorktreeRequest): Promise<void> {
 	const sourceSession = ctx.sessionManager.getSessionFile();
 	if (!sourceSession) {
-		ctx.ui.notify("EnterWorktree requires a persisted Pi session.", "error");
+		notifyPi(ctx.ui, "EnterWorktree requires a persisted Pi session.", "error");
 		return;
 	}
 	const target = resolveEnterTarget(ctx.cwd, request);
 	if ("error" in target) {
-		ctx.ui.notify(target.error, "error");
+		notifyPi(ctx.ui, target.error, "error");
 		return;
 	}
 	if (canonicalize(ctx.cwd) === canonicalize(target.path)) {
-		ctx.ui.notify("Already inside the requested worktree.", "info");
+		notifyPi(ctx.ui, "Already inside the requested worktree.", "info");
 		return;
 	}
 
@@ -310,7 +306,7 @@ async function switchIntoWorktree(ctx: ExtensionCommandContext, request: EnterWo
 	if (target.created) {
 		const created = createWorktree(target);
 		if ("error" in created) {
-			ctx.ui.notify(created.error, "error");
+			notifyPi(ctx.ui, created.error, "error");
 			return;
 		}
 		state = created;
@@ -334,7 +330,7 @@ async function switchIntoWorktree(ctx: ExtensionCommandContext, request: EnterWo
 		replacement.appendCustomEntry(WORKTREE_SESSION_ENTRY, state);
 		const result = await ctx.switchSession(replacementFile, {
 			withSession: async (next) => {
-				next.ui.notify(`Entered worktree: ${formatTargetLabel(state)}`, "info");
+				notifyPi(next.ui, `Entered worktree: ${formatTargetLabel(state)}`, "info");
 			},
 		});
 		if (result.cancelled && state.created) {
@@ -343,18 +339,18 @@ async function switchIntoWorktree(ctx: ExtensionCommandContext, request: EnterWo
 		}
 	} catch (error) {
 		if (state.created) removeWorktree(state);
-		ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+		notifyPi(ctx.ui, error instanceof Error ? error.message : String(error), "error");
 	}
 }
 
 async function switchOutOfWorktree(ctx: ExtensionCommandContext): Promise<void> {
 	const state = readWorktreeSessionState(ctx);
 	if (!state) {
-		ctx.ui.notify("This session was not entered through EnterWorktree.", "warning");
+		notifyPi(ctx.ui, "This session was not entered through EnterWorktree.", "warning");
 		return;
 	}
 	if (!fs.existsSync(state.parentSession)) {
-		ctx.ui.notify(`Parent session no longer exists: ${state.parentSession}`, "error");
+		notifyPi(ctx.ui, `Parent session no longer exists: ${state.parentSession}`, "error");
 		return;
 	}
 
@@ -374,13 +370,13 @@ async function switchOutOfWorktree(ctx: ExtensionCommandContext): Promise<void> 
 			if (remove) {
 				const error = removeWorktree(state);
 				if (error) {
-					parent.ui.notify(`Returned to parent session, but cleanup failed: ${error}`, "warning");
+					notifyPi(parent.ui, `Returned to parent session, but cleanup failed: ${error}`, "warning");
 					return;
 				}
-				parent.ui.notify(`Exited worktree and removed: ${state.path}`, "info");
+				notifyPi(parent.ui, `Exited worktree and removed: ${state.path}`, "info");
 				return;
 			}
-			parent.ui.notify(`Exited worktree; kept: ${state.path}`, "info");
+			notifyPi(parent.ui, `Exited worktree; kept: ${state.path}`, "info");
 		},
 	});
 	if (result.cancelled) return;
@@ -445,7 +441,7 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 			try {
 				request = args.trim().startsWith("{") ? (JSON.parse(args) as EnterWorktreeRequest) : { name: args.trim() || undefined };
 			} catch {
-				ctx.ui.notify("Invalid EnterWorktree request JSON.", "error");
+				notifyPi(ctx.ui, "Invalid EnterWorktree request JSON.", "error");
 				return;
 			}
 			await switchIntoWorktree(ctx, request);

@@ -215,6 +215,11 @@ Feature: Result-contract background monitoring
     And 8-bit C1 control sequences are removed together with their sequence payloads
     And no global input listener is registered
 
+  Scenario: Monitor notifications use the shared Pi-kit notification adapter
+    Given a monitor command reports no active or recent monitors
+    When the extension notifies the user
+    Then it delegates notification sanitization and delivery to pi-kit
+
   Scenario: The monitor status is rendered after the native footer
     Given one or more result monitors are waiting
     When the TUI renders the footer

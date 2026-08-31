@@ -56,6 +56,11 @@ def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
     assert "Scenario: pi-kit stays a pure runtime dependency" in feature
     assert "Scenario: Pi CLI resolution accepts only the coding-agent package" in feature
     assert "Scenario: Child termination observes close and escalates once" in feature
+    assert "Scenario: Overlay panels use the shared frame layout" in feature
+    assert "Scenario: Passive console widgets use the shared row layout" in feature
+    assert "Scenario: Custom transcript messages use the standard lifecycle renderer" in feature
+    assert "Scenario: Custom native tools use the standard lifecycle result renderer" in feature
+    assert "Scenario: Notifications use the shared portable UI abstraction" in feature
 
 
 def test_worker_command_does_not_pass_unsupported_cwd_flag() -> None:
@@ -234,6 +239,79 @@ def test_tool_lifecycle_titles_share_the_compact_monitor_pattern() -> None:
         "collapsedHint": "[board] Fix login · ctrl+o to expand",
         "zeroWidth": [],
     }
+
+
+def test_panel_and_widget_layout_primitives_share_tui_geometry() -> None:
+    result = run_typescript(
+        f"""
+        import {{ renderPiPanel, renderPiWidgetRow }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const style = {{ accent: (text) => `<a>${{text}}</a>`, dim: (text) => `<d>${{text}}</d>`, border: (text) => `<b>${{text}}</b>` }};
+        const fit = (text, width, _ellipsis = "...", pad = false) => {{
+          const plain = text.replace(/<[^>]+>/g, "");
+          const clipped = plain.length > width ? plain.slice(0, width) : text;
+          return pad ? clipped + " ".repeat(Math.max(0, width - clipped.replace(/<[^>]+>/g, "").length)) : clipped;
+        }};
+        console.log(JSON.stringify({{
+          panel: renderPiPanel({{ width: 20, style, fit, title: "Context", body: ["first", "second"], footer: "esc close" }}),
+          widget: renderPiWidgetRow("Working...", 12, fit),
+        }}));
+        """
+    )
+    assert len(result["panel"]) == 6
+    assert "Context" in result["panel"][1]
+    assert "esc close" in result["panel"][-2]
+    assert result["widget"] == " Working... "
+
+
+def test_reusable_message_tool_and_notification_renderers_share_tui_contract() -> None:
+    result = run_typescript(
+        f"""
+        import {{
+          createToolLifecycleMessageRenderer,
+          createToolLifecycleResultRenderer,
+          eventToolLifecycle,
+          notifyPi,
+        }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const theme = {{ fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text }};
+        const fit = (text, width, _ellipsis = "...", pad = false) => pad ? text.padEnd(width) : text;
+        const lifecycle = (subject, details = []) => eventToolLifecycle("context", subject, {{ label: "gathered", details }});
+        const messageRenderer = createToolLifecycleMessageRenderer({{
+          createSpec: (message) => lifecycle(message.content, String(message.details ?? "").split("\\n").filter(Boolean)),
+          expandHint: "ctrl+o to expand",
+          fit,
+          visibleWidth: (text) => text.length,
+        }});
+        const message = messageRenderer({{ content: "two sources", details: "one\\ntwo" }}, {{ expanded: false }}, theme);
+        const toolRenderer = createToolLifecycleResultRenderer({{
+          createSpec: (_result, text, details) => lifecycle(text.split("\\n")[0], details),
+          expandHint: "ctrl+o to expand",
+          fit,
+          visibleWidth: (text) => text.length,
+          renderError: (line) => `ERROR:${{line}}`,
+        }});
+        const success = toolRenderer(
+          {{ content: [{{ type: "text", text: "summary\\nline" }}], details: {{ id: "x" }} }},
+          {{ expanded: true }}, theme, {{}},
+        );
+        const error = toolRenderer(
+          {{ content: [{{ type: "text", text: "\\u001b[31mfailed\\u001b[0m\\nmore" }}] }},
+          {{}}, theme, {{ isError: true }},
+        );
+        const notices = [];
+        notifyPi({{ notify: (message, level) => notices.push({{ message, level }}) }}, "\\u001b[31mDone\\u001b[0m", "info");
+        console.log(JSON.stringify({{
+          messageRows: message.render(70),
+          successRows: success.render(70),
+          error,
+          notices,
+        }}));
+        """
+    )
+    assert "[context] gathered · two sources · ctrl+o to expand" in result["messageRows"][1]
+    assert "[context] gathered · summary" in result["successRows"][1]
+    assert "line" in result["successRows"][3]
+    assert result["error"] == "ERROR:failed"
+    assert result["notices"] == [{"message": "Done", "level": "info"}]
 
 
 def test_lifecycle_details_default_to_fifty_lines_unless_explicitly_unbounded() -> None:

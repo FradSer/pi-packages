@@ -125,6 +125,11 @@ Feature: /continue recovery for incomplete and failed turns
     Then the user is told there is nothing to continue
     And no request is sent to the provider
 
+  Scenario: Continuation errors use the shared Pi-kit notification adapter
+    Given the session branch has no previous model request
+    When /continue notifies the user of the error
+    Then it delegates notification sanitization and delivery to pi-kit
+
   Scenario: Entries written by another process are inherited before continuing
     Given the session file on disk ends with an entry the active session has never loaded
     When the user runs /continue

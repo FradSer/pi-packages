@@ -441,6 +441,12 @@ def test_collection_add_flow_uses_a_native_loading_overlay() -> None:
     assert "Adding a collection visibly reports progress" in feature
     assert "ctx.ui.custom<LoadingOutcome<T>>" in source
     assert "CancellableLoader" in source
+    assert "createPiThemeStyle" in source
+    assert "const style = createPiThemeStyle(theme);" in source
+    assert "style.accent" in source
+    assert "style.muted" in source
+    assert "notifyPi(ctx.ui" in source
+    assert "ctx.ui.notify" not in source
     assert "margin: { bottom: 4 }" in source
     assert "Cloning and scanning ${spec.repo}..." in source
     assert "Installing ${repo}..." in source

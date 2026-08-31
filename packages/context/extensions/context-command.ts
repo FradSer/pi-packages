@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { eventToolLifecycle, renderToolLifecycle } from "@fradser/pi-kit";
+import { createToolLifecycleMessageRenderer, eventToolLifecycle } from "@fradser/pi-kit";
 
 const PKG_DIR =
   typeof __dirname === "string"
@@ -130,24 +130,16 @@ function sendWorkflow(pi: ExtensionAPI, prompt: string, details: ContextWorkflow
 export function registerContextCommand(pi: ExtensionAPI): void {
   pi.registerMessageRenderer(CONTEXT_WORKFLOW_MESSAGE_TYPE, (message, { expanded }, theme) => {
     const details = message.details as ContextWorkflowDetails;
-    return {
-      render: (width: number) => renderToolLifecycle(
-        eventToolLifecycle("context", workflowSubject(details), {
-          label: "workflow",
-          details: String(message.content).split("\n"),
-          detailLimit: "all",
-        }),
-        {
-          width,
-          expanded,
-          expandHint: "ctrl+o to expand",
-          theme,
-          fit: truncateToWidth,
-          visibleWidth,
-        },
-      ),
-      invalidate: () => {},
-    };
+    return createToolLifecycleMessageRenderer({
+      createSpec: () => eventToolLifecycle("context", workflowSubject(details), {
+        label: "workflow",
+        details: String(message.content).split("\n"),
+        detailLimit: "all",
+      }),
+      expandHint: "ctrl+o to expand",
+      fit: truncateToWidth,
+      visibleWidth,
+    })(message, { expanded }, theme);
   });
 
   pi.on("before_agent_start", async (event) => ({

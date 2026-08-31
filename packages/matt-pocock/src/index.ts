@@ -4,11 +4,13 @@ import {
   type ExtensionCommandContext,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
+  createToolLifecycleMessageRenderer,
+  createToolLifecycleResultRenderer,
   eventToolLifecycle,
   formatToolErrorLine,
-  renderToolLifecycle,
+  notifyPi,
   safeDisplayText,
 } from "@fradser/pi-kit";
 import { Type } from "typebox";
@@ -150,12 +152,12 @@ async function showMenu(ctx: ExtensionCommandContext): Promise<void> {
     return;
   }
   endWorkflow(ctx);
-  ctx.ui.notify("Matt Pocock workflow ended.", "info");
+  notifyPi(ctx.ui, "Matt Pocock workflow ended.", "info");
 }
 
 async function chooseTransition(ctx: ExtensionCommandContext): Promise<void> {
   if (!activeWorkflow) {
-    ctx.ui.notify("No active Matt Pocock workflow.", "warning");
+    notifyPi(ctx.ui, "No active Matt Pocock workflow.", "warning");
     return;
   }
 
@@ -175,10 +177,10 @@ async function chooseTransition(ctx: ExtensionCommandContext): Promise<void> {
 
 function showStatus(ctx: ExtensionContext): void {
   if (!activeWorkflow) {
-    ctx.ui.notify("Matt Pocock workflow: inactive", "info");
+    notifyPi(ctx.ui, "Matt Pocock workflow: inactive", "info");
     return;
   }
-  ctx.ui.notify(`Matt Pocock workflow: ${formatReadableWorkflowSubject(activeWorkflow.route, activeWorkflow.phase)}`, "info");
+  notifyPi(ctx.ui, `Matt Pocock workflow: ${formatReadableWorkflowSubject(activeWorkflow.route, activeWorkflow.phase)}`, "info");
 }
 
 function parseRoute(args: string): WorkflowState | undefined {
@@ -213,7 +215,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       }, { deliverAs: "nextTurn" });
     } catch (error) {
       endWorkflow(ctx);
-      ctx.ui.notify(`Could not restore Matt Pocock workflow: ${String(error)}`, "warning");
+      notifyPi(ctx.ui, `Could not restore Matt Pocock workflow: ${String(error)}`, "warning");
     }
   });
 
@@ -223,31 +225,12 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       const route = details.route ?? (activeWorkflow?.route || "workflow");
       const phase = details.phase ?? (activeWorkflow?.phase || "active");
       const subject = formatReadableWorkflowSubject(route, phase);
-      const content = typeof message.content === "string" ? message.content : "";
-      const detailLines = content.split("\n").filter((line) => line.trim());
-      const expandable = detailLines.length > 0;
-      return {
-        render: (width: number) => {
-          const lines = expanded
-            ? detailLines.flatMap((line) => wrapTextWithAnsi(safeDisplayText(line), Math.max(1, width - 2)))
-            : detailLines;
-          return renderToolLifecycle(
-            eventToolLifecycle("matt pocock · workflow", subject, {
-              details: lines,
-            }),
-            {
-              width,
-              expanded,
-              expandHint: safeExpandHint(),
-              expandable,
-              theme,
-              fit: truncateToWidth,
-              visibleWidth,
-            },
-          );
-        },
-        invalidate: () => {},
-      };
+      return createToolLifecycleMessageRenderer({
+        createSpec: () => eventToolLifecycle("matt pocock · workflow", subject),
+        expandHint: safeExpandHint(),
+        fit: truncateToWidth,
+        visibleWidth,
+      })(message, { expanded }, theme);
     });
   }
 
@@ -278,30 +261,13 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       const route = details.route ?? (context.args as { route?: string })?.route ?? "workflow";
       const phase = details.phase ?? "active";
       const subject = formatReadableWorkflowSubject(route, phase);
-      const detailLines = text.split("\n").filter((line) => line.trim());
-      const expandable = detailLines.length > 0;
-      return {
-        render: (width: number) => {
-          const lines = options.expanded
-            ? detailLines.flatMap((line) => wrapTextWithAnsi(safeDisplayText(line), Math.max(1, width - 2)))
-            : detailLines;
-          return renderToolLifecycle(
-            eventToolLifecycle("matt pocock · workflow", subject, {
-              details: lines,
-            }),
-            {
-              width,
-              expanded: options.expanded,
-              expandHint: safeExpandHint(),
-              expandable,
-              theme,
-              fit: truncateToWidth,
-              visibleWidth,
-            },
-          );
-        },
-        invalidate: () => {},
-      };
+      return createToolLifecycleResultRenderer({
+        createSpec: () => eventToolLifecycle("matt pocock · workflow", subject),
+        expandHint: safeExpandHint(),
+        fit: truncateToWidth,
+        visibleWidth,
+        renderError: (line, currentTheme) => new Text(currentTheme.fg("error", line), 0, 0),
+      })(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const route = findWorkflowRoute(params.route);
@@ -381,29 +347,13 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         params.options && params.options.length ? `Options:\n${params.options.map((opt) => `  - ${opt}`).join("\n")}` : undefined,
       ].filter((line): line is string => Boolean(line));
 
-      const expandable = effectiveDetails.length > 0;
-      return {
-        render: (width: number) => {
-          const detailLines = options.expanded
-            ? effectiveDetails.flatMap((line) => wrapTextWithAnsi(safeDisplayText(line), Math.max(1, width - 2)))
-            : effectiveDetails;
-          return renderToolLifecycle(
-            eventToolLifecycle("matt pocock · ask", subject, {
-              details: detailLines,
-            }),
-            {
-              width,
-              expanded: options.expanded,
-              expandHint: safeExpandHint(),
-              expandable,
-              theme,
-              fit: truncateToWidth,
-              visibleWidth,
-            },
-          );
-        },
-        invalidate: () => {},
-      };
+      return createToolLifecycleResultRenderer({
+        createSpec: () => eventToolLifecycle("matt pocock · ask", subject, { details: effectiveDetails }),
+        expandHint: safeExpandHint(),
+        fit: truncateToWidth,
+        visibleWidth,
+        renderError: (line, currentTheme) => new Text(currentTheme.fg("error", line), 0, 0),
+      })(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const allowCustom = params.allow_custom ?? true;
@@ -501,7 +451,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       const command = args.trim();
       if (!command) {
         if (!ctx.hasUI) {
-          ctx.ui.notify("Usage: /matt-pocock <route | status | transition | end>", "error");
+          notifyPi(ctx.ui, "Usage: /matt-pocock <route | status | transition | end>", "error");
           return;
         }
         await showMenu(ctx);
@@ -513,7 +463,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       }
       if (command === "transition") {
         if (!ctx.hasUI) {
-          ctx.ui.notify("Choose a transition from the interactive /matt-pocock menu.", "error");
+          notifyPi(ctx.ui, "Choose a transition from the interactive /matt-pocock menu.", "error");
           return;
         }
         await chooseTransition(ctx);
@@ -521,13 +471,13 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       }
       if (command === "end") {
         endWorkflow(ctx);
-        ctx.ui.notify("Matt Pocock workflow ended.", "info");
+        notifyPi(ctx.ui, "Matt Pocock workflow ended.", "info");
         return;
       }
 
       const state = parseRoute(command);
       if (!state) {
-        ctx.ui.notify("Usage: /matt-pocock [route | status | transition | end]", "error");
+        notifyPi(ctx.ui, "Usage: /matt-pocock [route | status | transition | end]", "error");
         return;
       }
       activateWorkflow(state, ctx);

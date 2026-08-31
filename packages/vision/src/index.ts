@@ -11,6 +11,7 @@ import {
   enterModelFromInput,
   modelLabel,
   modelRef,
+  notifyPi,
   parseModelRef,
   PI_SPINNER_FRAMES,
   PI_SPINNER_INTERVAL_MS,
@@ -148,7 +149,7 @@ function saveConfig(next: VisionConfig, ctx: ExtensionContext): void {
 async function chooseVisionModel(ctx: ExtensionCommandContext): Promise<void> {
   const models = imageModels(ctx);
   if (models.length === 0) {
-    ctx.ui.notify(
+    notifyPi(ctx.ui,
       'No image-capable models are available in the model registry. Add a model with input: ["text", "image"] first.',
       "warning",
     );
@@ -164,7 +165,7 @@ async function chooseVisionModel(ctx: ExtensionCommandContext): Promise<void> {
   if (!result) return;
 
   saveConfig({ ...config, ...result }, ctx);
-  ctx.ui.notify(`Vision reader set to ${result.provider}/${result.model}`, "info");
+  notifyPi(ctx.ui, `Vision reader set to ${result.provider}/${result.model}`, "info");
 }
 
 async function enterVisionModel(ctx: ExtensionCommandContext): Promise<void> {
@@ -178,7 +179,7 @@ async function enterVisionModel(ctx: ExtensionCommandContext): Promise<void> {
 
   const model = ctx.modelRegistry.find(result.provider, result.model);
   if (!model?.input.includes("image")) {
-    ctx.ui.notify(
+    notifyPi(ctx.ui,
       `Model ${result.provider}/${result.model} does not declare image input support`,
       "error",
     );
@@ -186,7 +187,7 @@ async function enterVisionModel(ctx: ExtensionCommandContext): Promise<void> {
   }
 
   saveConfig({ ...config, ...result }, ctx);
-  ctx.ui.notify(`Vision reader set to ${result.provider}/${result.model}`, "info");
+  notifyPi(ctx.ui, `Vision reader set to ${result.provider}/${result.model}`, "info");
 }
 
 async function resetConfiguration(ctx: ExtensionCommandContext): Promise<void> {
@@ -197,12 +198,12 @@ async function resetConfiguration(ctx: ExtensionCommandContext): Promise<void> {
   if (!confirmed) return;
 
   saveConfig({ enabled: true }, ctx);
-  ctx.ui.notify("Vision configuration reset", "info");
+  notifyPi(ctx.ui, "Vision configuration reset", "info");
 }
 
 async function openVisionMenu(ctx: ExtensionCommandContext): Promise<void> {
   if (!ctx.hasUI) {
-    ctx.ui.notify(configSummary(ctx), "info");
+    notifyPi(ctx.ui, configSummary(ctx), "info");
     return;
   }
 
@@ -222,12 +223,12 @@ async function openVisionMenu(ctx: ExtensionCommandContext): Promise<void> {
     await enterVisionModel(ctx);
   } else if (choice === "Enable image bridge") {
     saveConfig({ ...config, enabled: true }, ctx);
-    ctx.ui.notify("Vision bridge enabled", "info");
+    notifyPi(ctx.ui, "Vision bridge enabled", "info");
   } else if (choice === "Disable image bridge") {
     saveConfig({ ...config, enabled: false }, ctx);
-    ctx.ui.notify("Vision bridge disabled", "info");
+    notifyPi(ctx.ui, "Vision bridge disabled", "info");
   } else if (choice === "Show configuration details") {
-    ctx.ui.notify(configSummary(ctx), "info");
+    notifyPi(ctx.ui, configSummary(ctx), "info");
   } else if (choice === "Reset configuration") {
     await resetConfiguration(ctx);
   }
@@ -408,19 +409,19 @@ export default function visionExtension(pi: ExtensionAPI): void {
       }
 
       if (trimmed === "show" || trimmed === "status") {
-        ctx.ui.notify(configSummary(ctx), "info");
+        notifyPi(ctx.ui, configSummary(ctx), "info");
         return;
       }
 
       if (trimmed === "on") {
         saveConfig({ ...config, enabled: true }, ctx);
-        ctx.ui.notify("Vision bridge enabled", "info");
+        notifyPi(ctx.ui, "Vision bridge enabled", "info");
         return;
       }
 
       if (trimmed === "off") {
         saveConfig({ ...config, enabled: false }, ctx);
-        ctx.ui.notify("Vision bridge disabled; image prompts will not be sent to the text-only model", "info");
+        notifyPi(ctx.ui, "Vision bridge disabled; image prompts will not be sent to the text-only model", "info");
         return;
       }
 
@@ -432,16 +433,16 @@ export default function visionExtension(pi: ExtensionAPI): void {
         }
         const ref = parseModelRef(values.join(" "));
         if (!ref) {
-          ctx.ui.notify("Usage: /vision model provider/model", "error");
+          notifyPi(ctx.ui, "Usage: /vision model provider/model", "error");
           return;
         }
         const model = imageModels(ctx).find((candidate) => modelLabel(candidate) === `${ref.provider}/${ref.model}`);
         if (!model) {
-          ctx.ui.notify(`Model ${ref.provider}/${ref.model} is not an available image-capable model`, "error");
+          notifyPi(ctx.ui, `Model ${ref.provider}/${ref.model} is not an available image-capable model`, "error");
           return;
         }
         saveConfig({ ...config, ...ref }, ctx);
-        ctx.ui.notify(`Vision reader set to ${modelLabel(model)}`, "info");
+        notifyPi(ctx.ui, `Vision reader set to ${modelLabel(model)}`, "info");
         return;
       }
 
@@ -450,7 +451,7 @@ export default function visionExtension(pi: ExtensionAPI): void {
         return;
       }
 
-      ctx.ui.notify("Usage: /vision | /vision model [provider/model] | /vision on | /vision off | /vision reset", "error");
+      notifyPi(ctx.ui, "Usage: /vision | /vision model [provider/model] | /vision on | /vision off | /vision reset", "error");
     },
   });
 

@@ -70,6 +70,7 @@ Feature: Memory management with auto-memory guidance and manual consolidation
   Scenario: Shows a dreaming widget above the input editor while consolidating
     Given a consolidation run was just started
     Then ctx.ui.setWidget renders a "dreaming" indicator above the editor
+    And the widget uses the shared Pi-kit spinner cadence, theme style callbacks, and native-row geometry
     And the widget is cleared when the run exits
 
   Scenario: Only one dreaming consolidation runs at a time

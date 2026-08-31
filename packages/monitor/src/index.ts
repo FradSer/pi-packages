@@ -4,7 +4,7 @@ import {
   type ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import { Container, isKeyRelease, Key, matchesKey, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { eventToolLifecycle, formatToolLifecycleTitle, renderToolLifecycle, safeDisplayText, startedToolLifecycle } from "@fradser/pi-kit";
+import { createPiThemeStyle, createToolLifecycleMessageRenderer, createToolLifecycleResultRenderer, eventToolLifecycle, notifyPi, renderPiPanel, safeDisplayText, startedToolLifecycle } from "@fradser/pi-kit";
 import {
   MonitorManager,
   type Monitor,
@@ -80,46 +80,50 @@ export default function (pi: ExtensionAPI) {
   function openMonitorConsole(ctx: { ui: ExtensionUIContext }): Promise<void> {
     return ctx.ui.custom<void>((tui, theme, _keybindings, done) => {
       requestRender = () => tui.requestRender();
+      const style = createPiThemeStyle(theme);
       let selected = 0;
       let showOutput = false;
 
       const render = (width: number): string[] => {
-        const padding = width >= 4 ? 2 : 0;
-        const contentWidth = Math.max(1, width - padding);
-        const prefix = " ".repeat(padding);
-        const rule = theme.fg("border", "─".repeat(Math.max(1, width)));
+        const contentWidth = Math.max(1, width - 2);
         const monitors = manager.listAll();
         if (monitors.length === 0) {
-          return [rule, truncateToWidth(`${prefix}${theme.fg("dim", "(no active or recent monitors)")}`, Math.max(1, width)), rule];
+          return renderPiPanel({
+            width,
+            style,
+            fit: truncateToWidth,
+            title: "Result monitors",
+            body: ["(no active or recent monitors)"],
+            footer: "q/Esc close",
+          });
         }
         if (selected >= monitors.length) selected = Math.max(0, monitors.length - 1);
 
-        const lines: string[] = [
-          rule,
-          truncateToWidth(`${prefix}${theme.bold(`Result monitors — ${manager.list().length} active`)}`, Math.max(1, width)),
-        ];
+        const lines: string[] = [];
         for (let index = 0; index < monitors.length; index += 1) {
           const monitor = monitors[index];
           const marker = index === selected ? theme.fg("accent", "❯ ") : "  ";
           lines.push(truncateToWidth(
-            `${prefix}${marker}${theme.fg(statusColor(monitor.status), safeDisplayText(monitor.description))} (${monitor.status}) [${safeDisplayText(monitor.id)}]`,
-            Math.max(1, width),
+            `${marker}${theme.fg(statusColor(monitor.status), safeDisplayText(monitor.description))} (${monitor.status}) [${safeDisplayText(monitor.id)}]`,
+            contentWidth,
           ));
         }
 
         const monitor = monitors[selected];
-        lines.push("", `${prefix}${theme.fg("border", "─".repeat(contentWidth))}`);
+        lines.push("");
         for (const line of monitorDetails(monitor, showOutput)) {
           for (const wrapped of wrapTextWithAnsi(safeDisplayText(line), contentWidth)) {
-            lines.push(truncateToWidth(`${prefix}${wrapped}`, Math.max(1, width)));
+            lines.push(truncateToWidth(wrapped, contentWidth));
           }
         }
-        lines.push(
-          "",
-          truncateToWidth(`${prefix}${theme.fg("dim", "↑/↓ select · Enter output · x stop active · a stop all · q/Esc close")}`, Math.max(1, width)),
-          rule,
-        );
-        return lines;
+        return renderPiPanel({
+          width,
+          style,
+          fit: truncateToWidth,
+          title: `Result monitors — ${manager.list().length} active`,
+          body: lines,
+          footer: "↑/↓ select · Enter output · x stop active · a stop all · q/Esc close",
+        });
       };
 
       return {
@@ -175,23 +179,12 @@ export default function (pi: ExtensionAPI) {
     const report = details
       ? formatTerminalMessage(details.description, details.result)
       : safeDisplayText(String(message.content));
-    return {
-      render: (width: number) => renderToolLifecycle(
-        eventToolLifecycle("monitor", subject, {
-          label: "event",
-          details: report.split("\n").filter((line) => line.trim()),
-        }),
-        {
-          width,
-          expanded,
-          expandHint: keyHint("app.tools.expand", "to expand"),
-          theme,
-          fit: truncateToWidth,
-          visibleWidth,
-        },
-      ),
-      invalidate: () => {},
-    };
+    return createToolLifecycleMessageRenderer({
+      createSpec: () => eventToolLifecycle("monitor", subject, { label: "event", details: report.split("\n").filter((line) => line.trim()) }),
+      expandHint: keyHint("app.tools.expand", "to expand"),
+      fit: truncateToWidth,
+      visibleWidth,
+    })(message, { expanded }, theme);
   });
 
   pi.on("session_start", async (_event, ctx) => {
@@ -239,14 +232,14 @@ export default function (pi: ExtensionAPI) {
     parameters: MonitorStartParams,
     renderShell: "self",
     renderCall: () => new Container(),
-    renderResult(_result, _options, theme, context) {
-      return new Text(
-        theme.fg("toolTitle", theme.bold(formatToolLifecycleTitle(
-          startedToolLifecycle("monitor", safeDisplayText(context.args.description), { label: "started" }),
-        ))),
-        0,
-        0,
-      );
+    renderResult(result, options, theme, context) {
+      const subject = safeDisplayText(context.args.description);
+      return createToolLifecycleResultRenderer({
+        createSpec: () => startedToolLifecycle("monitor", subject, { label: "started" }),
+        fit: truncateToWidth,
+        visibleWidth,
+        renderError: (line, currentTheme) => new Text(currentTheme.fg("error", line), 0, 0),
+      })(result, options, theme, context);
     },
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       if (!params.command.trim()) throw new Error("monitor_start requires a non-empty command.");
@@ -293,6 +286,16 @@ export default function (pi: ExtensionAPI) {
     description: "Stop an active result monitor by id, or all active monitors when monitor_id is omitted.",
     promptSnippet: "Stop one or all active result monitors",
     parameters: MonitorStopParams,
+    renderShell: "self",
+    renderCall: () => new Container(),
+    renderResult(result, options, theme, context) {
+      return createToolLifecycleResultRenderer({
+        createSpec: () => eventToolLifecycle("monitor", "active monitors", { label: "stopped" }),
+        fit: truncateToWidth,
+        visibleWidth,
+        renderError: (line, currentTheme) => new Text(currentTheme.fg("error", line), 0, 0),
+      })(result, options, theme, context);
+    },
 
     async execute(_toolCallId, params) {
       const result = stopMonitors(params.monitor_id);
@@ -317,14 +320,14 @@ export default function (pi: ExtensionAPI) {
     handler: async (_args, ctx) => {
       if (ctx.mode !== "tui") {
         const monitors = manager.list();
-        ctx.ui.notify(monitors.length === 0
+        notifyPi(ctx.ui, monitors.length === 0
           ? "No active result monitors."
           : `${monitors.length} result monitor(s) waiting.`,
         "info");
         return;
       }
       if (manager.listAll().length === 0) {
-        ctx.ui.notify("No active or recent result monitors.", "info");
+        notifyPi(ctx.ui, "No active or recent result monitors.", "info");
         return;
       }
       await openMonitorConsole(ctx);

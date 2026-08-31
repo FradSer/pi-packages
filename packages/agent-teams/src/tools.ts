@@ -1,5 +1,5 @@
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { detailField, eventToolLifecycle, formatAgentTaskName, startedToolLifecycle } from "@fradser/pi-kit";
+import { detailField, eventToolLifecycle, formatAgentTaskName, notifyPi, startedToolLifecycle } from "@fradser/pi-kit";
 import {
   createBoardTask,
   formatBoardTaskCreation,
@@ -232,7 +232,7 @@ export function registerTeamCommand(pi: ExtensionAPI): void {
     description: "Agent Teams management console: session teammates and persistent agent roles",
     handler: async (_args, ctx) => {
       publishStateSnapshot();
-      if (ctx.mode !== "tui") { ctx.ui.notify(teamStatusSummary(), "info"); return; }
+      if (ctx.mode !== "tui") { notifyPi(ctx.ui, teamStatusSummary(), "info"); return; }
       await openTeamConsole(ctx);
       refreshTeamUI(ctx);
     },

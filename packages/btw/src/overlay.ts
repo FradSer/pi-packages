@@ -29,7 +29,7 @@ import {
 import {
   buildMarkdownThemeCallbacks,
   maxBodyHeight,
-  padLine,
+  renderPiPanel,
   type PiThemeStyle,
 } from "@fradser/pi-kit";
 import type { BtwResult, BtwTurn, BtwUsage } from "./spawner";
@@ -164,8 +164,6 @@ export function createBtwOverlay(
       tui.requestRender();
     }
   };
-
-  const pad = (line: string, width: number): string => padLine(line, width);
 
   const renderComposer = (width: number): string[] => {
     const lineWidth = Math.max(1, width);
@@ -418,11 +416,7 @@ export function createBtwOverlay(
       const maxBody = maxAnswerBody(tui.terminal.rows);
       const contentWidth = Math.max(20, width - 4);
 
-      const border = style.border("─".repeat(Math.max(1, width)));
-      const lines: string[] = [];
-
-      // Top border
-      lines.push(border);
+      const body: string[] = [];
 
       if (markdown) {
         const mdLines = markdown.render(contentWidth).map((line) =>
@@ -433,27 +427,26 @@ export function createBtwOverlay(
         const max = Math.max(0, mdLines.length - viewport);
         if (scroll > max) scroll = max;
         const windowLines = mdLines.slice(scroll, scroll + viewport);
-        lines.push("");
+        body.push("");
         for (const line of windowLines) {
           if (line === "__OVERLAY_SEPARATOR__") {
-            const separator = style.dim("─".repeat(Math.max(1, width - 4)));
-            lines.push(`${" ".repeat(2)}${separator}${" ".repeat(2)}`);
+            body.push(style.dim("─".repeat(Math.max(1, width - 4))));
           } else {
-            lines.push(pad(`  ${line}`, width));
+            body.push(line);
           }
         }
-        lines.push("");
+        body.push("");
       }
 
       if (state === "loading") {
-        for (const line of loader.render(contentWidth)) lines.push(pad(line, contentWidth));
-        lines.push("");
+        for (const line of loader.render(contentWidth)) body.push(line);
+        body.push("");
       }
 
       if (state !== "loading") {
-        lines.push("");
-        for (const line of renderComposer(width)) lines.push(line);
-        lines.push("");
+        body.push("");
+        for (const line of renderComposer(width - 2)) body.push(line);
+        body.push("");
       }
 
       // Footer
@@ -494,10 +487,14 @@ export function createBtwOverlay(
         }
         footer = parts.join("   ");
       }
-      lines.push(style.dim(footer));
-      lines.push(border);
-
-      return lines;
+      return renderPiPanel({
+        width,
+        style,
+        fit: truncateToWidth,
+        title: "btw",
+        body,
+        footer,
+      });
     },
 
     invalidate() {

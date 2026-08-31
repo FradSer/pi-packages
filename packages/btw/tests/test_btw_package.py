@@ -28,10 +28,14 @@ def run_typescript(script: str) -> dict[str, object]:
 def test_feature_covers_isolation_and_temp_prompt_lifecycle() -> None:
     feature = (PACKAGE / "features" / "btw.feature").read_text(encoding="utf-8")
     assert "Feature: Read-only side questions" in feature
+    assert "Scenario: Side-question feedback uses the shared TUI notification abstraction" in feature
+    assert "portable notification helper" in feature
     assert "Scenario: A child Pi run is configured read-only" in feature
     assert "Scenario: A long side prompt exists only for the child lifetime" in feature
     assert "Scenario: A long side prompt is cleaned up when the child cannot launch" in feature
     assert "Scenario: Multi-turn side questions include conversation history in the prompt" in feature
+    assert "Scenario: Side-question overlay uses pi-kit's shared panel frame" in feature
+    assert "shared panel renderer" in feature
     assert "Scenario: Multi-turn overlay maintains turns and aggregates token usage" in feature
     assert "overlay does not display a redundant header title for the initial question" in feature
     assert "each conversation turn displays its question with You and its answer with btw" in feature
@@ -198,6 +202,12 @@ def test_extension_entry_point_exists() -> None:
     assert (SRC / "context.ts").is_file(), "Context module src/context.ts is missing"
     assert (SRC / "overlay.ts").is_file(), "Overlay module src/overlay.ts is missing"
     assert not (SRC / "widget.ts").exists(), "Widget display was replaced by the interactive overlay"
+
+
+def test_notifications_use_pi_kits_portable_helper() -> None:
+    source = (SRC / "index.ts").read_text(encoding="utf-8")
+    assert "notifyPi" in source
+    assert "ctx.ui.notify(" not in source
 
 
 def test_spawner_enforces_read_only_tool_scope() -> None:
@@ -466,8 +476,9 @@ def test_overlay_handles_multi_turn_flow() -> None:
     assert "╰" not in turn2_rendered
 
     separator = "[bor]" + "─" * 80 + "[/bor]"
-    assert turn2_rendered.count(separator) == 4
+    assert turn2_rendered.count(separator) == 2
     overlay_source = (SRC / "overlay.ts").read_text(encoding="utf-8")
+    assert "renderPiPanel" in overlay_source
     assert "const rightSpace = Math.max" in overlay_source
     assert "leftSpace = Math.floor" in overlay_source
 
