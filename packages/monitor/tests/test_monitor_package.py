@@ -218,6 +218,8 @@ def test_monitor_report_renderer_includes_status_in_event_title() -> None:
           registerCommand() {},
           on() {},
           sendMessage() {},
+          getActiveTools() { return ["monitor_start"]; },
+          setActiveTools() {},
         };
         extension(pi);
         const renderer = renderers.get("monitor-result");
@@ -328,6 +330,68 @@ def test_monitor_status_uses_the_native_footer_and_console_owns_input() -> None:
     assert "C1" not in extension
 
 
+def test_monitor_stop_is_progressively_disclosed_for_running_monitors() -> None:
+    run_typescript(
+        r'''
+        import * as extensionModule from "./packages/monitor/index.ts";
+
+        const tools = new Map();
+        const handlers = new Map();
+        let activeTools = ["monitor_start", "monitor_stop", "unrelated_tool"];
+        const pi = {
+          registerTool(tool) { tools.set(tool.name, tool); },
+          registerMessageRenderer() {},
+          registerCommand() {},
+          on(name, handler) {
+            const entries = handlers.get(name) ?? [];
+            entries.push(handler);
+            handlers.set(name, entries);
+          },
+          sendMessage() {},
+          getActiveTools() { return activeTools; },
+          setActiveTools(nextTools) { activeTools = nextTools; },
+        };
+        extensionModule.default(pi);
+        const start = tools.get("monitor_start");
+        const stop = tools.get("monitor_stop");
+        if (!start || !stop) throw new Error("monitor tools were not registered");
+        for (const handler of handlers.get("session_start") ?? []) {
+          await handler({}, { mode: "print", ui: {} });
+        }
+        if (!activeTools.includes("monitor_start") || activeTools.includes("monitor_stop") || !activeTools.includes("unrelated_tool")) {
+          throw new Error("initial active tools incorrect: " + JSON.stringify(activeTools));
+        }
+
+        const first = await start.execute("start-1", {
+          command: "sleep 5",
+          description: "manual stop disclosure",
+          result_pattern: "NEVER_MATCHES",
+        }, undefined, undefined, { cwd: process.cwd() });
+        if (!activeTools.includes("monitor_start") || !activeTools.includes("monitor_stop")) {
+          throw new Error("monitor_stop was not activated: " + JSON.stringify(activeTools));
+        }
+        await stop.execute("stop-1", { monitor_id: first.details.monitorId });
+        if (!activeTools.includes("monitor_start") || activeTools.includes("monitor_stop")) {
+          throw new Error("monitor_stop was not removed after manual stop: " + JSON.stringify(activeTools));
+        }
+
+        await start.execute("start-2", {
+          command: "printf 'DONE\\n'",
+          description: "terminal disclosure",
+          result_pattern: "DONE",
+        }, undefined, undefined, { cwd: process.cwd() });
+        if (!activeTools.includes("monitor_stop")) throw new Error("monitor_stop was not activated for terminal monitor");
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        if (!activeTools.includes("monitor_start") || activeTools.includes("monitor_stop")) {
+          throw new Error("monitor_stop was not removed after terminal result: " + JSON.stringify(activeTools));
+        }
+
+        for (const handler of handlers.get("session_shutdown") ?? []) await handler();
+        if (activeTools.includes("monitor_stop")) throw new Error("monitor_stop remained active after session shutdown");
+        ''',
+    )
+
+
 def test_monitor_stop_reports_unknown_ids_precisely() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     stop_tool = extension.split('name: "monitor_stop"', 1)[1].split('name: "monitor"', 1)[0]
@@ -364,6 +428,8 @@ def test_registered_monitor_tool_terminates_and_wakes_once() -> None:
             handlers.set(name, current);
           },
           sendMessage(message, options) { messages.push({ message, options }); },
+          getActiveTools() { return ["monitor_start"]; },
+          setActiveTools() {},
         };
         extension(pi);
         const start = tools.get("monitor_start");
@@ -423,6 +489,8 @@ def test_noninteractive_monitor_returns_terminal_result_without_custom_message()
           registerCommand() {},
           on() {},
           sendMessage(message, options) { messages.push({ message, options }); },
+          getActiveTools() { return ["monitor_start"]; },
+          setActiveTools() {},
         });
         const start = tools.get("monitor_start");
         const result = await start.execute(
@@ -1069,6 +1137,8 @@ def test_monitor_extension_registers_tool_call_guard() -> None:
             handlers.set(name, current);
           },
           sendMessage() {},
+          getActiveTools() { return ["monitor_start"]; },
+          setActiveTools() {},
         };
 
         extensionModule.default(pi);

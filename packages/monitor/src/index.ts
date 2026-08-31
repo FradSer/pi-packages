@@ -22,14 +22,32 @@ Run quick, low-output information commands directly when they return promptly wi
 export default function (pi: ExtensionAPI) {
   let requestRender: (() => void) | undefined;
   let footerStatus: ((text: string | undefined) => void) | undefined;
+  let monitorStopRegistered = false;
 
   const manager = new MonitorManager({
     onTerminal(monitor, result) {
       requestRender?.();
       updateFooterStatus();
+      syncMonitorStopToolDisclosure();
       if (monitor.notifyTerminal) deliverTerminal(monitor, result);
     },
   });
+
+  function syncMonitorStopToolDisclosure(): void {
+    if (!monitorStopRegistered) return;
+    const activeTools = pi.getActiveTools();
+    const hasRunningMonitors = manager.list().length > 0;
+    const nextTools = hasRunningMonitors
+      ? [...new Set([...activeTools, "monitor_stop"])]
+      : activeTools.filter((tool) => tool !== "monitor_stop");
+    pi.setActiveTools(nextTools);
+  }
+
+  function stopMonitors(id?: string): { stopped: string[] } {
+    const result = manager.stop(id);
+    syncMonitorStopToolDisclosure();
+    return result;
+  }
 
   function deliverTerminal(monitor: Monitor, result: MonitorTerminalResult): void {
     try {
@@ -134,12 +152,12 @@ export default function (pi: ExtensionAPI) {
           }
           if (data === "x" || data === "X") {
             const monitor = monitors[selected];
-            if (monitor?.status === "running") manager.stop(monitor.id);
+            if (monitor?.status === "running") stopMonitors(monitor.id);
             tui.requestRender();
             return;
           }
           if (data === "a" || data === "A") {
-            manager.stop();
+            stopMonitors();
             tui.requestRender();
           }
         },
@@ -178,12 +196,17 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", async (_event, ctx) => {
     setupMonitorFooter(ctx);
+    syncMonitorStopToolDisclosure();
     requestRender?.();
   });
 
   pi.on("session_shutdown", async () => {
     footerStatus = undefined;
-    await manager.stopAllOnShutdown();
+    try {
+      await manager.stopAllOnShutdown();
+    } finally {
+      syncMonitorStopToolDisclosure();
+    }
   });
 
   pi.on("before_agent_start", async (event) => {
@@ -239,6 +262,7 @@ export default function (pi: ExtensionAPI) {
       });
       requestRender?.();
       updateFooterStatus();
+      syncMonitorStopToolDisclosure();
       if (waitInToolCall) {
         try {
           const terminal = await manager.waitForTerminal(monitor.id, signal);
@@ -251,7 +275,7 @@ export default function (pi: ExtensionAPI) {
             },
           };
         } catch (error) {
-          manager.stop(monitor.id);
+          stopMonitors(monitor.id);
           throw error;
         }
       }
@@ -271,7 +295,7 @@ export default function (pi: ExtensionAPI) {
     parameters: MonitorStopParams,
 
     async execute(_toolCallId, params) {
-      const result = manager.stop(params.monitor_id);
+      const result = stopMonitors(params.monitor_id);
       requestRender?.();
       updateFooterStatus();
       if (result.stopped.length === 0) {
@@ -285,6 +309,8 @@ export default function (pi: ExtensionAPI) {
       };
     },
   });
+
+  monitorStopRegistered = true;
 
   pi.registerCommand("monitor", {
     description: "Inspect active and recent result monitors and their bounded output",

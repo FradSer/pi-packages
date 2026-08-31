@@ -159,6 +159,18 @@ Feature: Result-contract background monitoring
     Then the terminal diagnostic tail contains each repeated line once
     And the repetition count is included without marking the output truncated
 
+  Scenario: Monitor stop tool is progressively disclosed while monitors run
+    Given monitor_start and monitor_stop tools are registered
+    When the extension initializes with no running monitors
+    Then monitor_start is active
+    And monitor_stop is inactive
+    When one or more monitors start
+    Then monitor_stop becomes active without removing monitor_start
+    When the final monitor stops or reaches any terminal result
+    Then monitor_stop is inactive
+    And monitor_start remains active
+    And session shutdown leaves monitor_stop inactive
+
   Scenario: Stopping a monitor manually
     Given a monitor is running
     And monitor_start has returned its monitor id to the agent
