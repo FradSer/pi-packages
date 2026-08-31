@@ -29,8 +29,9 @@ Feature: /init repository guidelines command
     When the user runs /init focus on package release commands
     Then the additional focus is included in the instruction sent to the agent
 
-  Scenario: /init preserves meaningful prompt structure
+  Scenario: /init leaves line wrapping to the Pi TUI
     When the user runs /init
     Then the instruction sent to the agent keeps paragraph and bullet line breaks
     And the instruction does not contain source-code indentation or blank-line noise
+    And the instruction does not insert manual blank lines to impose a text width
     And the TUI wraps each line to fit the screen

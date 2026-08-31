@@ -59,7 +59,7 @@ console.log(JSON.stringify({{
         self.assertIn("do not add parent-file references", prompt)
         self.assertIn("@fradser/pi-kit", prompt)
 
-    def test_prompt_preserves_paragraphs_and_bullets_without_source_noise(self) -> None:
+    def test_prompt_preserves_authored_paragraphs_and_bullets_without_manual_width_wraps(self) -> None:
         script = f'''
 import {{ buildInitPrompt }} from {json.dumps(INIT_EXTENSION.as_uri())};
 console.log(JSON.stringify(buildInitPrompt("/tmp/example-repo")));
@@ -77,9 +77,12 @@ console.log(JSON.stringify(buildInitPrompt("/tmp/example-repo")));
         prompt = json.loads(result.stdout)
         self.assertIn("\n\n", prompt)
         self.assertIn("- Find all existing AGENTS.md", prompt)
-        self.assertNotIn("\n ", prompt)
         self.assertNotIn("\n\n\n", prompt)
         self.assertNotIn("\r", prompt)
+        self.assertIn(
+            "Treat the current working directory as the active scope for ./AGENTS.md, and inspect all existing instruction files across the repository before editing anything.",
+            prompt,
+        )
 
         multiline_script = f'''
 import {{ buildInitPrompt }} from {json.dumps(INIT_EXTENSION.as_uri())};
