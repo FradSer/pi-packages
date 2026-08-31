@@ -181,12 +181,13 @@ Interactive extension UI mirrors `packages/btw/src/overlay.ts`:
 
 ## Commits & Pull Requests
 
-Use the Conventional Commit style established in history, including
-`feat(packages):`, `fix(packages):`, `docs(packages):`, `refactor:`, and
-`chore(release):`. Keep commits focused. Add a Changeset for every published
-package change; keep `scripts/publish-release.mjs` and package metadata aligned
-when release scope changes. Pull requests should identify affected packages,
-behavior, verification commands, release impact, and any README changes.
+Use the Conventional Commit style established in history: package-scoped
+forms such as `fix(mon):`, `refactor(teams):`, and `feat(utils):`, plus
+`feat(packages):`, `docs(packages):`, and `chore(release):`. Keep commits
+focused. Add a Changeset for every published package change; keep
+`scripts/publish-release.mjs` and package metadata aligned when release scope
+changes. There is no committed PR template; describe affected packages,
+behavior, verification commands, release impact, and README changes in the PR.
 Update both root READMEs when the public package list or install commands change.
 
 ## Constraints
