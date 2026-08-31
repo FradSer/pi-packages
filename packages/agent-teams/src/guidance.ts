@@ -54,6 +54,19 @@ Do not use leader tools (spawning or shutting down teammates, creating
 tasks); they are not available to you.
 `;
 
+export const TEAMMATE_SPAWN_GUIDANCE = `
+## Spawning Agent Teams teammates
+
+Agent Teams has no built-in roles: do not assume roles such as \`general\` or
+\`reviewer\` exist. For a role already listed in the available agents, use its
+role id as \`agent\`. When no suitable role exists, create and spawn one in a
+single \`teammate_spawn\` call: provide \`name\`, the required \`agent\` role
+id, and \`definition\`. The inline definition is registered in memory under
+\`agent\` for this session; normally use the same kebab-case value for \`name\`
+and \`agent\`. Do not persist a definition unless the user explicitly asks to
+keep it for future sessions.
+`;
+
 export function buildTeamLeaderGuidance(cwd?: string): string {
   const agents = formatAgentGuidance(cwd);
   return `
@@ -90,13 +103,15 @@ gone, its definition file changed mid-session — recreate it on demand instead
 of retrying.
 
 When an assignment or user request needs an agent whose name has no
-definition yet, create it in memory first: derive it from the shipped abstract
-role reference at \`${AGENT_REFERENCE_PATH}\` — its definition anatomy,
-archetype axes, and invariants (read it before inventing a novel role) — tailor
-it to the task, register the session role, and spawn immediately. Only after an
-explicit request to keep the role for future sessions should you set
-\`definition.persist=true\` (optionally choosing \`persistScope\`) so the spawn
-writes \`<cwd>/.pi/agents/<name>.md\` or \`<name>.local.md\`.
+definition yet, derive an inline definition from the shipped abstract role
+reference at \`${AGENT_REFERENCE_PATH}\` — its definition anatomy, archetype
+axes, and invariants (read it before inventing a novel role) — and pass it with
+\`name\` and the required \`agent\` role id in the same \`teammate_spawn\` call.
+The definition is registered in memory under \`agent\`; normally use the same
+kebab-case value for \`name\` and \`agent\`. Only after an explicit request to
+keep the role for future sessions should you set \`definition.persist=true\`
+(optionally choosing \`persistScope\`) so the spawn writes
+\`<cwd>/.pi/agents/<name>.md\` or \`<name>.local.md\`.
 
 ### Build a team in one step per teammate
 

@@ -7,7 +7,7 @@
 
 import { getMarkdownTheme, keyHint } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { buildTeamLeaderGuidance, WORKER_GUIDANCE } from "./guidance.ts";
+import { buildTeamLeaderGuidance, TEAMMATE_SPAWN_GUIDANCE, WORKER_GUIDANCE } from "./guidance.ts";
 import { clearSessionAgents } from "./agents.ts";
 import { formatSilenceDuration, initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, teardownTeammates } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
@@ -192,9 +192,9 @@ export default function (pi: ExtensionAPI) {
     followUpQueue?.onBeforeAgentStart(event.prompt);
     const teamIsActive = hasActiveTeamState();
     return {
-      systemPrompt: teamIsActive
-        ? event.systemPrompt + buildTeamLeaderGuidance(ctx?.cwd ?? process.cwd())
-        : event.systemPrompt,
+      systemPrompt: event.systemPrompt + (teamIsActive
+        ? buildTeamLeaderGuidance(ctx?.cwd ?? process.cwd())
+        : TEAMMATE_SPAWN_GUIDANCE),
     };
   });
 

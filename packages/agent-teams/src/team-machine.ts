@@ -519,7 +519,7 @@ export function unknownAgentError(name: string, cwd: string): string {
     `Agent "${name}" not found in any scope.`,
     `Checked: ${cwd}/.pi/agents/<name>.local.md, ${cwd}/.pi/agents/<name>.md, ${path.join(getAgentDir(), "agents")}, and in-memory session roles.`,
     'The available-agents list in your guidance may be stale: definition files can change mid-session (for example removed by a parallel session).',
-    'Recover by spawning with an inline definition derived from references/agent-roles.md, choose an existing role, or create the role first.',
+    'Recover by retrying teammate_spawn with name and an existing agent role id, or with name, a new agent role id, and an inline definition derived from references/agent-roles.md that includes description and prompt.',
     `Available now: ${available.length > 0 ? available.join(", ") : "(none)"}.`,
   ].join(' ');
 }

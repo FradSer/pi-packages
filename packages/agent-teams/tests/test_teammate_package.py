@@ -1130,7 +1130,8 @@ def test_leader_guidance_is_disclosed_only_for_active_team_state() -> None:
     assert payload == {"inactive": False, "rosterActive": True, "boardActive": True}
     index_ts = source("index.ts")
     assert "teamIsActive" in index_ts
-    assert "? event.systemPrompt + buildTeamLeaderGuidance" in index_ts
+    assert "TEAMMATE_SPAWN_GUIDANCE" in index_ts
+    assert "? buildTeamLeaderGuidance" in index_ts
 
 
 def test_guidance_is_static_and_team_shaped() -> None:
@@ -1139,6 +1140,7 @@ def test_guidance_is_static_and_team_shaped() -> None:
     assert "Prompt guidance reflects the team model" in feature
     assert "DO NOT poll or sleep" in guidance
     assert "teammate_spawn(name, agent, optional kickoff prompt)" in guidance
+    assert r"required \`agent\` role" in guidance
     assert "task_create(subject, description?, dependsOn?," in guidance
     assert "Peer traffic never reaches your" in guidance
     assert "resident teammate" in source("guidance.ts")
@@ -1160,6 +1162,35 @@ def test_guidance_is_static_and_team_shaped() -> None:
     )
     assert payload["identical"] is True
     assert payload["noLiveState"] is True
+
+
+def test_first_turn_guidance_explains_how_to_create_a_role_on_demand() -> None:
+    payload = run_node(
+        f'''\
+        import {{ TEAMMATE_SPAWN_GUIDANCE }} from "{(SRC / "guidance.ts").as_uri()}";
+        console.log(JSON.stringify({{
+          hasNoBuiltins: TEAMMATE_SPAWN_GUIDANCE.includes("no built-in roles"),
+          requiresName: TEAMMATE_SPAWN_GUIDANCE.includes("`name`"),
+          requiresAgent: TEAMMATE_SPAWN_GUIDANCE.includes("required `agent` role"),
+          requiresDefinition: TEAMMATE_SPAWN_GUIDANCE.includes("`definition`"),
+          explainsRegistration: TEAMMATE_SPAWN_GUIDANCE.includes("registered in memory under"),
+        }}));
+        '''
+    )
+    assert payload == {
+        "hasNoBuiltins": True,
+        "requiresName": True,
+        "requiresAgent": True,
+        "requiresDefinition": True,
+        "explainsRegistration": True,
+    }
+
+
+def test_unknown_agent_error_gives_the_complete_inline_spawn_recovery() -> None:
+    team_machine = source("team-machine.ts")
+    assert "name and an existing agent role id" in team_machine
+    assert "name, a new agent role id, and an inline definition" in team_machine
+    assert "includes description and prompt" in team_machine
 
 
 def test_follow_up_reports_use_wrapped_marker_format() -> None:
