@@ -16,6 +16,20 @@ Use ESM TypeScript with explicit public types and small pure helpers. Keep pi-ki
 
 Update `features/pi-kit.feature` before behavior changes, then update `tests/` and run focused and typecheck commands. This is an internal workspace runtime, not a Pi extension package: keep the manifest free of `pi`, `pi-package`, dependencies, and peer dependencies, while retaining its `exports`, `files`, and root entry point. Consumers declare `@fradser/pi-kit` under `dependencies` with `workspace:*`; keep the release allowlist publishing pi-kit before its consumers.
 
+## Shared Tool Lifecycle & UI Primitives
+
+`@fradser/pi-kit` provides the canonical transcript lifecycle rendering primitives used by all tool-registering packages (`agent-teams`, `context`, `matt-pocock`, `monitor`, `utils`):
+
+- **Renderer Factories**: `createToolLifecycleResultRenderer` (for `tool.renderResult`) and `createToolLifecycleMessageRenderer` (for `registerMessageRenderer`). They enforce the unified collapsed header line (`[tool] label · subject`), auto-truncate lines to terminal width (`fit: truncateToWidth`), and provide the standard expansion affordance (`ctrl+o to expand`).
+- **Lifecycle Specs**: `startedToolLifecycle(tool, subject, options)` and `eventToolLifecycle(tool, subject, options)` build structured `ToolLifecycleSpec` objects with optional `summary`, `details`, and `detailLimit` (capped at 50 lines by default; use `"all"` only for explicit full readbacks).
+- **Formatting & Safety**:
+  - `formatToolLifecycleTitle(spec)` formats the standard single-line colored title.
+  - `formatToolErrorLine(err)` formats one-line error diagnostics safely.
+  - `safeDisplayText(val)` sanitizes untrusted input, removing ANSI/terminal control characters.
+  - `detailField<T>(details, key)` type-safely extracts fields from untrusted `details` objects.
+
+All workspace packages registering tools MUST use these shared primitives rather than rolling ad-hoc rendering logic.
+
 ## Pi native interaction dialogs
 
 Pi provides native selection/interaction dialogs at the extension-API layer via `ctx.ui`. Source of truth: pi's bundled `docs/extensions.md`, "Dialogs" section.

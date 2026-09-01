@@ -16,19 +16,13 @@ npx tsc --noEmit -p tsconfig.extensions.json
 pnpm --dir packages/matt-pocock pack --dry-run
 ```
 
-## Harness boundaries
+## Harness & Tool Design
 
-- The only public surface is `/matt-pocock`; do not add one command per
-  procedure or a `/skill:matt-pocock` surface.
-- Persist workflow choices through `pi.appendEntry`; restore only the latest
-  state on the active session branch.
-- A state entry records a selected route or explicit end. It does not prove a
-  procedure completed. Users move phases manually.
-- Inject a selected procedure as a follow-up user message. Add only compact
-  route and phase context in `before_agent_start`.
-- Keep automatic completion inference, session creation, teammate creation,
-  tool-level BDD/TDD write blocking, per-procedure commands, and a second
-  skill surface deferred in `TODO.md`.
+- **Harness Boundaries**: Expose `/matt-pocock` as the command surface; do not add per-procedure commands or skills. Persist choices via `pi.appendEntry` and inject procedure Markdown as a follow-up user message. State entries record route/phase selection, not procedure completion; phase transitions are manual.
+- **Workflow Tools**:
+  - `matt_pocock_workflow`: Uses TypeBox unions across the 5 stable routes (`idea-to-ship`, `hard-bug`, `triage`, `wayfinding`, `architecture`). If an invalid procedure is passed, falls back to the route default with a diagnostic note.
+  - `matt_pocock_ask`: Progressive interview tool enabled via `pi.setActiveTools()` only while a workflow is active. Presents 2–4 choices via `ctx.ui.select` (with custom typing option); falls back to the recommended choice on timeout (default 60s) or in headless mode (`!ctx.hasUI`).
+  - Both tools delegate transcript rendering to `@fradser/pi-kit` lifecycle renderers (`[matt pocock] workflow/ask`).
 
 ## Sync and release
 
