@@ -549,11 +549,37 @@ function normalizeTimeout(timeoutMs: number | undefined): number {
 
 function compilePattern(name: string, pattern: string): RegExp {
   if (!pattern.trim()) throw new Error(`${name} must be a non-empty regular expression.`);
+  if (containsPcreCaseInsensitiveFlag(pattern)) {
+    throw new Error(
+      `invalid ${name}: JavaScript RegExp does not support bare (?i) case-insensitive flags. ` +
+        "Use (?i:error|failed) to scope case-insensitivity to that group, or explicit case alternatives such as [eE][rR][rR][oO][rR].",
+    );
+  }
   try {
     return new RegExp(pattern);
   } catch (error) {
     throw new Error(`invalid ${name}: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+function containsPcreCaseInsensitiveFlag(pattern: string): boolean {
+  let inCharacterClass = false;
+  for (let index = 0; index < pattern.length; index += 1) {
+    if (pattern[index] === "\\") {
+      index += 1;
+      continue;
+    }
+    if (pattern[index] === "[") {
+      inCharacterClass = true;
+      continue;
+    }
+    if (pattern[index] === "]") {
+      inCharacterClass = false;
+      continue;
+    }
+    if (!inCharacterClass && pattern.startsWith("(?i)", index)) return true;
+  }
+  return false;
 }
 
 function buildMatchedResult(

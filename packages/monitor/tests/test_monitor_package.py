@@ -190,7 +190,6 @@ def test_monitor_tui_surfaces_use_pi_kit_renderers() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     for helper in (
         "createToolLifecycleMessageRenderer",
-        "createStaticToolLifecycleResultRenderer",
         "createToolLifecycleResultRenderer",
         "renderPiPanel",
         "notifyPi",
@@ -206,8 +205,8 @@ def test_monitor_report_renderer_uses_compact_event_style_and_configured_hint() 
     assert 'extractTerminalDescription(' in extension
     assert 'extractTerminalStatus(' in extension
     assert 'label: "event"' in extension
-    assert 'createStaticToolLifecycleResultRenderer(' in extension
-    assert 'startedToolLifecycle("monitor", subject, { label: "started" })' in extension
+    assert 'formatToolLifecycleTitle({' in extension
+    assert 'kind: "started"' in extension
     assert 'theme,' in extension and 'fit: truncateToWidth' in extension
     assert "formatExpandHint(keyHint(\"app.tools.expand\", \"to expand\"), theme)" not in extension
     assert '(keyHint("app.tools.expand", "to expand"))' not in extension
@@ -305,17 +304,53 @@ def test_monitor_docs_use_configured_expansion_key() -> None:
 def test_monitor_start_uses_compact_event_style() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     start_tool = extension.split('name: "monitor_start"', 1)[1].split('name: "monitor_stop"', 1)[0]
-    assert 'createStaticToolLifecycleResultRenderer(' in start_tool
-    assert 'startedToolLifecycle(' in start_tool
-    assert 'const subject = safeDisplayText(context.args.description)' in start_tool
+    assert 'formatToolLifecycleTitle({' in start_tool
+    assert 'kind: "started"' in start_tool
+    assert 'subject: safeDisplayText(context.args.description)' in start_tool
     assert '[monitor] event · ${safeDisplayText(monitor.description)}' not in start_tool
     assert 'content: [{ type: "text", text: formatStartMessage(monitor) }]' in start_tool
     assert 'monitorId: monitor.id' in start_tool
     assert 'renderCall: () => new Container()' in start_tool
-    assert 'renderResult(result, options, theme, context)' in start_tool
+    assert 'renderResult(result, _options, theme, context)' in start_tool
+    assert 'return new Text(theme.fg("customMessageLabel", theme.bold(title)), 0, 0);' in start_tool
+    assert 'createStaticToolLifecycleResultRenderer' not in start_tool
     assert 'renderShell: "self"' in start_tool
     assert "formatStartMessage(monitor)" in start_tool
     assert "Success contract:" not in start_tool
+
+
+def test_monitor_start_renderer_is_one_native_text_line() -> None:
+    run_typescript(
+        r'''
+        import * as extensionModule from "./packages/monitor/index.ts";
+
+        const tools = new Map();
+        extensionModule.default({
+          registerTool(tool) { tools.set(tool.name, tool); },
+          registerMessageRenderer() {},
+          registerCommand() {},
+          on() {},
+          sendMessage() {},
+          getActiveTools() { return ["monitor_start"]; },
+          setActiveTools() {},
+        });
+        const start = tools.get("monitor_start");
+        const theme = {
+          fg: (_color, text) => text,
+          bg: (_color, text) => text,
+          bold: (text) => text,
+        };
+        const row = start.renderResult(
+          { content: [{ type: "text", text: "model-only acknowledgement" }] },
+          { expanded: false },
+          theme,
+          { args: { description: "Google availability" }, isError: false },
+        ).render(120);
+        if (row.length !== 1 || row[0].trim() !== "[monitor] started · Google availability") {
+          throw new Error(JSON.stringify(row));
+        }
+        ''',
+    )
 
 
 def test_monitor_footer_status_uses_pi_kit_transient_status_adapter() -> None:
@@ -345,7 +380,7 @@ def test_monitor_status_uses_the_native_footer_and_console_owns_input() -> None:
     assert "updateFooterStatus" in extension
     assert "requestRender = () => tui.requestRender()" in extension
     assert "isKeyRelease(data)" in extension
-    assert 'startedToolLifecycle } from "@fradser/pi-kit"' in extension
+    assert 'formatToolLifecycleTitle' in extension
     # The sanitizer implementation lives in pi-kit; the local copy is gone.
     assert '\u0080-\u009f' not in extension
     assert "C1" not in extension
@@ -534,6 +569,68 @@ def test_noninteractive_monitor_returns_terminal_result_without_custom_message()
           throw new Error(JSON.stringify(result));
         }
         if (messages.length !== 0) throw new Error(JSON.stringify(messages));
+        ''',
+    )
+
+
+def test_bare_pcre_case_insensitive_flag_has_actionable_javascript_diagnostic() -> None:
+    run_typescript(
+        r'''
+        import { MonitorManager } from "./packages/monitor/src/monitor.ts";
+
+        const manager = new MonitorManager({ onTerminal: () => {} });
+        for (const [name, args] of [
+          ["result", { resultPattern: "(?i)(error|failed)" }],
+          ["failure", { resultPattern: "SUCCESS", failurePattern: "(?i)(error|failed)" }],
+        ]) {
+          let message = "";
+          try {
+            manager.start({
+              command: "printf ignored",
+              description: `${name} inline case flag`,
+              ...args,
+            });
+          } catch (error) {
+            message = String(error);
+          }
+          if (!message.includes("JavaScript RegExp does not support bare (?i)")) {
+            throw new Error(`missing JavaScript compatibility guidance: ${message}`);
+          }
+          if (!message.includes("[eE][rR][rR][oO][rR]")) {
+            throw new Error(`missing explicit case-alternative example: ${message}`);
+          }
+          if (!message.includes("(?i:error|failed)")) {
+            throw new Error(`missing scoped case-insensitive equivalent: ${message}`);
+          }
+        }
+        ''',
+    )
+
+
+def test_literal_inline_flag_text_preserves_native_javascript_regexp_behavior() -> None:
+    run_typescript(
+        r'''
+        import { MonitorManager } from "./packages/monitor/src/monitor.ts";
+
+        for (const [pattern, output] of [
+          ["[(?i)]", "?"],
+          ["[a(?i)z]", "a"],
+          [String.raw`\(\?i\)`, "(?i)"],
+        ]) {
+          const terminals = [];
+          const manager = new MonitorManager({
+            onTerminal: (_monitor, result) => terminals.push(result),
+          });
+          manager.start({
+            command: `printf '%s\\n' ${JSON.stringify(output)}`,
+            description: "literal inline-flag text",
+            resultPattern: pattern,
+          });
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          if (terminals.length !== 1 || terminals[0].status !== "success") {
+            throw new Error(`native RegExp behavior changed for ${pattern}: ${JSON.stringify(terminals)}`);
+          }
+        }
         ''',
     )
 

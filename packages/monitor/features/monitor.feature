@@ -14,6 +14,19 @@ Feature: Result-contract background monitoring
     And the agent remains idle until the terminal result arrives
     And ordinary stdout and stderr do not wake the agent
 
+  Scenario: Bare PCRE case-insensitive flags receive an actionable validation error
+    Given monitor_start receives a result or failure pattern beginning with bare `(?i)`
+    When JavaScript validates the regular expression
+    Then monitor_start rejects the pattern without changing its matching behavior
+    And the error explains that JavaScript RegExp does not support bare `(?i)` flags
+    And the error recommends scoped `(?i:...)` syntax for the case-insensitive group or explicit case alternatives
+
+  Scenario: Literal inline-flag text remains valid regular expression syntax
+    Given a result pattern contains `(?i)` inside a character class or as escaped literal text
+    When monitor_start validates the regular expression
+    Then the pattern retains its native JavaScript RegExp behavior
+    And monitor_start does not apply the bare PCRE flag diagnostic
+
   Scenario: Starting a monitor gives the agent a usable acknowledgement without adding TUI noise
     Given monitor_start accepts a monitor description
     When an interactive monitor is started
@@ -71,8 +84,8 @@ Feature: Result-contract background monitoring
     Given monitor_start accepts a monitor description
     When a monitor is started
     Then the tool call renderer is empty
-    And the tool result renderer contains `[monitor] started · <description>`
-    And the startup row is not expandable
+    And the tool result renderer uses Pi's native Text component for `[monitor] started · <description>`
+    And the startup row is one text line without a lifecycle background band or expansion hint
     And the tool result does not render a duplicate monitor start
     And the tool result does not contain an internal monitor id
     And the tool result still terminates the current agent turn
