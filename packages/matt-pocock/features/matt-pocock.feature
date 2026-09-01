@@ -21,6 +21,18 @@ Feature: Matt Pocock workflow harness
     And it does not add a duplicate visible workflow lifecycle event
     And it does not add an input-footer status
 
+  Scenario: A prompt routes to and begins the relevant workflow
+    Given no Matt Pocock workflow is active
+    When the user invokes /matt-pocock with an arbitrary engineering prompt
+    Then the harness forwards the prompt for autonomous workflow routing and execution
+    And it does not reject the prompt as an unknown route
+
+  Scenario: A prompt ends active workflow before rerouting
+    Given a Matt Pocock workflow is active
+    When the user invokes /matt-pocock with a new arbitrary engineering prompt
+    Then the harness records that the current workflow ended
+    And it forwards the prompt for autonomous workflow routing and execution
+
   Scenario: A user manually transitions between phases
     Given an idea-to-ship workflow is active at the shaping phase
     When the user selects a later phase from the harness transition menu
@@ -82,6 +94,13 @@ Feature: Matt Pocock workflow harness
     Then it records an explicit workflow exit for other extensions
     And it warns with the valid procedures for that route
 
+  Scenario: Workflows progress without redundant confirmation
+    Given an active Matt Pocock workflow has enough confirmed context to perform its next step
+    When the current procedure completes its summary or decision
+    Then it does not ask the user whether to continue
+    And it begins the next applicable workflow work without waiting for further confirmation
+    And it asks only for a genuinely user-owned decision, unavailable fact, or required external action
+
   Scenario: Structured interview questions are available only during an active workflow
     Given the structured interview tool is initially active
     When the session starts without a Matt Pocock workflow
@@ -105,6 +124,30 @@ Feature: Matt Pocock workflow harness
     Then its manifest declares only the package-root extension
     And the package contains no SKILL.md file
     And its procedures remain plain Markdown resources
+
+  Scenario: Workflow tool rows use a consistent Matt Pocock prefix
+    Given a Matt Pocock workflow or structured interview tool result
+    When Pi renders its collapsed lifecycle row
+    Then the row label is [matt pocock] workflow · or [matt pocock] ask ·
+    And the operation appears as the label outside the bracketed prefix
+
+  Scenario: Workflow state stays compact and does not expand model procedure text
+    Given a Matt Pocock workflow tool result contains a loaded procedure for the model
+    When Pi renders the user-facing workflow row
+    Then it shows the route and phase as a non-expandable lifecycle row
+    And it does not render the procedure text as user-facing details
+
+  Scenario: A structured answer keeps question and answer visible in the collapsed row
+    Given a Matt Pocock structured interview result contains a question and answer
+    When Pi renders the collapsed ask row
+    Then its first row shows the question
+    And its second row shows the answer
+    And the row remains expandable for non-duplicated metadata
+
+  Scenario: Workflow status clears use the shared Pi-kit transient-status adapter
+    Given the workflow lifecycle clears its status entry
+    When a session starts, restores, ends, or transitions a workflow
+    Then it clears the matt-pocock status through pi-kit's status adapter
 
   Scenario: Workflow notifications use the shared Pi-kit notification adapter
     Given the workflow command needs to notify the user of a status or validation outcome

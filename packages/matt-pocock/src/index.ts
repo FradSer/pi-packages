@@ -6,7 +6,9 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
-  createToolLifecycleMessageRenderer,
+  createStaticToolLifecycleMessageRenderer,
+  clearPiStatus,
+  createStaticToolLifecycleResultRenderer,
   createToolLifecycleResultRenderer,
   eventToolLifecycle,
   formatToolErrorLine,
@@ -81,7 +83,7 @@ function endWorkflow(ctx: ExtensionContext): void {
   activeWorkflow = undefined;
   pi.appendEntry(WORKFLOW_STATE_ENTRY, { active: false });
   setInterviewToolActive(false);
-  ctx.ui.setStatus("matt-pocock", undefined);
+  clearPiStatus(ctx.ui, "matt-pocock");
 }
 
 function persistWorkflow(state: WorkflowState): void {
@@ -111,7 +113,7 @@ function activateWorkflow(state: WorkflowState, ctx: ExtensionContext): void {
   const content = loadWorkflowProcedure(state);
   persistWorkflow(state);
   setInterviewToolActive(true);
-  ctx.ui.setStatus("matt-pocock", undefined);
+  clearPiStatus(ctx.ui, "matt-pocock");
   injectProcedure(content);
 }
 
@@ -188,6 +190,12 @@ function parseRoute(args: string): WorkflowState | undefined {
   return route && { route: route.route, procedure: route.procedure, phase: route.phase };
 }
 
+function workflowRoutingPrompt(prompt: string, endedWorkflow: boolean): string {
+  return `Route and execute this engineering request through the relevant Matt Pocock workflow: ${prompt}
+
+${endedWorkflow ? "End any active Matt Pocock workflow first; that workflow has now been ended. " : ""}Determine whether the request needs a structured workflow. If it does, call matt_pocock_workflow with the matching route and procedure, then begin that procedure immediately. If it does not, explain briefly that no Matt Pocock workflow applies and handle the request normally. Do not ask whether to continue once the next action is clear.`;
+}
+
 let pi: ExtensionAPI;
 
 export default function mattPocock(extensionApi: ExtensionAPI): void {
@@ -198,7 +206,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     if (!restoredWorkflow) {
       activeWorkflow = undefined;
       setInterviewToolActive(false);
-      ctx.ui.setStatus("matt-pocock", undefined);
+      clearPiStatus(ctx.ui, "matt-pocock");
       return;
     }
 
@@ -206,7 +214,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       const content = loadWorkflowProcedure(restoredWorkflow);
       activeWorkflow = restoredWorkflow;
       setInterviewToolActive(true);
-      ctx.ui.setStatus("matt-pocock", undefined);
+      clearPiStatus(ctx.ui, "matt-pocock");
       pi.sendMessage({
         customType: "matt-pocock-procedure",
         content,
@@ -225,8 +233,8 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       const route = details.route ?? (activeWorkflow?.route || "workflow");
       const phase = details.phase ?? (activeWorkflow?.phase || "active");
       const subject = formatReadableWorkflowSubject(route, phase);
-      return createToolLifecycleMessageRenderer({
-        createSpec: () => eventToolLifecycle("matt pocock · workflow", subject),
+      return createStaticToolLifecycleMessageRenderer({
+        createSpec: () => eventToolLifecycle("matt pocock", subject, { label: "workflow" }),
         expandHint: safeExpandHint(),
         fit: truncateToWidth,
         visibleWidth,
@@ -261,8 +269,8 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       const route = details.route ?? (context.args as { route?: string })?.route ?? "workflow";
       const phase = details.phase ?? "active";
       const subject = formatReadableWorkflowSubject(route, phase);
-      return createToolLifecycleResultRenderer({
-        createSpec: () => eventToolLifecycle("matt pocock · workflow", subject),
+      return createStaticToolLifecycleResultRenderer({
+        createSpec: () => eventToolLifecycle("matt pocock", subject, { label: "workflow" }),
         expandHint: safeExpandHint(),
         fit: truncateToWidth,
         visibleWidth,
@@ -290,7 +298,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       const content = `${correction}${loadWorkflowProcedure(state)}`;
       persistWorkflow(state);
       setInterviewToolActive(true);
-      ctx.ui.setStatus("matt-pocock", undefined);
+      clearPiStatus(ctx.ui, "matt-pocock");
 
       return {
         content: [{ type: "text", text: content }],
@@ -338,17 +346,19 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       };
       const answer = detailsObj.answer ?? text;
       const question = params.question ? safeDisplayText(params.question) : "question";
-      const subject = answer ? `${question} → ${safeDisplayText(answer)}` : question;
+      const subject = question;
+      const summary = [`Answer: ${safeDisplayText(answer || "(none)")}`];
       const effectiveDetails = [
-        `Question: ${question}`,
-        `Answer: ${safeDisplayText(answer || "(none)")}`,
-        detailsObj.timed_out ? "Status: timed out (used default/fallback)" : undefined,
+        detailsObj.timed_out ? "Status: timed out (used recommended option)" : undefined,
         detailsObj.is_custom ? "Source: custom input" : undefined,
-        params.options && params.options.length ? `Options:\n${params.options.map((opt) => `  - ${opt}`).join("\n")}` : undefined,
       ].filter((line): line is string => Boolean(line));
 
       return createToolLifecycleResultRenderer({
-        createSpec: () => eventToolLifecycle("matt pocock · ask", subject, { details: effectiveDetails }),
+        createSpec: () => eventToolLifecycle("matt pocock", subject, {
+          label: "ask",
+          summary,
+          details: effectiveDetails,
+        }),
         expandHint: safeExpandHint(),
         fit: truncateToWidth,
         visibleWidth,
@@ -476,11 +486,14 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       }
 
       const state = parseRoute(command);
-      if (!state) {
-        notifyPi(ctx.ui, "Usage: /matt-pocock [route | status | transition | end]", "error");
+      if (state) {
+        activateWorkflow(state, ctx);
         return;
       }
-      activateWorkflow(state, ctx);
+
+      const endedWorkflow = activeWorkflow !== undefined;
+      if (endedWorkflow) endWorkflow(ctx);
+      pi.sendUserMessage(workflowRoutingPrompt(command, endedWorkflow), { deliverAs: "followUp" });
     },
   });
 }

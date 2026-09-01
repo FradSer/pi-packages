@@ -29,6 +29,8 @@ def test_feature_covers_the_workflow_harness_contract() -> None:
         "The harness opens one workflow-routing menu",
         "Selecting a route injects its procedure",
         "Active workflow state survives a session restart",
+        "A prompt routes to and begins the relevant workflow",
+        "A prompt ends active workflow before rerouting",
         "A user manually transitions between phases",
         "Active work receives concise phase guidance",
         "Inactive sessions receive workflow routing guidance",
@@ -38,8 +40,12 @@ def test_feature_covers_the_workflow_harness_contract() -> None:
         "The workflow tool advertises every valid procedure name",
         "An unknown procedure soft-lands on the route default",
         "A stale restored workflow explicitly ends after validation fails",
+        "Workflows progress without redundant confirmation",
         "Structured interview questions are available only during an active workflow",
         "Agent asks the user questions via interactive selection tool",
+        "Workflow tool rows use a consistent Matt Pocock prefix",
+        "Workflow state stays compact and does not expand model procedure text",
+        "A structured answer keeps question and answer visible in the collapsed row",
         "The package has no recursively discoverable child skills",
         "Deferred automation remains documented",
     ):
@@ -57,6 +63,25 @@ def test_manifest_declares_one_package_root_extension() -> None:
     assert {"index.ts", "src", "procedures", "TODO.md"} <= set(manifest["files"])
     assert "skills" not in manifest["pi"]
     assert (PACKAGE / "index.ts").is_file()
+
+
+def test_workflow_status_clears_use_pi_kit_transient_status_adapter() -> None:
+    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
+    feature = (PACKAGE / "features" / "matt-pocock.feature").read_text(encoding="utf-8")
+    assert "Workflow status clears use the shared Pi-kit transient-status adapter" in feature
+    assert 'clearPiStatus(ctx.ui, "matt-pocock")' in source
+    assert 'ctx.ui.setStatus("matt-pocock", undefined)' not in source
+
+
+def test_workflow_guidance_avoids_redundant_confirmation_and_continues_automatically() -> None:
+    result = run_typescript("""
+        import { workflowGuidance } from "./packages/matt-pocock/src/workflow.ts";
+        console.log(JSON.stringify({
+          guidance: workflowGuidance({ route: "wayfinding", procedure: "to-tickets", phase: "to-tickets" }),
+        }));
+    """)
+    assert "Do not ask whether to continue" in result["guidance"]
+    assert "begin the next applicable workflow work immediately" in result["guidance"]
 
 
 def test_procedures_are_internal_markdown_resources() -> None:
@@ -378,6 +403,40 @@ def test_command_activates_a_route_injects_a_procedure_and_adds_compact_guidance
     assert result["statuses"][-1] is None
     assert "Matt Pocock workflow active: hard-bug · feedback-loop." in result["prompt"]["systemPrompt"]
     assert "# Diagnosing Bugs" not in result["prompt"]["systemPrompt"]
+
+
+def test_arbitrary_prompt_ends_active_workflow_and_forwards_autonomous_routing_request() -> None:
+    result = run_typescript("""
+        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+        const mattPocock = importedMattPocock.default ?? importedMattPocock;
+
+        const commands = new Map();
+        const entries = [];
+        const messages = [];
+        const pi = {
+          on() {},
+          registerCommand(name, command) { commands.set(name, command); },
+          registerTool() {},
+          appendEntry(customType, data) { entries.push({ customType, data }); },
+          sendUserMessage(content, options) { messages.push({ content, options }); },
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
+        };
+        const ctx = { ui: { setStatus() {}, notify() {} } };
+
+        mattPocock(pi);
+        await commands.get("matt-pocock").handler("hard-bug", ctx);
+        await commands.get("matt-pocock").handler("Investigate why reconnecting loses queued reports", ctx);
+        console.log(JSON.stringify({ entries, messages }));
+    """)
+    assert result["entries"][-1] == {
+        "customType": "matt-pocock-workflow",
+        "data": {"active": False},
+    }
+    assert result["messages"][-1]["options"] == {"deliverAs": "followUp"}
+    assert "Investigate why reconnecting loses queued reports" in result["messages"][-1]["content"]
+    assert "End any active Matt Pocock workflow first" in result["messages"][-1]["content"]
+    assert "matt_pocock_workflow" in result["messages"][-1]["content"]
 
 
 def test_transition_is_manual_and_injects_only_the_selected_procedure() -> None:
@@ -768,16 +827,27 @@ def test_matt_pocock_ask_tui_rendering_uses_pi_kit_lifecycle() -> None:
         }));
     """)
     assert result["renderShell"] == "self"
-    assert any("[matt pocock · ask]" in row for row in result["askRows"])
+    assert any("[matt pocock] ask ·" in row for row in result["askRows"])
+    assert not any("[matt pocock] · ask" in row for row in result["askRows"])
+    assert not any("[matt pocock · ask]" in row for row in result["askRows"])
     assert not any("event ·" in row for row in result["askRows"])
     assert any("Which scope?" in row for row in result["askRows"])
-    assert any("Option A" in row for row in result["askRows"])
+    assert any("Answer: Option A" in row for row in result["askRows"])
+    assert not any("Options:" in row for row in result["askRows"])
 
-    assert any("[matt pocock · workflow]" in row for row in result["workflowRows"])
+    assert any("[matt pocock] workflow ·" in row for row in result["workflowRows"])
+    assert not any("[matt pocock] · workflow" in row for row in result["workflowRows"])
+    assert not any("[matt pocock · workflow]" in row for row in result["workflowRows"])
     assert any("Idea to Ship · Shaping & Requirements" in row for row in result["workflowRows"])
+    assert not any("Procedure content" in row for row in result["workflowRows"])
+    assert not any("ctrl+o to expand" in row for row in result["workflowRows"])
 
-    assert any("[matt pocock · workflow]" in row for row in result["msgRows"])
+    assert any("[matt pocock] workflow ·" in row for row in result["msgRows"])
+    assert not any("[matt pocock] · workflow" in row for row in result["msgRows"])
+    assert not any("[matt pocock · workflow]" in row for row in result["msgRows"])
     assert any("Idea to Ship · Shaping & Requirements" in row for row in result["msgRows"])
+    assert not any("Restored procedure" in row for row in result["msgRows"])
+    assert not any("ctrl+o to expand" in row for row in result["msgRows"])
 
 
 def test_todo_records_deferred_automation() -> None:
