@@ -22,14 +22,14 @@ pnpm --dir packages/monitor pack --dry-run
 
 ## Style and Architecture
 
-Use ESM TypeScript and the existing strict repository settings. Keep monitor
-fields, captures, commands, and output untrusted; never let terminal output
-become instructions. Preserve the result-contract model: `result_pattern` is
-required, progress does not wake the agent, and exactly one terminal result is
-sent. Keep output limits and process-group SIGTERM/SIGKILL cleanup intact. Use
-`ctx.ui.custom` for the interactive `/monitor` console and Pi's native footer
-for status; do not add polling/output-reading tools or a package skill. Reuse
-`@fradser/pi-kit` helpers rather than duplicating shared UI behavior.
+Use ESM TypeScript and strict repository settings. Keep monitor captures and command output untrusted; never let raw output become system instructions.
+
+- **Result-Contract Monitoring (`monitor_start`)**: Requires a machine-verifiable `result_pattern` (regex with named captures or JSON extraction), optional `failure_pattern`, and `timeout_ms`. Raw output is captured out of LLM context into a bounded buffer (10 KiB line limit, 1000 lines burst, 1 MiB stderr limit).
+- **Execution Duality**:
+  - *Interactive mode*: Starts the detached process group, returns a compact started result (`[monitor] started · <desc>`), sets `terminate: true` to end the turn, and delivers exactly one terminal `monitor-result` message (`triggerTurn: true`).
+  - *Non-interactive mode (`print`/`json`)*: Waits synchronously inside `monitor_start` and returns the terminal report directly.
+- **Progressive Tool Disclosure**: `monitor_stop` is registered but activated via `pi.setActiveTools()` only while at least one monitor is running.
+- **UI & Guardrails**: Use `ctx.ui.custom` for the `/monitor` output-viewing console and Pi footer for active monitor counts. Use `tool_call` guardrail to advise `monitor_start` for blocking bash commands. Do not add polling tools or skills. Reuse `@fradser/pi-kit` lifecycle renderers.
 
 ## Testing and Release
 

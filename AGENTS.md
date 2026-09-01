@@ -89,68 +89,22 @@ data loss.
   and declare imported Pi core packages as peer dependencies. Packages that
   ship skills or other resources list them explicitly in `files`.
 - `files` must include everything that ships (`skills`/`extensions`/`procedures`/`references`/`scripts`).
-- **Progressive tool disclosure:** Register every custom tool so it can be
-  activated at runtime, but keep only capabilities useful in ordinary sessions
-  active initially. A tool whose purpose depends on an explicit workflow,
-  mode, or durable state must remain inactive until that transition succeeds;
-  enable it with `pi.setActiveTools()` at the transition, preserve unrelated
-  active tools, and remove it again on every exit, cancellation, or invalid
-  state-restoration path. Scope its description, `promptSnippet`, and
-  `promptGuidelines` to the prerequisite state. Prefer this availability
-  boundary over a tool-call guardrail: a guardrail remains defense in depth,
-  not routine routing after the model has already selected an irrelevant tool.
-  Cover initial inactive, activation, restoration, and exit behavior in BDD
-  and an executable active-tool-list test, then verify it in a live Pi run.
 - **Never** add `.claude-plugin`, `${CLAUDE_PLUGIN_ROOT}`, or Claude-only skill frontmatter (`allowed-tools`, `user-invocable`, `argument-hint`, `model`). Skill frontmatter: `name`, `description`, optional `disable-model-invocation`.
 
-## Tool Result Text and Coordination-State Semantics
+## Tool Design and State Coordination
 
-Treat tool output as a contract for both the model and the transcript, not as an
-incidental sentence. Keep the domain model abstract and preserve the distinction
-between:
+Every workspace package registering LLM tools follows unified architectural and UX invariants:
 
-- a **coordination container**, which scopes shared state for one execution
-  context;
-- a **work item**, which is one independently addressable unit inside that
-  container;
-- an **actor**, which may be assigned ownership or receive a delivery;
-- an **intent**, which requests a state transition but may still be awaiting
-  application, validation, or verification.
-
-Every state-changing operation must make its transition semantics explicit:
-creation adds a work item without implying execution; inspection returns a
-snapshot without mutating state; acquisition transfers ownership; submission
-records a proposed outcome; application or verification is the point at which
-the durable state may become final. Never report a later transition as complete
-when the operation only queued an intent or wrote a marker.
-
-Structure successful results into stable semantic groups chosen for the domain:
-context, summary, items, ownership, routing, validation, next action, and
-participants. Use short section labels consistently, mention the coordination
-context once, and keep each item line limited to identity, lifecycle state,
-subject, ownership, and blocking relationships. Put diagnostics in a separate
-warning or note group. Do not duplicate the same state in prose, summaries,
-participant lists, and detail paragraphs.
-
-The result should answer four questions in order:
-
-1. What state or transition was addressed?
-2. What actually happened synchronously?
-3. What remains pending, blocked, queued, or subject to verification?
-4. Who or what performs the next transition?
-
-Keep successful result text compact, factual, and actionable. Avoid ambiguous
-claims such as a generic "state updated" when only an intent was recorded or a
-delivery was queued. State the observed transition, the unobserved transition,
-and the next actor/action without embedding domain-specific assumptions in a
-shared guideline.
-
-For TUI tools, use the shared `@fradser/pi-kit` lifecycle abstraction: one
-compact `started` or `event` row in the transcript, with grouped details behind
-the standard expansion affordance. The collapsed row identifies only the
-operation and subject; expanded details carry the semantic groups above. Keep
-internal identifiers, raw diagnostics, and large participant lists out of the
-collapsed row unless required to distinguish the operation.
+- **Progressive Tool Disclosure:** Register tools for runtime availability, but activate only baseline tools initially. State- or workflow-dependent tools (e.g. `teammate_shutdown`, `task_claim`, `task_submit`, `monitor_stop`, `exit_worktree`, `matt_pocock_ask`, `list_directory_sessions`) remain inactive until their prerequisite transition succeeds; enable them via `pi.setActiveTools()` and remove them on exit, cancellation, or invalid state recovery. Scope `promptSnippet` and `promptGuidelines` to the active state.
+- **TUI Lifecycle Rows (`@fradser/pi-kit`):** Always configure `renderShell: "self"` and `renderCall: () => new Text("", 0, 0)` (or empty `Container`) to suppress duplicate call rows. Delegate `renderResult` to `createToolLifecycleResultRenderer` (`startedToolLifecycle` / `eventToolLifecycle`) to render exactly one compact header line in the transcript (`[tool] label · subject`), placing structured details behind the standard `ctrl+o to expand` affordance (capped at 50 lines by default).
+- **No Custom Interaction Tools:** Do not register pseudo-interaction tools (e.g. `gh_confirm`, `git_ask_name`). Plain conversation is the default for agent-user questions; user menus use `ctx.ui.select/confirm/input`; high-risk action gating uses `pi.on("tool_call")` hooks.
+- **Direct APIs over Sidecars:** Prefer direct HTTP/JSON-RPC over external MCP client/daemon processes. Bound output size (`truncateHead`), forward abort signals, sanitize untrusted data with `safeDisplayText`, and provide headless/keyless fallbacks.
+- **Coordination Semantics:** Treat tool output as an explicit state contract. Distinguish:
+  - **coordination container** (scopes shared state for an execution context);
+  - **work item** (independently addressable unit);
+  - **actor** (assigned ownership or recipient);
+  - **intent** (requested state transition awaiting application/verification).
+  Structure results to answer four questions: (1) What state was addressed? (2) What happened synchronously? (3) What remains pending/blocked/queued? (4) Who performs the next transition? Avoid ambiguous claims such as "state updated" when only an intent was queued.
 
 ## Command menus vs skills (settled UX)
 

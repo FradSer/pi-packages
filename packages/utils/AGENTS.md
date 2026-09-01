@@ -24,15 +24,17 @@ pnpm --dir packages/utils pack --dry-run
 
 ## Style and Architecture
 
-Use ESM TypeScript targeting Node 20+, with explicit, stable Pi command and tool
-names. Keep command behavior in its corresponding extension and keep
-`index.ts` as composition-only wiring. Preserve Pi session/context semantics;
-interactive choices should use Pi UI APIs rather than global terminal-input
-listeners. Treat every other registered worktree as a foreign checkout: the
-`read` tool must block files beneath it and direct the agent to
-`enter_worktree`; only a replacement session rooted in that worktree may read
-its files. Reuse `@fradser/pi-kit` helpers when applicable; it is a workspace
-runtime dependency, not a peer dependency.
+Use ESM TypeScript targeting Node 20+, with explicit, stable Pi command and tool names. Keep command behavior in its corresponding extension and keep `index.ts` as composition-only wiring.
+
+- **Worktree Session Switching (`enter_worktree`, `exit_worktree`)**:
+  - *Session Forking*: Uses `SessionManager.forkFrom` to replace the session with a worktree-rooted one instead of mutating `process.cwd`. Tools execute by queueing `/enter-worktree` or `/exit-worktree` follow-up commands (`expandPromptTemplates: true`).
+  - *Foreign Worktree Protection*: Non-session worktrees are foreign checkouts; `read` blocks access until entered via `enter_worktree`.
+  - *Progressive Tool Disclosure*: `exit_worktree` is activated via `pi.setActiveTools()` only when currently inside a worktree-created session.
+- **Directory Sessions (`list_directory_sessions`)**:
+  - Reads `~/.pi/agent/directory-sessions/`, filters dead PIDs, and collapses multi-writer records by PID.
+  - Dynamically exposed via `pi.setActiveTools()` only when active/recent peer sessions exist in cwd.
+  - Sanitizes untrusted registry fields with `safeDisplayText` before prompt injection or transcript rendering.
+- **Transcript UX**: Tools reuse `@fradser/pi-kit` lifecycle renderers (`renderShell: "self"`, `renderCall: empty`).
 
 ## Testing and Releases
 
