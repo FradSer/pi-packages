@@ -233,6 +233,48 @@ export function filterForeignWorktreeItems<T extends AutocompleteItem>(
 	);
 }
 
+export function filterForeignWorktreeSearchLines(
+	text: string,
+	basePath: string,
+	roots: WorktreeRoots,
+): string {
+	if (
+		!roots.currentRoot &&
+		roots.foreignRoots.length === 0 &&
+		!roots.managedWorktreeDir
+	) {
+		return text;
+	}
+
+	const lines = text.split("\n");
+	const filtered: string[] = [];
+
+	for (const line of lines) {
+		// Matches lines like:
+		// packages/foo/bar.ts
+		// packages/foo/bar.ts:12: content
+		// .pi/worktrees/foo/bar.ts
+		// /absolute/path/to/.pi/worktrees/...
+		const trimmed = line.trim();
+		if (!trimmed) {
+			filtered.push(line);
+			continue;
+		}
+
+		// Check if line starts with a path (before any colon, space, or tab)
+		const colonMatch = trimmed.match(/^([^:\s]+(?::\d+)*)/);
+		const potentialPath = colonMatch ? colonMatch[1]?.split(":")[0] : trimmed.split(/\s+/)[0];
+
+		if (potentialPath && isInForeignWorktree(potentialPath, basePath, roots)) {
+			continue;
+		}
+
+		filtered.push(line);
+	}
+
+	return filtered.join("\n");
+}
+
 let cache: { cwd: string; roots: WorktreeRoots } | null = null;
 
 /**
@@ -312,8 +354,65 @@ export default function registerWorktreeCompletion(pi: ExtensionAPI): void {
 		ctx.ui.addAutocompleteProvider(worktreeCompletionProvider);
 	});
 	pi.on("tool_call", (event, ctx) => {
-		if (!isToolCallEventType("read", event)) return;
-		if (!isInForeignWorktree(event.input.path, ctx.cwd, getWorktreeRoots(ctx.cwd))) return;
-		return { block: true, reason: foreignWorktreeReadReason(event.input.path) };
+		if (isToolCallEventType("read", event)) {
+			if (!isInForeignWorktree(event.input.path, ctx.cwd, getWorktreeRoots(ctx.cwd))) return;
+			return { block: true, reason: foreignWorktreeReadReason(event.input.path) };
+		}
+
+		// Inject foreign worktree exclude patterns into search tools
+		if (event.toolName === "fffind" || event.toolName === "ffgrep" || event.toolName === "find" || event.toolName === "grep") {
+			const roots = getWorktreeRoots(ctx.cwd);
+			if (roots.foreignRoots.length > 0 || roots.managedWorktreeDir) {
+				const input = event.input as Record<string, unknown>;
+				const existingExclude = input.exclude;
+				const foreignPatterns = [".pi/worktrees/**", ".pi/worktrees"];
+
+				if (Array.isArray(existingExclude)) {
+					for (const p of foreignPatterns) {
+						if (!existingExclude.includes(p)) (existingExclude as string[]).push(p);
+					}
+				} else if (typeof existingExclude === "string") {
+					const parts = existingExclude.split(",").map((s) => s.trim()).filter(Boolean);
+					for (const p of foreignPatterns) {
+						if (!parts.includes(p)) parts.push(p);
+					}
+					input.exclude = parts.join(",");
+				} else if (!existingExclude) {
+					input.exclude = foreignPatterns.join(",");
+				}
+			}
+		}
+	});
+
+	pi.on("tool_result", (event, ctx) => {
+		if (
+			event.toolName === "fffind" ||
+			event.toolName === "ffgrep" ||
+			event.toolName === "find" ||
+			event.toolName === "grep"
+		) {
+			const roots = getWorktreeRoots(ctx.cwd);
+			if (!roots.currentRoot && roots.foreignRoots.length === 0 && !roots.managedWorktreeDir) {
+				return;
+			}
+
+			if (Array.isArray(event.content)) {
+				let modified = false;
+				const newContent = event.content.map((part) => {
+					if (part.type === "text" && typeof part.text === "string") {
+						const filtered = filterForeignWorktreeSearchLines(part.text, ctx.cwd, roots);
+						if (filtered !== part.text) {
+							modified = true;
+							return { ...part, text: filtered };
+						}
+					}
+					return part;
+				});
+
+				if (modified) {
+					return { content: newContent };
+				}
+			}
+		}
 	});
 }

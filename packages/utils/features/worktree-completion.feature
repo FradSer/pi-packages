@@ -62,6 +62,24 @@ Feature: git worktree-aware @ completions
     When the provider returns suggestions
     Then every suggestion is kept unchanged
 
+  Scenario: fffind excludes foreign worktree and managed worktree results
+    Given a git repository with a linked worktree at .pi/worktrees/foo
+    And a pi session running in the repository root
+    When fffind or find returns paths containing ".pi/worktrees/foo/src/index.ts"
+    Then the foreign worktree paths are filtered from the tool result
+
+  Scenario: ffgrep excludes foreign worktree and managed worktree results
+    Given a git repository with a linked worktree at .pi/worktrees/foo
+    And a pi session running in the repository root
+    When ffgrep or grep matches content in ".pi/worktrees/foo/src/index.ts"
+    Then the foreign worktree matches are filtered from the tool result
+
+  Scenario: fffind and ffgrep tool calls automatically exclude foreign worktrees
+    Given a git repository with a linked worktree at .pi/worktrees/foo
+    And a pi session running in the repository root
+    When fffind or ffgrep tool is called without exclude
+    Then the foreign worktree pattern is added to exclude
+
   Scenario: A session opened in a bare repository filters its linked worktrees
     Given a bare repository acting as the shared store for linked worktrees
     And a pi session running at the bare repository path

@@ -407,6 +407,51 @@ console.log(JSON.stringify({{ sameRef: first === second }}));
         # One discovery = exactly two spawns (worktree list + rev-parse).
         self.assertEqual(2, int(counter.read_text()))
 
+    def test_search_tool_filters_foreign_worktree_paths(self) -> None:
+        foreign_file = f"{self.base}/wt-b/src/index.ts"
+        own_file = f"{self.main}/src/index.ts"
+        managed_file = f"{self.main}/.pi/worktrees/wt-sub/src/index.ts"
+
+        script = f"""
+import registerWorktreeCompletion, {{ filterForeignWorktreeSearchLines }} from {json.dumps(COMPLETION_EXTENSION.as_uri())};
+const handlers = new Map();
+const pi = {{ on: (event, handler) => handlers.set(event, handler) }};
+const ctx = {{ cwd: {json.dumps(str(self.main))} }};
+registerWorktreeCompletion(pi);
+
+// Test tool_call injects exclude
+const toolCallHandler = handlers.get("tool_call");
+const fffindCall = {{ toolName: "fffind", input: {{ path: "src/" }} }};
+toolCallHandler(fffindCall, ctx);
+
+// Test tool_result filters lines
+const rawSearchResult = [
+  "packages/utils/src/index.ts",
+  {json.dumps(foreign_file)},
+  {json.dumps(managed_file)},
+  "packages/utils/src/other.ts:12: const x = 1;",
+  {json.dumps(managed_file)} + ":45: const bug = true;",
+].join("\\n");
+
+const toolResultHandler = handlers.get("tool_result");
+const filteredResult = toolResultHandler({{
+  toolName: "fffind",
+  content: [{{ type: "text", text: rawSearchResult }}],
+}}, ctx);
+
+console.log(JSON.stringify({{
+  excludeInjected: fffindCall.input.exclude,
+  filteredText: filteredResult.content[0].text,
+}}));
+"""
+        report = run_ts(script)
+        self.assertIn(".pi/worktrees/**", report["excludeInjected"])
+        self.assertNotIn("wt-b", report["filteredText"])
+        self.assertNotIn("wt-sub", report["filteredText"])
+        self.assertIn("packages/utils/src/index.ts", report["filteredText"])
+        self.assertIn("packages/utils/src/other.ts:12:", report["filteredText"])
+
+
 
 if __name__ == "__main__":
     unittest.main()
