@@ -1426,21 +1426,22 @@ def test_widget_shows_only_working_teammates() -> None:
     assert "○" not in widget and "\u25a0" not in widget
     assert "listTeammates()" not in widget
 
-def test_spawn_uses_shared_started_lifecycle_renderer() -> None:
+def test_spawn_uses_one_native_text_started_line() -> None:
     tools = source("tools.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "Spawning renders one started line per teammate" in feature
-    assert "startedToolLifecycle(" in tools
-    assert "renderLifecycleResult(" in tools
+    assert "formatToolLifecycleTitle({" in tools
+    assert 'kind: "started"' in tools
+    assert 'return new Text(theme.fg("customMessageLabel", theme.bold(title)), 0, 0);' in tools
+    assert "renderLifecycleResult(" not in tools.split('name: "teammate_spawn"', 1)[1].split('name: "teammate_shutdown"', 1)[0]
     assert "formatAgentTaskName" in tools
     assert "details: { started: true }" in tools
 
 
-def test_spawn_started_line_fits_narrow_tui_width() -> None:
-    tools = source("tool-render.ts")
-    assert "createToolLifecycleResultRenderer(" in tools
-    assert "fit: truncateToWidth" in tools
-    assert "started line fits the available TUI width" in (
+def test_spawn_started_line_uses_one_native_text_row() -> None:
+    tools = source("tools.ts")
+    assert 'return new Text(theme.fg("customMessageLabel", theme.bold(title)), 0, 0);' in tools
+    assert "native Text component wraps the row at the available width" in (
         PACKAGE / "features" / "agent-teams.feature"
     ).read_text(encoding="utf-8")
 
@@ -1493,28 +1494,28 @@ def test_teammate_spawn_started_row_fits_narrow_transcript_widths() -> None:
           {{ args: {{ name: "very-long-teammate-name", agent: "reviewer", prompt: "Investigate the narrow transcript rendering regression" }} }},
         ).render(width);
         const rows = [1, 8, 16, 24].map((width) => ({{ width, lines: renderRow(width) }}));
-        const row = renderRow(24)[1];
+        const row = renderRow(24)[0];
         const longPrompt = "Review the current uncommitted implementation for the Ox Alpha name-only co-author flow end to end";
         const wideLongRow = spawn.renderResult(
           {{ content: [{{ type: "text", text: "started" }}] }},
           {{}},
           theme,
           {{ args: {{ name: "coauthor-reviewer", agent: "reviewer", prompt: longPrompt }} }},
-        ).render(200)[1];
+        ).render(200)[0];
         const fullResult = {{ content: [{{ type: "text", text: "@storm-auditor is alive as storm-auditor.\\nIt received the standard board-check kickoff." }}] }};
         const expandedRows = spawn.renderResult(fullResult, {{ expanded: true }}, theme, {{ args: {{ name: "storm-auditor", agent: "storm-auditor" }} }}).render(200);
-        const collapsedWideRow = spawn.renderResult(fullResult, {{}}, theme, {{ args: {{ name: "storm-auditor", agent: "storm-auditor" }} }}).render(200)[1];
+        const collapsedWideRow = spawn.renderResult(fullResult, {{}}, theme, {{ args: {{ name: "storm-auditor", agent: "storm-auditor" }} }}).render(200)[0];
         const emptyContentRow = spawn.renderResult(
           {{ content: [], details: {{ started: true }} }},
           {{}},
           theme,
           {{ args: {{ name: "greeter-reload-test", agent: "reviewer", prompt: "short kickoff" }} }},
-        ).render(120)[1];
+        ).render(120)[0];
         console.log(JSON.stringify({{
           row,
           collapsedWideRow,
           expandedRows,
-          narrowRowsFit: rows.every(({{ width, lines }}) => lines.length === 3 && lines[0].trim() === "" && lines[2].trim() === "" && visibleWidth(lines[1]) <= width),
+          nativeTextRows: rows.every(({{ lines }}) => lines.length >= 1 && !lines.some((line) => line.includes("to expand"))),
           wideRowKeepsFullAssignment: visibleWidth(wideLongRow) > 100 && wideLongRow.includes("end to end"),
           rowIsSingleLine: !row.includes("\\n"),
           rowFitsWidth: visibleWidth(row) <= 24,
@@ -1532,14 +1533,14 @@ def test_teammate_spawn_started_row_fits_narrow_transcript_widths() -> None:
         }}));
         '''
     )
-    assert payload["narrowRowsFit"] is True
+    assert payload["nativeTextRows"] is True
     assert payload["wideRowKeepsFullAssignment"] is True
     assert payload["rowIsSingleLine"] is True
     assert payload["rowFitsWidth"] is True
     assert payload["identifiesStarted"] is True
-    assert payload["collapsedHasExpandHint"] is True
-    assert payload["emptyContentHasExpandHint"] is True
-    assert payload["expandedShowsResult"] is True
+    assert payload["collapsedHasExpandHint"] is False
+    assert payload["emptyContentHasExpandHint"] is False
+    assert payload["expandedShowsResult"] is False
     assert payload["expandedHidesTools"] is True
 
 

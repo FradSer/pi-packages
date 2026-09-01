@@ -785,15 +785,15 @@ Feature: Agent Teams collaborative organization contract
       When the spawn tool call renders in the transcript
       Then it shows one started line identifying the teammate and kickoff task
       And the line follows the `[agent] @name started · task-name` shape
-      And the started line fits the available TUI width with a trailing ellipsis when needed
-      And the full result text stays available behind the standard tool rendering
+      And the started line uses Pi's native Text component without a lifecycle background band or expansion hint
+      And the full result text remains model-facing rather than becoming transcript details
       And a failed spawn keys off the render context isError flag and renders one plain error line
 
     Scenario: The teammate_spawn started row fits narrow transcript widths
       Given the leader spawns a teammate with a long name and kickoff prompt
       When the started row renders in a narrow transcript
-      Then the row stays on one line and does not exceed the available width
-      And the kickoff prompt flows into the title uncapped because only the renderer truncates at the actual width
+      Then the native Text component wraps the row at the available width
+      And the kickoff prompt flows into the title uncapped
 
     Scenario: The teammate_spawn started row shows the assignment without duplicate identity or tools
       Given the leader spawns @storm-auditor without a kickoff prompt
@@ -801,8 +801,8 @@ Feature: Agent Teams collaborative organization contract
       Then it shows one `@storm-auditor` identity followed by the board-check assignment
       And it does not show the role name a second time as the assignment
       And it does not show the granted tools
-      And the collapsed row carries the standard `ctrl+o to expand` hint even when the tool content body is empty but structured details exist
-      And expanding the row reveals the full spawn result without tool details
+      And it does not carry an expansion hint
+      And it does not reveal the full spawn result in the transcript
 
     Scenario: The roster and detail view expose the effective tool allowlist
       Given the leader spawns a teammate from a role definition with tools

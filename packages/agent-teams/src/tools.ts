@@ -1,5 +1,6 @@
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { detailField, eventToolLifecycle, formatAgentTaskName, notifyPi, startedToolLifecycle } from "@fradser/pi-kit";
+import { Text } from "@earendil-works/pi-tui";
+import { detailField, eventToolLifecycle, formatAgentTaskName, formatToolLifecycleTitle, notifyPi } from "@fradser/pi-kit";
 import {
   createBoardTask,
   formatBoardTaskCreation,
@@ -58,20 +59,18 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     label: "Spawn Teammate",
     description: "Spawn one named resident teammate. Generated role definitions stay in memory by default; persist one only when the user explicitly asks to keep it for future sessions.",
     parameters: TeammateSpawnParams,
-    // Canonical lifecycle rows (same as packages/monitor): empty renderCall,
-    // ONE startup row owned by renderResult.
     renderShell: "self",
     renderCall: emptyToolCall,
-    renderResult(result, options, theme, context) {
+    renderResult(result, _options, theme, context) {
+      const text = result.content.find((part) => part.type === "text")?.text ?? "";
+      if (context.isError) return new Text(theme.fg("error", text.split("\n")[0] || "Failed to spawn teammate."), 0, 0);
       const params = context.args as { name: string; agent: string; prompt?: string };
-      const assignment = spawnAssignment(params);
-      return renderLifecycleResult(
-        result,
-        options,
-        theme,
-        context,
-        startedToolLifecycle("agent", `@${params.name} started · ${assignment}`),
-      );
+      const title = formatToolLifecycleTitle({
+        kind: "started",
+        tool: "agent",
+        subject: `@${params.name} started · ${spawnAssignment(params)}`,
+      });
+      return new Text(theme.fg("customMessageLabel", theme.bold(title)), 0, 0);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = spawnTeammate(params);
