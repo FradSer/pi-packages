@@ -6,10 +6,11 @@ When invoked during [implement](implement.md) or [bdd](bdd.md), use this skill a
 
 ## CRITICAL: BDD scenarios come first
 
-If you reached this skill directly (not via [bdd](bdd.md) or [implement](implement.md)), stop and ask the user: **"Have you defined the Gherkin scenarios for this behavior yet?"**
+If you reached this skill directly (not via [bdd](bdd.md) or [implement](implement.md)), inspect the repository and conversation for Gherkin scenarios first.
 
-- If **no** → invoke [bdd](bdd.md) first to define the scenarios via Discovery → Formulation, then return here for Automation.
-- If **yes** → confirm the scenarios are in `.feature` files or equivalent, then proceed with the red-green loop below.
+- If scenarios are absent → invoke [bdd](bdd.md) to define them, then return here for Automation.
+- If scenarios exist in `.feature` files or equivalent → proceed with the red-green loop below.
+- Ask the user only if the behavior itself is genuinely unresolved; do not ask for confirmation of facts that repository exploration can establish.
 
 ## What a good test is
 
@@ -21,9 +22,7 @@ See [tests.md](tests.md) for examples and [mocking.md](mocking.md) for mocking g
 
 A **seam** is the public boundary you test at: the interface where you observe behavior without reaching inside. Tests live at seams, never against internals.
 
-**Test only at pre-agreed seams.** Before writing any test, write down the seams under test and confirm them with the user. No test is written at an unconfirmed seam. Not everything can be tested — agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
-
-Ask: "What's the public interface, and which seams should we test?"
+**Test at the highest established seam.** Record the public boundary under test and select the highest existing seam that expresses the confirmed behavior. Not everything can be tested — choosing the critical public seam deliberately is how effort lands on complex behavior instead of every edge case. Ask only when the public contract is genuinely ambiguous.
 
 When the shape of that interface is itself in question — how deep the module is, where the seam belongs, what the interface should expose — use the [codebase-design](codebase-design.md) skill for the vocabulary. It is the shared source of the module, interface, depth, seam, adapter, leverage and locality terms, and it is a reference to consult, not a session to run.
 

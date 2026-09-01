@@ -1,10 +1,9 @@
 # Deferred automation
 
-The initial `/matt-pocock` harness intentionally keeps workflow completion,
-execution, and collaboration under user and model control. Revisit these only
-with evidence that manual transitions are a bottleneck:
+The harness already directs the agent to transition immediately when a
+procedure's done condition makes the next applicable procedure clear. These
+remaining lifecycle capabilities need dedicated runtime support:
 
-- [ ] Automatically infer workflow phase completion.
 - [ ] Automatically create a new Pi session for a workflow phase.
 - [ ] Automatically create teammates for workflow research or review.
 - [ ] Enforce BDD/TDD through tool-level production-write blocking.

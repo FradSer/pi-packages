@@ -67,7 +67,7 @@ Show counts and a one-line summary per item. Let the maintainer pick.
 
 1. **Gather context.** Read the full issue or PR (body, comments, labels, author, dates; for a PR, the diff too). Parse any prior triage notes so you don't re-ask resolved questions. Explore the codebase using the project's domain glossary, respecting ADRs in the area. Run two checks against the codebase: (a) **redundancy** — search for an existing implementation of the requested behavior by domain concept (not just the request's wording), and report where you looked. If found, it's an already-implemented `wontfix` (step 5). (b) **prior rejection** — read `.out-of-scope/*.md` and surface any that resembles this request.
 
-2. **Recommend.** Tell the maintainer your category and state recommendation with reasoning, plus a brief codebase summary relevant to the request — including whether it's already implemented. Wait for direction.
+2. **Classify and continue.** State the category recommendation with reasoning and a brief codebase summary relevant to the request — including whether it is already implemented. Then verify the claim and apply the outcome directly when the classification follows from the evidence. Pause only where the choice is genuinely the maintainer's (for example, whether to reject a viable enhancement); never ask merely for permission to perform the next triage step.
 
 3. **Verify the claim.** Before any grilling, check that the claim holds up. For a bug, reproduce it from the reporter's steps. For a PR, confirm the diff does what it claims — check it out, run the relevant tests or commands. Report what happened: confirmed (with code path), failed, or insufficient detail (a strong `needs-info` signal). A confirmed verification makes a much stronger agent brief.
 
@@ -85,7 +85,7 @@ Show counts and a one-line summary per item. Let the maintainer pick.
 
 ## Quick state override
 
-If the maintainer says "move #42 to ready-for-agent", trust them and apply the role directly. Confirm what you're about to do (role changes, comment, close), then act. Skip grilling. If moving to `ready-for-agent` without a grilling session, ask directly in the conversation whether they want an agent brief written (yes / no) and wait for the reply.
+If the maintainer says "move #42 to ready-for-agent", trust them and apply the role and agent brief directly. Skip grilling and do not request a second confirmation for the role change, comment, or next step.
 
 ## Needs-info template
 

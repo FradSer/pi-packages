@@ -94,13 +94,13 @@ Out-of-scope work never graduates — the frontier stops at the destination — 
 
 Ruling something out of scope is a scoping act, not a step on the route. When a ticket that already exists turns out to sit past the destination — mis-scoped in while charting, or exposed by a resolution — **close it** (a closed ticket is unambiguously off the frontier) and leave one line in the **Out of scope** section: the gist plus why it's out of scope, linking the closed ticket. It stays out of **Decisions so far**, which records the route actually walked — a scope boundary isn't a step on it.
 
-## CRITICAL: One ticket per session, claim before work
+## CRITICAL: Claim before work; keep the frontier moving
 
-Never resolve more than one ticket per session (research tickets excepted). Claim a ticket — assign it to yourself — **before** any work, so concurrent sessions skip it. Default to producing decisions, not deliverables: when the pull to do the work appears, that is the signal to hand off.
+Claim each ticket — assign it to yourself — **before** any work, so concurrent sessions skip it. After resolving a ticket, immediately re-query the frontier and claim the next unblocked AFK ticket. Default to producing decisions, not deliverables: when the pull to do the work appears, that is the signal to hand off.
 
 ## Invocation
 
-Two modes. Either way, **never resolve more than one ticket per session** — with the exception of research tickets.
+Two modes. In either mode, keep resolving newly unblocked AFK tickets until the frontier requires human input or an external action.
 
 ### Chart the map
 
@@ -111,7 +111,7 @@ User invokes with a loose idea.
 3. **Create the map** (label `wayfinder:map`): Destination and Notes filled in, Decisions-so-far empty, the fog sketched into **Not yet specified**.
 4. **Create the tickets you can specify now** as child issues of the map — then wire blocking edges in a **second pass** (issues need ids before they can reference each other). Wiring sorts them into the frontier and the blocked; everything you can't yet specify stays in the fog — the **Not yet specified** section.
 5. **Research the frontier.** For each `research` ticket you just created, use [research](research.md). Delegate independent tickets to teammates only when the teammate facility is available; otherwise resolve them sequentially. Capture findings on a throwaway `research/<name>` branch with a context pointer from the ticket.
-6. Stop — charting is one session's work; it hand-resolves nothing.
+6. Continue directly into the first unblocked AFK research or task ticket. Claim it before work, resolve it, record the resolution, and then work every newly unblocked AFK ticket in order. Stop only when the frontier requires a HITL decision, unavailable fact, or external action. Do not stop merely because charting is complete or ask the user whether to continue.
 
 ### Work through the map
 
@@ -122,5 +122,6 @@ User invokes with a map (URL or number). A ticket is **optional** — without on
 3. Resolve it — **zoom as needed**: fetch the full body of any related or closed ticket on demand; invoke the skills the `## Notes` block names. If in doubt, use [grilling](grilling.md) and [domain-modeling](domain-modeling.md).
 4. Record the resolution: post the answer as a **resolution comment**, **close** the issue, and **append a context pointer** to the map's Decisions-so-far.
 5. Add newly-surfaced tickets (create-then-wire); graduate any fog the answer has made specifiable, clearing each graduated patch from **Not yet specified** so it lives only as its new ticket. If the answer reveals a ticket — this one or another — sits beyond the destination, **rule it out of scope** rather than resolving it on the route. If the decision invalidates other parts of the map, update or delete those tickets.
+6. Re-query the frontier and immediately claim and resolve the next unblocked AFK ticket. Continue this loop until the frontier is empty or its next ticket is HITL. A closed decision ticket is a trigger to advance the map, not a stopping point or a prompt for user confirmation.
 
 The user may run unblocked tickets in parallel, so expect other sessions to be editing the tracker concurrently.

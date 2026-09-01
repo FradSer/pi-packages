@@ -46,9 +46,7 @@ The Automation phase (red-green loop) is governed by the [tdd](tdd.md) skill (BD
 
 Seams are the public boundaries you test at. See [tdd](tdd.md) for the full seam guidance.
 
-**Test only at pre-agreed seams.** Before writing any test, write down the seams under test, ask the user directly in the conversation to confirm them, and wait for the reply. No test is written at an unconfirmed seam. Testing everything isn't possible — agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
-
-Propose the candidate seams as concise alternatives, mark a recommendation where useful, and ask the user directly in the conversation which seams to test before proceeding.
+**Test at the highest established seam.** Before writing a test, inspect the existing public boundaries, record the seam under test, and choose the highest one that expresses the confirmed behavior. Testing everything isn't possible — deliberately choosing the critical public seam is how effort lands on complex behavior instead of every edge case. Ask the user only when the behavior or public-contract choice is genuinely unresolved; otherwise begin the red-green loop immediately.
 
 ## What a good test is
 

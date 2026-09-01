@@ -18,7 +18,7 @@ pnpm --dir packages/matt-pocock pack --dry-run
 
 ## Harness & Tool Design
 
-- **Harness Boundaries**: Expose `/matt-pocock` as the command surface; do not add per-procedure commands or skills. Persist choices via `pi.appendEntry` and inject procedure Markdown as a follow-up user message. State entries record route/phase selection, not procedure completion; phase transitions are manual.
+- **Harness Boundaries**: Expose `/matt-pocock` as the command surface; do not add per-procedure commands or skills. Persist choices via `pi.appendEntry` and inject procedure Markdown as a follow-up user message. State entries record route/phase selection, not procedure completion. When a procedure's done condition makes the next applicable procedure clear, the agent transitions with `matt_pocock_workflow` immediately; the command menu transition is an explicit user override.
 - **Workflow Tools**:
   - `matt_pocock_workflow`: Uses TypeBox unions across the 5 stable routes (`idea-to-ship`, `hard-bug`, `triage`, `wayfinding`, `architecture`). If an invalid procedure is passed, falls back to the route default with a diagnostic note.
   - `matt_pocock_ask`: Progressive interview tool enabled via `pi.setActiveTools()` only while a workflow is active. Presents 2–4 choices via `ctx.ui.select` (with custom typing option); falls back to the recommended choice on timeout (default 60s) or in headless mode (`!ctx.hasUI`).

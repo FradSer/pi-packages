@@ -4,7 +4,7 @@ The issue tracker and triage label vocabulary should have been provided to you �
 
 ## CRITICAL: No interview — synthesize what you already know
 
-Do NOT interview the user; the spec is a synthesis of the conversation and codebase understanding already in context. Test at the highest existing seam, preferring one seam to many — check the seams with the user before writing.
+Do NOT interview the user; the spec is a synthesis of the conversation and codebase understanding already in context. Test at the highest existing seam, preferring one seam to many. Ask only if the existing context leaves the public contract genuinely ambiguous.
 
 ## Process
 
@@ -12,7 +12,7 @@ Do NOT interview the user; the spec is a synthesis of the conversation and codeb
 
 2. Sketch out the seams at which you're going to test the feature. Existing seams should be preferred to new ones. Use the highest seam possible. If new seams are needed, propose them at the highest point you can. The fewer seams across the codebase, the better - the ideal number is one.
 
-Check with the user that these seams match their expectations.
+Record the selected seams in the spec and continue directly. Ask only if the public contract remains genuinely ambiguous after exploration.
 
 3. Write the spec using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
 

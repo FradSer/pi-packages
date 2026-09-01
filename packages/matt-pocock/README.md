@@ -29,11 +29,10 @@ The harness injects only the chosen procedure, persists its current route and
 phase in the Pi session, restores that state on restart, and adds concise
 phase guidance to agent turns. Its structured interview tool is available only
 while a workflow is active, so ordinary questions remain in the conversation.
-The user manually transitions phases; the harness does not infer completion
-from model or tool activity.
+When a procedure's done condition makes its next procedure clear, the agent transitions with `matt_pocock_workflow` and continues without waiting for permission. It pauses only for a user-owned decision, unavailable fact, or required external action. The menu's transition option remains available for an explicit user override.
 
 Procedures are internal Markdown resources rather than Pi skills, so generic
 workflow names such as `tdd`, `code-review`, and `research` never collide with
 an installed skill collection.
 
-See [TODO.md](TODO.md) for deliberately deferred automation.
+See [TODO.md](TODO.md) for lifecycle automation that remains deliberately deferred.

@@ -45,12 +45,7 @@ Present the proposed breakdown as a numbered list. For each ticket, show:
 - **Blocked by**: which other tickets (if any) must complete first
 - **What it delivers**: the end-to-end behaviour this ticket makes work
 
-Ask the user directly in the conversation, then wait for the reply:
-- "Does the granularity feel right?" — just right / too coarse / too fine
-- "Are the blocking edges correct?" — yes, they're genuine / no, adjust them
-- "Should any tickets be merged or split further?" — no, proceed / yes — describe the changes
-
-Iterate until the user approves the breakdown.
+Use `matt_pocock_ask` to ask the user for the genuinely user-owned design decision in one structured exchange: whether the breakdown and blocking edges are acceptable, and any required merge or split. Wait only for that answer; then apply it and continue directly to publication. Do not ask a separate permission-to-proceed question after approval.
 
 ### 5. Publish the tickets to the configured tracker
 
@@ -59,7 +54,7 @@ Publish the approved tickets. **How** depends on the tracker [setup-matt-pocock-
 - **Local files** → write one file per ticket under `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` in dependency order (blockers first). Each file's "Blocked by" lists the numbers/titles it depends on. Use the per-ticket file template below — one ticket per file, never a single combined file.
 - **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking / sub-issue relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. Apply the `ready-for-agent` triage label unless instructed otherwise — the tickets are agent-grabbable by construction.
 
-Work the **frontier**: any ticket whose blockers are all done. For a purely linear chain that means top to bottom.
+Work the **frontier**: any ticket whose blockers are all done. For a purely linear chain that means top to bottom. Once tickets are published, immediately claim and execute the next unblocked AFK ticket; after each closure, re-query the frontier and continue through newly unblocked AFK work. Do not wait for the user simply because ticket publication or an earlier ticket completed.
 
 Do NOT close or modify any parent issue.
 
