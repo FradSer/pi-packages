@@ -86,6 +86,7 @@ Feature: Result-contract background monitoring
     Then the tool call renderer is empty
     And the tool result renderer uses Pi's native Text component for `[monitor] started · <description>`
     And the startup row is one text line without a lifecycle background band or expansion hint
+    And only the `[monitor] started ·` prefix uses the custom message label color while the description uses the default foreground color
     And the tool result does not render a duplicate monitor start
     And the tool result does not contain an internal monitor id
     And the tool result still terminates the current agent turn

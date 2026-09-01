@@ -4,7 +4,7 @@ import {
   type ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import { Container, isKeyRelease, Key, matchesKey, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { clearPiStatus, createPiThemeStyle, createToolLifecycleMessageRenderer, createToolLifecycleResultRenderer, eventToolLifecycle, formatToolLifecycleTitle, notifyPi, renderPiPanel, safeDisplayText, setPiStatus } from "@fradser/pi-kit";
+import { clearPiStatus, createPiThemeStyle, createToolLifecycleMessageRenderer, createToolLifecycleResultRenderer, eventToolLifecycle, notifyPi, renderPiPanel, safeDisplayText, setPiStatus } from "@fradser/pi-kit";
 import {
   MonitorManager,
   type Monitor,
@@ -238,13 +238,8 @@ export default function (pi: ExtensionAPI) {
     renderResult(result, _options, theme, context) {
       const text = result.content.find((part) => part.type === "text")?.text ?? "";
       if (context.isError) return new Text(theme.fg("error", text.split("\n")[0] || "Failed to start monitor."), 0, 0);
-      const title = formatToolLifecycleTitle({
-        kind: "started",
-        tool: "monitor",
-        subject: safeDisplayText(context.args.description),
-        label: "started",
-      });
-      return new Text(theme.fg("customMessageLabel", theme.bold(title)), 0, 0);
+      const prefix = theme.fg("customMessageLabel", theme.bold("[monitor] started ·"));
+      return new Text(`${prefix} ${safeDisplayText(context.args.description)}`, 0, 0);
     },
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       if (!params.command.trim()) throw new Error("monitor_start requires a non-empty command.");
