@@ -28,6 +28,6 @@ scopes:
     - name: rel
       description: Package manifests, Changesets, release allowlists, and publishing automation in .changeset/ and scripts/; does not cover runtime package behavior.
     - name: repo
-      description: Repository-wide documentation, contributor guidance, workspace configuration, and shared package conventions; does not cover package-specific implementation details.
+      description: Repository-wide documentation, RFCs, contributor guidance, workspace configuration, and shared package conventions in docs/ and repository root; does not cover package-specific implementation details.
     - name: ex
       description: SDK usage examples in examples/; does not cover package implementations or release automation.
