@@ -15,7 +15,7 @@ import { livingTeammates, listTasks, resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
 import { refreshLeaderToolDisclosure, registerLeaderTools, registerTeamCommand } from "./tools.ts";
 import { registerWorkerCapabilities, workerBinding } from "./worker.ts";
-import { agentColor, createToolLifecycleMessageRenderer, eventToolLifecycle, formatAgentMessagePrefix, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
+import { agentColor, clearPiStatus, createToolLifecycleMessageRenderer, eventToolLifecycle, formatAgentMessagePrefix, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
 import { FollowUpQueue, groupReportsByTeammate, TEAMMATE_HARNESS_MESSAGE_TYPE, TEAMMATE_REPORT_MESSAGE_TYPE, type FollowUpReport } from "./follow-up-queue.ts";
 import { Box, Markdown, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
@@ -168,7 +168,7 @@ export default function (pi: ExtensionAPI) {
         refreshLeaderToolDisclosure();
       },
     });
-    ctx.ui.setStatus("teammate", undefined);
+    clearPiStatus(ctx.ui, "teammate");
     refreshTeamUI(ctx);
     refreshLeaderToolDisclosure();
     void cleanupExpiredStateDirs(STATE_DIR_MAX_AGE_MS);

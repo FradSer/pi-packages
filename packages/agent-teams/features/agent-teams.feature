@@ -113,11 +113,17 @@ Feature: Agent Teams collaborative organization contract
       Then it instructs the teammate to execute the assigned task directly without checking task_list
       And worker guidance instructs teammates to use task_list only when idle or notified of unclaimed work
 
-    Scenario: Direct-assignment completion does not require a board snapshot
+    Scenario: Team status clears use the shared Pi-kit transient-status adapter
+      Given the leader session starts and clears its team status entry
+      When agent-teams updates the TUI status
+      Then it clears the teammate entry through pi-kit's status adapter
+
+    Scenario: Direct-assignment completion is delivered without leader busywork
       Given a teammate has a direct assignment or review kickoff
-      When the leader waits for its result
-      Then the teammate's terminal report is the sole completion signal
-      And the leader does not call task_list merely to see whether the teammate is still working
+      When the leader has no independent foreground work after dispatching it
+      Then the leader ends its turn without sleep commands, status checks, or unsolicited steers
+      And the teammate's terminal report is delivered to the leader as an automatic follow-up
+      And that terminal report is the sole completion signal
       And task_list remains available when task-board state is needed for a concrete coordination decision
 
     Scenario: A terminal direct assignment cannot drift into board work

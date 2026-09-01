@@ -4,7 +4,7 @@ import {
   type ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import { Container, isKeyRelease, Key, matchesKey, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { createPiThemeStyle, createToolLifecycleMessageRenderer, createToolLifecycleResultRenderer, eventToolLifecycle, notifyPi, renderPiPanel, safeDisplayText, startedToolLifecycle } from "@fradser/pi-kit";
+import { clearPiStatus, createPiThemeStyle, createStaticToolLifecycleResultRenderer, createToolLifecycleMessageRenderer, createToolLifecycleResultRenderer, eventToolLifecycle, notifyPi, renderPiPanel, safeDisplayText, setPiStatus, startedToolLifecycle } from "@fradser/pi-kit";
 import {
   MonitorManager,
   type Monitor,
@@ -73,7 +73,10 @@ export default function (pi: ExtensionAPI) {
 
   function setupMonitorFooter(ctx: { mode: string; ui: ExtensionUIContext }): void {
     if (ctx.mode !== "tui") return;
-    footerStatus = (text) => ctx.ui.setStatus("monitor", text);
+    footerStatus = (text) => {
+      if (text === undefined) clearPiStatus(ctx.ui, "monitor");
+      else setPiStatus(ctx.ui, "monitor", text);
+    };
     updateFooterStatus();
   }
 
@@ -234,7 +237,7 @@ export default function (pi: ExtensionAPI) {
     renderCall: () => new Container(),
     renderResult(result, options, theme, context) {
       const subject = safeDisplayText(context.args.description);
-      return createToolLifecycleResultRenderer({
+      return createStaticToolLifecycleResultRenderer({
         createSpec: () => startedToolLifecycle("monitor", subject, { label: "started" }),
         fit: truncateToWidth,
         visibleWidth,

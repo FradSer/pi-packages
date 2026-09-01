@@ -80,6 +80,8 @@ fs.rmSync(cwd, {{ recursive: true, force: true }});
         # Style-free consumer: pi-kit owns the band geometry and styling; no
         # hand-built Box or theme calls remain in the sessions renderer.
         self.assertIn("createToolLifecycleResultRenderer(", content)
+        self.assertIn('renderError: (line, currentTheme) => new Text(currentTheme.fg("error", line), 0, 0)', content)
+        self.assertNotIn('if (context.isError) {', content)
         self.assertIn('expandHint: keyHint("app.tools.expand", "to expand")', content)
         self.assertIn("fit: truncateToWidth", content)
         self.assertNotIn("new Box(", content)

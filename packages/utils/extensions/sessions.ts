@@ -420,10 +420,6 @@ export default function (pi: ExtensionAPI) {
     renderCall: () => new Container(),
     // Pi passes only { content, details } here; liveness comes from context.isError.
     renderResult(result, options, theme, context) {
-      if (context.isError) {
-        const firstLine = textOf(result).split("\n")[0] || "Failed to list directory sessions.";
-        return new Text(theme.fg("error", safeDisplayText(firstLine)), 0, 0);
-      }
       const sessions = detailField<SessionInfo[]>(result.details, "sessions") ?? [];
       const summary = sessionListSummary(sessions, path.basename(safeDisplayText(detailField<string>(result.details, "cwd") ?? "")));
       const shown = sessions.slice(0, MAX_DISPLAY_SESSIONS);
@@ -463,11 +459,6 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-}
-
-/** Extracts the first text block of a tool result. */
-function textOf(result: { content: Array<{ type: string; text?: string }> }): string {
-  return result.content.find((block) => block.type === "text")?.text ?? "";
 }
 
 const MAX_DISPLAY_SESSIONS = 10;

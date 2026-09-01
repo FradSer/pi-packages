@@ -220,6 +220,21 @@ def test_tool_result_preserves_content_when_vision_fails(tmp_path: Path) -> None
     assert "<image-analysis>" not in str(result["sessionToolResultText"])
 
 
+def test_active_image_reading_status_uses_pi_kit_transient_ui_adapters() -> None:
+    source = read_source("index.ts")
+    feature = (PACKAGE / "features" / "image-bridge.feature").read_text(encoding="utf-8")
+
+    assert "Scenario: Show active image-reading progress with shared TUI primitives" in feature
+    assert "function showImageReadingProgress" in source
+    assert "function clearImageReadingProgress" in source
+    assert 'setPiStatus(ctx.ui, "vision", imageReadingStatus(images, config))' in source
+    assert 'clearPiStatus(ctx.ui, "vision")' in source
+    assert "startPiWorkingIndicator(ctx.ui)" in source
+    assert "clearPiWorkingIndicator(ctx.ui)" in source
+    assert "ctx.ui.setStatus" not in source
+    assert "ctx.ui.setWorkingIndicator" not in source
+
+
 def test_bridge_only_handles_images_for_text_only_models() -> None:
     source = read_source("index.ts")
     assert 'ctx.model.input ?? ["text"]' in source
@@ -234,12 +249,11 @@ def test_bridge_only_handles_images_for_text_only_models() -> None:
     assert "scopedModels" in source
     assert "getAvailable" in source
     assert 'vision · not configured' not in source
-    assert 'ctx.ui.setStatus("vision", undefined)' in source
+    assert 'clearPiStatus(ctx.ui, "vision")' in source
     assert '`${config.enabled ? "vision"' not in source
     assert 'from "@fradser/pi-kit"' in source
-    assert "PI_SPINNER_FRAMES" in source
-    assert "PI_SPINNER_INTERVAL_MS" in source
-    assert "setWorkingIndicator({ frames: PI_SPINNER_FRAMES, intervalMs: PI_SPINNER_INTERVAL_MS })" in source
+    assert "startPiWorkingIndicator" in source
+    assert "clearPiWorkingIndicator" in source
     assert 'frames: ["◐", "◓", "◑", "◒"]' not in source
 
 

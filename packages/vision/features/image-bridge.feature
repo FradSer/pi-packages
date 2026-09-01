@@ -83,6 +83,15 @@ Feature: Transparent image reading for text-only models
     Then the indicator cycles through the standard ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏ frames
     And it does not use circular glyphs
 
+  Scenario: Show active image-reading progress with shared TUI primitives
+    Given image analysis is in progress
+    When the extension updates its transient status display
+    Then it identifies the image count and configured reader through pi-kit's status adapter
+    And it uses pi-kit's shared working-indicator adapter with the standard spinner frames and interval
+    When image analysis finishes
+    Then pi-kit's working-indicator adapter restores Pi's native indicator
+    And pi-kit's status adapter hides the vision status entry
+
   Scenario: Hide the idle vision status entry
     Given the vision bridge is idle
     When the status bar is updated

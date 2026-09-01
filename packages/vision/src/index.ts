@@ -9,12 +9,14 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
   enterModelFromInput,
+  clearPiStatus,
+  clearPiWorkingIndicator,
   modelLabel,
   modelRef,
   notifyPi,
   parseModelRef,
-  PI_SPINNER_FRAMES,
-  PI_SPINNER_INTERVAL_MS,
+  setPiStatus,
+  startPiWorkingIndicator,
   selectModelFromMenu,
   sortModels,
 } from "@fradser/pi-kit";
@@ -74,8 +76,22 @@ function userMessageText(message: { role: string; content?: unknown }): string |
     .join("\n");
 }
 
+function imageReadingStatus(images: ImageContent[], config: VisionConfig): string {
+  return `reading ${images.length} image${images.length === 1 ? "" : "s"} · ${config.provider}/${config.model}`;
+}
+
+function showImageReadingProgress(ctx: ExtensionContext, images: ImageContent[]): void {
+  setPiStatus(ctx.ui, "vision", imageReadingStatus(images, config));
+  startPiWorkingIndicator(ctx.ui);
+}
+
+function clearImageReadingProgress(ctx: ExtensionContext): void {
+  clearPiWorkingIndicator(ctx.ui);
+  clearPiStatus(ctx.ui, "vision");
+}
+
 function updateStatus(ctx: ExtensionContext): void {
-  ctx.ui.setStatus("vision", undefined);
+  clearImageReadingProgress(ctx);
 }
 
 function configuredModelLabel(): string {
@@ -268,8 +284,7 @@ export default function visionExtension(pi: ExtensionAPI): void {
       if (!visionModel?.input.includes("image")) return undefined;
 
       try {
-        ctx.ui.setStatus("vision", `reading ${images.length} image${images.length === 1 ? "" : "s"} · ${config.provider}/${config.model}`);
-        ctx.ui.setWorkingIndicator({ frames: PI_SPINNER_FRAMES, intervalMs: PI_SPINNER_INTERVAL_MS });
+        showImageReadingProgress(ctx, images);
         const result = await describeImages(ctx.modelRegistry, visionModel, extracted.text, images, ctx.signal);
         const analysis = { analysisPrompt: extracted.text, analysis: result.text };
         if (activeAnalysis?.key === key) activeAnalysis.result = analysis;
@@ -278,8 +293,7 @@ export default function visionExtension(pi: ExtensionAPI): void {
         // Preserve the provider-bound context unchanged when visual analysis is unavailable.
         return undefined;
       } finally {
-        ctx.ui.setWorkingIndicator();
-        updateStatus(ctx);
+        clearImageReadingProgress(ctx);
       }
     })();
     activeAnalysis = { key, pending: request };
@@ -344,11 +358,7 @@ export default function visionExtension(pi: ExtensionAPI): void {
     if (!visionModel?.input.includes("image")) return;
 
     try {
-      ctx.ui.setStatus(
-        "vision",
-        `reading ${images.length} image${images.length === 1 ? "" : "s"} · ${config.provider}/${config.model}`,
-      );
-      ctx.ui.setWorkingIndicator({ frames: PI_SPINNER_FRAMES, intervalMs: PI_SPINNER_INTERVAL_MS });
+      showImageReadingProgress(ctx, images);
 
       const prompt = toolAnalysisPrompt(event.toolName, event.input ?? {});
       const result = await describeImages(ctx.modelRegistry, visionModel, prompt, images, ctx.signal);
@@ -383,8 +393,7 @@ export default function visionExtension(pi: ExtensionAPI): void {
     } catch {
       return undefined;
     } finally {
-      ctx.ui.setWorkingIndicator();
-      updateStatus(ctx);
+      clearImageReadingProgress(ctx);
     }
   });
 

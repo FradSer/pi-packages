@@ -82,6 +82,6 @@ Feature: Cross-session awareness and directory recap
   Scenario: Failed list_directory_sessions renders one plain error line
     Given list_directory_sessions fails
     When Pi renders the failed tool result
-    Then the renderer keys off the render context isError flag
+    Then the shared pi-kit lifecycle renderer keys off the render context isError flag
     And the transcript shows one plain error line instead of a session listing
     And the model still receives the full cross-session recap as text content

@@ -103,6 +103,8 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Peer traffic never enters the leader's model context",
         "Reports to the leader use the unified send_message primitive",
         "A report enters Pi's native follow-up queue while the leader is active",
+        "Direct-assignment completion is delivered without leader busywork",
+        "Team status clears use the shared Pi-kit transient-status adapter",
         "A terminal report closes reporting until a new wake-up",
         "A terminal worker report ends its current worker turn",
         "Suppressed report events remain replay-safe",
@@ -1134,11 +1136,19 @@ def test_leader_guidance_is_disclosed_only_for_active_team_state() -> None:
     assert "? buildTeamLeaderGuidance" in index_ts
 
 
+def test_team_status_clear_uses_pi_kit_transient_status_adapter() -> None:
+    index = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
+    assert 'clearPiStatus(ctx.ui, "teammate")' in index
+    assert 'ctx.ui.setStatus("teammate", undefined)' not in index
+
+
 def test_guidance_is_static_and_team_shaped() -> None:
     guidance = source("guidance.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "Prompt guidance reflects the team model" in feature
     assert "DO NOT poll or sleep" in guidance
+    assert "or unsolicited steers" in guidance
+    assert "delivers its terminal report automatically" in guidance
     assert "teammate_spawn(name, agent, optional kickoff prompt)" in guidance
     assert r"required \`agent\` role" in guidance
     assert "task_create(subject, description?, dependsOn?," in guidance

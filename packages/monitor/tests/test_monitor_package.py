@@ -186,6 +186,18 @@ def test_terminal_report_uses_native_custom_message_content() -> None:
     assert "<agent-message" not in extension
 
 
+def test_monitor_tui_surfaces_use_pi_kit_renderers() -> None:
+    extension = (SRC / "index.ts").read_text(encoding="utf-8")
+    for helper in (
+        "createToolLifecycleMessageRenderer",
+        "createStaticToolLifecycleResultRenderer",
+        "createToolLifecycleResultRenderer",
+        "renderPiPanel",
+        "notifyPi",
+    ):
+        assert helper in extension
+
+
 def test_monitor_report_renderer_uses_compact_event_style_and_configured_hint() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     assert 'registerMessageRenderer("monitor-result"' in extension
@@ -194,7 +206,7 @@ def test_monitor_report_renderer_uses_compact_event_style_and_configured_hint() 
     assert 'extractTerminalDescription(' in extension
     assert 'extractTerminalStatus(' in extension
     assert 'label: "event"' in extension
-    assert 'createToolLifecycleResultRenderer(' in extension
+    assert 'createStaticToolLifecycleResultRenderer(' in extension
     assert 'startedToolLifecycle("monitor", subject, { label: "started" })' in extension
     assert 'theme,' in extension and 'fit: truncateToWidth' in extension
     assert "formatExpandHint(keyHint(\"app.tools.expand\", \"to expand\"), theme)" not in extension
@@ -293,7 +305,7 @@ def test_monitor_docs_use_configured_expansion_key() -> None:
 def test_monitor_start_uses_compact_event_style() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     start_tool = extension.split('name: "monitor_start"', 1)[1].split('name: "monitor_stop"', 1)[0]
-    assert 'createToolLifecycleResultRenderer(' in start_tool
+    assert 'createStaticToolLifecycleResultRenderer(' in start_tool
     assert 'startedToolLifecycle(' in start_tool
     assert 'const subject = safeDisplayText(context.args.description)' in start_tool
     assert '[monitor] event · ${safeDisplayText(monitor.description)}' not in start_tool
@@ -306,6 +318,13 @@ def test_monitor_start_uses_compact_event_style() -> None:
     assert "Success contract:" not in start_tool
 
 
+def test_monitor_footer_status_uses_pi_kit_transient_status_adapter() -> None:
+    extension = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
+    assert "setPiStatus(ctx.ui, \"monitor\", text)" in extension
+    assert "clearPiStatus(ctx.ui, \"monitor\")" in extension
+    assert 'ctx.ui.setStatus("monitor", text)' not in extension
+
+
 def test_monitor_footer_status_uses_singular_and_plural_text_without_inspect_hint() -> None:
     extension = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
     assert 'count === 1 ? "1 monitor waiting" : `${count} monitors waiting`' in extension
@@ -316,7 +335,8 @@ def test_monitor_footer_status_uses_singular_and_plural_text_without_inspect_hin
 
 def test_monitor_status_uses_the_native_footer_and_console_owns_input() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
-    assert 'setStatus("monitor"' in extension
+    assert "setPiStatus(ctx.ui, \"monitor\", text)" in extension
+    assert "clearPiStatus(ctx.ui, \"monitor\")" in extension
     assert 'setWidget("monitor"' not in extension
     assert 'placement: "belowEditor"' not in extension
     assert "onTerminalInput" not in extension
