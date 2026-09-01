@@ -31,7 +31,8 @@ def test_feature_covers_the_workflow_harness_contract() -> None:
         "Active workflow state survives a session restart",
         "A prompt routes to and begins the relevant workflow",
         "A prompt ends active workflow before rerouting",
-        "A user manually transitions between phases",
+        "A user explicitly overrides the automatic phase transition",
+        "An agent automatically transitions after completing a procedure",
         "Active work receives concise phase guidance",
         "Inactive sessions receive workflow routing guidance",
         "Agent autonomously starts or transitions a workflow via tool",
@@ -40,14 +41,15 @@ def test_feature_covers_the_workflow_harness_contract() -> None:
         "The workflow tool advertises every valid procedure name",
         "An unknown procedure soft-lands on the route default",
         "A stale restored workflow explicitly ends after validation fails",
-        "Workflows progress without redundant confirmation",
+        "Workflows advance through every non-user-owned next step",
         "Structured interview questions are available only during an active workflow",
         "Agent asks the user questions via interactive selection tool",
+        "A user-owned decision remains pending without an answer",
         "Workflow tool rows use a consistent Matt Pocock prefix",
         "Workflow state stays compact and does not expand model procedure text",
         "A structured answer keeps question and answer visible in the collapsed row",
         "The package has no recursively discoverable child skills",
-        "Deferred automation remains documented",
+        "Deferred lifecycle automation remains documented",
     ):
         assert scenario in feature
 
@@ -73,15 +75,46 @@ def test_workflow_status_clears_use_pi_kit_transient_status_adapter() -> None:
     assert 'ctx.ui.setStatus("matt-pocock", undefined)' not in source
 
 
-def test_workflow_guidance_avoids_redundant_confirmation_and_continues_automatically() -> None:
+def test_workflow_guidance_transitions_and_advances_without_redundant_confirmation() -> None:
     result = run_typescript("""
         import { workflowGuidance } from "./packages/matt-pocock/src/workflow.ts";
         console.log(JSON.stringify({
           guidance: workflowGuidance({ route: "wayfinding", procedure: "to-tickets", phase: "to-tickets" }),
         }));
     """)
-    assert "Do not ask whether to continue" in result["guidance"]
-    assert "begin the next applicable workflow work immediately" in result["guidance"]
+    assert "do not stop to recommend, ask whether to continue" in result["guidance"]
+    assert "call matt_pocock_workflow to transition immediately" in result["guidance"]
+    assert "Continue through every newly unblocked AFK ticket or task" in result["guidance"]
+    assert "closed decision ticket" in result["guidance"]
+
+
+def test_procedures_auto_advance_non_user_owned_work() -> None:
+    wayfinder = (PROCEDURES / "wayfinder.md").read_text()
+    tickets = (PROCEDURES / "to-tickets.md").read_text()
+    triage = (PROCEDURES / "triage.md").read_text()
+    bugs = (PROCEDURES / "diagnosing-bugs.md").read_text()
+
+    assert "A closed decision ticket is a trigger to advance the map" in wayfinder
+    assert "Continue directly into the first unblocked AFK research or task ticket" in wayfinder
+    assert "immediately claim and execute the next unblocked AFK ticket" in tickets
+    assert "never ask merely for permission to perform the next triage step" in triage
+    assert "apply the role and agent brief directly" in triage
+    assert "determine from the evidence what would have prevented this bug" in bugs
+    assert "run [code-review](code-review.md) over the fix immediately" in bugs
+
+
+def test_non_user_owned_test_and_spec_progression_does_not_require_confirmation() -> None:
+    bdd = (PROCEDURES / "bdd.md").read_text()
+    tdd = (PROCEDURES / "tdd.md").read_text()
+    spec = (PROCEDURES / "to-spec.md").read_text()
+
+    assert "Test at the highest established seam" in bdd
+    assert "begin the red-green loop immediately" in bdd
+    assert "inspect the repository and conversation for Gherkin scenarios first" in tdd
+    assert "do not ask for confirmation of facts that repository exploration can establish" in tdd
+    assert "Ask only when the public contract is genuinely ambiguous" in tdd
+    assert "Ask only if the existing context leaves the public contract genuinely ambiguous" in spec
+    assert "Record the selected seams in the spec and continue directly" in spec
 
 
 def test_procedures_are_internal_markdown_resources() -> None:
@@ -439,7 +472,7 @@ def test_arbitrary_prompt_ends_active_workflow_and_forwards_autonomous_routing_r
     assert "matt_pocock_workflow" in result["messages"][-1]["content"]
 
 
-def test_transition_is_manual_and_injects_only_the_selected_procedure() -> None:
+def test_explicit_user_override_remains_available_and_injects_only_the_selected_procedure() -> None:
     result = run_typescript("""
         import importedMattPocock from "./packages/matt-pocock/src/index.ts";
         const mattPocock = importedMattPocock.default ?? importedMattPocock;
@@ -743,7 +776,7 @@ def test_matt_pocock_ask_tool_selection_custom_input_and_timeout() -> None:
           options: ["Option A (Recommended)", "Option B"],
         }, undefined, undefined, ctx);
 
-        // 3. Timeout fallback to recommended
+        // 3. Timeout preserves the user-owned decision as pending.
         selectChoice = undefined;
         const res3 = await askTool.execute("call-3", {
           question: "Which scope?",
@@ -751,15 +784,47 @@ def test_matt_pocock_ask_tool_selection_custom_input_and_timeout() -> None:
           timeout_seconds: 45,
         }, undefined, undefined, ctx);
 
-        console.log(JSON.stringify({ res1, res2, res3, lastSelectTimeout }));
+        const noUiResult = await askTool.execute("call-4", {
+          question: "Which scope?",
+          options: ["Option A (Recommended)", "Option B"],
+        }, undefined, undefined, { hasUI: false, ui: { setStatus() {} } });
+
+        // 4. Dismissed or blank custom input must not choose the recommendation.
+        selectChoice = "Type custom answer...";
+        inputChoice = "   ";
+        const blankCustomResult = await askTool.execute("call-5", {
+          question: "Which scope?",
+          options: ["Option A (Recommended)", "Option B"],
+        }, undefined, undefined, ctx);
+
+        console.log(JSON.stringify({
+          res1,
+          res2,
+          res3,
+          noUiResult,
+          blankCustomResult,
+          lastSelectTimeout,
+          recommendedDescription: askTool.parameters.properties.recommended.description,
+          timeoutDescription: askTool.parameters.properties.timeout_seconds.description,
+        }));
     """)
     assert result["res1"]["details"]["answer"] == "Option A (Recommended)"
     assert result["res1"]["details"]["is_custom"] is False
     assert result["res2"]["details"]["answer"] == "My custom answer"
     assert result["res2"]["details"]["is_custom"] is True
-    assert result["res3"]["details"]["answer"] == "Option A (Recommended)"
+    assert result["res3"]["details"]["pending"] is True
     assert result["res3"]["details"]["timed_out"] is True
-    assert result["lastSelectTimeout"] == 45000
+    assert "Do not proceed" in result["res3"]["content"][0]["text"]
+    assert result["noUiResult"]["details"] == {"pending": True, "source": "no_ui"}
+    assert "Do not proceed" in result["noUiResult"]["content"][0]["text"]
+    assert result["blankCustomResult"]["details"] == {
+        "pending": True,
+        "source": "custom_input_cancelled",
+    }
+    assert "Do not proceed" in result["blankCustomResult"]["content"][0]["text"]
+    assert "timeout fallback" not in result["recommendedDescription"]
+    assert "leaves the decision pending" in result["timeoutDescription"]
+    assert result["lastSelectTimeout"] == 60000
 
 
 def test_matt_pocock_ask_tui_rendering_uses_pi_kit_lifecycle() -> None:
@@ -851,10 +916,10 @@ def test_matt_pocock_ask_tui_rendering_uses_pi_kit_lifecycle() -> None:
     assert not any("ctrl+o to expand" in row for row in result["msgRows"])
 
 
-def test_todo_records_deferred_automation() -> None:
+def test_todo_records_remaining_deferred_lifecycle_automation() -> None:
     todo = (PACKAGE / "TODO.md").read_text()
+    assert "Automatically infer workflow phase completion" not in todo
     for deferred in (
-        "Automatically infer workflow phase completion",
         "Automatically create a new Pi session",
         "Automatically create teammates",
         "tool-level production-write blocking",

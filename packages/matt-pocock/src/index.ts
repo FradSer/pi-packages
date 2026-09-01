@@ -318,10 +318,10 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         description: "2 to 4 suggested options. Put the recommended option first or mark it '(Recommended)'.",
       }),
       recommended: Type.Optional(Type.String({
-        description: "The recommended option (used as default or timeout fallback).",
+        description: "The recommended option shown to the user; it is never selected without an answer.",
       })),
       timeout_seconds: Type.Optional(Type.Number({
-        description: "Timeout in seconds waiting for user response (default: 60, set <=0 for no timeout).",
+        description: "Seconds to wait for a user response (default: 60; timeout leaves the decision pending; set <=0 for no timeout).",
       })),
       allow_custom: Type.Optional(Type.Boolean({
         description: "Whether to allow the user to type a custom answer (default: true).",
@@ -338,15 +338,19 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       const detailsObj = (result.details ?? {}) as {
         answer?: string;
         is_custom?: boolean;
+        pending?: boolean;
         timed_out?: boolean;
         source?: string;
       };
       const answer = detailsObj.answer ?? text;
       const question = params.question ? safeDisplayText(params.question) : "question";
       const subject = question;
-      const summary = [`Answer: ${safeDisplayText(answer || "(none)")}`];
+      const summary = [detailsObj.pending
+        ? "Status: pending user decision"
+        : `Answer: ${safeDisplayText(answer || "(none)")}`];
       const effectiveDetails = [
-        detailsObj.timed_out ? "Status: timed out (used recommended option)" : undefined,
+        detailsObj.timed_out && detailsObj.pending ? "Reason: selection timed out" : undefined,
+        detailsObj.source === "no_ui" ? "Reason: no UI available" : undefined,
         detailsObj.is_custom ? "Source: custom input" : undefined,
       ].filter((line): line is string => Boolean(line));
 
@@ -366,19 +370,15 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       const allowCustom = params.allow_custom ?? true;
       const timeoutSec = params.timeout_seconds !== undefined ? params.timeout_seconds : 60;
       const timeoutMs = timeoutSec > 0 ? timeoutSec * 1000 : undefined;
-      const recommendedOption = params.recommended
-        ?? params.options.find((opt) => opt.includes("(Recommended)"))
-        ?? params.options[0];
-
       if (!ctx.hasUI) {
         return {
           content: [{
             type: "text",
-            text: `[No UI available] Selected fallback: ${recommendedOption ?? "none"}`,
+            text: "[Pending user decision] No UI is available to collect an answer. Do not proceed until the user responds.",
           }],
           details: {
-            answer: recommendedOption,
-            source: "fallback_no_ui",
+            pending: true,
+            source: "no_ui",
           },
         };
       }
@@ -396,35 +396,33 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       );
 
       if (selected === undefined) {
-        if (recommendedOption) {
-          return {
-            content: [{
-              type: "text",
-              text: `[Timeout / No selection] Proceeding with recommended option: ${recommendedOption}`,
-            }],
-            details: {
-              answer: recommendedOption,
-              timed_out: true,
-              source: "timeout_recommended",
-            },
-          };
-        }
         return {
           content: [{
             type: "text",
-            text: "[Cancelled] No answer selected and no recommended fallback provided.",
+            text: "[Pending user decision] No answer was selected. Do not proceed until the user responds.",
           }],
           details: {
-            answer: undefined,
+            pending: true,
             timed_out: true,
-            source: "cancelled",
+            source: "timeout",
           },
         };
       }
 
       if (selected === customOptionLabel) {
-        const customInput = await ctx.ui.input(params.question, "Enter your answer...");
-        const finalAnswer = customInput?.trim() || recommendedOption || "";
+        const finalAnswer = (await ctx.ui.input(params.question, "Enter your answer..."))?.trim();
+        if (!finalAnswer) {
+          return {
+            content: [{
+              type: "text",
+              text: "[Pending user decision] No custom answer was provided. Do not proceed until the user responds.",
+            }],
+            details: {
+              pending: true,
+              source: "custom_input_cancelled",
+            },
+          };
+        }
         return {
           content: [{
             type: "text",

@@ -33,12 +33,17 @@ Feature: Matt Pocock workflow harness
     Then the harness records that the current workflow ended
     And it forwards the prompt for autonomous workflow routing and execution
 
-  Scenario: A user manually transitions between phases
+  Scenario: A user explicitly overrides the automatic phase transition
     Given an idea-to-ship workflow is active at the shaping phase
     When the user selects a later phase from the harness transition menu
     Then the harness persists the selected procedure and phase
     And it injects that procedure
-    And it does not infer phase completion from model or tool activity
+
+  Scenario: An agent automatically transitions after completing a procedure
+    Given an active idea-to-ship workflow has completed its shaping procedure
+    When the next applicable procedure is clear from the workflow route
+    Then the agent calls matt_pocock_workflow for that procedure without waiting for user confirmation
+    And the harness persists and returns the new procedure and phase
 
   Scenario: Active work receives concise phase guidance
     Given a workflow is active
@@ -94,12 +99,12 @@ Feature: Matt Pocock workflow harness
     Then it records an explicit workflow exit for other extensions
     And it warns with the valid procedures for that route
 
-  Scenario: Workflows progress without redundant confirmation
+  Scenario: Workflows advance through every non-user-owned next step
     Given an active Matt Pocock workflow has enough confirmed context to perform its next step
-    When the current procedure completes its summary or decision
-    Then it does not ask the user whether to continue
-    And it begins the next applicable workflow work without waiting for further confirmation
-    And it asks only for a genuinely user-owned decision, unavailable fact, or required external action
+    When the current procedure completes its summary, decision, or ticket resolution
+    Then it does not stop to recommend or ask whether to continue
+    And it begins or transitions to the next applicable workflow work without waiting for further confirmation
+    And it continues through newly unblocked AFK work until only a genuinely user-owned decision, unavailable fact, or required external action remains
 
   Scenario: Structured interview questions are available only during an active workflow
     Given the structured interview tool is initially active
@@ -116,7 +121,13 @@ Feature: Matt Pocock workflow harness
     Given an active grilling or interview procedure
     When the agent calls the matt_pocock_ask tool with question and options
     Then the tool presents choices using the Pi UI selection dialog
-    And it supports recommended option, timeout fallback, and custom user input
+    And it supports a recommended option and custom user input
+
+  Scenario: A user-owned decision remains pending without an answer
+    Given an active grilling or interview procedure
+    When the matt_pocock_ask selection times out, Pi has no UI, or custom input is cancelled or blank
+    Then the tool reports that the decision is pending user input
+    And it does not select a recommended option or authorize workflow progression
 
   Scenario: The package has no recursively discoverable child skills
     Given pi-matt-pocock is packaged
@@ -154,11 +165,10 @@ Feature: Matt Pocock workflow harness
     When it emits that notification
     Then it delegates notification sanitization and delivery to pi-kit
 
-  Scenario: Deferred automation remains documented
+  Scenario: Deferred lifecycle automation remains documented
     Given the first harness version is packaged
     When TODO.md is inspected
-    Then it lists automatic completion inference
-    And it lists automatic session creation
+    Then it lists automatic session creation
     And it lists automatic teammate creation
     And it lists tool-level BDD or TDD write blocking
     And it lists per-workflow commands
