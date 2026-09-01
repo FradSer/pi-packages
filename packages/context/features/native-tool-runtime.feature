@@ -31,6 +31,14 @@ Feature: Native context tool behavior
     And the collapsed transcript row identifies the requested target and method
     And expanding that row reveals the complete workflow instruction
 
+  Scenario: Native context tools use the shared lifecycle transcript
+    Given a context native tool returns retrieved documentation or search results
+    When Pi renders its tool row
+    Then the tool call slot is empty
+    And the result is rendered through pi-kit's lifecycle result renderer
+    And the collapsed row identifies the retrieval target without rendering result text
+    And expanding the row reveals the bounded retrieved text
+
   Scenario: A /context workflow completes without stale extension contexts
     Given the context package is installed alongside the live Pi package configuration
     When I run /context react --method=context7 in Pi print mode

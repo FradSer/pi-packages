@@ -78,6 +78,9 @@ class TestContextToolsExtension(unittest.TestCase):
         self.assertIn("EXA_API_KEY", content)
         self.assertIn("StringEnum", content)
         self.assertNotIn("Type.Union", content)
+        self.assertIn('renderShell: "self"', content)
+        self.assertIn("createToolLifecycleResultRenderer", content)
+        self.assertIn("renderCall: emptyToolCall", content)
 
     def test_native_tools_own_their_lifecycle_transcript_surfaces(self):
         """Every native retrieval tool suppresses Pi defaults and uses pi-kit's lifecycle row."""
@@ -320,6 +323,9 @@ class TestFeatureContract(unittest.TestCase):
             "EXA_API_KEY is configured",
             "queries api.exa.ai with the key",
             "states context_exa works without an API key",
+            "Native context tools use the shared lifecycle transcript",
+            "tool call slot is empty",
+            "result is rendered through pi-kit's lifecycle result renderer",
         ):
             self.assertIn(phrase, feature)
 
