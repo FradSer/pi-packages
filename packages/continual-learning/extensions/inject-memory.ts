@@ -464,7 +464,7 @@ function setDreamingWidget(ctx: ExtensionContext): void {
         }
       },
     };
-  });
+  }, { placement: "aboveEditor" });
 }
 
 function availableMemoryModels(ctx: ExtensionContext) {
