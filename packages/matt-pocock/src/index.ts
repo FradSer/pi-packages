@@ -8,10 +8,10 @@ import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
   createStaticToolLifecycleMessageRenderer,
   clearPiStatus,
-  createStaticToolLifecycleResultRenderer,
   createToolLifecycleResultRenderer,
   eventToolLifecycle,
   formatToolErrorLine,
+  formatToolLifecycleTitle,
   notifyPi,
   safeDisplayText,
 } from "@fradser/pi-kit";
@@ -260,22 +260,19 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     parameters: workflowToolParameters(),
     renderShell: "self",
     renderCall: () => new Text("", 0, 0),
-    renderResult(result, options, theme, context) {
+    renderResult(result, _options, theme, context) {
       const text = result.content.find((part) => part.type === "text")?.text ?? "";
-      if (context.isError) {
-        return new Text(theme.fg("error", formatToolErrorLine(text)), 0, 0);
-      }
+      if (context.isError) return new Text(theme.fg("error", formatToolErrorLine(text)), 0, 0);
       const details = (result.details ?? {}) as WorkflowState;
       const route = details.route ?? (context.args as { route?: string })?.route ?? "workflow";
       const phase = details.phase ?? "active";
-      const subject = formatReadableWorkflowSubject(route, phase);
-      return createStaticToolLifecycleResultRenderer({
-        createSpec: () => eventToolLifecycle("matt pocock", subject, { label: "workflow" }),
-        expandHint: safeExpandHint(),
-        fit: truncateToWidth,
-        visibleWidth,
-        renderError: (line, currentTheme) => new Text(currentTheme.fg("error", line), 0, 0),
-      })(result, options, theme, context);
+      const title = formatToolLifecycleTitle({
+        kind: "event",
+        tool: "matt pocock",
+        subject: formatReadableWorkflowSubject(route, phase),
+        label: "workflow",
+      });
+      return new Text(theme.fg("customMessageLabel", theme.bold(title)), 0, 0);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const route = findWorkflowRoute(params.route);

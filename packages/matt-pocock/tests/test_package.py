@@ -835,6 +835,7 @@ def test_matt_pocock_ask_tui_rendering_uses_pi_kit_lifecycle() -> None:
     assert any("Answer: Option A" in row for row in result["askRows"])
     assert not any("Options:" in row for row in result["askRows"])
 
+    assert len(result["workflowRows"]) == 1
     assert any("[matt pocock] workflow ·" in row for row in result["workflowRows"])
     assert not any("[matt pocock] · workflow" in row for row in result["workflowRows"])
     assert not any("[matt pocock · workflow]" in row for row in result["workflowRows"])

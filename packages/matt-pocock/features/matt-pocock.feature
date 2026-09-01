@@ -134,7 +134,7 @@ Feature: Matt Pocock workflow harness
   Scenario: Workflow state stays compact and does not expand model procedure text
     Given a Matt Pocock workflow tool result contains a loaded procedure for the model
     When Pi renders the user-facing workflow row
-    Then it shows the route and phase as a non-expandable lifecycle row
+    Then it shows the route and phase as one native Text row without a lifecycle background band or expansion hint
     And it does not render the procedure text as user-facing details
 
   Scenario: A structured answer keeps question and answer visible in the collapsed row
