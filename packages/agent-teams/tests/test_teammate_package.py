@@ -1184,6 +1184,8 @@ def test_first_turn_guidance_explains_how_to_create_a_role_on_demand() -> None:
           requiresAgent: TEAMMATE_SPAWN_GUIDANCE.includes("required `agent` role"),
           requiresDefinition: TEAMMATE_SPAWN_GUIDANCE.includes("`definition`"),
           explainsRegistration: TEAMMATE_SPAWN_GUIDANCE.includes("registered in memory under"),
+          explainsAgentEquivalence: TEAMMATE_SPAWN_GUIDANCE.includes("agents / sub-agents"),
+          routesAgentRequests: TEAMMATE_SPAWN_GUIDANCE.includes("teammate_spawn"),
         }}));
         '''
     )
@@ -1193,6 +1195,8 @@ def test_first_turn_guidance_explains_how_to_create_a_role_on_demand() -> None:
         "requiresAgent": True,
         "requiresDefinition": True,
         "explainsRegistration": True,
+        "explainsAgentEquivalence": True,
+        "routesAgentRequests": True,
     }
 
 

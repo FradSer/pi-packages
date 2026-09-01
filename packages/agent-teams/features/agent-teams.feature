@@ -730,10 +730,12 @@ Feature: Agent Teams collaborative organization contract
       Then claimable-task notices wait at least five minutes between deliveries by default
       And PI_TEAMMATE_NOTICE_PACE_MS overrides the default in milliseconds
 
-    Scenario: First-turn delegation guidance explains generated roles
+    Scenario: First-turn delegation guidance explains generated roles and agent routing
       Given the leader has no living teammates and no board tasks
       When before_agent_start runs
       Then short teammate-spawn guidance is injected
+      And it states that teammates are resident agents and sub-agents
+      And it routes agent, subagent, and worker delegation requests to teammate_spawn
       And it states that Agent Teams has no built-in roles
       And it requires name, agent, and definition when creating a role on demand
       And it explains that agent is the required in-memory role id

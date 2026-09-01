@@ -202,11 +202,11 @@ export interface InboxMessage {
 
 // ── Tool parameter schemas (typebox) ──────────────────────────────
 
-/** Spawn one named resident teammate. */
+/** Spawn one named resident teammate or sub-agent. */
 export const TeammateSpawnParams = Type.Object({
   name: Type.String({ minLength: 1, description: "Teammate name, unique among living teammates; used for messaging and claiming" }),
-  agent: Type.String({ description: "Agent definition name; an inline definition may create this role in memory for the current session" }),
-  prompt: Type.Optional(Type.String({ description: "Optional kickoff prompt delivered as the teammate's first turn; omit to let it wait for messages or board claims" })),
+  agent: Type.String({ description: "Agent definition name or role id; an inline definition may create this role in memory for the current session" }),
+  prompt: Type.Optional(Type.String({ description: "Optional kickoff prompt delivered as the agent / teammate's first turn; omit to let it wait for messages or board claims" })),
   resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Stable resource tags owned by this direct assignment. Overlapping board claims are rejected until it closes." })),
   handoffFrom: Type.Optional(Type.String({ minLength: 1, description: "Stopped teammate whose assignment, claim, and recent reports should be summarized in this successor kickoff." })),
   definition: Type.Optional(Type.Object({
@@ -215,7 +215,7 @@ export const TeammateSpawnParams = Type.Object({
     model: Type.Optional(Type.String({ description: 'Optional provider/model pin, or "inherit" to run on the leader\'s current model' })),
     verify: Type.Optional(Type.String({ description: "Role-default completion gate: a review prompt a fresh reviewer answers with VERDICT: PASS or FAIL" })),
     worktree: Type.Optional(Type.Boolean({ description: "Whether this role receives a dedicated Git worktree" })),
-    prompt: Type.String({ minLength: 1, description: "Role prompt for this generated teammate" }),
+    prompt: Type.String({ minLength: 1, description: "Role prompt for this generated teammate / sub-agent" }),
     persist: Type.Optional(Type.Boolean({ description: "Persist only when the user explicitly asks to keep this role for future sessions" })),
     persistScope: Type.Optional(Type.Union([
       Type.Literal("project"),

@@ -55,9 +55,9 @@ function spawnAssignment(params: { name: string; agent: string; prompt?: string 
 export function registerLeaderTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "teammate_spawn",
-    promptSnippet: "Spawn a named resident teammate",
+    promptSnippet: "Spawn a named resident teammate or sub-agent",
     label: "Spawn Teammate",
-    description: "Spawn one named resident teammate. Generated role definitions stay in memory by default; persist one only when the user explicitly asks to keep it for future sessions.",
+    description: "Spawn one named resident teammate / sub-agent. Use this tool whenever instructions, third-party skills, or workflows ask to launch or delegate work to an agent, sub-agent (subagent), worker, or teammate. Generated role definitions stay in memory by default; persist one only when the user explicitly asks to keep it for future sessions.",
     parameters: TeammateSpawnParams,
     renderShell: "self",
     renderCall: emptyToolCall,

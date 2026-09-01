@@ -6,7 +6,7 @@ Claude-Code-style collaborative agent teams for Pi: named resident teammates, a 
 
 ## What This Package Does
 
-The team leader (your Pi session) spawns named teammates as long-lived child Pi processes in RPC mode. Each teammate has an isolated context, a peer inbox, and access to a shared task board. The harness—not the leader model—polls for activity: it drains leader reports, routes peer mail, applies task claims and submissions, judges verify prompts with fresh one-shot reviewers, and wakes idle teammates only when work or mail exists.
+The team leader (your Pi session) spawns named teammates (isolated resident agents / sub-agents) as long-lived child Pi processes in RPC mode. Each teammate has an isolated context, a peer inbox, and access to a shared task board. When third-party skills or engineering workflows instruct to spawn an agent, call a subagent, or delegate work to a worker agent, `teammate_spawn` is the tool to invoke. The harness—not the leader model—polls for activity: it drains leader reports, routes peer mail, applies task claims and submissions, judges verify prompts with fresh one-shot reviewers, and wakes idle teammates only when work or mail exists.
 
 The message surface is deliberately singular: `send_message` is the only messaging primitive. Workers report with `to: "leader"`; teammates address peers by name; the leader addresses teammates by name. The routing implementation varies by destination (outbox, inbox, or control stream), but callers use one schema.
 
