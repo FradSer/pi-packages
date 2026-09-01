@@ -18,6 +18,8 @@ no skills, and no extensions. Consumer packages declare it as
   See `packages/btw` for the canonical layout that consumes it.
 - `renderPiPanel({ width, style, fit, title, body, footer })` — standard bordered panel geometry for overlays and full-screen consoles. Consumers keep interaction, scrolling, and Markdown rendering; pi-kit supplies the shared frame.
 - `renderPiWidgetRow(content, width, fit)` — one leading-space, width-bounded passive status-widget row aligned with Pi's native rows.
+- `setPiStatus` / `clearPiStatus` — sanitized set/clear adapters for package-owned transient status entries.
+- `startPiWorkingIndicator` / `clearPiWorkingIndicator` — start the shared native-cadence spinner or restore Pi's default indicator.
 
 ### Messages
 
@@ -25,7 +27,9 @@ no skills, and no extensions. Consumer packages declare it as
   message content value (string or content-block array). Non-text blocks
   contribute nothing; callers own trim/empty semantics.
 - `createToolLifecycleMessageRenderer(options)` — structural custom-message renderer factory using the lifecycle band.
+- `createStaticToolLifecycleMessageRenderer(options)` — compact custom-message factory that keeps model-only text out of the TUI row.
 - `createToolLifecycleResultRenderer(options)` — structural native-tool result renderer factory; callers provide the host-native error component.
+- `createStaticToolLifecycleResultRenderer(options)` — compact native-tool factory that keeps model-only text out of the TUI row.
 - `notifyPi(ui, message, level)` — sanitized forwarding to Pi's native notification surface.
 
 ## Rules

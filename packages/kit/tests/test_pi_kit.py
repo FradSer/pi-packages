@@ -490,6 +490,30 @@ def test_agent_message_band_shares_the_report_row_language() -> None:
     assert "<customMessageLabel>[2 messages] from </customMessageLabel>" in multi_lines[2]
 
 
+def test_status_and_working_indicator_adapters_sanitize_and_use_shared_spinner() -> None:
+    result = run_typescript(
+        f"""
+        import {{ clearPiStatus, clearPiWorkingIndicator, setPiStatus, startPiWorkingIndicator }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const statuses = [];
+        const indicators = [];
+        const ui = {{
+          setStatus: (key, value) => statuses.push([key, value]),
+          setWorkingIndicator: (value) => indicators.push(value),
+        }};
+        setPiStatus(ui, "vision\\u001b]0;bad\\u0007", "reading\\u001b[31m image\\u001b[0m");
+        clearPiStatus(ui, "vision");
+        startPiWorkingIndicator(ui);
+        clearPiWorkingIndicator(ui);
+        console.log(JSON.stringify({{ statuses, indicators }}));
+        """
+    )
+    assert result["statuses"] == [["vision", "reading image"], ["vision", None]]
+    assert result["indicators"] == [
+        {"frames": ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], "intervalMs": 120},
+        None,
+    ]
+
+
 def test_safe_display_text_sanitizes_terminal_output() -> None:
     result = run_typescript(
         f"""

@@ -43,6 +43,8 @@ export interface ToolLifecycleSpec {
   subject: string;
   /** Optional semantic verb such as `created`, `listed`, `gathered`, or `to @name`. */
   label?: string;
+  /** Always-visible secondary lines, shown both collapsed and expanded. */
+  summary?: readonly string[];
   details?: readonly string[];
   /** Default bounds expanded details to 50 lines; opt in only when every
    * line is required for a user-visible readback. */
@@ -71,13 +73,14 @@ export function startedToolLifecycle(
 export function eventToolLifecycle(
   tool: string,
   subject: string,
-  options: { label?: string; details?: readonly string[]; detailLimit?: number | "all" } = {},
+  options: { label?: string; summary?: readonly string[]; details?: readonly string[]; detailLimit?: number | "all" } = {},
 ): ToolLifecycleSpec {
   return {
     kind: "event",
     tool,
     subject,
     label: options.label,
+    summary: options.summary,
     details: options.details,
     detailLimit: options.detailLimit,
   };
@@ -188,6 +191,7 @@ export function renderToolLifecycle(
   const label = spec.label === undefined ? "" : ` ${safeDisplayText(spec.label)} ·`;
   const head = theme.fg("customMessageLabel", theme.bold(`${tag}${label}`));
   const subjectText = safeDisplayText(spec.subject);
+  const summary = (spec.summary ?? []).map((line) => safeDisplayText(line));
   const details = formatToolLifecycleDetails(spec);
   // Structured metadata can make a result expandable even when its visible
   // content body is empty (for example teammate_spawn's { started }).
@@ -198,9 +202,11 @@ export function renderToolLifecycle(
     ? theme.fg("dim", ` · ${options.expandHint ?? "to expand"}`)
     : "";
   const title = `${head} ${styleSubject(subjectText, options)}`;
+  const summaryRows = summary.map((line) => fit(theme.fg("customMessageText", line), contentWidth));
   const rows = options.expanded
     ? [
         fit(title, contentWidth),
+        ...summaryRows,
         ...details.flatMap((detail) => {
           const wrapped = options.wrapDetail
             ? options.wrapDetail(detail, contentWidth)
@@ -214,6 +220,7 @@ export function renderToolLifecycle(
             ? fit(hint, contentWidth)
             : `${fit(title, Math.max(0, contentWidth - options.visibleWidth(hint)))}${hint}`
           : fit(title, contentWidth),
+        ...summaryRows,
       ];
   return paintBand(rows, options);
 }
@@ -315,6 +322,29 @@ export function createToolLifecycleMessageRenderer(
  * Build a native-tool result renderer. Hosts retain control of their native
  * error component while successful results always use the lifecycle band.
  */
+export function createStaticToolLifecycleMessageRenderer<T extends PiCustomMessageLike>(
+  options: Omit<ToolLifecycleRendererOptions<T>, "createSpec"> & {
+    createSpec: (message: T) => ToolLifecycleSpec;
+  },
+): (
+  message: T,
+  state: { expanded?: boolean },
+  theme: ToolLifecycleTheme,
+) => PiMessageComponent {
+  return (message, state, theme) => ({
+    render: (width) => renderToolLifecycle(options.createSpec(message), {
+      expanded: state.expanded,
+      expandHint: options.expandHint,
+      theme,
+      fit: options.fit,
+      visibleWidth: options.visibleWidth,
+      wrapDetail: options.wrapDetail,
+      width,
+    }),
+    invalidate: () => {},
+  });
+}
+
 export function createToolLifecycleResultRenderer<T extends PiCustomMessageLike, E>(
   options: ToolLifecycleRendererOptions<T> & {
     renderError: (line: string, theme: ToolLifecycleTheme) => E;
@@ -333,6 +363,31 @@ export function createToolLifecycleResultRenderer<T extends PiCustomMessageLike,
     return lifecycleComponent(spec, {
       expanded: state.expanded,
       expandable: result.details !== undefined || details.length > 0,
+      expandHint: options.expandHint,
+      theme,
+      fit: options.fit,
+      visibleWidth: options.visibleWidth,
+      wrapDetail: options.wrapDetail,
+    });
+  };
+}
+
+export function createStaticToolLifecycleResultRenderer<T extends PiCustomMessageLike, E>(
+  options: Omit<ToolLifecycleRendererOptions<T>, "createSpec"> & {
+    createSpec: (result: T) => ToolLifecycleSpec;
+    renderError: (line: string, theme: ToolLifecycleTheme) => E;
+  },
+): (
+  result: T,
+  state: { expanded?: boolean },
+  theme: ToolLifecycleTheme,
+  context: { isError?: boolean },
+) => PiMessageComponent | E {
+  return (result, state, theme, context) => {
+    const text = extractTextContent(result.content);
+    if (context.isError) return options.renderError(formatToolErrorLine(text), theme);
+    return lifecycleComponent(options.createSpec(result), {
+      expanded: state.expanded,
       expandHint: options.expandHint,
       theme,
       fit: options.fit,
@@ -368,6 +423,36 @@ export function notifyPi(
   level: "info" | "warning" | "error" = "info",
 ): void {
   ui.notify(safeDisplayText(message), level);
+}
+
+/** Minimal structural UI surface for transient extension status. */
+export interface PiStatusUi {
+  setStatus(key: string, value: string | undefined): void;
+}
+
+/** Sanitize and set one extension-owned transient status entry. */
+export function setPiStatus(ui: PiStatusUi, key: unknown, value: unknown): void {
+  ui.setStatus(safeDisplayText(key), safeDisplayText(value));
+}
+
+/** Clear one extension-owned transient status entry. */
+export function clearPiStatus(ui: PiStatusUi, key: unknown): void {
+  ui.setStatus(safeDisplayText(key), undefined);
+}
+
+/** Minimal structural UI surface for Pi's inline working indicator. */
+export interface PiWorkingIndicatorUi {
+  setWorkingIndicator(options?: { frames: string[]; intervalMs: number }): void;
+}
+
+/** Start Pi's inline working indicator with the shared native cadence. */
+export function startPiWorkingIndicator(ui: PiWorkingIndicatorUi): void {
+  ui.setWorkingIndicator({ frames: PI_SPINNER_FRAMES, intervalMs: PI_SPINNER_INTERVAL_MS });
+}
+
+/** Restore Pi's native inline working indicator. */
+export function clearPiWorkingIndicator(ui: PiWorkingIndicatorUi): void {
+  ui.setWorkingIndicator();
 }
 
 /**

@@ -37,6 +37,8 @@ Feature: Shared pi-kit runtime helpers
     And when it handles an expanded result it reveals at most 50 detail lines by default
     And a lifecycle spec with detailLimit="all" preserves every expanded detail line
     And an error result is rendered as one plain error row without a lifecycle label
+    And a static result renderer keeps model-only result text out of the expandable user-facing row
+    And a lifecycle row can show a compact multi-line summary while remaining expandable
 
   Scenario: Overlay panels use the shared frame layout
     Given an overlay has a header, body lines, and a footer
@@ -65,6 +67,21 @@ Feature: Shared pi-kit runtime helpers
     Given a package needs to notify through ctx.ui
     When it calls notifyPi
     Then the message is sanitized and forwarded with the requested notification level
+
+  Scenario: Passive extension widgets use Pi-kit's shared rendering helpers
+    Given a package registers a passive widget with Pi
+    When it renders visible widget content
+    Then its rows use Pi-kit's shared widget-row renderer
+    And any multi-line panel uses Pi-kit's shared panel renderer
+
+  Scenario: Transient status and working indicator use shared Pi-kit adapters
+    Given a package needs to show or clear a transient TUI status
+    When it uses pi-kit's status adapter
+    Then the status key and visible text are sanitized before delivery to Pi
+    And clearing the status forwards an undefined value
+    When it starts or clears Pi's working indicator through pi-kit
+    Then the standard shared spinner frames and cadence are used for start
+    And clearing restores Pi's native working indicator
 
   Scenario: Agent task and message labels share pi-kit formatting
     Given an agent task and a teammate name
