@@ -1,5 +1,22 @@
 # @fradser/pi-agent-teams
 
+## 0.8.2
+
+### Patch Changes
+
+- 91dfc9a: Optimize worker guidance and kickoff prompt so teammates with assigned tasks execute them directly without redundant task board queries.
+- 731f1cd: Clarify agent and sub-agent conceptual equivalence in teammate_spawn tool descriptions and prompt guidance so third-party skills and workflows routing to agents hit teammate_spawn seamlessly.
+- ec7d764: Adopt static tool lifecycle renderers and computeScrollWindow in consumers, remove unused pi-kit exports, and restore strict local typecheck.
+- 92944c1: Apply progressive tool disclosure across runtime packages. State-dependent capabilities are now hidden until their workflow state is active, and continual-learning no longer couples its guardrails to Matt Pocock workflow state.
+- b28ef2d: Return a teammate's recorded terminal report in a pi-kit lifecycle event so the leader never needs to force a duplicate resend, and extend leader guidance against resend steers and task_list polling.
+  
+  Allow lifecycle renderers to explicitly preserve every expanded detail line for user-requested readbacks while retaining the default 50-line bound.
+- fab8160: Unify package TUI notifications, lifecycle rows, panels, and widgets through shared pi-kit rendering abstractions.
+- Updated dependencies [ec7d764]
+- Updated dependencies [b28ef2d]
+- Updated dependencies [fab8160]
+  - @fradser/pi-kit@0.4.2
+
 ## 0.8.1
 
 ### Patch Changes

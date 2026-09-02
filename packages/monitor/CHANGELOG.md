@@ -1,5 +1,23 @@
 # @fradser/pi-monitor
 
+## 2.2.0
+
+### Minor Changes
+
+- 006c715: Provide model-facing start acknowledgements with `monitor_id`, deliver terminal results synchronously in print/json modes without custom messages, and add `waitForTerminal` on `MonitorManager`.
+- 38110c7: Add deterministic tool_call guardrail to intercept long-running and high-timeout bash commands (such as firmware flashing and SSH pipelines) with actionable monitor_start recipes.
+
+### Patch Changes
+
+- 548363d: Include terminal status in monitor event row titles so collapsed and expanded views display `[monitor] event · <description> · <status>`.
+- ec7d764: Adopt static tool lifecycle renderers and computeScrollWindow in consumers, remove unused pi-kit exports, and restore strict local typecheck.
+- 92944c1: Apply progressive tool disclosure across runtime packages. State-dependent capabilities are now hidden until their workflow state is active, and continual-learning no longer couples its guardrails to Matt Pocock workflow state.
+- fab8160: Unify package TUI notifications, lifecycle rows, panels, and widgets through shared pi-kit rendering abstractions.
+- Updated dependencies [ec7d764]
+- Updated dependencies [b28ef2d]
+- Updated dependencies [fab8160]
+  - @fradser/pi-kit@0.4.2
+
 ## 2.1.1
 
 ### Patch Changes

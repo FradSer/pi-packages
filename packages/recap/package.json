@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-recap",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Session recap for Pi — shows a concise summary of what's happening above the TUI input box, like Claude Code's ✦ Recap: feature",
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",

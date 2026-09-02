@@ -1,5 +1,18 @@
 # @fradser/pi-utils
 
+## 0.4.2
+
+### Patch Changes
+
+- ec7d764: Adopt static tool lifecycle renderers and computeScrollWindow in consumers, remove unused pi-kit exports, and restore strict local typecheck.
+- 92944c1: Apply progressive tool disclosure across runtime packages. State-dependent capabilities are now hidden until their workflow state is active, and continual-learning no longer couples its guardrails to Matt Pocock workflow state.
+- fab8160: Unify package TUI notifications, lifecycle rows, panels, and widgets through shared pi-kit rendering abstractions.
+- a446bbf: Hide `.pi/worktrees/` and its contents in editor file suggestions (`@` completions) in the main checkout session, and isolate managed worktree completions across sessions.
+- Updated dependencies [ec7d764]
+- Updated dependencies [b28ef2d]
+- Updated dependencies [fab8160]
+  - @fradser/pi-kit@0.4.2
+
 ## 0.4.1
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @fradser/pi-recap
 
+## 0.1.9
+
+### Patch Changes
+
+- 548363d: Keep pre-response recaps grounded in the user's request: describe work as starting or planned and do not claim unverified actions, files, connections, or results.
+- fab8160: Unify package TUI notifications, lifecycle rows, panels, and widgets through shared pi-kit rendering abstractions.
+- Updated dependencies [ec7d764]
+- Updated dependencies [b28ef2d]
+- Updated dependencies [fab8160]
+  - @fradser/pi-kit@0.4.2
+
 ## 0.1.8
 
 ### Patch Changes
