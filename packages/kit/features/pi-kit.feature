@@ -195,6 +195,7 @@ Feature: Shared pi-kit runtime helpers
     And consumer packages declare it under dependencies with the workspace protocol
     And the publish allowlist orders pi-kit before its consumers
     And the publish allowlist includes every package with a pending release
+    And every package named by a pending Changeset resolves to a workspace manifest
 
   Scenario: Pi CLI resolution accepts only the coding-agent package
     Given the current process entry or installed package is inspected

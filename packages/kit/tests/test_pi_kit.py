@@ -848,3 +848,20 @@ def test_publish_allowlist_orders_kit_before_consumers() -> None:
                  '"@fradser/pi-recap"', '"@fradser/pi-utils"', '"@fradser/pi-vision"',
                  '"@fradser/pi-plan-mode"']:
         assert script.index(name) > kit_position, f"pi-kit must publish before {name}"
+
+
+def test_pending_changesets_reference_workspace_package_names() -> None:
+    workspace_names = {
+        json.loads(manifest.read_text(encoding="utf-8"))["name"]
+        for manifest in (REPO / "packages").glob("*/package.json")
+    }
+    changeset_files = (REPO / ".changeset").glob("*.md")
+
+    for changeset_file in changeset_files:
+        contents = changeset_file.read_text(encoding="utf-8")
+        if not contents.startswith("---\\n"):
+            continue
+        frontmatter = contents.split("---", 2)[1]
+        declared_names = [line.split('"', 2)[1] for line in frontmatter.splitlines() if line.startswith('"')]
+        unknown_names = set(declared_names) - workspace_names
+        assert not unknown_names, f"{changeset_file.name} references unknown packages: {sorted(unknown_names)}"
