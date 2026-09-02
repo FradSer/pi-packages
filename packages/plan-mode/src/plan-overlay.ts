@@ -17,6 +17,7 @@ import {
 } from "@earendil-works/pi-tui";
 import {
   buildMarkdownThemeCallbacks,
+  computeScrollWindow,
   renderPiPanel,
   type PiThemeStyle,
 } from "@fradser/pi-kit";
@@ -74,8 +75,7 @@ export function createPlanOverlay(
   const scrollBy = (delta: number, maxBody: number) => {
     const contentWidth = Math.max(20, tui.terminal.columns - 4);
     const lines = markdown.render(contentWidth);
-    const max = Math.max(0, lines.length - maxBody);
-    const next = Math.max(0, Math.min(max, scroll + delta));
+    const next = computeScrollWindow(lines, scroll + delta, maxBody).clampedScroll;
     if (next !== scroll) {
       scroll = next;
       tui.requestRender();
@@ -121,11 +121,9 @@ export function createPlanOverlay(
         return;
       }
       if (matchesKey(data, Key.end)) {
-        scroll = Number.MAX_SAFE_INTEGER;
         const contentWidth = Math.max(20, tui.terminal.columns - 4);
         const lines = markdown.render(contentWidth);
-        const max = Math.max(0, lines.length - maxBody);
-        scroll = Math.min(scroll, max);
+        scroll = computeScrollWindow(lines, Number.MAX_SAFE_INTEGER, maxBody).clampedScroll;
         tui.requestRender();
         return;
       }
@@ -171,10 +169,9 @@ export function createPlanOverlay(
       const mdLines = markdown.render(contentWidth).map((line) =>
         line.includes("__OVERLAY_SEPARATOR__") ? "__OVERLAY_SEPARATOR__" : line,
       );
-      const viewport = Math.min(mdLines.length, maxBody);
-      const max = Math.max(0, mdLines.length - viewport);
-      if (scroll > max) scroll = max;
-      const windowLines = mdLines.slice(scroll, scroll + viewport);
+      const { start, end, clampedScroll } = computeScrollWindow(mdLines, scroll, maxBody);
+      scroll = clampedScroll;
+      const windowLines = mdLines.slice(start, end);
 
       for (const line of windowLines) {
         if (line === "__OVERLAY_SEPARATOR__") {

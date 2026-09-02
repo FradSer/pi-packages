@@ -4,7 +4,7 @@ import {
   type ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import { Container, isKeyRelease, Key, matchesKey, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { clearPiStatus, createPiThemeStyle, createToolLifecycleMessageRenderer, createToolLifecycleResultRenderer, eventToolLifecycle, notifyPi, renderPiPanel, safeDisplayText, setPiStatus } from "@fradser/pi-kit";
+import { clearPiStatus, createPiThemeStyle, createStaticToolLifecycleMessageRenderer, createStaticToolLifecycleResultRenderer, eventToolLifecycle, notifyPi, renderPiPanel, safeDisplayText, setPiStatus } from "@fradser/pi-kit";
 import {
   MonitorManager,
   type Monitor,
@@ -182,7 +182,7 @@ export default function (pi: ExtensionAPI) {
     const report = details
       ? formatTerminalMessage(details.description, details.result)
       : safeDisplayText(String(message.content));
-    return createToolLifecycleMessageRenderer({
+    return createStaticToolLifecycleMessageRenderer({
       createSpec: () => eventToolLifecycle("monitor", subject, { label: "event", details: report.split("\n").filter((line) => line.trim()) }),
       expandHint: keyHint("app.tools.expand", "to expand"),
       fit: truncateToWidth,
@@ -289,7 +289,7 @@ export default function (pi: ExtensionAPI) {
     renderShell: "self",
     renderCall: () => new Container(),
     renderResult(result, options, theme, context) {
-      return createToolLifecycleResultRenderer({
+      return createStaticToolLifecycleResultRenderer({
         createSpec: () => eventToolLifecycle("monitor", "active monitors", { label: "stopped" }),
         fit: truncateToWidth,
         visibleWidth,

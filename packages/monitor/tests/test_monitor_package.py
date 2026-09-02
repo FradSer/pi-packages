@@ -189,8 +189,8 @@ def test_terminal_report_uses_native_custom_message_content() -> None:
 def test_monitor_tui_surfaces_use_pi_kit_renderers() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     for helper in (
-        "createToolLifecycleMessageRenderer",
-        "createToolLifecycleResultRenderer",
+        "createStaticToolLifecycleMessageRenderer",
+        "createStaticToolLifecycleResultRenderer",
         "renderPiPanel",
         "notifyPi",
     ):
@@ -200,7 +200,7 @@ def test_monitor_tui_surfaces_use_pi_kit_renderers() -> None:
 def test_monitor_report_renderer_uses_compact_event_style_and_configured_hint() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     assert 'registerMessageRenderer("monitor-result"' in extension
-    assert 'createToolLifecycleMessageRenderer(' in extension
+    assert 'createStaticToolLifecycleMessageRenderer(' in extension
     assert 'eventToolLifecycle("monitor", subject, {' in extension
     assert 'extractTerminalDescription(' in extension
     assert 'extractTerminalStatus(' in extension

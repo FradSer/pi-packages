@@ -15,7 +15,7 @@ import os from "node:os";
 import path from "node:path";
 import { keyHint, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Container, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { createToolLifecycleResultRenderer, detailField, eventToolLifecycle, formatAgentTaskName, notifyPi, safeDisplayText } from "@fradser/pi-kit";
+import { createStaticToolLifecycleResultRenderer, detailField, eventToolLifecycle, formatAgentTaskName, notifyPi, safeDisplayText } from "@fradser/pi-kit";
 import { Type } from "typebox";
 
 export interface SessionInfo {
@@ -430,7 +430,7 @@ export default function (pi: ExtensionAPI) {
         ...shown.flatMap((session) => buildSessionLines(session)),
         ...(hidden > 0 ? [`... +${hidden} more not shown`] : []),
       ];
-      return createToolLifecycleResultRenderer({
+      return createStaticToolLifecycleResultRenderer({
         createSpec: () => eventToolLifecycle("sessions", summary, { label: "listed", details: rows }),
         expandHint: keyHint("app.tools.expand", "to expand"),
         fit: truncateToWidth,

@@ -18,7 +18,7 @@ import {
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
-	createToolLifecycleResultRenderer,
+	createStaticToolLifecycleResultRenderer,
 	eventToolLifecycle,
 	formatToolErrorLine,
 	notifyPi,
@@ -49,7 +49,7 @@ function renderWorktreeToolResult(
 	const separator = subject.indexOf(" ");
 	const action = separator === -1 ? subject : subject.slice(0, separator);
 	const target = separator === -1 ? "" : subject.slice(separator + 1);
-	return createToolLifecycleResultRenderer({
+	return createStaticToolLifecycleResultRenderer({
 		createSpec: () => eventToolLifecycle("worktree", target, {
 			label: action,
 			details: worktreeToolText(result).split("\n").map((line) => line.trim()).filter(Boolean),

@@ -7,7 +7,7 @@ import {
 import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
   clearPiStatus,
-  createToolLifecycleResultRenderer,
+  createStaticToolLifecycleResultRenderer,
   eventToolLifecycle,
   formatToolErrorLine,
   notifyPi,
@@ -344,7 +344,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         detailsObj.is_custom ? "Source: custom input" : undefined,
       ].filter((line): line is string => Boolean(line));
 
-      return createToolLifecycleResultRenderer({
+      return createStaticToolLifecycleResultRenderer({
         createSpec: () => eventToolLifecycle("matt pocock", subject, {
           label: "ask",
           summary,
