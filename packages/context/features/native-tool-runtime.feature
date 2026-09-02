@@ -1,82 +1,48 @@
-Feature: Native context tool behavior
-  To expose only usable Pi-native interfaces and truthful retrieval failures
+Feature: Isolated Pi research tool
+  To research external code without expanding the main Pi tool surface
   As a user of @fradser/pi-context
-  I want the documented command surface and tool results to match the Pi runtime
+  I want one tool that delegates research to a read-only child Pi process
 
-  Scenario: The README advertises the /context command rather than skills
+  Scenario: Context registers one research tool
     Given the context package is installed in Pi
-    When I read its README
-    Then it documents /context as the entry point
-    And it may describe context-researcher only as an optional manual prompt brief
-    But it does not advertise any skill path or invocable agent
+    When Pi loads the package extension
+    Then it registers only the context_get tool
+    And it does not register a /context command
 
-  Scenario: The injected guidance routes natural-language requests to the tools
+  Scenario: Natural language requests trigger context retrieval
     Given the context package is installed in Pi
-    When the user asks the agent to search or look up external content
-    Then the injected guidance directs proactive use of context_exa for web search
-    And the injected guidance directs proactive use of context_context7 for library API questions
-    And the injected guidance directs proactive use of context_deepwiki for public GitHub repositories
+    When the user asks to research or get external context in natural language
+    Then Pi guides the agent to invoke context_get automatically
+    And the user does not need to type the tool name or a slash command
 
-  Scenario: The injected guidance states Exa works without a credential
-    Given the context package is installed in Pi
-    When the guidance is injected into the system prompt
-    Then it states context_exa works without an API key via the public Exa endpoint
-    And it notes EXA_API_KEY upgrades Exa to the full REST API
+  Scenario: Research runs in an isolated child Pi session
+    Given the agent calls context_get with a research question
+    When the tool starts its child Pi process
+    Then the child runs in print JSON mode without a session
+    And its available tools are limited to read and bash
+    And edit and write are excluded
+    And the child receives a research-only prompt
 
-  Scenario: The /context workflow is one collapsible transcript message
-    Given the context package is installed in Pi
-    When I run /context react --method=context7
-    Then Pi receives the complete workflow instruction as one custom follow-up message and starts the research turn
-    And the command waits for that research turn to settle before returning
-    And the collapsed transcript row identifies the requested target and method
-    And expanding that row reveals the complete workflow instruction
+  Scenario: Research may clone a repository only in the temporary directory
+    Given the child needs line-level repository evidence
+    When it inspects a public repository
+    Then it may git clone with depth 1 under /tmp
+    And it removes its temporary clone after inspection
+    But it does not modify the caller's working directory
 
-  Scenario: Native context tools use the shared lifecycle transcript
-    Given a context native tool returns retrieved documentation or search results
-    When Pi renders its tool row
-    Then the tool call slot is empty
-    And the result is rendered through pi-kit's lifecycle result renderer
-    And the collapsed row identifies the retrieval target without rendering result text
-    And expanding the row reveals the bounded retrieved text
+  Scenario: Research results are bounded and rendered as one lifecycle result
+    Given the child Pi process returns a research answer
+    When context_get completes
+    Then the answer is bounded before it enters the main session
+    And Pi renders one compact expandable context lifecycle row
 
-  Scenario: A /context workflow completes without stale extension contexts
-    Given the context package is installed alongside the live Pi package configuration
-    When I run /context react --method=context7 in Pi print mode
-    Then the research turn calls context_context7
-    And no extension reports a stale session context error
-
-  Scenario: Native retrieval tools use compact expandable lifecycle transcript rows
-    Given the context package is installed in Pi
-    When the agent calls context_deepwiki, context_context7, or context_exa
-    Then its default tool-call transcript is replaced with an empty custom call surface
-    And its result is rendered as a compact context lifecycle row
-    And expanding that row reveals a safe bounded rendering of the retrieval result
-
-  Scenario: An in-flight provider lookup is cancelled by Pi
-    Given a context lookup is waiting for an HTTP response
+  Scenario: Pi cancellation terminates the child process
+    Given a context research child is still running
     When Pi aborts the tool execution signal
-    Then the HTTP request is aborted
-    And the tool execution fails rather than returning cancellation as a successful text result
+    Then the child process is terminated
+    And the tool reports a cancellation error rather than a partial answer
 
-  Scenario: A retrieval provider is unreachable
-    Given a context HTTP request fails before receiving a response
-    When the associated native tool runs
-    Then the tool execution fails so Pi records an error result
-
-  Scenario: Exa search works without a credential
-    Given EXA_API_KEY is not configured
-    When context_exa runs
-    Then it queries the public keyless Exa endpoint at mcp.exa.ai
-    And it returns search results without asking for a credential
-
-  Scenario: An Exa credential upgrades to the full REST API
-    Given EXA_API_KEY is configured
-    When context_exa runs
-    Then it queries api.exa.ai with the key
-    And it returns full-text search results
-
-  Scenario: A provider request exceeds its timeout
-    Given a context HTTP request has no Pi execution signal
-    When the configured request timeout elapses
-    Then the request signal is aborted
-
+  Scenario: A failed child process does not return an answer
+    Given an isolated Pi research child exits unsuccessfully
+    When context_get completes
+    Then the tool reports the child failure
