@@ -7,6 +7,7 @@ export interface RegistryRoute {
   skill: string;
   path: string;
   terms: string[];
+  summary?: string;
 }
 
 export interface CollectionSource {
@@ -32,8 +33,14 @@ function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+const RESERVED_COLLECTION_IDS = new Set(["collections"]);
+
 export function isSlug(value: unknown): value is string {
   return typeof value === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
+}
+
+export function isCollectionId(value: unknown): value is string {
+  return isSlug(value) && !RESERVED_COLLECTION_IDS.has(value);
 }
 
 function isSafeRelativePath(value: unknown): value is string {
@@ -50,7 +57,8 @@ function parseRoute(value: unknown): RegistryRoute | undefined {
   if (!isRecord(value) || !isSlug(value.skill) || !isSafeRelativePath(value.path)) return;
   if (!Array.isArray(value.terms)) return;
   const terms = value.terms.filter((term): term is string => typeof term === "string" && term.trim().length > 0);
-  return terms.length > 0 ? { skill: value.skill, path: value.path, terms } : undefined;
+  if (typeof value.summary !== "undefined" && (typeof value.summary !== "string" || !value.summary.trim())) return;
+  return terms.length > 0 ? { skill: value.skill, path: value.path, terms, summary: value.summary?.trim() } : undefined;
 }
 
 export function isSafeGitRef(value: unknown): value is string {
@@ -89,7 +97,7 @@ function parseSource(value: unknown): CollectionSource | undefined {
 
 function parseCollection(value: unknown): RegistryCollection | undefined {
   if (!isRecord(value)) return;
-  if (!isSlug(value.id) || !isSlug(value.gateway) || value.mode !== "suggest") return;
+  if (!isCollectionId(value.id) || !isSlug(value.gateway) || value.mode !== "suggest") return;
   if (typeof value.description !== "string" || !Array.isArray(value.routes)) return;
   if (value.enabled !== undefined && typeof value.enabled !== "boolean") return;
   const source = parseSource(value.source);

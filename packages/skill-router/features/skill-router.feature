@@ -14,10 +14,28 @@ Feature: External skill collection routing
     Given a skill collection repository containing two skills
     When the user adds the repository
     Then the repository is cloned into the router cache directory
-    And each selected skill is materialized in the collection skills directory
-    And a visible gateway skill is generated for the collection
-    And the gateway contains only the collection skill content
-    And the collection registry records source, gateway, and selection
+    And each selected skill is materialized under the collection's private leaf directory
+    And a visible gateway skill is generated under the top-level gateway directory
+    And the gateway describes the collection's shared capability rather than its installation
+    And the gateway indexes the selected skills for manual selection
+    And the gateway keeps each workflow summary concise rather than copying its full upstream description
+    And the collection registry records source, gateway, description, and selection
+
+  Scenario: Gateway indexes are concise task-oriented navigation
+    Given a selected skill has a long trigger-oriented upstream description
+    When the router generates its gateway
+    Then the gateway uses the skill name and a concise task summary
+    And it preserves an imperative or declarative description that has no trigger wrapper
+    And it does not repeat trigger phrases or cross-skill references when they are present
+    And it includes the exact relative leaf path
+
+  Scenario: Gateways and private leaves have separate exposed roots
+    Given an installed collection with sub-skills
+    When the router materializes its skill files
+    Then the gateway lives at `exposed/collections/<collection>/gateway/SKILL.md`
+    And its frontmatter keeps the configured gateway name
+    And its leaves live at `exposed/collections/<collection>/leaves/<leaf>/SKILL.md`
+    And the gateway indexes each leaf through its relative path
 
   Scenario: Sub-skills are not exposed as global slash commands
     Given an installed collection with sub-skills
@@ -65,6 +83,17 @@ Feature: External skill collection routing
     When the user adds the repository
     Then Pi offers that default name for editing
     And the selected custom name is used for the collection
+
+  Scenario: Adding a collection asks for an abstract capability description
+    Given the user selected skills from a collection
+    When the router prepares the visible gateway
+    Then Pi offers a generated capability summary for editing
+    And the confirmed summary is stored in the collection registry and gateway description
+
+  Scenario: Editing an installed collection capability description refreshes its gateway
+    Given an installed collection has an outdated installation-focused description
+    When the user updates its capability summary
+    Then the registry and gateway use the updated abstract description
 
   Scenario: Exposed collections are discovered by Pi
     Given an installed collection with materialized skills
@@ -119,6 +148,24 @@ Feature: External skill collection routing
     When the collection is removed
     Then its exposed directory is deleted
     And its registry entry is removed
+
+  Scenario: Reserved collection ids cannot collide with managed containers
+    Given an installed collection already has materialized skills
+    When another collection is added with the reserved id "collections"
+    Then the install is rejected
+    And the existing exposed collection remains intact
+
+  Scenario: Forged reserved collection ids fail closed
+    Given the registry contains an entry with the reserved id "collections"
+    When the router loads and manages its collections
+    Then it ignores the forged entry
+    And it cannot remove the exposed collections container
+
+  Scenario: Updating a legacy collection migrates its exposed layout
+    Given an installed collection uses the legacy exposed directory layout
+    When the collection is updated
+    Then its gateway and leaves move into the current atomic collection tree
+    And the legacy exposed directory is removed
 
   Scenario: Duplicate upstream skill names fail the materialization
     Given a repository with two skills sharing one upstream name

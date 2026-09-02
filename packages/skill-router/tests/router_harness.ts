@@ -129,6 +129,15 @@ async function main(): Promise<void> {
       }
       break;
     }
+    case "describe": {
+      try {
+        const collection = sync.updateCollectionDescription(root, positional[0], positional.slice(1).join(" "));
+        result = { ok: true, description: collection.description };
+      } catch (error) {
+        result = { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+      break;
+    }
     case "remove": {
       try {
         sync.removeCollection(root, positional[0]);

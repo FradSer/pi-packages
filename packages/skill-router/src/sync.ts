@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import type { Api, Model, UserMessage } from "@earendil-works/pi-ai";
+import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { createHash, randomUUID } from "node:crypto";
 import {
   cpSync,
@@ -13,9 +15,9 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, resolve, sep } from "node:path";
-import { cacheDir, exposedDir } from "./paths";
-import { isSafeGitRef, isSlug, loadCollections, saveCollections, type RegistryCollection, type RegistryRoute } from "./registry";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { cacheDir, exposedDir, gatewayDir, leafSkillFile, legacyExposedDir } from "./paths";
+import { isCollectionId, isSafeGitRef, isSlug, loadCollections, saveCollections, type RegistryCollection, type RegistryRoute } from "./registry";
 
 export interface RepoSpec {
   repo: string;
@@ -31,12 +33,18 @@ export interface UpstreamSkill {
   path: string;
 }
 
+export interface WorkflowSummary {
+  skill: string;
+  summary: string;
+}
+
 export interface AddCollectionOptions {
   repo: string;
   id?: string;
   gateway?: string;
   description?: string;
   skills: "all" | string[];
+  summaries?: WorkflowSummary[];
 }
 
 export interface AddCollectionResult {
@@ -123,6 +131,7 @@ function prepareManagedDirectories(root: string): void {
   ensureDirectoryNotSymlink(root, "root");
   ensureDirectoryNotSymlink(join(root, "cache"), "cache");
   ensureDirectoryNotSymlink(join(root, "exposed"), "exposed");
+  ensureDirectoryNotSymlink(join(root, "exposed", "collections"), "collection exposure");
 }
 
 function copySkillFiles(source: string, destination: string): void {
@@ -312,12 +321,43 @@ function wrapSkillContent(content: string, name: string): string {
   return content.replace(match[0], `${match[1]}${frontmatter}${match[3]}`);
 }
 
-function gatewayContent(collection: RegistryCollection, _leaves: UpstreamSkill[]): string {
+function yamlScalar(value: string): string {
+  return JSON.stringify(value);
+}
+
+function fallbackWorkflowSummary(description: string): string {
+  const primary = description.match(/^.*?[.!?](?=\s|$)/)?.[0]?.trim() ?? description.trim();
+  const summary = primary
+    .replace(/^When the user wants to\s+/i, "")
+    .replace(/^When the user needs to\s+/i, "")
+    .replace(/^When the user asks to\s+/i, "")
+    .replace(/^Use when the user wants to\s+/i, "")
+    .replace(/^Write\s+/i, "Write ")
+    .replace(/\.$/, "");
+  if (!summary) return "Apply this workflow.";
+  return `${summary.charAt(0).toUpperCase()}${summary.slice(1)}.`;
+}
+
+function gatewayContent(root: string, collection: RegistryCollection, leaves: UpstreamSkill[]): string {
+  const gateway = gatewayDir(root, collection.id, collection.gateway);
+  const workflows = leaves.map((skill) => [
+    `- \`${skill.name}\` — ${collection.routes.find((route) => route.skill === skill.name)?.summary ?? fallbackWorkflowSummary(skill.description)}`,
+    `  Read \`${relative(gateway, leafSkillFile(root, collection.id, skill.name))}\` before applying this workflow.`,
+  ]).flat();
+
   return [
     "---",
-    `name: ${collection.gateway}`,
-    `description: ${collection.description}`,
+    `name: ${yamlScalar(collection.gateway)}`,
+    `description: ${yamlScalar(collection.description)}`,
     "---",
+    "",
+    "## Available workflows",
+    "",
+    "Select the one workflow that best fits the user's request, then read its SKILL.md before proceeding.",
+    "",
+    ...workflows,
+    "",
+    "If no workflow clearly fits, ask the user to choose. Do not load unrelated workflows.",
     "",
   ].join("\n");
 }
@@ -357,13 +397,15 @@ function swapExposed(temporary: string, exposed: string): ExposedSwap {
 function materialize(root: string, collection: RegistryCollection, leaves: UpstreamSkill[], repoDir: string): ExposedSwap {
   ensureDirectoryNotSymlink(root, "root");
   ensureDirectoryNotSymlink(join(root, "exposed"), "exposed");
+  ensureDirectoryNotSymlink(join(root, "exposed", "collections"), "collection exposure");
   const names = collection.routes.map((route) => route.skill);
   if (new Set(names).size !== names.length) {
     throw new Error(`Skill name collision in collection "${collection.id}": duplicate upstream skill names`);
   }
 
   const exposed = exposedDir(root, collection.id);
-  const temporary = join(root, "exposed", `.tmp-${collection.id}-${process.pid}`);
+  const legacy = legacyExposedDir(root, collection.id);
+  const temporary = join(root, "exposed", "collections", `.tmp-${collection.id}-${process.pid}`);
   rmSync(temporary, { recursive: true, force: true });
   mkdirSync(temporary, { recursive: true });
   const temporaryReal = realpathSync(temporary);
@@ -374,16 +416,27 @@ function materialize(root: string, collection: RegistryCollection, leaves: Upstr
       if (!existsSync(skillFile)) {
         throw new Error(`Selected skill "${route.skill}" no longer exists at ${route.path}`);
       }
-      const destination = join(temporary, "skills", route.skill);
+      const destination = join(temporary, "leaves", route.skill);
       copyWrappedSkill(source, destination, route.skill);
       const destinationReal = realpathSync(destination);
       if (!destinationReal.startsWith(temporaryReal + sep)) {
         throw new Error(`Refusing materialization escaping the exposed directory: ${route.path}`);
       }
     }
-    mkdirSync(join(temporary, collection.gateway), { recursive: true });
-    writeFileSync(join(temporary, collection.gateway, "SKILL.md"), gatewayContent(collection, leaves), "utf8");
-    return swapExposed(temporary, exposed);
+    const gateway = join(temporary, "gateway");
+    mkdirSync(gateway, { recursive: true });
+    writeFileSync(join(gateway, "SKILL.md"), gatewayContent(root, collection, leaves), "utf8");
+    const swap = swapExposed(temporary, exposed);
+    return {
+      exposed,
+      commit: () => {
+        swap.commit();
+        if (legacy !== join(root, "exposed", "collections")) {
+          rmSync(legacy, { recursive: true, force: true });
+        }
+      },
+      rollback: () => swap.rollback(),
+    };
   } catch (error) {
     rmSync(temporary, { recursive: true, force: true });
     throw error;
@@ -451,8 +504,71 @@ function withLock<T>(root: string, action: () => T): T {
   }
 }
 
-function defaultDescription(spec: RepoSpec): string {
-  return `Skill collection synced from ${spec.repo}. Invoke its gateway to list the wrapped skills.`;
+function summaryPrompt(skills: UpstreamSkill[]): string {
+  return [
+    "Write a compact navigation summary for each external workflow below.",
+    "Return JSON only: an array of objects with exactly skill and summary string fields.",
+    "Each summary is one sentence, 8–18 words, imperative or declarative, task-oriented, and preserves the source meaning.",
+    "Do not use trigger wrappers such as 'When the user wants to'. Do not include quoted trigger phrases, cross-workflow references, file paths, Markdown, or extra keys.",
+    "Include each listed skill exactly once, without inventing workflows.",
+    "", "Workflows:",
+    ...skills.map((skill) => `- ${skill.name}: ${skill.description}`),
+  ].join("\n");
+}
+
+function responseText(response: { content: Array<{ type: string; text?: string }> }): string {
+  return response.content.filter((part) => part.type === "text").map((part) => part.text ?? "").join("\n").trim();
+}
+
+function validWorkflowSummary(value: unknown): value is WorkflowSummary {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const keys = Object.keys(value);
+  if (keys.length !== 2 || !keys.includes("skill") || !keys.includes("summary")) return false;
+  const { skill, summary } = value as WorkflowSummary;
+  if (typeof skill !== "string" || typeof summary !== "string") return false;
+  if (summary.includes("\n") || /[`*_#[\]<>]/.test(summary)) return false;
+  if (/^(when the user|use when|also use)/i.test(summary)) return false;
+  const words = summary.trim().split(/\s+/);
+  return words.length >= 8 && words.length <= 18 && /[.!?]$/.test(summary.trim());
+}
+
+function fallbackWorkflowSummaries(skills: UpstreamSkill[]): WorkflowSummary[] {
+  return skills.map((skill) => ({ skill: skill.name, summary: fallbackWorkflowSummary(skill.description) }));
+}
+
+export async function generateWorkflowSummaries(
+  registry: ModelRegistry,
+  model: Model<Api> | undefined,
+  skills: UpstreamSkill[],
+  signal?: AbortSignal,
+): Promise<WorkflowSummary[]> {
+  if (!model) return fallbackWorkflowSummaries(skills);
+  try {
+    const auth = await registry.getApiKeyAndHeaders(model);
+    if (!auth.ok) return fallbackWorkflowSummaries(skills);
+    const message: UserMessage = { role: "user", content: [{ type: "text", text: summaryPrompt(skills) }], timestamp: Date.now() };
+    const response = await registry.complete(model, { systemPrompt: "You create concise, faithful workflow navigation labels.", messages: [message] }, {
+      apiKey: auth.apiKey, headers: auth.headers, signal, maxTokens: Math.max(128, skills.length * 32), temperature: 0, cacheRetention: "none",
+    });
+    const parsed: unknown = JSON.parse(responseText(response));
+    if (!Array.isArray(parsed)) throw new Error("Expected an array");
+    if (!parsed.every(validWorkflowSummary)) throw new Error("Invalid workflow summary");
+    const summaries = new Map(parsed.map((entry) => [entry.skill, entry.summary.trim()]));
+    if (summaries.size !== skills.length || skills.some((skill) => !summaries.has(skill.name))) throw new Error("Incomplete workflow summaries");
+    return skills.map((skill) => ({ skill: skill.name, summary: summaries.get(skill.name)! }));
+  } catch {
+    return fallbackWorkflowSummaries(skills);
+  }
+}
+
+export function suggestCollectionDescription(skills: UpstreamSkill[]): string {
+  const capabilities = [...new Set(skills.map((skill) => skill.name.replaceAll("-", " ")))];
+  const list = capabilities.length < 2
+    ? capabilities[0]
+    : `${capabilities.slice(0, -1).join(", ")} and ${capabilities.at(-1)}`;
+  return list
+    ? `Expert workflows spanning ${list}.`
+    : "Expert workflows for the selected collection.";
 }
 
 export function defaultCollectionId(spec: RepoSpec): string {
@@ -492,7 +608,7 @@ function addCollectionLocked(root: string, options: AddCollectionOptions): AddCo
   prepareManagedDirectories(root);
   const spec = parseRepoSpec(options.repo);
   const id = options.id ?? defaultCollectionId(spec);
-  if (!isSlug(id)) throw new Error(`Invalid collection id "${id}"`);
+  if (!isCollectionId(id)) throw new Error(`Invalid or reserved collection id "${id}"`);
   const existing = loadCollections(root);
 
   const cache = cacheDir(root, spec.cacheKey);
@@ -522,14 +638,20 @@ function addCollectionLocked(root: string, options: AddCollectionOptions): AddCo
     sourceRef: spec.ref ?? resolvedRef,
   });
 
+  const summaryBySkill = new Map(options.summaries?.map((summary) => [summary.skill, summary.summary]));
   const collection: RegistryCollection = {
     id,
     gateway,
     mode: "suggest",
     enabled: true,
-    description: options.description ?? defaultDescription(spec),
+    description: options.description ?? suggestCollectionDescription(selected),
     source: { repo: spec.repo, url: spec.url, ref: spec.ref ?? resolvedRef, cacheKey: spec.cacheKey },
-    routes: selected.map<RegistryRoute>((skill) => ({ skill: skill.name, path: skill.path, terms: deriveTerms(skill.name, skill.description) })),
+    routes: selected.map<RegistryRoute>((skill) => ({
+      skill: skill.name,
+      path: skill.path,
+      terms: deriveTerms(skill.name, skill.description),
+      summary: summaryBySkill.get(skill.name) ?? fallbackWorkflowSummary(skill.description),
+    })),
   };
 
   const swap = materialize(root, collection, selected, cache);
@@ -567,7 +689,13 @@ function updateCollectionLocked(root: string, id: string): UpdateCollectionResul
     const dropped = collection.routes.filter((route) => !upstreamByName.has(route.skill)).map((route) => route.skill);
     const selected = new Set(collection.routes.map((route) => route.skill));
 
-    const updated: RegistryCollection = { ...collection, routes: kept };
+    const updated: RegistryCollection = {
+      ...collection,
+      routes: kept.map((route) => ({
+        ...route,
+        summary: route.summary ?? fallbackWorkflowSummary(upstreamByName.get(route.skill)!.description),
+      })),
+    };
     const swap = materialize(root, updated, upstream.filter((skill) => selected.has(skill.name)), cache);
     try {
       saveCollections(root, collections.map((entry) => (entry.id === id ? updated : entry)));
@@ -602,8 +730,14 @@ export async function updateCollectionSelection(root: string, id: string, select
     const existingRoutes = new Map(collection.routes.map((route) => [route.skill, route]));
     const routes = uniqueSelected.map<RegistryRoute>((name) => {
       const skill = upstreamByName.get(name)!;
-      return existingRoutes.get(name) ?? { skill: name, path: skill.path, terms: deriveTerms(name, skill.description) };
-    }).map((route) => ({ ...route, path: upstreamByName.get(route.skill)!.path }));
+      const existing = existingRoutes.get(name);
+      return {
+        skill: name,
+        path: skill.path,
+        terms: existing?.terms ?? deriveTerms(name, skill.description),
+        summary: existing?.summary ?? fallbackWorkflowSummary(skill.description),
+      };
+    });
     const updated: RegistryCollection = { ...collection, routes };
     assertNameSpaceAvailable(
       collections.filter((entry) => entry.id !== id),
@@ -639,16 +773,50 @@ export function removeCollection(root: string, id: string): void {
     const hadExposed = existsSync(exposed);
     if (hadExposed) renameSync(exposed, backup);
     try {
-      saveCollections(root, collections.filter((collection) => collection.id !== id));
+      saveCollections(root, collections.filter((entry) => entry.id !== id));
     } catch (error) {
       if (hadExposed && existsSync(backup)) renameSync(backup, exposed);
       throw error;
+    }
+    const legacy = legacyExposedDir(root, id);
+    if (legacy !== join(root, "exposed", "collections")) {
+      rmSync(legacy, { recursive: true, force: true });
     }
     try {
       rmSync(backup, { recursive: true, force: true });
     } catch {
       // Registry state is already committed; an orphaned backup is harmless and can be cleaned later.
     }
+  });
+}
+
+export function updateCollectionDescription(root: string, id: string, description: string): RegistryCollection {
+  const normalized = description.trim();
+  if (!normalized) throw new Error("Collection capability summary is required");
+  return withLock(root, () => {
+    prepareManagedDirectories(root);
+    const collections = loadCollections(root);
+    const collection = collections.find((entry) => entry.id === id);
+    if (!collection) throw new Error(`Collection "${id}" is not installed`);
+
+    const cache = cacheDir(root, collection.source.cacheKey);
+    assertSafeCacheDirectory(cache);
+    const upstreamByName = new Map(scanSkills(cache).map((skill) => [skill.name, skill]));
+    const selected = collection.routes.map((route) => {
+      const skill = upstreamByName.get(route.skill);
+      if (!skill) throw new Error(`Selected skill "${route.skill}" no longer exists at ${route.path}`);
+      return skill;
+    });
+    const updated = { ...collection, description: normalized };
+    const swap = materialize(root, updated, selected, cache);
+    try {
+      saveCollections(root, collections.map((entry) => (entry.id === id ? updated : entry)));
+    } catch (error) {
+      swap.rollback();
+      throw error;
+    }
+    swap.commit();
+    return updated;
   });
 }
 
@@ -688,7 +856,7 @@ export function exposedSkillPaths(root: string): string[] {
   if (!isExistingDirectoryWithoutSymlink(root) || !isExistingDirectoryWithoutSymlink(exposedRoot)) return [];
   return loadCollections(root)
     .filter((collection) => collection.enabled)
-    .map((collection) => join(exposedDir(root, collection.id), collection.gateway))
+    .map((collection) => gatewayDir(root, collection.id, collection.gateway))
     .filter((path) => {
       if (!isExistingDirectoryWithoutSymlink(path)) return false;
       try {

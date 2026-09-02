@@ -11,8 +11,11 @@ import {
   removeCollection,
   setCollectionEnabled,
   updateCollection,
+  updateCollectionDescription,
   updateCollectionSelection,
   defaultCollectionId,
+  generateWorkflowSummaries,
+  suggestCollectionDescription,
   type UpstreamSkill,
 } from "./sync";
 
@@ -124,11 +127,27 @@ async function addFlow(ctx: ExtensionCommandContext): Promise<void> {
   const selection = await pickSkills(ctx, fetched.skills);
   if (!selection) return;
 
+  const selectedSkills = selection === "all"
+    ? fetched.skills
+    : fetched.skills.filter((skill) => selection.includes(skill.name));
+  const summaries = await runWithLoading(
+    ctx,
+    "Creating workflow navigation...",
+    () => generateWorkflowSummaries(ctx.modelRegistry, ctx.model, selectedSkills, ctx.signal),
+  );
+  const suggestedDescription = suggestCollectionDescription(selectedSkills);
+  const customDescription = await ctx.ui.input(
+    "Collection capability summary",
+    suggestedDescription,
+  );
+  if (customDescription === undefined) return;
+  const description = customDescription.trim() || suggestedDescription;
+
   try {
     const result = await runWithLoading(
       ctx,
       `Installing ${repo}...`,
-      () => addCollection(root, { repo, id, skills: selection }),
+      () => addCollection(root, { repo, id, description, skills: selection, summaries }),
     );
     notifyPi(ctx.ui, `Installed "${result.id}" with ${result.skills.length} skills. ${RELOAD_HINT}`, "info");
   } catch (error) {
@@ -175,6 +194,19 @@ async function selectionFlow(ctx: ExtensionCommandContext): Promise<void> {
     notifyPi(ctx.ui, `Updated "${result.id}" with ${result.selected.length} routed skills. ${RELOAD_HINT}`, "info");
   } catch (error) {
     notifyPi(ctx.ui, `Selection update failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+  }
+}
+
+async function descriptionFlow(ctx: ExtensionCommandContext): Promise<void> {
+  const collection = await pickCollection(ctx, "Edit capability summary");
+  if (!collection) return;
+  const description = await ctx.ui.input("Collection capability summary", collection.description);
+  if (description === undefined) return;
+  try {
+    updateCollectionDescription(routerRoot(), collection.id, description);
+    notifyPi(ctx.ui, `Updated "${collection.id}" capability summary. ${RELOAD_HINT}`, "info");
+  } catch (error) {
+    notifyPi(ctx.ui, `Capability summary update failed: ${error instanceof Error ? error.message : String(error)}`, "error");
   }
 }
 
@@ -237,6 +269,7 @@ export async function showSkillRouterMenu(ctx: ExtensionCommandContext): Promise
       "Add collection",
       "Update collection",
       "Change routed skills",
+      "Edit capability summary",
       "Remove collection",
       "Enable/disable collection",
       "List collections",
@@ -245,6 +278,7 @@ export async function showSkillRouterMenu(ctx: ExtensionCommandContext): Promise
     if (action === "Add collection") await addFlow(ctx);
     else if (action === "Update collection") await updateFlow(ctx);
     else if (action === "Change routed skills") await selectionFlow(ctx);
+    else if (action === "Edit capability summary") await descriptionFlow(ctx);
     else if (action === "Remove collection") await removeFlow(ctx);
     else if (action === "Enable/disable collection") await toggleFlow(ctx);
     else await listFlow(ctx);

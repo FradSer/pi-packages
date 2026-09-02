@@ -68,7 +68,11 @@ def installed_collection(tmp_path: Path, source_repo: Path) -> dict[str, object]
 
 
 def exposed_root(agent_dir: Path, collection_id: str) -> Path:
-    return agent_dir / "skill-router" / "exposed" / collection_id
+    return agent_dir / "skill-router" / "exposed" / "collections" / collection_id
+
+
+def gateway_root(agent_dir: Path, collection_id: str) -> Path:
+    return exposed_root(agent_dir, collection_id) / "gateway"
 
 
 def read_registry(agent_dir: Path) -> dict[str, object]:
@@ -84,7 +88,7 @@ def test_manifest_declares_extension_only_and_no_packaged_skills() -> None:
     assert "pi-package" in manifest["keywords"]
     assert manifest["pi"]["extensions"] == ["./index.ts"]
     assert "skills" not in manifest["pi"]
-    assert not (PACKAGE / "skills").exists()
+    assert not (PACKAGE / "leaves").exists()
     assert not (PACKAGE / "tools").exists()
     assert f"**Package version:** {manifest['version']}" in (PACKAGE / "README.md").read_text(encoding="utf-8")
 
@@ -99,28 +103,33 @@ def test_add_collection_materializes_subskills_and_gateway(tmp_path: Path, sourc
     assert any(cache.iterdir()), "repository must be cloned into the router cache"
 
     exposed = exposed_root(agent_dir, collection_id)
-    leaf = exposed / "skills" / "bug-diagnosis" / "SKILL.md"
+    leaf = exposed / "leaves" / "bug-diagnosis" / "SKILL.md"
     assert leaf.is_file()
     frontmatter = leaf.read_text(encoding="utf-8").split("---", 2)[1]
     assert re.search(r"(?m)^name: bug-diagnosis$", frontmatter)
     assert "Diagnose tricky bugs systematically" in frontmatter
-    assert (exposed / "skills" / "bug-diagnosis" / "references" / "notes.md").is_file()
-    assert (exposed / "skills" / "code-review" / "SKILL.md").is_file()
+    assert (exposed / "leaves" / "bug-diagnosis" / "references" / "notes.md").is_file()
+    assert (exposed / "leaves" / "code-review" / "SKILL.md").is_file()
 
-    gateway = (exposed / collection_id / "SKILL.md").read_text(encoding="utf-8")
+    gateway = (gateway_root(agent_dir, collection_id) / "SKILL.md").read_text(encoding="utf-8")
     gateway_frontmatter = gateway.split("---", 2)[1]
-    assert re.search(rf"(?m)^name: {re.escape(collection_id)}$", gateway_frontmatter)
+    assert re.search(rf'(?m)^name: "{re.escape(collection_id)}"$', gateway_frontmatter)
     assert "disable-model-invocation: true" not in gateway_frontmatter
-    assert f"name: {collection_id}" in gateway_frontmatter
-    assert "Skill collection synced from" in gateway_frontmatter
-    assert "bug-diagnosis" not in gateway
-    assert "code-review" not in gateway
+    assert f'name: "{collection_id}"' in gateway_frontmatter
+    assert "Expert workflows spanning bug diagnosis and code review." in gateway_frontmatter
+    assert "Skill collection synced from" not in gateway_frontmatter
+    assert "## Available workflows" in gateway
+    assert "- `bug-diagnosis` — Diagnose tricky bugs systematically." in gateway
+    assert "- `code-review` — Review code changes carefully." in gateway
+    assert "../leaves/bug-diagnosis/SKILL.md" in gateway
+    assert "../leaves/code-review/SKILL.md" in gateway
     assert gateway.endswith("\n")
 
     registry = read_registry(agent_dir)
     [entry] = registry["collections"]
     assert entry["id"] == collection_id
     assert entry["enabled"] is True
+    assert entry["description"] == "Expert workflows spanning bug diagnosis and code review."
     assert entry["source"]["repo"] == str(source_repo)
     assert {route["skill"] for route in entry["routes"]} == {"bug-diagnosis", "code-review"}
     for route in entry["routes"]:
@@ -128,13 +137,99 @@ def test_add_collection_materializes_subskills_and_gateway(tmp_path: Path, sourc
         assert route["path"], "routes must record the upstream skill path"
 
 
+def test_gateway_index_summarizes_long_trigger_oriented_descriptions(tmp_path: Path) -> None:
+    repo = tmp_path / "long-description"
+    write_skill(
+        repo,
+        "skills/seo-audit",
+        "seo-audit",
+        'When the user wants to audit, review, or diagnose SEO issues. Also use when the user mentions "SEO audit," "technical SEO," "why am I not ranking," or "my traffic dropped." For structured data, see schema.',
+    )
+    git(repo, "init", "-q", "-b", "main")
+    git(repo, "add", "-A")
+    git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+
+    agent_dir = tmp_path / "agent"
+    result = run_harness(agent_dir, "add", str(repo))
+    assert result["ok"] is True, result
+    gateway = (gateway_root(agent_dir, str(result["id"])) / "SKILL.md").read_text(encoding="utf-8")
+    assert "- `seo-audit` — Audit, review, or diagnose SEO issues." in gateway
+    assert '"technical SEO"' not in gateway
+    assert "For structured data" not in gateway
+    assert "../leaves/seo-audit/SKILL.md" in gateway
+
+
+def test_gateway_index_preserves_non_trigger_descriptions(tmp_path: Path) -> None:
+    repo = tmp_path / "declarative-description"
+    write_skill(
+        repo,
+        "skills/sales-enablement",
+        "sales-enablement",
+        "Create sales collateral, pitch decks, one-pagers, and objection-handling guides. For competitor comparisons, see competitors.",
+    )
+    git(repo, "init", "-q", "-b", "main")
+    git(repo, "add", "-A")
+    git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+
+    agent_dir = tmp_path / "agent"
+    result = run_harness(agent_dir, "add", str(repo))
+    assert result["ok"] is True, result
+    gateway = (gateway_root(agent_dir, str(result["id"])) / "SKILL.md").read_text(encoding="utf-8")
+    assert "- `sales-enablement` — Create sales collateral, pitch decks, one-pagers, and objection-handling guides." in gateway
+    assert "For competitor comparisons" not in gateway
+
+
+def test_add_accepts_an_edited_capability_description(tmp_path: Path, source_repo: Path) -> None:
+    result = run_harness(
+        tmp_path / "agent",
+        "add",
+        str(source_repo),
+        "--description",
+        "Workflows for diagnosing software problems and reviewing code changes.",
+    )
+    assert result["ok"] is True, result
+    collection_id = str(result["id"])
+    gateway = (gateway_root(tmp_path / "agent", collection_id) / "SKILL.md").read_text(encoding="utf-8")
+    assert 'description: "Workflows for diagnosing software problems and reviewing code changes."' in gateway
+    [entry] = read_registry(tmp_path / "agent")["collections"]
+    assert entry["description"] == "Workflows for diagnosing software problems and reviewing code changes."
+
+
+def test_capability_description_is_safely_escaped_in_gateway_frontmatter(tmp_path: Path, source_repo: Path) -> None:
+    description = "Software workflows: triage\ndisable-model-invocation: true"
+    result = run_harness(tmp_path / "agent", "add", str(source_repo), "--description", description)
+    assert result["ok"] is True, result
+    collection_id = str(result["id"])
+    gateway = (gateway_root(tmp_path / "agent", collection_id) / "SKILL.md").read_text(encoding="utf-8")
+    frontmatter = gateway.split("---", 2)[1]
+    assert 'description: "Software workflows: triage\\ndisable-model-invocation: true"' in frontmatter
+    assert "\ndisable-model-invocation: true\n" not in frontmatter
+
+
+def test_editing_collection_description_refreshes_gateway(tmp_path: Path, source_repo: Path) -> None:
+    agent_dir = tmp_path / "agent"
+    added = run_harness(agent_dir, "add", str(source_repo))
+    collection_id = str(added["id"])
+    result = run_harness(
+        agent_dir,
+        "describe",
+        collection_id,
+        "Software quality workflows for bug investigation and peer review.",
+    )
+    assert result == {"ok": True, "description": "Software quality workflows for bug investigation and peer review."}
+    [entry] = read_registry(agent_dir)["collections"]
+    assert entry["description"] == "Software quality workflows for bug investigation and peer review."
+    gateway = (gateway_root(agent_dir, collection_id) / "SKILL.md").read_text(encoding="utf-8")
+    assert 'description: "Software quality workflows for bug investigation and peer review."' in gateway
+
+
 def test_add_with_subset_selection_materializes_only_selected(tmp_path: Path, source_repo: Path) -> None:
     agent_dir = tmp_path / "agent"
     result = run_harness(agent_dir, "add", str(source_repo), "--skills", "bug-diagnosis")
     assert result["ok"] is True, result
     exposed = exposed_root(agent_dir, str(result["id"]))
-    assert (exposed / "skills" / "bug-diagnosis" / "SKILL.md").is_file()
-    assert not (exposed / "skills" / "code-review").exists()
+    assert (exposed / "leaves" / "bug-diagnosis" / "SKILL.md").is_file()
+    assert not (exposed / "leaves" / "code-review").exists()
     [entry] = read_registry(agent_dir)["collections"]
     assert [route["skill"] for route in entry["routes"]] == ["bug-diagnosis"]
 
@@ -151,8 +246,43 @@ def test_collection_uses_shared_skill_namespace_as_gateway(tmp_path: Path) -> No
     result = run_harness(agent_dir, "add", str(repo))
     assert result["ok"] is True, result
     assert result["gateway"] == "lark"
-    assert (exposed_root(agent_dir, str(result["id"])) / "lark" / "SKILL.md").is_file()
+    assert (gateway_root(agent_dir, str(result["id"])) / "SKILL.md").is_file()
 
+
+
+def test_reserved_collection_id_cannot_delete_exposed_container(tmp_path: Path, source_repo: Path) -> None:
+    agent_dir = tmp_path / "agent"
+    installed = run_harness(agent_dir, "add", str(source_repo), "--id", "existing")
+    assert installed["ok"] is True, installed
+    existing_gateway = gateway_root(agent_dir, "existing") / "SKILL.md"
+    assert existing_gateway.is_file()
+
+    rejected = run_harness(agent_dir, "add", str(source_repo), "--id", "collections")
+    assert rejected["ok"] is False
+    assert "reserved" in str(rejected["error"]).lower()
+    assert existing_gateway.is_file()
+    assert run_harness(agent_dir, "discover")["skillPaths"] == [str(gateway_root(agent_dir, "existing"))]
+
+
+def test_forged_reserved_registry_entry_fails_closed(tmp_path: Path, source_repo: Path) -> None:
+    agent_dir = tmp_path / "agent"
+    installed = run_harness(agent_dir, "add", str(source_repo), "--id", "valid")
+    assert installed["ok"] is True, installed
+    registry = read_registry(agent_dir)
+    forged = dict(registry["collections"][0])
+    forged["id"] = "collections"
+    forged["gateway"] = "forged"
+    registry["collections"].append(forged)
+    registry_file = agent_dir / "skill-router" / "collections.json"
+    registry_file.write_text(json.dumps(registry), encoding="utf-8")
+
+    discovered = run_harness(agent_dir, "discover")
+    assert discovered["skillPaths"] == [str(gateway_root(agent_dir, "valid"))]
+    removal = run_harness(agent_dir, "remove", "collections")
+    assert removal["ok"] is False
+    assert "not installed" in str(removal["error"])
+    assert (gateway_root(agent_dir, "valid") / "SKILL.md").is_file()
+    assert (agent_dir / "skill-router" / "exposed" / "collections").is_dir()
 
 
 def test_add_rejects_duplicate_gateway_or_id(tmp_path: Path, source_repo: Path) -> None:
@@ -169,7 +299,7 @@ def test_resources_discover_returns_only_gateway(installed_collection: dict[str,
     collection_id = str(installed_collection["add"]["id"])
     result = run_harness(agent_dir, "discover")
     assert result["ok"] is True
-    assert result["skillPaths"] == [str(exposed_root(agent_dir, collection_id) / collection_id)]
+    assert result["skillPaths"] == [str(gateway_root(agent_dir, collection_id))]
     names = {skill["name"] for skill in result["skills"]}
     assert names == {collection_id}
 
@@ -182,7 +312,7 @@ def test_route_high_confidence_suggests_leaf_with_real_path(installed_collection
     system_prompt = str(result["systemPrompt"])
     assert "bug-diagnosis" in system_prompt
     assert collection_id in system_prompt
-    assert str(exposed_root(agent_dir, collection_id) / "skills" / "bug-diagnosis" / "SKILL.md") in system_prompt
+    assert str(exposed_root(agent_dir, collection_id) / "leaves" / "bug-diagnosis" / "SKILL.md") in system_prompt
     assert result["prompt"] == "please diagnose this bug"
     assert result["message"] is None
     assert "<skill name=" not in system_prompt
@@ -252,8 +382,8 @@ def test_update_rematerializes_selection_and_ignores_new_skills(
     result = run_harness(agent_dir, "update", collection_id)
     assert result["ok"] is True, result
     exposed = exposed_root(agent_dir, collection_id)
-    assert not (exposed / "skills" / "refactor").exists(), "new upstream skills stay unrouted until selected"
-    frontmatter = (exposed / "skills" / "bug-diagnosis" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[1]
+    assert not (exposed / "leaves" / "refactor").exists(), "new upstream skills stay unrouted until selected"
+    frontmatter = (exposed / "leaves" / "bug-diagnosis" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[1]
     assert "Diagnose tricky bugs methodically" in frontmatter
     [entry] = read_registry(agent_dir)["collections"]
     assert {route["skill"] for route in entry["routes"]} == {"bug-diagnosis", "code-review"}
@@ -268,9 +398,30 @@ def test_selection_change_explicitly_adds_upstream_skill(tmp_path: Path, source_
     selected = run_harness(agent_dir, "select", collection_id, "bug-diagnosis", "code-review")
     assert selected["ok"] is True, selected
     exposed = exposed_root(agent_dir, collection_id)
-    assert (exposed / "skills" / "code-review" / "SKILL.md").is_file()
+    assert (exposed / "leaves" / "code-review" / "SKILL.md").is_file()
     [entry] = read_registry(agent_dir)["collections"]
     assert {route["skill"] for route in entry["routes"]} == {"bug-diagnosis", "code-review"}
+
+
+def test_update_migrates_legacy_exposed_layout(tmp_path: Path, source_repo: Path) -> None:
+    agent_dir = tmp_path / "agent"
+    added = run_harness(agent_dir, "add", str(source_repo), "--id", "legacy")
+    assert added["ok"] is True, added
+    current = exposed_root(agent_dir, "legacy")
+    legacy = agent_dir / "skill-router" / "exposed" / "legacy"
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    current.rename(legacy)
+    gateway = legacy / "gateway" / "SKILL.md"
+    gateway_named = legacy / "legacy"
+    gateway_named.mkdir()
+    gateway.rename(gateway_named / "SKILL.md")
+    (legacy / "leaves").rename(legacy / "skills")
+
+    result = run_harness(agent_dir, "update", "legacy")
+    assert result["ok"] is True, result
+    assert not legacy.exists()
+    assert (gateway_root(agent_dir, "legacy") / "SKILL.md").is_file()
+    assert (exposed_root(agent_dir, "legacy") / "leaves" / "bug-diagnosis" / "SKILL.md").is_file()
 
 
 def test_remove_deletes_exposed_dir_and_registry_entry(installed_collection: dict[str, object]) -> None:
@@ -297,8 +448,10 @@ def test_duplicate_upstream_skill_names_fail_materialization(tmp_path: Path) -> 
     result = run_harness(agent_dir, "add", str(repo))
     assert result["ok"] is False
     assert "collision" in str(result["error"]).lower() or "duplicate" in str(result["error"]).lower()
-    exposed = agent_dir / "skill-router" / "exposed"
+    exposed = agent_dir / "skill-router" / "exposed" / "collections"
     assert not exposed.exists() or list(exposed.iterdir()) == []
+    gateways = agent_dir / "skill-router" / "exposed" / "collections"
+    assert not gateways.exists() or list(gateways.iterdir()) == []
     assert read_registry(agent_dir)["collections"] == []
 
 
@@ -392,7 +545,7 @@ def test_existing_disable_model_invocation_value_is_replaced(tmp_path: Path, val
 
     result = run_harness(tmp_path / "agent", "add", str(repo))
     assert result["ok"] is True, result
-    leaf = exposed_root(tmp_path / "agent", str(result["id"])) / "skills" / "flagged" / "SKILL.md"
+    leaf = exposed_root(tmp_path / "agent", str(result["id"])) / "leaves" / "flagged" / "SKILL.md"
     frontmatter = leaf.read_text(encoding="utf-8").split("---", 2)[1]
     assert len(re.findall(r"(?m)^disable-model-invocation:", frontmatter)) == 1
     assert re.search(r"(?m)^disable-model-invocation:\s*true\s*$", frontmatter)
@@ -400,7 +553,7 @@ def test_existing_disable_model_invocation_value_is_replaced(tmp_path: Path, val
 
 def test_unclosed_frontmatter_is_not_discovered(tmp_path: Path) -> None:
     repo = tmp_path / "mixed-skills"
-    valid = repo / "skills" / "valid"
+    valid = repo / "leaves" / "valid"
     invalid = repo / "examples" / "bad"
     valid.mkdir(parents=True)
     invalid.mkdir(parents=True)
@@ -469,7 +622,7 @@ def test_crlf_frontmatter_is_wrapped(tmp_path: Path) -> None:
     agent_dir = tmp_path / "agent"
     result = run_harness(agent_dir, "add", str(repo))
     assert result["ok"] is True, result
-    leaf = exposed_root(agent_dir, str(result["id"])) / "skills" / "crlf-skill" / "SKILL.md"
+    leaf = exposed_root(agent_dir, str(result["id"])) / "leaves" / "crlf-skill" / "SKILL.md"
     content = leaf.read_text(encoding="utf-8")
     frontmatter = content.split("---", 2)[1]
     assert re.search(r"name: crlf-skill", frontmatter)
@@ -493,8 +646,8 @@ def test_local_repos_with_same_basename_get_distinct_caches(tmp_path: Path) -> N
     assert added_first["ok"] is True, added_first
     added_second = run_harness(agent_dir, "add", str(second), "--id", "second")
     assert added_second["ok"] is True, added_second
-    first_leaf = exposed_root(agent_dir, "first") / "skills" / "bug-diagnosis" / "SKILL.md"
-    second_leaf = exposed_root(agent_dir, "second") / "skills" / "code-review" / "SKILL.md"
+    first_leaf = exposed_root(agent_dir, "first") / "leaves" / "bug-diagnosis" / "SKILL.md"
+    second_leaf = exposed_root(agent_dir, "second") / "leaves" / "code-review" / "SKILL.md"
     assert "First repo skill" in first_leaf.read_text(encoding="utf-8")
     assert "Second repo skill" in second_leaf.read_text(encoding="utf-8")
 
@@ -516,8 +669,8 @@ def test_symlinked_skill_dir_is_rejected_and_outside_file_untouched(tmp_path: Pa
     target = outside / "SKILL.md"
     target.write_text("---\nname: outside\ndescription: do not touch\n---\n", encoding="utf-8")
     repo = tmp_path / "evil-repo"
-    (repo / "skills").mkdir(parents=True)
-    (repo / "skills" / "linked").symlink_to(outside, target_is_directory=True)
+    (repo / "leaves").mkdir(parents=True)
+    (repo / "leaves" / "linked").symlink_to(outside, target_is_directory=True)
     git(repo, "init", "-q", "-b", "main")
     git(repo, "add", "-A")
     git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
@@ -673,7 +826,7 @@ def test_pinned_tag_ref_survives_update(tmp_path: Path) -> None:
     added = run_harness(agent_dir, "add", f"{repo}@v1")
     assert added["ok"] is True, added
     collection_id = str(added["id"])
-    leaf = exposed_root(agent_dir, collection_id) / "skills" / "bug-diagnosis" / "SKILL.md"
+    leaf = exposed_root(agent_dir, collection_id) / "leaves" / "bug-diagnosis" / "SKILL.md"
     assert "Version one" in leaf.read_text(encoding="utf-8")
     [entry] = read_registry(agent_dir)["collections"]
     assert entry["source"]["ref"] == "v1"
@@ -695,7 +848,7 @@ def test_different_refs_use_independent_caches(tmp_path: Path) -> None:
     assert first["ok"] is True, first
     second = run_harness(agent_dir, "add", str(repo), "--id", "head")
     assert second["ok"] is True, second
-    tagged_leaf = exposed_root(agent_dir, "tagged") / "skills" / "bug-diagnosis" / "SKILL.md"
+    tagged_leaf = exposed_root(agent_dir, "tagged") / "leaves" / "bug-diagnosis" / "SKILL.md"
     assert "Main version" in tagged_leaf.read_text(encoding="utf-8")
     updated = run_harness(agent_dir, "select", "tagged", "bug-diagnosis")
     assert updated["ok"] is True, updated
@@ -728,7 +881,7 @@ def test_update_remaps_moved_skill_path(tmp_path: Path, source_repo: Path, insta
     [entry] = read_registry(agent_dir)["collections"]
     paths = {route["skill"]: route["path"] for route in entry["routes"]}
     assert paths["bug-diagnosis"] == "workflows/bug-diagnosis"
-    assert (exposed_root(agent_dir, collection_id) / "skills" / "bug-diagnosis" / "SKILL.md").is_file()
+    assert (exposed_root(agent_dir, collection_id) / "leaves" / "bug-diagnosis" / "SKILL.md").is_file()
 
 
 def test_gateway_cannot_collide_with_other_gateway(tmp_path: Path, source_repo: Path) -> None:
