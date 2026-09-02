@@ -8,7 +8,7 @@
 
 ## 包列表
 
-### [`agent-teams`](packages/agent-teams/)
+### [`@fradser/pi-agent-teams`](packages/agent-teams/)
 
 面向 Pi 的 Claude Code 风格多 Agent 协同团队：支持具名常驻队友、共享任务看板和点对点消息通信。
 
@@ -22,7 +22,7 @@
 pi install npm:@fradser/pi-agent-teams
 ```
 
-### [`btw`](packages/btw/)
+### [`@fradser/pi-btw`](packages/btw/)
 
 在只读浮层中回答旁路问题，不会把问题加入当前会话历史。
 
@@ -34,7 +34,7 @@ pi install npm:@fradser/pi-agent-teams
 pi install npm:@fradser/pi-btw
 ```
 
-### [`context`](packages/context/)
+### [`@fradser/pi-context`](packages/context/)
 
 通过独立的只读 Pi 子进程检索代码仓库、库与技术问题。
 
@@ -60,7 +60,7 @@ harness 与提示词表面的持续学习：声明式工具调用 guardrails（�
 pi install npm:pi-continual-learning
 ```
 
-### [`keyboard`](packages/keyboard/)
+### [`pi-keyboard`](packages/keyboard/)
 
 控制 VIA 和 QMK 键盘灯光以反映 Pi 的运行状态，包括空闲、思考、未读消息、审批提问和致命异常。
 
@@ -70,7 +70,7 @@ pi install npm:pi-continual-learning
 pi install npm:pi-keyboard
 ```
 
-### [`matt-pocock`](packages/matt-pocock/)
+### [`pi-matt-pocock`](packages/matt-pocock/)
 
 提供持久化 Pi 工作流 harness，覆盖适配 Pi 的 BDD、TDD、实现、评审、调试、架构、调研、规划、教学与 skill 编写流程。
 
@@ -78,13 +78,13 @@ pi install npm:pi-keyboard
 
 **命令：** `/matt-pocock`
 
-**从本地检出安装：**
+**安装：**
 
 ```bash
-pi install /path/to/pi-packages/packages/matt-pocock
+pi install npm:pi-matt-pocock
 ```
 
-### [`monitor`](packages/monitor/)
+### [`@fradser/pi-monitor`](packages/monitor/)
 
 按明确的结果契约在后台运行命令，并发送一条结构化终态结果。
 
@@ -98,7 +98,7 @@ pi install /path/to/pi-packages/packages/matt-pocock
 pi install npm:@fradser/pi-monitor
 ```
 
-### [`plan-mode`](packages/plan-mode/)
+### [`@fradser/pi-plan-mode`](packages/plan-mode/)
 
 在修改代码前于主会话中进行只读探索与规划，支持独立的规划模型。
 
@@ -110,7 +110,7 @@ pi install npm:@fradser/pi-monitor
 pi install npm:@fradser/pi-plan-mode
 ```
 
-### [`recap`](packages/recap/)
+### [`@fradser/pi-recap`](packages/recap/)
 
 在 TUI 输入框上方显示会话进展摘要，并支持在重启后恢复。
 
@@ -122,7 +122,7 @@ pi install npm:@fradser/pi-plan-mode
 pi install npm:@fradser/pi-recap
 ```
 
-### [`skill-router`](packages/skill-router/)
+### [`pi-skill-router`](packages/skill-router/)
 
 路由到外部托管的 skill 集合：通过 `/skill-router` 菜单添加 GitHub skill 仓库，将所选 skill 挂载在模型可见的网关之后。包本身不直接附带 skill 内容。
 
@@ -134,7 +134,7 @@ pi install npm:@fradser/pi-recap
 pi install npm:pi-skill-router
 ```
 
-### [`utils`](packages/utils/)
+### [`@fradser/pi-utils`](packages/utils/)
 
 提供 `/effort`、`/continue`、`/sessions`、`/init`，并将安全的 Git worktree 定向到 `.pi/worktrees/`。
 
@@ -148,7 +148,7 @@ pi install npm:pi-skill-router
 pi install npm:@fradser/pi-utils
 ```
 
-### [`vision`](packages/vision/)
+### [`@fradser/pi-vision`](packages/vision/)
 
 当当前 Pi 模型只接受文本时，将图片交给已配置的视觉模型进行分析。
 

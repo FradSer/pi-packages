@@ -8,7 +8,7 @@ Native Pi packages for reusable skills, extensions, and workflow commands.
 
 ## Packages
 
-### [`agent-teams`](packages/agent-teams/)
+### [`@fradser/pi-agent-teams`](packages/agent-teams/)
 
 Claude-Code-style collaborative agent teams for Pi with named resident teammates, a shared task board, and peer messaging.
 
@@ -22,7 +22,7 @@ Claude-Code-style collaborative agent teams for Pi with named resident teammates
 pi install npm:@fradser/pi-agent-teams
 ```
 
-### [`btw`](packages/btw/)
+### [`@fradser/pi-btw`](packages/btw/)
 
 Answers side questions in a read-only overlay without adding them to the current session history.
 
@@ -34,7 +34,7 @@ Answers side questions in a read-only overlay without adding them to the current
 pi install npm:@fradser/pi-btw
 ```
 
-### [`context`](packages/context/)
+### [`@fradser/pi-context`](packages/context/)
 
 Researches repositories, libraries, and technical questions through an isolated read-only Pi child process.
 
@@ -60,7 +60,7 @@ Continual learning for Pi at the harness and prompt surfaces: declarative tool-c
 pi install npm:pi-continual-learning
 ```
 
-### [`keyboard`](packages/keyboard/)
+### [`pi-keyboard`](packages/keyboard/)
 
 Controls VIA and QMK keyboard lighting to reflect Pi states, including idle, thinking, unread messages, approval prompts, and fatal errors.
 
@@ -70,7 +70,7 @@ Controls VIA and QMK keyboard lighting to reflect Pi states, including idle, thi
 pi install npm:pi-keyboard
 ```
 
-### [`matt-pocock`](packages/matt-pocock/)
+### [`pi-matt-pocock`](packages/matt-pocock/)
 
 Provides `/matt-pocock`, a persisted Pi workflow harness for BDD, TDD, implementation, review, debugging, architecture, research, planning, teaching, and skill-writing procedures.
 
@@ -78,13 +78,13 @@ Provides `/matt-pocock`, a persisted Pi workflow harness for BDD, TDD, implement
 
 **Command:** `/matt-pocock`
 
-**Install from a local checkout:**
+**Install:**
 
 ```bash
-pi install /path/to/pi-packages/packages/matt-pocock
+pi install npm:pi-matt-pocock
 ```
 
-### [`monitor`](packages/monitor/)
+### [`@fradser/pi-monitor`](packages/monitor/)
 
 Runs background commands against an explicit result contract and reports one structured terminal result.
 
@@ -98,7 +98,7 @@ Runs background commands against an explicit result contract and reports one str
 pi install npm:@fradser/pi-monitor
 ```
 
-### [`plan-mode`](packages/plan-mode/)
+### [`@fradser/pi-plan-mode`](packages/plan-mode/)
 
 Read-only exploration and planning in the main session before code modifications, with dedicated planning model support.
 
@@ -110,7 +110,7 @@ Read-only exploration and planning in the main session before code modifications
 pi install npm:@fradser/pi-plan-mode
 ```
 
-### [`recap`](packages/recap/)
+### [`@fradser/pi-recap`](packages/recap/)
 
 Displays a concise summary of session progress above the TUI editor and restores it across restarts.
 
@@ -122,7 +122,7 @@ Displays a concise summary of session progress above the TUI editor and restores
 pi install npm:@fradser/pi-recap
 ```
 
-### [`skill-router`](packages/skill-router/)
+### [`pi-skill-router`](packages/skill-router/)
 
 Routes to externally hosted skill collections: add GitHub skill repositories through the `/skill-router` menu, exposing selected skills behind a model-visible gateway. Ships no skill content directly.
 
@@ -134,7 +134,7 @@ Routes to externally hosted skill collections: add GitHub skill repositories thr
 pi install npm:pi-skill-router
 ```
 
-### [`utils`](packages/utils/)
+### [`@fradser/pi-utils`](packages/utils/)
 
 Adds `/effort`, `/continue`, `/sessions`, `/init`, and redirects safe Git worktrees into `.pi/worktrees/`.
 
@@ -148,7 +148,7 @@ Adds `/effort`, `/continue`, `/sessions`, `/init`, and redirects safe Git worktr
 pi install npm:@fradser/pi-utils
 ```
 
-### [`vision`](packages/vision/)
+### [`@fradser/pi-vision`](packages/vision/)
 
 Bridges images to a configured vision-capable model when the active Pi model only accepts text.
 
