@@ -83,14 +83,19 @@ Feature: Shared pi-kit runtime helpers
     Then the standard shared spinner frames and cadence are used for start
     And clearing restores Pi's native working indicator
 
-  Scenario: Agent task and message labels share pi-kit formatting
-    Given an agent task and a teammate name
+  Scenario: Agent task and message prefixes share pi-kit formatting
+    Given an agent task and message direction
     When the shared display helpers format them
-    Then the task label is "Agent (Agent Alpha - research) · @calc-1 · task-namexxxx"
-    And a single incoming message label is "[message] from @calc-1"
-    And multiple messages from one teammate are "[2 messages] from @calc-1"
-    And outgoing messages can use "[message] to @calc-1"
+    Then a single incoming message prefix is "[message] from "
+    And multiple messages from one teammate are "[2 messages] from "
+    And outgoing messages use "[message] to "
     And the task name carries no width cap; fixed panels apply their own explicit width bound
+
+  Scenario: Scroll window bounds clamp within available content
+    Given a list of lines and a viewport height
+    When computeScrollWindow calculates the visible slice
+    Then the start and end indices slice the content within bounds
+    And scrolling past the end is clamped to the maximum scroll offset
 
   Scenario: Plain text is extracted from string message content
     Given message content that is a plain string

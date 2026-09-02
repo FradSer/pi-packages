@@ -7,6 +7,11 @@
  * specifier or allowImportingTsExtensions edge cases.
  */
 
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
 // ── TUI ─────────────────────────────────────────────────────────────
 // Spinner cadence matching pi's native " ⠋ Working..." loader and the
 // accent/muted/dim style language used by overlay and console UIs
@@ -21,11 +26,6 @@ export const PI_SPINNER_INTERVAL_MS = 120;
 /** Minimal structural view of pi's TUI theme: only fg() is needed. */
 export interface PiThemeLike {
   fg(color: string, text: string): string;
-}
-
-/** Format the shared label shown when a teammate task starts. */
-export function formatAgentTaskLabel(agentDescription: string, teammate: string, taskName: string): string {
-  return `Agent (${agentDescription}) · @${teammate} · ${taskName}`;
 }
 
 /** Normalize a task prompt into the compact name shown in the TUI. */
@@ -483,11 +483,6 @@ export function formatAgentMessagePrefix(direction: "from" | "to", count = 1): s
   return `[${label}] ${direction} `;
 }
 
-/** Format a compact teammate message label. */
-export function formatAgentMessageLabel(teammate: string, direction: "from" | "to" = "from", count = 1): string {
-  return `${formatAgentMessagePrefix(direction, count)}@${teammate}`;
-}
-
 /** Style callbacks shared by overlay/console UIs (the btw style language). */
 export interface PiThemeStyle {
   accent: (s: string) => string;
@@ -608,16 +603,6 @@ export function buildMarkdownThemeCallbacks(style: PiThemeStyle): {
 }
 
 /**
- * Pad a line to the given width with trailing spaces.
- */
-export function padLine(line: string, width: number): string {
-  // Simple approximation: visible width ≈ string length for most cases.
-  // For precise ANSI-aware width, use pi-tui's visibleWidth.
-  const visible = line.replace(/\x1b\[[0-9;]*m/g, "").length;
-  return visible >= width ? line : line + " ".repeat(width - visible);
-}
-
-/**
  * Compute scroll window bounds for a scrollable panel.
  * Returns the slice of lines to display.
  */
@@ -634,11 +619,6 @@ export function computeScrollWindow(
 
 // ── Worker process helpers ──────────────────────────────────────────
 // Shared by plan-mode, agent-teams, and btw for spawning child Pi processes.
-
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
-import { fileURLToPath } from "node:url";
 
 /** Result of resolving how to launch a Pi CLI process. */
 export interface PiCliResolution {

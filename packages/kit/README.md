@@ -17,6 +17,7 @@ no skills, and no extensions. Consumer packages declare it as
   `accent` / `muted` / `dim` / `border` / `success` / `error` / `fg`.
   See `packages/btw` for the canonical layout that consumes it.
 - `renderPiPanel({ width, style, fit, title, body, footer })` — standard bordered panel geometry for overlays and full-screen consoles. Consumers keep interaction, scrolling, and Markdown rendering; pi-kit supplies the shared frame.
+- `computeScrollWindow(lines, scroll, maxBody)` — compute scroll window slice indices and clamped scroll offset for scrollable panels.
 - `renderPiWidgetRow(content, width, fit)` — one leading-space, width-bounded passive status-widget row aligned with Pi's native rows.
 - `setPiStatus` / `clearPiStatus` — sanitized set/clear adapters for package-owned transient status entries.
 - `startPiWorkingIndicator` / `clearPiWorkingIndicator` — start the shared native-cadence spinner or restore Pi's default indicator.

@@ -531,24 +531,48 @@ def test_safe_display_text_sanitizes_terminal_output() -> None:
 def test_agent_display_helpers_share_labels_and_message_counts() -> None:
     result = run_typescript(
         f"""
-        import {{ formatAgentTaskLabel, formatAgentMessageLabel, formatAgentTaskName }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ formatAgentMessagePrefix, formatAgentTaskName }} from {json.dumps((SRC / "index.ts").as_uri())};
         console.log(JSON.stringify({{
-          task: formatAgentTaskLabel("Agent Alpha - research", "calc-1", "task-namexxxx"),
-          message: formatAgentMessageLabel("calc-1"),
-          messages: formatAgentMessageLabel("calc-1", "from", 2),
-          outgoing: formatAgentMessageLabel("calc-1", "to"),
+          prefix: formatAgentMessagePrefix("from"),
+          multiPrefix: formatAgentMessagePrefix("from", 2),
+          outgoingPrefix: formatAgentMessagePrefix("to"),
           taskName: formatAgentTaskName("  inspect   authentication  ", "fallback"),
           longTaskName: formatAgentTaskName("x".repeat(140), "fallback"),
         }}));
         """
     )
     assert result == {
-        "task": "Agent (Agent Alpha - research) · @calc-1 · task-namexxxx",
-        "message": "[message] from @calc-1",
-        "messages": "[2 messages] from @calc-1",
-        "outgoing": "[message] to @calc-1",
+        "prefix": "[message] from ",
+        "multiPrefix": "[2 messages] from ",
+        "outgoingPrefix": "[message] to ",
         "taskName": "inspect authentication",
         "longTaskName": "x" * 140,
+    }
+
+
+def test_compute_scroll_window_clamps_and_slices() -> None:
+    result = run_typescript(
+        f"""
+        import {{ computeScrollWindow }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const lines = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
+        const normal = computeScrollWindow(lines, 2, 4);
+        const clamped = computeScrollWindow(lines, 100, 4);
+        const shortContent = computeScrollWindow(["x", "y"], 5, 10);
+        console.log(JSON.stringify({{
+          normal,
+          normalSlice: lines.slice(normal.start, normal.end),
+          clamped,
+          clampedSlice: lines.slice(clamped.start, clamped.end),
+          shortContent,
+        }}));
+        """
+    )
+    assert result == {
+        "normal": {"start": 2, "end": 6, "clampedScroll": 2},
+        "normalSlice": ["c", "d", "e", "f"],
+        "clamped": {"start": 6, "end": 10, "clampedScroll": 6},
+        "clampedSlice": ["g", "h", "i", "j"],
+        "shortContent": {"start": 0, "end": 2, "clampedScroll": 0},
     }
 
 
