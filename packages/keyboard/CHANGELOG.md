@@ -1,5 +1,15 @@
 # pi-keyboard
 
+## 0.1.6
+
+### Patch Changes
+
+- fab8160: Unify package TUI notifications, lifecycle rows, panels, and widgets through shared pi-kit rendering abstractions.
+- Updated dependencies [ec7d764]
+- Updated dependencies [b28ef2d]
+- Updated dependencies [fab8160]
+  - @fradser/pi-kit@0.4.2
+
 ## 0.1.5
 
 ### Patch Changes

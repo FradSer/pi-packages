@@ -1,5 +1,22 @@
 # pi-continual-learning
 
+## 0.2.2
+
+### Patch Changes
+
+- 548363d: Reject unsupported guardrail policy fields with actionable diagnostics, and apply the same runtime schema validation to consolidation plans.
+- 548363d: Allow `/harness <prompt>` to route a natural-language rule request to the agent, with an explicit protocol for creating a narrow global rule in the personal `harness.local.json` while preserving and verifying existing configuration.
+- 548363d: Render applied skill-prompt harness guidance as a visible, expandable transcript event with the actual prompt in the collapsed row and structured source details on expansion.
+- 25b3787: Scope harness skill-prompt guidance to an expanded skill invocation's user message, enabling the Impeccable Live startup contract without affecting other Impeccable commands.
+- 3e50fcf: Guide models to ask ordinary questions directly in the conversation when the Matt Pocock interview tool is unavailable, rather than starting an unrelated workflow.
+- ec7d764: Adopt static tool lifecycle renderers and computeScrollWindow in consumers, remove unused pi-kit exports, and restore strict local typecheck.
+- 92944c1: Apply progressive tool disclosure across runtime packages. State-dependent capabilities are now hidden until their workflow state is active, and continual-learning no longer couples its guardrails to Matt Pocock workflow state.
+- fab8160: Unify package TUI notifications, lifecycle rows, panels, and widgets through shared pi-kit rendering abstractions.
+- Updated dependencies [ec7d764]
+- Updated dependencies [b28ef2d]
+- Updated dependencies [fab8160]
+  - @fradser/pi-kit@0.4.2
+
 ## 0.2.1
 
 ### Patch Changes

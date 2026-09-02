@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-context",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Retrieve context for repositories, libraries, and technical questions with one native tool that launches an isolated read-only Pi research child.",
   "keywords": [
     "pi-package",
