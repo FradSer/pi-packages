@@ -14,7 +14,7 @@ import type { Stats } from "node:fs";
 import path from "node:path";
 import { parseSkillBlock, type ExtensionAPI, type BeforeAgentStartEvent } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { createToolLifecycleMessageRenderer, eventToolLifecycle, notifyPi, safeDisplayText } from "@fradser/pi-kit";
+import { createStaticToolLifecycleMessageRenderer, eventToolLifecycle, notifyPi, safeDisplayText } from "@fradser/pi-kit";
 import { DEFAULT_POLICIES, evaluate, mergeLayers } from "./guardrail-engine.ts";
 import { configPaths, loadLayers } from "./guardrail-config.ts";
 import type { PolicyLayer, ResolvedConfig } from "./guardrail-types.ts";
@@ -260,7 +260,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         : details.action === "confirm" && details.outcome === "allowed once"
           ? "policy allowed"
           : "policy blocked";
-      return createToolLifecycleMessageRenderer({
+      return createStaticToolLifecycleMessageRenderer({
         createSpec: () => eventToolLifecycle("harness", reason, {
           label,
           details: [
@@ -283,7 +283,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
     }
 
     const prompt = safeDisplayText(details?.prompt);
-    return createToolLifecycleMessageRenderer({
+    return createStaticToolLifecycleMessageRenderer({
       createSpec: () => eventToolLifecycle("harness", prompt, {
         label: details?.kind === "skill-prompt" ? "skill prompt" : "event",
         details: details
