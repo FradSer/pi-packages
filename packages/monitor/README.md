@@ -76,8 +76,6 @@ instructions, or user intent.
 
 ```bash
 pi install npm:@fradser/pi-monitor
-# or from this repository:
-pi install /path/to/pi-packages/packages/monitor
 ```
 
 ## Preferred usage: JSON sentinel

@@ -167,6 +167,12 @@ Feature: Matt Pocock workflow harness
     When it emits that notification
     Then it delegates notification sanitization and delivery to pi-kit
 
+  Scenario: The package documents its Chinese workflow-harness architecture
+    Given a user needs to understand how pi-matt-pocock differs from the upstream skill collection
+    When they open the package README
+    Then it links to the Chinese architecture guide
+    And the guide explains route selection, on-demand procedure loading, session persistence, and the schema trade-off
+
   Scenario: Deferred lifecycle automation remains documented
     Given the first harness version is packaged
     When TODO.md is inspected

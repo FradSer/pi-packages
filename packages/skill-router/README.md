@@ -1,17 +1,15 @@
-# Pi Skill Router
+# pi-skill-router
 
 `pi-skill-router` routes to **externally hosted skill collections**. It clones skill repositories into a user-level managed directory, wraps the skills you select as hidden leaves behind a visible gateway, exposes them to Pi, and provides focused routing suggestions.
 
-**Package version:** 0.1.0
+**Package version:** 0.2.0
 
 The package ships no skill content itself, and routed collections are never npm packages — they are plain Git repositories you add through the `/skill-router` menu.
 
 ## Installation
 
-This package has not yet been released to npm. Install it from a local checkout:
-
 ```bash
-pi install /path/to/pi-packages/packages/skill-router
+pi install npm:pi-skill-router
 ```
 
 ## How It Works

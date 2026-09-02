@@ -1,4 +1,4 @@
-# Agent Teams Pi Package
+# @fradser/pi-agent-teams
 
 Claude-Code-style collaborative agent teams for Pi: named resident teammates, a shared local task board with self-claim, and direct peer-to-peer messaging.
 
@@ -13,7 +13,7 @@ The message surface is deliberately singular: `send_message` is the only messagi
 ## Install
 
 ```bash
-pi install /path/to/pi-packages/packages/agent-teams
+pi install npm:@fradser/pi-agent-teams
 ```
 
 Then run `/reload` in Pi.

@@ -1,4 +1,4 @@
-# Utils Pi Package
+# @fradser/pi-utils
 
 A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks or continuing based on recommendations, `/init` for creating or updating scoped `AGENTS.md` contributor guides, multi-session directory awareness (`/sessions`), git worktree session switching, plus git worktree path and `@` completion isolation.
 
@@ -24,9 +24,7 @@ utils/
 ## Installation
 
 ```bash
-# published
 pi install npm:@fradser/pi-utils
-# or from this repo: pi install /path/to/pi-packages/packages/utils
 ```
 
 ## Commands

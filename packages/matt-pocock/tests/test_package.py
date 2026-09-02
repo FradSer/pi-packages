@@ -49,6 +49,7 @@ def test_feature_covers_the_workflow_harness_contract() -> None:
         "Workflow activation uses the monitor-style started row",
         "A structured answer keeps question and answer visible in the collapsed row",
         "The package has no recursively discoverable child skills",
+        "The package documents its Chinese workflow-harness architecture",
         "Deferred lifecycle automation remains documented",
     ):
         assert scenario in feature
@@ -57,7 +58,7 @@ def test_feature_covers_the_workflow_harness_contract() -> None:
 def test_manifest_declares_one_package_root_extension() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text())
     assert manifest["name"] == "pi-matt-pocock"
-    assert manifest["version"] == "0.0.0"
+    assert manifest["version"] == "0.1.0"
     assert manifest["type"] == "module"
     assert manifest["pi"] == {"extensions": ["./index.ts"]}
     assert "@earendil-works/pi-coding-agent" in manifest["peerDependencies"]
@@ -927,16 +928,13 @@ def test_todo_records_remaining_deferred_lifecycle_automation() -> None:
         assert deferred in todo
 
 
-def test_unreleased_package_documents_local_installation() -> None:
+def test_package_documents_npm_installation_and_chinese_architecture_guide() -> None:
     readme = (PACKAGE / "README.md").read_text()
     root_readmes = "\n".join((REPO / name).read_text() for name in ("README.md", "README.zh-CN.md"))
+    guide = (PACKAGE / "ARCHITECTURE.zh-CN.md").read_text()
 
-    assert "has not yet been released to npm" in readme
-    assert "pi install /path/to/pi-packages/packages/matt-pocock" in readme
-    assert "npm:pi-matt-pocock" not in root_readmes
-    assert "pi install /path/to/pi-packages/packages/matt-pocock" in root_readmes
-
-
-def test_release_changeset_bootstraps_version_zero_one_zero() -> None:
-    changeset = (REPO / ".changeset" / "matt-pocock-router.md").read_text()
-    assert '"pi-matt-pocock": minor' in changeset
+    assert "pi install npm:pi-matt-pocock" in readme
+    assert "pi install npm:pi-matt-pocock" in root_readmes
+    assert "[中文架构说明](ARCHITECTURE.zh-CN.md)" in readme
+    for term in ("路由", "按需", "procedure（流程步骤）", "会话", "schema"):
+        assert term in guide

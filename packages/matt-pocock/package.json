@@ -27,7 +27,8 @@
     "procedures",
     "TODO.md",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "ARCHITECTURE.zh-CN.md"
   ],
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

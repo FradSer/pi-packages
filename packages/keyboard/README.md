@@ -49,14 +49,6 @@ keyboard/
 
 ## Installation
 
-Install from this monorepo or local path:
-
-```bash
-pi install ~/Developer/FradSer/pi-packages/packages/keyboard
-```
-
-Published on npm:
-
 ```bash
 pi install npm:pi-keyboard
 ```

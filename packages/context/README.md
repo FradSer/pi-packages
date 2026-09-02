@@ -1,6 +1,4 @@
-# Context Pi Package
-
-**Version:** 0.5.1
+# @fradser/pi-context
 
 `@fradser/pi-context` exposes one tool: `context_get`.
 
@@ -10,8 +8,6 @@ It starts an independent Pi child process for repository, library, codebase, and
 
 ```bash
 pi install npm:@fradser/pi-context
-# or from this repository:
-pi install /path/to/pi-packages/packages/context
 ```
 
 ## Usage

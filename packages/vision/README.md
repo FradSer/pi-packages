@@ -60,14 +60,6 @@ Multimodal active models are never intercepted.
 
 ## Install
 
-Install from a local checkout:
-
-```bash
-pi install /path/to/pi-packages/packages/vision
-```
-
-When a version is available on npm, it can be installed with:
-
 ```bash
 pi install npm:@fradser/pi-vision
 ```

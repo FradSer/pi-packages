@@ -1,4 +1,4 @@
-# Matt Pocock for Pi
+# pi-matt-pocock
 
 `pi-matt-pocock` is a Pi extension that provides `/matt-pocock`: a persisted
 workflow harness for BDD-first engineering and productivity procedures adapted
@@ -6,13 +6,9 @@ from `mattpocock/skills`.
 
 ## Installation
 
-This package has not yet been released to npm. Install it from a local checkout:
-
 ```bash
-pi install /path/to/pi-packages/packages/matt-pocock
+pi install npm:pi-matt-pocock
 ```
-
-It will be published as `pi-matt-pocock` after its first-release bootstrap.
 
 ## Workflow harness
 
@@ -34,5 +30,8 @@ When a procedure's done condition makes its next procedure clear, the agent tran
 Procedures are internal Markdown resources rather than Pi skills, so generic
 workflow names such as `tdd`, `code-review`, and `research` never collide with
 an installed skill collection.
+
+For the design rationale, lifecycle, context trade-offs, and a comparison with
+upstream `mattpocock/skills`, see the [中文架构说明](ARCHITECTURE.zh-CN.md).
 
 See [TODO.md](TODO.md) for lifecycle automation that remains deliberately deferred.
