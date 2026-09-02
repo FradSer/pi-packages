@@ -28,6 +28,7 @@ import {
 } from "@earendil-works/pi-tui";
 import {
   buildMarkdownThemeCallbacks,
+  computeScrollWindow,
   maxBodyHeight,
   renderPiPanel,
   type PiThemeStyle,
@@ -146,19 +147,16 @@ export function createBtwOverlay(
   };
 
   const scrollToBottom = () => {
-    scroll = Number.MAX_SAFE_INTEGER;
     const contentWidth = Math.max(20, tui.terminal.columns - 4);
     const maxBody = maxAnswerBody(tui.terminal.rows);
     const lines = markdown?.render(contentWidth) ?? [];
-    const max = Math.max(0, lines.length - maxBody);
-    scroll = Math.min(scroll, max);
+    scroll = computeScrollWindow(lines, Number.MAX_SAFE_INTEGER, maxBody).clampedScroll;
   };
 
   const scrollBy = (delta: number, maxBody: number) => {
     const contentWidth = Math.max(20, tui.terminal.columns - 4);
     const lines = markdown?.render(contentWidth) ?? [];
-    const max = Math.max(0, lines.length - maxBody);
-    const next = Math.max(0, Math.min(max, scroll + delta));
+    const next = computeScrollWindow(lines, scroll + delta, maxBody).clampedScroll;
     if (next !== scroll) {
       scroll = next;
       tui.requestRender();
@@ -423,10 +421,9 @@ export function createBtwOverlay(
           line.includes("__OVERLAY_SEPARATOR__") ? "__OVERLAY_SEPARATOR__" : line,
         );
         // Adaptive body: short answers fill the panel; long ones cap and scroll.
-        const viewport = Math.min(mdLines.length, maxBody);
-        const max = Math.max(0, mdLines.length - viewport);
-        if (scroll > max) scroll = max;
-        const windowLines = mdLines.slice(scroll, scroll + viewport);
+        const { start, end, clampedScroll } = computeScrollWindow(mdLines, scroll, maxBody);
+        scroll = clampedScroll;
+        const windowLines = mdLines.slice(start, end);
         body.push("");
         for (const line of windowLines) {
           if (line === "__OVERLAY_SEPARATOR__") {
