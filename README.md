@@ -1,4 +1,4 @@
-# Frad's Pi Packages ![](https://img.shields.io/badge/packages-10-blue)
+# Frad's Pi Packages ![](https://img.shields.io/badge/packages-12-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -8,38 +8,18 @@ Native Pi packages for reusable skills, extensions, and workflow commands.
 
 ## Packages
 
-### [`keyboard`](packages/keyboard/)
+### [`agent-teams`](packages/agent-teams/)
 
-Controls VIA and QMK keyboard lighting to reflect Pi states, including idle, thinking, unread messages, approval prompts, and fatal errors.
+Claude-Code-style collaborative agent teams for Pi with named resident teammates, a shared task board, and peer messaging.
 
-**Install:**
+**Tools:** `teammate_spawn`, `teammate_shutdown`, `task_create`, `send_message`, `task_list`
 
-```bash
-pi install npm:pi-keyboard
-```
-
-### [`recap`](packages/recap/)
-
-Displays a concise summary of session progress above the TUI editor and restores it across restarts.
-
-**Command:** `/recap`, `/recap on`, `/recap off`, `/recap language <lang>`, `/recap model <model>`
+**Command:** `/agent-teams`, `/teammate`
 
 **Install:**
 
 ```bash
-pi install npm:@fradser/pi-recap
-```
-
-### [`vision`](packages/vision/)
-
-Bridges images to a configured vision-capable model when the active Pi model only accepts text.
-
-**Command:** `/vision`, `/vision model provider/model`, `/vision on`, `/vision off`
-
-**Install:**
-
-```bash
-pi install npm:@fradser/pi-vision
+pi install npm:@fradser/pi-agent-teams
 ```
 
 ### [`btw`](packages/btw/)
@@ -54,57 +34,11 @@ Answers side questions in a read-only overlay without adding them to the current
 pi install npm:@fradser/pi-btw
 ```
 
-### [`pi-continual-learning`](packages/continual-learning/)
-
-Continual learning at the harness and prompt surfaces: declarative tool-call guardrails with corrective guidance, plus memory retrieval, injection, and manual consolidation. Model weights are out of scope.
-
-**Command:** `/memory`, `/consolidate`, `/guardrails`
-
-**Install:**
-
-```bash
-pi install npm:pi-continual-learning
-```
-
-### [`monitor`](packages/monitor/)
-
-Runs background commands against an explicit result contract and reports one structured terminal result.
-
-**Tools:** `monitor_start`, `monitor_stop`
-
-**Install:**
-
-```bash
-pi install npm:@fradser/pi-monitor
-```
-
-### [`utils`](packages/utils/)
-
-Adds `/effort`, `/continue`, and `/sessions`, and redirects safe Git worktrees into `.pi/worktrees/`.
-
-**Install:**
-
-```bash
-pi install npm:@fradser/pi-utils
-```
-
-### [`agent-teams`](packages/agent-teams/)
-
-Coordinates child Pi workers through dependency-aware task graphs, bounded concurrency, cancellation, retries, and a full-screen console.
-
-**Tools:** `teammate_run`, `teammate_fanout`, `teammate_message`, `teammate_cancel`, `teammate_retry`
-
-**Command:** `/teammate`
-
-**Install:**
-
-```bash
-pi install npm:@fradser/pi-agent-teams
-```
-
 ### [`context`](packages/context/)
 
-Provides DeepWiki, Context7, and Exa retrieval tools through native Pi extensions, with clone and HTTP fallbacks. System-prompt guidance plus the `/context` command (no skill).
+Researches repositories, libraries, and technical questions through an isolated read-only Pi child process.
+
+**Tool:** `context_get`
 
 **Command:** `/context`
 
@@ -114,9 +48,35 @@ Provides DeepWiki, Context7, and Exa retrieval tools through native Pi extension
 pi install npm:@fradser/pi-context
 ```
 
+### [`pi-continual-learning`](packages/continual-learning/)
+
+Continual learning for Pi at the harness and prompt surfaces: declarative tool-call guardrails with corrective guidance, plus memory retrieval, injection, and manual consolidation.
+
+**Commands:** `/memory`, `/consolidate`, `/guardrails`
+
+**Install:**
+
+```bash
+pi install npm:pi-continual-learning
+```
+
+### [`keyboard`](packages/keyboard/)
+
+Controls VIA and QMK keyboard lighting to reflect Pi states, including idle, thinking, unread messages, approval prompts, and fatal errors.
+
+**Install:**
+
+```bash
+pi install npm:pi-keyboard
+```
+
 ### [`matt-pocock`](packages/matt-pocock/)
 
 Provides `/matt-pocock`, a persisted Pi workflow harness for BDD, TDD, implementation, review, debugging, architecture, research, planning, teaching, and skill-writing procedures.
+
+**Tool:** `matt_pocock_workflow`
+
+**Command:** `/matt-pocock`
 
 **Install from a local checkout:**
 
@@ -124,9 +84,49 @@ Provides `/matt-pocock`, a persisted Pi workflow harness for BDD, TDD, implement
 pi install /path/to/pi-packages/packages/matt-pocock
 ```
 
+### [`monitor`](packages/monitor/)
+
+Runs background commands against an explicit result contract and reports one structured terminal result.
+
+**Tools:** `monitor_start`, `monitor_stop`
+
+**Command:** `/monitor`
+
+**Install:**
+
+```bash
+pi install npm:@fradser/pi-monitor
+```
+
+### [`plan-mode`](packages/plan-mode/)
+
+Read-only exploration and planning in the main session before code modifications, with dedicated planning model support.
+
+**Command:** `/plan`, `/plan start`, `/plan exit`, `/plan model`, `/plan status`
+
+**Install:**
+
+```bash
+pi install npm:@fradser/pi-plan-mode
+```
+
+### [`recap`](packages/recap/)
+
+Displays a concise summary of session progress above the TUI editor and restores it across restarts.
+
+**Command:** `/recap`, `/recap on`, `/recap off`, `/recap language <lang>`, `/recap model <model>`
+
+**Install:**
+
+```bash
+pi install npm:@fradser/pi-recap
+```
+
 ### [`skill-router`](packages/skill-router/)
 
-Routes to externally hosted skill collections: add any GitHub skill repository through the `/skill-router` menu, and selected skills are wrapped as hidden, prefixed leaves behind a model-visible gateway with focused routing suggestions. Ships no skill content; collections are never npm packages.
+Routes to externally hosted skill collections: add GitHub skill repositories through the `/skill-router` menu, exposing selected skills behind a model-visible gateway. Ships no skill content directly.
+
+**Command:** `/skill-router`
 
 **Install:**
 
@@ -134,24 +134,45 @@ Routes to externally hosted skill collections: add any GitHub skill repository t
 pi install npm:pi-skill-router
 ```
 
+### [`utils`](packages/utils/)
+
+Adds `/effort`, `/continue`, `/sessions`, `/init`, and redirects safe Git worktrees into `.pi/worktrees/`.
+
+**Tools:** `enter_worktree`, `exit_worktree`, `list_directory_sessions`
+
+**Commands:** `/effort`, `/continue`, `/sessions`, `/init`
+
+**Install:**
+
+```bash
+pi install npm:@fradser/pi-utils
+```
+
+### [`vision`](packages/vision/)
+
+Bridges images to a configured vision-capable model when the active Pi model only accepts text.
+
+**Command:** `/vision`, `/vision model <model>`, `/vision on`, `/vision off`
+
+**Install:**
+
+```bash
+pi install npm:@fradser/pi-vision
+```
+
 ## Development
 
 ```bash
 pnpm install
 python3 -m pytest packages
+npx tsc --noEmit -p tsconfig.extensions.json
 ```
 
-Each package keeps behavior scenarios in `features/` and tests in `tests/`. For an extension, run the relevant strict TypeScript check:
+Each package keeps behavior scenarios in `features/` and tests in `tests/`.
 
-```bash
-npx tsc --noEmit --strict --skipLibCheck --target ES2022 \
-  --module ESNext --moduleResolution bundler --types "" \
-  packages/<name>/{src,extensions}/*.ts
-```
+Use `pnpm --dir packages/<name> pack --dry-run` to inspect package contents before publishing.
 
-Use `pnpm pack --dry-run` from a package directory to inspect its published files.
-
-Shared runtime helpers (TUI spinner/theme primitives, message text extraction) live in the internal [`@fradser/pi-kit`](packages/kit/) package. It is not a Pi package and is not installable with `pi install`; consumers declare it as `"@fradser/pi-kit": "workspace:*"` under `dependencies`.
+Shared runtime helpers live in the internal [`@fradser/pi-kit`](packages/kit/) package. It is an internal workspace dependency and is not installable via `pi install`.
 
 ## Adding a package
 
@@ -163,7 +184,7 @@ Shared runtime helpers (TUI spinner/theme primitives, message text extraction) l
 
 ## Publishing
 
-Releases use Changesets and the GitHub Actions workflow in `.github/workflows/release.yml`. Push changes to `main`, then merge the generated version PR. The workflow publishes the explicit package list through npm Trusted Publishing and skips versions already present in the npm registry, so partial runs can be retried safely.
+Releases use Changesets and the GitHub Actions workflow in `.github/workflows/release.yml`. Push changes to `main`, then merge the generated version PR. The workflow publishes the explicit package list through npm Trusted Publishing and skips versions already present in the npm registry.
 
 New packages require one manual first publication and npm Trusted Publishing configuration before later versions can be released by GitHub Actions.
 
