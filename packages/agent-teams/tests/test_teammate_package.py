@@ -1436,7 +1436,8 @@ def test_spawn_uses_one_native_text_started_line() -> None:
     assert "Spawning renders one started line per teammate" in feature
     assert "formatToolLifecycleTitle({" in tools
     assert 'kind: "started"' in tools
-    assert 'return new Text(theme.fg("customMessageLabel", theme.bold(title)), 0, 0);' in tools
+    assert 'const prefix = theme.fg("customMessageLabel", theme.bold("[agent]"));' in tools
+    assert 'return new Text(`${prefix} ${title}`, 0, 0);' in tools
     assert "renderLifecycleResult(" not in tools.split('name: "teammate_spawn"', 1)[1].split('name: "teammate_shutdown"', 1)[0]
     assert "formatAgentTaskName" in tools
     assert "details: { started: true }" in tools
@@ -1444,7 +1445,8 @@ def test_spawn_uses_one_native_text_started_line() -> None:
 
 def test_spawn_started_line_uses_one_native_text_row() -> None:
     tools = source("tools.ts")
-    assert 'return new Text(theme.fg("customMessageLabel", theme.bold(title)), 0, 0);' in tools
+    assert 'const prefix = theme.fg("customMessageLabel", theme.bold("[agent]"));' in tools
+    assert 'return new Text(`${prefix} ${title}`, 0, 0);' in tools
     assert "native Text component wraps the row at the available width" in (
         PACKAGE / "features" / "agent-teams.feature"
     ).read_text(encoding="utf-8")
@@ -1490,7 +1492,7 @@ def test_teammate_spawn_started_row_fits_narrow_transcript_widths() -> None:
         const tools = [];
         registerLeaderTools({{ registerTool(tool) {{ tools.push(tool); }}, registerCommand() {{}} }});
         const spawn = tools.find((tool) => tool.name === "teammate_spawn");
-        const theme = {{ fg: (_color, text) => text, bold: (text) => text, bg: (_color, text) => text }};
+        const theme = {{ fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`, bold: (text) => `<bold>${{text}}</bold>`, bg: (_color, text) => text }};
         const renderRow = (width) => spawn.renderResult(
           {{ content: [{{ type: "text", text: "started" }}] }},
           {{}},
@@ -1529,7 +1531,8 @@ def test_teammate_spawn_started_row_fits_narrow_transcript_widths() -> None:
             theme,
             {{ args: {{ name: "name", agent: "reviewer", prompt: "task" }} }},
           ).render(0).length === 0,
-          identifiesStarted: collapsedWideRow.includes("[agent] @storm-auditor started ·"),
+          identifiesStarted: collapsedWideRow.includes("@storm-auditor started · check task board"),
+          colorsOnlyAgentPrefix: collapsedWideRow.startsWith("<customMessageLabel><bold>[agent]</bold></customMessageLabel> @storm-auditor started · check task board") && !collapsedWideRow.slice("<customMessageLabel><bold>[agent]</bold></customMessageLabel>".length).includes("<customMessageLabel>"),
           collapsedHasExpandHint: collapsedWideRow.includes("to expand"),
           emptyContentHasExpandHint: emptyContentRow.includes("to expand"),
           expandedShowsResult: expandedRows.some((line) => line.includes("is alive as storm-auditor")),
@@ -1542,6 +1545,7 @@ def test_teammate_spawn_started_row_fits_narrow_transcript_widths() -> None:
     assert payload["rowIsSingleLine"] is True
     assert payload["rowFitsWidth"] is True
     assert payload["identifiesStarted"] is True
+    assert payload["colorsOnlyAgentPrefix"] is True
     assert payload["collapsedHasExpandHint"] is False
     assert payload["emptyContentHasExpandHint"] is False
     assert payload["expandedShowsResult"] is False

@@ -788,6 +788,7 @@ Feature: Agent Teams collaborative organization contract
       Then it shows one started line identifying the teammate and kickoff task
       And the line follows the `[agent] @name started · task-name` shape
       And the started line uses Pi's native Text component without a lifecycle background band or expansion hint
+      And only its `[agent]` prefix is colored while `@name started · task-name` uses the default text color
       And the full result text remains model-facing rather than becoming transcript details
       And a failed spawn keys off the render context isError flag and renders one plain error line
 

@@ -69,8 +69,9 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
         kind: "started",
         tool: "agent",
         subject: `@${params.name} started · ${spawnAssignment(params)}`,
-      });
-      return new Text(theme.fg("customMessageLabel", theme.bold(title)), 0, 0);
+      }).replace(/^\[agent\]\s*/, "");
+      const prefix = theme.fg("customMessageLabel", theme.bold("[agent]"));
+      return new Text(`${prefix} ${title}`, 0, 0);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = spawnTeammate(params);
