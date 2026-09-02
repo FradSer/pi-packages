@@ -45,8 +45,8 @@ def test_feature_covers_the_workflow_harness_contract() -> None:
         "Structured interview questions are available only during an active workflow",
         "Agent asks the user questions via interactive selection tool",
         "A user-owned decision remains pending without an answer",
-        "Workflow tool rows use a consistent Matt Pocock prefix",
-        "Workflow state stays compact and does not expand model procedure text",
+        "Matt Pocock tool rows use operation-specific prefixes",
+        "Workflow activation uses the monitor-style started row",
         "A structured answer keeps question and answer visible in the collapsed row",
         "The package has no recursively discoverable child skills",
         "Deferred lifecycle automation remains documented",
@@ -901,16 +901,14 @@ def test_matt_pocock_ask_tui_rendering_uses_pi_kit_lifecycle() -> None:
     assert not any("Options:" in row for row in result["askRows"])
 
     assert len(result["workflowRows"]) == 1
-    assert any("[matt pocock] workflow ·" in row for row in result["workflowRows"])
-    assert not any("[matt pocock] · workflow" in row for row in result["workflowRows"])
-    assert not any("[matt pocock · workflow]" in row for row in result["workflowRows"])
+    assert any("[matt pocock] started ·" in row for row in result["workflowRows"])
+    assert not any("[matt pocock] workflow ·" in row for row in result["workflowRows"])
     assert any("Idea to Ship · Shaping & Requirements" in row for row in result["workflowRows"])
     assert not any("Procedure content" in row for row in result["workflowRows"])
     assert not any("ctrl+o to expand" in row for row in result["workflowRows"])
 
-    assert any("[matt pocock] workflow ·" in row for row in result["msgRows"])
-    assert not any("[matt pocock] · workflow" in row for row in result["msgRows"])
-    assert not any("[matt pocock · workflow]" in row for row in result["msgRows"])
+    assert any("[matt pocock] started ·" in row for row in result["msgRows"])
+    assert not any("[matt pocock] workflow ·" in row for row in result["msgRows"])
     assert any("Idea to Ship · Shaping & Requirements" in row for row in result["msgRows"])
     assert not any("Restored procedure" in row for row in result["msgRows"])
     assert not any("ctrl+o to expand" in row for row in result["msgRows"])

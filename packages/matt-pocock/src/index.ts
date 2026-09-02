@@ -6,12 +6,10 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
-  createStaticToolLifecycleMessageRenderer,
   clearPiStatus,
   createToolLifecycleResultRenderer,
   eventToolLifecycle,
   formatToolErrorLine,
-  formatToolLifecycleTitle,
   notifyPi,
   safeDisplayText,
 } from "@fradser/pi-kit";
@@ -228,17 +226,13 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
   });
 
   if (typeof pi.registerMessageRenderer === "function") {
-    pi.registerMessageRenderer("matt-pocock-procedure", (message, { expanded }, theme) => {
+    pi.registerMessageRenderer("matt-pocock-procedure", (message, _options, theme) => {
       const details = (message.details ?? {}) as Partial<WorkflowState>;
       const route = details.route ?? (activeWorkflow?.route || "workflow");
       const phase = details.phase ?? (activeWorkflow?.phase || "active");
       const subject = formatReadableWorkflowSubject(route, phase);
-      return createStaticToolLifecycleMessageRenderer({
-        createSpec: () => eventToolLifecycle("matt pocock", subject, { label: "workflow" }),
-        expandHint: safeExpandHint(),
-        fit: truncateToWidth,
-        visibleWidth,
-      })(message, { expanded }, theme);
+      const prefix = theme.fg("customMessageLabel", theme.bold("[matt pocock] started ·"));
+      return new Text(`${prefix} ${safeDisplayText(subject)}`, 0, 0);
     });
   }
 
@@ -266,13 +260,9 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       const details = (result.details ?? {}) as WorkflowState;
       const route = details.route ?? (context.args as { route?: string })?.route ?? "workflow";
       const phase = details.phase ?? "active";
-      const title = formatToolLifecycleTitle({
-        kind: "event",
-        tool: "matt pocock",
-        subject: formatReadableWorkflowSubject(route, phase),
-        label: "workflow",
-      });
-      return new Text(theme.fg("customMessageLabel", theme.bold(title)), 0, 0);
+      const prefix = theme.fg("customMessageLabel", theme.bold("[matt pocock] started ·"));
+      const subject = formatReadableWorkflowSubject(route, phase);
+      return new Text(`${prefix} ${safeDisplayText(subject)}`, 0, 0);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const route = findWorkflowRoute(params.route);

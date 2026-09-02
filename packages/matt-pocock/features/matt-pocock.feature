@@ -136,16 +136,18 @@ Feature: Matt Pocock workflow harness
     And the package contains no SKILL.md file
     And its procedures remain plain Markdown resources
 
-  Scenario: Workflow tool rows use a consistent Matt Pocock prefix
+  Scenario: Matt Pocock tool rows use operation-specific prefixes
     Given a Matt Pocock workflow or structured interview tool result
     When Pi renders its collapsed lifecycle row
-    Then the row label is [matt pocock] workflow · or [matt pocock] ask ·
-    And the operation appears as the label outside the bracketed prefix
+    Then a workflow row label is [matt pocock] started ·
+    And a structured interview row label is [matt pocock] ask ·
+    And the operation appears outside the bracketed prefix
 
-  Scenario: Workflow state stays compact and does not expand model procedure text
+  Scenario: Workflow activation uses the monitor-style started row
     Given a Matt Pocock workflow tool result contains a loaded procedure for the model
     When Pi renders the user-facing workflow row
-    Then it shows the route and phase as one native Text row without a lifecycle background band or expansion hint
+    Then it shows [matt pocock] started · followed by the route and phase as one native Text row
+    And it has no lifecycle background band or expansion hint
     And it does not render the procedure text as user-facing details
 
   Scenario: A structured answer keeps question and answer visible in the collapsed row

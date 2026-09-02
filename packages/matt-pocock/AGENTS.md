@@ -22,7 +22,7 @@ pnpm --dir packages/matt-pocock pack --dry-run
 - **Workflow Tools**:
   - `matt_pocock_workflow`: Uses TypeBox unions across the 5 stable routes (`idea-to-ship`, `hard-bug`, `triage`, `wayfinding`, `architecture`). If an invalid procedure is passed, falls back to the route default with a diagnostic note.
   - `matt_pocock_ask`: Progressive interview tool enabled via `pi.setActiveTools()` only while a workflow is active. Presents 2–4 choices via `ctx.ui.select` (with custom typing option); falls back to the recommended choice on timeout (default 60s) or in headless mode (`!ctx.hasUI`).
-  - Both tools delegate transcript rendering to `@fradser/pi-kit` lifecycle renderers (`[matt pocock] workflow/ask`).
+  - `matt_pocock_workflow` renders a compact monitor-style activation row (`[matt pocock] started · <route and phase>`); `matt_pocock_ask` delegates its lifecycle transcript rendering to `@fradser/pi-kit` (`[matt pocock] ask ·`).
 
 ## Sync and release
 
