@@ -1,7 +1,7 @@
 import { keyHint, type Theme } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
-  createToolLifecycleResultRenderer,
+  createStaticToolLifecycleResultRenderer,
   formatToolErrorLine,
   type ToolLifecycleSpec,
 } from "@fradser/pi-kit";
@@ -33,7 +33,7 @@ export function renderLifecycleResult(
   // differ from what the model sees).
   const effectiveDetails = details ?? text.split("\n").filter((line) => line.trim());
   if (context.isError) return new Text(theme.fg("error", formatToolErrorLine(text)), 0, 0);
-  return createToolLifecycleResultRenderer({
+  return createStaticToolLifecycleResultRenderer({
     createSpec: () => ({ ...spec, details: effectiveDetails }),
     expandHint: keyHint("app.tools.expand", "to expand"),
     fit: truncateToWidth,
