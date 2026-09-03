@@ -50,3 +50,10 @@ def test_publish_allowlist_includes_skill_router() -> None:
     assert '"pi-skill-router"' in SCRIPT
     assert '"pi-mattpocock"' not in SCRIPT
     assert '"pi-marketingskills"' not in SCRIPT
+
+
+def test_publish_script_verifies_packed_manifest_before_publishing() -> None:
+    feature = (REPO / "features" / "publish-provenance.feature").read_text(encoding="utf-8")
+    assert "Publishing verifies packed packages contain no unresolved workspace protocols" in feature
+    assert "verifyPackedManifest" in SCRIPT
+    assert "workspace:" in SCRIPT

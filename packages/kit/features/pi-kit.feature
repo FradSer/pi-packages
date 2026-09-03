@@ -46,6 +46,12 @@ Feature: Shared pi-kit runtime helpers
     Then the panel has shared full-width border, padded header and footer lines
     And every emitted line is width-bounded by the supplied ANSI-aware fit helper
 
+  Scenario: Consumer packages resolve workspace dependency protocols when packed
+    Given a workspace package depending on @fradser/pi-kit via workspace:*
+    When the consumer package is packed
+    Then the packed manifest resolves @fradser/pi-kit to a concrete version
+    And the tarball contains no workspace protocol dependencies
+
   Scenario: Passive console widgets use the shared row layout
     Given a package displays a one-line status widget
     When it uses renderPiWidgetRow

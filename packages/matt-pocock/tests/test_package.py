@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
+import tempfile
 import textwrap
 from pathlib import Path
 
@@ -49,6 +51,7 @@ def test_feature_covers_the_workflow_harness_contract() -> None:
         "Workflow activation uses the monitor-style started row",
         "A structured answer keeps question and answer visible in the collapsed row",
         "The package has no recursively discoverable child skills",
+        "Packed package resolves workspace dependency protocols",
         "The package documents its Chinese workflow-harness architecture",
         "Deferred lifecycle automation remains documented",
     ):
@@ -66,6 +69,28 @@ def test_manifest_declares_one_package_root_extension() -> None:
     assert {"index.ts", "src", "procedures", "TODO.md"} <= set(manifest["files"])
     assert "skills" not in manifest["pi"]
     assert (PACKAGE / "index.ts").is_file()
+
+
+def test_packed_package_resolves_workspace_dependency() -> None:
+    temp_dir = tempfile.mkdtemp(prefix="pack-test-")
+    try:
+        output = subprocess.check_output(
+            ["pnpm", "--dir", str(PACKAGE), "pack", "--pack-destination", temp_dir],
+            text=True,
+        )
+        tarball_match = re.search(r"([^\s]+\.tgz)", output)
+        assert tarball_match, f"Could not find tarball in output: {output}"
+        tarball_path = tarball_match.group(1)
+        pkg_json = subprocess.check_output(
+            ["tar", "-xOf", tarball_path, "package/package.json"],
+            text=True,
+        )
+        packed_manifest = json.loads(pkg_json)
+        dep = packed_manifest.get("dependencies", {}).get("@fradser/pi-kit")
+        assert dep and not dep.startswith("workspace:"), f"Packed dependency must not use workspace protocol: {dep}"
+        assert re.match(r"^\d+\.\d+\.\d+", dep), f"Packed dependency must be semver version: {dep}"
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def test_workflow_status_clears_use_pi_kit_transient_status_adapter() -> None:

@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const packages = [
@@ -49,8 +50,43 @@ const unpublished = packages.filter((name) => {
 
 const useProvenance = process.env.GITHUB_ACTIONS === "true";
 
+export function verifyPackedManifest(packageDir) {
+  const tempDir = mkdtempSync(join(tmpdir(), "pi-pack-verify-"));
+  try {
+    const packOutput = execFileSync("pnpm", ["--dir", packageDir, "pack", "--pack-destination", tempDir], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const tarballMatch = packOutput.match(/([^\s]+\.tgz)/);
+    const tarballPath = tarballMatch ? tarballMatch[1] : null;
+    if (!tarballPath) throw new Error(`Could not determine tarball path from pnpm pack output: ${packOutput}`);
+    const manifestJson = execFileSync("tar", ["-xOf", tarballPath, "package/package.json"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const manifest = JSON.parse(manifestJson);
+    const allDeps = {
+      ...manifest.dependencies,
+      ...manifest.devDependencies,
+      ...manifest.peerDependencies,
+      ...manifest.optionalDependencies,
+    };
+    for (const [dep, spec] of Object.entries(allDeps)) {
+      if (typeof spec === "string" && spec.includes("workspace:")) {
+        throw new Error(
+          `Package in ${packageDir} has unresolved workspace protocol dependency "${dep}": "${spec}" in packed tarball.`
+        );
+      }
+    }
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 for (const name of unpublished) {
   const result = workspacePackages.get(name);
+  console.log(`Verifying packed manifest for ${name}...`);
+  verifyPackedManifest(join("packages", result.directory));
   console.log(`Publishing ${name}@${result.version}`);
   execFileSync("pnpm", [
     "publish",

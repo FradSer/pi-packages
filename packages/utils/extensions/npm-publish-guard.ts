@@ -84,13 +84,22 @@ export function matchBlockedNpmCommand(command: string): BlockedNpmCommand | nul
 
 /** Build the block reason handed back to the model as corrective steering. */
 export function buildBlockReason(label: string, command: string): string {
+	const isNpmPublish = /(?:^|[;&|\s])npm\s+publish\b/.test(command);
+	const correctedCommand = command.replace(
+		/(^|[;&|\s])npm\s+publish\b/g,
+		"$1pnpm publish",
+	);
+	const npmWarning = isNpmPublish
+		? " In this pnpm workspace, NEVER run `npm publish` — npm does not rewrite `workspace:*` dependency protocols, publishing broken packages that fail with EUNSUPPORTEDPROTOCOL on install. Always use `pnpm publish`."
+		: "";
+
 	return [
-		`Blocked: ${label} cannot succeed from a non-interactive shell — 2FA web-auth exits immediately with EOTP, and an invalid token surfaces as a masked 404 PUT on unpublished packages.`,
+		`Blocked: ${label} cannot succeed from a non-interactive shell — 2FA web-auth exits immediately with EOTP, and an invalid token surfaces as a masked 404 PUT on unpublished packages.${npmWarning}`,
 		"",
 		"Correct procedure (skill: npm-package-first-release):",
 		'1. Verify credentials yourself first: run `npm whoami`. If it fails with E401, ask the user to run `npm login` in their own terminal and wait for their confirmation.',
 		"2. Ask the user to run this exact command in THEIR terminal — the OTP/browser prompt is visible there — and wait for their report:",
-		`    ${command}`,
+		`    ${correctedCommand}`,
 		"3. After they confirm success, verify registry state yourself (e.g. curl https://registry.npmjs.org/<pkg>), then continue the flow: `npm trust github <pkg> --file <release-workflow>.yml --repo <owner>/<repo> --allow-publish -y`, then merge the release PR so CI OIDC owns future versions.",
 		"",
 		"Never ask for OTP codes in chat. Never retry this blocked command unmodified.",

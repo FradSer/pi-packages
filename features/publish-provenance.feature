@@ -13,6 +13,12 @@ Feature: Release publishing without local provenance assumptions
     When it publishes an unpublished package
     Then it passes --provenance to pnpm publish
 
+  Scenario: Publishing verifies packed packages contain no unresolved workspace protocols
+    Given an unpublished package is ready for publication
+    When the release script prepares to publish the package
+    Then it verifies the packed tarball manifest contains no workspace protocol dependencies
+    And publication halts if an unresolved workspace protocol is detected
+
   Scenario: The release workflow publishes versions after version commits
     Given Changesets has already committed package versions and removed its changesets
     When the release workflow finds no changesets to publish

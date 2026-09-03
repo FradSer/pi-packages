@@ -167,6 +167,12 @@ Feature: Matt Pocock workflow harness
     When it emits that notification
     Then it delegates notification sanitization and delivery to pi-kit
 
+  Scenario: Packed package resolves workspace dependency protocols
+    Given the package declares workspace dependencies for local development
+    When the package is packed for distribution
+    Then the packed manifest resolves @fradser/pi-kit to a concrete semver version
+    And it contains no workspace protocol dependencies
+
   Scenario: The package documents its Chinese workflow-harness architecture
     Given a user needs to understand how pi-matt-pocock differs from the upstream skill collection
     When they open the package README

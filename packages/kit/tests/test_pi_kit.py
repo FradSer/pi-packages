@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import re
+import shutil
 import subprocess
+import tempfile
 import textwrap
 from pathlib import Path
 
@@ -12,8 +15,14 @@ SRC = PACKAGE / "src"
 CONSUMERS = [
     "agent-teams",
     "btw",
+    "context",
     "continual-learning",
+    "keyboard",
+    "matt-pocock",
+    "monitor",
+    "plan-mode",
     "recap",
+    "skill-router",
     "utils",
     "vision",
 ]
@@ -862,6 +871,35 @@ def test_consumers_declare_kit_as_workspace_dependency() -> None:
         assert "@fradser/pi-kit" not in manifest.get("peerDependencies", {}), (
             f"{consumer} must not declare @fradser/pi-kit as a peer dependency"
         )
+
+
+def test_packed_consumers_resolve_workspace_protocol_dependencies() -> None:
+    feature = (PACKAGE / "features" / "pi-kit.feature").read_text(encoding="utf-8")
+    assert "Consumer packages resolve workspace dependency protocols when packed" in feature
+    temp_dir = tempfile.mkdtemp(prefix="kit-pack-test-")
+    try:
+        for consumer in ("matt-pocock", "agent-teams", "vision"):
+            output = subprocess.check_output(
+                ["pnpm", "--dir", str(REPO / "packages" / consumer), "pack", "--pack-destination", temp_dir],
+                text=True,
+            )
+            tarball_match = re.search(r"([^\s]+\.tgz)", output)
+            assert tarball_match, f"Could not find tarball in output: {output}"
+            tarball_path = tarball_match.group(1)
+            pkg_json = subprocess.check_output(
+                ["tar", "-xOf", tarball_path, "package/package.json"],
+                text=True,
+            )
+            packed_manifest = json.loads(pkg_json)
+            dep = packed_manifest.get("dependencies", {}).get("@fradser/pi-kit")
+            assert dep and not dep.startswith("workspace:"), (
+                f"{consumer} packed dependency must not use workspace protocol: {dep}"
+            )
+            assert re.match(r"^\d+\.\d+\.\d+", dep), (
+                f"{consumer} packed dependency must be semver version: {dep}"
+            )
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def test_publish_allowlist_orders_kit_before_consumers() -> None:

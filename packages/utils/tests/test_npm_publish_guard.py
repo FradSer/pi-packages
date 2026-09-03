@@ -82,3 +82,23 @@ class NpmPublishGuardTests(unittest.TestCase):
         self.assertAllowed("echo npm login")
         self.assertAllowed("cat pnpm-publish-notes.txt")
         self.assertAllowed('git commit -m "npm publish"')
+
+    def test_block_reason_redirects_npm_publish_to_pnpm(self) -> None:
+        script = f"""
+import {{ buildBlockReason }} from {json.dumps(GUARD_EXTENSION.as_uri())};
+console.log(JSON.stringify(buildBlockReason("Package publish", "npm publish --access public")));
+"""
+        result = subprocess.run(
+            ["node", "--input-type=module"],
+            cwd=REPO,
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        reason = json.loads(result.stdout)
+        self.assertIn("pnpm publish --access public", reason)
+        self.assertNotIn("    npm publish", reason)
+        self.assertIn("workspace:*", reason)
+        self.assertIn("EUNSUPPORTEDPROTOCOL", reason)

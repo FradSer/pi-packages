@@ -40,6 +40,11 @@ Feature: npm publish and credential guard
     When bash runs "NPM_CONFIG_REGISTRY=https://registry.npmjs.org npm publish"
     Then the call is blocked with the publish label
 
+  Scenario: Blocked publish commands redirect to pnpm publish in the terminal instructions
+    When bash runs "npm publish" or "npm publish --access public"
+    Then the block reason redirects the terminal command to pnpm publish
+    And it warns that npm publish in a pnpm workspace leaks workspace protocol dependencies
+
   Scenario: Command-position anchoring avoids false positives
     When bash runs "echo npm login", "cat pnpm-publish-notes.txt",
       or git commit with message "npm publish"
