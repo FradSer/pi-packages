@@ -1,5 +1,11 @@
 # @fradser/pi-agent-teams
 
+## 0.8.3
+
+### Patch Changes
+
+- c568d73: Apply customMessageLabel color only to the [agent] prefix in teammate spawn rows
+
 ## 0.8.2
 
 ### Patch Changes
