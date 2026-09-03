@@ -3,13 +3,22 @@ name: npm-package-first-release
 description: Bootstrap the first publication of an npm package and wire up Trusted Publishing (GitHub OIDC) in a monorepo. Use whenever a new package must be published to npm for the first time, when configuring npm trust github or a trusted publisher, when handing a package over from manual releases to CI-owned releases, or when diagnosing first-release failures such as EOTP, PUT 404, EPUBLISHCONFLICT, 401 on whoami, or "Package not found" during trust setup.
 ---
 
-# npm package first release
+# npm package release and publishing
 
 npm OIDC Trusted Publishing cannot create the **first** version of a package
 that does not exist yet, and a trust relationship cannot be created for a
 package that does not exist. The first version therefore needs one deliberate,
-human-in-the-loop publication; every later version is owned by CI. This skill
-walks that bootstrap and hands off cleanly.
+human-in-the-loop publication; every later version is owned by CI.
+
+Distinguish the two scenarios before acting:
+
+- **Scenario A: First release (Bootstrap)** — The package has never been published
+  to npm (registry returns 404). Follow the full bootstrap procedure (manual
+  initial publish, then configure `npm trust`).
+- **Scenario B: Subsequent releases (CI / Second+ release)** — The package already
+  exists on npm (`latest` version exists, trust is configured). Releases belong
+  entirely to GitHub Actions CI via Changesets. Do not treat subsequent releases,
+  version bumps, or CI retries as a first-release bootstrap.
 
 ## Hard rules
 
@@ -53,16 +62,21 @@ A dead token is also why a publish of a brand-new package can fail with
 nonexistent packages as 404 instead of 401/403. When you see 404 on PUT,
 check `npm whoami` first before suspecting the package name.
 
-### 2. Check registry state
+### 2. Check registry state and route scenario
 
 ```bash
 curl -s https://registry.npmjs.org/<package-name>
 ```
 
-- 404: name is free — full bootstrap below.
-- HTTP 200 with no versions/dist-tags: the name was unpublished once
-  (tombstone); it can still be published after the 24-hour window.
-- Existing versions: this is not a first release — stop and reassess.
+- **404 / no versions**: Scenario A (First release) — proceed with Steps 3, 4, 5.
+- **Package exists with versions**: Scenario B (Subsequent release) — **STOP**.
+  - Do **NOT** ask the user to manually publish from their terminal.
+  - Do **NOT** run `npm trust` again (trust relationship is already active).
+  - Normal flow: create a Changeset (`pnpm changeset`), commit, push to `main`, and merge the Changesets Version PR. CI publishes automatically via OIDC.
+  - If CI fails during a subsequent release: inspect CI logs first before assuming manual intervention is needed. For example, if the version already succeeded in publishing in the `changesets/action` step, a subsequent retry step encountering `409 Conflict` simply means the package is already published on the registry (an eventual consistency or idempotency artifact), not an authorization or bootstrap failure.
+
+---
+## Scenario A: First release bootstrap procedure
 
 ### 3. User publishes the first version (interactive)
 
@@ -117,7 +131,7 @@ Registry edge caches can lag briefly after publish.
 | `PUT ... 404 Not Found` on a new package | Dead token masked by the registry | `npm whoami`; if E401, user re-runs `npm login` |
 | `EOTP` exiting immediately under automation | Non-TTY clients cannot complete web-auth | Stop automating; user runs the publish interactively |
 | Trust setup: `Package not found` | Package not published yet | Complete step 3 first, then re-run trust |
-| `EPUBLISHCONFLICT` / version exists | Version already on npm | Advance the version; never overwrite |
+| `EPUBLISHCONFLICT` / 409 Conflict | Version already published on npm | In CI retry: version succeeded in previous step; verify with `npm view <pkg> versions`. Do not re-bootstrap as first-release. In local dev: advance package version. |
 | Token dies again days later | npm retiring bypass-2FA tokens | Re-login; prefer granular tokens with read-write packages |
 
 ## Related project memory
