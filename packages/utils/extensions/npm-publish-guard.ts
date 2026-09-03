@@ -96,7 +96,7 @@ export function buildBlockReason(label: string, command: string): string {
 	return [
 		`Blocked: ${label} cannot succeed from a non-interactive shell — 2FA web-auth exits immediately with EOTP, and an invalid token surfaces as a masked 404 PUT on unpublished packages.${npmWarning}`,
 		"",
-		"Correct procedure (skill: npm-package-first-release):",
+		"Correct procedure (skill: npm-package-release):",
 		'1. Verify credentials yourself first: run `npm whoami`. If it fails with E401, ask the user to run `npm login` in their own terminal and wait for their confirmation.',
 		"2. Ask the user to run this exact command in THEIR terminal — the OTP/browser prompt is visible there — and wait for their report:",
 		`    ${correctedCommand}`,

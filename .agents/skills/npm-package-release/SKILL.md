@@ -1,6 +1,6 @@
 ---
-name: npm-package-first-release
-description: Bootstrap the first publication of an npm package and wire up Trusted Publishing (GitHub OIDC) in a monorepo. Use whenever a new package must be published to npm for the first time, when configuring npm trust github or a trusted publisher, when handing a package over from manual releases to CI-owned releases, or when diagnosing first-release failures such as EOTP, PUT 404, EPUBLISHCONFLICT, 401 on whoami, or "Package not found" during trust setup.
+name: npm-package-release
+description: Release and publish npm packages with Trusted Publishing (GitHub OIDC) in a monorepo, covering both first-release bootstrap (interactive publish + npm trust setup) and subsequent CI-owned releases via Changesets. Use whenever releasing a new package for the first time, diagnosing release or publication failures (EOTP, PUT 404, 409 Conflict, EPUBLISHCONFLICT, E401), handing off releases to CI, or triaging GitHub Actions release workflow runs.
 ---
 
 # npm package release and publishing
