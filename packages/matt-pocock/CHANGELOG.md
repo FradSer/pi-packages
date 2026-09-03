@@ -1,5 +1,11 @@
 # pi-matt-pocock
 
+## 0.1.1
+
+### Patch Changes
+
+- c568d73: Resolve workspace dependency protocol on @fradser/pi-kit in published npm package to prevent EUNSUPPORTEDPROTOCOL on pi install
+
 ## 0.1.0
 
 ### Minor Changes
