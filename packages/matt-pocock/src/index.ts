@@ -332,12 +332,22 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         timed_out?: boolean;
         source?: string;
       };
-      const answer = detailsObj.answer ?? text;
-      const question = params.question ? safeDisplayText(params.question) : "question";
+      const rawAnswer = detailsObj.answer ?? text;
+      const question = params.question
+        ? safeDisplayText(params.question).replace(/\s+/g, " ").trim()
+        : "question";
       const subject = question;
-      const summary = [detailsObj.pending
-        ? "Status: pending user decision"
-        : `Answer: ${safeDisplayText(answer || "(none)")}`];
+      const cleanAnswer = safeDisplayText(rawAnswer || "(none)")
+        .replace(/\t/g, "  ")
+        .trim();
+      const answerLines = cleanAnswer
+        ? cleanAnswer.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0)
+        : [];
+      const summary = detailsObj.pending
+        ? ["Status: pending user decision"]
+        : answerLines.length === 0
+          ? ["Answer: (none)"]
+          : answerLines.map((line, index) => (index === 0 ? `Answer: ${line}` : `  ${line}`));
       const effectiveDetails = [
         detailsObj.timed_out && detailsObj.pending ? "Reason: selection timed out" : undefined,
         detailsObj.source === "no_ui" ? "Reason: no UI available" : undefined,

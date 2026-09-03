@@ -50,6 +50,7 @@ def test_feature_covers_the_workflow_harness_contract() -> None:
         "Matt Pocock tool rows use operation-specific prefixes",
         "Workflow activation uses the monitor-style started row",
         "A structured answer keeps question and answer visible in the collapsed row",
+        "A multiline structured answer renders each line cleanly without raw newlines",
         "The package has no recursively discoverable child skills",
         "Packed package resolves workspace dependency protocols",
         "The package documents its Chinese workflow-harness architecture",
@@ -61,7 +62,7 @@ def test_feature_covers_the_workflow_harness_contract() -> None:
 def test_manifest_declares_one_package_root_extension() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text())
     assert manifest["name"] == "pi-matt-pocock"
-    assert manifest["version"] == "0.1.0"
+    assert manifest["version"] == "0.1.1"
     assert manifest["type"] == "module"
     assert manifest["pi"] == {"extensions": ["./index.ts"]}
     assert "@earendil-works/pi-coding-agent" in manifest["peerDependencies"]
@@ -938,6 +939,52 @@ def test_matt_pocock_ask_tui_rendering_uses_pi_kit_lifecycle() -> None:
     assert any("Idea to Ship · Shaping & Requirements" in row for row in result["msgRows"])
     assert not any("Restored procedure" in row for row in result["msgRows"])
     assert not any("ctrl+o to expand" in row for row in result["msgRows"])
+
+
+def test_matt_pocock_ask_multiline_answer_renders_without_raw_newlines() -> None:
+    result = run_typescript("""
+        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+        const mattPocock = importedMattPocock.default ?? importedMattPocock;
+
+        const tools = new Map();
+        const pi = {
+          on() {},
+          registerCommand() {},
+          registerTool(tool) { tools.set(tool.name, tool); },
+          appendEntry() {},
+          sendUserMessage() {},
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
+        };
+
+        mattPocock(pi);
+        const askTool = tools.get("matt_pocock_ask");
+
+        const theme = {
+          fg: (_color, text) => text,
+          bg: (_color, text) => text,
+          bold: (text) => text,
+        };
+
+        const renderedAsk = askTool.renderResult(
+          {
+            content: [{ type: "text", text: "User selected: Option A\\nOption B\\nOption C" }],
+            details: { answer: "Option A\\nOption B\\nOption C", is_custom: false, source: "choice_selected" },
+          },
+          { expanded: false },
+          theme,
+          { isError: false, args: { question: "Which scope?", options: ["Option A\\nOption B\\nOption C"] } },
+        );
+
+        const rows = renderedAsk.render(80);
+        console.log(JSON.stringify({ askRows: rows }));
+    """)
+    rows = result["askRows"]
+    assert len(rows) > 0
+    assert all("\n" not in row for row in rows), f"Found raw newline in rendered rows: {rows}"
+    assert any("Answer: Option A" in row for row in rows)
+    assert any("Option B" in row for row in rows)
+    assert any("Option C" in row for row in rows)
 
 
 def test_todo_records_remaining_deferred_lifecycle_automation() -> None:

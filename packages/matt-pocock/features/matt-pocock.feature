@@ -157,6 +157,13 @@ Feature: Matt Pocock workflow harness
     And its second row shows the answer
     And the row remains expandable for non-duplicated metadata
 
+  Scenario: A multiline structured answer renders each line cleanly without raw newlines
+    Given a Matt Pocock structured interview result contains a multiline answer
+    When Pi renders the collapsed ask row
+    Then no rendered TUI row contains a raw newline
+    And the first answer line shows the answer label
+    And subsequent answer lines remain visible in separate rendered rows
+
   Scenario: Workflow status clears use the shared Pi-kit transient-status adapter
     Given the workflow lifecycle clears its status entry
     When a session starts, restores, ends, or transitions a workflow
