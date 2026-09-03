@@ -1,5 +1,11 @@
 # pi-matt-pocock
 
+## 0.1.2
+
+### Patch Changes
+
+- 93e3302: Fix TUI rendering issue when answer contains multiple lines or tabs in matt_pocock_ask
+
 ## 0.1.1
 
 ### Patch Changes
