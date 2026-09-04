@@ -267,25 +267,15 @@ Feature: Result-contract background monitoring
     Then the monitor status reads `2 monitors waiting`
     And the monitor status does not include `/monitor to inspect`
 
-  Scenario: Bash tool call with high timeout is intercepted and redirected to monitor_start
+  Scenario: The monitor extension does not intercept bash tool calls
     Given the monitor extension is loaded
-    When the model calls the bash tool with a timeout of 30 seconds or greater
-    Then the tool call is blocked by the monitor guardrail
-    And the blocking reason explains that direct synchronous execution is not allowed
-    And the blocking reason provides an actionable monitor_start suggestion with sentinel wrapping and timeout_ms
+    When the model calls the bash tool with a long-running command or a high timeout
+    Then the monitor extension does not register a bash tool-call guardrail
+    And the native bash tool remains responsible for synchronous execution
 
-  Scenario: Bash tool call matching long-running or hardware-flashing signature is intercepted
+  Scenario: Monitor guidance recommends monitor_start without changing bash behavior
     Given the monitor extension is loaded
-    When the model calls the bash tool with a command matching hardware flashing, remote pipelines, or blocking operations
-    Then the tool call is blocked by the monitor guardrail
-    And the blocking reason guides the model to use monitor_start instead
-
-  Scenario: Synchronous bash execution with an allow-sync escape comment is allowed
-    Given the monitor extension is loaded
-    When the model calls the bash tool with a long-running command containing `# allow-sync`
-    Then the tool call is not blocked by the monitor guardrail
-
-  Scenario: Guardrail can be disabled or configured via environment variables
-    Given the monitor extension is loaded
-    When PI_MONITOR_GUARD_BASH is set to "false"
-    Then bash tool calls with high timeouts are not blocked
+    When the agent decides whether a shell command needs background monitoring
+    Then the system guidance recommends monitor_start for noisy, long-running, or asynchronous work
+    And the system guidance does not require a special command suffix
+    And the system guidance does not claim that synchronous bash is blocked

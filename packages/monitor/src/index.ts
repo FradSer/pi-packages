@@ -10,7 +10,6 @@ import {
   type Monitor,
   type MonitorTerminalResult,
 } from "./monitor";
-import { evaluateBashGuard } from "./guard";
 import { MonitorStartParams, MonitorStopParams } from "./types";
 
 const MONITOR_GUIDANCE = `
@@ -207,13 +206,6 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("before_agent_start", async (event) => {
     return { systemPrompt: event.systemPrompt + MONITOR_GUIDANCE };
-  });
-
-  pi.on("tool_call", async (event) => {
-    const decision = evaluateBashGuard(event);
-    if (decision?.block) {
-      return { block: true, reason: decision.reason };
-    }
   });
 
   pi.registerTool({
