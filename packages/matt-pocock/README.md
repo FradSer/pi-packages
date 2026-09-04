@@ -1,8 +1,6 @@
 # pi-matt-pocock
 
-`pi-matt-pocock` is a Pi extension that provides `/matt-pocock`: a persisted
-workflow harness for BDD-first engineering and productivity procedures adapted
-from `mattpocock/skills`.
+`pi-matt-pocock` provides one `/matt-pocock` menu and a catalog-backed capability gateway for engineering workflows and focused procedures adapted from `mattpocock/skills`.
 
 ## Installation
 
@@ -10,28 +8,14 @@ from `mattpocock/skills`.
 pi install npm:pi-matt-pocock
 ```
 
-## Workflow harness
+## How it works
 
-`/matt-pocock` opens one routing menu:
+`/matt-pocock` starts or manages persisted workflows and runs standalone capabilities. A single `procedureCatalog` manifest classifies bundled resources as workflow procedures, standalone capabilities, references, or assets, and defines their dependencies, disclosures, workflow placement, and legal transitions.
 
-- Start an idea-to-ship flow
-- Diagnose a hard bug
-- Triage incoming work
-- Map a large ambiguous initiative
-- Improve codebase architecture
-- View, transition, or end the current workflow
+The baseline `matt_pocock_workflow` gateway starts a workflow, runs a model-reachable standalone capability, or loads a reference disclosed by one. While a workflow is active, `matt_pocock_active` and `matt_pocock_ask` are progressively enabled for transitions, reference loading, completion or cancellation, and structured user decisions.
 
-The harness injects only the chosen procedure, persists its current route and
-phase in the Pi session, restores that state on restart, and adds concise
-phase guidance to agent turns. Its structured interview tool is available only
-while a workflow is active, so ordinary questions remain in the conversation.
-When a procedure's done condition makes its next procedure clear, the agent transitions with `matt_pocock_workflow` and continues without waiting for permission. It pauses only for a user-owned decision, unavailable fact, or required external action. The menu's transition option remains available for an explicit user override.
+Each workflow has a stable `workItemId` and persisted `active`, `completed`, or `cancelled` status. Procedure bundles include mandatory `requires` dependencies, expose optional `discloses` references without loading them, identify every body with a stable `source:procedure/<id>` source id, and are capped at 64 KiB. Workflow transitions are limited to the current catalog placement's `allowedNext` set.
 
-Procedures are internal Markdown resources rather than Pi skills, so generic
-workflow names such as `tdd`, `code-review`, and `research` never collide with
-an installed skill collection.
+Procedures remain internal Markdown resources; the package ships no child `SKILL.md` files, so generic names such as `tdd`, `research`, and `code-review` do not become globally discoverable skills.
 
-For the design rationale, lifecycle, context trade-offs, and a comparison with
-upstream `mattpocock/skills`, see the [中文架构说明](ARCHITECTURE.zh-CN.md).
-
-See [TODO.md](TODO.md) for lifecycle automation that remains deliberately deferred.
+See the detailed [中文架构说明](ARCHITECTURE.zh-CN.md), the upstream [selection metadata](upstream-selection.json) and [sync rules](UPSTREAM.md), and the deliberately deferred items in [TODO.md](TODO.md).

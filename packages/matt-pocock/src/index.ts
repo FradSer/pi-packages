@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   keyHint,
   type ExtensionAPI,
@@ -14,145 +15,193 @@ import {
   safeDisplayText,
 } from "@fradser/pi-kit";
 import { Type } from "typebox";
-import { procedurePrompt } from "./procedures.ts";
+import {
+  findProcedure,
+  modelStandaloneCapabilities,
+  standaloneCapabilities,
+  workflowDefinitions,
+  workflowPlacement,
+} from "./catalog.ts";
+import { resolveAccessibleReference, resolveProcedureBundle, resolveWorkflowContext } from "./resolver.ts";
 import {
   availableWorkflowsGuidance,
   findWorkflowRoute,
   formatReadableWorkflowSubject,
-  latestWorkflowState,
-  normalizeProcedureName,
-  phaseForProcedure,
-  transitionProcedureOptions,
-  transitionProcedures,
-  WORKFLOW_STATE_ENTRY,
+  latestWorkflowRecord,
+  readablePhaseTitle,
+  routeEntryState,
+  transitionState,
   workflowGuidance,
   workflowRoutes,
+  WORKFLOW_STATE_ENTRY,
+  WORKFLOW_STATE_VERSION,
+  type TerminalWorkflowState,
   type WorkflowState,
 } from "./workflow.ts";
 
-function stringEnum<T extends readonly string[]>(values: T, options?: Record<string, unknown>) {
-  return Type.Unsafe<T[number]>({
-    type: "string",
-    enum: [...values],
-    ...options,
-  });
+const ACTIVE_TOOLS = ["matt_pocock_active", "matt_pocock_ask"] as const;
+
+function stringEnum(values: string[], options?: Record<string, unknown>) {
+  return Type.Unsafe<string>({ type: "string", enum: values, ...options });
 }
 
-function workflowRouteParameters<T extends string>(route: T) {
-  return Type.Object({
-    route: Type.Literal(route, { description: "Target engineering workflow route." }),
-    procedure: Type.Optional(stringEnum(transitionProcedureOptions(route), {
-      description: `Specific ${route} procedure. Omit it to use the route default.`,
-    })),
-    phase: Type.Optional(Type.String({ description: "Target workflow phase." })),
-  });
-}
-
-function workflowToolParameters() {
+function workflowGatewayParameters() {
+  const routes = workflowRoutes().map((route) => route.route);
+  const capabilities = modelStandaloneCapabilities().map((capability) => capability.id);
   return Type.Union([
-    workflowRouteParameters("idea-to-ship"),
-    workflowRouteParameters("hard-bug"),
-    workflowRouteParameters("triage"),
-    workflowRouteParameters("wayfinding"),
-    workflowRouteParameters("architecture"),
+    Type.Object({
+      mode: Type.Literal("workflow", { description: "Start a persisted multi-step engineering workflow." }),
+      route: stringEnum(routes, { description: "Workflow route to start." }),
+    }),
+    Type.Object({
+      mode: Type.Literal("capability", { description: "Run a curated standalone capability without persistent workflow state." }),
+      capability: stringEnum(capabilities, { description: "Standalone capability to run." }),
+    }),
+    Type.Object({
+      mode: Type.Literal("reference", { description: "Load a reference disclosed by a standalone capability." }),
+      capability: Type.String({ description: "Standalone capability id from the injected capability context." }),
+      reference: Type.String({ description: "Disclosed reference id returned by the capability." }),
+    }),
+  ]);
+}
+
+function activeWorkflowParameters() {
+  return Type.Union([
+    Type.Object({
+      action: Type.Literal("transition"),
+      target: Type.String({ description: "One procedure id from the current state's allowedNext list." }),
+    }),
+    Type.Object({
+      action: Type.Literal("load"),
+      reference: Type.String({ description: "One reference id from the current state's availableReferences list." }),
+    }),
+    Type.Object({ action: Type.Literal("complete") }),
+    Type.Object({
+      action: Type.Literal("cancel"),
+      reason: Type.String({ description: "Why this workflow is being cancelled." }),
+    }),
   ]);
 }
 
 function safeExpandHint(): string {
   try {
-    const hint = keyHint("app.tools.expand", "to expand");
-    return String(hint);
+    return String(keyHint("app.tools.expand", "to expand"));
   } catch {
     return "to expand";
   }
 }
 
+let pi: ExtensionAPI;
 let activeWorkflow: WorkflowState | undefined;
 
-function setInterviewToolActive(active: boolean): void {
+function refreshActiveTools(active: boolean): void {
+  if (typeof pi.getActiveTools !== "function" || typeof pi.setActiveTools !== "function") return;
   const tools = pi.getActiveTools();
-  const nextTools = active
-    ? [...new Set([...tools, "matt_pocock_ask"])]
-    : tools.filter((tool) => tool !== "matt_pocock_ask");
-  pi.setActiveTools(nextTools);
+  const withoutActive = tools.filter((tool) => !ACTIVE_TOOLS.includes(tool as typeof ACTIVE_TOOLS[number]));
+  pi.setActiveTools(active ? [...withoutActive, ...ACTIVE_TOOLS] : withoutActive);
 }
 
-function endWorkflow(ctx: ExtensionContext): void {
-  activeWorkflow = undefined;
-  pi.appendEntry(WORKFLOW_STATE_ENTRY, { active: false });
-  setInterviewToolActive(false);
-  clearPiStatus(ctx.ui, "matt-pocock");
-}
-
-function persistWorkflow(state: WorkflowState): void {
-  activeWorkflow = state;
+function persistWorkflow(state: WorkflowState | TerminalWorkflowState): void {
   pi.appendEntry(WORKFLOW_STATE_ENTRY, state);
+  activeWorkflow = state.status === "active" ? state : undefined;
+  refreshActiveTools(state.status === "active");
 }
 
-function unavailableProcedureMessage(route: string, procedure: string): string {
-  const allowedProcedures = transitionProcedures(route);
-  const defaultProcedure = findWorkflowRoute(route)?.procedure ?? allowedProcedures[0];
-  return `Procedure ${procedure} is not available for route ${route}. Valid procedures: ${allowedProcedures.join(", ")}. Omit procedure to use the route default (${defaultProcedure}). Do not switch routes to work around a procedure error.`;
+function terminalState(status: "completed" | "cancelled", reason?: string): TerminalWorkflowState {
+  if (!activeWorkflow) throw new Error("No active Matt Pocock workflow.");
+  return {
+    version: WORKFLOW_STATE_VERSION,
+    workItemId: activeWorkflow.workItemId,
+    route: activeWorkflow.route,
+    procedure: activeWorkflow.procedure,
+    phase: activeWorkflow.phase,
+    status,
+    reason,
+  };
 }
 
-function loadWorkflowProcedure(state: WorkflowState): string {
-  const normalized = normalizeProcedureName(state.procedure);
-  if (!transitionProcedures(state.route).includes(normalized)) {
-    throw new Error(unavailableProcedureMessage(state.route, state.procedure));
+function availableReferences(state: WorkflowState): string[] {
+  return resolveWorkflowContext(state.procedure, state.loadedReferences).availableReferences;
+}
+
+function stateContract(state: WorkflowState, action: string): string {
+  const placement = workflowPlacement(state.route, state.procedure);
+  return `\n\n## Workflow state contract\n- Addressed: ${state.workItemId} · ${state.route} · ${state.procedure}\n- Synchronous action: ${action}\n- Allowed next: ${placement?.allowedNext.join(", ") || "none"}\n- Available references: ${availableReferences(state).join(", ") || "none"}\n- Pending: workflow remains active\n- Next actor: agent`;
+}
+
+function workflowPrompt(state: WorkflowState, action: string): string {
+  const bundle = resolveWorkflowContext(state.procedure, state.loadedReferences);
+  return `# Matt Pocock workflow procedure\n\nRoute: ${state.route}\nPhase: ${state.phase}\nWork item: ${state.workItemId}\n\n${bundle.content}${stateContract(state, action)}`;
+}
+
+function standalonePrompt(capability: string): string {
+  const definition = findProcedure(capability);
+  if (!definition?.standalone) throw new Error(`Unknown standalone Matt Pocock capability: ${capability}`);
+  const bundle = resolveProcedureBundle(definition.id);
+  return `# Matt Pocock standalone capability\n\nCapability: ${definition.id}\nPersistent workflow state: none\nAvailable references: ${bundle.availableReferences.join(", ") || "none"}\n\n${bundle.content}`;
+}
+
+function standaloneReferencePrompt(capability: string, reference: string): string {
+  const definition = findProcedure(capability);
+  if (!definition?.standalone) {
+    throw new Error(`Capability ${capability} is not a standalone Matt Pocock capability.`);
   }
-  return procedurePrompt(state.route, normalized, state.phase);
+  const bundle = resolveAccessibleReference(definition.id, [], reference);
+  return `# Matt Pocock standalone reference\n\nCapability: ${definition.id}\nReference: ${bundle.root}\nPersistent workflow state: none\nAvailable references: ${bundle.availableReferences.join(", ") || "none"}\n\n${bundle.content}`;
 }
 
-function injectProcedure(content: string): void {
-  pi.sendUserMessage(content, { deliverAs: "followUp" });
-}
-
-function activateWorkflow(state: WorkflowState, ctx: ExtensionContext): void {
-  const content = loadWorkflowProcedure(state);
+function startWorkflow(route: string): WorkflowState {
+  if (!findWorkflowRoute(route)) throw new Error(`Unknown Matt Pocock route: ${route}`);
+  const state = routeEntryState(route, randomUUID());
+  if (!state) throw new Error(`Workflow ${route} has no catalog entry procedure.`);
+  resolveProcedureBundle(state.procedure);
   persistWorkflow(state);
-  setInterviewToolActive(true);
-  clearPiStatus(ctx.ui, "matt-pocock");
-  injectProcedure(content);
+  return state;
+}
+
+function loadActiveReference(reference: string): { state: WorkflowState; content: string } {
+  if (!activeWorkflow) throw new Error("No active Matt Pocock workflow.");
+  const bundle = resolveAccessibleReference(activeWorkflow.procedure, activeWorkflow.loadedReferences, reference);
+  const loadedReferences = [...new Set([...activeWorkflow.loadedReferences, ...bundle.loaded])];
+  const state = { ...activeWorkflow, loadedReferences };
+  persistWorkflow(state);
+  return {
+    state,
+    content: `# Matt Pocock workflow reference\n\nWork item: ${state.workItemId}\nReference: ${bundle.root}\n\n${bundle.content}${stateContract(state, `loaded reference ${bundle.root}`)}`,
+  };
 }
 
 function routeChoices(): string[] {
   return workflowRoutes().map((route) => `${route.label} — ${route.description}`);
 }
 
-function routeFromChoice(choice: string): WorkflowState | undefined {
-  const route = workflowRoutes().find((candidate) => choice.startsWith(candidate.label));
-  return route && {
-    route: route.route,
-    procedure: route.procedure,
-    phase: route.phase,
-  };
+function routeFromChoice(choice: string): string | undefined {
+  return workflowRoutes().find((route) => choice.startsWith(route.label))?.route;
+}
+
+function capabilityChoices(): string[] {
+  return standaloneCapabilities().map((capability) => `${capability.label} — ${capability.description ?? capability.id}`);
+}
+
+function capabilityFromChoice(choice: string): string | undefined {
+  return standaloneCapabilities().find((capability) => choice.startsWith(`${capability.label} —`))?.id;
 }
 
 async function chooseRoute(ctx: ExtensionCommandContext): Promise<void> {
   const choice = await ctx.ui.select("Start Matt Pocock workflow", routeChoices());
   if (!choice) return;
-  const state = routeFromChoice(choice);
-  if (state) activateWorkflow(state, ctx);
+  const route = routeFromChoice(choice);
+  if (!route) return;
+  const state = startWorkflow(route);
+  clearPiStatus(ctx.ui, "matt-pocock");
+  pi.sendUserMessage(workflowPrompt(state, "started workflow"), { deliverAs: "followUp" });
 }
 
-async function showMenu(ctx: ExtensionCommandContext): Promise<void> {
-  const choices = ["Start a workflow", "View current workflow", "Transition current workflow", "End current workflow"];
-  const choice = await ctx.ui.select("Matt Pocock workflow", choices);
+async function chooseCapability(ctx: ExtensionCommandContext): Promise<void> {
+  const choice = await ctx.ui.select("Run Matt Pocock capability", capabilityChoices());
   if (!choice) return;
-  if (choice === "Start a workflow") {
-    await chooseRoute(ctx);
-    return;
-  }
-  if (choice === "View current workflow") {
-    showStatus(ctx);
-    return;
-  }
-  if (choice === "Transition current workflow") {
-    await chooseTransition(ctx);
-    return;
-  }
-  endWorkflow(ctx);
-  notifyPi(ctx.ui, "Matt Pocock workflow ended.", "info");
+  const capability = capabilityFromChoice(choice);
+  if (capability) pi.sendUserMessage(standalonePrompt(capability), { deliverAs: "followUp" });
 }
 
 async function chooseTransition(ctx: ExtensionCommandContext): Promise<void> {
@@ -160,19 +209,31 @@ async function chooseTransition(ctx: ExtensionCommandContext): Promise<void> {
     notifyPi(ctx.ui, "No active Matt Pocock workflow.", "warning");
     return;
   }
-
-  const procedures = transitionProcedures(activeWorkflow.route);
-  const choice = await ctx.ui.select(
-    `Transition ${activeWorkflow.route} from ${activeWorkflow.phase}`,
-    procedures,
-  );
+  const next = workflowPlacement(activeWorkflow.route, activeWorkflow.procedure)?.allowedNext ?? [];
+  if (next.length === 0) {
+    notifyPi(ctx.ui, "This workflow has no next procedure. Complete or cancel it.", "info");
+    return;
+  }
+  const choice = await ctx.ui.select(`Transition ${activeWorkflow.route} from ${activeWorkflow.procedure}`, next);
   if (!choice) return;
+  const state = transitionState(activeWorkflow, choice);
+  resolveProcedureBundle(state.procedure);
+  persistWorkflow(state);
+  pi.sendUserMessage(workflowPrompt(state, `transitioned to ${state.procedure}`), { deliverAs: "followUp" });
+}
 
-  activateWorkflow({
-    route: activeWorkflow.route,
-    procedure: choice,
-    phase: phaseForProcedure(choice),
-  }, ctx);
+function completeWorkflow(ctx: ExtensionContext): void {
+  const terminal = terminalState("completed");
+  persistWorkflow(terminal);
+  clearPiStatus(ctx.ui, "matt-pocock");
+  notifyPi(ctx.ui, `Matt Pocock workflow completed: ${terminal.workItemId}`, "info");
+}
+
+function cancelWorkflow(ctx: ExtensionContext, reason: string): void {
+  const terminal = terminalState("cancelled", reason);
+  persistWorkflow(terminal);
+  clearPiStatus(ctx.ui, "matt-pocock");
+  notifyPi(ctx.ui, `Matt Pocock workflow cancelled: ${terminal.workItemId}`, "info");
 }
 
 function showStatus(ctx: ExtensionContext): void {
@@ -180,116 +241,187 @@ function showStatus(ctx: ExtensionContext): void {
     notifyPi(ctx.ui, "Matt Pocock workflow: inactive", "info");
     return;
   }
-  notifyPi(ctx.ui, `Matt Pocock workflow: ${formatReadableWorkflowSubject(activeWorkflow.route, activeWorkflow.phase)}`, "info");
+  notifyPi(
+    ctx.ui,
+    `Matt Pocock workflow: ${formatReadableWorkflowSubject(activeWorkflow.route, activeWorkflow.phase)} · ${activeWorkflow.workItemId}`,
+    "info",
+  );
 }
 
-function parseRoute(args: string): WorkflowState | undefined {
-  const route = findWorkflowRoute(args);
-  return route && { route: route.route, procedure: route.procedure, phase: route.phase };
+async function showMenu(ctx: ExtensionCommandContext): Promise<void> {
+  const choices = activeWorkflow
+    ? ["View current workflow", "Transition current workflow", "Complete current workflow", "Cancel current workflow", "Run a standalone capability"]
+    : ["Start a workflow", "Run a standalone capability", "View current workflow"];
+  const choice = await ctx.ui.select("Matt Pocock", choices);
+  if (!choice) return;
+  if (choice === "Start a workflow") return chooseRoute(ctx);
+  if (choice === "Run a standalone capability") return chooseCapability(ctx);
+  if (choice === "View current workflow") return showStatus(ctx);
+  if (choice === "Transition current workflow") return chooseTransition(ctx);
+  if (choice === "Complete current workflow") return completeWorkflow(ctx);
+  cancelWorkflow(ctx, "Cancelled by user from the Matt Pocock menu.");
 }
 
-function workflowRoutingPrompt(prompt: string, endedWorkflow: boolean): string {
-  return `Route and execute this engineering request through the relevant Matt Pocock workflow: ${prompt}
-
-${endedWorkflow ? "End any active Matt Pocock workflow first; that workflow has now been ended. " : ""}Determine whether the request needs a structured workflow. If it does, call matt_pocock_workflow with the matching route and procedure, then begin that procedure immediately. If it does not, explain briefly that no Matt Pocock workflow applies and handle the request normally. Do not ask whether to continue once the next action is clear.`;
+function workflowRoutingPrompt(prompt: string, cancelledWorkflow: boolean): string {
+  return `Route and execute this request through the relevant Matt Pocock workflow or standalone capability: ${prompt}\n\n${cancelledWorkflow ? "The previous active workflow has been cancelled because this is a new request. " : ""}Use matt_pocock_workflow with mode workflow for a structured multi-step engineering task, or mode capability for a matching standalone capability. If neither applies, handle the request normally. Begin immediately once the route is clear.`;
 }
-
-let pi: ExtensionAPI;
 
 export default function mattPocock(extensionApi: ExtensionAPI): void {
   pi = extensionApi;
 
   pi.on("session_start", async (_event, ctx) => {
-    const restoredWorkflow = latestWorkflowState(ctx.sessionManager.getBranch());
-    if (!restoredWorkflow) {
+    const record = latestWorkflowRecord(ctx.sessionManager.getBranch());
+    if (!record || record.status !== "active") {
       activeWorkflow = undefined;
-      setInterviewToolActive(false);
+      refreshActiveTools(false);
       clearPiStatus(ctx.ui, "matt-pocock");
       return;
     }
 
     try {
-      const content = loadWorkflowProcedure(restoredWorkflow);
-      activeWorkflow = restoredWorkflow;
-      setInterviewToolActive(true);
+      if (!workflowPlacement(record.route, record.procedure)) {
+        throw new Error(`Procedure ${record.procedure} is not part of workflow ${record.route}.`);
+      }
+      const content = workflowPrompt(record, "restored workflow");
+      activeWorkflow = record;
+      refreshActiveTools(true);
       clearPiStatus(ctx.ui, "matt-pocock");
       pi.sendMessage({
         customType: "matt-pocock-procedure",
         content,
         display: false,
-        details: activeWorkflow,
+        details: record,
       }, { deliverAs: "nextTurn" });
     } catch (error) {
-      endWorkflow(ctx);
-      notifyPi(ctx.ui, `Could not restore Matt Pocock workflow: ${String(error)}`, "warning");
+      activeWorkflow = record;
+      const cancelled = terminalState("cancelled", `Restore validation failed: ${String(error)}`);
+      persistWorkflow(cancelled);
+      clearPiStatus(ctx.ui, "matt-pocock");
+      const valid = workflowDefinitions(record.route).map((definition) => definition.id);
+      notifyPi(
+        ctx.ui,
+        `Could not restore Matt Pocock workflow: ${String(error)} Valid procedures for ${record.route}: ${valid.join(", ") || "none"}.`,
+        "warning",
+      );
     }
   });
 
   if (typeof pi.registerMessageRenderer === "function") {
     pi.registerMessageRenderer("matt-pocock-procedure", (message, _options, theme) => {
       const details = (message.details ?? {}) as Partial<WorkflowState>;
-      const route = details.route ?? (activeWorkflow?.route || "workflow");
-      const phase = details.phase ?? (activeWorkflow?.phase || "active");
-      const subject = formatReadableWorkflowSubject(route, phase);
+      const subject = formatReadableWorkflowSubject(details.route ?? "workflow", details.phase ?? "active");
       const prefix = theme.fg("customMessageLabel", theme.bold("[matt pocock] started ·"));
       return new Text(`${prefix} ${safeDisplayText(subject)}`, 0, 0);
     });
   }
 
-  pi.on("before_agent_start", async (event) => {
-    if (activeWorkflow) {
-      return { systemPrompt: `${event.systemPrompt}\n\n${workflowGuidance(activeWorkflow)}` };
-    }
-    return { systemPrompt: `${event.systemPrompt}\n\n${availableWorkflowsGuidance()}` };
-  });
+  pi.on("before_agent_start", async (event) => ({
+    systemPrompt: `${event.systemPrompt}\n\n${activeWorkflow
+      ? workflowGuidance(activeWorkflow, availableReferences(activeWorkflow))
+      : availableWorkflowsGuidance()}`,
+  }));
 
   pi.registerTool({
     name: "matt_pocock_workflow",
-    label: "Matt Pocock Workflow",
-    description: "Activate or transition a Matt Pocock engineering workflow procedure (idea-to-ship, hard-bug, triage, wayfinding, architecture). Use when a structured workflow is appropriate for the task.",
-    promptSnippet: "Activate or transition a Matt Pocock engineering workflow procedure",
+    label: "Matt Pocock Gateway",
+    description: "Start a Matt Pocock engineering workflow, run a curated standalone capability, or load a reference disclosed by that standalone capability. Use workflows for structured multi-step engineering; use capabilities for focused methods such as writing-for-agents, merge-conflict resolution, wizards, research, prototypes, TDD, code review, grilling, domain modeling, and codebase design.",
+    promptSnippet: "Start a Matt Pocock workflow or run a standalone capability",
     promptGuidelines: [
-      "Use matt_pocock_workflow when the task matches a structured engineering workflow: idea-to-ship for features, hard-bug for difficult bugs, triage for raw issues, wayfinding for large ambiguous goals, or architecture for refactoring.",
+      "Use mode workflow only for a structured multi-step engineering task.",
+      "Use mode capability when a curated standalone capability directly matches the request.",
+      "Use mode reference only for a reference named in a standalone capability result.",
     ],
-    parameters: workflowToolParameters(),
+    parameters: workflowGatewayParameters(),
     renderShell: "self",
     renderCall: () => new Text("", 0, 0),
     renderResult(result, _options, theme, context) {
       const text = result.content.find((part) => part.type === "text")?.text ?? "";
       if (context.isError) return new Text(theme.fg("error", formatToolErrorLine(text)), 0, 0);
-      const details = (result.details ?? {}) as WorkflowState;
-      const route = details.route ?? (context.args as { route?: string })?.route ?? "workflow";
-      const phase = details.phase ?? "active";
+      const details = (result.details ?? {}) as { mode?: string; route?: string; phase?: string; capability?: string; reference?: string };
+      const subject = details.mode === "workflow"
+        ? formatReadableWorkflowSubject(details.route ?? "workflow", details.phase ?? "active")
+        : details.mode === "reference"
+          ? `${details.capability ?? "capability"} · ${details.reference ?? "reference"}`
+          : details.capability ?? "standalone capability";
       const prefix = theme.fg("customMessageLabel", theme.bold("[matt pocock] started ·"));
-      const subject = formatReadableWorkflowSubject(route, phase);
       return new Text(`${prefix} ${safeDisplayText(subject)}`, 0, 0);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const route = findWorkflowRoute(params.route);
-      if (!route) {
-        throw new Error(`Unknown Matt Pocock route: ${params.route}`);
-      }
-      const requestedProcedure = params.procedure ? normalizeProcedureName(params.procedure) : route.procedure;
-      const allowedProcedures = transitionProcedures(route.route);
-      const fallsBackToRouteDefault = !allowedProcedures.includes(requestedProcedure);
-      const state: WorkflowState = fallsBackToRouteDefault
-        ? { route: route.route, procedure: route.procedure, phase: route.phase }
-        : {
-          route: route.route,
-          procedure: requestedProcedure,
-          phase: params.phase ?? (params.procedure ? phaseForProcedure(requestedProcedure) : route.phase),
-        };
-      const correction = fallsBackToRouteDefault && params.procedure
-        ? `Note: requested procedure "${params.procedure}" is not available for route ${route.route}; activated the route default "${route.procedure}" at phase "${route.phase}" instead. Valid procedures for ${route.route}: ${allowedProcedures.join(", ")}. Do not switch routes to work around a procedure error.\n\n`
-        : "";
-      const content = `${correction}${loadWorkflowProcedure(state)}`;
-      persistWorkflow(state);
-      setInterviewToolActive(true);
       clearPiStatus(ctx.ui, "matt-pocock");
-
+      if (params.mode === "workflow") {
+        if (activeWorkflow) {
+          throw new Error(`Workflow ${activeWorkflow.workItemId} is already active. Complete or cancel it before starting another.`);
+        }
+        const state = startWorkflow(params.route);
+        return {
+          content: [{ type: "text", text: workflowPrompt(state, "started workflow") }],
+          details: { mode: "workflow", ...state },
+        };
+      }
+      if (params.mode === "reference") {
+        const content = standaloneReferencePrompt(params.capability, params.reference);
+        return {
+          content: [{ type: "text", text: content }],
+          details: { mode: "reference", capability: params.capability, reference: params.reference },
+        };
+      }
+      const definition = findProcedure(params.capability);
+      if (!definition?.standalone || definition.invocation !== "model") {
+        throw new Error(`Capability ${params.capability} is not available to the model gateway.`);
+      }
       return {
-        content: [{ type: "text", text: content }],
-        details: state,
+        content: [{ type: "text", text: standalonePrompt(definition.id) }],
+        details: { mode: "capability", capability: definition.id },
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "matt_pocock_active",
+    label: "Matt Pocock Active Workflow",
+    description: "Operate on the active Matt Pocock workflow: transition to an allowed next procedure, load a disclosed reference, complete, or cancel.",
+    promptSnippet: "Transition, load a reference, complete, or cancel the active Matt Pocock workflow",
+    parameters: activeWorkflowParameters(),
+    renderShell: "self",
+    renderCall: () => new Text("", 0, 0),
+    renderResult(result, _options, theme, context) {
+      const text = result.content.find((part) => part.type === "text")?.text ?? "";
+      if (context.isError) return new Text(theme.fg("error", formatToolErrorLine(text)), 0, 0);
+      const details = (result.details ?? {}) as { action?: string; subject?: string };
+      const prefix = theme.fg("customMessageLabel", theme.bold("[matt pocock] event ·"));
+      return new Text(`${prefix} ${safeDisplayText(details.subject ?? details.action ?? "workflow updated")}`, 0, 0);
+    },
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      if (!activeWorkflow) throw new Error("No active Matt Pocock workflow.");
+      if (params.action === "transition") {
+        const state = transitionState(activeWorkflow, params.target);
+        resolveProcedureBundle(state.procedure);
+        persistWorkflow(state);
+        clearPiStatus(ctx.ui, "matt-pocock");
+        return {
+          content: [{ type: "text", text: workflowPrompt(state, `transitioned to ${state.procedure}`) }],
+          details: { action: "transition", subject: `${state.route} · ${readablePhaseTitle(state.phase)}`, state },
+        };
+      }
+      if (params.action === "load") {
+        const loaded = loadActiveReference(params.reference);
+        return {
+          content: [{ type: "text", text: loaded.content }],
+          details: { action: "load", subject: `loaded ${params.reference}`, state: loaded.state },
+        };
+      }
+      const terminal = params.action === "complete"
+        ? terminalState("completed")
+        : terminalState("cancelled", params.reason);
+      persistWorkflow(terminal);
+      clearPiStatus(ctx.ui, "matt-pocock");
+      const verb = terminal.status === "completed" ? "completed" : "cancelled";
+      return {
+        content: [{
+          type: "text",
+          text: `Workflow ${terminal.workItemId} ${verb}. Persistent active state cleared. Pending: none. Next actor: agent may handle unrelated work normally.`,
+        }],
+        details: { action: params.action, subject: `${terminal.route} ${verb}`, state: terminal },
       };
     },
   });
@@ -297,68 +429,37 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
   pi.registerTool({
     name: "matt_pocock_ask",
     label: "Matt Pocock Ask",
-    description: "Ask a structured interview or workflow decision question during the current Matt Pocock workflow using Pi UI selection.",
+    description: "Ask a structured workflow decision question during an active Matt Pocock workflow using Pi UI selection.",
     promptSnippet: "Ask a structured question during the active Matt Pocock workflow",
-    promptGuidelines: [
-      "Use matt_pocock_ask only during the active Matt Pocock workflow for interview or workflow decisions (e.g. grilling/shaping/scoping). Provide 2-4 options, put the recommended option first or mark it '(Recommended)', and specify a timeout.",
-    ],
     parameters: Type.Object({
       question: Type.String({ description: "The interview or decision question to ask the user." }),
-      options: Type.Array(Type.String(), {
-        description: "2 to 4 suggested options. Put the recommended option first or mark it '(Recommended)'.",
-      }),
-      recommended: Type.Optional(Type.String({
-        description: "The recommended option shown to the user; it is never selected without an answer.",
-      })),
-      timeout_seconds: Type.Optional(Type.Number({
-        description: "Seconds to wait for a user response (default: 60; timeout leaves the decision pending; set <=0 for no timeout).",
-      })),
-      allow_custom: Type.Optional(Type.Boolean({
-        description: "Whether to allow the user to type a custom answer (default: true).",
-      })),
+      options: Type.Array(Type.String(), { description: "2 to 4 suggested options, recommended option first." }),
+      recommended: Type.Optional(Type.String({ description: "The recommended option shown to the user." })),
+      timeout_seconds: Type.Optional(Type.Number({ description: "Seconds to wait; default 60, timeout leaves the decision pending." })),
+      allow_custom: Type.Optional(Type.Boolean({ description: "Allow a custom typed answer; default true." })),
     }),
     renderShell: "self",
     renderCall: () => new Text("", 0, 0),
     renderResult(result, options, theme, context) {
       const text = result.content.find((part) => part.type === "text")?.text ?? "";
-      if (context.isError) {
-        return new Text(theme.fg("error", formatToolErrorLine(text)), 0, 0);
-      }
-      const params = (context.args ?? {}) as { question?: string; options?: string[] };
-      const detailsObj = (result.details ?? {}) as {
-        answer?: string;
-        is_custom?: boolean;
-        pending?: boolean;
-        timed_out?: boolean;
-        source?: string;
-      };
-      const rawAnswer = detailsObj.answer ?? text;
-      const question = params.question
-        ? safeDisplayText(params.question).replace(/\s+/g, " ").trim()
-        : "question";
-      const subject = question;
-      const cleanAnswer = safeDisplayText(rawAnswer || "(none)")
-        .replace(/\t/g, "  ")
-        .trim();
-      const answerLines = cleanAnswer
-        ? cleanAnswer.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0)
-        : [];
-      const summary = detailsObj.pending
+      if (context.isError) return new Text(theme.fg("error", formatToolErrorLine(text)), 0, 0);
+      const params = (context.args ?? {}) as { question?: string };
+      const details = (result.details ?? {}) as { answer?: string; is_custom?: boolean; pending?: boolean; timed_out?: boolean; source?: string };
+      const cleanAnswer = safeDisplayText(details.answer ?? text ?? "(none)").replace(/\t/g, "  ").trim();
+      const answerLines = cleanAnswer.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      const summary = details.pending
         ? ["Status: pending user decision"]
-        : answerLines.length === 0
-          ? ["Answer: (none)"]
-          : answerLines.map((line, index) => (index === 0 ? `Answer: ${line}` : `  ${line}`));
-      const effectiveDetails = [
-        detailsObj.timed_out && detailsObj.pending ? "Reason: selection timed out" : undefined,
-        detailsObj.source === "no_ui" ? "Reason: no UI available" : undefined,
-        detailsObj.is_custom ? "Source: custom input" : undefined,
+        : answerLines.map((line, index) => index === 0 ? `Answer: ${line}` : `  ${line}`);
+      const metadata = [
+        details.timed_out && details.pending ? "Reason: selection timed out" : undefined,
+        details.source === "no_ui" ? "Reason: no UI available" : undefined,
+        details.is_custom ? "Source: custom input" : undefined,
       ].filter((line): line is string => Boolean(line));
-
       return createStaticToolLifecycleResultRenderer({
-        createSpec: () => eventToolLifecycle("matt pocock", subject, {
+        createSpec: () => eventToolLifecycle("matt pocock", safeDisplayText(params.question ?? "question"), {
           label: "ask",
-          summary,
-          details: effectiveDetails,
+          summary: summary.length > 0 ? summary : ["Answer: (none)"],
+          details: metadata,
         }),
         expandHint: safeExpandHint(),
         fit: truncateToWidth,
@@ -367,129 +468,88 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       })(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      if (!activeWorkflow) throw new Error("No active Matt Pocock workflow.");
       const allowCustom = params.allow_custom ?? true;
-      const timeoutSec = params.timeout_seconds !== undefined ? params.timeout_seconds : 60;
+      const timeoutSec = params.timeout_seconds ?? 60;
       const timeoutMs = timeoutSec > 0 ? timeoutSec * 1000 : undefined;
       if (!ctx.hasUI) {
         return {
-          content: [{
-            type: "text",
-            text: "[Pending user decision] No UI is available to collect an answer. Do not proceed until the user responds.",
-          }],
-          details: {
-            pending: true,
-            source: "no_ui",
-          },
+          content: [{ type: "text", text: "[Pending user decision] No UI is available. Do not proceed until the user responds." }],
+          details: { pending: true, source: "no_ui" },
         };
       }
-
-      const customOptionLabel = "Type custom answer...";
+      const customOption = "Type custom answer...";
       const choices = [...params.options];
-      if (allowCustom && !choices.includes(customOptionLabel)) {
-        choices.push(customOptionLabel);
-      }
-
-      const selected = await ctx.ui.select(
-        params.question,
-        choices,
-        timeoutMs !== undefined ? { timeout: timeoutMs } : undefined,
-      );
-
+      if (allowCustom && !choices.includes(customOption)) choices.push(customOption);
+      const selected = await ctx.ui.select(params.question, choices, timeoutMs !== undefined ? { timeout: timeoutMs } : undefined);
       if (selected === undefined) {
         return {
-          content: [{
-            type: "text",
-            text: "[Pending user decision] No answer was selected. Do not proceed until the user responds.",
-          }],
-          details: {
-            pending: true,
-            timed_out: true,
-            source: "timeout",
-          },
+          content: [{ type: "text", text: "[Pending user decision] No answer was selected. Do not proceed until the user responds." }],
+          details: { pending: true, timed_out: true, source: "timeout" },
         };
       }
-
-      if (selected === customOptionLabel) {
-        const finalAnswer = (await ctx.ui.input(params.question, "Enter your answer..."))?.trim();
-        if (!finalAnswer) {
+      if (selected === customOption) {
+        const answer = (await ctx.ui.input(params.question, "Enter your answer..."))?.trim();
+        if (!answer) {
           return {
-            content: [{
-              type: "text",
-              text: "[Pending user decision] No custom answer was provided. Do not proceed until the user responds.",
-            }],
-            details: {
-              pending: true,
-              source: "custom_input_cancelled",
-            },
+            content: [{ type: "text", text: "[Pending user decision] No custom answer was provided. Do not proceed until the user responds." }],
+            details: { pending: true, source: "custom_input_cancelled" },
           };
         }
         return {
-          content: [{
-            type: "text",
-            text: `User answered (custom): ${finalAnswer}`,
-          }],
-          details: {
-            answer: finalAnswer,
-            is_custom: true,
-            source: "custom_input",
-          },
+          content: [{ type: "text", text: `User answered (custom): ${answer}` }],
+          details: { answer, is_custom: true, source: "custom_input" },
         };
       }
-
       return {
-        content: [{
-          type: "text",
-          text: `User selected: ${selected}`,
-        }],
-        details: {
-          answer: selected,
-          is_custom: false,
-          source: "choice_selected",
-        },
+        content: [{ type: "text", text: `User selected: ${selected}` }],
+        details: { answer: selected, is_custom: false, source: "choice_selected" },
       };
     },
   });
 
   pi.registerCommand("matt-pocock", {
-    description: "Route and manage Matt Pocock engineering workflows",
+    description: "Route and manage Matt Pocock workflows and standalone capabilities",
     handler: async (args, ctx) => {
       const command = args.trim();
       if (!command) {
         if (!ctx.hasUI) {
-          notifyPi(ctx.ui, "Usage: /matt-pocock <route | status | transition | end>", "error");
+          notifyPi(ctx.ui, "Usage: /matt-pocock <route | capability | status | transition | complete | cancel>", "error");
           return;
         }
         await showMenu(ctx);
         return;
       }
-      if (command === "status") {
-        showStatus(ctx);
-        return;
-      }
+      if (command === "status") return showStatus(ctx);
       if (command === "transition") {
         if (!ctx.hasUI) {
           notifyPi(ctx.ui, "Choose a transition from the interactive /matt-pocock menu.", "error");
           return;
         }
-        await chooseTransition(ctx);
+        return chooseTransition(ctx);
+      }
+      if (command === "complete") return completeWorkflow(ctx);
+      if (command === "cancel" || command === "end") return cancelWorkflow(ctx, `Cancelled by user with /matt-pocock ${command}.`);
+
+      if (findWorkflowRoute(command)) {
+        if (activeWorkflow) throw new Error(`Workflow ${activeWorkflow.workItemId} is already active.`);
+        const state = startWorkflow(command);
+        clearPiStatus(ctx.ui, "matt-pocock");
+        pi.sendUserMessage(workflowPrompt(state, "started workflow"), { deliverAs: "followUp" });
         return;
       }
-      if (command === "end") {
-        endWorkflow(ctx);
-        notifyPi(ctx.ui, "Matt Pocock workflow ended.", "info");
+      const capability = findProcedure(command);
+      if (capability?.standalone) {
+        pi.sendUserMessage(standalonePrompt(capability.id), { deliverAs: "followUp" });
         return;
       }
 
-      const state = parseRoute(command);
-      if (state) {
-        activateWorkflow(state, ctx);
-        return;
+      const cancelledWorkflow = Boolean(activeWorkflow);
+      if (activeWorkflow) {
+        const terminal = terminalState("cancelled", "Superseded by a new /matt-pocock routing request.");
+        persistWorkflow(terminal);
       }
-
-      const endedWorkflow = activeWorkflow !== undefined;
-      if (endedWorkflow) endWorkflow(ctx);
-      pi.sendUserMessage(workflowRoutingPrompt(command, endedWorkflow), { deliverAs: "followUp" });
+      pi.sendUserMessage(workflowRoutingPrompt(command, cancelledWorkflow), { deliverAs: "followUp" });
     },
   });
 }
-

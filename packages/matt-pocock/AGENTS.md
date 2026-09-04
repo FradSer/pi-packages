@@ -2,33 +2,49 @@
 
 ## Project Structure
 
-`packages/matt-pocock/` publishes `pi-matt-pocock`, a Pi extension package.
-`index.ts` is the extension entry; `src/` contains command, state, and procedure
-loading logic. `procedures/` contains internal Markdown procedures and support
-files. These are package resources, not skills: no `SKILL.md` may be shipped.
-BDD scenarios live in `features/`, and executable checks live in `tests/`.
+`packages/matt-pocock/` publishes `pi-matt-pocock`, a catalog-backed Pi capability gateway. The package-root `index.ts` loads `src/index.ts`; `src/catalog.json` is the single source for resource classification and graph relationships, `src/catalog.ts` provides typed queries and validation, `src/resolver.ts` resolves bounded procedure bundles, and `src/workflow.ts` owns persisted workflow state and legal transitions. `procedures/` contains internal Markdown resources and assets. They are not Pi skills, and no child `SKILL.md` may be shipped. BDD scenarios live in `features/`, executable checks in `tests/`, upstream selection metadata in `upstream-selection.json`, and synchronization policy in `UPSTREAM.md`.
 
-## Commands
+## Contributor Commands
+
+Run from the repository root:
 
 ```bash
+node packages/matt-pocock/scripts/check-upstream-sync.mjs
 python3 -m pytest packages/matt-pocock/tests/ -q
 npx tsc --noEmit -p tsconfig.extensions.json
 pnpm --dir packages/matt-pocock pack --dry-run
 ```
 
-## Harness & Tool Design
+When validating against an already-cloned upstream checkout, also run:
 
-- **Harness Boundaries**: Expose `/matt-pocock` as the command surface; do not add per-procedure commands or skills. Persist choices via `pi.appendEntry` and inject procedure Markdown as a follow-up user message. State entries record route/phase selection, not procedure completion. When a procedure's done condition makes the next applicable procedure clear, the agent transitions with `matt_pocock_workflow` immediately; the command menu transition is an explicit user override.
-- **Workflow Tools**:
-  - `matt_pocock_workflow`: Uses TypeBox unions across the 5 stable routes (`idea-to-ship`, `hard-bug`, `triage`, `wayfinding`, `architecture`). If an invalid procedure is passed, falls back to the route default with a diagnostic note.
-  - `matt_pocock_ask`: Progressive interview tool enabled via `pi.setActiveTools()` only while a workflow is active. Presents 2–4 choices via `ctx.ui.select` (with custom typing option); falls back to the recommended choice on timeout (default 60s) or in headless mode (`!ctx.hasUI`).
-  - `matt_pocock_workflow` renders a compact monitor-style activation row (`[matt pocock] started · <route and phase>`); `matt_pocock_ask` delegates its lifecycle transcript rendering to `@fradser/pi-kit` (`[matt pocock] ask ·`).
+```bash
+node packages/matt-pocock/scripts/check-upstream-sync.mjs --upstream /path/to/mattpocock-skills
+```
 
-## Sync and release
+The sync checker does not clone or fetch upstream.
 
-Upstream synchronization is selective: preserve Pi-specific interaction,
-collaboration, instruction-file, and git-agent guidance. New upstream
-`SKILL.md` files become plain procedure Markdown files under `procedures/`,
-with frontmatter stripped and cross-procedure calls turned into relative links.
-Update `features/matt-pocock.feature` before behavior changes, then extend the
-Python contracts. Add a Changeset for a published behavior change.
+## Catalog and Resolver Contracts
+
+- Treat the `procedureCatalog` manifest as the only source of procedure ids, aliases, files, kinds, invocation modes, standalone exposure, workflow route metadata, placement, dependencies, disclosures, and transitions. Do not recreate route/procedure enums or route descriptions elsewhere.
+- Preserve the four externally meaningful classifications: workflow procedures, standalone capabilities, references, and assets. A standalone capability is a catalog workflow or utility marked `standalone`; references and assets are never public top-level capabilities.
+- `requires` is an eager dependency edge. The resolver loads the root and its complete required closure, rejects cycles, and emits every body with stable `source:procedure/<id>` identification.
+- `discloses` is an optional reachability edge. Return disclosed ids without eagerly loading their bodies, and reject reference loads outside the active disclosure graph.
+- Keep the resolved UTF-8 bundle limit at 64 KiB unless the feature, tests, public architecture documentation, and operational rationale change together. Do not truncate an oversized bundle.
+- Every catalog file must exist and be classified exactly once. Every dependency, disclosure, alias, workflow placement, and `allowedNext` target must resolve. Internal references require an inbound catalog edge.
+
+## Gateway and Workflow Contracts
+
+- `/matt-pocock` is the single command menu for workflows, standalone capabilities, status, transitions, completion, and cancellation. Do not add one command per workflow or a second public skill surface.
+- `matt_pocock_workflow` is the baseline gateway. It starts a catalog workflow, runs a model-reachable standalone capability, or loads a reference disclosed by a standalone capability.
+- `matt_pocock_active` and `matt_pocock_ask` are active-state tools. Enable them only after workflow start or valid restore; remove them after completion, cancellation, failed restore validation, or inactive session start.
+- Persist each work item with a stable `workItemId`. Active records use `status: active`; terminal records preserve the identity and use `completed` or `cancelled`, with a cancellation reason when available.
+- Enforce the current catalog placement's `allowedNext` list for every transition. Invalid targets fail with allowed alternatives; never fall back to a route entry procedure. A valid transition resets loaded references.
+- The model can complete or cancel active work through `matt_pocock_active`; the command menu remains the user control surface. Standalone capabilities do not create persistent workflow state.
+- Inject the resolved bundle at start, transition, restore, or explicit reference load. Subsequent turns receive concise state guidance rather than every procedure body.
+- Preserve the existing compact lifecycle rows and `@fradser/pi-kit` notification, status, sanitization, and ask-rendering adapters.
+
+## Upstream Sync and Release
+
+`upstream-selection.json` must classify every upstream skill at the recorded latest checked commit as selected or excluded. Selected entries map the upstream path and invocation mode to a local catalog id and plain resource; exclusions carry a concrete reason. Follow `UPSTREAM.md`, strip host-specific frontmatter and invocation syntax, and never copy a nested `SKILL.md` into the package.
+
+For behavior changes, update `features/matt-pocock.feature` first, add or update tests, then implement. Every published-package change requires a Changeset. Do not hand-edit package versions or dependency manifests.

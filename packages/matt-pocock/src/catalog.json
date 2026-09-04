@@ -1,0 +1,880 @@
+[
+  {
+    "id": "grill-with-docs",
+    "file": "grill-with-docs.md",
+    "kind": "workflow",
+    "invocation": "user",
+    "label": "Grill With Docs",
+    "requires": [
+      "grilling",
+      "domain-modeling"
+    ],
+    "discloses": [
+      "grill-me"
+    ],
+    "workflows": [
+      {
+        "route": "idea-to-ship",
+        "phase": "shaping",
+        "entry": true,
+        "allowedNext": [
+          "research",
+          "prototype",
+          "to-spec",
+          "implement"
+        ],
+        "title": "Idea to Ship",
+        "label": "Start an idea-to-ship flow",
+        "description": "Shape an idea before planning and implementation."
+      }
+    ]
+  },
+  {
+    "id": "grill-me",
+    "file": "grill-me.md",
+    "kind": "workflow",
+    "invocation": "user",
+    "label": "Grill Me",
+    "standalone": true,
+    "requires": [
+      "grilling"
+    ],
+    "workflows": [
+      {
+        "route": "idea-to-ship",
+        "phase": "shaping",
+        "allowedNext": [
+          "research",
+          "prototype",
+          "to-spec",
+          "implement"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "research",
+    "file": "research.md",
+    "kind": "workflow",
+    "invocation": "model",
+    "label": "Research",
+    "description": "Primary-source research that writes a cited repository note.",
+    "standalone": true,
+    "workflows": [
+      {
+        "route": "idea-to-ship",
+        "phase": "research",
+        "entry": false,
+        "allowedNext": [
+          "grill-with-docs",
+          "to-spec",
+          "implement"
+        ]
+      },
+      {
+        "route": "wayfinding",
+        "phase": "research",
+        "entry": false,
+        "allowedNext": [
+          "wayfinder",
+          "to-spec"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "prototype",
+    "file": "prototype.md",
+    "kind": "workflow",
+    "invocation": "model",
+    "label": "Prototype",
+    "description": "Throwaway code that answers one logic, state, or UI design question.",
+    "standalone": true,
+    "discloses": [
+      "LOGIC",
+      "UI"
+    ],
+    "workflows": [
+      {
+        "route": "idea-to-ship",
+        "phase": "prototype",
+        "entry": false,
+        "allowedNext": [
+          "grill-with-docs",
+          "to-spec",
+          "implement"
+        ]
+      },
+      {
+        "route": "wayfinding",
+        "phase": "prototype",
+        "entry": false,
+        "allowedNext": [
+          "wayfinder",
+          "to-spec"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "to-spec",
+    "file": "to-spec.md",
+    "kind": "workflow",
+    "invocation": "user",
+    "label": "To Spec",
+    "requires": [
+      "bdd"
+    ],
+    "discloses": [
+      "setup-matt-pocock-skills"
+    ],
+    "workflows": [
+      {
+        "route": "idea-to-ship",
+        "phase": "to-spec",
+        "entry": false,
+        "allowedNext": [
+          "to-tickets",
+          "implement"
+        ]
+      },
+      {
+        "route": "triage",
+        "phase": "to-spec",
+        "entry": false,
+        "allowedNext": [
+          "to-tickets",
+          "implement"
+        ]
+      },
+      {
+        "route": "wayfinding",
+        "phase": "to-spec",
+        "entry": false,
+        "allowedNext": [
+          "to-tickets",
+          "implement"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "to-tickets",
+    "file": "to-tickets.md",
+    "kind": "workflow",
+    "invocation": "user",
+    "label": "To Tickets",
+    "requires": [
+      "bdd"
+    ],
+    "discloses": [
+      "setup-matt-pocock-skills"
+    ],
+    "workflows": [
+      {
+        "route": "idea-to-ship",
+        "phase": "to-tickets",
+        "entry": false,
+        "allowedNext": [
+          "implement"
+        ]
+      },
+      {
+        "route": "triage",
+        "phase": "to-tickets",
+        "entry": false,
+        "allowedNext": [
+          "implement"
+        ]
+      },
+      {
+        "route": "wayfinding",
+        "phase": "to-tickets",
+        "entry": false,
+        "allowedNext": [
+          "implement"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "implement",
+    "file": "implement.md",
+    "kind": "workflow",
+    "invocation": "user",
+    "label": "Implement",
+    "requires": [
+      "bdd",
+      "tdd"
+    ],
+    "discloses": [
+      "codebase-design",
+      "mocking",
+      "testing-anti-patterns"
+    ],
+    "workflows": [
+      {
+        "route": "idea-to-ship",
+        "phase": "implement",
+        "entry": false,
+        "allowedNext": [
+          "code-review",
+          "handoff"
+        ]
+      },
+      {
+        "route": "hard-bug",
+        "phase": "implement",
+        "entry": false,
+        "allowedNext": [
+          "code-review"
+        ]
+      },
+      {
+        "route": "triage",
+        "phase": "implement",
+        "entry": false,
+        "allowedNext": [
+          "code-review"
+        ]
+      },
+      {
+        "route": "wayfinding",
+        "phase": "implement",
+        "entry": false,
+        "allowedNext": [
+          "code-review"
+        ]
+      },
+      {
+        "route": "architecture",
+        "phase": "implement",
+        "entry": false,
+        "allowedNext": [
+          "code-review"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "code-review",
+    "file": "code-review.md",
+    "kind": "workflow",
+    "invocation": "model",
+    "label": "Code Review",
+    "description": "Review a diff against repository standards and its originating spec.",
+    "standalone": true,
+    "requires": [
+      "bdd"
+    ],
+    "discloses": [
+      "setup-matt-pocock-skills"
+    ],
+    "workflows": [
+      {
+        "route": "idea-to-ship",
+        "phase": "code-review",
+        "entry": false,
+        "allowedNext": [
+          "implement",
+          "handoff"
+        ]
+      },
+      {
+        "route": "hard-bug",
+        "phase": "code-review",
+        "entry": false,
+        "allowedNext": [
+          "implement"
+        ]
+      },
+      {
+        "route": "triage",
+        "phase": "code-review",
+        "entry": false,
+        "allowedNext": [
+          "implement"
+        ]
+      },
+      {
+        "route": "wayfinding",
+        "phase": "code-review",
+        "entry": false,
+        "allowedNext": [
+          "implement"
+        ]
+      },
+      {
+        "route": "architecture",
+        "phase": "code-review",
+        "entry": false,
+        "allowedNext": [
+          "implement"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "handoff",
+    "file": "handoff.md",
+    "kind": "workflow",
+    "invocation": "user",
+    "label": "Handoff",
+    "standalone": true,
+    "discloses": [
+      "phase-boundaries"
+    ],
+    "workflows": [
+      {
+        "route": "idea-to-ship",
+        "phase": "handoff",
+        "entry": false,
+        "allowedNext": []
+      }
+    ]
+  },
+  {
+    "id": "diagnosing-bugs",
+    "file": "diagnosing-bugs.md",
+    "kind": "workflow",
+    "invocation": "model",
+    "label": "Diagnosing Bugs",
+    "description": "Diagnose hard bugs and regressions only after building a tight red feedback loop.",
+    "aliases": [
+      "tight-red-loop"
+    ],
+    "standalone": true,
+    "discloses": [
+      "improve-codebase-architecture"
+    ],
+    "workflows": [
+      {
+        "route": "hard-bug",
+        "phase": "feedback-loop",
+        "entry": true,
+        "allowedNext": [
+          "implement",
+          "code-review"
+        ],
+        "title": "Hard Bug Diagnosis",
+        "label": "Diagnose a hard bug",
+        "description": "Build a tight feedback loop before forming a theory."
+      }
+    ]
+  },
+  {
+    "id": "triage",
+    "file": "triage.md",
+    "kind": "workflow",
+    "invocation": "user",
+    "label": "Triage",
+    "requires": [
+      "grilling",
+      "domain-modeling"
+    ],
+    "discloses": [
+      "AGENT-BRIEF",
+      "OUT-OF-SCOPE",
+      "setup-matt-pocock-skills"
+    ],
+    "workflows": [
+      {
+        "route": "triage",
+        "phase": "triage",
+        "entry": true,
+        "allowedNext": [
+          "to-spec",
+          "to-tickets",
+          "implement"
+        ],
+        "title": "Task Triage",
+        "label": "Triage incoming work",
+        "description": "Turn incoming issues into agent-ready briefs."
+      }
+    ]
+  },
+  {
+    "id": "wayfinder",
+    "file": "wayfinder.md",
+    "kind": "workflow",
+    "invocation": "user",
+    "label": "Wayfinder",
+    "aliases": [
+      "clarify-goal"
+    ],
+    "requires": [
+      "grilling",
+      "domain-modeling"
+    ],
+    "discloses": [
+      "setup-matt-pocock-skills"
+    ],
+    "workflows": [
+      {
+        "route": "wayfinding",
+        "phase": "mapping",
+        "entry": true,
+        "allowedNext": [
+          "research",
+          "prototype",
+          "to-spec"
+        ],
+        "title": "Architecture Wayfinding",
+        "label": "Map a large ambiguous initiative",
+        "description": "Resolve decision tickets before creating a build plan."
+      }
+    ]
+  },
+  {
+    "id": "improve-codebase-architecture",
+    "file": "improve-codebase-architecture.md",
+    "kind": "workflow",
+    "invocation": "user",
+    "label": "Improve Codebase Architecture",
+    "standalone": true,
+    "requires": [
+      "codebase-design"
+    ],
+    "discloses": [
+      "HTML-REPORT",
+      "grilling",
+      "domain-modeling",
+      "DESIGN-IT-TWICE"
+    ],
+    "workflows": [
+      {
+        "route": "architecture",
+        "phase": "survey",
+        "entry": true,
+        "allowedNext": [
+          "implement",
+          "code-review"
+        ],
+        "title": "Codebase Architecture",
+        "label": "Improve codebase architecture",
+        "description": "Find and develop deepening opportunities."
+      }
+    ]
+  },
+  {
+    "id": "codebase-design",
+    "file": "codebase-design.md",
+    "kind": "workflow",
+    "invocation": "model",
+    "label": "Codebase Design",
+    "description": "Design deep modules and choose interfaces and seams with high leverage and locality.",
+    "standalone": true,
+    "discloses": [
+      "DEEPENING",
+      "DESIGN-IT-TWICE"
+    ],
+    "workflows": [
+      {
+        "route": "architecture",
+        "phase": "design-review",
+        "entry": false,
+        "allowedNext": [
+          "implement",
+          "code-review"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "writing-for-agents",
+    "file": "writing-for-agents.md",
+    "kind": "utility",
+    "invocation": "model",
+    "label": "Writing For Agents",
+    "description": "Writing documents for agents. Use when creating or editing skills, AGENTS.md, CLAUDE.md, or pointed-at agent documentation.",
+    "standalone": true,
+    "discloses": [
+      "SKILL-MECHANICS",
+      "writing-great-skills"
+    ]
+  },
+  {
+    "id": "resolving-merge-conflicts",
+    "file": "resolving-merge-conflicts.md",
+    "kind": "utility",
+    "invocation": "model",
+    "label": "Resolving Merge Conflicts",
+    "description": "Resolve an in-progress merge or rebase conflict by tracing and preserving both sides' intent.",
+    "standalone": true
+  },
+  {
+    "id": "wizard",
+    "file": "wizard.md",
+    "kind": "utility",
+    "invocation": "model",
+    "label": "Wizard",
+    "description": "Generate an interactive shell wizard for setup or migration steps that only a human can perform.",
+    "standalone": true,
+    "requires": [
+      "template"
+    ]
+  },
+  {
+    "id": "setup-matt-pocock-skills",
+    "file": "setup-matt-pocock-skills.md",
+    "kind": "utility",
+    "invocation": "user",
+    "label": "Setup Matt Pocock Skills",
+    "description": "Configure the repository issue tracker, triage vocabulary, and domain document layout.",
+    "standalone": true,
+    "discloses": [
+      "issue-tracker-github",
+      "issue-tracker-gitlab",
+      "issue-tracker-local",
+      "triage-labels",
+      "domain"
+    ]
+  },
+  {
+    "id": "teach",
+    "file": "teach.md",
+    "kind": "utility",
+    "invocation": "user",
+    "label": "Teach",
+    "description": "Teach a topic over multiple sessions using the current directory as a learning workspace.",
+    "standalone": true,
+    "discloses": [
+      "MISSION-FORMAT",
+      "RESOURCES-FORMAT",
+      "LEARNING-RECORD-FORMAT",
+      "GLOSSARY-FORMAT"
+    ]
+  },
+  {
+    "id": "to-questionnaire",
+    "file": "to-questionnaire.md",
+    "kind": "utility",
+    "invocation": "user",
+    "label": "To Questionnaire",
+    "description": "Turn a decision blocked on another person's knowledge into a questionnaire.",
+    "standalone": true
+  },
+  {
+    "id": "wait-what",
+    "file": "wait-what.md",
+    "kind": "utility",
+    "invocation": "user",
+    "label": "Wait What",
+    "description": "Re-pitch the previous message with missing context and simpler language.",
+    "standalone": true
+  },
+  {
+    "id": "grilling",
+    "file": "grilling.md",
+    "kind": "utility",
+    "invocation": "model",
+    "label": "Grilling",
+    "description": "Relentlessly interview the user one decision at a time while researching discoverable facts.",
+    "standalone": true
+  },
+  {
+    "id": "domain-modeling",
+    "file": "domain-modeling.md",
+    "kind": "utility",
+    "invocation": "model",
+    "label": "Domain Modeling",
+    "description": "Build or sharpen project terminology, CONTEXT.md, and architectural decisions.",
+    "standalone": true,
+    "discloses": [
+      "CONTEXT-FORMAT",
+      "ADR-FORMAT"
+    ]
+  },
+  {
+    "id": "tdd",
+    "file": "tdd.md",
+    "kind": "utility",
+    "invocation": "model",
+    "label": "Tdd",
+    "description": "Run the BDD-driven red-green automation loop through public seams.",
+    "standalone": true,
+    "requires": [
+      "bdd"
+    ],
+    "discloses": [
+      "tests",
+      "mocking",
+      "codebase-design",
+      "code-review"
+    ]
+  },
+  {
+    "id": "ADR-FORMAT",
+    "file": "ADR-FORMAT.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "ADR FORMAT"
+  },
+  {
+    "id": "AGENT-BRIEF",
+    "file": "AGENT-BRIEF.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "AGENT BRIEF"
+  },
+  {
+    "id": "bdd-best-practices",
+    "file": "bdd-best-practices.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "Bdd Best Practices",
+    "discloses": [
+      "gherkin-guide",
+      "bdd",
+      "tdd",
+      "implement",
+      "prototype"
+    ]
+  },
+  {
+    "id": "bdd",
+    "file": "bdd.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "Bdd",
+    "discloses": [
+      "bdd-best-practices",
+      "tdd",
+      "code-review"
+    ]
+  },
+  {
+    "id": "CONTEXT-FORMAT",
+    "file": "CONTEXT-FORMAT.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "CONTEXT FORMAT"
+  },
+  {
+    "id": "DEEPENING",
+    "file": "DEEPENING.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "DEEPENING",
+    "discloses": [
+      "codebase-design"
+    ]
+  },
+  {
+    "id": "DESIGN-IT-TWICE",
+    "file": "DESIGN-IT-TWICE.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "DESIGN IT TWICE",
+    "discloses": [
+      "codebase-design",
+      "DEEPENING"
+    ]
+  },
+  {
+    "id": "domain",
+    "file": "domain.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "Domain",
+    "discloses": [
+      "domain-modeling",
+      "grill-with-docs",
+      "improve-codebase-architecture"
+    ]
+  },
+  {
+    "id": "gherkin-guide",
+    "file": "gherkin-guide.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "Gherkin Guide"
+  },
+  {
+    "id": "GLOSSARY-FORMAT",
+    "file": "GLOSSARY-FORMAT.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "GLOSSARY FORMAT"
+  },
+  {
+    "id": "GLOSSARY",
+    "file": "GLOSSARY.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "GLOSSARY",
+    "discloses": [
+      "writing-great-skills"
+    ]
+  },
+  {
+    "id": "HTML-REPORT",
+    "file": "HTML-REPORT.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "HTML REPORT",
+    "discloses": [
+      "codebase-design"
+    ]
+  },
+  {
+    "id": "issue-tracker-github",
+    "file": "issue-tracker-github.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "Issue Tracker Github",
+    "discloses": [
+      "triage",
+      "wayfinder"
+    ]
+  },
+  {
+    "id": "issue-tracker-gitlab",
+    "file": "issue-tracker-gitlab.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "Issue Tracker Gitlab",
+    "discloses": [
+      "triage",
+      "wayfinder"
+    ]
+  },
+  {
+    "id": "issue-tracker-local",
+    "file": "issue-tracker-local.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "Issue Tracker Local",
+    "discloses": [
+      "wayfinder"
+    ]
+  },
+  {
+    "id": "LEARNING-RECORD-FORMAT",
+    "file": "LEARNING-RECORD-FORMAT.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "LEARNING RECORD FORMAT",
+    "discloses": [
+      "GLOSSARY-FORMAT"
+    ]
+  },
+  {
+    "id": "LOGIC",
+    "file": "LOGIC.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "LOGIC",
+    "discloses": [
+      "UI",
+      "prototype"
+    ]
+  },
+  {
+    "id": "MISSION-FORMAT",
+    "file": "MISSION-FORMAT.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "MISSION FORMAT"
+  },
+  {
+    "id": "mocking",
+    "file": "mocking.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "Mocking"
+  },
+  {
+    "id": "OUT-OF-SCOPE",
+    "file": "OUT-OF-SCOPE.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "OUT OF SCOPE"
+  },
+  {
+    "id": "phase-boundaries",
+    "file": "phase-boundaries.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "Phase Boundaries",
+    "discloses": [
+      "handoff"
+    ]
+  },
+  {
+    "id": "RESOURCES-FORMAT",
+    "file": "RESOURCES-FORMAT.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "RESOURCES FORMAT",
+    "discloses": [
+      "teach"
+    ]
+  },
+  {
+    "id": "SKILL-MECHANICS",
+    "file": "SKILL-MECHANICS.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "SKILL MECHANICS",
+    "discloses": [
+      "writing-for-agents"
+    ]
+  },
+  {
+    "id": "testing-anti-patterns",
+    "file": "testing-anti-patterns.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "Testing Anti Patterns"
+  },
+  {
+    "id": "tests",
+    "file": "tests.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "Tests"
+  },
+  {
+    "id": "triage-labels",
+    "file": "triage-labels.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "Triage Labels"
+  },
+  {
+    "id": "UI",
+    "file": "UI.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "UI",
+    "discloses": [
+      "LOGIC",
+      "prototype"
+    ]
+  },
+  {
+    "id": "writing-great-skills",
+    "file": "writing-great-skills.md",
+    "kind": "reference",
+    "invocation": "internal",
+    "label": "Writing Great Skills",
+    "discloses": [
+      "GLOSSARY"
+    ]
+  },
+  {
+    "id": "hitl-loop.template.sh",
+    "file": "hitl-loop.template.sh",
+    "kind": "asset",
+    "invocation": "internal",
+    "label": "Hitl Loop.Template.Sh"
+  },
+  {
+    "id": "template",
+    "file": "template.sh",
+    "kind": "asset",
+    "invocation": "internal",
+    "label": "Template"
+  }
+]

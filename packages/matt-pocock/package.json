@@ -28,7 +28,10 @@
     "TODO.md",
     "LICENSE",
     "README.md",
-    "ARCHITECTURE.zh-CN.md"
+    "ARCHITECTURE.zh-CN.md",
+    "UPSTREAM.md",
+    "upstream-selection.json",
+    "scripts"
   ],
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
