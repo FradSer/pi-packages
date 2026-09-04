@@ -40,7 +40,7 @@ Feature: Harness consolidation alongside memory consolidation
     Given a schema-valid harness plan
     When the parent applies it
     Then changes merge into <project>/.pi/harness.local.json in one atomic write
-    And shared layers user, user.local, and project are never written
+    And the user shared and project shared layers are never written
     And a pre-apply receipt records the prior file digest and a post-apply receipt records the final digest
 
   Scenario: Harness phase failure isolates from memory results

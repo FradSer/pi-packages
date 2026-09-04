@@ -34,6 +34,7 @@ import {
 } from "./consolidation-run";
 import { isMemoryFilename } from "./memory-files";
 import { applyHarnessOps, type HarnessOp } from "./harness-consolidation";
+import { rebuildMemoryIndex } from "./memory-files";
 import { configPaths } from "./guardrail-config";
 
 export const AGENTS_PLAN_KIND = "agents-md-consolidation-plan";
@@ -636,7 +637,12 @@ export async function runAgentsMdConsolidationPhase(
       if (op.extraction.target === "skillPrompt") {
         harnessOps.push({ op: "addSkillPrompt", name: op.extraction.skillName, prompt: op.extraction.prompt, target: op.extraction.promptTarget });
       } else {
-        const memoryPath = path.join(run.manifest.harnessDir, op.extraction.memoryName);
+        const personalDir = run.manifest.projectPersonalDir;
+        if (!personalDir) {
+          extractionNotes.push(`memory:${op.extraction.memoryName} FAILED: project personal memory is disabled`);
+          continue;
+        }
+        const memoryPath = path.join(personalDir, op.extraction.memoryName);
         try {
           const frontmatter = [
             "---",
@@ -647,6 +653,7 @@ export async function runAgentsMdConsolidationPhase(
             "",
           ].join("\n");
           await writeFileAtomic(memoryPath, `${frontmatter}${(op.oldText ?? "").trim()}\n`, 0o600);
+          await rebuildMemoryIndex(personalDir);
           extractionNotes.push(`memory:${op.extraction.memoryName}`);
         } catch {
           extractionNotes.push(`memory:${op.extraction.memoryName} FAILED`);

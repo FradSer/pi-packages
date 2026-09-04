@@ -3,7 +3,7 @@ Feature: Consolidate artifact validator
   /memory "Consolidate memory now" cannot claim done on cosmetic-only runs.
 
   Background:
-    Given a harness memory directory and a public .memory directory
+    Given user shared, project shared, and project personal memory directories
     And planning artifacts inventory, cluster map, and staleness table
 
   # --- cluster coverage (G2) ---
@@ -78,31 +78,27 @@ Feature: Consolidate artifact validator
     When I run the report ground-truth check
     Then the check passes
 
-  # --- privacy fail-closed ---
+  # --- three-layer ownership fail-closed ---
 
-  Scenario: Harness-only file must not exist under public .memory
-    Given harness MEMORY.md marks feedback_pref.md as (harness only)
-    And feedback_pref.md exists under public .memory
-    When I run the privacy check
-    Then the check fails with "harness only"
+  Scenario: Shared layers remain independent from project personal memory
+    Given the same filename has different bytes in project shared and project personal memory
+    When I run the memory layer check
+    Then the check accepts both independent inputs
 
-  Scenario: Public MEMORY.md must not contain harness-only lines
-    Given public MEMORY.md contains a line with (harness only)
-    When I run the privacy check
-    Then the check fails with "harness only"
+  Scenario: Project shared memory may contain entries absent from project personal
+    Given project shared contains a memory not present in project personal
+    When I run the memory layer check
+    Then the check passes without importing or deleting either entry
 
-  Scenario: Clean privacy split passes
-    Given harness MEMORY.md marks feedback_pref.md as (harness only)
-    And feedback_pref.md exists only in harness
-    And public .memory has only safe files
-    And public MEMORY.md has no (harness only) lines
-    When I run the privacy check
-    Then the check passes
+  Scenario: Memory layer roots must be distinct
+    Given two enabled memory layers resolve to one canonical directory
+    When I run the memory layer check
+    Then validation fails with a distinct roots diagnostic
 
   # --- full gate ---
 
   Scenario: Full validate passes only when all selected checks pass
-    Given valid inventory, cluster, staleness, report, and privacy layout
+    Given valid inventory, cluster, staleness, report, and three-layer memory layout
     When I run the full validator
     Then exit code is 0
 
@@ -132,16 +128,6 @@ Feature: Consolidate artifact validator
     Given a receipt has a different run id, scope digest, or artifact hash
     When the parent verifies the receipt
     Then validation fails before completion is reported
-
-  Scenario: Safe mirror drift fails closed
-    Given a safe harness file is missing publicly, extra publicly, or has different bytes
-    When I run the privacy check
-    Then validation fails with a safe mirror drift diagnostic
-
-  Scenario: Unindexed or misclassified public memory fails
-    Given a public Markdown file is not covered by the harness index or is marked private
-    When I run the privacy check
-    Then validation fails without trusting the index as a complete inventory
 
   Scenario: Memory roots reject symlinked files
     Given a memory root or Markdown child is a symlink
@@ -212,8 +198,8 @@ Feature: Consolidate artifact validator
     When a source hash is changed in the receipt
     Then post receipt validation fails with a source hash binding diagnostic
 
-  Scenario: Harness and public roots cannot be the same canonical directory
-    Given harness and public roots resolve to one canonical directory
+  Scenario: Memory layer roots cannot be the same canonical directory
+    Given two enabled memory layer roots resolve to one canonical directory
     When I run the privacy check
     Then validation fails with a distinct roots diagnostic
 

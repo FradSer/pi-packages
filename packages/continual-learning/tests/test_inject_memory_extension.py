@@ -260,29 +260,26 @@ def test_empty_first_run_apply_creates_only_verifiable_indexes() -> None:
         import { join } from 'node:path';
         import { applyConsolidationPlan, digest } from './packages/continual-learning/extensions/consolidation-run.ts';
         const root = await mkdtemp('/tmp/pi-memory-empty-');
-        const harness = join(root, 'harness');
-        const publicDir = join(root, 'public');
+        const personal = join(root, 'personal');
         const run = {
           manifest: {
             runId: 'run_test', scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
-            harnessDir: harness, publicDir, sourceHashes: { harness: {}, public: {} },
+            userSharedDir: join(root, 'user'), projectSharedDir: join(root, 'shared'), projectPersonalDir: personal,
+            sourceHashes: { userShared: {}, projectShared: {}, projectPersonal: {} },
           },
           paths: {}, released: false,
         };
         await applyConsolidationPlan(run, {
           runId: 'run_test', scopeDigest: 'b'.repeat(64), artifactHash: 'a'.repeat(64), selected: [],
         });
-        await access(join(harness, 'MEMORY.md'));
-        await access(join(publicDir, 'MEMORY.md'));
+        await access(join(personal, 'MEMORY.md'));
         console.log(JSON.stringify({
-          harness: await readFile(join(harness, 'MEMORY.md'), 'utf8'),
-          public: await readFile(join(publicDir, 'MEMORY.md'), 'utf8'),
-          digest: digest({ harness: {}, public: {} }),
+          personal: await readFile(join(personal, 'MEMORY.md'), 'utf8'),
+          digest: digest({ userShared: {}, projectShared: {}, projectPersonal: {} }),
         }));
         """
     )
-    assert result["harness"] == "# Memory Index\n\n"
-    assert result["public"] == "# Memory Index\n\n"
+    assert result["personal"] == "# Memory Index\n\n"
 
 
 def test_no_context_snapshot_digest_matches_exact_snapshot_bytes() -> None:
@@ -308,35 +305,36 @@ def test_no_context_snapshot_digest_matches_exact_snapshot_bytes() -> None:
         assert result["advertised"] == result["actual"]
 
 
-def test_cancelled_apply_rolls_back_harness_and_public_bytes() -> None:
+def test_cancelled_apply_rolls_back_personal_and_leaves_shared_unchanged() -> None:
     result = run_bun(
         """
         import { mkdir, readFile, writeFile } from 'node:fs/promises';
         import { join } from 'node:path';
         import { tmpdir } from 'node:os';
+        import { createHash } from 'node:crypto';
         import { applyConsolidationPlan } from './packages/continual-learning/extensions/consolidation-run.ts';
         const root = join(tmpdir(), `pi-memory-rollback-${Date.now()}`);
-        const harness = join(root, 'harness');
-        const publicDir = join(root, 'public');
-        await mkdir(harness, { recursive: true });
-        await mkdir(publicDir, { recursive: true });
-        await writeFile(join(harness, 'project.md'), 'old\\n');
-        await writeFile(join(publicDir, 'project.md'), 'old\\n');
-        await writeFile(join(harness, 'MEMORY.md'), '- [project.md](project.md)\\n');
-        await writeFile(join(publicDir, 'MEMORY.md'), '- [project.md](project.md)\\n');
-        const crypto = await import('node:crypto');
-        const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
-        const run = {
-          manifest: {
-            runId: 'run_test', scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
-            harnessDir: harness, publicDir,
-            sourceHashes: {
-              harness: { 'MEMORY.md': hash('- [project.md](project.md)\\n'), 'project.md': hash('old\\n') },
-              public: { 'MEMORY.md': hash('- [project.md](project.md)\\n'), 'project.md': hash('old\\n') },
-            },
+        const user = join(root, 'user');
+        const shared = join(root, 'shared');
+        const personal = join(root, 'personal');
+        const index = '- [project.md](project.md)\\n';
+        for (const dir of [user, shared, personal]) await mkdir(dir, { recursive: true });
+        await writeFile(join(user, 'MEMORY.md'), index);
+        await writeFile(join(user, 'project.md'), 'user\\n');
+        await writeFile(join(shared, 'MEMORY.md'), index);
+        await writeFile(join(shared, 'project.md'), 'shared\\n');
+        await writeFile(join(personal, 'MEMORY.md'), index);
+        await writeFile(join(personal, 'project.md'), 'old\\n');
+        const hash = (value) => createHash('sha256').update(value).digest('hex');
+        const run = { manifest: {
+          runId: 'run_test', scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
+          userSharedDir: user, projectSharedDir: shared, projectPersonalDir: personal,
+          sourceHashes: {
+            userShared: { 'MEMORY.md': hash(index), 'project.md': hash('user\\n') },
+            projectShared: { 'MEMORY.md': hash(index), 'project.md': hash('shared\\n') },
+            projectPersonal: { 'MEMORY.md': hash(index), 'project.md': hash('old\\n') },
           },
-          paths: {}, released: false,
-        };
+        }, paths: {}, released: false };
         let checks = 0;
         let rejected = false;
         try {
@@ -345,20 +343,18 @@ def test_cancelled_apply_rolls_back_harness_and_public_bytes() -> None:
             selected: ['project.md'],
             operations: [{ name: 'project.md', kind: 'rewrite', classification: 'safe', content: 'new\\n' }],
           }, () => ++checks < 3);
-        } catch {
-          rejected = true;
-        }
+        } catch { rejected = true; }
         console.log(JSON.stringify({
-          rejected,
-          harness: await readFile(join(harness, 'project.md'), 'utf8'),
-          public: await readFile(join(publicDir, 'project.md'), 'utf8'),
+          rejected, personal: await readFile(join(personal, 'project.md'), 'utf8'),
+          user: await readFile(join(user, 'project.md'), 'utf8'),
+          shared: await readFile(join(shared, 'project.md'), 'utf8'),
         }));
         """
     )
-    assert result == {"rejected": True, "harness": "old\n", "public": "old\n"}
+    assert result == {"rejected": True, "personal": "old\n", "user": "user\n", "shared": "shared\n"}
 
 
-def test_later_operation_failure_rolls_back_earlier_writes() -> None:
+def test_later_operation_failure_rolls_back_earlier_personal_writes() -> None:
     result = run_bun(
         """
         import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
@@ -367,58 +363,32 @@ def test_later_operation_failure_rolls_back_earlier_writes() -> None:
         import { createHash } from 'node:crypto';
         import { applyConsolidationPlan } from './packages/continual-learning/extensions/consolidation-run.ts';
         const root = join(tmpdir(), `pi-memory-late-failure-${Date.now()}`);
-        const harness = join(root, 'harness');
-        const publicDir = join(root, 'public');
+        const user = join(root, 'user');
+        const shared = join(root, 'shared');
+        const personal = join(root, 'personal');
         const index = '# Memory Index\\n\\n';
-        await mkdir(harness, { recursive: true });
-        await mkdir(publicDir, { recursive: true });
-        await writeFile(join(harness, 'MEMORY.md'), index);
-        await writeFile(join(publicDir, 'MEMORY.md'), index);
+        for (const dir of [user, shared, personal]) { await mkdir(dir, { recursive: true }); await writeFile(join(dir, 'MEMORY.md'), index); }
         const hash = (value) => createHash('sha256').update(value).digest('hex');
-        const run = {
-          manifest: {
-            runId: 'run_test', scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
-            harnessDir: harness, publicDir,
-            sourceHashes: {
-              harness: { 'MEMORY.md': hash(index) },
-              public: { 'MEMORY.md': hash(index) },
-            },
-          },
-          paths: {}, released: false,
-        };
+        const run = { manifest: {
+          runId: 'run_test', scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
+          userSharedDir: user, projectSharedDir: shared, projectPersonalDir: personal,
+          sourceHashes: { userShared: { 'MEMORY.md': hash(index) }, projectShared: { 'MEMORY.md': hash(index) }, projectPersonal: { 'MEMORY.md': hash(index) } },
+        }, paths: {}, released: false };
         let rejected = false;
         try {
           await applyConsolidationPlan(run, {
-            runId: 'run_test', scopeDigest: 'b'.repeat(64), artifactHash: 'a'.repeat(64),
-            selected: ['first.md', 'second.md'],
-            inventory: [
-              { name: 'first.md', classification: 'safe' },
-              { name: 'second.md', classification: 'safe' },
-            ],
+            runId: 'run_test', scopeDigest: 'b'.repeat(64), artifactHash: 'a'.repeat(64), selected: ['first.md', 'second.md'],
+            inventory: [{ name: 'first.md', classification: 'safe' }, { name: 'second.md', classification: 'safe' }],
             operations: [
               { name: 'first.md', kind: 'create', classification: 'safe', content: 'first\\n' },
               { name: 'second.md', kind: 'create', classification: 'safe', content: 'x'.repeat(64_001) },
             ],
           });
-        } catch {
-          rejected = true;
-        }
-        console.log(JSON.stringify({
-          rejected,
-          harness: await readdir(harness),
-          public: await readdir(publicDir),
-          harnessIndex: await readFile(join(harness, 'MEMORY.md'), 'utf8'),
-          publicIndex: await readFile(join(publicDir, 'MEMORY.md'), 'utf8'),
-        }));
+        } catch { rejected = true; }
+        console.log(JSON.stringify({ rejected, personal: await readdir(personal), user: await readdir(user), shared: await readdir(shared), index: await readFile(join(personal, 'MEMORY.md'), 'utf8') }));
         """,
     )
-    assert result == {
-        "rejected": True,
-        "harness": ["MEMORY.md"],
-        "public": ["MEMORY.md"],
-        "harnessIndex": "# Memory Index" + chr(10) + chr(10),
-        "publicIndex": "# Memory Index" + chr(10) + chr(10),
-    }
+    assert result == {"rejected": True, "personal": ["MEMORY.md"], "user": ["MEMORY.md"], "shared": ["MEMORY.md"], "index": "# Memory Index\n\n"}
 
 
 def test_receipt_writer_rejects_phase_path_mismatch() -> None:
@@ -434,7 +404,7 @@ def test_receipt_writer_rejects_phase_path_mismatch() -> None:
           scopeDigest: 'b'.repeat(64),
           artifactHash: 'a'.repeat(64),
           selected: [],
-          sourceHashes: { harness: {}, public: {} },
+          sourceHashes: { userShared: {}, projectShared: {}, projectPersonal: {} },
         });
         const run = {
           manifest: {},

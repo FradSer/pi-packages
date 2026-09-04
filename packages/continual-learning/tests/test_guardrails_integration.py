@@ -387,15 +387,19 @@ await new Promise((r) => setTimeout(r, 20));
   await commands.harness.handler("--shared Block edits in repo", cmdCtx);
   record("command-surface", {
     listsPolicies: notified.includes("ui-fixed-width") && notified.includes("block-curl-prod"),
-    showsPaths: notified.includes("harness.json") && notified.includes(".local"),
+    showsPaths: notified.includes(path.join(agentDir, "harness.json")) &&
+      notified.includes(path.join(project, ".pi", "harness.json")) &&
+      notified.includes(path.join(project, ".pi", "harness.local.json")) &&
+      !notified.includes(path.join(agentDir, "harness.local.json")),
     invalidSkillReported: notified.includes("bad--skill") && notified.includes("violates the Pi skill-name rules"),
     defaultTargetsProjectLocal: messages.length >= 1 && messages[0].options?.deliverAs === "followUp" &&
       messages[0].content.includes("Block edits that add hard-coded colors") &&
       messages[0].content.includes(path.join(project, ".pi", "harness.local.json")) &&
       !messages[0].content.includes(path.join(agentDir, "harness.local.json")),
-    globalFlagTargetsUserLocal: messages.length >= 2 && messages[1].options?.deliverAs === "followUp" &&
+    globalFlagTargetsUserShared: messages.length >= 2 && messages[1].options?.deliverAs === "followUp" &&
       messages[1].content.includes("Block edits globally") &&
-      messages[1].content.includes(path.join(agentDir, "harness.local.json")),
+      messages[1].content.includes(path.join(agentDir, "harness.json")) &&
+      !messages[1].content.includes(path.join(agentDir, "harness.local.json")),
     sharedFlagTargetsProject: messages.length >= 3 && messages[2].options?.deliverAs === "followUp" &&
       messages[2].content.includes("Block edits in repo") &&
       messages[2].content.includes(path.join(project, ".pi", "harness.json")),
@@ -472,5 +476,5 @@ def test_s8_command_reports_surface_and_routes_prompt() -> None:
     s = ALL["command-surface"]
     assert s["listsPolicies"] and s["showsPaths"] and s["invalidSkillReported"]
     assert s["defaultTargetsProjectLocal"]
-    assert s["globalFlagTargetsUserLocal"]
+    assert s["globalFlagTargetsUserShared"]
     assert s["sharedFlagTargetsProject"]

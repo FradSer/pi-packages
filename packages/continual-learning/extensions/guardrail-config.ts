@@ -1,7 +1,7 @@
 /** Guardrails configuration discovery and loading. Layers resolve as
- * user (~/.pi/agent) < project (<cwd>/.pi), shared < .local, mirroring the
- * manifest/config pair conventions used across pi packages. JSON is used
- * instead of TOML to keep the package dependency-free. */
+ * user shared (~/.pi/agent/harness.json) < project shared
+ * (<cwd>/.pi/harness.json) < project personal (.local). JSON is used instead
+ * of TOML to keep the package dependency-free. */
 
 import fs from "node:fs";
 import path from "node:path";
@@ -10,7 +10,6 @@ import type { PolicyLayer } from "./guardrail-types.ts";
 
 export interface ConfigPaths {
   user: string;
-  userLocal: string;
   project: string;
   projectLocal: string;
 }
@@ -22,7 +21,6 @@ export function configPaths(cwd: string, agentDir?: string): ConfigPaths {
   const projectDir = hasProjectAgent ? path.join(cwd, ".pi", "agent") : path.join(cwd, ".pi");
   return {
     user: path.join(base, "harness.json"),
-    userLocal: path.join(base, "harness.local.json"),
     project: path.join(projectDir, "harness.json"),
     projectLocal: path.join(projectDir, "harness.local.json"),
   };
@@ -73,9 +71,6 @@ export function loadLayers(cwd: string, agentDir?: string): PolicyLayer[] {
 
   const userLayer = readLayer("user", paths.user);
   if (userLayer) layers.push(userLayer);
-
-  const userLocalLayer = readLayer("user.local", paths.userLocal);
-  if (userLocalLayer) layers.push(userLocalLayer);
 
   const projFile = fs.existsSync(paths.project) ? paths.project : (fs.existsSync(altProject) ? altProject : paths.project);
   const projLayer = readLayer("project", projFile);

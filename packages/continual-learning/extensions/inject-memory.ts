@@ -331,7 +331,11 @@ function parentSelectedScope(run: ConsolidationRun, noContext: boolean): string[
   if (noContext) return [];
   const names = new Map<string, string>();
   const sourceHashes = run.manifest.sourceHashes;
-  for (const name of [...Object.keys(sourceHashes.harness), ...Object.keys(sourceHashes.public)].sort()) {
+  for (const name of [
+    ...Object.keys(sourceHashes.userShared),
+    ...Object.keys(sourceHashes.projectShared),
+    ...Object.keys(sourceHashes.projectPersonal),
+  ].sort()) {
     if (!MEMORY_FILENAME_RE.test(name) || name.toLowerCase() === "memory.md") continue;
     names.set(name.toLowerCase(), names.get(name.toLowerCase()) ?? name);
   }
@@ -554,8 +558,9 @@ async function runConsolidationValidator(
     "--check", check,
   ];
   if (receiptPath) {
-    args.push("--receipt", receiptPath, "--harness", run.manifest.harnessDir, "--expected-receipt-phase", "post");
-    if (run.manifest.publicDir) args.push("--public", run.manifest.publicDir);
+    args.push("--receipt", receiptPath, "--personal", run.manifest.projectPersonalDir!, "--expected-receipt-phase", "post");
+    if (run.manifest.projectSharedDir) args.push("--project-shared", run.manifest.projectSharedDir);
+    args.push("--user-shared", run.manifest.userSharedDir);
     if (receiptAfterMs !== undefined) args.push("--expected-receipt-after", String(receiptAfterMs / 1000));
   }
   let rawStdout: string;
@@ -641,8 +646,6 @@ async function spawnAsyncConsolidation(
     }
     return false;
   }
-  const memoryPaths = resolveMemoryPaths(opts.cwd);
-  const harnessDir = memoryPaths.harnessDir;
   let run: ConsolidationRun;
   try {
     run = await createConsolidationRun(ctx, opts.cwd, opts.noContext);
@@ -660,13 +663,6 @@ async function spawnAsyncConsolidation(
   }
   state.run = run;
   const selectedScope = parentSelectedScope(run, Boolean(opts.noContext));
-  if (run.normalization.repaired.length > 0 || run.normalization.removed.length > 0) {
-    notifyPi(ctx.ui,
-      `Memory consolidation normalized mirrors before planning: ${run.normalization.repaired.length} repaired, ${run.normalization.removed.length} removed`,
-      "info",
-    );
-  }
-
   procedure = procedure
     .replaceAll("{{RUN_ID}}", run.manifest.runId)
     .replaceAll("{{SCOPE_DIGEST}}", run.manifest.scopeDigest)
@@ -675,8 +671,9 @@ async function spawnAsyncConsolidation(
     .replaceAll("{{SNAPSHOT_DIGEST}}", run.manifest.snapshotDigest)
     .replaceAll("{{RUN_DIR}}", run.manifest.runDir)
     .replaceAll("{{SNAPSHOT_PATH}}", run.manifest.snapshotPath)
-    .replaceAll("{{HARNESS_DIR}}", run.manifest.harnessDir)
-    .replaceAll("{{PUBLIC_DIR}}", run.manifest.publicDir ?? "(disabled for this non-project directory)")
+    .replaceAll("{{USER_SHARED_DIR}}", run.manifest.userSharedDir)
+    .replaceAll("{{PROJECT_SHARED_DIR}}", run.manifest.projectSharedDir ?? "(disabled)")
+    .replaceAll("{{PROJECT_PERSONAL_DIR}}", run.manifest.projectPersonalDir ?? "(disabled)")
     .replaceAll("{{REPO_ROOT}}", run.manifest.cwd);
 
   const taskText = [
@@ -688,13 +685,13 @@ async function spawnAsyncConsolidation(
     `- Artifact/snapshot digest: ${run.manifest.snapshotDigest}`,
     `- Run directory: ${run.manifest.runDir}`,
     `- Context mode: ${opts.noContext ? "no-context (do not capture session context)" : "parent-provided immutable snapshot"}`,
-    `- Pre-run mirror normalization: ${JSON.stringify({ repaired: run.normalization.repaired, removed: run.normalization.removed })}`,
     ...formatSelectedScopeTaskLines(selectedScope),
     `- Immutable manifest: ${path.join(run.manifest.runDir, "manifest.json")}`,
     `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
-    `- Harness memory dir: ${harnessDir}`,
-    `- Public memory dir: ${run.manifest.publicDir ?? "disabled for this non-project directory"}`,
-    "- Do not write to either memory directory.",
+    `- User shared memory dir (read-only): ${run.manifest.userSharedDir}`,
+    `- Project shared memory dir (read-only): ${run.manifest.projectSharedDir ?? "disabled"}`,
+    `- Project personal memory dir (parent-owned output): ${run.manifest.projectPersonalDir ?? "disabled"}`,
+    "- Do not write to any memory directory; the parent applies validated operations only to project personal memory.",
     "- Your final assistant message must be one JSON object containing schemaVersion, runId, scopeKey, snapshotDigest, selected, and operations.",
     "",
     procedure,
@@ -1183,7 +1180,6 @@ export default function (pi: ExtensionAPI) {
       const settings = await readSettings(cwd);
       const status = settings.autoMemory ? "on" : "off";
       const memoryPaths = resolveMemoryPaths(cwd);
-      const harnessDir = memoryPaths.harnessDir;
       const home = getAgentDir();
       const pkgDir = await resolvePackageDir();
       const procedureFile = path.join(pkgDir, "procedures", "consolidate.md");
@@ -1204,8 +1200,9 @@ export default function (pi: ExtensionAPI) {
           [
             `Auto-memory: ${status}`,
             `Memory model: ${configuredMemoryModel()}`,
-            `Harness memory: ${harnessDir}`,
-            `Public memory: ${memoryPaths.publicDir ?? "disabled for this non-project directory"}`,
+            `User shared memory: ${memoryPaths.userSharedDir}`,
+            `Project shared memory: ${memoryPaths.projectSharedDir ?? "disabled"}`,
+            `Project personal memory: ${memoryPaths.projectPersonalDir ?? "disabled"}`,
             `Consolidate procedure: ${procedureFile}`,
           ].join("\n"),
           "info",
@@ -1241,12 +1238,13 @@ export default function (pi: ExtensionAPI) {
           await editInstructions(ctx, projectInstructions.path);
         }
       } else if (choice.startsWith("Open memory folder")) {
-        await fs.mkdir(harnessDir, { recursive: true });
+        const memoryDir = memoryPaths.projectPersonalDir ?? memoryPaths.userSharedDir;
+        await fs.mkdir(memoryDir, { recursive: true });
         if (ctx.mode === "tui" && process.platform === "darwin") {
-          await pi.exec("open", [harnessDir]);
-          notifyPi(ctx.ui, `Opened ${harnessDir}`, "info");
+          await pi.exec("open", [memoryDir]);
+          notifyPi(ctx.ui, `Opened ${memoryDir}`, "info");
         } else {
-          notifyPi(ctx.ui, `Memory folder: ${harnessDir}`, "info");
+          notifyPi(ctx.ui, `Memory folder: ${memoryDir}`, "info");
         }
       } else if (choice.startsWith("Toggle auto-memory")) {
         const next = { ...settings, autoMemory: !settings.autoMemory };

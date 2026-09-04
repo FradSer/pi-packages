@@ -71,7 +71,7 @@ def test_non_project_without_existing_mirror_disables_public_memory() -> None:
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
             import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
             const memory = resolveMemoryPaths({json.dumps(str(workspace))});
-            console.log(JSON.stringify({{ publicDir: memory.publicDir }}));
+            console.log(JSON.stringify({{ projectSharedDir: memory.projectSharedDir }}));
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
@@ -89,7 +89,7 @@ def test_non_project_with_legacy_mirror_disables_public_memory() -> None:
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
             import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
             const memory = resolveMemoryPaths({json.dumps(str(workspace))});
-            console.log(JSON.stringify({{ publicDir: memory.publicDir }}));
+            console.log(JSON.stringify({{ projectSharedDir: memory.projectSharedDir }}));
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
@@ -109,7 +109,7 @@ def test_nested_directory_with_legacy_mirror_disables_public_memory() -> None:
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
             import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
             const memory = resolveMemoryPaths({json.dumps(str(nested))});
-            console.log(JSON.stringify({{ publicDir: memory.publicDir }}));
+            console.log(JSON.stringify({{ projectSharedDir: memory.projectSharedDir }}));
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
@@ -128,11 +128,11 @@ def test_git_project_root_that_contains_agent_directory_keeps_public_memory() ->
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
             import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
             const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            console.log(JSON.stringify({{ publicDir: memory.publicDir }}));
+            console.log(JSON.stringify({{ projectSharedDir: memory.projectSharedDir }}));
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
-        assert result == {"publicDir": str(repo.resolve() / ".memory")}
+        assert result == {"projectSharedDir": str(repo.resolve() / ".memory")}
 
 
 def test_agent_directory_disables_public_memory_even_when_legacy_mirror_exists() -> None:
@@ -145,7 +145,7 @@ def test_agent_directory_disables_public_memory_even_when_legacy_mirror_exists()
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
             import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
             const memory = resolveMemoryPaths({json.dumps(str(agent))});
-            console.log(JSON.stringify({{ publicDir: memory.publicDir }}));
+            console.log(JSON.stringify({{ projectSharedDir: memory.projectSharedDir }}));
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
@@ -477,129 +477,49 @@ def test_lock_reclaim_is_atomic_quarantine_with_bounded_retry() -> None:
     assert "return acquireConsolidationLock(" not in security_source
 
 
-def test_mirror_drift_is_normalized_before_the_run() -> None:
+def test_consolidation_does_not_normalize_shared_memory_layers() -> None:
+    source = (PACKAGE / "extensions" / "consolidation-run.ts").read_text(encoding="utf-8")
+    assert "normalizeMirrorDrift" not in source
+    assert "harness-to-public" not in source
+    assert "public-to-harness" not in source
+    assert "projectPersonalDir" in source
+
+
+def test_project_shared_memory_is_not_imported_into_personal_memory() -> None:
+    source = (PACKAGE / "extensions" / "consolidation-run.ts").read_text(encoding="utf-8")
+    apply_source = source[source.index("export async function applyConsolidationPlan") :]
+    assert "writeMemoryFileInRoot(personalDir" in apply_source
+    assert "writeMemoryFileInRoot(run.manifest.projectSharedDir" not in apply_source
+    assert "writeMemoryFileInRoot(run.manifest.userSharedDir" not in apply_source
+
+
+def test_legacy_dash_scope_migrates_into_project_personal_root() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         repo = root / "repo"
         agent = root / "agent"
         repo.mkdir()
-        initialize_git_repo(repo)
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
         result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ normalizeMirrorDrift }} from './packages/continual-learning/extensions/consolidation-run.ts';
+            import {{ loadAndDeduplicateMemories, migrateLegacyMemoryDirs }} from './packages/continual-learning/extensions/memory-files.ts';
             import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-            import {{ mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, utimesSync }} from 'node:fs';
-            const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            mkdirSync(memory.harnessDir, {{ recursive: true }});
-            mkdirSync(memory.publicDir, {{ recursive: true }});
-            // Drifted safe file A: harness newer (session wrote harness only).
-            writeFileSync(memory.harnessDir + '/a.md', 'v2\\n');
-            writeFileSync(memory.publicDir + '/a.md', 'v1\\n');
-            utimesSync(memory.harnessDir + '/a.md', 2000, 2000);
-            utimesSync(memory.publicDir + '/a.md', 1000, 1000);
-            // Drifted safe file B: public newer (git-tracked update never reached harness).
-            writeFileSync(memory.harnessDir + '/b.md', 'old\\n');
-            writeFileSync(memory.publicDir + '/b.md', 'new\\n');
-            utimesSync(memory.harnessDir + '/b.md', 1000, 1000);
-            utimesSync(memory.publicDir + '/b.md', 3000, 3000);
-            // Private-marked file leaked into public.
-            writeFileSync(memory.harnessDir + '/secret.md', 'private\\n');
-            writeFileSync(memory.harnessDir + '/MEMORY.md', '# Memory Index\\n\\n- [a.md](a.md)\\n- [secret.md](secret.md) (harness only)\\n');
-            writeFileSync(memory.publicDir + '/secret.md', 'private\\n');
-            writeFileSync(memory.publicDir + '/MEMORY.md', '# Memory Index\\n');
-            // Orphan public file with no harness copy.
-            writeFileSync(memory.publicDir + '/orphan.md', 'orphan\\n');
-            // Safe file missing from public entirely.
-            writeFileSync(memory.harnessDir + '/d.md', 'd\\n');
-
-            const outcome = await normalizeMirrorDrift(memory);
-            console.log(JSON.stringify({{
-              repaired: outcome.repaired,
-              removed: outcome.removed,
-              aMatches: readFileSync(memory.harnessDir + '/a.md', 'utf8') === readFileSync(memory.publicDir + '/a.md', 'utf8'),
-              bHarnessUpdated: readFileSync(memory.harnessDir + '/b.md', 'utf8'),
-              dMirrored: readFileSync(memory.publicDir + '/d.md', 'utf8'),
-              secretGone: !existsSync(memory.publicDir + '/secret.md'),
-              orphanGone: !existsSync(memory.publicDir + '/orphan.md'),
-              publicIndex: readFileSync(memory.publicDir + '/MEMORY.md', 'utf8'),
-            }}));
-            """,
-            {"PI_CODING_AGENT_DIR": str(agent)},
-        )
-        assert result["repaired"] == [
-            {"name": "a.md", "direction": "harness-to-public"},
-            {"name": "b.md", "direction": "public-to-harness"},
-            {"name": "d.md", "direction": "harness-to-public"},
-        ]
-        assert result["removed"] == ["orphan.md", "secret.md"]
-        assert result["aMatches"] is True
-        assert result["bHarnessUpdated"] == "new\n"
-        assert result["dMirrored"] == "d\n"
-        assert result["secretGone"] is True
-        assert result["orphanGone"] is True
-        assert "- [a.md](a.md)" in result["publicIndex"]
-        assert "(harness only)" not in result["publicIndex"]
-
-
-def test_missing_harness_root_imports_public_instead_of_deleting() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "repo"
-        agent = root / "agent"
-        repo.mkdir()
-        initialize_git_repo(repo)
-        result = run_bun(
-            f"""
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ normalizeMirrorDrift }} from './packages/continual-learning/extensions/consolidation-run.ts';
-            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-            import {{ mkdirSync, writeFileSync, readFileSync }} from 'node:fs';
-            const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            mkdirSync(memory.publicDir, {{ recursive: true }});
-            writeFileSync(memory.publicDir + '/kept.md', 'kept\\n');
-            const outcome = await normalizeMirrorDrift(memory);
-            console.log(JSON.stringify({{
-              repaired: outcome.repaired,
-              removed: outcome.removed,
-              imported: readFileSync(memory.harnessDir + '/kept.md', 'utf8'),
-            }}));
-            """,
-            {"PI_CODING_AGENT_DIR": str(agent)},
-        )
-        assert result == {
-            "repaired": [{"name": "kept.md", "direction": "public-to-harness"}],
-            "removed": [],
-            "imported": "kept\n",
-        }
-
-
-def test_legacy_dash_scope_migrates_into_hashed_root() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "repo"
-        agent = root / "agent"
-        repo.mkdir()
-        result = run_bun(
-            f"""
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ loadAndDeduplicateMemories }} from './packages/continual-learning/extensions/memory-files.ts';
-            import {{ migrateLegacyMemoryDirs }} from './packages/continual-learning/extensions/memory-files.ts';
-            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-            import {{ mkdirSync, writeFileSync, readFileSync, existsSync, utimesSync }} from 'node:fs';
+            import {{ mkdirSync, writeFileSync, readFileSync, existsSync }} from 'node:fs';
             const memory = resolveMemoryPaths({json.dumps(str(repo))});
             const legacyDir = memory.agentDir + '/memory/' + {json.dumps(str(repo))}.replace(/\//g, '-');
             mkdirSync(legacyDir, {{ recursive: true }});
+            mkdirSync(memory.projectPersonalDir, {{ recursive: true }});
             writeFileSync(legacyDir + '/keep.md', 'legacy\\n');
-            writeFileSync(legacyDir + '/secret.md', 'private\\n');
-            writeFileSync(legacyDir + '/MEMORY.md', '# Memory Index\\n\\n- [keep.md](keep.md)\\n- [secret.md](secret.md) (harness only)\\n');
+            writeFileSync(legacyDir + '/existing.md', 'legacy loses\\n');
+            writeFileSync(memory.projectPersonalDir + '/existing.md', 'personal wins\\n');
 
             const entries = await loadAndDeduplicateMemories({json.dumps(str(repo))});
             console.log(JSON.stringify({{
-              migrated: existsSync(memory.harnessDir + '/keep.md'),
+              migrated: existsSync(memory.projectPersonalDir + '/keep.md'),
               legacyGone: !existsSync(legacyDir),
-              index: readFileSync(memory.harnessDir + '/MEMORY.md', 'utf8'),
-              injected: entries.map((entry) => entry.filename),
+              existing: readFileSync(memory.projectPersonalDir + '/existing.md', 'utf8'),
+              injected: entries.map((entry) => [entry.filename, entry.source]),
               secondRunStable: (await migrateLegacyMemoryDirs(memory)).length === 0,
             }}));
             """,
@@ -607,8 +527,6 @@ def test_legacy_dash_scope_migrates_into_hashed_root() -> None:
         )
         assert result["migrated"] is True
         assert result["legacyGone"] is True
-        assert "- [keep.md](keep.md)" in result["index"]
-        assert "- [secret.md](secret.md) (harness only)" in result["index"]
-        # Harness-only marking keeps content out of the git mirror, not out of prompts.
-        assert result["injected"] == ["keep.md", "secret.md"]
+        assert result["existing"] == "personal wins\n"
+        assert result["injected"] == [["existing.md", "project.local"], ["keep.md", "project.local"]]
         assert result["secondRunStable"] is True

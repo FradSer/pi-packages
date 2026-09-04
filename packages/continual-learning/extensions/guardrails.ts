@@ -4,8 +4,8 @@
  * are blocked with corrective guidance (the "more correct prompt") or gated
  * behind user confirmation.
  *
- * Policies live in ~/.pi/agent/harness.json (+ .local) and
- * <project>/.pi/harness.json (+ .local). Curated defaults ship with the
+ * Policies live in user-shared ~/.pi/agent/harness.json, project-shared
+ * <project>/.pi/harness.json, and project-personal harness.local.json. Curated defaults ship with the
  * package and can be disabled by name from any layer.
  */
 
@@ -50,8 +50,6 @@ function harnessSourcePath(source: string | undefined, paths: ReturnType<typeof 
   switch (source) {
     case "user":
       return paths.user;
-    case "user.local":
-      return paths.userLocal;
     case "project":
       return paths.project;
     case "project.local":
@@ -124,7 +122,7 @@ export const ensureGlobalHarnessTarget = ensureHarnessTarget;
 export interface ResolvedHarnessTarget {
   request: string;
   targetFile: string;
-  scope: "project.local" | "project" | "user.local" | "user";
+  scope: "project.local" | "project" | "user";
   scopeLabel: string;
 }
 
@@ -136,7 +134,7 @@ export function resolveHarnessTarget(
   const paths = configPaths(cwd, agentDir);
   const trimmed = rawArgs.trim();
 
-  let scope: "project.local" | "project" | "user.local" | "user" = "project.local";
+  let scope: "project.local" | "project" | "user" = "project.local";
   let request = trimmed;
 
   const flagMatch = trimmed.match(
@@ -146,10 +144,8 @@ export function resolveHarnessTarget(
   if (flagMatch) {
     const flag = flagMatch[1].toLowerCase();
     request = flagMatch[2].trim();
-    if (flag === "--global-shared" || flag === "--user-shared") {
+    if (flag === "--global-shared" || flag === "--user-shared" || flag === "--global" || flag === "--user" || flag === "--user-local" || flag === "-g") {
       scope = "user";
-    } else if (flag === "--global" || flag === "--user" || flag === "--user-local" || flag === "-g") {
-      scope = "user.local";
     } else if (flag === "--shared" || flag === "--project" || flag === "--repo" || flag === "-p") {
       scope = "project";
     } else {
@@ -163,10 +159,6 @@ export function resolveHarnessTarget(
     case "user":
       targetFile = paths.user;
       scopeLabel = "global shared harness.json";
-      break;
-    case "user.local":
-      targetFile = paths.userLocal;
-      scopeLabel = "global personal harness.local.json";
       break;
     case "project":
       targetFile = paths.project;
@@ -449,7 +441,6 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         "built-in defaults are active unless disabled by name",
         "config paths:",
         `  ${paths.user}`,
-        `  ${paths.userLocal} (optional)`,
         `  ${paths.project}`,
         `  ${paths.projectLocal} (optional)`,
       ];

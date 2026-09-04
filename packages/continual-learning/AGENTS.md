@@ -40,9 +40,12 @@ Use ESM TypeScript, strict bounded memory filename/loading rules, atomic writes,
 and symlink-safe path checks. Consolidation remains parent-owned: acquire the
 project lock, capture an immutable snapshot (or explicit `no-context` mode),
 spawn a read-only `--no-extensions` worker, accept one bounded structured plan,
-validate before and after mutation, then write receipts and synchronize only
-safe files to `.memory`. Never let the child mutate memory or expose private
-harness data. The AGENTS.md phase additionally requires code-verified snapshot
+validate before and after mutation, then write receipts. Memory and harness
+both resolve user-shared, project-shared, and project-personal layers, with the
+narrower layer winning by addressable name. Automatic consolidation treats
+shared layers as read-only and mutates only project-personal memory
+(`.memory.local`) or harness (`.pi/harness.local.json`). Never let the child
+mutate memory or configuration. The AGENTS.md phase additionally requires code-verified snapshot
 quotes, batched evidence for new units, budget zero-sum at cap, autonomous
 application only after mechanical validation, and never targets user-level
 instruction files.
@@ -52,7 +55,7 @@ Reuse `@fradser/pi-kit`; keep its dependency direction intact.
 
 Update the relevant feature before behavior changes, then extend tests for
 injection, command registration, model/config handling, locking, snapshots,
-bounds, rollback, privacy, receipts, and shutdown cancellation. The manifest
+bounds, rollback, layer precedence and immutability, receipts, and shutdown cancellation. The manifest
 ships `index.ts`, `procedures`, `extensions`, `scripts`, and `README.md`; keep
 all runtime helpers inside those paths. Add a Changeset for published changes
 and follow the repository's Conventional Commit scopes.

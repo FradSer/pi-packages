@@ -14,19 +14,21 @@ Parent-provided values:
 - `snapshotDigest`: `{{SNAPSHOT_DIGEST}}`
 - `runDir`: `{{RUN_DIR}}`
 - `snapshotPath`: `{{SNAPSHOT_PATH}}`
-- `harnessDir`: `{{HARNESS_DIR}}`
-- `publicDir`: `{{PUBLIC_DIR}}`
+- `userSharedDir`: `{{USER_SHARED_DIR}}` (read-only)
+- `projectSharedDir`: `{{PROJECT_SHARED_DIR}}` (read-only)
+- `projectPersonalDir`: `{{PROJECT_PERSONAL_DIR}}` (parent-owned output)
 - `repoRoot`: `{{REPO_ROOT}}`
 - Parent validator: `{{PKG_DIR}}/scripts/validate-consolidate.py`
 
 ## Read-only boundary
 
 Read `snapshotPath` first. It is the immutable session-context input selected by
-the parent. Read the two memory roots and the repository only to inspect the
-selected scope and verify claims. Do not write, edit, delete, rename, or copy
-any file. Do not run a command that mutates state. The parent alone applies a
-plan, recomputes source hashes, rebuilds indexes, synchronizes safe files, and
-creates the post-apply receipt.
+the parent. Read the enabled user-shared, project-shared, and project-personal
+memory roots and the repository only to inspect the selected scope and verify
+claims. Do not write, edit, delete, rename, or copy any file. Do not run a
+command that mutates state. The parent alone applies a plan to project-personal
+memory, recomputes all layer hashes, rebuilds its index, and creates the
+post-apply receipt. User-shared and project-shared bytes remain unchanged.
 
 If a supplied path is absent or unusable, return a JSON object with `kind` set
 to `memory-consolidation-plan`, `version` and `schemaVersion` set to `1`, the

@@ -32,9 +32,15 @@ resolves to the innermost definition, and any layer can disable names. Every
 policy is validated against the runtime schema before it can become active;
 unknown fields are rejected with a diagnostic rather than silently ignored:
 
-1. Built-in defaults ship with the package.
-2. Pi agent directory `harness.json` (+ `harness.local.json`; defaults to `~/.pi/agent`, honors `PI_CODING_AGENT_DIR`)
-3. `<project>/.pi/harness.json` (+ `harness.local.json`)
+Built-in defaults are the outermost package-owned baseline. User-owned configuration has exactly three layers:
+
+1. User shared: `~/.pi/agent/harness.json` (the agent directory honors `PI_CODING_AGENT_DIR`).
+2. Project shared: `<project>/.pi/harness.json`.
+3. Project personal: `<project>/.pi/harness.local.json`.
+
+The obsolete user-personal `~/.pi/agent/harness.local.json` is not discovered
+or shown by `/harness`. Runtime precedence is project personal over project
+shared over user shared (with built-in defaults outermost).
 
 Policy shape:
 
@@ -71,7 +77,7 @@ To create a rule directly, pass a natural-language request: `/harness
 block edits that add hard-coded colors`. By default, it targets the project
 personal layer at `<project>/.pi/harness.local.json`. Use `--shared` (or `--project`,
 `--repo`) to target the git-tracked `<project>/.pi/harness.json`, or `--global`
-(or `--user`) to target `~/.pi/agent/harness.local.json`. The request is sent as a
+(or `--user`) to target the user-shared `~/.pi/agent/harness.json`. The request is sent as a
 follow-up with an explicit write protocol: it reads that exact target file,
 creates it there when missing, preserves existing entries, and verifies the
 result without wandering to other layers.
@@ -128,8 +134,8 @@ phase never touches applied memory or harness results.
 ### Skill prompt guidance
 
 `skillPrompts` adds corrective guidance when Pi expands a configured
-`/skill:<name>` invocation. The same four layers apply (user, user-local,
-project, project-local), with the innermost definition winning by skill name.
+`/skill:<name>` invocation. The same three user-owned layers apply, with the
+project-personal definition winning over project shared and user shared by skill name.
 `disabled` only affects tool-call policies, not skill prompts:
 
 ```json
@@ -160,6 +166,18 @@ when a hook is evaluated more than once.
 
 ## Memory
 
-See `AGENTS.md` and `procedures/consolidate.md` for the memory loading rules,
-privacy constraints, and the parent-owned consolidation protocol. State lives
-in harness memory directories; only safe files sync to public `.memory/`.
+Memory uses the same three-layer ownership and precedence model as harness:
+
+1. User shared: `~/.pi/agent/memory/`
+2. Project shared: `<project>/.memory/`
+3. Project personal: `<project>/.memory.local/`
+
+Entries resolve by filename, with project personal overriding project shared,
+and project shared overriding user shared. Automatic consolidation treats all
+three layers as inputs but writes only project personal memory. Shared layers
+are never mirrored or mutated by consolidation. Existing legacy project-scoped
+memory is migrated once into `.memory.local/` without overwriting an existing
+project-personal entry.
+
+See `AGENTS.md` and `procedures/consolidate.md` for loading rules and the
+parent-owned consolidation protocol.

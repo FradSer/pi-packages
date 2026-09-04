@@ -9,8 +9,11 @@ Feature: Generic tool-call guardrails from layered config
   Scenario: Layered config resolves with deterministic precedence
     Given guardrails are declared in the user directory and the project
     When the configuration is loaded
-    Then the user file is ~/.pi/agent/harness.json plus its .local variant
-    And the project file is .pi/harness.json plus its .local variant
+    Then the user shared file is ~/.pi/agent/harness.json
+    And the project shared file is .pi/harness.json
+    And the project personal file is .pi/harness.local.json
+    And ~/.pi/agent/harness.local.json is ignored and absent from diagnostics
+    And precedence is project personal over project shared over user shared
     And a policy name defined in several layers resolves to the innermost one
     And names listed in any layer's disabled list are removed everywhere
 
@@ -77,7 +80,7 @@ Feature: Generic tool-call guardrails from layered config
     When the user runs /harness with that request without scope flags
     Then the command targets the project personal layer at .pi/harness.local.json by default
     When the user specifies --global or --user
-    Then the command targets ~/.pi/agent/harness.local.json
+    Then the command targets the user shared layer at ~/.pi/agent/harness.json
     When the user specifies --shared or --project
     Then the command targets the project shared layer at .pi/harness.json
     And a missing target is initialized there instead of being searched for elsewhere

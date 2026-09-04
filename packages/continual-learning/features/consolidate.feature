@@ -40,6 +40,13 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     Then the menu offers the available models
     And selecting one persists its provider and model for future consolidation runs
 
+  Scenario: Memory resolves the same three ownership layers as harness
+    Given memory files exist in user shared, project shared, and project personal roots
+    When active project memories are loaded
+    Then project personal overrides project shared by filename
+    And project shared overrides user shared by filename
+    And non-conflicting entries from all three layers remain active
+
   Scenario: Manual consolidation scopes consolidation to the current session's related memories
     Given the current session contains durable memory candidates
     When manual consolidation starts
@@ -47,7 +54,8 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     And it reads the indexes and only related existing memory files
     And it does not scan unrelated memory files for consolidation
     And it clusters, checks staleness, merges, prunes, and privacy-checks that related set
-    And it synchronizes safe results to .memory
+    And it writes learned memory only to the project personal layer
+    And it leaves user shared and project shared memory unchanged
 
   Scenario: Manual consolidation runs in the background without exposing an implementation requirement
     Given memory consolidation is manually started
@@ -101,22 +109,22 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     And it reports a verified no-op result
 
   Scenario: Empty first-run scope initializes a verifiable no-op
-    Given no harness memory root or public .memory root exists yet
+    Given no project personal memory root exists yet
     And the captured context contains no durable memory candidate
     When manual consolidation starts
-    Then it creates only the required empty roots and indexes
-    And it reports a verified no-op result without changing unrelated project files
+    Then it creates only the project personal root and index
+    And it reports a verified no-op result without changing either shared layer
 
-  Scenario: A non-project parent directory never becomes a public memory mirror
-    Given the current directory has no .memory directory and is not a Git worktree root
+  Scenario: A non-project parent directory never gains project memory layers
+    Given the current directory is not a Git worktree root
     When memory paths are resolved
-    Then its public memory mirror is disabled
-    And consolidation never creates a .memory directory there
+    Then its project shared memory layer is disabled
+    And its project personal memory layer is disabled
 
-  Scenario: The Pi agent configuration directory never becomes a public memory mirror
+  Scenario: The Pi agent configuration directory never gains project memory layers
     Given the current directory is the Pi agent configuration directory
     When memory paths are resolved
-    Then its public memory mirror is disabled even if a .memory directory exists
+    Then its project shared and project personal memory layers are disabled
 
   Scenario: Project scope key is distinct from the run scope digest
     Given the parent supplies a project scope key and a different run scope digest
@@ -174,47 +182,26 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     And every attempt passes the same validation gates before any mutation
     And a failure after memory mutation is never retried
 
-  Scenario: Pre-run mirror normalization repairs safe-file drift
-    Given the harness and public copies of a safe memory file differ before the run
-    When a consolidation run is created
-    Then the parent overwrites the older copy with the newer side's bytes first
-    And the repair direction is reported in the task header and notification
-    And both indexes are regenerated so post-apply validation sees consistent mirrors
-
-  Scenario: Legacy scope directories migrate to hashed roots before loading
-    Given a project whose harness memory lives under the legacy dash-encoded directory
-    And no hashed scope root exists for that project yet
+  Scenario: Legacy scoped memory migrates into project personal memory
+    Given a project has memory under its legacy hashed or dash-encoded agent directory
     When memories are loaded or a consolidation run starts
-    Then the legacy files merge into the hashed root with newer mtime winning per file
-    And private markers carry into the rebuilt index and the merged source is removed
-    And an existing hashed root is never touched by migration
-
-  Scenario: Privacy violations and orphans are removed before planning
-    Given a private-marked memory file exists under public
-    And a public file has no harness copy while the harness root exists
-    When a consolidation run is created
-    Then both files are removed from public before the snapshot is captured
-    And a missing harness root imports public files instead of deleting them
+    Then legacy files merge into the project personal root without overwriting existing project personal files
+    And the merged legacy source is removed
+    And subsequent loading uses only the three current ownership layers
 
   Scenario: Parent validates before and after scoped mutation
     Given the child returns a valid plan for selected memory files
     When consolidation applies the plan
     Then the parent validates the plan before mutation
-    And it rechecks source hashes before applying changes
-    And it validates the final harness and public state after the last mutation
+    And it rechecks all three layer source hashes before applying changes
+    And it validates the final project personal state after the last mutation
     And it reports success only from the matching parent-owned receipt
 
-  Scenario: Mirror application rolls back when a public write fails
-    Given a selected safe memory rewrite has a valid harness and public predecessor
-    When the public mirror write fails during the transaction
-    Then the harness and public predecessor bytes remain unchanged
-    And no private copy is exposed publicly
-    And the run fails before a success receipt is written
-
   Scenario: A later operation failure rolls back earlier writes
-    Given a transaction has already written one selected memory file
+    Given a transaction has already written one project personal memory file
     When a later selected operation exceeds the bounded memory file size
-    Then the earlier harness and public writes are restored byte-for-byte
+    Then the earlier project personal writes are restored byte-for-byte
+    And both shared layers remain unchanged
     And no partial index is left behind
 
   Scenario: Receipt validation requires the declared post phase

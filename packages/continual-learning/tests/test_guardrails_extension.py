@@ -139,7 +139,7 @@ def test_harness_target_resolution_defaults_to_project_local_and_supports_flags(
           projectFlag: resolveHarnessTarget('--project Block edits', cwd, agentDir),
           repoFlag: resolveHarnessTarget('--repo Block edits', cwd, agentDir),
           projectLocalFlag: resolveHarnessTarget('--local Block edits', cwd, agentDir),
-          globalSharedFlag: resolveHarnessTarget('--global-shared Block edits', cwd, agentDir),
+          userFlag: resolveHarnessTarget('--user Block edits', cwd, agentDir),
         }));
     """
     result = run_bun(source)
@@ -147,12 +147,12 @@ def test_harness_target_resolution_defaults_to_project_local_and_supports_flags(
     assert result["defaultTarget"]["targetFile"] == "/tmp/my-project/.pi/harness.local.json"
     assert result["defaultTarget"]["request"] == "Block edits that add hard-coded colors"
 
-    assert result["globalFlag"]["scope"] == "user.local"
-    assert result["globalFlag"]["targetFile"] == "/tmp/user/agent/harness.local.json"
+    assert result["globalFlag"]["scope"] == "user"
+    assert result["globalFlag"]["targetFile"] == "/tmp/user/agent/harness.json"
     assert result["globalFlag"]["request"] == "Block edits"
 
-    assert result["globalShort"]["scope"] == "user.local"
-    assert result["globalShort"]["targetFile"] == "/tmp/user/agent/harness.local.json"
+    assert result["globalShort"]["scope"] == "user"
+    assert result["globalShort"]["targetFile"] == "/tmp/user/agent/harness.json"
 
     assert result["sharedFlag"]["scope"] == "project"
     assert result["sharedFlag"]["targetFile"] == "/tmp/my-project/.pi/harness.json"
@@ -164,8 +164,39 @@ def test_harness_target_resolution_defaults_to_project_local_and_supports_flags(
     assert result["projectLocalFlag"]["scope"] == "project.local"
     assert result["projectLocalFlag"]["targetFile"] == "/tmp/my-project/.pi/harness.local.json"
 
-    assert result["globalSharedFlag"]["scope"] == "user"
-    assert result["globalSharedFlag"]["targetFile"] == "/tmp/user/agent/harness.json"
+    assert result["userFlag"]["scope"] == "user"
+    assert result["userFlag"]["targetFile"] == "/tmp/user/agent/harness.json"
+
+
+def test_harness_discovery_uses_exactly_three_layers_and_ignores_user_personal(tmp_path: Path) -> None:
+    agent_dir = tmp_path / "agent"
+    project = tmp_path / "project"
+    project_pi = project / ".pi"
+    agent_dir.mkdir()
+    project_pi.mkdir(parents=True)
+    policy = lambda reason: {
+        "policies": [{"name": "layered", "pattern": reason, "action": "block", "reason": reason}]
+    }
+    (agent_dir / "harness.json").write_text(json.dumps(policy("user-shared")), encoding="utf-8")
+    (agent_dir / "harness.local.json").write_text(json.dumps(policy("user-personal")), encoding="utf-8")
+    (project_pi / "harness.json").write_text(json.dumps(policy("project-shared")), encoding="utf-8")
+    (project_pi / "harness.local.json").write_text(json.dumps(policy("project-personal")), encoding="utf-8")
+    source = f"""
+        import {{ configPaths, loadLayers }} from './packages/continual-learning/extensions/guardrail-config.ts';
+        import {{ mergeLayers }} from './packages/continual-learning/extensions/guardrail-engine.ts';
+        const paths = configPaths({json.dumps(str(project))}, {json.dumps(str(agent_dir))});
+        const layers = loadLayers({json.dumps(str(project))}, {json.dumps(str(agent_dir))});
+        const merged = mergeLayers(layers);
+        console.log(JSON.stringify({{
+          pathKeys: Object.keys(paths),
+          sources: layers.map((layer) => layer.source),
+          reason: merged.policies.find((policy) => policy.name === 'layered')?.reason,
+        }}));
+    """
+    result = run_bun(source)
+    assert result["pathKeys"] == ["user", "project", "projectLocal"]
+    assert result["sources"] == ["user", "project", "project.local"]
+    assert result["reason"] == "project-personal"
 
 
 def test_harness_prompt_routes_a_direct_rule_request() -> None:

@@ -45,8 +45,11 @@ class ValidatorContractTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         self.repo = self.root / "repo"
-        self.harness = self.repo / "harness"
+        self.user_shared = self.root / "user-memory"
+        self.harness = self.repo / ".memory.local"
         self.public = self.repo / ".memory"
+        self.user_shared.mkdir(parents=True)
+        write(self.user_shared / "MEMORY.md", "# Memory Index\n\n")
         self.harness.mkdir(parents=True)
         self.public.mkdir(parents=True)
         write(self.repo / "src" / "example.ts", "export const example = true;\n")
@@ -118,7 +121,7 @@ class ValidatorContractTests(unittest.TestCase):
                 for path in sorted(root.glob("*.md"), key=lambda item: item.name)
             }
 
-        source_hashes = {"harness": hashes(self.harness), "public": hashes(self.public)}
+        source_hashes = {"userShared": hashes(self.user_shared), "projectShared": hashes(self.public), "projectPersonal": hashes(self.harness)}
         return {
             "kind": "memory-consolidation-receipt",
             "version": 1,
@@ -130,7 +133,7 @@ class ValidatorContractTests(unittest.TestCase):
             "planDigest": sha(self.root / "plan.json"),
             "selected": plan["inventory"],
             "sourceHashes": source_hashes,
-            "finalHashes": {"harness": hashes(self.harness), "public": hashes(self.public)},
+            "finalHashes": {"userShared": hashes(self.user_shared), "projectShared": hashes(self.public), "projectPersonal": hashes(self.harness)},
         }
 
     def invoke_plan(self, plan: dict[str, object], *extra: str) -> subprocess.CompletedProcess[str]:
@@ -232,8 +235,9 @@ class ValidatorContractTests(unittest.TestCase):
     def test_clean_privacy_split_passes(self) -> None:
         self.memory_layout()
         result = run([
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=privacy",
         ])
         self.assertEqual(result.returncode, 0, result.stdout)
@@ -242,8 +246,9 @@ class ValidatorContractTests(unittest.TestCase):
     def test_privacy_rejects_same_canonical_roots(self) -> None:
         self.memory_layout()
         result = run([
-            "--harness", str(self.harness),
-            "--public", str(self.harness / ".." / "harness"),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.user_shared / ".." / "user-memory"),
             "--check=privacy",
         ])
         self.assertEqual(result.returncode, 1)
@@ -258,8 +263,9 @@ class ValidatorContractTests(unittest.TestCase):
         ) + "\n")
         # Default count bound is 4096 (aligned with the runtime); shrink it to exercise the guard.
         result = run([
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=privacy",
             "--max-memory-files", "5",
         ])
@@ -270,8 +276,9 @@ class ValidatorContractTests(unittest.TestCase):
         self.memory_layout(private=False)
         write(self.harness / "project_example.md", "x" * 64_001)
         result = run([
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=privacy",
         ])
         self.assertEqual(result.returncode, 1)
@@ -284,35 +291,38 @@ class ValidatorContractTests(unittest.TestCase):
         write(self.harness / "MEMORY.md", "- [project_example.md](project_example.md)\n- [project_second.md](project_second.md)\n")
         # Default aggregate bound is file-count × per-file; shrink it to exercise the guard.
         result = run([
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=privacy",
             "--max-total-bytes", "96000",
         ])
         self.assertEqual(result.returncode, 1)
         self.assertIn("aggregate", result.stdout)
 
-    def test_safe_mirror_drift_fails_closed(self) -> None:
+    def test_distinct_shared_and_personal_bytes_are_valid(self) -> None:
         self.memory_layout(private=False)
-        write(self.public / "project_example.md", "changed\n")
+        write(self.public / "project_example.md", "shared\n")
+        write(self.harness / "project_example.md", "personal\n")
         result = run([
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("safe mirror drift", result.stdout)
+        self.assertEqual(result.returncode, 0, result.stdout)
 
-    def test_unindexed_public_file_fails(self) -> None:
+    def test_independent_project_shared_entries_are_valid(self) -> None:
         self.memory_layout(private=False)
-        write(self.public / "orphan.md", "orphan\n")
+        write(self.public / "shared_only.md", "shared\n")
+        write(self.public / "MEMORY.md", "- [project_example.md](project_example.md)\n- [shared_only.md](shared_only.md)\n")
         result = run([
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("orphan/unindexed", result.stdout)
+        self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_symlinked_memory_child_fails(self) -> None:
         self.memory_layout(private=False)
@@ -320,8 +330,9 @@ class ValidatorContractTests(unittest.TestCase):
         write(target, "outside\n")
         os.symlink(target, self.public / "linked.md")
         result = run([
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=privacy",
         ])
         self.assertEqual(result.returncode, 1)
@@ -335,8 +346,9 @@ class ValidatorContractTests(unittest.TestCase):
         result = run([
             "--plan", str(plan_path),
             "--receipt", str(receipt_path),
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=plan,receipt,privacy",
             "--expected-run-id", self.run_id,
             "--expected-scope-key", self.scope_key,
@@ -395,8 +407,9 @@ class ValidatorContractTests(unittest.TestCase):
         result = run([
             "--plan", str(plan_path),
             "--receipt", str(receipt_path),
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=plan,receipt,privacy",
         ])
         self.assertEqual(result.returncode, 1)
@@ -411,8 +424,9 @@ class ValidatorContractTests(unittest.TestCase):
         result = run([
             "--plan", str(plan_path),
             "--receipt", str(receipt_path),
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=plan,receipt,privacy",
         ])
         self.assertEqual(result.returncode, 1)
@@ -424,13 +438,14 @@ class ValidatorContractTests(unittest.TestCase):
         plan_path = write_json(self.root / "plan.json", plan)
         receipt = self.receipt(plan)
         write_json(self.root / "manifest.json", {"sourceHashes": receipt["sourceHashes"]})
-        receipt["sourceHashes"]["harness"]["project_example.md"] = "0" * 64
+        receipt["sourceHashes"]["projectPersonal"]["project_example.md"] = "0" * 64
         receipt_path = write_json(self.root / "post-receipt.json", receipt)
         result = run([
             "--plan", str(plan_path),
             "--receipt", str(receipt_path),
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=plan,receipt,privacy",
         ])
         self.assertEqual(result.returncode, 1)
@@ -447,8 +462,9 @@ class ValidatorContractTests(unittest.TestCase):
         result = run([
             "--plan", str(plan_path),
             "--receipt", str(receipt_path),
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=plan,receipt,privacy",
         ])
         self.assertEqual(result.returncode, 1)
@@ -464,8 +480,9 @@ class ValidatorContractTests(unittest.TestCase):
         result = run([
             "--plan", str(plan_path),
             "--receipt", str(receipt_path),
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=plan,receipt,privacy",
         ])
         self.assertEqual(result.returncode, 1)
@@ -482,8 +499,9 @@ class ValidatorContractTests(unittest.TestCase):
         result = run([
             "--plan", str(plan_path),
             "--receipt", str(receipt_path),
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=plan,receipt,privacy",
         ])
         self.assertEqual(result.returncode, 1)
@@ -499,8 +517,9 @@ class ValidatorContractTests(unittest.TestCase):
         result = run([
             "--plan", str(plan_path),
             "--receipt", str(receipt_path),
-            "--harness", str(self.harness),
-            "--public", str(self.public),
+            "--user-shared", str(self.user_shared),
+            "--project-shared", str(self.public),
+            "--personal", str(self.harness),
             "--check=plan,receipt,privacy",
         ])
         self.assertEqual(result.returncode, 1)
