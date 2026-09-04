@@ -126,6 +126,13 @@ Feature: Agent Teams collaborative organization contract
       And that terminal report is the sole completion signal
       And task_list remains available when task-board state is needed for a concrete coordination decision
 
+    Scenario: Teammate waiting guidance does not infer intent from shell commands
+      Given at least one teammate is starting, working, or idle
+      When the leader considers waiting for its terminal report
+      Then prompt guidance instructs the leader not to use sleep or polling merely to wait
+      And it instructs the leader to end the turn when no independent work remains
+      But the harness does not block bash commands based on sleep syntax
+
     Scenario: A terminal direct assignment cannot drift into board work
       Given a teammate completed a direct assignment with a terminal leader report
       And pending board work exists

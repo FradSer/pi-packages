@@ -197,7 +197,7 @@ never reclaims, restarts, or replaces a teammate on its own.
 
 ### DO NOT poll or sleep
 
-- Never run sleep commands, repetitive status checks, or unsolicited steers while teammates work. A direct-assignment teammate delivers its terminal report automatically; do not prompt it for status or ask it to send its result again.
+- Never use sleep commands, repetitive status checks, or unsolicited steers to wait for teammate completion. A direct-assignment teammate delivers its terminal report automatically; do not prompt it for status or ask it to send its result again.
 - task_list is a board snapshot, not a wait mechanism: never call it merely
   to learn whether a direct-assignment teammate or reviewer is still working
   or has finished. Its terminal report is the sole completion signal. Use

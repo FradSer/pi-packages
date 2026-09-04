@@ -1136,6 +1136,20 @@ def test_leader_guidance_is_disclosed_only_for_active_team_state() -> None:
     assert "? buildTeamLeaderGuidance" in index_ts
 
 
+def test_teammate_waiting_is_prompt_guidance_not_a_shell_gate() -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    guidance = source("guidance.ts")
+    index = source("index.ts")
+    assert "Teammate waiting guidance does not infer intent from shell commands" in feature
+    assert "Never use sleep commands, repetitive status checks, or unsolicited steers to wait for teammate completion" in guidance
+    assert "Legitimate sleep" not in guidance
+    assert "end your turn immediately" in guidance
+    assert "terminal report is the sole completion signal" in guidance
+    assert 'pi.on("tool_call"' not in index
+    assert "shouldBlockTeammateWaitCommand" not in index
+    assert "TEAMMATE_WAIT_BLOCK_REASON" not in index
+
+
 def test_team_status_clear_uses_pi_kit_transient_status_adapter() -> None:
     index = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
     assert 'clearPiStatus(ctx.ui, "teammate")' in index
