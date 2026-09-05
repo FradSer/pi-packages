@@ -40,12 +40,11 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     Then the menu offers the available models
     And selecting one persists its provider and model for future consolidation runs
 
-  Scenario: Memory resolves the same three ownership layers as harness
-    Given memory files exist in user shared, project shared, and project personal roots
+  Scenario: Memory resolves a complete private root and sanitized project mirror
+    Given memory files exist in the Harness private root and project .memory root
     When active project memories are loaded
-    Then project personal overrides project shared by filename
-    And project shared overrides user shared by filename
-    And non-conflicting entries from all three layers remain active
+    Then the private copy wins for the same filename
+    And non-conflicting entries from both roots remain active
 
   Scenario: Manual consolidation scopes consolidation to the current session's related memories
     Given the current session contains durable memory candidates
@@ -54,8 +53,8 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     And it reads the indexes and only related existing memory files
     And it does not scan unrelated memory files for consolidation
     And it clusters, checks staleness, merges, prunes, and privacy-checks that related set
-    And it writes learned memory only to the project personal layer
-    And it leaves user shared and project shared memory unchanged
+    And it synchronizes safe results to project .memory
+    And it keeps private results only in the Harness private root
 
   Scenario: Manual consolidation runs in the background without exposing an implementation requirement
     Given memory consolidation is manually started
@@ -109,22 +108,23 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     And it reports a verified no-op result
 
   Scenario: Empty first-run scope initializes a verifiable no-op
-    Given no project personal memory root exists yet
+    Given no Harness private root or project .memory root exists yet
     And the captured context contains no durable memory candidate
     When manual consolidation starts
-    Then it creates only the project personal root and index
-    And it reports a verified no-op result without changing either shared layer
+    Then it creates only the required empty roots and indexes
+    And it reports a verified no-op result without changing unrelated project files
 
-  Scenario: A non-project parent directory never gains project memory layers
+  Scenario: A non-project parent directory never becomes a project memory mirror
     Given the current directory is not a Git worktree root
     When memory paths are resolved
-    Then its project shared memory layer is disabled
-    And its project personal memory layer is disabled
+    Then its project .memory mirror is disabled
+    And its readable Harness private root remains available
+    And private-only consolidation can pass final validation without a project mirror
 
-  Scenario: The Pi agent configuration directory never gains project memory layers
+  Scenario: The Pi agent configuration directory never becomes project shared memory
     Given the current directory is the Pi agent configuration directory
     When memory paths are resolved
-    Then its project shared and project personal memory layers are disabled
+    Then its project .memory mirror is disabled
 
   Scenario: Project scope key is distinct from the run scope digest
     Given the parent supplies a project scope key and a different run scope digest
@@ -182,26 +182,38 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     And every attempt passes the same validation gates before any mutation
     And a failure after memory mutation is never retried
 
-  Scenario: Legacy scoped memory migrates into project personal memory
-    Given a project has memory under its legacy hashed or dash-encoded agent directory
+  Scenario: Readable private root normalizes path whitespace
+    Given the canonical project path contains a directory named Home Lab
+    When memory paths are resolved
+    Then the private root uses Home-Lab with no whitespace
+
+  Scenario: Opaque hashed memory migrates into the readable Harness private root
+    Given a project has memory under an old SHA-256 agent directory or an older readable directory containing whitespace
+    And the readable destination already contains harness-only index markers
     When memories are loaded or a consolidation run starts
-    Then legacy files merge into the project personal root without overwriting existing project personal files
-    And the merged legacy source is removed
-    And subsequent loading uses only the three current ownership layers
+    Then legacy files merge into the escaped-project-path private root without overwriting existing files
+    And private index markers from both roots survive the migration even when the same filename conflicts
+    And the migrated opaque source is removed
+
+  Scenario: Pre-run mirror normalization repairs safe-file drift
+    Given the private and project-shared copies of a safe memory file differ before the run
+    When a consolidation run is created
+    Then the parent overwrites the older copy with the newer side's bytes first
+    And private-marked or orphan project-shared files are removed
+    And both indexes are regenerated before planning
 
   Scenario: Parent validates before and after scoped mutation
     Given the child returns a valid plan for selected memory files
     When consolidation applies the plan
     Then the parent validates the plan before mutation
-    And it rechecks all three layer source hashes before applying changes
-    And it validates the final project personal state after the last mutation
+    And it rechecks both root source hashes before applying changes
+    And it validates the final privacy split and mirror state after the last mutation
     And it reports success only from the matching parent-owned receipt
 
   Scenario: A later operation failure rolls back earlier writes
-    Given a transaction has already written one project personal memory file
+    Given a transaction has already written one safe memory file to both roots
     When a later selected operation exceeds the bounded memory file size
-    Then the earlier project personal writes are restored byte-for-byte
-    And both shared layers remain unchanged
+    Then both earlier root writes are restored byte-for-byte
     And no partial index is left behind
 
   Scenario: Receipt validation requires the declared post phase

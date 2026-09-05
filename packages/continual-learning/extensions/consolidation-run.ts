@@ -349,16 +349,15 @@ export interface ConsolidationManifest {
   cwd: string;
   scopeKey: string;
   scopeDigest: string;
-  userSharedDir: string;
-  projectSharedDir?: string;
-  projectPersonalDir?: string;
+  harnessDir: string;
+  publicDir?: string;
   runDir: string;
   contextEnabled: boolean;
   contextMode: "snapshot" | "no-context";
   snapshotPath: string;
   snapshotDigest: string;
   createdAt: string;
-  sourceHashes: MemoryLayerHashes;
+  sourceHashes: { harness: Record<string, string>; public: Record<string, string> };
 }
 
 export interface ConsolidationRun {
@@ -367,6 +366,7 @@ export interface ConsolidationRun {
   lockPath: string;
   lock?: ConsolidationLockHandle;
   released: boolean;
+  normalization: MirrorNormalization;
 }
 
 class SnapshotLimitError extends Error {
@@ -561,12 +561,125 @@ export async function writeNoContextManifest(paths: ConsolidationRunPaths, reaso
   return manifest;
 }
 
+export interface MirrorRepair {
+  name: string;
+  direction: "harness-to-public" | "public-to-harness";
+}
+
+export interface MirrorNormalization {
+  /** Safe files whose drifted or missing copy was rewritten from the newer side. */
+  repaired: MirrorRepair[];
+  /** Public files removed: private-marked, or orphaned without a harness copy. */
+  removed: string[];
+}
+
+async function listMemoryRootFiles(root: string): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  let names: string[];
+  try {
+    names = await fsp.readdir(root);
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return files;
+    throw error;
+  }
+  for (const name of names.sort()) {
+    if (name.toLowerCase() === "memory.md" || !isMemoryFilename(name)) continue;
+    const stat = await fsp.lstat(path.join(root, name));
+    if (!stat.isFile()) throw new Error(`Memory entry is not a regular file: ${path.join(root, name)}`);
+    files.set(name.toLowerCase(), name);
+  }
+  return files;
+}
+
+/**
+ * Make the two memory roots satisfy the validator's mirror contract before the
+ * run snapshots them: safe files are byte-identical mirrors, private files
+ * never appear publicly, and both indexes are exact. Drift direction is decided
+ * by the newer mtime — sessions write the harness first, while memory updates
+ * arriving through the git-tracked mirror land in public — so either side can
+ * be the fresh one. Without this, any pre-existing drift fails post-apply validation and every
+ * full-scope consolidation becomes unrunnable until manual repair.
+ */
+export async function normalizeMirrorDrift(memory: MemoryPaths, cwdVariants: readonly string[] = []): Promise<MirrorNormalization> {
+  const publicDir = memory.publicDir;
+  if (!publicDir) return { repaired: [], removed: [] };
+  await migrateLegacyMemoryDirs(memory, cwdVariants).catch(() => {});
+  const harnessStat = await fsp.lstat(memory.harnessDir).then(
+    () => true,
+    (error: unknown) => {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      return false;
+    },
+  );
+  const harnessFiles = await listMemoryRootFiles(memory.harnessDir);
+  const publicFiles = await listMemoryRootFiles(publicDir);
+  if (!harnessStat && harnessFiles.size === 0) {
+    // No canonical root yet: import the public mirror instead of deleting it.
+    if (publicFiles.size === 0) return { repaired: [], removed: [] };
+    await ensureMemoryRoot(memory.harnessDir);
+    for (const [, publicName] of [...publicFiles].sort(([a], [b]) => a.localeCompare(b))) {
+      const content = (await readBoundedRegularFile(path.join(publicDir, publicName), MAX_MEMORY_BYTES)).toString("utf8");
+      await writeMemoryFile(path.join(memory.harnessDir, publicName), content);
+    }
+    await updateMemoryIndex(memory.harnessDir, new Set());
+    await updateMemoryIndex(publicDir, new Set());
+    return {
+      repaired: [...publicFiles.values()].sort().map((name) => ({ name, direction: "public-to-harness" as const })),
+      removed: [],
+    };
+  }
+  const removed = new Set<string>();
+  const repairLog = new Map<string, MirrorRepair>();
+  const privateNames = await readPrivateIndexNames(memory.harnessDir);
+  const copyBytes = async (direction: MirrorRepair["direction"], name: string, source: string, target: string): Promise<void> => {
+    const content = (await readBoundedRegularFile(source, MAX_MEMORY_BYTES)).toString("utf8");
+    await writeMemoryFile(target, content);
+    repairLog.set(name, { name, direction });
+  };
+  // Newer mtime wins for drifted pairs; ties fall back to the harness copy.
+  const copyNewer = async (harnessName: string, publicName: string): Promise<void> => {
+    const harnessFile = path.join(memory.harnessDir, harnessName);
+    const publicFile = path.join(publicDir, publicName);
+    const [harnessStat, publicStat] = await Promise.all([fsp.lstat(harnessFile), fsp.lstat(publicFile)]);
+    const fromHarness = harnessStat.mtimeMs >= publicStat.mtimeMs;
+    await copyBytes(
+      fromHarness ? "harness-to-public" : "public-to-harness",
+      harnessName,
+      fromHarness ? harnessFile : publicFile,
+      fromHarness ? publicFile : harnessFile,
+    );
+  };
+  for (const [key, publicName] of [...publicFiles].sort(([a], [b]) => a.localeCompare(b))) {
+    const harnessName = harnessFiles.get(key);
+    if (!harnessName || privateNames.has(key)) {
+      await fsp.rm(path.join(publicDir, publicName), { force: true });
+      removed.add(publicName);
+      continue;
+    }
+    const harnessHash = await sha256File(path.join(memory.harnessDir, harnessName), MAX_MEMORY_BYTES);
+    const publicHash = await sha256File(path.join(publicDir, publicName), MAX_MEMORY_BYTES);
+    if (harnessHash === publicHash) continue;
+    await copyNewer(harnessName, publicName);
+  }
+  for (const [key, harnessName] of [...harnessFiles].sort(([a], [b]) => a.localeCompare(b))) {
+    if (privateNames.has(key) || publicFiles.has(key)) continue;
+    await copyBytes("harness-to-public", harnessName, path.join(memory.harnessDir, harnessName), path.join(publicDir, harnessName));
+  }
+  if (removed.size > 0 || repairLog.size > 0 || harnessFiles.size > 0 || publicFiles.size > 0) {
+    await ensureMemoryRoot(memory.harnessDir);
+    await ensureMemoryRoot(publicDir);
+    await updateMemoryIndex(memory.harnessDir, privateNames);
+    await updateMemoryIndex(publicDir, new Set());
+  }
+  return { repaired: [...repairLog.values()].sort((left, right) => left.name.localeCompare(right.name)), removed: [...removed].sort() };
+}
+
 export async function createConsolidationRun(ctx: ExtensionContext, cwd: string, noContext = false): Promise<ConsolidationRun> {
   const paths = resolveConsolidationRunPaths(cwd);
   const lock = await acquireConsolidationLock(paths, { runId: paths.runId, cwd });
   try {
     await ensureConsolidationRunDir(paths);
-    await migrateLegacyMemoryDirs(paths.memory, [cwd]);
+    const normalization = await normalizeMirrorDrift(paths.memory, [cwd]);
     const captured = noContext ? undefined : await captureConsolidationSnapshot(ctx, paths);
     const contextManifest = captured?.manifest ?? await writeNoContextManifest(paths);
     const snapshot = captured?.snapshot ?? {
@@ -585,16 +698,13 @@ export async function createConsolidationRun(ctx: ExtensionContext, cwd: string,
       schemaVersion: CONSOLIDATION_SCHEMA_VERSION, runId: paths.runId, cwd: paths.memory.cwd,
       scopeKey: paths.memory.scopeKey,
       scopeDigest: digest({ runId: paths.runId, scopeKey: paths.memory.scopeKey, snapshotDigest, contextEnabled: !noContext }),
-      userSharedDir: paths.memory.userSharedDir,
-      projectSharedDir: paths.memory.projectSharedDir,
-      projectPersonalDir: paths.memory.projectPersonalDir,
-      runDir: paths.runDir,
+      harnessDir: paths.memory.harnessDir, publicDir: paths.memory.publicDir, runDir: paths.runDir,
       contextEnabled: !noContext, contextMode: noContext ? "no-context" : "snapshot", snapshotPath: paths.snapshotFile,
       snapshotDigest, createdAt: contextManifest.createdAt,
-      sourceHashes: await hashMemoryLayers(paths.memory),
+      sourceHashes: { harness: await hashMemoryRoot(paths.memory.harnessDir), public: paths.memory.publicDir ? await hashMemoryRoot(paths.memory.publicDir) : {} },
     };
     await writeJsonAtomic(paths.manifestFile, manifest);
-    return { manifest, paths, lockPath: paths.lockFile, lock, released: false };
+    return { manifest, paths, lockPath: paths.lockFile, lock, released: false, normalization };
   } catch (error) {
     await lock.release(); await removeConsolidationRunDir(paths); throw error;
   }
@@ -785,12 +895,7 @@ export function extractChildPlan<T = unknown>(stdout: string | Uint8Array, optio
 }
 export function extractFinalPlan(stdout: string): unknown { const result = extractChildPlan(stdout); return result.ok ? result.plan : undefined; }
 
-export interface MemoryLayerHashes {
-  userShared: Record<string, string>;
-  projectShared: Record<string, string>;
-  projectPersonal: Record<string, string>;
-}
-export type FinalHashes = MemoryLayerHashes;
+export interface FinalHashes { harness: Record<string, string>; public: Record<string, string> }
 const SHA256_RE = /^(?:sha256:)?[0-9a-f]{64}$/i;
 export interface ReceiptBindingInput { runId: string; scopeDigest: string; artifactHash: string; selected: readonly string[]; finalHashes?: FinalHashes; sourceHashes?: FinalHashes; planDigest?: string }
 export interface ConsolidationReceipt {
@@ -828,16 +933,8 @@ export function createReceiptBinding(phase: "pre" | "post", input: ReceiptBindin
   return {
     kind: "memory-consolidation-receipt", version: CONSOLIDATION_SCHEMA_VERSION, schemaVersion: CONSOLIDATION_SCHEMA_VERSION, phase, runId: input.runId,
     scopeDigest: input.scopeDigest, artifactHash: input.artifactHash, selected: sortedFiles(input.selected),
-    ...(input.finalHashes ? { finalHashes: {
-      userShared: sortedHashes(input.finalHashes.userShared),
-      projectShared: sortedHashes(input.finalHashes.projectShared),
-      projectPersonal: sortedHashes(input.finalHashes.projectPersonal),
-    } } : {}),
-    ...(input.sourceHashes ? { sourceHashes: {
-      userShared: sortedHashes(input.sourceHashes.userShared),
-      projectShared: sortedHashes(input.sourceHashes.projectShared),
-      projectPersonal: sortedHashes(input.sourceHashes.projectPersonal),
-    } } : {}),
+    ...(input.finalHashes ? { finalHashes: { harness: sortedHashes(input.finalHashes.harness), public: sortedHashes(input.finalHashes.public) } } : {}),
+    ...(input.sourceHashes ? { sourceHashes: { harness: sortedHashes(input.sourceHashes.harness), public: sortedHashes(input.sourceHashes.public) } } : {}),
     ...(input.planDigest ? { planDigest: input.planDigest } : {}),
     createdAt: new Date().toISOString(),
   };
@@ -845,9 +942,7 @@ export function createReceiptBinding(phase: "pre" | "post", input: ReceiptBindin
 export function createPreApplyReceipt(input: ReceiptBindingInput): ConsolidationReceipt { return createReceiptBinding("pre", input); }
 export function createPostApplyReceipt(input: ReceiptBindingInput): ConsolidationReceipt { return createReceiptBinding("post", input); }
 export function createConsolidationReceipt(manifest: ConsolidationManifest, selected: string[], finalState: unknown, planDigest: string): ConsolidationReceipt {
-  const hashes = finalState && typeof finalState === "object" && !Array.isArray(finalState)
-    ? finalState as FinalHashes
-    : { userShared: {}, projectShared: {}, projectPersonal: {} };
+  const hashes = finalState && typeof finalState === "object" && !Array.isArray(finalState) ? finalState as FinalHashes : { harness: {}, public: {} };
   return createPostApplyReceipt({ runId: manifest.runId, scopeDigest: manifest.scopeDigest, artifactHash: manifest.snapshotDigest, selected, finalHashes: hashes, sourceHashes: manifest.sourceHashes, planDigest });
 }
 export interface ReceiptBindingExpectation { runId?: string; scopeDigest?: string; artifactHash?: string; selected?: readonly string[]; phase?: "pre" | "post" }
@@ -860,15 +955,13 @@ export function validateReceiptBinding(receipt: unknown, expected: ReceiptBindin
   try {
     if (value.finalHashes) {
       if (!value.finalHashes || typeof value.finalHashes !== "object") return { ok: false, error: "receipt final hashes are invalid" };
-      sortedHashes(value.finalHashes.userShared);
-      sortedHashes(value.finalHashes.projectShared);
-      sortedHashes(value.finalHashes.projectPersonal);
+      sortedHashes(value.finalHashes.harness);
+      sortedHashes(value.finalHashes.public);
     }
     if (value.sourceHashes) {
       if (!value.sourceHashes || typeof value.sourceHashes !== "object") return { ok: false, error: "receipt source hashes are invalid" };
-      sortedHashes(value.sourceHashes.userShared);
-      sortedHashes(value.sourceHashes.projectShared);
-      sortedHashes(value.sourceHashes.projectPersonal);
+      sortedHashes(value.sourceHashes.harness);
+      sortedHashes(value.sourceHashes.public);
     }
     if (value.phase === "pre" && !value.sourceHashes) return { ok: false, error: "pre receipt source hashes are required" };
     if (value.phase === "post" && !value.finalHashes) return { ok: false, error: "post receipt final hashes are required" };
@@ -952,9 +1045,8 @@ async function ensureMemoryRoot(root: string): Promise<void> {
   await assertMemoryRootStable(root);
 }
 
-async function hashMemoryRoot(root: string | undefined): Promise<MemoryHashes> {
+async function hashMemoryRoot(root: string): Promise<MemoryHashes> {
   const result: MemoryHashes = {};
-  if (!root) return result;
   const opened = await openMemoryRoot(root);
   if (!opened) return result;
   try {
@@ -980,22 +1072,6 @@ async function hashMemoryRoot(root: string | undefined): Promise<MemoryHashes> {
   } finally {
     await opened.handle.close().catch(() => {});
   }
-}
-
-async function hashMemoryLayers(memory: MemoryPaths): Promise<MemoryLayerHashes> {
-  return {
-    userShared: await hashMemoryRoot(memory.userSharedDir),
-    projectShared: await hashMemoryRoot(memory.projectSharedDir),
-    projectPersonal: await hashMemoryRoot(memory.projectPersonalDir),
-  };
-}
-
-async function hashManifestLayers(manifest: ConsolidationManifest): Promise<MemoryLayerHashes> {
-  return {
-    userShared: await hashMemoryRoot(manifest.userSharedDir),
-    projectShared: await hashMemoryRoot(manifest.projectSharedDir),
-    projectPersonal: await hashMemoryRoot(manifest.projectPersonalDir),
-  };
 }
 
 async function writeMemoryFile(file: string, content: string): Promise<void> {
@@ -1174,7 +1250,7 @@ export async function applyConsolidationPlan(
   run: ConsolidationRun,
   plan: unknown,
   isActive?: () => boolean,
-): Promise<{ selected: string[]; finalState: MemoryLayerHashes }> {
+): Promise<{ selected: string[]; finalState: { harness: MemoryHashes; public: MemoryHashes } }> {
   const ensureActive = (): void => {
     if (isActive && !isActive()) throw new Error("Memory consolidation was cancelled before apply completed.");
   };
@@ -1235,34 +1311,60 @@ export async function applyConsolidationPlan(
     return { name: operationName, kind, classification, ...(kind !== "delete" ? { content: item.content as string } : {}) };
   });
 
-  const personalDir = run.manifest.projectPersonalDir;
-  if (!personalDir) throw new Error("Memory consolidation requires a project personal layer.");
-  const rootStates = [await captureRootState(personalDir)];
-  const currentSourceHashes = await hashManifestLayers(run.manifest);
+  const publicDir = run.manifest.publicDir;
+  const roots = [run.manifest.harnessDir, ...(publicDir ? [publicDir] : [])];
+  const rootStates = await Promise.all(roots.map(captureRootState));
+  const currentSourceHashes = { harness: await hashMemoryRoot(run.manifest.harnessDir), public: publicDir ? await hashMemoryRoot(publicDir) : {} };
   if (digest(currentSourceHashes) !== digest(run.manifest.sourceHashes)) throw new Error("Memory sources changed after the consolidation snapshot; refusing stale apply.");
-  await ensureMemoryRoot(personalDir);
+  await ensureMemoryRoot(run.manifest.harnessDir);
+  if (publicDir) await ensureMemoryRoot(publicDir);
+  const privateNames = await readPrivateIndexNames(run.manifest.harnessDir);
+  const publicPrivateNames = publicDir ? await readPrivateIndexNames(publicDir) : new Set<string>();
+  if (publicPrivateNames.size > 0) throw new Error("Public memory index contains harness-only entries.");
   const transactionFiles = [...new Set([
-    ...selected.map((name) => memoryFilePath(personalDir, name)),
-    path.join(personalDir, "MEMORY.md"),
+    ...selected.flatMap((name) => [memoryFilePath(run.manifest.harnessDir, name), ...(publicDir ? [memoryFilePath(publicDir, name)] : [])]),
+    path.join(run.manifest.harnessDir, "MEMORY.md"),
+    ...(publicDir ? [path.join(publicDir, "MEMORY.md")] : []),
   ])];
   const snapshots = await captureMemoryFiles(transactionFiles);
-  const snapshotSourceHashes = await hashManifestLayers(run.manifest);
+  const snapshotSourceHashes = { harness: await hashMemoryRoot(run.manifest.harnessDir), public: publicDir ? await hashMemoryRoot(publicDir) : {} };
   if (digest(snapshotSourceHashes) !== digest(run.manifest.sourceHashes)) throw new Error("Memory sources changed while capturing the consolidation transaction; refusing stale apply.");
   try {
     ensureActive();
     if (selected.length === 0) {
-      await ensureMemoryIndex(personalDir, new Set());
+      await ensureMemoryIndex(run.manifest.harnessDir, privateNames);
+      ensureActive();
+      if (publicDir) await ensureMemoryIndex(publicDir, new Set());
     } else {
       for (const operation of normalizedOperations) {
         ensureActive();
-        if (operation.kind === "delete") await removeMemoryFile(personalDir, operation.name);
-        else await writeMemoryFileInRoot(personalDir, operation.name, operation.content!);
+        if (operation.kind === "delete") {
+          await removeMemoryFile(run.manifest.harnessDir, operation.name);
+          privateNames.delete(operation.name.toLowerCase());
+          ensureActive();
+          if (publicDir) await removeMemoryFile(publicDir, operation.name);
+        } else {
+          await writeMemoryFileInRoot(run.manifest.harnessDir, operation.name, operation.content!);
+          ensureActive();
+          if (operation.classification === "safe") {
+            privateNames.delete(operation.name.toLowerCase());
+            if (publicDir) await writeMemoryFileInRoot(publicDir, operation.name, operation.content!);
+          } else {
+            privateNames.add(operation.name.toLowerCase());
+            if (publicDir) await removeMemoryFile(publicDir, operation.name);
+          }
+        }
       }
       ensureActive();
-      await updateMemoryIndex(personalDir, new Set(), ensureActive);
+      await updateMemoryIndex(run.manifest.harnessDir, privateNames, ensureActive);
+      ensureActive();
+      if (publicDir) await updateMemoryIndex(publicDir, new Set(), ensureActive);
     }
     ensureActive();
-    return { selected: [...selected].sort(), finalState: await hashManifestLayers(run.manifest) };
+    return {
+      selected: [...selected].sort(),
+      finalState: { harness: await hashMemoryRoot(run.manifest.harnessDir), public: publicDir ? await hashMemoryRoot(publicDir) : {} },
+    };
   } catch (error) {
     try {
       await restoreMemoryFiles(snapshots);

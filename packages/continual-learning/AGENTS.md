@@ -1,16 +1,11 @@
 # Repository Guidelines
 
-> Renamed from `@fradser/pi-memory` to `pi-continual-learning`: the package now owns
-> the harness surface of continual learning (declarative tool-call guardrails) in
-> addition to the prompt surface (memory retrieval, injection, consolidation), plus
-> the AGENTS.md consolidation phase that trains the always-loaded project
-> instructions from session evidence.
-
 ## Project Structure
 
 `packages/continual-learning/` publishes `pi-continual-learning`, a native extension with no
-skill surface. Package-root `index.ts` loads `extensions/inject-memory.ts`,
-which owns `/memory`, `/consolidate`, memory injection, and lifecycle cleanup.
+skill surface. Package-root `index.ts` composes `extensions/inject-memory.ts`
+(`/memory`, `/consolidate`, injection, cleanup) and `extensions/guardrails.ts`
+(`/harness`, tool-call policies, skill-prompt guidance).
 Supporting extension modules cover configuration, secure memory loading,
 canonical project paths, parent-owned consolidation, harness guardrail mining,
 and AGENTS.md consolidation (`extensions/agents-md-consolidation.ts`: plan
@@ -28,34 +23,26 @@ Run focused checks with:
 
 ```bash
 python3 -m pytest packages/continual-learning/tests/ -q
-npx tsc --noEmit -p tsconfig.extensions.json
 pnpm --dir packages/continual-learning pack --dry-run
 ```
 
-There is no separate build step; Pi loads the shipped TypeScript entry point.
-
 ## Style and Architecture
 
-Use ESM TypeScript, strict bounded memory filename/loading rules, atomic writes,
+Use strict bounded memory filename/loading rules, atomic writes,
 and symlink-safe path checks. Consolidation remains parent-owned: acquire the
 project lock, capture an immutable snapshot (or explicit `no-context` mode),
 spawn a read-only `--no-extensions` worker, accept one bounded structured plan,
-validate before and after mutation, then write receipts. Memory and harness
-both resolve user-shared, project-shared, and project-personal layers, with the
-narrower layer winning by addressable name. Automatic consolidation treats
-shared layers as read-only and mutates only project-personal memory
-(`.memory.local`) or harness (`.pi/harness.local.json`). Never let the child
+validate before and after mutation, then write receipts. Harness resolves its three configuration layers independently. Memory instead has exactly two synchronized roots: the complete private `~/.pi/agent/memory/<escaped-canonical-project-path>/` root and the safe project `.memory/` mirror. Automatic consolidation transactionally applies safe changes to both and private changes only to the private root; Harness consolidation still writes only `.pi/harness.local.json`. Never let the child
 mutate memory or configuration. The AGENTS.md phase additionally requires code-verified snapshot
 quotes, batched evidence for new units, budget zero-sum at cap, autonomous
 application only after mechanical validation, and never targets user-level
 instruction files.
-Reuse `@fradser/pi-kit`; keep its dependency direction intact.
 
-## Testing and Release
+## Testing Guidelines
 
-Update the relevant feature before behavior changes, then extend tests for
-injection, command registration, model/config handling, locking, snapshots,
-bounds, rollback, layer precedence and immutability, receipts, and shutdown cancellation. The manifest
-ships `index.ts`, `procedures`, `extensions`, `scripts`, and `README.md`; keep
-all runtime helpers inside those paths. Add a Changeset for published changes
-and follow the repository's Conventional Commit scopes.
+Cover injection, command registration, model/config handling, locking,
+snapshots, bounds, rollback, layer precedence and immutability, receipts, and
+shutdown cancellation. `features/` separates memory, harness, and instruction
+consolidation contracts. The manifest ships `index.ts`, `procedures`,
+`extensions`, `scripts`, `examples`, and `README.md`; place runtime helpers and
+sanitized policy examples inside those published paths.

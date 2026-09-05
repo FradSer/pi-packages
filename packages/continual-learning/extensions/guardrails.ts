@@ -138,13 +138,13 @@ export function resolveHarnessTarget(
   let request = trimmed;
 
   const flagMatch = trimmed.match(
-    /^(--global-shared|--user-shared|--global|--user-local|--user|--shared|--project-local|--project|--repo|--local|-g|-p|-l)\b\s*(.*)$/i,
+    /^(--global-shared|--user-shared|--global|--user|--shared|--project-local|--project|--repo|--local|-g|-p|-l)\b\s*(.*)$/i,
   );
 
   if (flagMatch) {
     const flag = flagMatch[1].toLowerCase();
     request = flagMatch[2].trim();
-    if (flag === "--global-shared" || flag === "--user-shared" || flag === "--global" || flag === "--user" || flag === "--user-local" || flag === "-g") {
+    if (flag === "--global-shared" || flag === "--user-shared" || flag === "--global" || flag === "--user" || flag === "-g") {
       scope = "user";
     } else if (flag === "--shared" || flag === "--project" || flag === "--repo" || flag === "-p") {
       scope = "project";

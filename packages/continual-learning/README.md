@@ -166,18 +166,11 @@ when a hook is evaluated more than once.
 
 ## Memory
 
-Memory uses the same three-layer ownership and precedence model as harness:
+Memory has exactly two synchronized roots:
 
-1. User shared: `~/.pi/agent/memory/`
-2. Project shared: `<project>/.memory/`
-3. Project personal: `<project>/.memory.local/`
+1. Harness/private (canonical and complete): `~/.pi/agent/memory/<escaped-canonical-project-path>/`
+2. Project shared (safe Git mirror): `<git-root>/.memory/`
 
-Entries resolve by filename, with project personal overriding project shared,
-and project shared overriding user shared. Automatic consolidation treats all
-three layers as inputs but writes only project personal memory. Shared layers
-are never mirrored or mutated by consolidation. Existing legacy project-scoped
-memory is migrated once into `.memory.local/` without overwriting an existing
-project-personal entry.
+The private directory replaces each path separator in the canonical project path with `-`, including the leading POSIX separator (for example `-Users-FradSer-Developer-FradSer-cerberus`). Safe entries are byte-identical in both roots; entries marked `(harness only)` in the private `MEMORY.md` never appear in the project mirror. Before consolidation, newer-mtime-wins drift normalization runs bidirectionally, with ties preferring the private copy. The private root remains the runtime source of truth, while project `.memory/` participates in first adoption and committed-update synchronization.
 
-See `AGENTS.md` and `procedures/consolidate.md` for loading rules and the
-parent-owned consolidation protocol.
+See `AGENTS.md` and `procedures/consolidate.md` for loading rules and the parent-owned transactional consolidation protocol.

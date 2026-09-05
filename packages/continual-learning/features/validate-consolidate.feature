@@ -3,7 +3,7 @@ Feature: Consolidate artifact validator
   /memory "Consolidate memory now" cannot claim done on cosmetic-only runs.
 
   Background:
-    Given user shared, project shared, and project personal memory directories
+    Given a complete Harness private memory directory and sanitized project .memory directory
     And planning artifacts inventory, cluster map, and staleness table
 
   # --- cluster coverage (G2) ---
@@ -78,27 +78,34 @@ Feature: Consolidate artifact validator
     When I run the report ground-truth check
     Then the check passes
 
-  # --- three-layer ownership fail-closed ---
+  # --- two-root privacy and mirror contract ---
 
-  Scenario: Shared layers remain independent from project personal memory
-    Given the same filename has different bytes in project shared and project personal memory
-    When I run the memory layer check
-    Then the check accepts both independent inputs
+  Scenario: Safe memory is byte-identical in both roots
+    Given a safe filename exists in Harness private and project .memory
+    When I run the privacy check
+    Then both copies must have identical bytes
 
-  Scenario: Project shared memory may contain entries absent from project personal
-    Given project shared contains a memory not present in project personal
-    When I run the memory layer check
-    Then the check passes without importing or deleting either entry
+  Scenario: Harness-only memory never appears in project shared
+    Given the private index marks a filename as harness only
+    When I run the privacy check
+    Then that filename must be absent from project .memory
 
-  Scenario: Memory layer roots must be distinct
-    Given two enabled memory layers resolve to one canonical directory
-    When I run the memory layer check
+  Scenario: Memory roots must be distinct
+    Given the private and project-shared roots resolve to one canonical directory
+    When I run the privacy check
     Then validation fails with a distinct roots diagnostic
+
+  Scenario: Private-only memory validates without a project mirror
+    Given a complete Harness private memory directory for a non-Git scope
+    And no public memory root is supplied
+    When I run final plan, receipt, and privacy validation
+    Then the private index, files, classifications, and receipt hashes are validated
+    And validation does not require a public mirror
 
   # --- full gate ---
 
   Scenario: Full validate passes only when all selected checks pass
-    Given valid inventory, cluster, staleness, report, and three-layer memory layout
+    Given valid inventory, cluster, staleness, report, and two-root privacy layout
     When I run the full validator
     Then exit code is 0
 

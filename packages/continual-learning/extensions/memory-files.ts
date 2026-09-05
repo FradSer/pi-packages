@@ -5,7 +5,7 @@ import { resolveMemoryPaths, type MemoryPaths } from "./memory-paths";
 
 export interface MemoryEntry {
   filename: string;
-  source: "user" | "project" | "project.local";
+  source: "harness" | "public";
   content: string;
 }
 
@@ -55,23 +55,28 @@ export async function rebuildMemoryIndex(dir: string, privateNames: Set<string> 
   await fs.writeFile(path.join(dir, "MEMORY.md"), `${lines.join("\n")}\n`, "utf8");
 }
 
-/** Move obsolete per-project agent memory into the canonical project-personal layer. */
+/** Migrate the abandoned opaque SHA-256 scope into the readable private root. */
 export async function migrateLegacyMemoryDirs(
   memory: MemoryPaths,
-  cwdVariants: readonly string[] = [],
+  _cwdVariants: readonly string[] = [],
 ): Promise<string[]> {
-  const targetDir = memory.projectPersonalDir;
-  if (!targetDir) return [];
-
-  const candidates = new Set<string>([path.join(memory.userSharedDir, memory.scopeKey)]);
-  for (const variant of [memory.cwd, ...cwdVariants]) {
-    if (typeof variant !== "string" || !variant) continue;
-    candidates.add(path.join(memory.userSharedDir, variant.replace(/\//g, "-")));
-  }
-  candidates.delete(targetDir);
-
+  const candidates = new Set<string>([
+    path.join(memory.agentDir, "memory", memory.scopeKey),
+    path.join(memory.agentDir, "memory", memory.cwd.replace(/[\\/]+/g, "-")),
+  ]);
+  candidates.delete(memory.harnessDir);
   const mergedSources: string[] = [];
   const privateNames = new Set<string>();
+  try {
+    const destinationIndex = await fs.readFile(path.join(memory.harnessDir, "MEMORY.md"), "utf8");
+    for (const line of destinationIndex.split(/\r?\n/)) {
+      if (!/\(\s*harness[\s_-]+only\s*\)/i.test(line)) continue;
+      const match = /[A-Za-z0-9][A-Za-z0-9_.-]*\.md/i.exec(line);
+      if (match && isMemoryFilename(match[0])) privateNames.add(match[0].toLowerCase());
+    }
+  } catch {
+    // No destination index yet.
+  }
   for (const legacyDir of [...candidates].sort()) {
     let names: string[];
     try {
@@ -79,14 +84,15 @@ export async function migrateLegacyMemoryDirs(
     } catch {
       continue;
     }
-    await fs.mkdir(targetDir, { recursive: true });
+    await fs.mkdir(memory.harnessDir, { recursive: true });
     for (const name of names.sort((left, right) => left.localeCompare(right))) {
       if (!isMemoryFilename(name)) continue;
       const source = path.join(legacyDir, name);
       const stat = await fs.lstat(source).catch(() => undefined);
       if (!stat?.isFile()) continue;
-      const target = path.join(targetDir, name);
-      if (await fs.lstat(target).then(() => true, () => false)) continue;
+      const target = path.join(memory.harnessDir, name);
+      const targetStat = await fs.lstat(target).catch(() => undefined);
+      if (targetStat) continue;
       await fs.copyFile(source, target, fsConstants.COPYFILE_EXCL);
     }
     try {
@@ -97,12 +103,12 @@ export async function migrateLegacyMemoryDirs(
         if (match && isMemoryFilename(match[0])) privateNames.add(match[0].toLowerCase());
       }
     } catch {
-      // A legacy index was optional.
+      // No legacy index: migrated entries are safe by default.
     }
     mergedSources.push(legacyDir);
   }
   if (!mergedSources.length) return [];
-  await rebuildMemoryIndex(targetDir, privateNames);
+  await rebuildMemoryIndex(memory.harnessDir, privateNames);
   await Promise.all(mergedSources.map((legacyDir) => fs.rm(legacyDir, { recursive: true, force: true })));
   return mergedSources;
 }
@@ -217,18 +223,13 @@ export async function loadAndDeduplicateMemories(
   const paths = resolveMemoryPaths(cwd);
   await migrateLegacyMemoryDirs(paths, [cwd]).catch(() => {});
   const memories = new Map<string, MemoryEntry>();
-  for (const entry of await readSource(paths.userSharedDir, "user", options)) {
+  if (paths.publicDir) {
+    for (const entry of await readSource(paths.publicDir, "public", options)) {
+      memories.set(entry.filename, entry);
+    }
+  }
+  for (const entry of await readSource(paths.harnessDir, "harness", options)) {
     memories.set(entry.filename, entry);
-  }
-  if (paths.projectSharedDir) {
-    for (const entry of await readSource(paths.projectSharedDir, "project", options)) {
-      memories.set(entry.filename, entry);
-    }
-  }
-  if (paths.projectPersonalDir) {
-    for (const entry of await readSource(paths.projectPersonalDir, "project.local", options)) {
-      memories.set(entry.filename, entry);
-    }
   }
   const result = Array.from(memories.values()).sort((a, b) => a.filename.localeCompare(b.filename));
   const maxTotalChars = nonNegativeLimit(options.maxTotalChars, DEFAULT_MAX_TOTAL_CHARS);

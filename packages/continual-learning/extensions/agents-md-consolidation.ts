@@ -637,11 +637,7 @@ export async function runAgentsMdConsolidationPhase(
       if (op.extraction.target === "skillPrompt") {
         harnessOps.push({ op: "addSkillPrompt", name: op.extraction.skillName, prompt: op.extraction.prompt, target: op.extraction.promptTarget });
       } else {
-        const personalDir = run.manifest.projectPersonalDir;
-        if (!personalDir) {
-          extractionNotes.push(`memory:${op.extraction.memoryName} FAILED: project personal memory is disabled`);
-          continue;
-        }
+        const personalDir = run.manifest.harnessDir;
         const memoryPath = path.join(personalDir, op.extraction.memoryName);
         try {
           const frontmatter = [

@@ -573,14 +573,7 @@ def read_regular_text(path: Path, label: str, root_fd: int | None = None) -> str
         raise ValidationError("privacy", f"{label}: cannot decode {path}: {exc}") from exc
 
 
-def memory_children(
-    root: Path,
-    label: str,
-    root_fd: int | None = None,
-    *,
-    ignore_non_memory: bool = False,
-    require_index: bool = True,
-) -> dict[str, Path]:
+def memory_children(root: Path, label: str, root_fd: int | None = None) -> dict[str, Path]:
     if root_fd is None:
         lstat_regular(root, label, directory=True)
     children: dict[str, Path] = {}
@@ -597,16 +590,10 @@ def memory_children(
         except OSError as exc:
             raise ValidationError("privacy", f"{label}: cannot inspect {child}: {exc}") from exc
         if stat.st_mode & 0o170000 == 0o120000:
-            if ignore_non_memory:
-                continue
             raise ValidationError("symlink", f"{label}: symlink child is not allowed: {child}")
         if (stat.st_mode & 0o170000) != 0o100000:
-            if ignore_non_memory:
-                continue
             raise ValidationError("privacy", f"{label}: child must be a regular file: {child}")
         if not child.name.lower().endswith(".md"):
-            if ignore_non_memory:
-                continue
             raise ValidationError("privacy", f"{label}: unsupported non-Markdown child {child.name!r}")
         if child.name.lower() != INDEX_NAME and not MEMORY_NAME_RE.fullmatch(child.name):
             raise ValidationError("artifact_identity", f"{label}: invalid Markdown child name {child.name!r}")
@@ -632,7 +619,7 @@ def memory_children(
         if key in children or any(existing.lower() == key.lower() for existing in children):
             raise ValidationError("artifact_identity", f"{label}: duplicate case-insensitive child {child.name!r}")
         children[key] = child
-    if require_index and INDEX_NAME not in children:
+    if INDEX_NAME not in children:
         raise ValidationError("privacy", f"{label}: MEMORY.md missing")
     return children
 
@@ -674,39 +661,49 @@ def canonical_directory(root: Path, label: str) -> Path:
         raise ValidationError("privacy", f"{label}: cannot resolve canonical directory: {exc}") from exc
 
 
-def check_privacy(harness: Path, public: Path) -> dict[str, Any]:
+def check_privacy(harness: Path, public: Path | None) -> dict[str, Any]:
     harness_canonical = canonical_directory(harness, "privacy: harness")
-    public_canonical = canonical_directory(public, "privacy: public")
-    if harness_canonical == public_canonical:
-        raise ValidationError("privacy", "privacy: harness and public roots must be distinct canonical directories")
+    if public is not None:
+        public_canonical = canonical_directory(public, "privacy: public")
+        if harness_canonical == public_canonical:
+            raise ValidationError("privacy", "privacy: harness and public roots must be distinct canonical directories")
     harness_fd = open_memory_root(harness, "privacy: harness")
     public_fd: int | None = None
     try:
-        public_fd = open_memory_root(public, "privacy: public")
         harness_children = memory_children(harness, "privacy: harness", harness_fd)
-        public_children = memory_children(public, "privacy: public", public_fd)
         harness_index = harness_children[INDEX_NAME]
-        public_index = public_children[INDEX_NAME]
         harness_indexed, private = index_entries(harness_index, "privacy: harness MEMORY.md", harness_fd)
-        public_indexed, public_private = index_entries(public_index, "privacy: public MEMORY.md", public_fd)
-        if public_private:
-            raise ValidationError("privacy", "privacy: public MEMORY.md contains harness-only line(s)")
-
         harness_files = set(harness_children) - {INDEX_NAME}
-        public_files = set(public_children) - {INDEX_NAME}
         if harness_indexed != harness_files:
             missing = sorted(harness_files - harness_indexed)
             orphan = sorted(harness_indexed - harness_files)
             detail = f"missing index entry {missing[0]}" if missing else f"orphan index entry {orphan[0]}"
             raise ValidationError("privacy", f"privacy: harness index is incomplete ({detail})")
+        if not private <= harness_files:
+            name = sorted(private - harness_files)[0]
+            raise ValidationError("privacy", f"privacy: harness index lists missing file {name}")
+        harness_hashes = body_hashes(harness_children, harness_fd)
+        if public is None:
+            return {
+                "harness": harness_hashes,
+                "public": {},
+                "safe": sorted(harness_files - private),
+                "private": sorted(private),
+            }
+
+        public_fd = open_memory_root(public, "privacy: public")
+        public_children = memory_children(public, "privacy: public", public_fd)
+        public_index = public_children[INDEX_NAME]
+        public_indexed, public_private = index_entries(public_index, "privacy: public MEMORY.md", public_fd)
+        if public_private:
+            raise ValidationError("privacy", "privacy: public MEMORY.md contains harness-only line(s)")
+
+        public_files = set(public_children) - {INDEX_NAME}
         if public_indexed != public_files:
             missing = sorted(public_files - public_indexed)
             orphan = sorted(public_indexed - public_files)
             detail = f"missing index entry {missing[0]}" if missing else f"orphan index entry {orphan[0]}"
             raise ValidationError("privacy", f"privacy: public index is incomplete ({detail}; orphan/unindexed public memory)")
-        if not private <= harness_files:
-            name = sorted(private - harness_files)[0]
-            raise ValidationError("privacy", f"privacy: harness index lists missing file {name}")
         if private & public_files:
             name = sorted(private & public_files)[0]
             raise ValidationError("privacy", f"privacy: harness-only file present under public: {name}")
@@ -718,7 +715,6 @@ def check_privacy(harness: Path, public: Path) -> dict[str, Any]:
             if missing:
                 raise ValidationError("mirror", f"safe mirror drift: public missing {missing[0]}")
             raise ValidationError("mirror", f"safe mirror drift: public has orphan/unindexed file {extra[0]}")
-        harness_hashes = body_hashes(harness_children, harness_fd)
         public_hashes = body_hashes(public_children, public_fd)
         for name in sorted(safe_harness):
             if harness_hashes[name] != public_hashes[name]:
@@ -735,54 +731,19 @@ def check_privacy(harness: Path, public: Path) -> dict[str, Any]:
             os.close(public_fd)
 
 
-def hash_layer(
-    root: Path | None,
-    label: str,
-    *,
-    ignore_non_memory: bool = False,
-    require_index: bool = False,
-) -> dict[str, str]:
-    if root is None or not root.exists():
-        return {}
-    descriptor = open_memory_root(root, label)
-    try:
-        children = memory_children(
-            root,
-            label,
-            descriptor,
-            ignore_non_memory=ignore_non_memory,
-            require_index=require_index,
-        )
-        return body_hashes(children, descriptor)
-    finally:
-        os.close(descriptor)
-
-
-def check_three_layers(user_shared: Path, project_shared: Path | None, personal: Path) -> dict[str, dict[str, str]]:
-    canonical = [canonical_directory(user_shared, "memory: user shared")]
-    if project_shared is not None and project_shared.exists():
-        canonical.append(canonical_directory(project_shared, "memory: project shared"))
-    canonical.append(canonical_directory(personal, "memory: project personal"))
-    if len(set(canonical)) != len(canonical):
-        raise ValidationError("privacy", "memory layers must be distinct canonical directories")
-    return {
-        "userShared": hash_layer(user_shared, "memory: user shared", ignore_non_memory=True),
-        "projectShared": hash_layer(project_shared, "memory: project shared") if project_shared else {},
-        "projectPersonal": hash_layer(personal, "memory: project personal", require_index=True),
-    }
-
-
-def extract_final_hashes(receipt: dict[str, Any]) -> dict[str, dict[str, str]]:
+def extract_final_hashes(receipt: dict[str, Any]) -> tuple[dict[str, str], dict[str, str]]:
     value = receipt.get("finalHashes", receipt.get("final_hashes"))
+    if not isinstance(value, dict) and isinstance(receipt.get("harnessHashes"), dict) and isinstance(receipt.get("publicHashes"), dict):
+        value = {"harness": receipt["harnessHashes"], "public": receipt["publicHashes"]}
     if not isinstance(value, dict):
         final = receipt.get("final")
         value = final if isinstance(final, dict) else None
     if not isinstance(value, dict):
-        raise ValidationError("receipt", "receipt: missing final memory hashes")
-    layer_names = ("userShared", "projectShared", "projectPersonal")
-    layers = {name: value.get(name) for name in layer_names}
-    if any(not isinstance(mapping, dict) for mapping in layers.values()):
-        raise ValidationError("receipt", "receipt: finalHashes must contain complete memory layer maps")
+        raise ValidationError("receipt", "receipt: missing finalHashes.harness/public")
+    harness = value.get("harness")
+    public = value.get("public")
+    if not isinstance(harness, dict) or not isinstance(public, dict):
+        raise ValidationError("receipt", "receipt: finalHashes must contain harness and public maps")
     def clean(mapping: dict[str, Any], label: str) -> dict[str, str]:
         result: dict[str, str] = {}
         for name, value in mapping.items():
@@ -800,16 +761,16 @@ def extract_final_hashes(receipt: dict[str, Any]) -> dict[str, dict[str, str]]:
                 raise ValidationError("receipt", f"receipt.{label}: duplicate file key {name!r}")
             result[key] = value.removeprefix("sha256:").lower()
         return result
-    return {name: clean(mapping, name) for name, mapping in layers.items()}
+    return clean(harness, "harness"), clean(public, "public")
 
 
-def extract_hash_maps(value: Any, label: str) -> dict[str, dict[str, str]]:
+def extract_hash_maps(value: Any, label: str) -> tuple[dict[str, str], dict[str, str]]:
     if not isinstance(value, dict):
-        raise ValidationError("receipt", f"{label}: expected memory layer maps")
-    layer_names = ("userShared", "projectShared", "projectPersonal")
-    layers = {name: value.get(name) for name in layer_names}
-    if any(not isinstance(mapping, dict) for mapping in layers.values()):
-        raise ValidationError("receipt", f"{label}: expected complete memory layer maps")
+        raise ValidationError("receipt", f"{label}: expected harness and public maps")
+    harness = value.get("harness")
+    public = value.get("public")
+    if not isinstance(harness, dict) or not isinstance(public, dict):
+        raise ValidationError("receipt", f"{label}: expected harness and public maps")
 
     def clean(mapping: dict[str, Any], side: str) -> dict[str, str]:
         result: dict[str, str] = {}
@@ -827,7 +788,7 @@ def extract_hash_maps(value: Any, label: str) -> dict[str, dict[str, str]]:
             result[key] = value.removeprefix("sha256:").lower()
         return result
 
-    return {name: clean(mapping, name) for name, mapping in layers.items()}
+    return clean(harness, "harness"), clean(public, "public")
 
 
 def validate_receipt(
@@ -837,7 +798,7 @@ def validate_receipt(
     plan_bytes: bytes,
     privacy: dict[str, Any] | None,
     expected: dict[str, Any],
-    expected_source_hashes: dict[str, dict[str, str]] | None = None,
+    expected_source_hashes: tuple[dict[str, str], dict[str, str]] | None = None,
 ) -> None:
     if receipt.get("schemaVersion", receipt.get("version")) != 1:
         raise ValidationError("schema", "receipt: schemaVersion must be 1")
@@ -892,14 +853,13 @@ def validate_receipt(
             raise ValidationError("binding", "receipt: selected files do not match parent expectation")
     if privacy is None:
         raise ValidationError("receipt", "receipt: privacy result is required to verify final hashes")
-    expected_layers = extract_final_hashes(receipt)
-    actual_layers = {
-        name: {key: value.lower() for key, value in hashes.items()}
-        for name, hashes in privacy.items()
-        if isinstance(hashes, dict)
-    }
-    if expected_layers != actual_layers:
-        raise ValidationError("receipt", "receipt: final memory layer hashes do not match current state")
+    expected_harness, expected_public = extract_final_hashes(receipt)
+    actual_harness = {key: value.lower() for key, value in privacy["harness"].items()}
+    actual_public = {key: value.lower() for key, value in privacy["public"].items()}
+    if expected_harness != actual_harness:
+        raise ValidationError("receipt", "receipt: harness final hashes do not match current state")
+    if expected_public != actual_public:
+        raise ValidationError("receipt", "receipt: public final hashes do not match current state")
 
 
 def check_plan_classification(plan_data: dict[str, Any], privacy: dict[str, Any]) -> None:
@@ -971,9 +931,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--plan", type=Path, help="structured consolidation plan JSON")
     parser.add_argument("--receipt", type=Path, help="parent-owned post-apply receipt JSON")
     parser.add_argument("--repo-root", type=Path, help="repository root for grounding containment")
-    parser.add_argument("--user-shared", type=Path, help="user shared memory directory")
-    parser.add_argument("--project-shared", type=Path, help="project shared memory directory")
-    parser.add_argument("--personal", type=Path, help="project personal memory directory")
+    parser.add_argument("--harness", type=Path, help="harness memory directory")
+    parser.add_argument("--public", type=Path, help="public .memory directory")
     parser.add_argument("--expected-run-id", "--run-id", dest="expected_run_id")
     parser.add_argument("--expected-scope-key", "--scope-key", dest="expected_scope_key")
     parser.add_argument("--expected-scope-digest", "--scope-digest", dest="expected_scope_digest")
@@ -1050,13 +1009,17 @@ def main(argv: list[str] | None = None) -> int:
             except ValidationError as error:
                 errors.append(error)
     if not errors and "privacy" in checks:
-        try:
-            if args.user_shared is None or args.personal is None:
-                raise ValidationError("usage", "usage: --user-shared and --personal are required for memory validation")
-            privacy = check_three_layers(args.user_shared, args.project_shared, args.personal)
-            details["personalCount"] = len(privacy["projectPersonal"])
-        except ValidationError as error:
-            errors.append(error)
+        if args.harness is None:
+            errors.append(ValidationError("usage", "usage: --harness is required for privacy validation"))
+        else:
+            try:
+                privacy = check_privacy(args.harness, args.public)
+                if plan_data is not None:
+                    check_plan_classification(plan_data, privacy)
+                details["safeCount"] = len(privacy["safe"])
+                details["privateCount"] = len(privacy["private"])
+            except ValidationError as error:
+                errors.append(error)
     if not errors and "receipt" in checks:
         if args.receipt is None:
             errors.append(ValidationError("usage", "usage: --receipt is required for receipt validation"))
@@ -1081,7 +1044,7 @@ def main(argv: list[str] | None = None) -> int:
                 receipt = load_json(args.receipt, "receipt")
                 if plan_bytes is None:
                     raise ValidationError("usage", "usage: plan bytes are required for receipt validation")
-                expected_source_hashes: dict[str, dict[str, str]] | None = None
+                expected_source_hashes: tuple[dict[str, str], dict[str, str]] | None = None
                 manifest_path = args.plan.parent / "manifest.json"
                 if manifest_path.exists():
                     manifest = load_json(manifest_path, "manifest")
