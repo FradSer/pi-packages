@@ -31,7 +31,7 @@ pi install npm:@fradser/pi-plan-mode
 │                                             │
 │  - Enters read-only plan mode               │
 │  - Explores the codebase directly           │
-│  - Writes plans/<key>.md                    │
+│  - Writes plans/<topic>.md                    │
 │  - Decides whether worker research helps    │
 └──────────────────┬──────────────────────────┘
                    │ optional, explicit choice
@@ -96,7 +96,7 @@ Each worker runs in isolation (`--no-session`) with read-only tools only. While 
 
 ### Phase 2: Plan Writer
 
-Receives all explore results as context, writes a structured plan to `~/.pi/agent/plans/<session-key>.md`.
+Receives all explore results as context and updates the same readable plan file as the main session.
 
 ### Post-Plan Actions
 
@@ -110,10 +110,14 @@ After plan generation, choose what to do:
 
 ## Plan File
 
-Plans are stored at `~/.pi/agent/plans/<session-key>.md`:
-- Session-specific (key derived from session file hash)
-- Different sessions don't interfere
-- Survives session restart
+Plans are stored at `~/.pi/agent/plans/<topic>.md`, for example `repair-completion.md`:
+- The first `/plan <prompt>` supplies the topic; `/plan start` waits for the first planning prompt.
+- Filenames preserve Unicode letters and numbers, use hyphens between words, and limit the topic to 60 characters. Punctuation-only topics use `plan`.
+- Existing names are never overwritten during allocation: collisions receive `-2`, `-3`, and so on. An empty file reserves the name but does not trigger review.
+- The exact path is saved in session history and restored on reload, resume, and branch navigation. Further requests in that session retain it; worker research, review, and fresh implementation share that reference.
+- `PI_CODING_AGENT_DIR` overrides the agent directory. Ephemeral sessions retain the reference only for their lifetime.
+
+Existing hash-named files are not renamed or automatically adopted. Conversations may still reference them. To continue an old plan with a readable name, start a new planning request and ask the agent to copy the old plan into the newly assigned path; leave the original intact while other sessions reference it.
 
 ## Configuration
 
@@ -142,7 +146,7 @@ The plan model is used for the main planning session and, when the agent decides
 | Parallel explore | yes | **yes** | no |
 | Plan worker | subagent | **child process** | main session |
 | Model switching | no | yes | no |
-| Plan file | scratchpad | `~/.pi/agent/plans/<key>.md` | in-memory |
+| Plan file | scratchpad | `~/.pi/agent/plans/<topic>.md` | in-memory |
 | Post-plan actions | approve/reject | **5-option menu** | complex state machine |
 | Custom tools | 0 | 0 | 2 |
 

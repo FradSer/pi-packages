@@ -13,7 +13,6 @@
  *   /plan status       Show current plan mode state
  */
 
-import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -56,20 +55,49 @@ function expandTilde(filepath: string): string {
   return filepath;
 }
 
-function planFilePath(sessionFile: string | undefined, cwd: string): string {
-  const key = crypto
-    .createHash("sha256")
-    .update(sessionFile ?? cwd)
-    .digest("hex")
-    .slice(0, 16);
+function reservePlanPath(topic: string): string {
+  const slug = Array.from(topic.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, ""))
+    .slice(0, 60).join("").replace(/-$/g, "") || "plan";
   const agentDir = process.env.PI_CODING_AGENT_DIR
     ? expandTilde(process.env.PI_CODING_AGENT_DIR)
     : path.join(process.env.HOME ?? os.homedir(), CONFIG_DIR_NAME, "agent");
-  return path.join(agentDir, "plans", `${key}.md`);
+  const directory = path.resolve(agentDir, "plans");
+  fs.mkdirSync(directory, { recursive: true });
+  for (let suffix = 1; ; suffix++) {
+    const candidate = path.join(directory, `${slug}${suffix === 1 ? "" : `-${suffix}`}.md`);
+    try {
+      fs.closeSync(fs.openSync(candidate, "wx"));
+      return candidate;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
+  }
 }
 
-function getPlanPath(ctx: ExtensionContext): string {
-  return planFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd);
+function getPlanPath(_ctx: ExtensionContext): string {
+  return activePlanPath ?? "";
+}
+
+function ensurePlanPath(topic: string): string {
+  if (!activePlanPath) {
+    activePlanPath = reservePlanPath(topic);
+    pi.appendEntry("plan-mode-path", { path: activePlanPath });
+  }
+  return activePlanPath;
+}
+
+function restorePlanPath(ctx: ExtensionContext): void {
+  cancelPlanJob(ctx);
+  activePlanPath = undefined;
+  activePlanRequest = undefined;
+  for (const entry of ctx.sessionManager.getBranch()) {
+    if (entry.type === "custom" && entry.customType === "plan-mode-path") {
+      const data = entry.data as { path?: unknown } | undefined;
+      if (typeof data?.path === "string" && path.isAbsolute(data.path) && data.path.endsWith(".md")) {
+        activePlanPath = data.path;
+      }
+    }
+  }
 }
 
 function buildPlanPrompt(planPath: string): string {
@@ -104,6 +132,7 @@ let planModeActive = false;
 let previousModelId: string | undefined;
 let config: PlanModeConfig;
 let activePlanRequest: string | undefined;
+let activePlanPath: string | undefined;
 let lastCommandCtx: ExtensionCommandContext | undefined;
 let planJob: AbortController | undefined;
 
@@ -330,9 +359,12 @@ async function showPlanReview(ctx: ExtensionContext, _request: string, signal: A
     const parentSession = ctx.sessionManager.getSessionFile();
     await commandCtx.newSession({
       parentSession,
+      setup: async (sessionManager) => {
+        sessionManager.appendCustomEntry("plan-mode-path", { path: planPath });
+      },
       withSession: async (newCtx) => {
         notifyPi(newCtx.ui, "Fresh implementation session started with plan context.", "info");
-        await newCtx.sendUserMessage(`Implement this plan:\n\n${planContent}`);
+        await newCtx.sendUserMessage(`Implement this plan:\nPlan file: ${planPath}\n\n${planContent}`);
       },
     });
     return;
@@ -589,7 +621,7 @@ function showStatus(ctx: ExtensionContext): void {
     `Plan mode: ${planModeActive ? "active" : "off"}`,
     `Plan model: ${configuredModelLabel()}`,
     `Session model: ${ctx.model ? modelLabel(ctx.model) : "(none)"}`,
-    `Plan file: ${getPlanPath(ctx)}`,
+    `Plan file: ${getPlanPath(ctx) || "(waiting for a planning request)"}`,
   ];
   notifyPi(ctx.ui, lines.join("\n"), "info");
 }
@@ -622,6 +654,9 @@ async function exitPlanMode(ctx: ExtensionContext): Promise<void> {
 export default function planMode(extensionApi: ExtensionAPI): void {
   pi = extensionApi;
   config = readPlanModeConfig();
+
+  pi.on("session_start", (_event, ctx) => restorePlanPath(ctx));
+  pi.on("session_tree", (_event, ctx) => restorePlanPath(ctx));
 
   pi.on("input", async (event, ctx) => {
     if (!planModeActive || !isExecutionRequest(event.text)) return;
@@ -715,7 +750,7 @@ export default function planMode(extensionApi: ExtensionAPI): void {
       // /plan <prompt> starts planning in the main session. Worker research is
       // deliberately deferred until the user explicitly asks for it.
       cancelPlanJob(ctx);
-      const planPath = getPlanPath(ctx);
+      const planPath = ensurePlanPath(prompt);
       await enterPlanMode(ctx);
       activePlanRequest = prompt;
       const planPrompt = buildMainSessionPlanPrompt(planPath, prompt);
@@ -733,7 +768,7 @@ export default function planMode(extensionApi: ExtensionAPI): void {
 
     if (event.toolName === "write") {
       const input = event.input as { path?: string };
-      if (input.path && path.resolve(input.path) === path.resolve(allowedPlanPath)) {
+      if (allowedPlanPath && input.path && path.resolve(ctx.cwd, input.path) === allowedPlanPath) {
         return; // Allow writing to the plan file
       }
       return {
@@ -744,7 +779,7 @@ export default function planMode(extensionApi: ExtensionAPI): void {
 
     if (event.toolName === "edit") {
       const input = event.input as { path?: string };
-      if (input.path && path.resolve(input.path) === path.resolve(allowedPlanPath)) {
+      if (allowedPlanPath && input.path && path.resolve(ctx.cwd, input.path) === allowedPlanPath) {
         return; // Allow editing the plan file
       }
       return {
@@ -777,9 +812,9 @@ export default function planMode(extensionApi: ExtensionAPI): void {
   });
 
   // Inject planning prompt
-  pi.on("before_agent_start", async (event, ctx) => {
+  pi.on("before_agent_start", async (event, _ctx) => {
     if (!planModeActive) return;
-    const planPath = getPlanPath(ctx);
+    const planPath = ensurePlanPath(event.prompt);
     return { systemPrompt: `${event.systemPrompt}\n\n${buildPlanPrompt(planPath)}` };
   });
 }

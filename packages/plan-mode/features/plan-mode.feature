@@ -1,3 +1,24 @@
+Feature: Readable stable plan filenames
+  Scenario: A topic names a session plan once
+    Given a session starts planning a topic
+    When its first request is available
+    Then a bounded Unicode topic filename is reserved without overwriting another plan
+    And repeated requests, writes, edits, review and worker research retain that path
+    And an empty reservation does not count as a completed plan
+
+  Scenario: Session transitions preserve the correct plan reference
+    Given a session has a persisted readable plan path
+    When it is reloaded or resumed
+    Then its exact plan path is restored
+    And a different session with the same topic receives a numeric collision suffix
+    And fresh implementation receives the original plan path without entering plan mode
+
+  Scenario: Interactive start waits for a topic
+    Given plan mode starts without a request
+    When the first user prompt arrives
+    Then its topic names the plan before prompt injection and the read-only gate
+    And existing hash-named files remain untouched
+
 Feature: Read-only shell composition
   Scenario: Safe pipelines and conditional chains support exploration
     Given plan mode is active

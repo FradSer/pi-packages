@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { KeybindingsManager } from "../../../node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.js";
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -35,10 +34,10 @@ try {
     return { ...await createAgentSessionFromServices({ services, sessionManager, sessionStartEvent,
       model: provider.getModel("planner"), noTools: "all" }), services, diagnostics: services.diagnostics };
   };
-  const runtime = await createAgentSessionRuntime(factory, { cwd: root, agentDir: root, sessionManager: SessionManager.inMemory(root) });
+  const runtime = await createAgentSessionRuntime(factory, { cwd: root, agentDir: root, sessionManager: scenario === "naming" ? SessionManager.create(root, join(root, "sessions")) : SessionManager.inMemory(root) });
   disposeRuntime = () => runtime.session.dispose();
   const original = runtime.session;
-  const key = createHash("sha256").update(root).digest("hex").slice(0, 16);
+  const key = "repair-completion";
   const workerScenario = scenario.startsWith("worker-");
   const workerStarted = join(root, "worker-started");
   const workerStopped = join(root, "worker-stopped");
@@ -108,7 +107,37 @@ setInterval(() => {}, 1000);
   await bind();
   const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
   await original.prompt("/plan repair completion");
-  if (workerScenario) {
+  if (scenario === "naming") {
+    for (let i = 0; i < 100 && !component; i++) await delay(10);
+    const planPath = join(root, "plans", `${key}.md`);
+    const originalFile = original.sessionManager.getSessionFile()!;
+    component?.handleInput?.("\x1b");
+    await original.waitForIdle();
+    await runtime.newSession();
+    await runtime.session.prompt("/plan start");
+    assert.equal(runtime.session.sessionManager.getBranch().filter((entry) => entry.type === "custom" && entry.customType === "plan-mode-path").length, 0);
+    await runtime.session.prompt("repair completion");
+    const entries = runtime.session.sessionManager.getBranch();
+    const reference = entries.find((entry) => entry.type === "custom" && entry.customType === "plan-mode-path");
+    assert.ok(reference?.type === "custom");
+    assert.equal(reference.data.path, join(root, "plans", "repair-completion-2.md"));
+    assert.equal(readFileSync(reference.data.path, "utf8"), "");
+    for (const toolName of ["write", "edit"] as const) {
+      const allowed = await runtime.session.extensionRunner.emitToolCall({ type: "tool_call", toolCallId: toolName, toolName, input: { path: reference.data.path } });
+      assert.ok(!allowed?.block);
+      const denied = await runtime.session.extensionRunner.emitToolCall({ type: "tool_call", toolCallId: toolName, toolName, input: { path: planPath } });
+      assert.equal(denied?.block, true);
+    }
+    assert.equal(reviewCount, 1, "empty reserved plan must not open review");
+    await runtime.switchSession(originalFile);
+    provider.setResponses([fauxAssistantMessage("Continued")]);
+    await runtime.session.prompt("/plan a different request");
+    const restored = runtime.session.sessionManager.getBranch().filter((entry) => entry.type === "custom" && entry.customType === "plan-mode-path");
+    assert.equal(restored.length, 1);
+    assert.equal(restored[0].data.path, planPath);
+    assert.ok(JSON.stringify(runtime.session.messages).includes(planPath));
+    component?.handleInput?.("\x1b");
+  } else if (workerScenario) {
     for (let i = 0; i < 100 && !existsSync(workerStarted); i++) await delay(10);
     assert.ok(existsSync(workerStarted), "detached research must start");
     if (scenario === "worker-exit" || scenario === "worker-writer-exit") await original.prompt("/plan exit");
@@ -164,6 +193,8 @@ setInterval(() => {}, 1000);
     assert.equal(freshCompleted, true, "fresh replacement must not wait on its own agent_end");
     assert.notEqual(runtime.session, original);
     assert.ok(JSON.stringify(runtime.session.messages).includes("Implement this plan:"));
+    assert.ok(JSON.stringify(runtime.session.messages).includes(join(root, "plans", `${key}.md`)));
+    assert.ok(runtime.session.sessionManager.getBranch().some((entry) => entry.type === "custom" && entry.customType === "plan-mode-path" && entry.data.path === join(root, "plans", `${key}.md`)));
     assert.ok(!JSON.stringify(original.messages).includes("Implement this plan:"));
   } else {
     const settled = await Promise.race([original.waitForIdle().then(() => true), delay(100).then(() => false)]);

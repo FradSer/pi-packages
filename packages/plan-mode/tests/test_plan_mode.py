@@ -60,6 +60,11 @@ def test_plan_completion_does_not_loop_review_messages_to_agent():
     assert 'showPlanReview(ctx, request, job.signal)' in source
 
 
+def test_readable_plan_path_survives_session_transitions_and_collisions():
+    run_plan_lifecycle("naming")
+    run_plan_lifecycle("fresh")
+
+
 def test_plan_completion_settles_before_review_and_accepts_new_prompt():
     run_plan_lifecycle("dismiss")
 
