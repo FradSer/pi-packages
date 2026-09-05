@@ -34,7 +34,11 @@ pi install npm:@fradser/pi-utils
 `/init` asks the active agent to inspect the repository and create or update
 scoped `AGENTS.md` files. It checks existing guides before writing, preserves
 useful instructions, and keeps root and nested guides aligned without
-needless duplication. An optional argument adds focus:
+needless duplication. The prompt is repository-agnostic: it derives the toolchain,
+shared-module conventions, and contribution workflows from the target project's
+files rather than prescribing this package's development policies. Outside a Git
+checkout, it uses the starting directory as the project root and omits unavailable
+history. An optional argument adds focus:
 
 ```
 /init

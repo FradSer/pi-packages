@@ -4,8 +4,8 @@
 
 `packages/utils/` publishes `@fradser/pi-utils`, a native Pi extension. `index.ts`
 only wires the focused modules in `extensions/`: `/continue`, `/effort`, `/init`,
-`/sessions`/`/recap`, git worktree path redirect, worktree-aware `@`
-completions, and EnterWorktree/ExitWorktree session switching. BDD contracts live in
+`/sessions`, npm publish/credential guarding, git worktree path redirect,
+worktree-aware `@` completions, and EnterWorktree/ExitWorktree session switching. BDD contracts live in
 `features/`; executable Python tests and runtime harnesses live in `tests/`.
 The published package is limited by `package.json`'s `files` list (`index.ts`,
 `extensions/`, and `README.md`).
@@ -16,15 +16,14 @@ Run from the repository root:
 
 ```bash
 python3 -m pytest packages/utils/tests/ -q
-npx tsc --noEmit -p tsconfig.extensions.json
 pnpm --dir packages/utils pack --dry-run
 ```
 
-`pnpm test` runs the complete workspace test suite.
-
 ## Style and Architecture
 
-Use ESM TypeScript targeting Node 20+, with explicit, stable Pi command and tool names. Keep command behavior in its corresponding extension and keep `index.ts` as composition-only wiring.
+Keep command behavior in its corresponding extension and `index.ts` as
+composition-only wiring. Preserve explicit `.ts` relative imports in this
+package; its entry point is exercised through native Node and tsx.
 
 - **Worktree Session Switching (`enter_worktree`, `exit_worktree`)**:
   - *Session Forking*: Uses `SessionManager.forkFrom` to replace the session with a worktree-rooted one instead of mutating `process.cwd`. Tools execute by queueing `/enter-worktree` or `/exit-worktree` follow-up commands (`expandPromptTemplates: true`).
@@ -34,12 +33,14 @@ Use ESM TypeScript targeting Node 20+, with explicit, stable Pi command and tool
   - Reads `~/.pi/agent/directory-sessions/`, filters dead PIDs, and collapses multi-writer records by PID.
   - Dynamically exposed via `pi.setActiveTools()` only when active/recent peer sessions exist in cwd.
   - Sanitizes untrusted registry fields with `safeDisplayText` before prompt injection or transcript rendering.
-- **Transcript UX**: Tools reuse `@fradser/pi-kit` lifecycle renderers (`renderShell: "self"`, `renderCall: empty`).
+- **Publish Guard**: `extensions/npm-publish-guard.ts` checks command positions
+  and exact dry-run flags. Preserve coverage for filtered/recursive publish
+  forms; never route OTP codes through chat.
 
-## Testing and Releases
+## Testing Guidelines
 
-For behavior changes, update the matching `.feature` scenario before changing
-implementation, then add or update tests under `tests/`. Cover command parsing,
-continuation edge cases, supported thinking levels, safe worktree rewriting,
-worktree session replacement, and session registry behavior. Add a Changeset for published changes; any package update should receive a version bump through the GitHub Actions Changesets release flow. Use
-the repository's Conventional Commit scopes (for example `feat(packages):`).
+Match each extension with its contract under `features/` and tests under
+`tests/`. Cover continuation recovery without breaking tool-call/result pairs,
+known tree-leaf selection versus unseen disk appends, model-supported thinking
+levels, safe worktree rewriting, queued versus applied session replacement,
+registry deduplication, and npm guard parsing.

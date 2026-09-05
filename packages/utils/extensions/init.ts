@@ -13,18 +13,18 @@ Generate and maintain contributor guidance for this repository.
 
 Starting directory: __REPOSITORY_ROOT__
 
-First identify the actual repository root when this directory is inside a Git checkout (for example with git rev-parse --show-toplevel). Treat the current working directory as the active scope for ./AGENTS.md, and inspect all existing instruction files across the repository before editing anything. Use find (excluding generated and vendor directories) to discover scoped guides. Determine the project structure, source and test locations, assets, package manifests, development/build/test commands, formatting and naming conventions, test conventions, recent commit message patterns, and pull-request expectations. Use the repository's actual files and git history instead of guessing. Do not edit generated files, dependencies, secrets, or unrelated source code.
+First identify the actual repository root when this directory is inside a Git checkout (for example with git rev-parse --show-toplevel). Outside a Git checkout, use the starting directory as the project root. Treat the current working directory as the active scope for ./AGENTS.md, and inspect all existing instruction files across the repository before editing anything. Use find (excluding generated and vendor directories) to discover scoped guides. Determine the project structure, source and test locations, assets, package manifests, development/build/test commands, formatting and naming conventions, test conventions, recent commit message patterns, and pull-request expectations. Read the target repository's files and documentation; use git history only when available. Do not edit generated files, dependencies, secrets, or unrelated source code.
 
 Instruction-file scope and safety:
 - Find all existing AGENTS.md files below the actual repository root, excluding .git, node_modules, build output, caches, and other generated/vendor directories. Do not skip an existing guide merely because it is nested.
 - Also check for CLAUDE.md files because they may describe the same project scope. Treat AGENTS.md as the preferred name for new or migrated guidance.
-- Treat each AGENTS.md as an independent scope. Pi automatically applies the applicable files by directory, so do not add parent-file references, inheritance notes, duplicated root rules, or cross-file synchronization prose.
+- Treat each AGENTS.md as an independent scope. Keep its guidance specific to that directory; do not add parent-file references, inheritance notes, duplicated root rules, or cross-file synchronization prose.
 - If ./AGENTS.md already exists, update it in place only when the repository evidence shows a stale or missing section; do not overwrite it wholesale or discard useful project-specific instructions. If it is already accurate, leave it unchanged.
 - For nested AGENTS.md files, update only the rules specific to that directory. Do not rewrite them to describe the whole repository or create one merely to repeat a parent scope. Preserve genuinely independent guidance.
 - If no applicable guide exists in a scope, create AGENTS.md there only when that scope has meaningful, directory-specific contributor instructions.
 
-Repository-wide package rule:
-- Prefer the internal @fradser/pi-kit workspace runtime for shared reusable helpers and Pi-package infrastructure when it is available. Use "@fradser/pi-kit": "workspace:*" under dependencies, never peerDependencies. If pi-kit is absent, do not invent a replacement or add an unverified registry dependency; record the gap instead.
+Repository-specific conventions:
+- Discover the project's languages, toolchain, dependency-management rules, existing shared modules, and contribution workflows from its own manifests, configuration, source, and documentation. Omit unsupported conventions rather than importing policies from another project or the agent's environment.
 
 For each guide you create or update:
 - Use the title "Repository Guidelines".

@@ -10,7 +10,22 @@ Feature: /init repository guidelines command
     Then the command sends an instruction to inspect the repository structure,
       commands, tests, style, history, and existing instruction files
     And the instruction asks for a concise "Repository Guidelines" document
-    And the instruction says to prefer pi-kit for shared reusable logic when available
+    And the instruction derives tooling and shared-library conventions from the
+      target repository's own files and documentation
+
+  Scenario: /init stays neutral about the target repository's technology stack
+    Given the target repository uses its own languages, tools, and shared modules
+    When the user runs /init
+    Then the instruction contains no hardcoded package names, dependency syntax,
+      or policies from the utils package's development repository
+    And it does not prescribe host-specific instruction-loading behavior
+    And it asks the agent to omit conventions that repository evidence does not support
+
+  Scenario: /init works without Git metadata
+    Given the starting directory is not a Git checkout
+    When the user runs /init
+    Then the instruction uses that directory as the project root
+    And it omits unavailable git history instead of inventing commit conventions
 
   Scenario: /init updates an existing current-directory guide safely
     Given ./AGENTS.md already exists

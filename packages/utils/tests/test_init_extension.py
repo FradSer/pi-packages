@@ -31,7 +31,6 @@ class TestInitExtension(unittest.TestCase):
             "do not overwrite",
             "200-400 words",
             "git history",
-            "pi-kit",
         ):
             self.assertIn(phrase, content)
 
@@ -57,7 +56,46 @@ console.log(JSON.stringify({{
         self.assertIn("focus on release commands", prompt)
         self.assertIn("all existing AGENTS.md", prompt)
         self.assertIn("do not add parent-file references", prompt)
-        self.assertIn("@fradser/pi-kit", prompt)
+
+    def test_prompt_uses_repository_evidence_without_hardcoded_project_policies(self) -> None:
+        script = f'''
+import {{ buildInitPrompt }} from {json.dumps(INIT_EXTENSION.as_uri())};
+console.log(JSON.stringify(buildInitPrompt("/tmp/example-repo")));
+'''
+        result = subprocess.run(
+            ["bun", "run", "-"],
+            cwd=REPO,
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise AssertionError(f"TypeScript execution failed:\n{result.stderr}")
+        prompt = json.loads(result.stdout)
+        for project_policy in (
+            "@fradser/",
+            "pi-kit",
+            "pi-packages",
+            "Pi-package",
+            "workspace:*",
+            "peerDependencies",
+            "Pi automatically",
+            "pnpm",
+            "pytest",
+            ".changeset",
+        ):
+            with self.subTest(project_policy=project_policy):
+                self.assertNotIn(project_policy, prompt)
+        self.assertIn("existing shared modules", prompt)
+        self.assertIn("target repository's files and documentation", prompt)
+        self.assertIn("Omit unsupported conventions", prompt)
+
+    def test_prompt_handles_projects_without_git_metadata(self) -> None:
+        content = self.ext_source()
+        self.assertIn("Outside a Git checkout", content)
+        self.assertIn("starting directory as the project root", content)
+        self.assertIn("git history only when available", content)
 
     def test_prompt_preserves_authored_paragraphs_and_bullets_without_manual_width_wraps(self) -> None:
         script = f'''
