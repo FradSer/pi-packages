@@ -196,8 +196,8 @@ Feature: Agent Teams collaborative organization contract
       Then no shutdown event line renders for that incarnation
       And the finish entry stays the single end-of-life announcement
 
-    Scenario: Shutdown while the finish report is queued adds no event line either
-      Given a teammate whose terminal report reached the leader pipeline but has not been dispatched yet
+    Scenario: Shutdown while Pi holds the finish report adds no event line either
+      Given a teammate whose terminal report was handed to Pi but has not been consumed yet
       When the leader shuts that teammate down
       Then no shutdown event line renders for that incarnation
       And the queued finish entry remains the single end-of-life announcement
@@ -328,19 +328,34 @@ Feature: Agent Teams collaborative organization contract
       And the leader validates the teammate identity and spawn identity
       And the message lands in the single leader inbox
       And a status="completed" or status="failed" report ends the current assignment, with the teammate going idle when its current sequence ends
-      And every leader-bound report, intermediate or terminal, is queued for the leader as its own follow-up turn
+      And every accepted report is handed to Pi immediately without waiting for the leader to finish
       And status is rejected for peer-directed messages
 
-    Scenario: A report enters Pi's native follow-up queue while the leader is active
+    Scenario: Reports reach a working leader at the next safe tool boundary
       Given the leader is processing an active run
-      When a teammate sends a leader-bound report
-      Then Agent Teams dispatches that report without waiting for agent_settled
-      And Pi retains the report as a follow-up until the current run can end
-      And Agent Teams does not dispatch a later report until the dispatched report settles
+      When two teammates send reports before that run ends
+      Then Agent Teams immediately hands both reports to Pi as steering messages
+      And Pi delivers them at safe tool boundaries without interrupting an in-flight tool
+      And no report waits for another report or for agent_settled
+      And their original bodies, event identities, and authored timestamps are preserved
+
+    Scenario: A report wakes an idle leader without a second delivery queue
+      Given the leader is idle
+      When a teammate sends a report
+      Then Pi starts a leader turn immediately
+      And subsequent reports use the same immediate delivery path
+      And an agent_settled event does not replay already handed-off reports
+
+    Scenario: A synchronous delivery failure is visible without replaying other reports
+      Given Pi rejects an automatic report handoff
+      When Agent Teams handles the rejection
+      Then it notifies the user of the delivery failure
+      And the report remains in the console mailbox
+      And later reports are handed to Pi without waiting for a retry or lifecycle event
 
     Scenario: Teammate messages are rationed by value instead of throttled
       Given the worker messaging protocol
-      Then it states that every leader-bound message starts a full leader turn
+      Then it states that leader-bound messages arrive at the next safe tool boundary or wake an idle leader
       And it forbids bare status pings that carry no new information
       And it keeps immediate reporting for blockers, plan-changing facts, and final deliverables
       And it combines the final outcome, evidence, verification, and remaining risks in one substantive terminal report when relevant
@@ -348,6 +363,15 @@ Feature: Agent Teams collaborative organization contract
       And it does not send a separate completion-only message after the final report
       And it avoids repeating the same findings across reports unless new information changes the conclusion
       And it keeps terminal status mandatory when the assignment ends
+
+    Scenario: The leader sends new information instead of chasing worker progress
+      Given a worker has an active assignment
+      When the leader has no new information relevant to that assignment
+      Then the leader continues independent work or yields for incoming messages
+      And it does not request progress reports or repeat the existing instructions
+      When the leader discovers evidence that changes the assignment
+      Then it sends that new evidence and its task impact to the worker
+      And the worker remains responsible for autonomously completing and reporting its assignment
 
     Scenario: Bounded reviewer assignments end with one substantive report
       Given a reviewer is completing a bounded assignment for the leader
@@ -360,7 +384,7 @@ Feature: Agent Teams collaborative organization contract
 
     Scenario: Completion is announced once per spawn incarnation
       Given a teammate delivered several leader-bound reports carrying terminal status within one spawn
-      When the reports arrive as separate follow-up messages
+      When the reports arrive through Pi's steering channel
       Then exactly one "Teammate finished" entry is appended for that teammate and spawn identity
       And repeated terminal reports from the same spawn stay ordinary report rows without extra finished entries
       And respawning a teammate with the same name announces its completion again
@@ -389,8 +413,8 @@ Feature: Agent Teams collaborative organization contract
 
     Scenario: Delivered report details retain terminal evidence
       Given a teammate sends a leader-bound report
-      When the parent queues it as a leader follow-up
-      Then the follow-up details retain the outbox event id and status
+      When the parent hands it to Pi immediately
+      Then the message details retain the outbox event id and status
       And the status distinguishes an actual terminal report from terminal-looking prose
 
     Scenario: A terminal worker report ends its current worker turn

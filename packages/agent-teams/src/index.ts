@@ -16,24 +16,39 @@ import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
 import { refreshLeaderToolDisclosure, registerLeaderTools, registerTeamCommand } from "./tools.ts";
 import { registerWorkerCapabilities, workerBinding } from "./worker.ts";
 import { agentColor, clearPiStatus, createStaticToolLifecycleMessageRenderer, eventToolLifecycle, formatAgentMessagePrefix, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
-import { FollowUpQueue, groupReportsByTeammate, TEAMMATE_HARNESS_MESSAGE_TYPE, TEAMMATE_REPORT_MESSAGE_TYPE, type FollowUpReport } from "./follow-up-queue.ts";
+import { formatReports, groupReportsByTeammate, TEAMMATE_HARNESS_MESSAGE_TYPE, TEAMMATE_REPORT_MESSAGE_TYPE, type LeaderReport } from "./leader-reports.ts";
 import { Box, Markdown, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 const STATE_DIR_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 let leaderPi: ExtensionAPI | undefined;
 let leaderCtx: ExtensionContext | undefined;
-let followUpQueue: FollowUpQueue | undefined;
 
 export const TEAMMATE_FINISHED_ENTRY_TYPE = "agent-teams-teammate-finished";
 export const TEAMMATE_HEALTH_MESSAGE_TYPE = "agent-teams-health";
 
-function sendMainSessionFollowUp(report: FollowUpReport): void {
-  followUpQueue?.enqueue(report);
+function sendLeaderReport(report: LeaderReport): void {
+  try {
+    leaderPi?.sendMessage({
+      customType: report.health
+        ? TEAMMATE_HEALTH_MESSAGE_TYPE
+        : report.origin === "harness" || report.harnessEvent
+          ? TEAMMATE_HARNESS_MESSAGE_TYPE
+          : TEAMMATE_REPORT_MESSAGE_TYPE,
+      content: report.health ? report.body : formatReports([report]),
+      display: true,
+      details: report,
+    }, { triggerTurn: true, deliverAs: "steer" });
+  } catch (error) {
+    if (leaderCtx) {
+      const detail = error instanceof Error ? error.message : String(error);
+      notifyPi(leaderCtx.ui, `Agent Teams report delivery failed: ${detail}. The report remains in /agent-teams.`, "warning");
+    }
+  }
 }
 
-function extractHealthReport(details: unknown): FollowUpReport | undefined {
-  const report = details as FollowUpReport | undefined;
+function extractHealthReport(details: unknown): LeaderReport | undefined {
+  const report = details as LeaderReport | undefined;
   return report?.health?.state === "stalled" ? report : undefined;
 }
 
@@ -41,8 +56,8 @@ export function hasActiveTeamState(): boolean {
   return livingTeammates().length > 0 || listTasks().length > 0;
 }
 
-function extractHarnessReport(details: unknown): FollowUpReport | undefined {
-  const report = details as FollowUpReport | undefined;
+function extractHarnessReport(details: unknown): LeaderReport | undefined {
+  const report = details as LeaderReport | undefined;
   return report?.origin === "harness" || report?.harnessEvent ? report : undefined;
 }
 
@@ -138,31 +153,10 @@ export default function (pi: ExtensionAPI) {
     clearSessionAgents();
     resetState();
     refreshLeaderToolDisclosure();
-    followUpQueue?.reset();
     leaderCtx = ctx;
-    followUpQueue = new FollowUpQueue({
-      isIdle: () => Boolean(leaderCtx?.isIdle()),
-      prepareOnDispatch: true,
-      dispatch: (reports, content) => leaderPi?.sendMessage({
-        customType: reports.length === 1 && reports[0]?.health
-          ? TEAMMATE_HEALTH_MESSAGE_TYPE
-          : reports.length === 1 && (reports[0]?.origin === "harness" || reports[0]?.harnessEvent)
-            ? TEAMMATE_HARNESS_MESSAGE_TYPE
-            : TEAMMATE_REPORT_MESSAGE_TYPE,
-        // Health remains a compact diagnostic for its dedicated renderer;
-        // other harness events retain their explicit envelope in model context.
-        content: reports.length === 1 && reports[0]?.health ? reports[0].body : content,
-        display: true,
-        details: reports.length === 1 ? reports[0] : { reports },
-      }, { triggerTurn: true, deliverAs: "followUp" }),
-      onFailure: (message) => {
-        if (leaderCtx) notifyPi(leaderCtx.ui, message, "warning");
-      },
-    });
     ensureTeamWidget(ctx);
     initTeamMachine(ctx, {
-      sendUpdate: sendMainSessionFollowUp,
-      archiveQueuedReports: (spawnId) => followUpQueue?.archiveSpawn(spawnId) ?? [],
+      sendUpdate: sendLeaderReport,
       notifyChange: () => {
         refreshTeamUI(leaderCtx);
         refreshLeaderToolDisclosure();
@@ -175,21 +169,12 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
-    followUpQueue?.onBeforeAgentStart(event.prompt);
     const teamIsActive = hasActiveTeamState();
     return {
       systemPrompt: event.systemPrompt + (teamIsActive
         ? buildTeamLeaderGuidance(ctx?.cwd ?? process.cwd())
         : TEAMMATE_SPAWN_GUIDANCE),
     };
-  });
-
-  pi.on("agent_start", async () => {
-    followUpQueue?.onAgentStart();
-  });
-
-  pi.on("agent_settled", async () => {
-    followUpQueue?.onAgentSettled();
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {
@@ -200,8 +185,6 @@ export default function (pi: ExtensionAPI) {
     }
     shutdownTeamMachine();
     removeRuntimeDir(ctx);
-    followUpQueue?.reset();
-    followUpQueue = undefined;
     leaderPi = undefined;
     leaderCtx = undefined;
     resetState();
@@ -209,9 +192,9 @@ export default function (pi: ExtensionAPI) {
   });
 }
 
-function extractReports(details: unknown): FollowUpReport[] {
-  const typed = details as FollowUpReport | { reports?: FollowUpReport[] } | undefined;
+function extractReports(details: unknown): LeaderReport[] {
+  const typed = details as LeaderReport | { reports?: LeaderReport[] } | undefined;
   if (typed && "reports" in typed && Array.isArray(typed.reports)) return typed.reports;
-  if (typed && "teammate" in typed) return [typed as FollowUpReport];
+  if (typed && "teammate" in typed) return [typed as LeaderReport];
   return [];
 }

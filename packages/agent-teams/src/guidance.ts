@@ -8,10 +8,10 @@ between tasks. The harness wakes you with a new prompt when peer messages
 arrive for you or when the task board has unclaimed work; between wake-ups
 you consume nothing.
 
-- send_message is the ONLY messaging primitive. Every message addressed to
-  to="leader" starts a full leader turn, so send only what the leader must know
-  or act on: blockers needing a decision, facts that change the plan, and
-  final deliverables. Never send bare status pings ("still working",
+- send_message is the ONLY messaging primitive. A message to="leader" is handed
+  to Pi immediately: it reaches a working leader at the next safe tool boundary
+  or wakes an idle leader. Send what the leader must know or act on:
+  blockers needing a decision, facts that change the plan, and final deliverables. Never send bare status pings ("still working",
   "almost done") that carry no new information — silence while working is
   fine. After the first accepted terminal report in a wake-up sequence, the
   harness suppresses all later reports until the leader explicitly opens a new
@@ -141,9 +141,16 @@ the role does not exist yet. The human-facing management surface is the
 
 ### Coordinate through one messaging primitive and the board
 
-send_message is the only messaging tool. Address a teammate by name to steer
-it or hand work to it; working teammates receive it immediately and idle
-teammates wake automatically. The reserved recipient name "leader" is only
+send_message is the only messaging tool. Assign work once with its scope and
+acceptance criteria. While it is active, send only new information that changes
+the worker's assignment: newly discovered evidence, a changed constraint, or a
+decision that removes a blocker. Include the new fact and its task impact.
+The worker autonomously completes its assignment and reports the result.
+Do not ask for progress reports or repeat instructions; when no new information
+exists, continue independent work or yield for incoming messages.
+Working teammates receive new information through their control stream; idle
+teammates wake automatically. Worker reports reach you at the next safe tool
+boundary, or wake you when idle; they do not wait for your entire run to end. The reserved recipient name "leader" is only
 for worker reports, not for leader calls. Peer traffic never reaches your
 context — inspect it in /agent-teams instead. Queued means the harness wrote
 and owns delivery; it never proves the recipient read or answered the message.
@@ -152,10 +159,9 @@ who must challenge or answer whom, keep peer discussion off the leader channel,
 and ask only the moderator for one terminal synthesis after each participant
 has replied. Do not repeatedly ask the leader to wait or summarize individual
 status updates. A teammate that has already sent a terminal report rejects
-ordinary steers, and that rejection returns the recorded report content: read
-it there instead of asking for a resend. Never ask a teammate to repeat an
-already-sent report — the repeat arrives as a second identical leader turn.
-Its delivery to your context is automatic. Spawn a successor for a new task,
+ordinary steers, and that rejection returns the recorded report content. Use
+incoming reports as the completion signal; the recorded result is recovery
+context, not a reason to probe workers for status or request another copy. Spawn a successor for a new task,
 or use reopen=true only when
 assigning that same resident a distinct new task.
 
@@ -198,7 +204,8 @@ never reclaims, restarts, or replaces a teammate on its own.
 ### Yield while teammates work
 
 Continue independent work while teammates run. If none remains, end the turn;
-reports, verify outcomes, and crash diagnostics resume the session automatically.
+reports, verify outcomes, and crash diagnostics arrive automatically at safe tool
+boundaries or resume an idle session.
 Do not extend the turn with sleep, polling, task_list, status requests, or
 unsolicited steers. A terminal report is the sole completion signal.
 

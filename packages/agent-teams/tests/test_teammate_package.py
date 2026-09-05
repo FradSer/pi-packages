@@ -102,7 +102,7 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Inbox delivery is at-least-once and deduplicated",
         "Peer traffic never enters the leader's model context",
         "Reports to the leader use the unified send_message primitive",
-        "A report enters Pi's native follow-up queue while the leader is active",
+        "Reports reach a working leader at the next safe tool boundary",
         "Direct-assignment completion yields to automatic delivery",
         "Team status clears use the shared Pi-kit transient-status adapter",
         "A terminal report closes reporting until a new wake-up",
@@ -1234,7 +1234,7 @@ def test_unknown_agent_error_gives_the_complete_inline_spawn_recovery() -> None:
 def test_follow_up_reports_use_wrapped_marker_format() -> None:
     payload = run_node(
         f'''\
-        import {{ formatReports }} from "{(SRC / "follow-up-queue.ts").as_uri()}";
+        import {{ formatReports }} from "{(SRC / "leader-reports.ts").as_uri()}";
         const content = formatReports([
           {{ teammate: "security", body: "<b>bold finding</b>" }},
         ]);
@@ -1260,129 +1260,6 @@ def test_follow_up_reports_use_wrapped_marker_format() -> None:
     assert payload["noFinishedNotice"] is True
     assert payload["harnessEvent"] is True
     assert payload["harnessIsNotAgentMessage"] is True
-
-
-def test_follow_up_queue_serializes_and_retries_with_backoff() -> None:
-    payload = run_node(
-        f'''\
-        import {{ FollowUpQueue }} from "{(SRC / "follow-up-queue.ts").as_uri()}";
-        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-        const events = [];
-        let settled = true;
-        const queue = new FollowUpQueue({{
-          isIdle: () => settled,
-          agentStartTimeoutMs: 80,
-          retryBaseDelayMs: 10,
-          retryMaxDelayMs: 20,
-          maxAttempts: 2,
-          dispatch: (reports) => {{ events.push(["dispatch", reports.length]); }},
-          onFailure: (message) => {{ events.push(["fail"]); }},
-        }});
-        queue.enqueue({{ teammate: "a", body: "one", finished: true }});
-        await sleep(5);
-        queue.onBeforeAgentStart(undefined);
-        // No matching prompt was prepared: watchdog fires and retry begins.
-        await sleep(150);
-        console.log(JSON.stringify({{
-          dispatchedTwice: events.filter(([kind]) => kind === "dispatch").length >= 2,
-          failuresObserved: events.some(([kind]) => kind === "fail"),
-        }}));
-        '''
-    )
-    assert payload["dispatchedTwice"] is True
-    assert payload["failuresObserved"] is True
-
-
-def test_follow_up_queue_archives_stopped_spawn_reports_before_dispatch() -> None:
-    payload = run_node(
-        f'''\
-        import {{ FollowUpQueue }} from "{(SRC / "follow-up-queue.ts").as_uri()}";
-        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-        const dispatches = [];
-        const queue = new FollowUpQueue({{
-          isIdle: () => true,
-          prepareOnDispatch: true,
-          dispatch: (reports) => dispatches.push(reports.map((report) => report.body).join(",")),
-        }});
-        queue.enqueue({{ teammate: "late", spawnId: "old", body: "late report" }});
-        queue.archiveSpawn("old");
-        await sleep(10);
-        console.log(JSON.stringify({{
-          noDispatch: dispatches.length === 0,
-          pendingEmpty: queue.pendingCount === 0,
-          archived: queue.archivedCount,
-        }}));
-        '''
-    )
-    assert payload == {"noDispatch": True, "pendingEmpty": True, "archived": 1}
-
-
-def test_follow_up_queue_dispatches_each_report_as_its_own_turn() -> None:
-    payload = run_node(
-        f'''\
-        import {{ FollowUpQueue }} from "{(SRC / "follow-up-queue.ts").as_uri()}";
-        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-        const dispatches = [];
-        let settled = true;
-        const queue = new FollowUpQueue({{
-          isIdle: () => settled,
-          prepareOnDispatch: true,
-          dispatch: (reports, content) => dispatches.push({{ count: reports.length, content }}),
-        }});
-        queue.enqueue({{ teammate: "b", body: "1", finished: true, timestamp: 111 }});
-        queue.enqueue({{ teammate: "a", body: "2" }});
-        queue.enqueue({{ teammate: "b", body: "3" }});
-        for (let turn = 0; turn < 3; turn++) {{
-          await sleep(5);
-          queue.onAgentStart();
-          queue.onAgentSettled();
-        }}
-        await sleep(5);
-        console.log(JSON.stringify({{
-          dispatchCount: dispatches.length,
-          sizes: dispatches.map((d) => d.count).join(","),
-          contents: dispatches.map((d) => d.content),
-          pendingEmpty: queue.pendingCount === 0,
-        }}));
-        '''
-    )
-    # No coalescing: three enqueued reports become three single-report turns,
-    # in arrival order, even when consecutive reports share a sender.
-    assert payload["dispatchCount"] == 3
-    assert payload["sizes"] == "1,1,1"
-    assert '<agent-message from="b" at="1970-01-01T00:00:00.111Z">' in payload["contents"][0]
-    assert '<agent-message from="a">' in payload["contents"][1]
-    assert '<agent-message from="b">\n3\n</agent-message>' in payload["contents"][2]
-    assert payload["pendingEmpty"] is True
-
-
-def test_follow_up_queue_dispatches_while_leader_is_active() -> None:
-    payload = run_node(
-        f'''\
-        import {{ FollowUpQueue }} from "{(SRC / "follow-up-queue.ts").as_uri()}";
-        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-        const dispatches = [];
-        let leaderActive = true;
-        const queue = new FollowUpQueue({{
-          isIdle: () => !leaderActive,
-          prepareOnDispatch: true,
-          dispatch: (reports) => dispatches.push(reports.map((report) => report.body).join(",")),
-        }});
-        queue.enqueue({{ teammate: "first", body: "first report" }});
-        queue.enqueue({{ teammate: "second", body: "second report" }});
-        await sleep(10);
-        const whileActive = {{ dispatches: [...dispatches], pending: queue.pendingCount }};
-        leaderActive = false;
-        queue.onAgentSettled();
-        await sleep(10);
-        console.log(JSON.stringify({{
-          whileActive,
-          afterSettlement: {{ dispatches, pending: queue.pendingCount }},
-        }}));
-        '''
-    )
-    assert payload["whileActive"] == {"dispatches": ["first report"], "pending": 2}
-    assert payload["afterSettlement"] == {"dispatches": ["first report", "second report"], "pending": 1}
 
 
 def test_console_supports_mouse_wheel_scrolling() -> None:
@@ -2260,11 +2137,11 @@ def test_session_cap_and_shutdown_surface() -> None:
 def test_harness_reports_have_a_distinct_event_renderer() -> None:
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     index_ts = source("index.ts")
-    queue = source("follow-up-queue.ts")
+    reports = source("leader-reports.ts")
     assert "event uses a harness-event envelope instead of an agent-message envelope" in feature
     assert "TEAMMATE_HARNESS_MESSAGE_TYPE" in index_ts
     assert "registerMessageRenderer(TEAMMATE_HARNESS_MESSAGE_TYPE" in index_ts
-    assert 'return `<harness-event type="${type}" subject="${subject}"${at}>' in queue
+    assert 'return `<harness-event type="${type}" subject="${subject}"${at}>' in reports
     assert 'type: "worktree-capture-failed"' in source("team-machine.ts")
     assert 'type: "worktree-cleanup-failed"' in source("team-machine.ts")
     machine = source("team-machine.ts")
@@ -2997,8 +2874,8 @@ def test_non_finite_report_timestamps_are_rejected() -> None:
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "Malformed report timestamps are rejected safely" in feature
     assert "Number.isFinite(event.timestamp)" in types
-    queue = source("follow-up-queue.ts")
-    assert "Number.isFinite(timestamp)" in queue
+    reports = source("leader-reports.ts")
+    assert "Number.isFinite(timestamp)" in reports
     payload = run_node(
         f'''\
         import {{ isWorkerEvent }} from "{(SRC / "types.ts").as_uri()}";
@@ -3074,7 +2951,9 @@ def test_worker_guidance_rations_messages_by_value() -> None:
     guidance = source("guidance.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "Teammate messages are rationed by value instead of throttled" in feature
-    assert "starts a full leader turn" in guidance
+    assert "next safe tool boundary" in guidance
+    assert "wakes an idle leader" in guidance
+    assert "starts a full leader turn" not in guidance
     assert "Never send bare status pings" in guidance
     assert "blockers needing a decision" in guidance
     assert 'status="completed" or status="failed"' in guidance

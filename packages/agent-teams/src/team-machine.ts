@@ -78,7 +78,7 @@ import {
 } from "./spawner.ts";
 import { captureWorktreeDiff, cleanupWorktree, createWorktree, discardWorktree } from "./worktree.ts";
 import { messageTitle, type InboxMessage, type Teammate, type WorkerAssignment, type WorkerUsage } from "./types.ts";
-import type { FollowUpReport } from "./follow-up-queue.ts";
+import type { LeaderReport } from "./leader-reports.ts";
 
 export const MAX_SESSION_WORKERS = 8;
 /** Harness coordination cadence: outbox drain every tick, notices paced. */
@@ -185,8 +185,7 @@ let boardFile = "";
 let leaderCwd = "";
 /** Live view of the leader session's current model, resolved at spawn time. */
 let leaderModelRef: () => string | undefined = () => undefined;
-let sendUpdate: (report: FollowUpReport) => void = () => {};
-let archiveQueuedReports: (spawnId: string) => FollowUpReport[] = () => [];
+let sendUpdate: (report: LeaderReport) => void = () => {};
 let notifyChange: () => void = () => {};
 
 const pendingShutdowns = new Set<string>();
@@ -209,9 +208,7 @@ const liveWorktrees = new Map<string, ReturnType<typeof createWorktree>>();
 // ── Lifecycle ─────────────────────────────────────────────────────
 
 export interface MachineHooks {
-  sendUpdate: (report: FollowUpReport) => void;
-  /** Suppress reports whose delivery remains harness-owned when shutdown starts. */
-  archiveQueuedReports?: (spawnId: string) => FollowUpReport[];
+  sendUpdate: (report: LeaderReport) => void;
   notifyChange: () => void;
 }
 
@@ -226,7 +223,6 @@ export function initTeamMachine(
   runtimeStateFile = stateFilePath(sessionFile, leaderCwd);
   boardFile = boardFilePath(sessionFile, leaderCwd);
   sendUpdate = hooks.sendUpdate;
-  archiveQueuedReports = hooks.archiveQueuedReports ?? (() => []);
   notifyChange = hooks.notifyChange;
   // Resume: reload a persisted board; claims die with their holders.
   const persisted = readBoardFile(boardFile);
@@ -243,7 +239,6 @@ export function shutdownTeamMachine(): void {
   leaderModelRef = () => undefined;
   setVerifyGateRunner(undefined);
   sendUpdate = () => {};
-  archiveQueuedReports = () => [];
   notifyChange = () => {};
   pendingShutdowns.clear();
   verifyingTasks.clear();
@@ -685,7 +680,7 @@ export function formatAgentHealthReport(
   teammate: Pick<Teammate, "name" | "agent">,
   body: string,
   silenceMs: number,
-): FollowUpReport {
+): LeaderReport {
   return {
     teammate: teammate.name,
     agent: teammate.agent,
@@ -724,7 +719,7 @@ const verifyFailureParks = new Map<string, { worker: string; spawnId: string }>(
 /** Record one finish entry per spawn incarnation; later terminal reports from
  *  the same resident stay ordinary report rows. */
 export function markTeammateFinished(
-  report: Pick<FollowUpReport, "teammate" | "agent" | "spawnId" | "finished">,
+  report: Pick<LeaderReport, "teammate" | "agent" | "spawnId" | "finished">,
 ): boolean {
   if (!report.finished) return false;
   const name = report.teammate ?? report.agent ?? "teammate";
@@ -743,7 +738,7 @@ export function hasAnnouncedFinish(name: string): boolean {
 /** Remember at send time that this incarnation produced a terminal report, so
  *  end-of-life suppression covers reports still queued for dispatch. */
 export function recordTerminalReport(
-  report: Pick<FollowUpReport, "teammate" | "agent" | "spawnId" | "finished">,
+  report: Pick<LeaderReport, "teammate" | "agent" | "spawnId" | "finished">,
 ): void {
   if (!report.finished) return;
   const name = report.teammate ?? report.agent ?? "teammate";
@@ -821,7 +816,6 @@ export async function shutdownTeammate(name: string): Promise<{ ok: true; body: 
   const teammate = getTeammate(name);
   if (!teammate || teammate.status === "stopped") return { ok: false, error: `No living teammate named "${name}".` };
   pendingShutdowns.add(name);
-  archiveReportsForConsole(archiveQueuedReports(teammate.spawnId));
   const terminated = await terminateTeammate(name);
   if (!terminated) {
     // The child was already gone; synthesize the close bookkeeping.
@@ -885,10 +879,6 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
   removeWorkerOutbox(requireStateFile(), name, teammate.spawnId);
 
   if (requested) {
-    // The close handler drains a final outbox after shutdown was requested.
-    // Archive that spawn again so any report written during termination cannot
-    // become a delayed leader follow-up.
-    archiveReportsForConsole(archiveQueuedReports(spawnId));
     const summary = summarizeShutdown(name, released.length, result.exitCode, result.usage);
     deliverToLeader({ from: name, subject: "Teammate shut down", body: summary });
     // A requested shutdown is already represented by the tool lifecycle row;
@@ -923,17 +913,6 @@ function crashDiagnostic(name: string, result: WorkerProcessResult, released: Ar
     released.length > 0 ? `Released claimed task(s): ${released.map((t) => t.id).join(", ")}.` : undefined,
     result.stdout?.trim() ? `Last output: ${result.stdout.trim()}` : undefined,
   ].filter(Boolean).join("\n");
-}
-
-/** Retain reports the follow-up queue suppressed so the teammate detail view
- * can show what was archived without turning it into another leader prompt. */
-function archiveReportsForConsole(reports: FollowUpReport[]): void {
-  for (const report of reports) {
-    if (!report.eventId) continue;
-    const message = getState().leaderMailbox.find((candidate) => candidate.id === report.eventId);
-    if (message) message.archived = true;
-  }
-  if (reports.length > 0) markStateDirty();
 }
 
 function summarizeShutdown(
@@ -1085,8 +1064,7 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
     status: record.status,
     timestamp: record.timestamp,
   }, { archived });
-  // Every accepted teammate-authored report reaches the leader's context as
-  // its own turn; terminal statuses additionally end the report sequence.
+  // Hand off accepted reports immediately; terminal statuses also end the sequence.
   const finished = terminal;
   const report = {
     teammate: teammate.name,
@@ -1101,7 +1079,7 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
     ...(archived ? { archived: true } : {}),
   };
   if (finished) recordTerminalReport(report);
-  sendUpdate(report);
+  if (!archived) sendUpdate(report);
   return true;
 }
 
