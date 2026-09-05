@@ -63,6 +63,12 @@ Feature: A unified design capability in Pi
     Then package paths are resolved in the returned content
     And unrelated references are not loaded
 
+  Scenario: Every disclosed canonical link can be loaded
+    Given any implemented capability has loaded its required guidance
+    When that guidance links to another canonical taste reference
+    Then the reference is reachable through that capability's loader graph
+    And conditional cross-topic guidance does not create mandatory dependency cycles
+
   Scenario: Reject references outside the capability graph
     Given a reference is not reachable from polish
     When the model requests that reference through polish

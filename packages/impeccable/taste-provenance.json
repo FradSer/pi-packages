@@ -1042,6 +1042,932 @@
       ],
       "disposition": "adapted",
       "rationale": "Preserve source/runtime distinction; full shared review protocol remains pending."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/grouping-and-alignment.md",
+      "sourceSection": "Group with space, not lines",
+      "sha256": "027edd034ab641e8affc2ec02ca97ee0824d86756b14e11de908d62f5d086fb1",
+      "destinations": [
+        "references/taste/layout.md#scope-and-grouping"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/grouping-and-alignment.md",
+      "sourceSection": "Keep controls distinct from content",
+      "sha256": "027edd034ab641e8affc2ec02ca97ee0824d86756b14e11de908d62f5d086fb1",
+      "destinations": [
+        "references/taste/layout.md#scope-and-grouping"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/grouping-and-alignment.md",
+      "sourceSection": "Align to shared edges",
+      "sha256": "027edd034ab641e8affc2ec02ca97ee0824d86756b14e11de908d62f5d086fb1",
+      "destinations": [
+        "references/taste/layout.md#alignment-and-order"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/grouping-and-alignment.md",
+      "sourceSection": "Logical properties, not physical",
+      "sha256": "027edd034ab641e8affc2ec02ca97ee0824d86756b14e11de908d62f5d086fb1",
+      "destinations": [
+        "references/taste/layout.md#alignment-and-order"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/grouping-and-alignment.md",
+      "sourceSection": "Order by importance",
+      "sha256": "027edd034ab641e8affc2ec02ca97ee0824d86756b14e11de908d62f5d086fb1",
+      "destinations": [
+        "references/taste/layout.md#alignment-and-order"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/grouping-and-alignment.md",
+      "sourceSection": "Don't overload the entry point",
+      "sha256": "027edd034ab641e8affc2ec02ca97ee0824d86756b14e11de908d62f5d086fb1",
+      "destinations": [
+        "references/taste/layout.md#alignment-and-order"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/spacing-and-adaptivity.md",
+      "sourceSection": "Breathing room between targets",
+      "sha256": "bf46b0857efa5022e6918eda026827e9de2747f3f349b5a6787a2322179abe77",
+      "destinations": [
+        "references/taste/layout.md#targets-and-margins"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/spacing-and-adaptivity.md",
+      "sourceSection": "Inset buttons from the edges",
+      "sha256": "bf46b0857efa5022e6918eda026827e9de2747f3f349b5a6787a2322179abe77",
+      "destinations": [
+        "references/taste/layout.md#targets-and-margins"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/spacing-and-adaptivity.md",
+      "sourceSection": "Progressive disclosure needs an affordance",
+      "sha256": "bf46b0857efa5022e6918eda026827e9de2747f3f349b5a6787a2322179abe77",
+      "destinations": [
+        "references/taste/layout.md#disclosure-and-adaptation"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/spacing-and-adaptivity.md",
+      "sourceSection": "Content bleeds, controls float",
+      "sha256": "bf46b0857efa5022e6918eda026827e9de2747f3f349b5a6787a2322179abe77",
+      "destinations": [
+        "references/taste/layout.md#targets-and-margins"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/spacing-and-adaptivity.md",
+      "sourceSection": "Hold structure until it breaks",
+      "sha256": "bf46b0857efa5022e6918eda026827e9de2747f3f349b5a6787a2322179abe77",
+      "destinations": [
+        "references/taste/layout.md#disclosure-and-adaptation"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/spacing-and-adaptivity.md",
+      "sourceSection": "Plan for growth and clipping",
+      "sha256": "bf46b0857efa5022e6918eda026827e9de2747f3f349b5a6787a2322179abe77",
+      "destinations": [
+        "references/taste/layout.md#disclosure-and-adaptation"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/choosing-fonts.md",
+      "sourceSection": "Choosing a typeface",
+      "sha256": "d139ec5d68cd123bc305d920295f7bc95a1e1123674de96d19103c1ebffc85c9",
+      "destinations": [
+        "references/taste/typography.md#fonts-and-loading"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/choosing-fonts.md",
+      "sourceSection": "Font family scope",
+      "sha256": "d139ec5d68cd123bc305d920295f7bc95a1e1123674de96d19103c1ebffc85c9",
+      "destinations": [
+        "references/taste/typography.md#fonts-and-loading"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/choosing-fonts.md",
+      "sourceSection": "Formats",
+      "sha256": "d139ec5d68cd123bc305d920295f7bc95a1e1123674de96d19103c1ebffc85c9",
+      "destinations": [
+        "references/taste/typography.md#fonts-and-loading"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/choosing-fonts.md",
+      "sourceSection": "Anatomy of a typeface",
+      "sha256": "d139ec5d68cd123bc305d920295f7bc95a1e1123674de96d19103c1ebffc85c9",
+      "destinations": [
+        "references/taste/typography.md#fonts-and-loading"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/spacing-and-sizing.md",
+      "sourceSection": "Units",
+      "sha256": "e28e7899a73a8b17f38418dfd8c1afda116db81a3b68d53dd51eab019b20ab82",
+      "destinations": [
+        "references/taste/typography.md#scale-and-spacing"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/spacing-and-sizing.md",
+      "sourceSection": "Type scale",
+      "sha256": "e28e7899a73a8b17f38418dfd8c1afda116db81a3b68d53dd51eab019b20ab82",
+      "destinations": [
+        "references/taste/typography.md#scale-and-spacing"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/spacing-and-sizing.md",
+      "sourceSection": "Heading hierarchy",
+      "sha256": "e28e7899a73a8b17f38418dfd8c1afda116db81a3b68d53dd51eab019b20ab82",
+      "destinations": [
+        "references/taste/typography.md#scale-and-spacing"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/spacing-and-sizing.md",
+      "sourceSection": "Kerning and letter-spacing",
+      "sha256": "e28e7899a73a8b17f38418dfd8c1afda116db81a3b68d53dd51eab019b20ab82",
+      "destinations": [
+        "references/taste/typography.md#scale-and-spacing"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/spacing-and-sizing.md",
+      "sourceSection": "Line-height",
+      "sha256": "e28e7899a73a8b17f38418dfd8c1afda116db81a3b68d53dd51eab019b20ab82",
+      "destinations": [
+        "references/taste/typography.md#scale-and-spacing"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/spacing-and-sizing.md",
+      "sourceSection": "Text trimming with text-box",
+      "sha256": "e28e7899a73a8b17f38418dfd8c1afda116db81a3b68d53dd51eab019b20ab82",
+      "destinations": [
+        "references/taste/typography.md#font-features"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/variable-fonts-and-opentype.md",
+      "sourceSection": "Static vs variable",
+      "sha256": "2bf1317ea5c0af6e36c57d15aacea512e450acbe4b00a8664c4619a959dea0b0",
+      "destinations": [
+        "references/taste/typography.md#fonts-and-loading"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/variable-fonts-and-opentype.md",
+      "sourceSection": "Load intended weights and styles",
+      "sha256": "2bf1317ea5c0af6e36c57d15aacea512e450acbe4b00a8664c4619a959dea0b0",
+      "destinations": [
+        "references/taste/typography.md#fonts-and-loading"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/variable-fonts-and-opentype.md",
+      "sourceSection": "Axes",
+      "sha256": "2bf1317ea5c0af6e36c57d15aacea512e450acbe4b00a8664c4619a959dea0b0",
+      "destinations": [
+        "references/taste/typography.md#font-features"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/variable-fonts-and-opentype.md",
+      "sourceSection": "Properties over axis tags",
+      "sha256": "2bf1317ea5c0af6e36c57d15aacea512e450acbe4b00a8664c4619a959dea0b0",
+      "destinations": [
+        "references/taste/typography.md#font-features"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/variable-fonts-and-opentype.md",
+      "sourceSection": "OpenType features",
+      "sha256": "2bf1317ea5c0af6e36c57d15aacea512e450acbe4b00a8664c4619a959dea0b0",
+      "destinations": [
+        "references/taste/typography.md#font-features"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/variable-fonts-and-opentype.md",
+      "sourceSection": "Small caps, superscripts, subscripts",
+      "sha256": "2bf1317ea5c0af6e36c57d15aacea512e450acbe4b00a8664c4619a959dea0b0",
+      "destinations": [
+        "references/taste/typography.md#font-features"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/variable-fonts-and-opentype.md",
+      "sourceSection": "Stylistic sets and character variants",
+      "sha256": "2bf1317ea5c0af6e36c57d15aacea512e450acbe4b00a8664c4619a959dea0b0",
+      "destinations": [
+        "references/taste/typography.md#font-features"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/wrapping-and-punctuation.md",
+      "sourceSection": "Measure (line length)",
+      "sha256": "7cfa3463b68cf21f08ab01a184b12c8bf2fe9340c2c7691a8cc99e4569389efe",
+      "destinations": [
+        "references/taste/typography.md#scale-and-spacing"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/wrapping-and-punctuation.md",
+      "sourceSection": "Alignment",
+      "sha256": "7cfa3463b68cf21f08ab01a184b12c8bf2fe9340c2c7691a8cc99e4569389efe",
+      "destinations": [
+        "references/taste/typography.md#wrapping-and-truncation"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/wrapping-and-punctuation.md",
+      "sourceSection": "Wrapping",
+      "sha256": "7cfa3463b68cf21f08ab01a184b12c8bf2fe9340c2c7691a8cc99e4569389efe",
+      "destinations": [
+        "references/taste/typography.md#wrapping-and-truncation"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/wrapping-and-punctuation.md",
+      "sourceSection": "Truncation",
+      "sha256": "7cfa3463b68cf21f08ab01a184b12c8bf2fe9340c2c7691a8cc99e4569389efe",
+      "destinations": [
+        "references/taste/typography.md#wrapping-and-truncation"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/wrapping-and-punctuation.md",
+      "sourceSection": "Case",
+      "sha256": "7cfa3463b68cf21f08ab01a184b12c8bf2fe9340c2c7691a8cc99e4569389efe",
+      "destinations": [
+        "references/taste/typography.md#wrapping-and-truncation"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/wrapping-and-punctuation.md",
+      "sourceSection": "Smart punctuation",
+      "sha256": "7cfa3463b68cf21f08ab01a184b12c8bf2fe9340c2c7691a8cc99e4569389efe",
+      "destinations": [
+        "references/taste/typography.md#wrapping-and-truncation"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/wrapping-and-punctuation.md",
+      "sourceSection": "Internationalization",
+      "sha256": "7cfa3463b68cf21f08ab01a184b12c8bf2fe9340c2c7691a8cc99e4569389efe",
+      "destinations": [
+        "references/taste/typography.md#numbers-and-direction"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/details-and-accessibility.md",
+      "sourceSection": "Underlines",
+      "sha256": "d74e2719ee793fbf7408883e0e5eb396b67514ce07e02412f33d5408ecb4a02e",
+      "destinations": [
+        "references/taste/typography.md#editable-and-interactive-text"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/details-and-accessibility.md",
+      "sourceSection": "Selection",
+      "sha256": "d74e2719ee793fbf7408883e0e5eb396b67514ce07e02412f33d5408ecb4a02e",
+      "destinations": [
+        "references/taste/typography.md#editable-and-interactive-text"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/details-and-accessibility.md",
+      "sourceSection": "Forms and editable text",
+      "sha256": "d74e2719ee793fbf7408883e0e5eb396b67514ce07e02412f33d5408ecb4a02e",
+      "destinations": [
+        "references/taste/typography.md#editable-and-interactive-text"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/details-and-accessibility.md",
+      "sourceSection": "Sizes",
+      "sha256": "d74e2719ee793fbf7408883e0e5eb396b67514ce07e02412f33d5408ecb4a02e",
+      "destinations": [
+        "references/taste/typography.md#scale-and-spacing"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/details-and-accessibility.md",
+      "sourceSection": "Font smoothing",
+      "sha256": "d74e2719ee793fbf7408883e0e5eb396b67514ce07e02412f33d5408ecb4a02e",
+      "destinations": [
+        "references/taste/typography.md#font-features"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/color-formats.md",
+      "sourceSection": "Choosing a notation",
+      "sha256": "e68fffec8f7b8e1036c295fce8d65785764f33aead5d292389c47451e79d7129",
+      "destinations": [
+        "references/taste/color.md#scope-and-measurement"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/color-formats.md",
+      "sourceSection": "Converting",
+      "sha256": "e68fffec8f7b8e1036c295fce8d65785764f33aead5d292389c47451e79d7129",
+      "destinations": [
+        "references/taste/color.md#generating-and-changing-palettes"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/color-formats.md",
+      "sourceSection": "Gamut",
+      "sha256": "e68fffec8f7b8e1036c295fce8d65785764f33aead5d292389c47451e79d7129",
+      "destinations": [
+        "references/taste/color.md#gamut-gradients-and-themes"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/color-formats.md",
+      "sourceSection": "Modern CSS worth knowing",
+      "sha256": "e68fffec8f7b8e1036c295fce8d65785764f33aead5d292389c47451e79d7129",
+      "destinations": [
+        "references/taste/color.md#gamut-gradients-and-themes"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/color-usage.md",
+      "sourceSection": "One color, one meaning",
+      "sha256": "dbaa4a4cb10b8118165fca4531b3c35b409c79185f15a2812a34f118293dba9f",
+      "destinations": [
+        "references/taste/color.md#meaning-and-emphasis"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/color-usage.md",
+      "sourceSection": "Use tokens in their role",
+      "sha256": "dbaa4a4cb10b8118165fca4531b3c35b409c79185f15a2812a34f118293dba9f",
+      "destinations": [
+        "references/taste/color.md#ramps-and-roles"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/color-usage.md",
+      "sourceSection": "One colored action per view",
+      "sha256": "dbaa4a4cb10b8118165fca4531b3c35b409c79185f15a2812a34f118293dba9f",
+      "destinations": [
+        "references/taste/color.md#meaning-and-emphasis"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/color-usage.md",
+      "sourceSection": "Gradients",
+      "sha256": "dbaa4a4cb10b8118165fca4531b3c35b409c79185f15a2812a34f118293dba9f",
+      "destinations": [
+        "references/taste/color.md#gamut-gradients-and-themes"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/color-usage.md",
+      "sourceSection": "Color across cultures",
+      "sha256": "dbaa4a4cb10b8118165fca4531b3c35b409c79185f15a2812a34f118293dba9f",
+      "destinations": [
+        "references/taste/color.md#meaning-and-emphasis"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/color-usage.md",
+      "sourceSection": "Light, dark and increased contrast",
+      "sha256": "dbaa4a4cb10b8118165fca4531b3c35b409c79185f15a2812a34f118293dba9f",
+      "destinations": [
+        "references/taste/color.md#gamut-gradients-and-themes"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/contrast.md",
+      "sourceSection": "APCA thresholds (recommended)",
+      "sha256": "f9a2f8ca2fd7966ea0002a9dd58b9d392fbb14fc6f4365534c488046337e5971",
+      "destinations": [
+        "references/taste/color.md#contrast-methods"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/contrast.md",
+      "sourceSection": "WCAG 2 thresholds (for legal compliance)",
+      "sha256": "f9a2f8ca2fd7966ea0002a9dd58b9d392fbb14fc6f4365534c488046337e5971",
+      "destinations": [
+        "references/taste/color.md#contrast-methods"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/contrast.md",
+      "sourceSection": "Fixing a failing pair (on request)",
+      "sha256": "f9a2f8ca2fd7966ea0002a9dd58b9d392fbb14fc6f4365534c488046337e5971",
+      "destinations": [
+        "references/taste/color.md#contrast-methods"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/contrast.md",
+      "sourceSection": "Quick approximations",
+      "sha256": "f9a2f8ca2fd7966ea0002a9dd58b9d392fbb14fc6f4365534c488046337e5971",
+      "destinations": [
+        "references/taste/color.md#contrast-methods"
+      ],
+      "disposition": "adapted",
+      "rationale": "Exclude unmeasured illustrative Lc approximations as reportable facts; retain requirement to measure actual pairs rather than carry over source numbers."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/contrast.md",
+      "sourceSection": "What to check",
+      "sha256": "f9a2f8ca2fd7966ea0002a9dd58b9d392fbb14fc6f4365534c488046337e5971",
+      "destinations": [
+        "references/taste/color.md#verification"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/palette-generation.md",
+      "sourceSection": "Start from the brand color",
+      "sha256": "f3e3f9fc84fd834cfffd9e0c951f28c3f24c3c4a4492d86b697d3258f500fb85",
+      "destinations": [
+        "references/taste/color.md#generating-and-changing-palettes"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/palette-generation.md",
+      "sourceSection": "What a correct ramp looks like",
+      "sha256": "f3e3f9fc84fd834cfffd9e0c951f28c3f24c3c4a4492d86b697d3258f500fb85",
+      "destinations": [
+        "references/taste/color.md#generating-and-changing-palettes"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/palette-generation.md",
+      "sourceSection": "Use a color library",
+      "sha256": "f3e3f9fc84fd834cfffd9e0c951f28c3f24c3c4a4492d86b697d3258f500fb85",
+      "destinations": [
+        "references/taste/color.md#generating-and-changing-palettes"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/palette-generation.md",
+      "sourceSection": "Several hues at once",
+      "sha256": "f3e3f9fc84fd834cfffd9e0c951f28c3f24c3c4a4492d86b697d3258f500fb85",
+      "destinations": [
+        "references/taste/color.md#generating-and-changing-palettes"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/palette-generation.md",
+      "sourceSection": "Dark mode",
+      "sha256": "f3e3f9fc84fd834cfffd9e0c951f28c3f24c3c4a4492d86b697d3258f500fb85",
+      "destinations": [
+        "references/taste/color.md#gamut-gradients-and-themes"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/palette-structure.md",
+      "sourceSection": "What a system needs",
+      "sha256": "82b22d74ead2a551a2a505347273025020d84dcde4a0170ea2fd14290dc10387",
+      "destinations": [
+        "references/taste/color.md#ramps-and-roles"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/palette-structure.md",
+      "sourceSection": "Every step has a job",
+      "sha256": "82b22d74ead2a551a2a505347273025020d84dcde4a0170ea2fd14290dc10387",
+      "destinations": [
+        "references/taste/color.md#ramps-and-roles"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/palette-structure.md",
+      "sourceSection": "Neutrals",
+      "sha256": "82b22d74ead2a551a2a505347273025020d84dcde4a0170ea2fd14290dc10387",
+      "destinations": [
+        "references/taste/color.md#ramps-and-roles"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/palette-structure.md",
+      "sourceSection": "Status colors",
+      "sha256": "82b22d74ead2a551a2a505347273025020d84dcde4a0170ea2fd14290dc10387",
+      "destinations": [
+        "references/taste/color.md#meaning-and-emphasis"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/palette-structure.md",
+      "sourceSection": "Auditing an existing palette",
+      "sha256": "82b22d74ead2a551a2a505347273025020d84dcde4a0170ea2fd14290dc10387",
+      "destinations": [
+        "references/taste/color.md#generating-and-changing-palettes"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/token-naming.md",
+      "sourceSection": "Two tiers",
+      "sha256": "198ca90a643d52f446fe423464908e900d31923ee7d13d6454c8b791326d6b2a",
+      "destinations": [
+        "references/taste/color.md#ramps-and-roles"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/token-naming.md",
+      "sourceSection": "The role inventory",
+      "sha256": "198ca90a643d52f446fe423464908e900d31923ee7d13d6454c8b791326d6b2a",
+      "destinations": [
+        "references/taste/color.md#ramps-and-roles"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/token-naming.md",
+      "sourceSection": "Naming grammar",
+      "sha256": "198ca90a643d52f446fe423464908e900d31923ee7d13d6454c8b791326d6b2a",
+      "destinations": [
+        "references/taste/color.md#ramps-and-roles"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/token-naming.md",
+      "sourceSection": "Anti-patterns",
+      "sha256": "198ca90a643d52f446fe423464908e900d31923ee7d13d6454c8b791326d6b2a",
+      "destinations": [
+        "references/taste/color.md#ramps-and-roles"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/token-naming.md",
+      "sourceSection": "In Tailwind projects",
+      "sha256": "198ca90a643d52f446fe423464908e900d31923ee7d13d6454c8b791326d6b2a",
+      "destinations": [
+        "references/taste/color.md#ramps-and-roles"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes. Qualify gamut/rendering and algorithm claims; WCAG large bold threshold corrected to14pt≈18.67px; APCA advisory not conformance. Role-weighted spacing replaces contradictory uniform/dense ramp requirements."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-writing/SKILL.md",
+      "sourceSection": "Recon the existing voice",
+      "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
+      "destinations": [
+        "references/taste/writing.md#voice-and-scope"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-writing/SKILL.md",
+      "sourceSection": "One voice, flexible tone",
+      "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
+      "destinations": [
+        "references/taste/writing.md#voice-and-scope"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-writing/SKILL.md",
+      "sourceSection": "Address the reader directly",
+      "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
+      "destinations": [
+        "references/taste/writing.md#voice-and-scope"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-writing/SKILL.md",
+      "sourceSection": "Plain words over clever ones",
+      "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
+      "destinations": [
+        "references/taste/writing.md#localization-and-presentation"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-writing/SKILL.md",
+      "sourceSection": "Verb-first buttons",
+      "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
+      "destinations": [
+        "references/taste/writing.md#actions-and-destinations"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-writing/SKILL.md",
+      "sourceSection": "Consistent flow vocabulary",
+      "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
+      "destinations": [
+        "references/taste/writing.md#actions-and-destinations"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-writing/SKILL.md",
+      "sourceSection": "Links describe their destination",
+      "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
+      "destinations": [
+        "references/taste/writing.md#actions-and-destinations"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-writing/SKILL.md",
+      "sourceSection": "One capitalization policy",
+      "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
+      "destinations": [
+        "references/taste/writing.md#localization-and-presentation"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-writing/SKILL.md",
+      "sourceSection": "Settings describe the ON state",
+      "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
+      "destinations": [
+        "references/taste/writing.md#actions-and-destinations"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-writing/SKILL.md",
+      "sourceSection": "Errors say how to fix, next to where it broke",
+      "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
+      "destinations": [
+        "references/taste/writing.md#errors-and-recovery"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-writing/SKILL.md",
+      "sourceSection": "Empty states point forward",
+      "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
+      "destinations": [
+        "references/taste/writing.md#empty-states-and-hints"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-writing/SKILL.md",
+      "sourceSection": "Placeholders are examples, not labels",
+      "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
+      "destinations": [
+        "references/taste/writing.md#empty-states-and-hints"
+      ],
+      "disposition": "adapted",
+      "rationale": "Concern-owned synthesis preserves scoped decisions and project conventions; accessibility mechanics link to their existing owner. Source code examples are explanatory inputs, not shipped executable recipes."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "15. Typography — optical sizing, tracking, leading",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/typography.md#scale-and-spacing",
+        "references/taste/typography.md#font-features",
+        "references/taste/typography.md#fonts-and-loading"
+      ],
+      "disposition": "merged",
+      "rationale": "Merge typography role/size-specific tracking/leading, optical sizing and system-font default; preserve established product family and accessibility owner rather than impose universal font migration."
     }
   ],
   "inventory": [
@@ -1085,7 +2011,7 @@
         "SPA route changes"
       ],
       "pendingTopLevelSections": [],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1100,7 +2026,7 @@
         "Submit behavior"
       ],
       "pendingTopLevelSections": [],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1115,7 +2041,7 @@
         "Touch behavior"
       ],
       "pendingTopLevelSections": [],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1129,7 +2055,7 @@
         "rem vs px"
       ],
       "pendingTopLevelSections": [],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1147,7 +2073,7 @@
       "pendingTopLevelSections": [
         "Visually hidden content"
       ],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1163,7 +2089,7 @@
         "Disabled states"
       ],
       "pendingTopLevelSections": [],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1191,23 +2117,22 @@
       "source": "jakubkrehel",
       "sourcePath": "skills/better-colors/color-formats.md",
       "sha256": "e68fffec8f7b8e1036c295fce8d65785764f33aead5d292389c47451e79d7129",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "Choosing a notation",
         "Converting",
         "Gamut",
         "Modern CSS worth knowing"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "pendingTopLevelSections": [],
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
       "sourcePath": "skills/better-colors/color-usage.md",
       "sha256": "dbaa4a4cb10b8118165fca4531b3c35b409c79185f15a2812a34f118293dba9f",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "One color, one meaning",
         "Use tokens in their role",
         "One colored action per view",
@@ -1215,67 +2140,68 @@
         "Color across cultures",
         "Light, dark and increased contrast"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "pendingTopLevelSections": [],
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
       "sourcePath": "skills/better-colors/contrast.md",
       "sha256": "f9a2f8ca2fd7966ea0002a9dd58b9d392fbb14fc6f4365534c488046337e5971",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "APCA thresholds (recommended)",
         "WCAG 2 thresholds (for legal compliance)",
         "Fixing a failing pair (on request)",
         "Quick approximations",
         "What to check"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "pendingTopLevelSections": [],
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
       "sourcePath": "skills/better-colors/palette-generation.md",
       "sha256": "f3e3f9fc84fd834cfffd9e0c951f28c3f24c3c4a4492d86b697d3258f500fb85",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "Start from the brand color",
         "What a correct ramp looks like",
         "Use a color library",
         "Several hues at once",
         "Dark mode"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "pendingTopLevelSections": [],
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
       "sourcePath": "skills/better-colors/palette-structure.md",
       "sha256": "82b22d74ead2a551a2a505347273025020d84dcde4a0170ea2fd14290dc10387",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "What a system needs",
         "Every step has a job",
         "Neutrals",
         "Status colors",
         "Auditing an existing palette"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "pendingTopLevelSections": [],
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
       "sourcePath": "skills/better-colors/token-naming.md",
       "sha256": "198ca90a643d52f446fe423464908e900d31923ee7d13d6454c8b791326d6b2a",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "Two tiers",
         "The role inventory",
         "Naming grammar",
         "Anti-patterns",
         "In Tailwind projects"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "pendingTopLevelSections": [],
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1291,7 +2217,7 @@
         "Before you finish",
         "Review output format"
       ],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1334,9 +2260,8 @@
       "source": "jakubkrehel",
       "sourcePath": "skills/better-layout/grouping-and-alignment.md",
       "sha256": "027edd034ab641e8affc2ec02ca97ee0824d86756b14e11de908d62f5d086fb1",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "Group with space, not lines",
         "Keep controls distinct from content",
         "Align to shared edges",
@@ -1344,15 +2269,15 @@
         "Order by importance",
         "Don't overload the entry point"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "pendingTopLevelSections": [],
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
       "sourcePath": "skills/better-layout/spacing-and-adaptivity.md",
       "sha256": "bf46b0857efa5022e6918eda026827e9de2747f3f349b5a6787a2322179abe77",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "Breathing room between targets",
         "Inset buttons from the edges",
         "Progressive disclosure needs an affordance",
@@ -1360,7 +2285,8 @@
         "Hold structure until it breaks",
         "Plan for growth and clipping"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "pendingTopLevelSections": [],
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1397,15 +2323,15 @@
       "source": "jakubkrehel",
       "sourcePath": "skills/better-typography/choosing-fonts.md",
       "sha256": "d139ec5d68cd123bc305d920295f7bc95a1e1123674de96d19103c1ebffc85c9",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "Choosing a typeface",
         "Font family scope",
         "Formats",
         "Anatomy of a typeface"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "pendingTopLevelSections": [],
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1425,25 +2351,25 @@
       "source": "jakubkrehel",
       "sourcePath": "skills/better-typography/details-and-accessibility.md",
       "sha256": "d74e2719ee793fbf7408883e0e5eb396b67514ce07e02412f33d5408ecb4a02e",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "Underlines",
         "Selection",
         "Forms and editable text",
-        "Decorative text",
         "Sizes",
         "Font smoothing"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "pendingTopLevelSections": [
+        "Decorative text"
+      ],
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
       "sourcePath": "skills/better-typography/spacing-and-sizing.md",
       "sha256": "e28e7899a73a8b17f38418dfd8c1afda116db81a3b68d53dd51eab019b20ab82",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "Units",
         "Type scale",
         "Heading hierarchy",
@@ -1451,15 +2377,15 @@
         "Line-height",
         "Text trimming with text-box"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "pendingTopLevelSections": [],
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
       "sourcePath": "skills/better-typography/variable-fonts-and-opentype.md",
       "sha256": "2bf1317ea5c0af6e36c57d15aacea512e450acbe4b00a8664c4619a959dea0b0",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "Static vs variable",
         "Load intended weights and styles",
         "Axes",
@@ -1468,15 +2394,15 @@
         "Small caps, superscripts, subscripts",
         "Stylistic sets and character variants"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "pendingTopLevelSections": [],
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
       "sourcePath": "skills/better-typography/wrapping-and-punctuation.md",
       "sha256": "7cfa3463b68cf21f08ab01a184b12c8bf2fe9340c2c7691a8cc99e4569389efe",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "Measure (line length)",
         "Alignment",
         "Wrapping",
@@ -1485,7 +2411,8 @@
         "Smart punctuation",
         "Internationalization"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "pendingTopLevelSections": [],
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1528,7 +2455,7 @@
         "Motion restraint"
       ],
       "pendingTopLevelSections": [],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1540,7 +2467,7 @@
         "Exit animations"
       ],
       "pendingTopLevelSections": [],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1551,7 +2478,7 @@
         "Contextual icon animations"
       ],
       "pendingTopLevelSections": [],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1566,7 +2493,7 @@
         "Icons in RTL"
       ],
       "pendingTopLevelSections": [],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1578,7 +2505,7 @@
         "Use `will-change` sparingly"
       ],
       "pendingTopLevelSections": [],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1592,15 +2519,14 @@
         "Image outlines"
       ],
       "pendingTopLevelSections": [],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
       "sourcePath": "skills/better-writing/SKILL.md",
       "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
-      "disposition": "pending",
-      "mappedSectionSelectors": [],
-      "pendingTopLevelSections": [
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
         "Recon the existing voice",
         "One voice, flexible tone",
         "Address the reader directly",
@@ -1612,10 +2538,12 @@
         "Settings describe the ON state",
         "Errors say how to fix, next to where it broke",
         "Empty states point forward",
-        "Placeholders are examples, not labels",
+        "Placeholders are examples, not labels"
+      ],
+      "pendingTopLevelSections": [
         "Reporting"
       ],
-      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "jakubkrehel",
@@ -1832,7 +2760,7 @@
         "Programmatic, without a library"
       ],
       "pendingTopLevelSections": [],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "emilkowalski",
@@ -1857,7 +2785,7 @@
         "Output",
         "Tone"
       ],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "emilkowalski",
@@ -1933,16 +2861,16 @@
         "12. Materials & depth",
         "13. Multimodal feedback",
         "14. Reduced motion & accessibility",
-        "17. Process"
+        "17. Process",
+        "15. Typography — optical sizing, tracking, leading"
       ],
       "pendingTopLevelSections": [
         "The Core Idea",
         "8. Hint in the direction of the gesture",
-        "15. Typography — optical sizing, tracking, leading",
         "16. Design foundations — the eight principles",
         "Quick Reference"
       ],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "emilkowalski",
@@ -1997,7 +2925,7 @@
         "Stagger Animations",
         "Review Checklist"
       ],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "emilkowalski",
@@ -2033,7 +2961,7 @@
         "7. Cohesion & tokens",
         "8. Missed opportunities"
       ],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "emilkowalski",
@@ -2150,7 +3078,7 @@
         "Debugging (recommend in reviews when feel is uncertain)",
         "Cohesion"
       ],
-      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+      "reason": "Explicit mapped sections have editorial coverage in delivered slices. Unmapped sections, duplicate gateways/report wrappers, specialized CSS tables and executable examples still need accounting; no full file or collection coverage claimed."
     },
     {
       "source": "emilkowalski",
@@ -2199,6 +3127,18 @@
     "performance": {
       "selected": "Prefer cheap properties and measure exceptions",
       "rationale": "Do not promote blanket CSS/WAAPI/clip-path/Motion GPU claims without browser/library evidence; retain scoped accordion/visual effects."
+    },
+    "palette-spacing": {
+      "selected": "Perceptually distinct role-weighted steps, finer light backgrounds",
+      "rationale": "Cannot require uniform numerical spacing and denser light-end spacing simultaneously; retain purpose of distinguishable role ramps."
+    },
+    "contrast-methods": {
+      "selected": "WCAG scope gate; APCA advisory with method/version/font context",
+      "rationale": "Opaque WCAG ratio symmetric, APCA polarity-sensitive; correct14pt bold conversion to18.67px and reject illustrative unmeasured Lc as target facts."
+    },
+    "token-inventory": {
+      "selected": "Instantiate consumed semantic roles only",
+      "rationale": "Complete role list is a planning checklist, not requirement to ship unused tokens."
     }
   }
 }
