@@ -16,15 +16,12 @@ Run focused tests with:
 
 ```bash
 python3 -m pytest packages/keyboard/tests/ -q
-npx tsc --noEmit -p tsconfig.extensions.json
 pnpm --dir packages/keyboard pack --dry-run
 ```
 
-There is no separate build step; Pi loads the TypeScript extension directly.
-
 ## Style and Architecture
 
-Use ESM TypeScript and preserve the stable state names (`idle`, `unread_chat`,
+Preserve the stable state names (`idle`, `unread_chat`,
 `thinking`, `need_approval`, `error`) and zones (`all`, `matrix`, `underglow`).
 Keep Pi lifecycle wiring and `/keyboard` handling in `src/index.ts`; keep HID
 packet construction and external CLI execution in their dedicated modules.
@@ -33,11 +30,11 @@ unchanged states, and retain graceful behavior when hardware is unavailable.
 The default configuration is in-memory (`saveToEeprom: false`), so transitions
 must use `--no-save` unless explicitly configured otherwise.
 
-## Testing and Release
+## Testing Guidelines
 
-Update `features/keyboard.feature` before changing behavior, then extend the
-Python contract tests. Test state definitions, packet bytes, zones, lifecycle
-transitions, session cleanup, hook registration, and no-save behavior. The
-manifest ships `index.ts`, `src`, `features`, and both READMEs; keep those
-entries aligned with implementation. Add a Changeset for published behavior or
-manifest changes and follow the repository's Conventional Commit scopes.
+`features/keyboard.feature` and `tests/test_keyboard_package.py` cover state
+definitions, packet bytes, zones, lifecycle transitions, session cleanup,
+hook registration, and no-save behavior. Hardware integration requires the
+`via-rgb` executable; use `/keyboard status` and `/keyboard test thinking` for
+an installed-device check. Keep both English and Chinese READMEs accurate;
+both ship with `index.ts`, `src`, and `features`.

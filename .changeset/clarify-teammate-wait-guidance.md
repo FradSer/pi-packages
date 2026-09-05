@@ -2,4 +2,4 @@
 "@fradser/pi-agent-teams": patch
 ---
 
-Clarify that leaders should end their turn instead of using sleep, polling, or unsolicited steers to wait for teammate completion.
+Teach leaders to continue independent work or yield the turn while teammates run, relying on automatic result delivery instead of extending the turn with polling or wait commands.

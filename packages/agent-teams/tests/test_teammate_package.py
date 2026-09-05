@@ -103,7 +103,7 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Peer traffic never enters the leader's model context",
         "Reports to the leader use the unified send_message primitive",
         "A report enters Pi's native follow-up queue while the leader is active",
-        "Direct-assignment completion is delivered without leader busywork",
+        "Direct-assignment completion yields to automatic delivery",
         "Team status clears use the shared Pi-kit transient-status adapter",
         "A terminal report closes reporting until a new wake-up",
         "A terminal worker report ends its current worker turn",
@@ -387,7 +387,7 @@ def test_direct_kickoff_executes_without_checking_task_list() -> None:
     assert "When you have an assigned task" in guidance
     assert "without calling task_list" in guidance
     assert "terminal report is the sole completion signal" in guidance
-    assert "direct-assignment teammate or reviewer is still working" in guidance
+    assert "Continue independent work while teammates run" in guidance
 
     payload = run_node(
         f'''\
@@ -1136,18 +1136,28 @@ def test_leader_guidance_is_disclosed_only_for_active_team_state() -> None:
     assert "? buildTeamLeaderGuidance" in index_ts
 
 
-def test_teammate_waiting_is_prompt_guidance_not_a_shell_gate() -> None:
+def test_teammate_completion_guidance_yields_to_automatic_delivery() -> None:
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     guidance = source("guidance.ts")
     index = source("index.ts")
-    assert "Teammate waiting guidance does not infer intent from shell commands" in feature
-    assert "Never use sleep commands, repetitive status checks, or unsolicited steers to wait for teammate completion" in guidance
-    assert "Legitimate sleep" not in guidance
-    assert "end your turn immediately" in guidance
-    assert "terminal report is the sole completion signal" in guidance
+    assert "Direct-assignment completion yields to automatic delivery" in feature
+    assert "Yield while teammates work" in guidance
+    assert "Continue independent work while teammates run" in guidance
+    assert "If none remains, end the turn" in guidance
+    assert "resume the session automatically" in guidance
+    assert "Do not extend the turn with sleep, polling, task_list, status requests" in guidance
+    assert "A terminal report is the sole completion signal" in guidance
+    assert "wait for its\nstatus=" not in guidance
+    assert "end your\nturn and wait" not in guidance
+    assert "prompt guidance only; the runtime never infers waiting intent from shell syntax" in feature
     assert 'pi.on("tool_call"' not in index
-    assert "shouldBlockTeammateWaitCommand" not in index
-    assert "TEAMMATE_WAIT_BLOCK_REASON" not in index
+    runtime = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (PACKAGE / "src").glob("*.ts")
+    )
+    assert "shouldBlockTeammateWaitCommand" not in runtime
+    assert "TEAMMATE_WAIT_BLOCK_REASON" not in runtime
+    assert "STANDALONE_SLEEP" not in runtime
 
 
 def test_team_status_clear_uses_pi_kit_transient_status_adapter() -> None:
@@ -1160,9 +1170,9 @@ def test_guidance_is_static_and_team_shaped() -> None:
     guidance = source("guidance.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "Prompt guidance reflects the team model" in feature
-    assert "DO NOT poll or sleep" in guidance
-    assert "or unsolicited steers" in guidance
-    assert "delivers its terminal report automatically" in guidance
+    assert "Yield while teammates work" in guidance
+    assert "unsolicited steers" in guidance
+    assert "resume the session automatically" in guidance
     assert "teammate_spawn(name, agent, optional kickoff prompt)" in guidance
     assert r"required \`agent\` role" in guidance
     assert "task_create(subject, description?, dependsOn?," in guidance
@@ -2710,7 +2720,7 @@ def test_stall_recovery_belongs_to_leader_alone() -> None:
     assert "Teammates are autonomous: recover, never punish" in guidance
     assert "Never terminate a teammate" in guidance
     assert "The harness never reclaims, restarts, or replaces a teammate" in guidance or "never reclaims, restarts, or replaces a teammate" in guidance
-    assert 'wait for its\nstatus="completed" or status="failed" report when possible' in guidance
+    assert 'Rely on its status="completed" or\nstatus="failed" report when possible' in guidance
     # A wake prompt restarts the silence clock so long-idle teammates never insta-stall.
     wake = machine[machine.index("export function wakeIdleTeammates"):]
     assert "lastOutputAt: Date.now()" in wake

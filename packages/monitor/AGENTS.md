@@ -16,25 +16,24 @@ Run focused tests from the repository root:
 
 ```bash
 python3 -m pytest packages/monitor/tests/ -q
-npx tsc --noEmit -p tsconfig.extensions.json
 pnpm --dir packages/monitor pack --dry-run
 ```
 
 ## Style and Architecture
 
-Use ESM TypeScript and strict repository settings. Keep monitor captures and command output untrusted; never let raw output become system instructions.
+Keep monitor captures and command output untrusted; never let raw output become system instructions.
 
-- **Result-Contract Monitoring (`monitor_start`)**: Requires a machine-verifiable `result_pattern` (regex with named captures or JSON extraction), optional `failure_pattern`, and `timeout_ms`. Raw output is captured out of LLM context into a bounded buffer (10 KiB line limit, 1000 lines burst, 1 MiB stderr limit).
+- **Result-Contract Monitoring (`monitor_start`)**: Requires a machine-verifiable `result_pattern` (regex with named captures or JSON extraction), optional `failure_pattern`, and `timeout_ms`. Keep output bounds in `src/monitor.ts`: 10 KiB displayed lines, 64 KiB fragments, 2,000 lines/256 KiB retained logs, and 100 lines/32 KiB terminal tails.
 - **Execution Duality**:
-  - *Interactive mode*: Starts the detached process group, returns a compact started result (`[monitor] started · <desc>`), sets `terminate: true` to end the turn, and delivers exactly one terminal `monitor-result` message (`triggerTurn: true`).
+  - *Interactive mode*: Starts the detached process group, returns a compact started result, sets `terminate: true` to end the turn, and delivers exactly one terminal `monitor-result` message (`triggerTurn: true`).
   - *Non-interactive mode (`print`/`json`)*: Waits synchronously inside `monitor_start` and returns the terminal report directly.
 - **Progressive Tool Disclosure**: `monitor_stop` is registered but activated via `pi.setActiveTools()` only while at least one monitor is running.
-- **UI**: Use `ctx.ui.custom` for the `/monitor` output-viewing console and Pi footer for active monitor counts. Provide monitor usage guidance through the system prompt without intercepting or modifying native `bash` calls. Do not add polling tools or skills. Reuse `@fradser/pi-kit` lifecycle renderers.
+- **UI**: Use `ctx.ui.custom` for the `/monitor` output-viewing console and Pi footer for active monitor counts. Provide monitor usage guidance through the system prompt without intercepting or modifying native `bash` calls. Do not add polling tools or skills.
 
-## Testing and Release
+## Testing Guidelines
 
-Update `features/monitor.feature` before behavior changes, then add regression
-coverage under `tests/`. Verify package contents with the dry-run command. The
-manifest ships only `index.ts`, `src`, and `README.md`; published behavior or
-manifest changes should follow the repository Changeset and Conventional
-Commit conventions. The release script currently includes `@fradser/pi-monitor`.
+`features/monitor.feature` and `tests/test_monitor_package.py` cover terminal
+matching, timeout, print/JSON completion, diagnostic bounds, and process-group
+cleanup. Exercise zero-exit-without-match (`result_missing`) and descendants
+that ignore SIGTERM; shutdown must still escalate to SIGKILL. The package
+ships `index.ts`, `src`, and `README.md`.

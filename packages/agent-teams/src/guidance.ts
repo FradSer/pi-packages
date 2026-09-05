@@ -155,8 +155,8 @@ status updates. A teammate that has already sent a terminal report rejects
 ordinary steers, and that rejection returns the recorded report content: read
 it there instead of asking for a resend. Never ask a teammate to repeat an
 already-sent report — the repeat arrives as a second identical leader turn.
-Its delivery to your context is automatic; if it has not arrived yet, end your
-turn and wait. Spawn a successor for a new task, or use reopen=true only when
+Its delivery to your context is automatic. Spawn a successor for a new task,
+or use reopen=true only when
 assigning that same resident a distinct new task.
 
 Two coordination patterns are available:
@@ -184,8 +184,8 @@ Two coordination patterns are available:
 ### Teammates are autonomous: recover, never punish
 
 Teammates run without turn-count or duration caps. Never terminate a teammate
-merely because it has worked long. When work appears complete, wait for its
-status="completed" or status="failed" report when possible; intentional
+merely because it has worked long. Rely on its status="completed" or
+status="failed" report when possible; intentional
 shutdown is process cleanup, not proof that the assignment completed. The
 harness heartbeat notifies you when a working teammate produces no output for a
 while; that notice is information, not a verdict — decide whether to keep
@@ -195,18 +195,14 @@ original kickoff, the teammate's past reports (leader mailbox or /agent-teams
 detail view), its board claims, and any live transcript tail. The harness
 never reclaims, restarts, or replaces a teammate on its own.
 
-### DO NOT poll or sleep
+### Yield while teammates work
 
-- Never use sleep commands, repetitive status checks, or unsolicited steers to wait for teammate completion. A direct-assignment teammate delivers its terminal report automatically; do not prompt it for status or ask it to send its result again.
-- task_list is a board snapshot, not a wait mechanism: never call it merely
-  to learn whether a direct-assignment teammate or reviewer is still working
-  or has finished. Its terminal report is the sole completion signal. Use
-  task_list only when task-board state is needed for a concrete coordination
-  decision; never call it repeatedly to detect teammate completion.
-- Wake-ups, reports, verify outcomes, and crash diagnostics arrive as
-automatic follow-ups. Once you have dispatched work and have no independent
-foreground task, end your turn immediately.
-- After deliverables arrive, inspect artifacts yourself: a teammate's claim
-is not proof until its result and tests are checked.
+Continue independent work while teammates run. If none remains, end the turn;
+reports, verify outcomes, and crash diagnostics resume the session automatically.
+Do not extend the turn with sleep, polling, task_list, status requests, or
+unsolicited steers. A terminal report is the sole completion signal.
+
+After delivery, inspect the artifacts yourself: a teammate's claim is not proof
+until its result and tests are checked.
 `;
 }

@@ -118,20 +118,15 @@ Feature: Agent Teams collaborative organization contract
       When agent-teams updates the TUI status
       Then it clears the teammate entry through pi-kit's status adapter
 
-    Scenario: Direct-assignment completion is delivered without leader busywork
+    Scenario: Direct-assignment completion yields to automatic delivery
       Given a teammate has a direct assignment or review kickoff
-      When the leader has no independent foreground work after dispatching it
-      Then the leader ends its turn without sleep commands, status checks, or unsolicited steers
-      And the teammate's terminal report is delivered to the leader as an automatic follow-up
+      When the leader has dispatched it
+      Then the leader continues independent foreground work when any remains
+      And otherwise ends its turn immediately
+      And the teammate's terminal report resumes the leader session automatically
       And that terminal report is the sole completion signal
-      And task_list remains available when task-board state is needed for a concrete coordination decision
-
-    Scenario: Teammate waiting guidance does not infer intent from shell commands
-      Given at least one teammate is starting, working, or idle
-      When the leader considers waiting for its terminal report
-      Then prompt guidance instructs the leader not to use sleep or polling merely to wait
-      And it instructs the leader to end the turn when no independent work remains
-      But the harness does not block bash commands based on sleep syntax
+      And the leader does not extend its turn with sleep, polling, task_list, or status requests
+      And this remains prompt guidance only; the runtime never infers waiting intent from shell syntax
 
     Scenario: A terminal direct assignment cannot drift into board work
       Given a teammate completed a direct assignment with a terminal leader report
