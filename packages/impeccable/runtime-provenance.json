@@ -1,0 +1,218 @@
+{
+  "repository": "https://github.com/pbakaus/impeccable",
+  "revision": "63b04e2530f5c7b41ea83c133daab24f34912456",
+  "tag": "skill-v4.1.2",
+  "files": [
+    {
+      "source": "skill/scripts/context.mjs",
+      "sha256": "7c747b6f5bba3ca860a22075b765ea4b0e7688fdcaa97e1dfc5b01a536303a89",
+      "destination": "scripts/context.mjs",
+      "disposition": "adapted",
+      "reason": "Preserve project/target resolution; remove updates, global staleness cache, native document reads and unavailable/unauthorized workflow directives."
+    },
+    {
+      "source": "skill/scripts/lib/provider.mjs",
+      "sha256": "4fa2502f3330466be483d973562881f10d61a1aa479b5780b3aac93294ce9611",
+      "destination": "scripts/lib/provider.mjs",
+      "disposition": "adapted",
+      "reason": "Explicit Pi provider without host command generation."
+    },
+    {
+      "source": "cli/engine/engines/regex/detect-text.mjs",
+      "sha256": "8e0ecc091bcecc24eb34d34dab9bcabb1057af6a6dcf34f186fb370b26e61157",
+      "destination": "scripts/detector/engines/regex/detect-text.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "cli/engine/profile/profiler.mjs",
+      "sha256": "5e201f3557360bd368a3977fecf925f376fd95f8a4dd6c4cc63fbd62848cda43",
+      "destination": "scripts/detector/profile/profiler.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "cli/engine/findings.mjs",
+      "sha256": "8b8af7212c8515d6791a8af1375d0619a9f9a707a881e6fbd850e4216b3f8eca",
+      "destination": "scripts/detector/findings.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "cli/engine/registry/antipatterns.mjs",
+      "sha256": "4544ccca3d7c341d878b941fbe20620750dbf9d29dd6d15e063128a1e390b345",
+      "destination": "scripts/detector/registry/antipatterns.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "cli/engine/shared/inline-ignores.mjs",
+      "sha256": "74c80303e25f017b4671ae299b9fca424a5f7714203d19207a8d8896dfd2eecc",
+      "destination": "scripts/detector/shared/inline-ignores.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "cli/engine/shared/page.mjs",
+      "sha256": "b4cef5548d84fa90d15e6b42b20be9ef74ed05e4e6e46076ec5acc61b343315c",
+      "destination": "scripts/detector/shared/page.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "cli/engine/rules/checks.mjs",
+      "sha256": "e63f6adbd0893d75105e825b1656a268c512a9bc7e5f3d17d4ac70ef412d6e57",
+      "destination": "scripts/detector/rules/checks.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "cli/engine/shared/fonts.mjs",
+      "sha256": "869c297295a10082d87988f31c136c5df9ddad84da0c2bbba2e85e1261e320a6",
+      "destination": "scripts/detector/shared/fonts.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "cli/engine/shared/color.mjs",
+      "sha256": "c9664cdfcb5cc964a6c78fba82c51640bf20258601572ea0bb413c00446489f5",
+      "destination": "scripts/detector/shared/color.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "cli/engine/shared/constants.mjs",
+      "sha256": "606f50159d56b5e972724c13933e63220696636215292e5316846426f3e12896",
+      "destination": "scripts/detector/shared/constants.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "cli/engine/design-system.mjs",
+      "sha256": "cacf7ae83b4ccfff84ceb6ab06549b399e0ec88750f053249db65371dd302de1",
+      "destination": "scripts/detector/design-system.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "cli/engine/engines/static-html/detect-html.mjs",
+      "sha256": "481b584ccdf3ac28065dbab11f65d638e3e7a35e14c7e62bc5da3d59d2a7efd7",
+      "destination": "scripts/detector/engines/static-html/detect-html.mjs",
+      "disposition": "adapted",
+      "reason": "Fail with reinstall diagnostic when static parser imports fail; do not present regex fallback as successful HTML verification."
+    },
+    {
+      "source": "cli/engine/engines/static-html/css-cascade.mjs",
+      "sha256": "6809969a6e2c58992d863c23d6f2c6fb6b8ddacc503dac2ad0e5452bf2725c54",
+      "destination": "scripts/detector/engines/static-html/css-cascade.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "skill/scripts/lib/surface-briefs.mjs",
+      "sha256": "33b35099b95d40e034b6a65657a1fd90fd011cdcb752f1c7a51e8470df37e668",
+      "destination": "scripts/lib/surface-briefs.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "skill/scripts/lib/target-slug.mjs",
+      "sha256": "dbc2670ad1461658d1b43fe15778ac220bc0db57af1f3fd8ccb6251b5ca5a2a4",
+      "destination": "scripts/lib/target-slug.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "skill/scripts/lib/target-args.mjs",
+      "sha256": "8f8b902d9ec7dbad0431226bb8aea935cd67d68878d19d95a605be0585056f31",
+      "destination": "scripts/lib/target-args.mjs",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "LICENSE",
+      "sha256": "02bb8c3b4e70190e3986c0404ad2fd8d639b4f534252d82379cc1b502b6d1812",
+      "destination": "licenses/impeccable-Apache-2.0.txt",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "NOTICE.md",
+      "sha256": "c60a093c2845fd9fb82f9c6f742ece31f379f8190b535309d32d66c45ccffdcb",
+      "destination": "licenses/impeccable-NOTICE.md",
+      "disposition": "retained",
+      "reason": null
+    },
+    {
+      "source": "skill/scripts/detect.mjs",
+      "sha256": "f5dfd05ca1e314acd8ed79c6301a20a1b844f2eb6691bd63e04116a8e7efb187",
+      "destination": "scripts/detect.mjs",
+      "disposition": "adapted",
+      "reason": "Static engines only; require explicit supported local files; no discovery, browser imports, or downloads. Only low-contrast and skipped-heading are primary; upstream stylistic policies are advisory for canonical taste review."
+    },
+    {
+      "source": "skill/reference/polish.md",
+      "section": "whole procedure",
+      "sha256": "d6e8b5a0d1fc9435b15e8da27983e81d79872868a36aa5bca90696e37d186165",
+      "destination": "procedures/polish.md",
+      "disposition": "adapted",
+      "reason": "Leader adaptation to supported Pi procedures consuming canonical taste and authorized local runtime."
+    },
+    {
+      "source": "skill/reference/animate.md",
+      "section": "whole procedure",
+      "sha256": "59f38d50c799aa47ecd7288c69dce0245d8c3e3e2368b29499d583996b5030b3",
+      "destination": "procedures/animate.md",
+      "disposition": "adapted",
+      "reason": "Leader adaptation to supported Pi procedures consuming canonical taste and authorized local runtime."
+    },
+    {
+      "source": "skill/SKILL.src.md",
+      "section": "Setup; How to design",
+      "sha256": "e250f14b803e9b7eb19e0be448d5b312db024c32c8a7162acaa54afde8eb7555",
+      "destination": "procedures/setup.md",
+      "disposition": "adapted",
+      "reason": "Leader adaptation to supported Pi procedures consuming canonical taste and authorized local runtime."
+    }
+  ],
+  "excluded": [
+    {
+      "source": "skill/reference/ios.md",
+      "reason": "Native supplement not shipped; additional MIT provenance required."
+    },
+    {
+      "source": "skill/reference/android.md",
+      "reason": "Native supplement not shipped; additional MIT provenance required."
+    },
+    {
+      "source": "cli/engine/engines/browser/detect-url.mjs",
+      "reason": "Browser runtime excluded; explicit local static targets only."
+    }
+  ],
+  "detectorPolicy": {
+    "primary": [
+      "low-contrast",
+      "skipped-heading"
+    ],
+    "otherRules": "advisory: upstream heuristics require review against canonical taste; never unconditional project edits",
+    "limits": "Static estimates are not rendered accessibility verification. No browser, directory discovery, or automatic configuration writes. Primary means review triage, not categorical conformance failure; skipped headings can have context-dependent semantics."
+  },
+  "licenses": {
+    "jakub": {
+      "repository": "https://github.com/jakubkrehel/skills",
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "source": "LICENSE",
+      "destination": "licenses/jakub-krehel-MIT.txt",
+      "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f",
+      "disposition": "retained"
+    },
+    "emil": {
+      "repository": "https://github.com/emilkowalski/skills",
+      "revision": "d23d7f88a2e21c9e4b1418c7abe420f5c1052ba7",
+      "source": "LICENSE",
+      "destination": "licenses/emil-kowalski-MIT.txt",
+      "sha256": "4ff5bdb7887ec1435c9cab0e8d1a7caee704d894d65c2a008ccc68b1cc2f260b",
+      "disposition": "retained"
+    }
+  }
+}

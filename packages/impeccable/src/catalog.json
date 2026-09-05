@@ -1,0 +1,9 @@
+[
+  { "id": "polish", "kind": "capability", "invocation": "model", "file": "procedures/polish.md", "label": "Polish", "requires": ["setup", "principles", "components"], "discloses": [{ "id": "motion", "when": "The target includes animated or retargetable interactions" }] },
+  { "id": "animate", "kind": "capability", "invocation": "model", "file": "procedures/animate.md", "label": "Animate", "requires": ["setup", "principles", "motion", "accessibility"], "discloses": [{ "id": "components", "when": "Implementing component-specific feedback or state transitions" }] },
+  { "id": "setup", "kind": "procedure", "invocation": "internal", "file": "procedures/setup.md", "label": "Target context" },
+  { "id": "principles", "kind": "reference", "invocation": "internal", "file": "references/taste/principles.md", "label": "Principles" },
+  { "id": "components", "kind": "reference", "invocation": "internal", "file": "references/taste/components.md", "label": "Components", "requires": ["principles", "accessibility", "motion"] },
+  { "id": "motion", "kind": "reference", "invocation": "internal", "file": "references/taste/motion.md", "label": "Motion", "requires": ["accessibility"] },
+  { "id": "accessibility", "kind": "reference", "invocation": "internal", "file": "references/taste/accessibility.md", "label": "Accessibility" }
+]

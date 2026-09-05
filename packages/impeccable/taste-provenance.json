@@ -1,0 +1,2204 @@
+{
+  "schemaVersion": 1,
+  "coverage": "first-slice",
+  "sources": {
+    "jakubkrehel": {
+      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+      "license": "licenses/jakub-krehel-MIT.txt"
+    },
+    "emilkowalski": {
+      "revision": "d23d7f88a2e21c9e4b1418c7abe420f5c1052ba7",
+      "license": "licenses/emil-kowalski-MIT.txt"
+    }
+  },
+  "mappings": [
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/surfaces.md",
+      "sourceSection": "Concentric border radius",
+      "sha256": "5508a7caf07ae8de616e7d83e282d4a08c026dd7a2d3cf54979609e4e0301048",
+      "destinations": [
+        "references/taste/components.md#nested-surfaces"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/surfaces.md",
+      "sourceSection": "Optical alignment",
+      "sha256": "5508a7caf07ae8de616e7d83e282d4a08c026dd7a2d3cf54979609e4e0301048",
+      "destinations": [
+        "references/taste/components.md#nested-surfaces"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/surfaces.md",
+      "sourceSection": "Shadows instead of borders",
+      "sha256": "5508a7caf07ae8de616e7d83e282d4a08c026dd7a2d3cf54979609e4e0301048",
+      "destinations": [
+        "references/taste/components.md#elevation-and-separators"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/surfaces.md",
+      "sourceSection": "Image outlines",
+      "sha256": "5508a7caf07ae8de616e7d83e282d4a08c026dd7a2d3cf54979609e4e0301048",
+      "destinations": [
+        "references/taste/components.md#elevation-and-separators"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/icons.md",
+      "sourceSection": "Match icon stroke to text weight",
+      "sha256": "74cc78322874df4e2286bb0f5835d68114f74be1c94f993c94f6af692f44733b",
+      "destinations": [
+        "references/taste/components.md#icons"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/icons.md",
+      "sourceSection": "One SVG, recolored per state",
+      "sha256": "74cc78322874df4e2286bb0f5835d68114f74be1c94f993c94f6af692f44733b",
+      "destinations": [
+        "references/taste/components.md#icons"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/icons.md",
+      "sourceSection": "Outline default, fill active",
+      "sha256": "74cc78322874df4e2286bb0f5835d68114f74be1c94f993c94f6af692f44733b",
+      "destinations": [
+        "references/taste/components.md#icons"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/icons.md",
+      "sourceSection": "Design at render size",
+      "sha256": "74cc78322874df4e2286bb0f5835d68114f74be1c94f993c94f6af692f44733b",
+      "destinations": [
+        "references/taste/components.md#icons"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/icons.md",
+      "sourceSection": "Icons in RTL",
+      "sha256": "74cc78322874df4e2286bb0f5835d68114f74be1c94f993c94f6af692f44733b",
+      "destinations": [
+        "references/taste/components.md#icons"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/icon-transitions.md",
+      "sourceSection": "Contextual icon animations",
+      "sha256": "60098242d33133a35a675719c447129b8931aecfbf05d58a6e2aa01e7894694e",
+      "destinations": [
+        "references/taste/components.md#contextual-icon-changes"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/animations.md",
+      "sourceSection": "Interruptible animations",
+      "sha256": "5d2d9e4cefab494b6dd0683e7d2d9bc90788df9c536449c0828c241de965e846",
+      "destinations": [
+        "references/taste/motion.md#interruptibility"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/animations.md",
+      "sourceSection": "Scale on press",
+      "sha256": "5d2d9e4cefab494b6dd0683e7d2d9bc90788df9c536449c0828c241de965e846",
+      "destinations": [
+        "references/taste/components.md#press-feedback"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/animations.md",
+      "sourceSection": "Skip animation on page load",
+      "sha256": "5d2d9e4cefab494b6dd0683e7d2d9bc90788df9c536449c0828c241de965e846",
+      "destinations": [
+        "references/taste/motion.md#entry-and-exit"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/animations.md",
+      "sourceSection": "Suppress transitions on theme switch",
+      "sha256": "5d2d9e4cefab494b6dd0683e7d2d9bc90788df9c536449c0828c241de965e846",
+      "destinations": [
+        "references/taste/motion.md#performance"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/animations.md",
+      "sourceSection": "Motion restraint",
+      "sha256": "5d2d9e4cefab494b6dd0683e7d2d9bc90788df9c536449c0828c241de965e846",
+      "destinations": [
+        "references/taste/motion.md#frequency-and-input"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/enter-exit.md",
+      "sourceSection": "Enter animations: split and stagger",
+      "sha256": "8db1b33d6c80a097218a530cb9749dff4b0a2b992236047a2e88661af5e930ea",
+      "destinations": [
+        "references/taste/motion.md#entry-and-exit"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/enter-exit.md",
+      "sourceSection": "Exit animations",
+      "sha256": "8db1b33d6c80a097218a530cb9749dff4b0a2b992236047a2e88661af5e930ea",
+      "destinations": [
+        "references/taste/motion.md#entry-and-exit"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/performance.md",
+      "sourceSection": "Transition only what changes",
+      "sha256": "e4bc3c90d6e0281d295e2e7e39d545fb9abd8a67667b0c10e589eda8115e5b1e",
+      "destinations": [
+        "references/taste/motion.md#performance"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/performance.md",
+      "sourceSection": "Use `will-change` sparingly",
+      "sha256": "e4bc3c90d6e0281d295e2e7e39d545fb9abd8a67667b0c10e589eda8115e5b1e",
+      "destinations": [
+        "references/taste/motion.md#performance"
+      ],
+      "disposition": "merged",
+      "rationale": "Retain concrete scope and values; consolidate duplicate gateway requirements. Preference and frequency gates override expressive recipes; compositing assertions are qualified."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/focus-and-keyboard.md",
+      "sourceSection": "Focus rings",
+      "sha256": "9ba63027fa8f1b53e4947ee3341e0580347121f3ccb7698f2936d33563ffa4ba",
+      "destinations": [
+        "references/taste/accessibility.md#focus-and-keyboard"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/focus-and-keyboard.md",
+      "sourceSection": "Skip link",
+      "sha256": "9ba63027fa8f1b53e4947ee3341e0580347121f3ccb7698f2936d33563ffa4ba",
+      "destinations": [
+        "references/taste/accessibility.md#focus-and-keyboard"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/focus-and-keyboard.md",
+      "sourceSection": "tabindex rules",
+      "sha256": "9ba63027fa8f1b53e4947ee3341e0580347121f3ccb7698f2936d33563ffa4ba",
+      "destinations": [
+        "references/taste/accessibility.md#focus-and-keyboard"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/focus-and-keyboard.md",
+      "sourceSection": "Focus trapping and restoration",
+      "sha256": "9ba63027fa8f1b53e4947ee3341e0580347121f3ccb7698f2936d33563ffa4ba",
+      "destinations": [
+        "references/taste/accessibility.md#focus-and-keyboard"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/focus-and-keyboard.md",
+      "sourceSection": "Keyboard patterns (ARIA APG)",
+      "sha256": "9ba63027fa8f1b53e4947ee3341e0580347121f3ccb7698f2936d33563ffa4ba",
+      "destinations": [
+        "references/taste/accessibility.md#focus-and-keyboard"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/focus-and-keyboard.md",
+      "sourceSection": "SPA route changes",
+      "sha256": "9ba63027fa8f1b53e4947ee3341e0580347121f3ccb7698f2936d33563ffa4ba",
+      "destinations": [
+        "references/taste/accessibility.md#focus-and-keyboard"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/forms.md",
+      "sourceSection": "Labels",
+      "sha256": "b08451ee17861cae49553ba71a122be80c21197087efcc43137862a1db2c5c34",
+      "destinations": [
+        "references/taste/accessibility.md#forms-and-disabled-states"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/forms.md",
+      "sourceSection": "Error messaging",
+      "sha256": "b08451ee17861cae49553ba71a122be80c21197087efcc43137862a1db2c5c34",
+      "destinations": [
+        "references/taste/accessibility.md#forms-and-disabled-states"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/forms.md",
+      "sourceSection": "Autocomplete and input types",
+      "sha256": "b08451ee17861cae49553ba71a122be80c21197087efcc43137862a1db2c5c34",
+      "destinations": [
+        "references/taste/accessibility.md#forms-and-disabled-states"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/forms.md",
+      "sourceSection": "Never fight the user's tools",
+      "sha256": "b08451ee17861cae49553ba71a122be80c21197087efcc43137862a1db2c5c34",
+      "destinations": [
+        "references/taste/accessibility.md#forms-and-disabled-states"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/forms.md",
+      "sourceSection": "Submit behavior",
+      "sha256": "b08451ee17861cae49553ba71a122be80c21197087efcc43137862a1db2c5c34",
+      "destinations": [
+        "references/taste/accessibility.md#forms-and-disabled-states"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/hit-areas.md",
+      "sourceSection": "Target sizes",
+      "sha256": "8c0982229cc01aee419e9c80a4085d5c59a0e7b2b16a4f616a12e9fa0fa094f5",
+      "destinations": [
+        "references/taste/accessibility.md#targets-and-touch"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/hit-areas.md",
+      "sourceSection": "Expanding the hit area",
+      "sha256": "8c0982229cc01aee419e9c80a4085d5c59a0e7b2b16a4f616a12e9fa0fa094f5",
+      "destinations": [
+        "references/taste/accessibility.md#targets-and-touch"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/hit-areas.md",
+      "sourceSection": "Collision rule",
+      "sha256": "8c0982229cc01aee419e9c80a4085d5c59a0e7b2b16a4f616a12e9fa0fa094f5",
+      "destinations": [
+        "references/taste/accessibility.md#targets-and-touch"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/hit-areas.md",
+      "sourceSection": "Decorative layers",
+      "sha256": "8c0982229cc01aee419e9c80a4085d5c59a0e7b2b16a4f616a12e9fa0fa094f5",
+      "destinations": [
+        "references/taste/accessibility.md#targets-and-touch"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/hit-areas.md",
+      "sourceSection": "Touch behavior",
+      "sha256": "8c0982229cc01aee419e9c80a4085d5c59a0e7b2b16a4f616a12e9fa0fa094f5",
+      "destinations": [
+        "references/taste/accessibility.md#targets-and-touch"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/motion-and-zoom.md",
+      "sourceSection": "prefers-reduced-motion",
+      "sha256": "3efc88394bc958a6e88ecbc8c8e37999df7de0e19730e5784d0e9e5efda696ee",
+      "destinations": [
+        "references/taste/accessibility.md#reduced-motion"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/motion-and-zoom.md",
+      "sourceSection": "Autoplay and timed UI",
+      "sha256": "3efc88394bc958a6e88ecbc8c8e37999df7de0e19730e5784d0e9e5efda696ee",
+      "destinations": [
+        "references/taste/accessibility.md#timed-content"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/motion-and-zoom.md",
+      "sourceSection": "Zoom and reflow",
+      "sha256": "3efc88394bc958a6e88ecbc8c8e37999df7de0e19730e5784d0e9e5efda696ee",
+      "destinations": [
+        "references/taste/accessibility.md#zoom-and-verification"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/motion-and-zoom.md",
+      "sourceSection": "rem vs px",
+      "sha256": "3efc88394bc958a6e88ecbc8c8e37999df7de0e19730e5784d0e9e5efda696ee",
+      "destinations": [
+        "references/taste/accessibility.md#zoom-and-verification"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/screen-readers.md",
+      "sourceSection": "Choosing how to announce a change",
+      "sha256": "a35b69db4568e74351a28606328505773f9a1e9ec370e92fbfb2117543c3637a",
+      "destinations": [
+        "references/taste/accessibility.md#announcements-and-persistent-state"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/screen-readers.md",
+      "sourceSection": "Live regions",
+      "sha256": "a35b69db4568e74351a28606328505773f9a1e9ec370e92fbfb2117543c3637a",
+      "destinations": [
+        "references/taste/accessibility.md#announcements-and-persistent-state"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/screen-readers.md",
+      "sourceSection": "aria-hidden",
+      "sha256": "a35b69db4568e74351a28606328505773f9a1e9ec370e92fbfb2117543c3637a",
+      "destinations": [
+        "references/taste/accessibility.md#announcements-and-persistent-state"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/screen-readers.md",
+      "sourceSection": "Alt text",
+      "sha256": "a35b69db4568e74351a28606328505773f9a1e9ec370e92fbfb2117543c3637a",
+      "destinations": [
+        "references/taste/accessibility.md#announcements-and-persistent-state"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/screen-readers.md",
+      "sourceSection": "SVG",
+      "sha256": "a35b69db4568e74351a28606328505773f9a1e9ec370e92fbfb2117543c3637a",
+      "destinations": [
+        "references/taste/accessibility.md#announcements-and-persistent-state"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/screen-readers.md",
+      "sourceSection": "Video and audio",
+      "sha256": "a35b69db4568e74351a28606328505773f9a1e9ec370e92fbfb2117543c3637a",
+      "destinations": [
+        "references/taste/accessibility.md#announcements-and-persistent-state"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/semantics-and-aria.md",
+      "sourceSection": "The rules of ARIA",
+      "sha256": "e663b6708ac7f4d4d88e884c604cc3e99c1b424ae78209cf4e2430f4966d39b6",
+      "destinations": [
+        "references/taste/accessibility.md#semantics-and-names"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/semantics-and-aria.md",
+      "sourceSection": "Button vs link vs div",
+      "sha256": "e663b6708ac7f4d4d88e884c604cc3e99c1b424ae78209cf4e2430f4966d39b6",
+      "destinations": [
+        "references/taste/accessibility.md#semantics-and-names"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/semantics-and-aria.md",
+      "sourceSection": "Landmarks and headings",
+      "sha256": "e663b6708ac7f4d4d88e884c604cc3e99c1b424ae78209cf4e2430f4966d39b6",
+      "destinations": [
+        "references/taste/accessibility.md#semantics-and-names"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/semantics-and-aria.md",
+      "sourceSection": "Accessible names",
+      "sha256": "e663b6708ac7f4d4d88e884c604cc3e99c1b424ae78209cf4e2430f4966d39b6",
+      "destinations": [
+        "references/taste/accessibility.md#semantics-and-names"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/semantics-and-aria.md",
+      "sourceSection": "Common ARIA mistakes",
+      "sha256": "e663b6708ac7f4d4d88e884c604cc3e99c1b424ae78209cf4e2430f4966d39b6",
+      "destinations": [
+        "references/taste/accessibility.md#semantics-and-names"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/semantics-and-aria.md",
+      "sourceSection": "Disabled states",
+      "sha256": "e663b6708ac7f4d4d88e884c604cc3e99c1b424ae78209cf4e2430f4966d39b6",
+      "destinations": [
+        "references/taste/accessibility.md#forms-and-disabled-states"
+      ],
+      "disposition": "merged",
+      "rationale": "Consolidate platform behavior and checks, retaining exceptions. Do not turn examples or styling conventions into universal conformance claims."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/SKILL.md",
+      "sourceSection": "1. Should this animate at all?",
+      "sha256": "f6317335da2662e92270dc0a6128bea95d7216cd751f86628e3ac6b72804e805",
+      "destinations": [
+        "references/taste/motion.md#frequency-and-input"
+      ],
+      "disposition": "adapted",
+      "rationale": "Select instant keyboard/100+ daily feedback; count is not inferred from keyboard alone."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/SKILL.md",
+      "sourceSection": "2. What is the purpose?",
+      "sha256": "f6317335da2662e92270dc0a6128bea95d7216cd751f86628e3ac6b72804e805",
+      "destinations": [
+        "references/taste/motion.md#frequency-and-input"
+      ],
+      "disposition": "adapted",
+      "rationale": "Merge purpose gate with restraint; do not move functional data for style."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/SKILL.md",
+      "sourceSection": "3. Pick the tool",
+      "sha256": "f6317335da2662e92270dc0a6128bea95d7216cd751f86628e3ac6b72804e805",
+      "destinations": [
+        "references/taste/motion.md#tools-and-timing"
+      ],
+      "disposition": "adapted",
+      "rationale": "Use cheapest installed capability; API and acceleration claims require version/runtime evidence."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/SKILL.md",
+      "sourceSection": "4. Pick the properties",
+      "sha256": "f6317335da2662e92270dc0a6128bea95d7216cd751f86628e3ac6b72804e805",
+      "destinations": [
+        "references/taste/motion.md#performance",
+        "references/taste/motion.md#entry-and-exit"
+      ],
+      "disposition": "adapted",
+      "rationale": "Prefer cheap properties, but preserve measured-height and scoped visual exceptions; no universal GPU claim."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/SKILL.md",
+      "sourceSection": "5. Easing and duration",
+      "sha256": "f6317335da2662e92270dc0a6128bea95d7216cd751f86628e3ac6b72804e805",
+      "destinations": [
+        "references/taste/motion.md#tools-and-timing"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain exact curves as absent-token defaults; reconcile explicit long drawer/toast exceptions."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/SKILL.md",
+      "sourceSection": "6. Interruption and exit",
+      "sha256": "f6317335da2662e92270dc0a6128bea95d7216cd751f86628e3ac6b72804e805",
+      "destinations": [
+        "references/taste/motion.md#interruptibility",
+        "references/taste/motion.md#entry-and-exit"
+      ],
+      "disposition": "adapted",
+      "rationale": "Discrete transitions vs continuous gestures; preserve spatial paths, not mandatory identical timing."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/SKILL.md",
+      "sourceSection": "7. Reduced motion and pointer gating",
+      "sha256": "f6317335da2662e92270dc0a6128bea95d7216cd751f86628e3ac6b72804e805",
+      "destinations": [
+        "references/taste/accessibility.md#reduced-motion",
+        "references/taste/accessibility.md#targets-and-touch"
+      ],
+      "disposition": "adapted",
+      "rationale": "Merge preference owner; permit useful nonspatial feedback, never force an animation."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Button press",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/components.md#press-feedback"
+      ],
+      "disposition": "adapted",
+      "rationale": "Select0.96/150ms from Jakub, within broader Emil permissible scale range.0.97/160ms remains alternative only here."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Dropdown, popover, menu, select",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/components.md#anchored-and-transient-controls",
+        "references/taste/motion.md#entry-and-exit"
+      ],
+      "disposition": "adapted",
+      "rationale": "Trigger origin owner; timing remains motion-owned."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Tooltip",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/components.md#anchored-and-transient-controls"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain adjacent-tooltip instant group behavior; no hover-only information."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Modal",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/motion.md#entry-and-exit",
+        "references/taste/motion.md#tools-and-timing"
+      ],
+      "disposition": "adapted",
+      "rationale": "Centered unanchored modal; select shared0.95 near-settle panel scale rather than competing0.96 modal default."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Drawer / sheet",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/motion.md#tools-and-timing"
+      ],
+      "disposition": "adapted",
+      "rationale": "Explicit500ms spatial exception; not general UI budget."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Toast",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/motion.md#tools-and-timing"
+      ],
+      "disposition": "adapted",
+      "rationale": "Existing coherent400ms ease web toast is exception; persistence governed by accessibility."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Accordion / collapse",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/motion.md#special-purpose-transitions"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain measured height200ms scoped layout exception."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Stagger a group entrance",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/motion.md#entry-and-exit"
+      ],
+      "disposition": "adapted",
+      "rationale": "50ms item default within30–80ms differs from semantic-group100ms."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Hold to confirm",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/motion.md#special-purpose-transitions"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain2s progress/200ms reset, add keyboard/cancellation boundary; no competing press scale."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Tab indicator with a color transition",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/motion.md#special-purpose-transitions"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain technique250ms only occasional pointer; hide duplicated interactive visuals from accessibility."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Scroll reveal",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/motion.md#special-purpose-transitions"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain marketing-only once/reduced-motion constraints; executable reveal supplement pending."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Drag to dismiss",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/motion.md#gestures"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain velocity units/capture/multitouch/friction and qualify threshold as gesture-specific."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Masking a crossfade that won't settle",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/motion.md#special-purpose-transitions"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain2px general repair vs4px exact icon; costly blur verification."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sourceSection": "Programmatic, without a library",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "destinations": [
+        "references/taste/motion.md#tools-and-timing",
+        "references/taste/motion.md#performance"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain WAAPI choice but not universal acceleration assertion."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "1. Response",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/components.md#press-feedback"
+      ],
+      "disposition": "adapted",
+      "rationale": "Press-down feedback does not authorize press-down commit."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "2. Direct manipulation",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/motion.md#gestures"
+      ],
+      "disposition": "adapted",
+      "rationale": "Preserve capture and grab offset."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "3. Interruptibility",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/motion.md#interruptibility"
+      ],
+      "disposition": "adapted",
+      "rationale": "Gesture-specific spring/presentation/velocity rule, not a ban on discrete CSS transitions."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "4. Behavior over animation",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/motion.md#tools-and-timing"
+      ],
+      "disposition": "adapted",
+      "rationale": "Default no overshoot; bounce only momentum/playfulness; perceptual duration not physical settle guarantee."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "5. Velocity handoff",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/motion.md#gestures"
+      ],
+      "disposition": "adapted",
+      "rationale": "Absolute and relative units distinguished; guard zero remaining distance."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "6. Momentum projection",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/motion.md#gestures"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain exponential0.998/0.99 projection instead of distance-only snap."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "7. Spatial consistency",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/motion.md#entry-and-exit"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain path/origin; do not impose inverse easing against shared responsive exit."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "9. Rubber-banding",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/motion.md#gestures"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain0.55 progressive resistance formula."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "10. Gesture design details",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/motion.md#gestures"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain10px threshold and disambiguation constraints; web cancel paths tested."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "11. Frame-level smoothness",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/motion.md#performance"
+      ],
+      "disposition": "adapted",
+      "rationale": "Performance evidence rather than blanket hints; specialized motion stretch pending."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "12. Materials & depth",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/components.md#optional-translucent-materials"
+      ],
+      "disposition": "adapted",
+      "rationale": "Optional product material style; not universal glass or blur-animation requirement."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "13. Multimodal feedback",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/motion.md#gestures"
+      ],
+      "disposition": "adapted",
+      "rationale": "Causal synchronization and redundant visual cue; native recipes pending."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "14. Reduced motion & accessibility",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/accessibility.md#reduced-motion",
+        "references/taste/motion.md#performance"
+      ],
+      "disposition": "adapted",
+      "rationale": "Independent motion/transparency/contrast signals; default instant theme rather than global smearing."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sourceSection": "17. Process",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "destinations": [
+        "references/taste/principles.md#evidence-and-verification"
+      ],
+      "disposition": "adapted",
+      "rationale": "Interactive context, real devices and fresh/slow review; no automatic prototype authorization."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/emil-design-eng/SKILL.md",
+      "sourceSection": "Buttons must feel responsive",
+      "sha256": "e71de849347050c2c573c1cf24d742d5a13459557ecffa6e562f08006f46b5b7",
+      "destinations": [
+        "references/taste/components.md#press-feedback"
+      ],
+      "disposition": "adapted",
+      "rationale": "0.96 is inside source permissible0.95–0.98; choose one exact local recipe without superiority claim."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/emil-design-eng/SKILL.md",
+      "sourceSection": "Core Philosophy",
+      "sha256": "e71de849347050c2c573c1cf24d742d5a13459557ecffa6e562f08006f46b5b7",
+      "destinations": [
+        "references/taste/principles.md#restraint-and-feedback"
+      ],
+      "disposition": "adapted",
+      "rationale": "Adapt compounding craft to task-driven judgment; omit persona/course promotion."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/emil-design-eng/SKILL.md",
+      "sourceSection": "Debugging Animations",
+      "sha256": "e71de849347050c2c573c1cf24d742d5a13459557ecffa6e562f08006f46b5b7",
+      "destinations": [
+        "references/taste/principles.md#evidence-and-verification",
+        "references/taste/motion.md#performance"
+      ],
+      "disposition": "adapted",
+      "rationale": "Retain slow/frame/real-device verification, not claims of observed feel."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/review-animations/STANDARDS.md",
+      "sourceSection": "Interruptibility",
+      "sha256": "e7d3605034acda54ca13e43aec9e64d65b53de20f75b11b8d694e373012fbe07",
+      "destinations": [
+        "references/taste/motion.md#interruptibility"
+      ],
+      "disposition": "adapted",
+      "rationale": "Merge same canonical owner used by build/review; qualify keyframe claim."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/review-animations/STANDARDS.md",
+      "sourceSection": "Accessibility",
+      "sha256": "e7d3605034acda54ca13e43aec9e64d65b53de20f75b11b8d694e373012fbe07",
+      "destinations": [
+        "references/taste/accessibility.md#reduced-motion"
+      ],
+      "disposition": "adapted",
+      "rationale": "Accessibility supersedes pure-fade escalation in review gateway."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/improve-animations/AUDIT.md",
+      "sourceSection": "1. Purpose & frequency",
+      "sha256": "551c8473e20e5f4774680bc24d45e1c68e50992582720905c6b077756b7b5a55",
+      "destinations": [
+        "references/taste/motion.md#frequency-and-input"
+      ],
+      "disposition": "adapted",
+      "rationale": "Merge repeated gate, no independent audit numeric registry."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-interface/SKILL.md",
+      "sourceSection": "5. Require evidence",
+      "sha256": "57412a685bd1a654f81def820099481b7df6ddf8f4bc06989a1b875b1d01c036",
+      "destinations": [
+        "references/taste/principles.md#evidence-and-verification"
+      ],
+      "disposition": "adapted",
+      "rationale": "Preserve source/runtime distinction; full shared review protocol remains pending."
+    }
+  ],
+  "inventory": [
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/SKILL.md",
+      "sha256": "59a0d8ad310be843566a18bfd839a38f46335110aa31673c4468c9e0172c5350",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Native elements first",
+        "Visible focus rings",
+        "Full keyboard support",
+        "Trap and restore focus",
+        "Minimum hit area",
+        "Label and type every control",
+        "Errors that announce",
+        "Accessible names everywhere",
+        "Don't rely on color alone",
+        "Honor prefers-reduced-motion",
+        "Announce dynamic content",
+        "Alt text by purpose",
+        "Structure is navigation",
+        "Survive zoom and text resize",
+        "Before you finish",
+        "Reporting"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/focus-and-keyboard.md",
+      "sha256": "9ba63027fa8f1b53e4947ee3341e0580347121f3ccb7698f2936d33563ffa4ba",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "Focus rings",
+        "Skip link",
+        "tabindex rules",
+        "Focus trapping and restoration",
+        "Keyboard patterns (ARIA APG)",
+        "SPA route changes"
+      ],
+      "pendingTopLevelSections": [],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/forms.md",
+      "sha256": "b08451ee17861cae49553ba71a122be80c21197087efcc43137862a1db2c5c34",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "Labels",
+        "Error messaging",
+        "Autocomplete and input types",
+        "Never fight the user's tools",
+        "Submit behavior"
+      ],
+      "pendingTopLevelSections": [],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/hit-areas.md",
+      "sha256": "8c0982229cc01aee419e9c80a4085d5c59a0e7b2b16a4f616a12e9fa0fa094f5",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "Target sizes",
+        "Expanding the hit area",
+        "Collision rule",
+        "Decorative layers",
+        "Touch behavior"
+      ],
+      "pendingTopLevelSections": [],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/motion-and-zoom.md",
+      "sha256": "3efc88394bc958a6e88ecbc8c8e37999df7de0e19730e5784d0e9e5efda696ee",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "prefers-reduced-motion",
+        "Autoplay and timed UI",
+        "Zoom and reflow",
+        "rem vs px"
+      ],
+      "pendingTopLevelSections": [],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/screen-readers.md",
+      "sha256": "a35b69db4568e74351a28606328505773f9a1e9ec370e92fbfb2117543c3637a",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "Choosing how to announce a change",
+        "Live regions",
+        "aria-hidden",
+        "Alt text",
+        "SVG",
+        "Video and audio"
+      ],
+      "pendingTopLevelSections": [
+        "Visually hidden content"
+      ],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-accessibility/semantics-and-aria.md",
+      "sha256": "e663b6708ac7f4d4d88e884c604cc3e99c1b424ae78209cf4e2430f4966d39b6",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "The rules of ARIA",
+        "Button vs link vs div",
+        "Landmarks and headings",
+        "Accessible names",
+        "Common ARIA mistakes",
+        "Disabled states"
+      ],
+      "pendingTopLevelSections": [],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/SKILL.md",
+      "sha256": "cde9dd40cb183b383514e1a2c76bf74c9d914f5f6722ee6079d3f9cd121862c1",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Match the project's color system",
+        "A system is ramps, not colors",
+        "Every step has a job",
+        "Name primitives by hue, semantics by role",
+        "Use a token only in its role",
+        "Hold the hue across the ramp",
+        "One color, one meaning",
+        "Fill exactly one action per view",
+        "Measure the rendered pair, then report",
+        "Pick a gradient's interpolation space",
+        "Before you finish",
+        "Reporting"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/color-formats.md",
+      "sha256": "e68fffec8f7b8e1036c295fce8d65785764f33aead5d292389c47451e79d7129",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Choosing a notation",
+        "Converting",
+        "Gamut",
+        "Modern CSS worth knowing"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/color-usage.md",
+      "sha256": "dbaa4a4cb10b8118165fca4531b3c35b409c79185f15a2812a34f118293dba9f",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "One color, one meaning",
+        "Use tokens in their role",
+        "One colored action per view",
+        "Gradients",
+        "Color across cultures",
+        "Light, dark and increased contrast"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/contrast.md",
+      "sha256": "f9a2f8ca2fd7966ea0002a9dd58b9d392fbb14fc6f4365534c488046337e5971",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "APCA thresholds (recommended)",
+        "WCAG 2 thresholds (for legal compliance)",
+        "Fixing a failing pair (on request)",
+        "Quick approximations",
+        "What to check"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/palette-generation.md",
+      "sha256": "f3e3f9fc84fd834cfffd9e0c951f28c3f24c3c4a4492d86b697d3258f500fb85",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Start from the brand color",
+        "What a correct ramp looks like",
+        "Use a color library",
+        "Several hues at once",
+        "Dark mode"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/palette-structure.md",
+      "sha256": "82b22d74ead2a551a2a505347273025020d84dcde4a0170ea2fd14290dc10387",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "What a system needs",
+        "Every step has a job",
+        "Neutrals",
+        "Status colors",
+        "Auditing an existing palette"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-colors/token-naming.md",
+      "sha256": "198ca90a643d52f446fe423464908e900d31923ee7d13d6454c8b791326d6b2a",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Two tiers",
+        "The role inventory",
+        "Naming grammar",
+        "Anti-patterns",
+        "In Tailwind projects"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-interface/SKILL.md",
+      "sha256": "57412a685bd1a654f81def820099481b7df6ddf8f4bc06989a1b875b1d01c036",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "5. Require evidence"
+      ],
+      "pendingTopLevelSections": [
+        "Evidence, not taste",
+        "Core principles",
+        "Before you finish",
+        "Review output format"
+      ],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-interface/review-format.md",
+      "sha256": "99bf274b4a382d89fc281482c688127d1d82e3a5a5c84d2662ebfc9946dc8108",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Scope and coverage",
+        "Findings",
+        "Verification",
+        "Verdict",
+        "Change-scoped reviews"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/SKILL.md",
+      "sha256": "f04c8d870fca110c8003aa8c0c82a7e121642a18443dfb114ee3d774d466c141",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Group with space, not lines",
+        "Keep controls distinct from content",
+        "Align to shared edges",
+        "Order by importance",
+        "Hint at hidden content",
+        "Breathing room between targets",
+        "Inset buttons from the edges",
+        "Content bleeds, controls float",
+        "Hold structure until it breaks",
+        "Plan for growth and clipping",
+        "Before you finish",
+        "Reporting"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/grouping-and-alignment.md",
+      "sha256": "027edd034ab641e8affc2ec02ca97ee0824d86756b14e11de908d62f5d086fb1",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Group with space, not lines",
+        "Keep controls distinct from content",
+        "Align to shared edges",
+        "Logical properties, not physical",
+        "Order by importance",
+        "Don't overload the entry point"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-layout/spacing-and-adaptivity.md",
+      "sha256": "bf46b0857efa5022e6918eda026827e9de2747f3f349b5a6787a2322179abe77",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Breathing room between targets",
+        "Inset buttons from the edges",
+        "Progressive disclosure needs an affordance",
+        "Content bleeds, controls float",
+        "Hold structure until it breaks",
+        "Plan for growth and clipping"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/SKILL.md",
+      "sha256": "717f615910470bd2b7c662cce2af2ebd11cd887379a6ea93455c45f3c5ba378d",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Serve the right format",
+        "Properties over raw tags",
+        "Load intended weights and styles",
+        "Fewer fonts, sizes and weights",
+        "Use a type scale with semantic names",
+        "Heading sizes descend with level",
+        "Line-height by role",
+        "Letter-spacing by size",
+        "Cap the measure",
+        "Wrap deliberately",
+        "Tabular numbers on changing values",
+        "Truncate without losing content",
+        "Write copy naturally, style with CSS",
+        "Underlines from the font",
+        "Inputs at 16px on mobile",
+        "Size and contrast floors",
+        "Font smoothing on the root",
+        "Language and bidi behavior",
+        "Keep useful text selectable",
+        "Before you finish",
+        "Reporting"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/choosing-fonts.md",
+      "sha256": "d139ec5d68cd123bc305d920295f7bc95a1e1123674de96d19103c1ebffc85c9",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Choosing a typeface",
+        "Font family scope",
+        "Formats",
+        "Anatomy of a typeface"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/css-cheat-sheet.md",
+      "sha256": "45c77f0d1954e12e76c3903361f52703cb4f4287d54c651710f60926247165fb",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Font",
+        "Spacing and layout",
+        "Wrapping and overflow",
+        "Decoration and interaction"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/details-and-accessibility.md",
+      "sha256": "d74e2719ee793fbf7408883e0e5eb396b67514ce07e02412f33d5408ecb4a02e",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Underlines",
+        "Selection",
+        "Forms and editable text",
+        "Decorative text",
+        "Sizes",
+        "Font smoothing"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/spacing-and-sizing.md",
+      "sha256": "e28e7899a73a8b17f38418dfd8c1afda116db81a3b68d53dd51eab019b20ab82",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Units",
+        "Type scale",
+        "Heading hierarchy",
+        "Kerning and letter-spacing",
+        "Line-height",
+        "Text trimming with text-box"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/variable-fonts-and-opentype.md",
+      "sha256": "2bf1317ea5c0af6e36c57d15aacea512e450acbe4b00a8664c4619a959dea0b0",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Static vs variable",
+        "Load intended weights and styles",
+        "Axes",
+        "Properties over axis tags",
+        "OpenType features",
+        "Small caps, superscripts, subscripts",
+        "Stylistic sets and character variants"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-typography/wrapping-and-punctuation.md",
+      "sha256": "7cfa3463b68cf21f08ab01a184b12c8bf2fe9340c2c7691a8cc99e4569389efe",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Measure (line length)",
+        "Alignment",
+        "Wrapping",
+        "Truncation",
+        "Case",
+        "Smart punctuation",
+        "Internationalization"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/SKILL.md",
+      "sha256": "2482b7b89d851a3128d36edf5367f3223e113a4ef421b7358c7e6de3f2c83faf",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Concentric border radius",
+        "Optical over geometric alignment",
+        "Shadows for elevation, borders for structure",
+        "Interruptible animations",
+        "Split and stagger enter animations",
+        "Subtle exit animations",
+        "Contextual icon animations",
+        "Image outlines",
+        "Scale on press",
+        "Skip animation on page load",
+        "Suppress transitions on theme switch",
+        "Transition only what changes",
+        "Use `will-change` sparingly",
+        "Match icon stroke to text weight",
+        "One SVG, recolored per state",
+        "Motion restraint",
+        "Before you finish",
+        "Reporting"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/animations.md",
+      "sha256": "5d2d9e4cefab494b6dd0683e7d2d9bc90788df9c536449c0828c241de965e846",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "Interruptible animations",
+        "Scale on press",
+        "Skip animation on page load",
+        "Suppress transitions on theme switch",
+        "Motion restraint"
+      ],
+      "pendingTopLevelSections": [],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/enter-exit.md",
+      "sha256": "8db1b33d6c80a097218a530cb9749dff4b0a2b992236047a2e88661af5e930ea",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "Enter animations: split and stagger",
+        "Exit animations"
+      ],
+      "pendingTopLevelSections": [],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/icon-transitions.md",
+      "sha256": "60098242d33133a35a675719c447129b8931aecfbf05d58a6e2aa01e7894694e",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "Contextual icon animations"
+      ],
+      "pendingTopLevelSections": [],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/icons.md",
+      "sha256": "74cc78322874df4e2286bb0f5835d68114f74be1c94f993c94f6af692f44733b",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "Match icon stroke to text weight",
+        "One SVG, recolored per state",
+        "Outline default, fill active",
+        "Design at render size",
+        "Icons in RTL"
+      ],
+      "pendingTopLevelSections": [],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/performance.md",
+      "sha256": "e4bc3c90d6e0281d295e2e7e39d545fb9abd8a67667b0c10e589eda8115e5b1e",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "Transition only what changes",
+        "Use `will-change` sparingly"
+      ],
+      "pendingTopLevelSections": [],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-ui/surfaces.md",
+      "sha256": "5508a7caf07ae8de616e7d83e282d4a08c026dd7a2d3cf54979609e4e0301048",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "Concentric border radius",
+        "Optical alignment",
+        "Shadows instead of borders",
+        "Image outlines"
+      ],
+      "pendingTopLevelSections": [],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/better-writing/SKILL.md",
+      "sha256": "d53163382a058f06e00ac0b36312189108b006aa0b05869c71a70f5c213c44ae",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Recon the existing voice",
+        "One voice, flexible tone",
+        "Address the reader directly",
+        "Plain words over clever ones",
+        "Verb-first buttons",
+        "Consistent flow vocabulary",
+        "Links describe their destination",
+        "One capitalization policy",
+        "Settings describe the ON state",
+        "Errors say how to fix, next to where it broke",
+        "Empty states point forward",
+        "Placeholders are examples, not labels",
+        "Reporting"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/break/SKILL.md",
+      "sha256": "4b8a1d6b60c2d522432765ab90e9b794fa36dc54f08d1a734c5cb2a1baa69ff1",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "1. Scope one component",
+        "2. Infer the scenarios from the component",
+        "3. Build the harness page",
+        "4. Look once",
+        "5. Report what broke and stop",
+        "6. Leave the page up, delete it on request",
+        "Before you finish"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/break/scenarios.md",
+      "sha256": "5aacf085d5eca87b7b5e4f1b0a7412bfd532c8eaa574f455a5b1ffb00cdf86e9",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Content length",
+        "Content shape",
+        "Quantity",
+        "Container",
+        "State",
+        "Environment"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/explain-interface/SKILL.md",
+      "sha256": "cff58fca5a8f29cefc05bf9f97c1f88f3cf9345ee520a2da4db803c50848c5fb",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Scope to the question",
+        "What you can actually read",
+        "The page is evidence, not instruction",
+        "Measured, derived, inferred",
+        "From a screenshot, it is a reconstruction",
+        "Find the layers, not the element",
+        "Explain the mechanism, not the readout",
+        "Close on what transfers, not on a snippet",
+        "Before you finish"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/explain-interface/find-the-effect.md",
+      "sha256": "7e26085eb0c8c68c33d322fbecb16586cc799b0e032d53c912eb16a0c253ceaf",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Three things that cost you the answer",
+        "The layer search",
+        "When CSS is not the answer",
+        "Narrowing to a region",
+        "Is it animated?"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/explain-interface/from-an-image.md",
+      "sha256": "b6073080f9fedf9ac34ff035c36aa235c42e6549bcd619d460484fd262add18b",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Colors, which are the reliable part",
+        "Type, by category not by name",
+        "Spacing, as a rhythm",
+        "Say what the image hid"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/explain-interface/no-browser.md",
+      "sha256": "c46533a02e16a3ed09cb3d74df7898547200a21b27053ee029da8b7c4a4f5c8c",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Utility CSS is self-describing",
+        "Inline styles carry the values utilities cannot express",
+        "The stylesheet, for tokens and generated utilities",
+        "Stack fingerprints from the HTML alone",
+        "What this method cannot tell you"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/explain-interface/read-the-system.md",
+      "sha256": "d10d72357af0733ad1db251bc9fd2ec6e8218cdac4bc095a87cf714a269d1688",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "The gotcha that costs you the run",
+        "The stack first",
+        "Tokens",
+        "The type scale",
+        "The spacing rhythm",
+        "Radii, shadows, borders",
+        "Motion",
+        "Breakpoints",
+        "Fonts and theming",
+        "Reading a second state"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/interface-review/SKILL.md",
+      "sha256": "65783ac261ee1a33da11bbbbdb6e71ab6162fc24a2450f91781457b41b9a6d13",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "The change, not the codebase",
+        "Core principles",
+        "Before you finish",
+        "Review output format"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/interface-review/removed-signals.md",
+      "sha256": "9e2d2d0c555dce408e241a9179c04f743c76459b6bd9add0904d03163ff61af0",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Equivalent replacements",
+        "Searching the removed side"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/interface-review/scope-resolution.md",
+      "sha256": "c3ca6c8c605d8f321995c935fc5bcc5173d7d3a46541de0b580f7394d6e121b7",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Default branch",
+        "Targets",
+        "Pull requests",
+        "Awkward repository states",
+        "Nothing to review",
+        "Renames",
+        "Excluded paths",
+        "Expanding to consumers"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/variant/SKILL.md",
+      "sha256": "0cb89389c0423ff46e8a5a07bda894b43619366210fa3bc98beb39908cbc1635",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Different answers, not different tints",
+        "The floor every variant clears",
+        "1. Scope one piece",
+        "2. Learn the ground",
+        "3. Name the axis before writing code",
+        "4. Build it into the real page",
+        "5. Present the tradeoffs and stop",
+        "6. Promote one, delete the rest",
+        "Before you finish"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "jakubkrehel",
+      "sourcePath": "skills/variant/picker.md",
+      "sha256": "62f357b4e3123fcb95862c7bd7d1294e023dc7d2094482a43c25c412b58cf537",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Deliberately outside the design system",
+        "Behavior",
+        "Structure",
+        "Placement and styling"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/RECIPES.md",
+      "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "Button press",
+        "Dropdown, popover, menu, select",
+        "Tooltip",
+        "Modal",
+        "Drawer / sheet",
+        "Toast",
+        "Accordion / collapse",
+        "Stagger a group entrance",
+        "Hold to confirm",
+        "Tab indicator with a color transition",
+        "Scroll reveal",
+        "Drag to dismiss",
+        "Masking a crossfade that won't settle",
+        "Programmatic, without a library"
+      ],
+      "pendingTopLevelSections": [],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate/SKILL.md",
+      "sha256": "f6317335da2662e92270dc0a6128bea95d7216cd751f86628e3ac6b72804e805",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "1. Should this animate at all?",
+        "2. What is the purpose?",
+        "3. Pick the tool",
+        "4. Pick the properties",
+        "5. Easing and duration",
+        "6. Interruption and exit",
+        "7. Reduced motion and pointer gating"
+      ],
+      "pendingTopLevelSections": [
+        "Operating Posture",
+        "Hard Rules",
+        "The Build Sequence",
+        "Recipes",
+        "Never Ship",
+        "Output",
+        "Tone"
+      ],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate-expo/RECIPES.md",
+      "sha256": "1193cb71334da2e2341778dd92bec9ac79d989cb07fd55d661f324ed5871e718",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Setup the recipes assume",
+        "Two worklets you'll need everywhere",
+        "Press feedback",
+        "Bottom sheet you can drag to dismiss",
+        "Swipe to delete a row",
+        "Collapsing header on scroll",
+        "List entrances",
+        "Keyboard-synced UI",
+        "Tab / segmented indicator",
+        "Screen transitions (Expo Router)",
+        "Toast",
+        "Firing something once at a threshold"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animate-expo/SKILL.md",
+      "sha256": "2121fc72ffa476492c1b91ccf96c7b26aade9d1a332dc5834ba3526e1102b00d",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Operating Posture",
+        "Hard Rules",
+        "The Build Sequence",
+        "Setup that silently breaks motion",
+        "120fps",
+        "Recipes",
+        "Never Ship",
+        "Output",
+        "Tone"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/animation-vocabulary/SKILL.md",
+      "sha256": "d718b48fe3c7898804d588f050a2e266d82c9f5ef51da256c8cb8b5951527757",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Quick Start",
+        "Instructions",
+        "Examples",
+        "Glossary"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/apple-design/SKILL.md",
+      "sha256": "11840b24a11d7f94f39c6aaab074750ae4e4de4ef54ee4b1dd97e16ebd485e61",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "1. Response",
+        "2. Direct manipulation",
+        "3. Interruptibility",
+        "4. Behavior over animation",
+        "5. Velocity handoff",
+        "6. Momentum projection",
+        "7. Spatial consistency",
+        "9. Rubber-banding",
+        "10. Gesture design details",
+        "11. Frame-level smoothness",
+        "12. Materials & depth",
+        "13. Multimodal feedback",
+        "14. Reduced motion & accessibility",
+        "17. Process"
+      ],
+      "pendingTopLevelSections": [
+        "The Core Idea",
+        "8. Hint in the direction of the gesture",
+        "15. Typography — optical sizing, tracking, leading",
+        "16. Design foundations — the eight principles",
+        "Quick Reference"
+      ],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/ask-sonner/API.md",
+      "sha256": "4bb06f482c5757529e3d7a672a30fbeed42d24919a63e2571384a9ce1549aa7f",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "`<Toaster />`",
+        "`toast()` options",
+        "Functions"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/ask-sonner/SKILL.md",
+      "sha256": "be1b04511aadb4d7d81aa8cd2b55c260a626aae534983bc8ae3fbe26bbf48632",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Setup",
+        "Picking the right call",
+        "Recipes",
+        "Styling — the escalation ladder",
+        "Troubleshooting"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/emil-design-eng/SKILL.md",
+      "sha256": "e71de849347050c2c573c1cf24d742d5a13459557ecffa6e562f08006f46b5b7",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "Buttons must feel responsive",
+        "Core Philosophy",
+        "Debugging Animations"
+      ],
+      "pendingTopLevelSections": [
+        "Initial Response",
+        "Review Format (Required)",
+        "The Animation Decision Framework",
+        "Spring Animations",
+        "Component Building Principles",
+        "CSS Transform Mastery",
+        "clip-path for Animation",
+        "Gesture and Drag Interactions",
+        "Performance Rules",
+        "Accessibility",
+        "The Sonner Principles (Building Loved Components)",
+        "Stagger Animations",
+        "Review Checklist"
+      ],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/find-animation-opportunities/SKILL.md",
+      "sha256": "91c1243164057fbf824088d12faea937878a757a7ac653e8288b775e8b27b882",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Operating Posture",
+        "Hard Rules",
+        "The Gate",
+        "Where to Hunt",
+        "Workflow",
+        "Required Output Format",
+        "Tone"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/improve-animations/AUDIT.md",
+      "sha256": "551c8473e20e5f4774680bc24d45e1c68e50992582720905c6b077756b7b5a55",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "1. Purpose & frequency"
+      ],
+      "pendingTopLevelSections": [
+        "2. Easing & duration",
+        "3. Physicality & origin",
+        "4. Interruptibility",
+        "5. Performance",
+        "6. Accessibility",
+        "7. Cohesion & tokens",
+        "8. Missed opportunities"
+      ],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/improve-animations/PLAN-TEMPLATE.md",
+      "sha256": "0a08ac8e23fd2082d7ffb86aeed7b789de77328c3cf874b16f1a755f2ef0a6ad",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Problem",
+        "Target",
+        "Repo conventions to follow",
+        "Steps",
+        "Boundaries",
+        "Verification",
+        "Notes for the plan author"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/improve-animations/SKILL.md",
+      "sha256": "68f17bbc4671593d2f43dba26a679243e2153ba5f26965fb7d59df52842534ff",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Operating Posture",
+        "Hard Rules",
+        "Workflow",
+        "Invocation Variants",
+        "Tone"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/pick-ui-library/SKILL.md",
+      "sha256": "4b889bd6c08358499ac4a7202b8af71ffbd3485d2468f7b09d0613bbe7b24bf4",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "How to use this",
+        "The list",
+        "Common mismatches to catch"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/prototype/PICKER.md",
+      "sha256": "31a55eec94715cc79942e91e172e539e3031dcd5e2e5ee7c1446cf2caee960a6",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Markup",
+        "Styles",
+        "Rules",
+        "Behavior contract",
+        "Reference wiring"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/prototype/SKILL.md",
+      "sha256": "2ad8401c4deaddb54947fb65247f790e7b3d8784e35312bcbedbfb1d59cd89ce",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Operating Posture",
+        "Hard Rules",
+        "Workflow",
+        "Invocation Variants",
+        "Tone"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/review-animations/SKILL.md",
+      "sha256": "61cf8ac0c4c8e1f63385298c546b16c65ca9aec34abddcd04e821c16712d671d",
+      "disposition": "pending",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [
+        "Operating Posture",
+        "The Ten Non-Negotiable Standards",
+        "Aggressive Escalation Triggers",
+        "Remedial Preference Hierarchy",
+        "Required Output Format",
+        "Guidelines"
+      ],
+      "reason": "Broader selected topic or duplicate gateway awaiting explicit section accounting; no runtime coverage claimed."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/review-animations/STANDARDS.md",
+      "sha256": "e7d3605034acda54ca13e43aec9e64d65b53de20f75b11b8d694e373012fbe07",
+      "disposition": "partially-mapped",
+      "mappedSectionSelectors": [
+        "Interruptibility",
+        "Accessibility"
+      ],
+      "pendingTopLevelSections": [
+        "Should it animate? (frequency table)",
+        "Easing",
+        "Duration",
+        "Physicality",
+        "Springs",
+        "Asymmetric timing",
+        "Performance",
+        "Transforms & clip-path",
+        "Gestures & drag",
+        "Masking imperfect crossfades",
+        "Stagger",
+        "Debugging (recommend in reviews when feel is uncertain)",
+        "Cohesion"
+      ],
+      "reason": "Mapped sections are first-slice editorial coverage only; unlisted or partially adapted detail, executable recipes, gateway/report wrappers and remaining sections require later accounting."
+    },
+    {
+      "source": "emilkowalski",
+      "sourcePath": "skills/write-swift/SKILL.md",
+      "sha256": "2579cb2684245f75a261cbb13aa4a12f7f9441dabdfe3bc2e72dc2f04ec5e9fd",
+      "disposition": "excluded",
+      "mappedSectionSelectors": [],
+      "pendingTopLevelSections": [],
+      "reason": "General Swift language guidance excluded from design taste."
+    }
+  ],
+  "conflicts": {
+    "press-feedback": {
+      "selected": "0.96 / 150ms",
+      "alternative": "0.97 / 160ms web;0.97 /120ms frequent native press",
+      "rationale": "Jakub exact web recipe selected for occasional pointer/touch, within Emil broad permissible0.95–0.98. Existing tokens preserved; keyboard/frequent/reduced/static opt out. Native recipe remains pending platform-specific3% ceiling, never unconditional alternate."
+    },
+    "interruptibility": {
+      "selected": "Discrete CSS retargeting; continuous gestures preserve presentation value and velocity",
+      "rationale": "Apple gesture warning is scope distinction. Controlled keyframes can interrupt but do not automatically retarget."
+    },
+    "reduced-motion": {
+      "selected": "Static baseline; remove spatial motion; optional helpful nonspatial feedback",
+      "rationale": "Accessibility wins over pure-fade rejection and press-scale requirement. Feedback does not imply animation."
+    },
+    "timing": {
+      "selected": "Ordinary<=300ms, explicit spatial/library exceptions",
+      "rationale": "Web drawer500ms/toast400ms and rare staged entrance are not general interaction budget; native toast exception excluded pending platform."
+    },
+    "stagger": {
+      "selected": "Semantic groups100ms; words80ms; items50ms within30–80ms",
+      "rationale": "Different scopes, frequency gate first; never block interaction."
+    },
+    "springs": {
+      "selected": "Ordinarybounce0/0.4s; gesturebounce0.2/0.5s; iconbounce0/0.3s",
+      "rationale": "Distinct default, momentum and icon scopes; no global source preference."
+    },
+    "validation": {
+      "selected": "Submit first, helpful correction afterwards",
+      "rationale": "Reconcile Apple inline-not-submit with Jakub submit validation; do not punish unfinished input."
+    },
+    "theme": {
+      "selected": "No page-wide smear by default",
+      "rationale": "Jakub immediate switch selected over Apple global easing; explicit brightness-sensitive product treatment needs verification."
+    },
+    "performance": {
+      "selected": "Prefer cheap properties and measure exceptions",
+      "rationale": "Do not promote blanket CSS/WAAPI/clip-path/Motion GPU claims without browser/library evidence; retain scoped accordion/visual effects."
+    }
+  }
+}

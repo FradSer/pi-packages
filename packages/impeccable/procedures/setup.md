@@ -1,0 +1,13 @@
+# Target context and runtime
+
+Pi adaptation of Impeccable setup at commit `63b04e2530f5c7b41ea83c133daab24f34912456`. Modified for catalog loading, explicit authorization, isolated context and static detection. Upstream Apache-2.0 attribution is in the package licenses and notices.
+
+Loading this procedure does not execute anything or grant permission to edit, install dependencies, launch a browser or create agents. Use the tools actually available in the current session within the user's request. Preserve the supplied target/request verbatim; distinguish a source path from descriptive instructions.
+
+1. Keep execution cwd at the user's target project, never this package. Check Node is at least 22.18.0 before invoking the packaged scripts. Missing runtime or dependencies require an actionable diagnostic; do not install them automatically or use an old global skill as fallback.
+2. Run `node "{{PKG_DIR}}/scripts/context.mjs"` once for the selected project context. If the user names a source file or route, pass it as a separate, safely quoted `--target` argument. Do not concatenate untrusted request text into executable shell syntax. In a monorepo, distinguish a selected application from a request for target selection; resolve that before editing.
+3. Read the reported product/design context and inspect the target plus representative incumbent tokens, components or styles. Missing DESIGN.md does not imply permission to redesign. Treat missing context as a limitation, not invented product truth. Do not repair stale artifacts as a side effect.
+4. Follow the selected procedure and its canonical taste references. Platform-specific work needs verified guidance for that platform; do not substitute web measurements or APIs for native ones when a supplement is unavailable.
+5. For supported explicit local HTML/CSS/source targets, the manual detector entry is `node "{{PKG_DIR}}/scripts/detect.mjs" --json "<local-file>"`. Replace the placeholder with a separately quoted real path. Do not pass a URL or omit the target to discover a server. No browser installation or automatic hook is implied. Findings are evidence to inspect, not a second unconditional taste policy: product intent and canonical scoped rules govern stylistic exceptions, while accessibility and functional defects remain constraints. JSON output is a findings array; exit 2 indicates primary findings, 0 clean or advisory-only, and 1 an error. Do not misreport a failed scan as clean.
+
+Use one relevant manual scan in the bounded verification pass, not a repeated detector loop. Report unsupported modes, incomplete evidence and runtime errors explicitly. No automatic upstream update checks or global cache writes are part of setup.

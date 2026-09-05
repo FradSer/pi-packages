@@ -1,0 +1,60 @@
+{
+  "type": "module",
+  "name": "@fradser/pi-impeccable",
+  "version": "0.0.0",
+  "description": "Native Pi design procedures with a unified concern-organized taste library",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "design",
+    "accessibility",
+    "motion"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "procedures",
+    "references",
+    "scripts",
+    "LICENSE",
+    "licenses",
+    "THIRD_PARTY_NOTICES.md",
+    "README.md",
+    "UPSTREAM.md",
+    "upstream-selection.json",
+    "runtime-provenance.json",
+    "taste-provenance.json",
+    "TODO.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "dependencies": {
+    "@fradser/pi-kit": "workspace:*",
+    "css-select": "^7.0.0",
+    "css-tree": "^3.2.1",
+    "domutils": "^4.0.2",
+    "htmlparser2": "^12.0.0",
+    "typebox": "^1.3.12"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.84.1",
+    "@earendil-works/pi-tui": "^0.84.1"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
