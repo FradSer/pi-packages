@@ -1,3 +1,35 @@
+Feature: Read-only shell composition
+  Scenario: Safe pipelines and conditional chains support exploration
+    Given plan mode is active
+    When bash requests ls -la packages/matt-pocock/ && echo "---" && ls -R packages/matt-pocock/ | head -80
+    Then every command is validated and the request is allowed
+    And quoted arguments preserve spaces and literal operators
+    And basic diff and jq reads, ripgrep context, and Git log formatting remain available
+
+  Scenario: Compound commands cannot bypass read-only restrictions
+    Given plan mode is active
+    When any stage mutates files or uses unsafe command options
+    Then the entire bash request is blocked
+    And substitutions, redirects, background jobs, newlines and malformed syntax are blocked
+    And find execution and deletion, sort output, and mutating Git operations are blocked
+
+Feature: Owned manual plan review
+  Scenario Outline: Manual review cannot outlive its plan
+    Given a plan review opened through <entrypoint>
+    When <transition> invalidates the plan
+    Then the review closes before any further input
+    And late input and the expired review timer cannot implement the obsolete plan
+    Examples:
+      | entrypoint | transition |
+      | /plan review | exit |
+      | /plan review | new session |
+      | menu Review current plan | replacement plan |
+
+  Scenario: Full plan viewer closes with its owning review
+    Given manual review opened the full plan viewer
+    When plan mode exits
+    Then the viewer closes and ignores late input
+
 Feature: Main-session-first plan mode
   As a user starting /plan
   I want the main session to plan before any worker starts
@@ -23,6 +55,21 @@ Feature: Main-session-first plan mode
     When the planning turn ends
     Then the plan review overlay is shown
     And worker research remains agent-controlled
+
+  Scenario: Leaving or replacing a plan cancels detached research
+    Given optional plan research is running after the agent settles
+    When the user exits plan mode, replaces the session, or starts a new plan request
+    Then the obsolete worker is aborted and cannot write its plan or open review
+    And obsolete cleanup cannot clear a newer plan job
+    And cancellation during plan writing prevents the host from writing a late successful result
+    And cancelling an open review prevents its timer or late choice from implementing
+
+  Scenario: Plan completion releases the agent before review and implementation
+    Given a real agent session has written its requested plan
+    When the planning response completes while review awaits a choice
+    Then the agent completion returns and the implementation menu is available
+    And dismissing review lets a new prompt run without a trapped follow-up
+    And selecting fresh implementation does not wait on its own completion event
 
   Scenario: Plan completion does not loop review commands to the agent
     Given the main session completes writing a plan

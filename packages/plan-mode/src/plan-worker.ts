@@ -248,6 +248,7 @@ Be specific and actionable. The plan should be implementable without additional 
     extraArgs: ["--no-extensions"],
     onUpdate: (progress) => onUpdate?.(workerProgress("plan-writer", "writer", "plan writer", progress)),
   });
+  signal?.throwIfAborted();
   const planText = result.text.trim();
   const valid = result.exitCode === 0 && planText.length > 0;
   const stderr = valid ? result.stderr : result.stderr || formatWorkerDiagnostics(result.stderr, result.exitCode);
@@ -297,6 +298,8 @@ export async function runPlanWorker(options: RunPlanWorkerOptions): Promise<Plan
     onUpdate,
   } = options;
 
+  signal?.throwIfAborted();
+
   // Ensure the plan directory exists
   fs.mkdirSync(path.dirname(planPath), { recursive: true });
 
@@ -309,6 +312,7 @@ export async function runPlanWorker(options: RunPlanWorkerOptions): Promise<Plan
     runExploreWorker(task, `explore-${index + 1}`, cwd, model, signal, onProgress, onUpdate),
   );
   const exploreResults = await Promise.all(explorePromises);
+  signal?.throwIfAborted();
 
   // Check if any explore succeeded
   const successfulExplores = exploreResults.filter((r) => r.status === "completed");

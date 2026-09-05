@@ -105,7 +105,14 @@ let previousModelId: string | undefined;
 let config: PlanModeConfig;
 let activePlanRequest: string | undefined;
 let lastCommandCtx: ExtensionCommandContext | undefined;
-let planHandling = false;
+let planJob: AbortController | undefined;
+
+function cancelPlanJob(ctx: ExtensionContext): void {
+  const job = planJob;
+  planJob = undefined;
+  job?.abort();
+  clearPlanWorkerWidget(ctx);
+}
 
 const planWorkerUpdates = new Map<string, PlanWorkerUpdate>();
 let planWidgetTui: { requestRender(): void } | undefined;
@@ -212,7 +219,19 @@ ${planContent}
 Use workers only where they add useful independent research. Do not rewrite the plan unless the research finds a concrete gap. Write any updates to ${planPath}.`;
 }
 
-async function showPlanReview(ctx: ExtensionContext, _request: string): Promise<void> {
+async function reviewCurrentPlan(ctx: ExtensionContext): Promise<void> {
+  cancelPlanJob(ctx);
+  const job = new AbortController();
+  planJob = job;
+  try {
+    await showPlanReview(ctx, activePlanRequest ?? "current plan", job.signal);
+  } finally {
+    if (planJob === job) planJob = undefined;
+  }
+}
+
+async function showPlanReview(ctx: ExtensionContext, _request: string, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return;
   if (!ctx.hasUI) {
     notifyPi(ctx.ui, `Plan written to ${getPlanPath(ctx)}`, "info");
     return;
@@ -226,19 +245,27 @@ async function showPlanReview(ctx: ExtensionContext, _request: string): Promise<
   }
 
   const action = await ctx.ui.custom<PlanAction | undefined>((tui, theme, _kb, done) => {
-    const timeout = setTimeout(() => done("implement-fresh"), PLAN_REVIEW_TIMEOUT_MS);
+    let finished = false;
+    const finish = (action: PlanAction | undefined) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", cancel);
+      done(action);
+    };
+    const cancel = () => finish(undefined);
+    const timeout = setTimeout(() => finish("implement-fresh"), PLAN_REVIEW_TIMEOUT_MS);
+    signal?.addEventListener("abort", cancel, { once: true });
     timeout.unref?.();
     const style = createPiThemeStyle(theme);
     return createPlanOverlay(tui, style, {
       planPath,
       planContent,
       onClose: () => {
-        clearTimeout(timeout);
-        done(undefined);
+        finish(undefined);
       },
       onAction: (selected) => {
-        clearTimeout(timeout);
-        done(selected);
+        finish(selected);
       },
     });
   }, {
@@ -250,7 +277,7 @@ async function showPlanReview(ctx: ExtensionContext, _request: string): Promise<
     },
   });
 
-  if (!action) return;
+  if (signal?.aborted || !action) return;
   if (action === "stay") return;
   if (action === "exit") {
     await exitPlanMode(ctx);
@@ -258,12 +285,20 @@ async function showPlanReview(ctx: ExtensionContext, _request: string): Promise<
   }
   if (action === "view-plan") {
     await ctx.ui.custom<void>((tui, theme, _kb, done) => {
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        signal.removeEventListener("abort", finish);
+        done(undefined);
+      };
+      signal.addEventListener("abort", finish, { once: true });
       const style = createPiThemeStyle(theme);
       return createPlanOverlay(tui, style, {
         planPath,
         planContent,
-        onClose: () => done(undefined),
-        onAction: () => done(undefined),
+        onClose: finish,
+        onAction: finish,
       });
     }, {
       overlay: true,
@@ -309,7 +344,7 @@ function requiresWorkerResearch(planContent: string): boolean {
   return /worker research\s*:\s*(?:required|needed|yes)\b/i.test(planContent);
 }
 
-async function runWorkerResearch(ctx: ExtensionContext, request: string, planContent: string): Promise<void> {
+async function runWorkerResearch(ctx: ExtensionContext, request: string, planContent: string, job: AbortController): Promise<void> {
   const planPath = getPlanPath(ctx);
   const workerModel = modelRef(config) ?? (ctx.model ? modelLabel(ctx.model) : undefined);
   notifyPi(ctx.ui, `Starting optional worker research... Plan will be written to ${planPath}`, "info");
@@ -320,21 +355,23 @@ async function runWorkerResearch(ctx: ExtensionContext, request: string, planCon
       cwd: ctx.cwd,
       planPath,
       model: workerModel,
-      signal: ctx.signal,
-      onProgress: (message) => notifyPi(ctx.ui, message, "info"),
-      onUpdate: updatePlanWorkerWidget,
+      signal: job.signal,
+      onProgress: (message) => { if (planJob === job) notifyPi(ctx.ui, message, "info"); },
+      onUpdate: (update) => { if (planJob === job) updatePlanWorkerWidget(update); },
     });
+    if (planJob !== job) return;
     if (result.exitCode !== 0) {
       notifyPi(ctx.ui, `Worker research failed: ${result.stderr}`, "error");
       return;
     }
     notifyPi(ctx.ui, "Optional worker research complete.", "info");
-    await showPlanReview(ctx, request);
+    await showPlanReview(ctx, request, job.signal);
   } catch (error) {
+    if (planJob !== job) return;
     const message = error instanceof Error ? error.message : String(error);
     notifyPi(ctx.ui, `Worker research error: ${message}`, "error");
   } finally {
-    clearPlanWorkerWidget(ctx);
+    if (planJob === job) clearPlanWorkerWidget(ctx);
   }
 }
 
@@ -351,28 +388,89 @@ function configuredModelLabel(): string {
 }
 
 function isReadOnlyBash(command: string): boolean {
-  const trimmed = command.trim();
-  if (!trimmed) return true;
-  if (/[;|&`$>]/.test(trimmed)) return false;
-  const tokens = trimmed.split(/\s+/);
-  const cmd = tokens[0]?.replace(/^(\/[\w/]*)?/, "").split("/").pop() ?? "";
-  const SAFE = new Set([
-    "cat", "head", "tail", "less", "wc", "file", "stat",
-    "grep", "egrep", "fgrep", "rg",
-    "find", "fd",
-    "ls", "dir", "tree", "pwd",
-    "echo", "printf",
-    "sort", "uniq", "diff",
-    "jq", "yq",
-    "which", "type",
-    "date", "uptime",
+  if (/[\x00-\x1f\x7f`$\\]/.test(command.replace(/\t/g, " "))) return false;
+  if (!command.trim()) return true;
+  const stages: string[][] = [];
+  let tokens: string[] = [];
+  let word = "";
+  let started = false;
+  let quote = "";
+  const finishWord = () => {
+    if (started) tokens.push(word);
+    word = "";
+    started = false;
+  };
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i];
+    if (quote) {
+      if (char === quote) quote = "";
+      else word += char;
+    } else if (char === "'" || char === '\"') {
+      quote = char;
+      started = true;
+    } else if (char === " " || char === "\t") {
+      finishWord();
+    } else if (char === "|" || char === "&") {
+      finishWord();
+      if (!tokens.length || (char === "&" && command[++i] !== "&")) return false;
+      stages.push(tokens);
+      tokens = [];
+    } else {
+      if (/[;<>()[\]{}#*?~]/.test(char)) return false;
+      word += char;
+      started = true;
+    }
+  }
+  finishWord();
+  if (quote || !tokens.length) return false;
+  stages.push(tokens);
+  return stages.every(isReadOnlyCommand);
+}
+
+function isReadOnlyCommand([cmd, ...args]: string[]): boolean {
+  const options = args.filter((arg) => arg.startsWith("-"));
+  const safe = new Set([
+    "cat", "head", "tail", "wc", "stat", "grep", "egrep", "fgrep",
+    "ls", "dir", "pwd", "echo", "which", "type", "uptime",
   ]);
-  if (cmd !== "git") return SAFE.has(cmd);
-  const gitSubcommand = tokens[1]?.replace(/^--[^ ]+$/, "");
-  return new Set([
-    "status", "log", "diff", "show", "branch", "ls-files", "rev-parse",
-    "describe", "remote", "tag", "blame", "grep", "shortlog",
-  ]).has(gitSubcommand ?? "");
+  if (safe.has(cmd)) return true;
+  if (cmd === "jq") return true;
+  if (cmd === "diff") return options.every((arg) => /^-[abBiqrsyuUwW0-9]+$/.test(arg)
+    || ["--brief", "--recursive", "--unified", "--ignore-all-space", "--ignore-space-change"].includes(arg));
+  if (cmd === "printf") return !args[0]?.startsWith("-");
+  if (cmd === "uniq") return args.length <= 1 && !options.length;
+  if (cmd === "date") return args.every((arg) => arg.startsWith("+"));
+  if (cmd === "file") return options.every((arg) => /^-[bchiIkLnNprsvz0]+$/.test(arg));
+  if (cmd === "sort") return options.every((arg) => /^-[bdfghinMnrRsuVz]+$/.test(arg));
+  if (cmd === "tree") return options.every((arg) => /^-[adfFlpugsiDhrt]+$/.test(arg));
+  if (cmd === "find") {
+    return options.every((arg) => new Set([
+      "-H", "-L", "-P", "-name", "-iname", "-path", "-ipath", "-type",
+      "-maxdepth", "-mindepth", "-size", "-mtime", "-mmin", "-newer",
+      "-print", "-print0", "-ls", "-prune", "-empty", "-o", "-a", "-not",
+    ]).has(arg));
+  }
+  if (cmd === "rg" || cmd === "fd") {
+    return options.every((arg) => /^-[nliwsvcrHh0ABC0-9]+$/.test(arg)
+      || ["--files", "--hidden", "--no-ignore", "--glob", "--type", "-g", "-t"].includes(arg));
+  }
+  if (cmd === "git") return isReadOnlyGit(args);
+  return false;
+}
+
+function isReadOnlyGit([subcommand, ...args]: string[]): boolean {
+  if (["branch", "tag", "remote"].includes(subcommand)) {
+    return args.every((arg) => ["--list", "-l", "-v", "-vv", "-a", "-r"].includes(arg));
+  }
+  if (!["status", "log", "diff", "show", "ls-files", "rev-parse", "describe", "blame", "grep", "shortlog"].includes(subcommand)) return false;
+  return args.every((arg) => !arg.startsWith("-") || /^-\d+$/.test(arg)
+    || /^--(?:format|pretty|max-count|since|until|author|grep)=/.test(arg) || [
+    "--", "--oneline", "--stat", "--shortstat", "--name-only", "--name-status",
+    "--cached", "--staged", "--no-pager", "--no-ext-diff", "--no-textconv",
+    "--short", "--porcelain", "--all", "--graph", "--decorate", "--abbrev-ref",
+    "--show-toplevel", "--verify", "--tags", "--always", "--long", "-n", "-p",
+    "-s", "-b", "-u", "-w", "-M", "-C",
+  ].includes(arg));
 }
 
 async function switchToPlanModel(ctx: ExtensionContext): Promise<void> {
@@ -436,7 +534,7 @@ async function showMenu(ctx: ExtensionCommandContext): Promise<void> {
   if (!choice) return;
 
   if (choice === "Review current plan") {
-    await showPlanReview(ctx, activePlanRequest ?? "current plan");
+    await reviewCurrentPlan(ctx);
   } else if (choice === "Exit plan mode") {
     await exitPlanMode(ctx);
   } else if (choice.startsWith("Model:")) {
@@ -510,6 +608,7 @@ async function enterPlanMode(ctx: ExtensionContext): Promise<void> {
 }
 
 async function exitPlanMode(ctx: ExtensionContext): Promise<void> {
+  cancelPlanJob(ctx);
   planModeActive = false;
   activePlanRequest = undefined;
   setPlanModeIndicator(ctx, false);
@@ -529,24 +628,26 @@ export default function planMode(extensionApi: ExtensionAPI): void {
     await exitPlanMode(ctx);
   });
 
-  pi.on("agent_end", async (_event, ctx) => {
-    if (!planModeActive || !activePlanRequest || planHandling) return;
+  pi.on("agent_settled", (_event, ctx) => {
+    if (!planModeActive || !activePlanRequest || planJob) return;
     const planPath = getPlanPath(ctx);
     const planContent = fs.existsSync(planPath) ? fs.readFileSync(planPath, "utf-8") : "";
     if (!planContent.trim()) return;
 
     const request = activePlanRequest;
     activePlanRequest = undefined;
-    planHandling = true;
-    try {
-      if (requiresWorkerResearch(planContent)) {
-        await runWorkerResearch(ctx, request, planContent);
-      } else {
-        await showPlanReview(ctx, request);
-      }
-    } finally {
-      planHandling = false;
-    }
+    const job = new AbortController();
+    planJob = job;
+    // Review can replace the session, which waits for lifecycle handlers to return.
+    const review = requiresWorkerResearch(planContent)
+      ? runWorkerResearch(ctx, request, planContent, job)
+      : showPlanReview(ctx, request, job.signal);
+    void review.catch((error: unknown) => {
+      if (planJob !== job) return;
+      notifyPi(ctx.ui, `Plan review failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+    }).finally(() => {
+      if (planJob === job) planJob = undefined;
+    });
   });
 
   pi.registerCommand("plan", {
@@ -581,7 +682,7 @@ export default function planMode(extensionApi: ExtensionAPI): void {
       }
 
       if (sub === "review") {
-        await showPlanReview(ctx, activePlanRequest ?? "current plan");
+        await reviewCurrentPlan(ctx);
         return;
       }
 
@@ -613,10 +714,10 @@ export default function planMode(extensionApi: ExtensionAPI): void {
 
       // /plan <prompt> starts planning in the main session. Worker research is
       // deliberately deferred until the user explicitly asks for it.
+      cancelPlanJob(ctx);
       const planPath = getPlanPath(ctx);
       await enterPlanMode(ctx);
       activePlanRequest = prompt;
-      planHandling = false;
       const planPrompt = buildMainSessionPlanPrompt(planPath, prompt);
       pi.sendUserMessage(planPrompt, { deliverAs: "followUp" });
       return;
@@ -671,7 +772,8 @@ export default function planMode(extensionApi: ExtensionAPI): void {
     setPlanModeIndicator(ctx, false);
     activePlanRequest = undefined;
     lastCommandCtx = undefined;
-    planHandling = false;
+    cancelPlanJob(ctx);
+    planModeActive = false;
   });
 
   // Inject planning prompt

@@ -57,100 +57,29 @@ def test_notifications_use_pi_kits_portable_helper():
 def test_plan_completion_does_not_loop_review_messages_to_agent():
     source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
     assert 'pi.sendUserMessage("/plan review")' not in source
-    assert 'showPlanReview(ctx, request)' in source or 'showPlanReview(ctx, activePlanRequest)' in source
+    assert 'showPlanReview(ctx, request, job.signal)' in source
 
 
-def test_plan_completion_invokes_review_directly_and_clears_active_request():
-    result = run_typescript(f"""
-        import * as crypto from "node:crypto";
-        import * as fs from "node:fs";
-        import * as os from "node:os";
-        import * as path from "node:path";
-        import importedPlanMode from {json.dumps((PACKAGE / "src" / "index.ts").as_uri())};
-        const planMode = importedPlanMode.default ?? importedPlanMode;
+def test_plan_completion_settles_before_review_and_accepts_new_prompt():
+    run_plan_lifecycle("dismiss")
 
-        const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "plan-mode-test-"));
-        process.env.HOME = tmpHome;
 
-        const sentUserMessages = [];
-        const customUiCalls = [];
-        const registeredCommands = new Map();
-        const eventHandlers = new Map();
+def test_obsolete_detached_workers_are_cancelled():
+    for scenario in ("worker-exit", "worker-writer-exit", "worker-new", "worker-replace", "review-exit"):
+        run_plan_lifecycle(scenario)
 
-        const fakePi = {{
-          sendUserMessage: (msg, opts) => {{
-            sentUserMessages.push({{ msg, opts }});
-          }},
-          registerCommand: (name, def) => {{
-            registeredCommands.set(name, def);
-          }},
-          on: (event, handler) => {{
-            eventHandlers.set(event, handler);
-          }},
-          setModel: async () => true,
-        }};
 
-        const sessionFile = path.join(tmpHome, "session.jsonl");
-        const fakeCtx = {{
-          cwd: tmpHome,
-          hasUI: true,
-          mode: "tui",
-          model: {{ provider: "anthropic", id: "claude-3" }},
-          modelRegistry: {{
-            find: () => ({{ provider: "anthropic", id: "claude-3" }}),
-            getAvailable: () => [],
-          }},
-          sessionManager: {{
-            getSessionFile: () => sessionFile,
-          }},
-          ui: {{
-            notify: () => {{}},
-            setWidget: () => {{}},
-            custom: async (factory, opts) => {{
-              customUiCalls.push({{ opts }});
-              return "stay";
-            }},
-          }},
-        }};
+def test_manual_review_is_cancelled_with_its_owner():
+    for scenario in ("manual-exit", "manual-new", "manual-menu-replace", "manual-view-exit"):
+        run_plan_lifecycle(scenario)
 
-        planMode(fakePi);
 
-        // 1. Start planning
-        const planCmd = registeredCommands.get("plan");
-        await planCmd.handler("test plan request", fakeCtx);
-
-        // 2. Main session writes plan file
-        const planDir = path.join(tmpHome, ".pi", "agent", "plans");
-        fs.mkdirSync(planDir, {{ recursive: true }});
-        // Generate the hash key matching planFilePath
-        const key = crypto.createHash("sha256").update(sessionFile).digest("hex").slice(0, 16);
-        const planPath = path.join(planDir, `${{key}}.md`);
-        fs.writeFileSync(planPath, "# Test Plan\\n\\nWorker research: not-needed");
-
-        // 3. Agent turn ends
-        const agentEndHandler = eventHandlers.get("agent_end");
-        await agentEndHandler({{}}, fakeCtx);
-
-        const firstReviewCount = customUiCalls.length;
-        const reviewCommandsSent = sentUserMessages.filter(m => m.msg === "/plan review");
-
-        // 4. Subsequent agent turn ends (e.g. user talked, turn finished)
-        await agentEndHandler({{}}, fakeCtx);
-        const secondReviewCount = customUiCalls.length;
-
-        fs.rmSync(tmpHome, {{ recursive: true, force: true }});
-
-        console.log(JSON.stringify({{
-          sentUserMessagesCount: sentUserMessages.length,
-          reviewCommandsSentCount: reviewCommandsSent.length,
-          firstReviewCount,
-          secondReviewCount,
-        }}));
-    """)
-
-    assert result["reviewCommandsSentCount"] == 0, f"Expected no /plan review sent to agent, got {result['reviewCommandsSentCount']}"
-    assert result["firstReviewCount"] == 1, f"Expected exactly 1 review overlay shown on completion, got {result['firstReviewCount']}"
-    assert result["secondReviewCount"] == 1, f"Expected review overlay not to repeat on next agent_end, got {result['secondReviewCount']}"
+def run_plan_lifecycle(scenario: str) -> None:
+    result = subprocess.run(
+        ["node", "--import", "tsx", str(PACKAGE / "tests" / "plan_lifecycle.mts"), scenario],
+        cwd=REPO, text=True, capture_output=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_plan_mode_prompts_prioritize_exploration_and_mention_builtin_workers():
@@ -204,7 +133,7 @@ def test_plan_review_timeout_uses_fresh_session_context():
     assert "implement-fresh" in source
     assert "newCtx.sendUserMessage" in source
     assert "pi.sendUserMessage(`Implement this plan" not in source
-    assert "setTimeout(() => done(\"implement-fresh\")" in source
+    assert "setTimeout(() => finish(\"implement-fresh\")" in source
 
 
 def test_plan_mode_uses_a_live_worker_widget_with_shared_spinner():
@@ -230,125 +159,53 @@ def test_plan_mode_worker_rows_use_shared_task_activity_format():
     assert 'const detail = ` · ${activity}`;' in source
 
 
+def bash_decisions(commands: list[str]) -> dict[str, object]:
+    return run_typescript(f"""
+        import fs from "node:fs";
+        import {{ createRequire }} from "node:module";
+        const require = createRequire(import.meta.url);
+        const {{ transformSync }} = require(require.resolve("esbuild", {{ paths: [require.resolve("tsx")] }}));
+        const source = fs.readFileSync({json.dumps(str(PACKAGE / "src" / "index.ts"))}, "utf8");
+        const start = source.indexOf("function isReadOnlyBash(");
+        const end = source.indexOf("async function switchToPlanModel", start);
+        const js = transformSync(source.slice(start, end), {{ loader: "ts", target: "es2022" }}).code;
+        const validate = new Function(js + "; return isReadOnlyBash;")();
+        console.log(JSON.stringify(Object.fromEntries({json.dumps(commands)}.map(c => [c, validate(c)]))));
+    """)
+
+
 def test_is_read_only_bash_allows_safe_commands():
-    result = run_typescript("""
-        // Inline the function to avoid import issues
-        function isReadOnlyBash(command) {
-          const trimmed = command.trim();
-          if (!trimmed) return true;
-          if (/[;|&`$>]/.test(trimmed)) return false;
-          const tokens = trimmed.split(/\\s+/);
-          const cmd = tokens[0]?.replace(/^(\\/[\\w/]*)?/, "").split("/").pop() ?? "";
-          const SAFE = new Set([
-            "cat", "head", "tail", "less", "wc", "file", "stat",
-            "grep", "egrep", "fgrep", "rg",
-            "find", "fd",
-            "ls", "dir", "tree", "pwd",
-            "git",
-            "echo", "printf",
-            "sort", "uniq", "diff",
-            "jq", "yq",
-            "which", "type",
-            "date", "uptime",
-          ]);
-          return SAFE.has(cmd);
-        }
-
-        const results = {
-          cat: isReadOnlyBash("cat file.txt"),
-          ls: isReadOnlyBash("ls -la"),
-          grep: isReadOnlyBash("grep -r pattern ."),
-          find: isReadOnlyBash("find . -name '*.ts'"),
-          git_status: isReadOnlyBash("git status"),
-          git_log: isReadOnlyBash("git log --oneline -10"),
-          pwd: isReadOnlyBash("pwd"),
-          wc: isReadOnlyBash("wc -l file.ts"),
-          empty: isReadOnlyBash(""),
-          spaces: isReadOnlyBash("   "),
-        };
-        console.log(JSON.stringify(results));
-    """)
-    assert all(v is True for v in result.values()), f"Expected all true: {result}"
+    commands = [
+        "", "   ", "ls -la", "cat file.txt", "grep -r pattern .",
+        "find . -name '*.ts'", "git status", "git log --oneline -10",
+        "diff a b", "jq . file.json", "rg -n -A 3 needle .", "git log -5 --format=oneline",
+        "pwd", "wc -l file.ts", "sort -r file", "git branch", "git tag", "git remote -v",
+        'ls -la packages/matt-pocock/ && echo "---" && ls -R packages/matt-pocock/ | head -80',
+        'cat "file with spaces"|grep "a|b"', "echo 'a && b' && ls", "ls&&pwd",
+    ]
+    result = bash_decisions(commands)
+    assert all(result.values()), result
 
 
-def test_is_read_only_bash_blocks_mutating_commands():
-    result = run_typescript("""
-        function isReadOnlyBash(command) {
-          const trimmed = command.trim();
-          if (!trimmed) return true;
-          if (/[;|&`$>]/.test(trimmed)) return false;
-          const tokens = trimmed.split(/\\s+/);
-          const cmd = tokens[0]?.replace(/^(\\/[\\w/]*)?/, "").split("/").pop() ?? "";
-          const SAFE = new Set([
-            "cat", "head", "tail", "less", "wc", "file", "stat",
-            "grep", "egrep", "fgrep", "rg",
-            "find", "fd",
-            "ls", "dir", "tree", "pwd",
-            "git",
-            "echo", "printf",
-            "sort", "uniq", "diff",
-            "jq", "yq",
-            "which", "type",
-            "date", "uptime",
-          ]);
-          return SAFE.has(cmd);
-        }
-
-        const results = {
-          rm: isReadOnlyBash("rm file.txt"),
-          mv: isReadOnlyBash("mv a b"),
-          cp: isReadOnlyBash("cp a b"),
-          mkdir: isReadOnlyBash("mkdir dir"),
-          touch: isReadOnlyBash("touch file"),
-          chmod: isReadOnlyBash("chmod 755 file"),
-          npm_install: isReadOnlyBash("npm install"),
-        };
-        console.log(JSON.stringify(results));
-    """)
-    assert all(v is False for v in result.values()), f"Expected all false: {result}"
-
-
-def test_is_read_only_bash_blocks_shell_operators():
-    result = run_typescript("""
-        function isReadOnlyBash(command) {
-          const trimmed = command.trim();
-          if (!trimmed) return true;
-          if (/[;|&`$>]/.test(trimmed)) return false;
-          const tokens = trimmed.split(/\\s+/);
-          const cmd = tokens[0]?.replace(/^(\\/[\\w/]*)?/, "").split("/").pop() ?? "";
-          const SAFE = new Set([
-            "cat", "head", "tail", "less", "wc", "file", "stat",
-            "grep", "egrep", "fgrep", "rg",
-            "find", "fd",
-            "ls", "dir", "tree", "pwd",
-            "git",
-            "echo", "printf",
-            "sort", "uniq", "diff",
-            "jq", "yq",
-            "which", "type",
-            "date", "uptime",
-          ]);
-          return SAFE.has(cmd);
-        }
-
-        const results = {
-          pipe: isReadOnlyBash("cat file | grep x"),
-          redirect: isReadOnlyBash("echo x > file"),
-          and: isReadOnlyBash("cat a && cat b"),
-          subshell_dollar: isReadOnlyBash("$(whoami)"),
-          subshell_backtick: isReadOnlyBash("echo `date`"),
-        };
-        console.log(JSON.stringify(results));
-    """)
-    assert all(v is False for v in result.values()), f"Expected all false: {result}"
-
-
-def test_plan_mode_restricts_git_to_read_only_subcommands():
-    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    assert '"git",' not in source
-    assert '"status", "log", "diff", "show"' in source
-    assert '"reset"' not in source
-    assert '"push"' not in source
+def test_is_read_only_bash_blocks_unsafe_commands_and_syntax():
+    commands = [
+        "rm file", "ls && rm file", "rm file | head", "ls | touch file",
+        "ls; pwd", "ls & pwd", "ls || pwd", "ls |& head", "ls &&", "| ls", "ls | | head",
+        "ls\nrm file", "ls\rpwd", "ls\n", "echo $(touch file)", "echo `touch file`",
+        "cat < file", "echo x > file", "ls >> file", "cat <(ls)", "(ls)",
+        'echo "unterminated', "echo 'unterminated", "ls \\nrm file", "ls # comment",
+        "./ls", "/tmp/ls", "find . -delete", "find . -exec touch file +",
+        "find . -execdir touch file +", "find . -fprint output", "sort -o output file",
+        "sort --output=output file", "sort --o=output file", "sort -rooutput file",
+        "fd -x touch", "fd --exec touch", "rg --pre touch", "rg --hostname-bin touch",
+        "git reset --hard", "git branch new", "git tag new", "git remote add x url",
+        "git diff --output=file", "git log --output file", "git diff --ext-diff",
+        "git show --textconv", "git -c alias.x=touch x", "date -s tomorrow",
+        "uniq input output", "less file", "yq -i . file", "tree -o output",
+        "printf -v variable value", "git branch -D main", "git tag -d version",
+    ]
+    result = bash_decisions(commands)
+    assert not any(result.values()), result
 
 
 def test_plan_mode_and_pi_kit_do_not_use_wall_clock_worker_timeouts():
@@ -488,109 +345,8 @@ def test_empty_explore_output_reports_actionable_diagnostic():
     assert "structure: Worker produced no structured result." in result["aggregate"]
 
 
-def test_plan_review_fresh_session_action_uses_command_context():
-    result = run_typescript(f"""
-        import * as crypto from "node:crypto";
-        import * as fs from "node:fs";
-        import * as os from "node:os";
-        import * as path from "node:path";
-        import importedPlanMode from {json.dumps((PACKAGE / "src" / "index.ts").as_uri())};
-        const planMode = importedPlanMode.default ?? importedPlanMode;
-
-        const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "plan-mode-fresh-session-"));
-        process.env.HOME = tmpHome;
-
-        const newSessionCalls = [];
-        const freshSessionMessages = [];
-        const registeredCommands = new Map();
-        const eventHandlers = new Map();
-
-        const fakePi = {{
-          sendUserMessage: () => {{}},
-          registerCommand: (name, def) => {{
-            registeredCommands.set(name, def);
-          }},
-          on: (event, handler) => {{
-            eventHandlers.set(event, handler);
-          }},
-          setModel: async () => true,
-        }};
-
-        const sessionFile = path.join(tmpHome, "session.jsonl");
-        const fakeCommandCtx = {{
-          cwd: tmpHome,
-          hasUI: true,
-          mode: "tui",
-          model: {{ provider: "anthropic", id: "claude-3" }},
-          modelRegistry: {{
-            find: () => ({{ provider: "anthropic", id: "claude-3" }}),
-            getAvailable: () => [],
-          }},
-          sessionManager: {{
-            getSessionFile: () => sessionFile,
-          }},
-          ui: {{
-            notify: () => {{}},
-            setWidget: () => {{}},
-            custom: async (factory, opts) => "implement-fresh",
-          }},
-          newSession: async (opts) => {{
-            newSessionCalls.push(opts);
-            const freshCtx = {{
-              ui: {{ notify: () => {{}} }},
-              sendUserMessage: async (msg) => freshSessionMessages.push(msg),
-            }};
-            await opts.withSession(freshCtx);
-            return {{ cancelled: false }};
-          }},
-        }};
-
-        const fakeAgentEndCtx = {{
-          cwd: tmpHome,
-          hasUI: true,
-          mode: "tui",
-          model: {{ provider: "anthropic", id: "claude-3" }},
-          modelRegistry: {{
-            find: () => ({{ provider: "anthropic", id: "claude-3" }}),
-            getAvailable: () => [],
-          }},
-          sessionManager: {{
-            getSessionFile: () => sessionFile,
-          }},
-          ui: {{
-            notify: () => {{}},
-            setWidget: () => {{}},
-            custom: async (factory, opts) => "implement-fresh",
-          }},
-          // Note: agent_end ctx does NOT have newSession
-        }};
-
-        planMode(fakePi);
-
-        // 1. Start planning via /plan
-        const planCmd = registeredCommands.get("plan");
-        await planCmd.handler("test plan request", fakeCommandCtx);
-
-        // 2. Main session writes plan file
-        const planDir = path.join(tmpHome, ".pi", "agent", "plans");
-        fs.mkdirSync(planDir, {{ recursive: true }});
-        const key = crypto.createHash("sha256").update(sessionFile).digest("hex").slice(0, 16);
-        const planPath = path.join(planDir, `${{key}}.md`);
-        fs.writeFileSync(planPath, "# Test Plan\\n\\nWorker research: not-needed");
-
-        // 3. Agent turn ends (triggering auto showPlanReview with fakeAgentEndCtx)
-        const agentEndHandler = eventHandlers.get("agent_end");
-        await agentEndHandler({{}}, fakeAgentEndCtx);
-
-        fs.rmSync(tmpHome, {{ recursive: true, force: true }});
-
-        console.log(JSON.stringify({{
-          newSessionCalled: newSessionCalls.length === 1,
-          freshSessionMessageReceived: freshSessionMessages.length === 1,
-        }}));
-    """)
-    assert result["newSessionCalled"] is True
-    assert result["freshSessionMessageReceived"] is True
+def test_plan_review_fresh_session_action_uses_real_runtime():
+    run_plan_lifecycle("fresh")
 
 
 def test_tilde_expansion_in_agent_dir_and_plan_paths():

@@ -16,27 +16,28 @@ Run focused tests and package type checking from the repository root:
 
 ```bash
 python3 -m pytest packages/plan-mode/tests/ -q
-npx tsc --noEmit -p packages/plan-mode/tsconfig.json
-npx tsc --noEmit -p tsconfig.extensions.json
+pnpm exec tsc --noEmit --allowImportingTsExtensions -p packages/plan-mode/tsconfig.json
 pnpm --dir packages/plan-mode pack --dry-run
 ```
 
 ## Style and Architecture
 
-Use ESM TypeScript with the package's strict, no-emit configuration and reuse
-`@fradser/pi-kit` for model, spinner, and theme helpers. Plan mode must remain
-read-only: only the session-specific plan file may be written, bash is limited
+`/plan <prompt>` starts in the main session; worker research begins only when
+the plan marks it required. Open review after `agent_settled` without awaiting
+session-replacing UI inside the lifecycle hook; catch asynchronous review
+failures and release the re-entry guard.
+
+Plan mode must remain read-only: only the session-specific plan file may be written, bash is limited
 to the explicit safe command set and read-only Git subcommands, and explore
 workers receive only `read`, `grep`, `find`, and `ls`. Child workers use
 `--no-extensions` and must not gain wall-clock timeout behavior; the host owns
 the plan-file write. Keep the persistent indicator below the editor, worker
 status above it, and review actions within the overlay viewport.
 
-## Testing and Release
+## Testing Guidelines
 
-Update the relevant `.feature` scenario before behavior changes, then add
-coverage under `tests/` for restrictions, worker diagnostics, CLI arguments,
-and review behavior. The manifest ships `index.ts`, `src`, and `README.md`.
-It is included in the `scripts/publish-release.mjs` allowlist and publishes
-through the GitHub Actions Changesets workflow. Follow repository Changeset and
-Conventional Commit conventions for release changes.
+`features/plan-mode.feature` and `tests/test_plan_mode.py` cover read-only
+command parsing, worker diagnostics, CLI arguments, automatic review, and
+session-replacement deadlocks. The bash allowlist is a command guard, not an OS
+sandbox; keep tests for unsafe stages in chains/pipelines. Pack checks must
+include `index.ts`, `src`, and `README.md`.

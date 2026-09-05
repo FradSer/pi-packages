@@ -60,7 +60,28 @@ pi install npm:@fradser/pi-plan-mode
 
 `/plan <prompt>` never starts child workers immediately. It enters read-only mode and sends a follow-up to the current session. The main session decides whether the request is simple enough to plan directly. This avoids unnecessary worker cost and keeps the planning context in the current conversation.
 
-When the main-session plan is ready, use `/plan review` or the plan-mode menu to inspect it. The agent decides automatically whether worker research is required; users do not need to invoke a separate research command.
+When the main-session plan is ready and Pi has settled, the review menu opens automatically without keeping the agent busy. Dismiss it to continue prompting, or choose an implementation action. You can also use `/plan review` or the plan-mode menu to inspect the plan. The agent decides automatically whether worker research is required; users do not need to invoke a separate research command.
+
+### Read-only bash
+
+Plan mode validates every command in `&&` chains and `|` pipelines, for example:
+
+```bash
+ls -la packages/matt-pocock/ && echo "---" && ls -R packages/matt-pocock/ | head -80
+```
+
+Quotes preserve spaces and literal operators. Only bare allowlisted command names
+are accepted. Redirects, substitutions, escapes, newlines, background jobs,
+comments, unquoted shell expansions, and other shell operators are blocked.
+An unsafe or malformed stage blocks the entire request.
+
+Commands with write or execution modes use restricted option lists: for example,
+`find -exec`/`-delete`, `sort -o`, and Git mutation/output/external-diff options are
+blocked. Git branch, tag, and remote commands are listing-only. Basic `diff`,
+`jq`, ripgrep context options, and Git log formatting remain available.
+Interactive `less` and write-capable `yq` are not allowed; use the read tool or
+simpler inspection commands instead. This is a conservative command guard, not an
+OS sandbox: it assumes trusted executables and local Git configuration.
 
 ### Automatic worker research
 
@@ -111,7 +132,7 @@ Or via environment:
 export PI_PLAN_MODE_MODEL="anthropic/claude-3-5-haiku"
 ```
 
-The plan model is used for the main planning session and, when the agent decides research is required, both explore workers and the plan writer. Worker processes have no wall-clock timeout; they stop when they exit or are aborted.
+The plan model is used for the main planning session and, when the agent decides research is required, both explore workers and the plan writer. Worker processes have no wall-clock timeout; they stop when they exit or are aborted. Exiting plan mode, replacing the session, or starting another plan cancels pending research and review. Cancelled workers cannot overwrite the plan or open a stale review.
 
 ## Design Comparison
 
