@@ -84,11 +84,19 @@ Feature: External skill collection routing
     Then Pi offers that default name for editing
     And the selected custom name is used for the collection
 
-  Scenario: Adding a collection asks for an abstract capability description
+  Scenario: Adding a collection automatically stores an AI capability description
     Given the user selected skills from a collection
     When the router prepares the visible gateway
-    Then Pi offers a generated capability summary for editing
-    And the confirmed summary is stored in the collection registry and gateway description
+    Then the active AI model synthesizes the whole collection capability from only the selected skill descriptions
+    And Pi stores the generated summary directly in the collection registry and gateway description
+    And Pi asks for no capability summary input or confirmation
+
+  Scenario: Capability generation is unavailable
+    Given the active model is missing, unauthenticated, fails, or returns an invalid summary
+    When the router prepares the collection capability summary
+    Then Pi reports the existing collection installation error notification
+    And no collection registry entry or exposed skills are installed
+    And Pi offers no manual input or deterministic capability fallback
 
   Scenario: Editing an installed collection capability description refreshes its gateway
     Given an installed collection has an outdated installation-focused description

@@ -15,7 +15,7 @@ import {
   updateCollectionSelection,
   defaultCollectionId,
   generateWorkflowSummaries,
-  suggestCollectionDescription,
+  generateCollectionDescription,
   type UpstreamSkill,
 } from "./sync";
 
@@ -130,20 +130,17 @@ async function addFlow(ctx: ExtensionCommandContext): Promise<void> {
   const selectedSkills = selection === "all"
     ? fetched.skills
     : fetched.skills.filter((skill) => selection.includes(skill.name));
-  const summaries = await runWithLoading(
-    ctx,
-    "Creating workflow navigation...",
-    () => generateWorkflowSummaries(ctx.modelRegistry, ctx.model, selectedSkills, ctx.signal),
-  );
-  const suggestedDescription = suggestCollectionDescription(selectedSkills);
-  const customDescription = await ctx.ui.input(
-    "Collection capability summary",
-    suggestedDescription,
-  );
-  if (customDescription === undefined) return;
-  const description = customDescription.trim() || suggestedDescription;
-
   try {
+    const summaries = await runWithLoading(
+      ctx,
+      "Creating workflow navigation...",
+      () => generateWorkflowSummaries(ctx.modelRegistry, ctx.model, selectedSkills, ctx.signal),
+    );
+    const description = await runWithLoading(
+      ctx,
+      "Creating collection capability summary...",
+      () => generateCollectionDescription(ctx.modelRegistry, ctx.model, selectedSkills, ctx.signal),
+    );
     const result = await runWithLoading(
       ctx,
       `Installing ${repo}...`,

@@ -156,6 +156,46 @@ async function main(): Promise<void> {
       }
       break;
     }
+    case "menu-add": {
+      const { showSkillRouterMenu } = await import("../src/menu");
+      const prompts: string[] = [];
+      const defaults: string[] = [];
+      const confirmations: string[] = [];
+      const notifications: Array<{ message: string; level: string }> = [];
+      let opened = false;
+      const choices = flags.skills ? [...flags.skills.split(","), "Finish selection"] : [];
+      await showSkillRouterMenu({
+        hasUI: false,
+        model: flags.mode === "missing" ? undefined : { id: "test-model" },
+        modelRegistry: {
+          getApiKeyAndHeaders: async () => ({ ok: flags.mode !== "unauthenticated" }),
+          complete: async (_model: unknown, context: { messages: Array<{ content: Array<{ text: string }> }> }) => {
+            const prompt = context.messages[0].content[0].text;
+            prompts.push(prompt);
+            if (flags.mode === "error") throw new Error("Provider unavailable");
+            return { stopReason: "stop", content: [{ type: "text", text: prompt.includes("array of objects") ? "[]" : flags.mode === "invalid" ? "" : "Improve software reliability through systematic diagnosis and careful code review." }] };
+          },
+        },
+        ui: {
+          select: async (title: string) => title === "Skill Router"
+            ? opened ? undefined : (opened = true, "Add collection")
+            : choices.shift(),
+          confirm: async (title: string) => {
+            confirmations.push(title);
+            return !flags.skills;
+          },
+          input: async (title: string, value: string) => {
+            if (title === "Add collection") return positional[0];
+            if (title.startsWith("Collection skill name")) return value;
+            defaults.push(value);
+            return "";
+          },
+          notify: (message: string, level: string) => notifications.push({ message, level }),
+        },
+      } as never);
+      result = { ok: true, prompts, defaults, confirmations, notifications };
+      break;
+    }
     case "menu-registered": {
       result = { ok: true, command: "skill-router" in commands };
       break;

@@ -499,6 +499,42 @@ def test_invalid_registry_entries_fail_closed(tmp_path: Path, source_repo: Path)
     assert routed["systemPrompt"] == "base system prompt"
 
 
+def test_menu_add_persists_ai_collection_summary_without_confirmation(tmp_path: Path, source_repo: Path) -> None:
+    agent_dir = tmp_path / "agent"
+    result = run_harness(agent_dir, "menu-add", str(source_repo))
+    generated = "Improve software reliability through systematic diagnosis and careful code review."
+    assert result["defaults"] == []
+    assert result["confirmations"] == ["Skill selection"]
+    prompt = result["prompts"][-1]
+    assert "Diagnose tricky bugs systematically" in prompt
+    assert "Review code changes carefully" in prompt
+    [entry] = read_registry(agent_dir)["collections"]
+    assert entry["description"] == generated
+    gateway = (gateway_root(agent_dir, entry["id"]) / "SKILL.md").read_text()
+    assert entry["description"] in gateway
+
+
+def test_menu_summary_uses_only_selected_descriptions(tmp_path: Path, source_repo: Path) -> None:
+    result = run_harness(tmp_path / "agent", "menu-add", str(source_repo), "--skills", "bug-diagnosis")
+    assert len(result["prompts"]) == 2
+    assert "Diagnose tricky bugs systematically" in result["prompts"][-1]
+    assert "Review code changes carefully" not in result["prompts"][-1]
+
+
+@pytest.mark.parametrize("mode", ["missing", "unauthenticated", "error", "invalid"])
+def test_menu_summary_generation_failure_aborts_add(tmp_path: Path, source_repo: Path, mode: str) -> None:
+    agent_dir = tmp_path / "agent"
+    result = run_harness(agent_dir, "menu-add", str(source_repo), "--mode", mode)
+    assert result["defaults"] == []
+    assert result["confirmations"] == ["Skill selection"]
+    [notification] = result["notifications"]
+    assert notification["level"] == "error"
+    assert notification["message"].startswith("Failed to install collection:")
+    assert read_registry(agent_dir)["collections"] == []
+    exposed = agent_dir / "skill-router" / "exposed" / "collections"
+    assert not exposed.exists() or list(exposed.iterdir()) == []
+
+
 def test_menu_command_is_registered(tmp_path: Path) -> None:
     result = run_harness(tmp_path / "agent", "menu-registered")
     assert result == {"ok": True, "command": True}
