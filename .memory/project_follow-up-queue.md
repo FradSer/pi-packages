@@ -1,21 +1,28 @@
 ---
 name: follow-up-queue
-description: Agent Teams serializes automatic teammate reports through Pi custom-message follow-ups, including reports arriving while the leader is active
+description: Agent Teams report delivery can replay obsolete progress after completion because FIFO follow-ups and inline terminal results have independent consumption state
 type: project
 ---
 
 ## Why
 
-Pi accepts a custom `sendMessage(..., { triggerTurn: true, deliverAs: "followUp" })` while the leader is streaming and retains it in its native follow-up queue. Agent Teams must not add an idle-only gate that delays that handoff until the entire leader run settles. Doing so leaves reports in the package queue during a leader tool-call loop instead of at least making them visible to Pi's proper queue.
+Agent Teams currently sends one report through Pi's `followUp` channel and holds later reports until `agent_settled`. Pi does not consume a follow-up until the leader stops calling tools. A busy coordination loop can therefore delay decision-useful reports for the entire assignment. Each remaining FIFO item then starts a separate leader run.
 
-A native follow-up still runs only after the current tool/steering loop can naturally finish; it does not interrupt an in-flight tool or an unbounded leader loop. The leader guidance therefore forbids sleep-based polling, and urgent interruption needs an explicit steer/abort design rather than changing ordinary reports.
+The leader's `send_message` result can independently expose `RECORDED TERMINAL REPORT` from the mailbox. Reading that result does not acknowledge or remove its asynchronous delivery, or any earlier queued reports. Terminal status suppresses reports received after the terminal event, not already queued progress. Pending `unfinalized-report` diagnostics are not revalidated when work later completes. These are distinct authored events replayed too late, not necessarily duplicate outbox reads.
+
+A real session demonstrated 13 unique worker report event IDs and one harness diagnostic delivered after the leader's conclusion; the first report was delayed about 20 minutes. An isolated reproduction using the actual team machine, outbox drain, routing result, and FollowUpQueue returned the final result inline while all three reports remained pending. Existing tests passed because they explicitly require one-report-per-follow-up-turn behavior.
 
 ## How to apply
 
-- `packages/agent-teams/src/follow-up-queue.ts` owns a FIFO report queue and one active dispatch.
-- `pump()` dispatches the first pending report whether the leader is idle or active. Active leaders receive it through Pi's native `followUp` channel; idle leaders begin a new turn.
-- Keep only one package dispatch active. `agent_settled` releases it and schedules the next pending report, preserving FIFO and one-report-per-leader-turn semantics.
-- Match idle-started dispatches in `before_agent_start`/`agent_start`; a watchdog restores a dispatch when no start occurs. Active-run dispatches are already accepted by Pi's follow-up queue and wait for settlement.
-- `sendMainSessionFollowUp` only enqueues. Do not call Pi's void `sendMessage` directly from worker completion paths.
-- Teammate report discipline belongs at the report-sequence boundary: suppress duplicate bodies within one sequence and reopen reporting only after a new wake-up prompt; preserve distinct intermediate reports and never infer duplicates across assignments.
-- Keep BDD coverage in `features/agent-teams.feature` and the busy-leader serialization regression in `tests/test_teammate_package.py`.
+- Trace both delivery paths: `src/team-machine.ts` and `src/tools.ts` expose mailbox terminal results; `src/index.ts` and `src/follow-up-queue.ts` schedule asynchronous messages.
+- Distinguish authored time, mailbox acceptance, native queue handoff, and actual model-context delivery. Queue acceptance is not proof that the leader has read a report.
+- Changing global `followUpMode` to `all` cannot drain reports still held in the package's single-active-dispatch queue.
+- A fix must change the behavioral contract and tests, not merely add stronger report-writing prompts. Cover a busy leader, intermediate reports followed by completion, an inline terminal result, later assignment reopening, and a resolved pending diagnostic.
+- Preserve full event history separately from model wake-ups. Scope freshness and acknowledgement by event and assignment/report sequence, not only worker name or spawn: reopened assignments reuse a resident process.
+- Do not drop earlier reports merely by body equality or a wall-clock TTL. Report relevance and supersession need explicit lifecycle evidence.
+- During orchestration, do independent work or yield. Repeated status requests and unsolicited steers keep the leader run active and amplify the queue delay.
+
+## Related
+
+[[feedback_no_sleep_waiting_for_teammates]]
+[[project_agent_teams_persistent_agents]]
