@@ -33,6 +33,7 @@ import {
   PI_SPINNER_FRAMES,
   PI_SPINNER_INTERVAL_MS,
   renderPiWidgetRow,
+  searchModelFromPicker,
   sortModels,
 } from "@fradser/pi-kit";
 import { type PlanModeConfig, readPlanModeConfig, writePlanModeConfig } from "./config";
@@ -410,7 +411,10 @@ async function runWorkerResearch(ctx: ExtensionContext, request: string, planCon
 // ── Helpers ─────────────────────────────────────────────────────────
 
 function getPlanModels(ctx: ExtensionContext): Model<Api>[] {
-  const all = ctx.modelRegistry.getAvailable();
+  const all =
+    typeof ctx.modelRegistry.getAll === "function"
+      ? ctx.modelRegistry.getAll()
+      : ctx.modelRegistry.getAvailable();
   return sortModels([...all]);
 }
 
@@ -580,11 +584,20 @@ async function chooseModel(ctx: ExtensionCommandContext): Promise<void> {
   const models = getPlanModels(ctx);
   const current = modelRef(config);
 
+  const selected = await searchModelFromPicker(
+    ctx.ui,
+    models,
+    current,
+    { title: "Plan model" },
+  );
+  if (selected) {
+    config = { ...config, ...selected };
+    writePlanModeConfig(config);
+    notifyPi(ctx.ui, `Plan model set to ${selected.provider}/${selected.model}`, "info");
+    return;
+  }
+
   const choice = await ctx.ui.select("Plan model", [
-    ...models.map((m) => {
-      const label = modelLabel(m);
-      return label === current ? `${label} (current)` : label;
-    }),
     "Enter provider/model manually",
     "Clear plan model (use session model)",
   ]);
@@ -601,19 +614,9 @@ async function chooseModel(ctx: ExtensionCommandContext): Promise<void> {
     return;
   }
 
-  if (choice === "Clear plan model (use session model)") {
-    config = { provider: undefined, model: undefined };
-    writePlanModeConfig(config);
-    notifyPi(ctx.ui, "Plan model cleared — will use the session model", "info");
-    return;
-  }
-
-  const selected = models.find((m) => choice.startsWith(modelLabel(m)));
-  if (selected) {
-    config = { provider: selected.provider, model: selected.id };
-    writePlanModeConfig(config);
-    notifyPi(ctx.ui, `Plan model set to ${modelLabel(selected)}`, "info");
-  }
+  config = { provider: undefined, model: undefined };
+  writePlanModeConfig(config);
+  notifyPi(ctx.ui, "Plan model cleared — will use the session model", "info");
 }
 
 function showStatus(ctx: ExtensionContext): void {

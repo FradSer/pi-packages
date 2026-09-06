@@ -34,7 +34,6 @@ import {
   PI_SPINNER_FRAMES,
   renderPiWidgetRow,
   searchModelFromPicker,
-  selectModelFromMenu,
   sortModels,
 } from "@fradser/pi-kit";
 import {

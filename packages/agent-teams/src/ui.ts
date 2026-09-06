@@ -289,7 +289,7 @@ function describeSpawnModel(pinned: string | undefined): string {
   const resolved = resolveSpawnModel(pinned, getTeamDefaultModel(), currentLeaderModelRef());
   if (pinned && pinned.trim().toLowerCase() !== MODEL_INHERIT_ALIAS) return pinned.trim();
   if (resolved.model) {
-    const suffix = pinned ? "inherit -> " : "[team default] ";
+    const suffix = pinned ? "inherit -> " : resolved.source === "team-default" ? "[team default] " : "";
     return `${suffix}${resolved.model}`;
   }
   return pinned ? "inherit -> (unavailable at spawn)" : "(Pi default)";
@@ -333,7 +333,7 @@ const LIST_CHROME_LINES = 5;
  * teammate-model picker. */
 export function openTeamConsole(ctx: {
   ui: ExtensionUIContext;
-  modelRegistry?: { getAvailable(): Array<{ provider: string; id: string; name?: string }> };
+  modelRegistry?: { getAll?(): Array<{ provider: string; id: string; name?: string }>; getAvailable(): Array<{ provider: string; id: string; name?: string }> };
 }): Promise<void> {
   return ctx.ui.custom<void>((tui, theme, _keybindings, done) => {
     let page: ConsolePage = "roster";
@@ -396,7 +396,11 @@ export function openTeamConsole(ctx: {
       model?.id === CLEAR_TEAM_MODEL_ENTRY.id;
 
     const openModelPicker = (): void => {
-      const models = sortModels([...(ctx.modelRegistry?.getAvailable() ?? [])]);
+      const registryModels =
+        typeof ctx.modelRegistry?.getAll === "function"
+          ? ctx.modelRegistry.getAll()
+          : (ctx.modelRegistry?.getAvailable() ?? []);
+      const models = sortModels([...registryModels]);
       if (models.length === 0) return;
       picker = createSearchPicker([CLEAR_TEAM_MODEL_ENTRY, ...models], {
         filter: fuzzyFilter,
@@ -691,7 +695,10 @@ export function openTeamConsole(ctx: {
           return;
         }
         if (data === "m" || data === "M") {
-          if (ctx.modelRegistry && ctx.modelRegistry.getAvailable().length > 0) {
+          const availableCount = ctx.modelRegistry
+            ? (typeof ctx.modelRegistry.getAll === "function" ? ctx.modelRegistry.getAll() : ctx.modelRegistry.getAvailable()).length
+            : 0;
+          if (ctx.modelRegistry && availableCount > 0) {
             openModelPicker();
           } else {
             notifyPi(ctx.ui, "No models are available in the model registry.", "warning");

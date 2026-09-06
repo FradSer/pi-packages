@@ -39,7 +39,6 @@ import {
   PI_SPINNER_FRAMES,
   PI_SPINNER_INTERVAL_MS,
   resolvePiCli,
-  selectModelFromMenu,
   searchModelFromPicker,
   sortModels,
   spawnPiChild,

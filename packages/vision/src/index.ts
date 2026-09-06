@@ -18,7 +18,6 @@ import {
   searchModelFromPicker,
   setPiStatus,
   startPiWorkingIndicator,
-  selectModelFromMenu,
   sortModels,
 } from "@fradser/pi-kit";
 import { buildImageAnalysisContext, describeImages } from "./bridge";
