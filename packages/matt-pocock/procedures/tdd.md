@@ -1,14 +1,14 @@
 # BDD-Driven TDD (Automation)
 
-BDD cycles through three phases: **Discovery** (conversations → examples), **Formulation** (Gherkin scenarios), **Automation** (red-green-refactor, driven by BDD). This skill is the **BDD-driven Automation** reference — the how of test implementation, once [bdd](bdd.md) has defined the what.
+BDD cycles through three phases: **Discovery** (conversations → examples), **Formulation** (Gherkin scenarios), **Automation** (red-green-refactor, driven by BDD). This procedure is the **BDD-driven Automation** reference — the how of test implementation, once [bdd](bdd.md) has defined the what. Load bdd and tdd with `matt_pocock_workflow` on the current route; they are not Pi skills.
 
-When invoked during [implement](implement.md) or [bdd](bdd.md), use this skill as the test-writing authority. The [bdd](bdd.md) skill governs the scenario design and Iron Law; this skill governs the test code quality under BDD discipline.
+When invoked during [implement](implement.md) or [bdd](bdd.md), use this procedure as the test-writing authority. The [bdd](bdd.md) procedure governs the scenario design and Iron Law; this procedure governs the test code quality under BDD discipline.
 
 ## CRITICAL: BDD scenarios come first
 
-If you reached this skill directly (not via [bdd](bdd.md) or [implement](implement.md)), inspect the repository and conversation for Gherkin scenarios first.
+If you reached this procedure directly (not via [bdd](bdd.md) or [implement](implement.md)), inspect the repository and conversation for Gherkin scenarios first.
 
-- If scenarios are absent → invoke [bdd](bdd.md) to define them, then return here for Automation.
+- If scenarios are absent → load [bdd](bdd.md) with `matt_pocock_workflow` to define them, then return here for Automation.
 - If scenarios exist in `.feature` files or equivalent → proceed with the red-green loop below.
 - Ask the user only if the behavior itself is genuinely unresolved; do not ask for confirmation of facts that repository exploration can establish.
 

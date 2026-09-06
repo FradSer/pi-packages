@@ -14,7 +14,7 @@ import {
   safeDisplayText,
 } from "@fradser/pi-kit";
 import { Type } from "typebox";
-import { procedurePrompt } from "./procedures.ts";
+import { procedureExists, procedurePrompt } from "./procedures.ts";
 import {
   availableWorkflowsGuidance,
   findWorkflowRoute,
@@ -97,7 +97,8 @@ function unavailableProcedureMessage(route: string, procedure: string): string {
 
 function loadWorkflowProcedure(state: WorkflowState): string {
   const normalized = normalizeProcedureName(state.procedure);
-  if (!transitionProcedures(state.route).includes(normalized)) {
+  const allowed = transitionProcedures(state.route);
+  if (!allowed.includes(normalized) && !procedureExists(normalized)) {
     throw new Error(unavailableProcedureMessage(state.route, state.procedure));
   }
   return procedurePrompt(state.route, normalized, state.phase);
@@ -250,6 +251,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     promptSnippet: "Activate or transition a Matt Pocock engineering workflow procedure",
     promptGuidelines: [
       "Use matt_pocock_workflow when the task matches a structured engineering workflow: idea-to-ship for features, hard-bug for difficult bugs, triage for raw issues, wayfinding for large ambiguous goals, or architecture for refactoring.",
+      "Companion procedures such as bdd, tdd, domain-modeling, setup-matt-pocock-skills, mocking, and tests are package procedures, not Pi skills. Load them with this tool on the current route. Do not search available_skills for those names.",
     ],
     parameters: workflowToolParameters(),
     renderShell: "self",
@@ -271,7 +273,8 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       }
       const requestedProcedure = params.procedure ? normalizeProcedureName(params.procedure) : route.procedure;
       const allowedProcedures = transitionProcedures(route.route);
-      const fallsBackToRouteDefault = !allowedProcedures.includes(requestedProcedure);
+      const canLoad = allowedProcedures.includes(requestedProcedure) || procedureExists(requestedProcedure);
+      const fallsBackToRouteDefault = Boolean(params.procedure) && !canLoad;
       const state: WorkflowState = fallsBackToRouteDefault
         ? { route: route.route, procedure: route.procedure, phase: route.phase }
         : {

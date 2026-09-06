@@ -91,11 +91,28 @@ export function normalizeProcedureName(procedure: string): string {
   return procedureAliases[normalized] ?? normalized;
 }
 
+const companionProcedures = [
+  "bdd",
+  "tdd",
+  "domain-modeling",
+  "setup-matt-pocock-skills",
+  "mocking",
+  "tests",
+  "bdd-best-practices",
+  "gherkin-guide",
+  "grilling",
+  "codebase-design",
+  "domain",
+  "AGENT-BRIEF",
+  "OUT-OF-SCOPE",
+] as const;
+
 export function transitionProcedureOptions(route: string): string[] {
   const procedures = new Set(transitionProcedures(route));
   for (const [alias, procedure] of Object.entries(procedureAliases)) {
     if (procedures.has(procedure)) procedures.add(alias);
   }
+  for (const companion of companionProcedures) procedures.add(companion);
   return [...procedures];
 }
 
@@ -173,7 +190,7 @@ export function latestWorkflowState(entries: unknown[]): WorkflowState | undefin
 
 export function workflowGuidance(state: WorkflowState): string {
   return `Matt Pocock workflow active: ${state.route} · ${state.phase}.
-Follow the loaded ${state.procedure} procedure. Proceed autonomously from established context: do not stop to recommend, ask whether to continue, or request redundant confirmation. When the procedure's done condition is met and the next applicable procedure is clear, call matt_pocock_workflow to transition immediately, then execute it. Continue through every newly unblocked AFK ticket or task; choose the next frontier ticket yourself when the user did not name one. Ask only for a genuinely user-owned decision, a fact unavailable through exploration, or a required external action. When asking interview or decision questions (e.g. during grilling/shaping), use the matt_pocock_ask tool to present structured options with recommendations, timeout, and custom response support. Do not treat a procedure summary, closed decision ticket, or phase boundary as a reason to wait for the user.`;
+Follow the loaded ${state.procedure} procedure. Companion procedures (bdd, tdd, domain-modeling, setup-matt-pocock-skills, mocking, tests) are not Pi skills — load them with matt_pocock_workflow on this same route. Proceed autonomously from established context: do not stop to recommend, ask whether to continue, or request redundant confirmation. When the procedure's done condition is met and the next applicable procedure is clear, call matt_pocock_workflow to transition immediately, then execute it. Continue through every newly unblocked AFK ticket or task; choose the next frontier ticket yourself when the user did not name one. Ask only for a genuinely user-owned decision, a fact unavailable through exploration, or a required external action. When asking interview or decision questions (e.g. during grilling/shaping), use the matt_pocock_ask tool to present structured options with recommendations, timeout, and custom response support. Do not treat a procedure summary, closed decision ticket, or phase boundary as a reason to wait for the user.`;
 }
 
 export function availableWorkflowsGuidance(): string {

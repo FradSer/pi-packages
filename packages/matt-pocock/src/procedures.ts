@@ -23,11 +23,22 @@ export function loadProcedure(procedure: string): string {
   return readFileSync(procedurePath(procedure), "utf8");
 }
 
+export function procedureExists(procedure: string): boolean {
+  try {
+    procedurePath(procedure);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function procedurePrompt(route: string, procedure: string, phase: string): string {
   return `# Matt Pocock workflow procedure
 
 Route: ${route}
 Phase: ${phase}
+
+Linked names such as bdd, tdd, domain-modeling, setup-matt-pocock-skills, mocking, and tests are package procedures, not Pi skills. Load one with matt_pocock_workflow using this same route. Do not look in available_skills. Files: ${procedureDirectory}
 
 ${loadProcedure(procedure)}`;
 }

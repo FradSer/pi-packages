@@ -2,7 +2,7 @@
 
 Break a plan, spec, or conversation into a set of **tickets** — tracer-bullet vertical slices, each declaring the tickets that **block** it. If the spec contains Gherkin scenarios (from [bdd](bdd.md)), each ticket should map to one or more scenarios; the scenarios are the authoritative acceptance criteria.
 
-The issue tracker and triage label vocabulary should have been provided to you — run [setup-matt-pocock-skills](setup-matt-pocock-skills.md) if not.
+The issue tracker and triage label vocabulary should have been provided to you — call `matt_pocock_workflow` with procedure `setup-matt-pocock-skills` if not. That is a package procedure, not a Pi skill.
 
 ## Process
 

@@ -1,6 +1,6 @@
 Implement the work described by the user in the spec or tickets.
 
-Use [bdd](bdd.md) where possible, at pre-agreed seams. During the Automation phase, load [tdd](tdd.md) (BDD-driven) for test quality, seams, and mocking guidance.
+Use [bdd](bdd.md) where possible, at pre-agreed seams. During the Automation phase, load [tdd](tdd.md) (BDD-driven) for test quality, seams, and mocking guidance. Load bdd, tdd, and code-review with `matt_pocock_workflow` on the current route — they are package procedures, not Pi skills.
 
 Run typechecking regularly, single test files regularly, and the full test suite once at the end.
 

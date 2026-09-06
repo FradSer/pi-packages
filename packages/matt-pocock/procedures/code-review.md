@@ -5,7 +5,7 @@ Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
 
 When the teammate facility is available, delegate the two independent axes to separate teammates and aggregate their findings. Otherwise, perform the Standards review first, preserve its report, then perform the Spec review in the current context so the axes remain separate.
 
-The issue tracker should have been provided to you — run [setup-matt-pocock-skills](setup-matt-pocock-skills.md) if `docs/agents/issue-tracker.md` is missing.
+The issue tracker should have been provided to you — call `matt_pocock_workflow` with procedure `setup-matt-pocock-skills` if `docs/agents/issue-tracker.md` is missing. That is a package procedure, not a Pi skill.
 
 ## Process
 

@@ -41,6 +41,7 @@ def test_feature_covers_the_workflow_harness_contract() -> None:
         "A hard-bug workflow accepts the tight-red-loop entry point",
         "A wayfinding workflow accepts the clarify-goal entry point",
         "The workflow tool advertises every valid procedure name",
+        "Companion procedures load on the current route",
         "An unknown procedure soft-lands on the route default",
         "A stale restored workflow explicitly ends after validation fails",
         "Workflows advance through every non-user-owned next step",
@@ -209,11 +210,20 @@ def test_workflow_tool_schema_advertises_every_registered_procedure_and_alias() 
         "idea-to-ship", "hard-bug", "triage", "wayfinding", "architecture",
     }
     procedures_by_route = {variant["route"]: set(variant["procedures"]) for variant in result["variants"]}
-    assert procedures_by_route["hard-bug"] == {"diagnosing-bugs", "implement", "code-review", "tight-red-loop"}
-    assert procedures_by_route["wayfinding"] == {
-        "wayfinder", "research", "prototype", "to-spec", "to-tickets", "implement", "code-review", "clarify-goal",
+    companions = {
+        "bdd", "tdd", "domain-modeling", "setup-matt-pocock-skills", "mocking", "tests",
+        "bdd-best-practices", "gherkin-guide", "grilling", "codebase-design", "domain",
+        "AGENT-BRIEF", "OUT-OF-SCOPE",
     }
-    assert all(set(procedures) <= set(result["registered"]) | {"tight-red-loop", "clarify-goal"}
+    aliases = {"tight-red-loop", "clarify-goal"}
+    assert {"diagnosing-bugs", "implement", "code-review", "tight-red-loop"} <= procedures_by_route["hard-bug"]
+    assert companions <= procedures_by_route["hard-bug"]
+    assert {
+        "wayfinder", "research", "prototype", "to-spec", "to-tickets", "implement", "code-review", "clarify-goal",
+    } <= procedures_by_route["wayfinding"]
+    assert companions <= procedures_by_route["wayfinding"]
+    assert all(companions <= procedures for procedures in procedures_by_route.values())
+    assert all(set(procedures) <= set(result["registered"]) | aliases | companions
                for procedures in procedures_by_route.values())
     assert len(result["resolved"]) == len(result["registered"])
     assert all(path.endswith(".md") for path in result["resolved"])
@@ -414,6 +424,46 @@ def test_unknown_tool_procedure_soft_lands_on_the_route_default() -> None:
     assert "Valid procedures for wayfinding: wayfinder, research, prototype" in result_text
     assert "Do not switch routes" in result_text
     assert "Wayfinder" in result_text
+
+
+def test_companion_procedure_loads_on_the_current_route_instead_of_as_a_pi_skill() -> None:
+    result = run_typescript("""
+        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+        const mattPocock = importedMattPocock.default ?? importedMattPocock;
+
+        const tools = new Map();
+        const entries = [];
+        const pi = {
+          on() {},
+          registerCommand() {},
+          registerTool(tool) { tools.set(tool.name, tool); },
+          appendEntry(customType, data) { entries.push({ customType, data }); },
+          sendUserMessage() {},
+          getActiveTools() { return ["matt_pocock_ask"]; },
+          setActiveTools() {},
+        };
+        const ctx = { ui: { setStatus() {} } };
+
+        mattPocock(pi);
+        const execution = await tools.get("matt_pocock_workflow").execute("call-1", {
+          route: "idea-to-ship",
+          procedure: "tdd",
+        }, undefined, undefined, ctx);
+        console.log(JSON.stringify({ entries, execution }));
+    """)
+    assert result["entries"] == [{
+        "customType": "matt-pocock-workflow",
+        "data": {
+            "route": "idea-to-ship",
+            "procedure": "tdd",
+            "phase": "tdd",
+        },
+    }]
+    result_text = result["execution"]["content"][0]["text"]
+    assert "requested procedure" not in result_text
+    assert "BDD-driven Automation" in result_text
+    assert "not Pi skills" in result_text
+    assert "grill-with-docs" not in result_text.split("Phase:", 1)[0]
 
 
 def test_command_activates_a_route_injects_a_procedure_and_adds_compact_guidance() -> None:

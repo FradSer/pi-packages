@@ -83,8 +83,14 @@ Feature: Matt Pocock workflow harness
 
   Scenario: The workflow tool advertises every valid procedure name
     Given the matt_pocock_workflow tool schema
-    Then the procedure parameter enumerates every bundled route procedure and known alias
+    Then the procedure parameter enumerates every bundled route procedure, known alias, and companion procedure
     And every route procedure resolves to a bundled procedure file
+
+  Scenario: Companion procedures load on the current route
+    Given an idea-to-ship workflow can load tdd
+    When the agent calls matt_pocock_workflow with procedure tdd
+    Then the harness injects the tdd procedure instead of falling back to the route default
+    And it treats tdd as a package procedure, not a Pi skill
 
   Scenario: An unknown procedure soft-lands on the route default
     Given the agent activates wayfinding with an invented procedure name
