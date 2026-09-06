@@ -72,15 +72,17 @@ test('command and tool share bundle; tool never sends a follow-up', async () => 
   });
 });
 
-test('headless usage and unknown ids do not trigger a turn; menu cancellation is inert', async () => fixture(async resolver => {
+test('headless usage and freeform requests route without a turn; menu cancellation is inert', async () => fixture(async resolver => {
   const h = host(resolver);
   await h.command.handler('', h.ctx);
   assert.equal(h.selects(), 0);
   assert.match(h.messages[0][0].content, /Usage: \/impeccable/);
   assert.equal(h.messages[0][1].triggerTurn, false);
-  await h.command.handler('missing', h.ctx);
-  assert.match(h.messages[1][0].content, /Unknown.*missing/);
-  assert.equal(h.sent.length, 0);
+  await h.command.handler('make the pricing hero feel more confident', h.ctx);
+  assert.match(h.sent[0][0], /impeccable_load/);
+  assert.ok(h.sent[0][0].endsWith('make the pricing hero feel more confident'));
+  assert.deepEqual(h.sent[0][1], { deliverAs: "followUp" });
+  assert.equal(h.messages.length, 1);
   const menu = host(resolver, true);
   await menu.command.handler('', menu.ctx);
   assert.equal(menu.selects(), 1);

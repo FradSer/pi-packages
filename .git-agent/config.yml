@@ -11,6 +11,8 @@ scopes:
       description: Read-only side-question overlay and child-session behavior in packages/btw/; does not cover other package runtimes.
     - name: key
       description: Keyboard integration, lighting state, and global session records in packages/keyboard/; does not cover other package runtimes.
+    - name: imp
+      description: Design procedures, taste library, live variant runtime, and detection tooling in packages/impeccable/; does not cover shared kit internals.
     - name: mp
       description: Persisted Matt Pocock workflow routes, procedures, and command integration in packages/matt-pocock/; does not cover other package runtimes.
     - name: mon

@@ -41,7 +41,8 @@ export function validateCatalog(entries: CatalogEntry[]): void {
       if (!ids.has(id)) throw new Error(`${entry.id}: unknown catalog target ${id}`);
     }
     for (const edge of entry.discloses ?? []) {
-      if (!edge.when.trim() || entries.find(target => target.id === edge.id)?.kind !== "reference") throw new Error(`${entry.id}: disclosure ${edge.id} requires a reference and loading condition`);
+      const target = entries.find(candidate => candidate.id === edge.id);
+      if (!edge.when.trim() || !(target?.kind === "reference" || (target?.kind === "procedure" && target.invocation === "internal"))) throw new Error(`${entry.id}: disclosure ${edge.id} requires a reference or internal procedure and loading condition`);
     }
   }
   validateRequiredCycles(entries);

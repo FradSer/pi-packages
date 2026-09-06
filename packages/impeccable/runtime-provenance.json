@@ -1,218 +1,612 @@
 {
-  "repository": "https://github.com/pbakaus/impeccable",
-  "revision": "63b04e2530f5c7b41ea83c133daab24f34912456",
-  "tag": "skill-v4.1.2",
-  "files": [
-    {
-      "source": "skill/scripts/context.mjs",
-      "sha256": "7c747b6f5bba3ca860a22075b765ea4b0e7688fdcaa97e1dfc5b01a536303a89",
-      "destination": "scripts/context.mjs",
-      "disposition": "adapted",
-      "reason": "Preserve project/target resolution; remove updates, global staleness cache, native document reads and unavailable/unauthorized workflow directives."
-    },
-    {
-      "source": "skill/scripts/lib/provider.mjs",
-      "sha256": "4fa2502f3330466be483d973562881f10d61a1aa479b5780b3aac93294ce9611",
-      "destination": "scripts/lib/provider.mjs",
-      "disposition": "adapted",
-      "reason": "Explicit Pi provider without host command generation."
-    },
-    {
-      "source": "cli/engine/engines/regex/detect-text.mjs",
-      "sha256": "8e0ecc091bcecc24eb34d34dab9bcabb1057af6a6dcf34f186fb370b26e61157",
-      "destination": "scripts/detector/engines/regex/detect-text.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "cli/engine/profile/profiler.mjs",
-      "sha256": "5e201f3557360bd368a3977fecf925f376fd95f8a4dd6c4cc63fbd62848cda43",
-      "destination": "scripts/detector/profile/profiler.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "cli/engine/findings.mjs",
-      "sha256": "8b8af7212c8515d6791a8af1375d0619a9f9a707a881e6fbd850e4216b3f8eca",
-      "destination": "scripts/detector/findings.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "cli/engine/registry/antipatterns.mjs",
-      "sha256": "4544ccca3d7c341d878b941fbe20620750dbf9d29dd6d15e063128a1e390b345",
-      "destination": "scripts/detector/registry/antipatterns.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "cli/engine/shared/inline-ignores.mjs",
-      "sha256": "74c80303e25f017b4671ae299b9fca424a5f7714203d19207a8d8896dfd2eecc",
-      "destination": "scripts/detector/shared/inline-ignores.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "cli/engine/shared/page.mjs",
-      "sha256": "b4cef5548d84fa90d15e6b42b20be9ef74ed05e4e6e46076ec5acc61b343315c",
-      "destination": "scripts/detector/shared/page.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "cli/engine/rules/checks.mjs",
-      "sha256": "e63f6adbd0893d75105e825b1656a268c512a9bc7e5f3d17d4ac70ef412d6e57",
-      "destination": "scripts/detector/rules/checks.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "cli/engine/shared/fonts.mjs",
-      "sha256": "869c297295a10082d87988f31c136c5df9ddad84da0c2bbba2e85e1261e320a6",
-      "destination": "scripts/detector/shared/fonts.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "cli/engine/shared/color.mjs",
-      "sha256": "c9664cdfcb5cc964a6c78fba82c51640bf20258601572ea0bb413c00446489f5",
-      "destination": "scripts/detector/shared/color.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "cli/engine/shared/constants.mjs",
-      "sha256": "606f50159d56b5e972724c13933e63220696636215292e5316846426f3e12896",
-      "destination": "scripts/detector/shared/constants.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "cli/engine/design-system.mjs",
-      "sha256": "cacf7ae83b4ccfff84ceb6ab06549b399e0ec88750f053249db65371dd302de1",
-      "destination": "scripts/detector/design-system.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "cli/engine/engines/static-html/detect-html.mjs",
-      "sha256": "481b584ccdf3ac28065dbab11f65d638e3e7a35e14c7e62bc5da3d59d2a7efd7",
-      "destination": "scripts/detector/engines/static-html/detect-html.mjs",
-      "disposition": "adapted",
-      "reason": "Fail with reinstall diagnostic when static parser imports fail; do not present regex fallback as successful HTML verification."
-    },
-    {
-      "source": "cli/engine/engines/static-html/css-cascade.mjs",
-      "sha256": "6809969a6e2c58992d863c23d6f2c6fb6b8ddacc503dac2ad0e5452bf2725c54",
-      "destination": "scripts/detector/engines/static-html/css-cascade.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "skill/scripts/lib/surface-briefs.mjs",
-      "sha256": "33b35099b95d40e034b6a65657a1fd90fd011cdcb752f1c7a51e8470df37e668",
-      "destination": "scripts/lib/surface-briefs.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "skill/scripts/lib/target-slug.mjs",
-      "sha256": "dbc2670ad1461658d1b43fe15778ac220bc0db57af1f3fd8ccb6251b5ca5a2a4",
-      "destination": "scripts/lib/target-slug.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "skill/scripts/lib/target-args.mjs",
-      "sha256": "8f8b902d9ec7dbad0431226bb8aea935cd67d68878d19d95a605be0585056f31",
-      "destination": "scripts/lib/target-args.mjs",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "LICENSE",
-      "sha256": "02bb8c3b4e70190e3986c0404ad2fd8d639b4f534252d82379cc1b502b6d1812",
-      "destination": "licenses/impeccable-Apache-2.0.txt",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "NOTICE.md",
-      "sha256": "c60a093c2845fd9fb82f9c6f742ece31f379f8190b535309d32d66c45ccffdcb",
-      "destination": "licenses/impeccable-NOTICE.md",
-      "disposition": "retained",
-      "reason": null
-    },
-    {
-      "source": "skill/scripts/detect.mjs",
-      "sha256": "f5dfd05ca1e314acd8ed79c6301a20a1b844f2eb6691bd63e04116a8e7efb187",
-      "destination": "scripts/detect.mjs",
-      "disposition": "adapted",
-      "reason": "Static engines only; require explicit supported local files; no discovery, browser imports, or downloads. Only low-contrast and skipped-heading are primary; upstream stylistic policies are advisory for canonical taste review."
-    },
-    {
-      "source": "skill/reference/polish.md",
-      "section": "whole procedure",
-      "sha256": "d6e8b5a0d1fc9435b15e8da27983e81d79872868a36aa5bca90696e37d186165",
-      "destination": "procedures/polish.md",
-      "disposition": "adapted",
-      "reason": "Leader adaptation to supported Pi procedures consuming canonical taste and authorized local runtime."
-    },
-    {
-      "source": "skill/reference/animate.md",
-      "section": "whole procedure",
-      "sha256": "59f38d50c799aa47ecd7288c69dce0245d8c3e3e2368b29499d583996b5030b3",
-      "destination": "procedures/animate.md",
-      "disposition": "adapted",
-      "reason": "Leader adaptation to supported Pi procedures consuming canonical taste and authorized local runtime."
-    },
-    {
-      "source": "skill/SKILL.src.md",
-      "section": "Setup; How to design",
-      "sha256": "e250f14b803e9b7eb19e0be448d5b312db024c32c8a7162acaa54afde8eb7555",
-      "destination": "procedures/setup.md",
-      "disposition": "adapted",
-      "reason": "Leader adaptation to supported Pi procedures consuming canonical taste and authorized local runtime."
-    }
-  ],
-  "excluded": [
-    {
-      "source": "skill/reference/ios.md",
-      "reason": "Native supplement not shipped; additional MIT provenance required."
-    },
-    {
-      "source": "skill/reference/android.md",
-      "reason": "Native supplement not shipped; additional MIT provenance required."
-    },
-    {
-      "source": "cli/engine/engines/browser/detect-url.mjs",
-      "reason": "Browser runtime excluded; explicit local static targets only."
-    }
-  ],
-  "detectorPolicy": {
-    "primary": [
-      "low-contrast",
-      "skipped-heading"
-    ],
-    "otherRules": "advisory: upstream heuristics require review against canonical taste; never unconditional project edits",
-    "limits": "Static estimates are not rendered accessibility verification. No browser, directory discovery, or automatic configuration writes. Primary means review triage, not categorical conformance failure; skipped headings can have context-dependent semantics."
+ "repository": "https://github.com/pbakaus/impeccable",
+ "revision": "63b04e2530f5c7b41ea83c133daab24f34912456",
+ "tag": "skill-v4.1.2",
+ "files": [
+  {
+   "source": "skill/scripts/context.mjs",
+   "sha256": "7c747b6f5bba3ca860a22075b765ea4b0e7688fdcaa97e1dfc5b01a536303a89",
+   "destination": "scripts/context.mjs",
+   "disposition": "adapted",
+   "reason": "Preserve project/target resolution; remove updates, global staleness cache, native document reads and unavailable/unauthorized workflow directives."
   },
-  "licenses": {
-    "jakub": {
-      "repository": "https://github.com/jakubkrehel/skills",
-      "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
-      "source": "LICENSE",
-      "destination": "licenses/jakub-krehel-MIT.txt",
-      "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f",
-      "disposition": "retained"
-    },
-    "emil": {
-      "repository": "https://github.com/emilkowalski/skills",
-      "revision": "d23d7f88a2e21c9e4b1418c7abe420f5c1052ba7",
-      "source": "LICENSE",
-      "destination": "licenses/emil-kowalski-MIT.txt",
-      "sha256": "4ff5bdb7887ec1435c9cab0e8d1a7caee704d894d65c2a008ccc68b1cc2f260b",
-      "disposition": "retained"
-    }
+  {
+   "source": "skill/scripts/lib/provider.mjs",
+   "sha256": "4fa2502f3330466be483d973562881f10d61a1aa479b5780b3aac93294ce9611",
+   "destination": "scripts/lib/provider.mjs",
+   "disposition": "adapted",
+   "reason": "Explicit Pi provider without host command generation."
+  },
+  {
+   "source": "cli/engine/engines/regex/detect-text.mjs",
+   "sha256": "8e0ecc091bcecc24eb34d34dab9bcabb1057af6a6dcf34f186fb370b26e61157",
+   "destination": "scripts/detector/engines/regex/detect-text.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "cli/engine/profile/profiler.mjs",
+   "sha256": "5e201f3557360bd368a3977fecf925f376fd95f8a4dd6c4cc63fbd62848cda43",
+   "destination": "scripts/detector/profile/profiler.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "cli/engine/findings.mjs",
+   "sha256": "8b8af7212c8515d6791a8af1375d0619a9f9a707a881e6fbd850e4216b3f8eca",
+   "destination": "scripts/detector/findings.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "cli/engine/registry/antipatterns.mjs",
+   "sha256": "4544ccca3d7c341d878b941fbe20620750dbf9d29dd6d15e063128a1e390b345",
+   "destination": "scripts/detector/registry/antipatterns.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "cli/engine/shared/inline-ignores.mjs",
+   "sha256": "74c80303e25f017b4671ae299b9fca424a5f7714203d19207a8d8896dfd2eecc",
+   "destination": "scripts/detector/shared/inline-ignores.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "cli/engine/shared/page.mjs",
+   "sha256": "b4cef5548d84fa90d15e6b42b20be9ef74ed05e4e6e46076ec5acc61b343315c",
+   "destination": "scripts/detector/shared/page.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "cli/engine/rules/checks.mjs",
+   "sha256": "e63f6adbd0893d75105e825b1656a268c512a9bc7e5f3d17d4ac70ef412d6e57",
+   "destination": "scripts/detector/rules/checks.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "cli/engine/shared/fonts.mjs",
+   "sha256": "869c297295a10082d87988f31c136c5df9ddad84da0c2bbba2e85e1261e320a6",
+   "destination": "scripts/detector/shared/fonts.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "cli/engine/shared/color.mjs",
+   "sha256": "c9664cdfcb5cc964a6c78fba82c51640bf20258601572ea0bb413c00446489f5",
+   "destination": "scripts/detector/shared/color.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "cli/engine/shared/constants.mjs",
+   "sha256": "606f50159d56b5e972724c13933e63220696636215292e5316846426f3e12896",
+   "destination": "scripts/detector/shared/constants.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "cli/engine/design-system.mjs",
+   "sha256": "cacf7ae83b4ccfff84ceb6ab06549b399e0ec88750f053249db65371dd302de1",
+   "destination": "scripts/detector/design-system.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "cli/engine/engines/static-html/detect-html.mjs",
+   "sha256": "481b584ccdf3ac28065dbab11f65d638e3e7a35e14c7e62bc5da3d59d2a7efd7",
+   "destination": "scripts/detector/engines/static-html/detect-html.mjs",
+   "disposition": "adapted",
+   "reason": "Fail with reinstall diagnostic when static parser imports fail; do not present regex fallback as successful HTML verification."
+  },
+  {
+   "source": "cli/engine/engines/static-html/css-cascade.mjs",
+   "sha256": "6809969a6e2c58992d863c23d6f2c6fb6b8ddacc503dac2ad0e5452bf2725c54",
+   "destination": "scripts/detector/engines/static-html/css-cascade.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "skill/scripts/lib/surface-briefs.mjs",
+   "sha256": "33b35099b95d40e034b6a65657a1fd90fd011cdcb752f1c7a51e8470df37e668",
+   "destination": "scripts/lib/surface-briefs.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "skill/scripts/lib/target-slug.mjs",
+   "sha256": "dbc2670ad1461658d1b43fe15778ac220bc0db57af1f3fd8ccb6251b5ca5a2a4",
+   "destination": "scripts/lib/target-slug.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "skill/scripts/lib/target-args.mjs",
+   "sha256": "8f8b902d9ec7dbad0431226bb8aea935cd67d68878d19d95a605be0585056f31",
+   "destination": "scripts/lib/target-args.mjs",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "LICENSE",
+   "sha256": "02bb8c3b4e70190e3986c0404ad2fd8d639b4f534252d82379cc1b502b6d1812",
+   "destination": "licenses/impeccable-Apache-2.0.txt",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "NOTICE.md",
+   "sha256": "c60a093c2845fd9fb82f9c6f742ece31f379f8190b535309d32d66c45ccffdcb",
+   "destination": "licenses/impeccable-NOTICE.md",
+   "disposition": "retained",
+   "reason": null
+  },
+  {
+   "source": "skill/scripts/detect.mjs",
+   "sha256": "f5dfd05ca1e314acd8ed79c6301a20a1b844f2eb6691bd63e04116a8e7efb187",
+   "destination": "scripts/detect.mjs",
+   "disposition": "adapted",
+   "reason": "Static engines only; require explicit supported local files; no discovery, browser imports, or downloads. Only low-contrast and skipped-heading are primary; upstream stylistic policies are advisory for canonical taste review."
+  },
+  {
+   "source": "skill/reference/polish.md",
+   "section": "whole procedure",
+   "sha256": "d6e8b5a0d1fc9435b15e8da27983e81d79872868a36aa5bca90696e37d186165",
+   "destination": "procedures/polish.md",
+   "disposition": "adapted",
+   "reason": "Leader adaptation to supported Pi procedures consuming canonical taste and authorized local runtime."
+  },
+  {
+   "source": "skill/reference/animate.md",
+   "section": "whole procedure",
+   "sha256": "59f38d50c799aa47ecd7288c69dce0245d8c3e3e2368b29499d583996b5030b3",
+   "destination": "procedures/animate.md",
+   "disposition": "adapted",
+   "reason": "Leader adaptation to supported Pi procedures consuming canonical taste and authorized local runtime."
+  },
+  {
+   "source": "skill/SKILL.src.md",
+   "section": "Setup; How to design",
+   "sha256": "e250f14b803e9b7eb19e0be448d5b312db024c32c8a7162acaa54afde8eb7555",
+   "destination": "procedures/setup.md",
+   "disposition": "adapted",
+   "reason": "Leader adaptation to supported Pi procedures consuming canonical taste and authorized local runtime."
+  },
+  {
+   "source": "skill/scripts/live-poll.mjs",
+   "sha256": "1999e61dbf7f3708c9a7944b26004f4a294e4c7129a23db417b200cb1c09a7b5",
+   "destination": "scripts/live-poll.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-server.mjs",
+   "sha256": "0e2def4cdea1f59d70403f9606723b0391018e31a522f6b639135c8d1b320b7f",
+   "destination": "scripts/live-server.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-wrap.mjs",
+   "sha256": "f0c5845155c76cd01422a5de92e15e1bb81bb531a2c2985edb21965c5ad38c0a",
+   "destination": "scripts/live-wrap.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-accept.mjs",
+   "sha256": "f823b4f71a6ae21ffb8b52aa3a78768f0bee551329cf76ad4144e4680a05c154",
+   "destination": "scripts/live-accept.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-inject.mjs",
+   "sha256": "bb3a120472b757e96dbc2f5e24b37f39f31dee3c54d785c571baf686cf71096d",
+   "destination": "scripts/live-inject.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-target.mjs",
+   "sha256": "7f18323b89167804c2d9005d4766b159c81268c9f21daab9fdec24f513f25eb0",
+   "destination": "scripts/live-target.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-status.mjs",
+   "sha256": "12ce152c6aec4ea2c938bd629b8406de0ee9926586e5af9fe550ab06bba88639",
+   "destination": "scripts/live-status.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-resume.mjs",
+   "sha256": "b5c9e4b1c27ea2dbbf95b563df7314ddb77c6aa75ce2c760cde15f7082ccbec0",
+   "destination": "scripts/live-resume.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-complete.mjs",
+   "sha256": "28db300c3a5b42ee01d4250a664020523d2b85158fa987d92c403cab19ae030c",
+   "destination": "scripts/live-complete.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-insert.mjs",
+   "sha256": "057c81807b2f02d565edd41456fb10a43fb01209cb60a541b58f653e480f8991",
+   "destination": "scripts/live-insert.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-manual-edit-evidence.mjs",
+   "sha256": "c5a36c361c435fc023e17be16a78aaf672adb48a6a74e8177cfa775592502638",
+   "destination": "scripts/live-manual-edit-evidence.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-discard-manual-edits.mjs",
+   "sha256": "fa967fe27e442dd6c9b467713dd4a05c5d2189af03ad76b98bae9f6642cda545",
+   "destination": "scripts/live-discard-manual-edits.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-browser-dom.js",
+   "sha256": "bcfa4022e741f8034b841aed76b9ea3f6a64a8e08e4dfa43ba99f8be65a73393",
+   "destination": "scripts/live-browser-dom.js",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-browser-ignores.js",
+   "sha256": "c1cb6877ca99a0c1b38ba0c7d59f32702d3022f6821d8045f7133f7c40b6362f",
+   "destination": "scripts/live-browser-ignores.js",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live-browser-session.js",
+   "sha256": "dddcb8b941f7460aa6a134f7d456b1820747172c12e01de36dab3265b1065cff",
+   "destination": "scripts/live-browser-session.js",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live.mjs",
+   "sha256": "9188f42a93e02ec341335c3441af5de16391196efdf78710e87dd7ef0fb6cb7e",
+   "destination": "scripts/live.mjs",
+   "disposition": "adapted",
+   "reason": "Pi-adapted boot: unavailable upstream nextCommand (init/document) replaced with agent-owned context preparation guidance; doc paths resolve through the package."
+  },
+  {
+   "source": "skill/scripts/live-browser.js",
+   "sha256": "f0d2200a2b8878e2b68f0cca623759a9bc7e5ee0ffa620c93a76f0de42246330",
+   "destination": "scripts/live-browser.js",
+   "disposition": "adapted",
+   "reason": "Pi-adapted user-facing strings: unavailable upstream CLI commands (init/document) replaced with agent-owned preparation guidance."
+  },
+  {
+   "source": "skill/scripts/live-copy-edit-agent.mjs",
+   "sha256": "e33514592d56b8e8416f3e7c58ee11a2416047ad559c096c3f16c4e9fc57c41c",
+   "destination": "scripts/live-copy-edit-agent.mjs",
+   "disposition": "adapted",
+   "reason": "Pi-adapted AI runner: runPi provider (pi --print headless) selected before upstream host CLIs; provider list, diagnostics and auth cache extended for pi."
+  },
+  {
+   "source": "skill/scripts/live-commit-manual-edits.mjs",
+   "sha256": "dfdc9a128e26a293a12bbf2a21ad34f64ba9b8da73cf0d3d0a24603cca13c051",
+   "destination": "scripts/live-commit-manual-edits.mjs",
+   "disposition": "adapted",
+   "reason": "Usage text admits the pi provider alongside codex and claude."
+  },
+  {
+   "source": "skill/scripts/detect-csp.mjs",
+   "sha256": "2d80520bef13cb93107699714bc0d2be5a2787a9aa079ecec91b94508a8125a4",
+   "destination": "scripts/detect-csp.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/accept-css.mjs",
+   "sha256": "b72ea8f2cfc445598e8948f55e1625f5045ff1c5b968c246b92dbc839d4b6f1e",
+   "destination": "scripts/live/accept-css.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/accept-verify.mjs",
+   "sha256": "fcb04462d65b664f6d663a4fe993acd41921dea7d3c387b7755332290f951580",
+   "destination": "scripts/live/accept-verify.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/browser-script-parts.mjs",
+   "sha256": "2ceb3083de7fe80160f40379c0ed47220bade5e4a1964cde4ae8e745049061c5",
+   "destination": "scripts/live/browser-script-parts.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/completion.mjs",
+   "sha256": "d7821979aec5fbc2028a6d98aa3d0abe34b88b0e2527f6df4e4f71e5782430bd",
+   "destination": "scripts/live/completion.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/event-validation.mjs",
+   "sha256": "ef06987cfc2c8d8cde0e292fafec4a1aeba9fb43d84dffe2526fac803668c598",
+   "destination": "scripts/live/event-validation.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/generation-preflight.mjs",
+   "sha256": "d98806a798bc0425c204e3dcbbf40071fe9ab46a95bcfb3624f36740b6a0f1da",
+   "destination": "scripts/live/generation-preflight.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/insert-ui.mjs",
+   "sha256": "c86839fc9be98eadc0ff6afaa6ab010a7539e9af77e8deeba898cb93f7f311f4",
+   "destination": "scripts/live/insert-ui.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/instructions.mjs",
+   "sha256": "9bebb2689fbf4f454b3c3afb2b58e1bcb70705113b05041f959f67caa5c802e1",
+   "destination": "scripts/live/instructions.mjs",
+   "disposition": "adapted",
+   "reason": "Agent-facing instruction strings map actions to shipped capabilities via impeccable_load; harness-policy wording is host-neutral for Pi."
+  },
+  {
+   "source": "skill/scripts/live/manual-apply.mjs",
+   "sha256": "c0e7fc5c3d4a7d6e1d6a8e6f85cbe005e5dc01d77b16fd0735605f287c4c8b66",
+   "destination": "scripts/live/manual-apply.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/manual-edit-routes.mjs",
+   "sha256": "5517c40db7c91a5b24b134f79cb0f87c90e307b2f7831b1de670d60e529557c0",
+   "destination": "scripts/live/manual-edit-routes.mjs",
+   "disposition": "adapted",
+   "reason": "Provider validation admits the pi provider."
+  },
+  {
+   "source": "skill/scripts/live/manual-edits-buffer.mjs",
+   "sha256": "bbd1aba1b9bc891cba771ee8b891d344542119967ae4666e7147da59de5485fd",
+   "destination": "scripts/live/manual-edits-buffer.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/poll-lanes.mjs",
+   "sha256": "a516bc942c55b66be915619794f4ec79aadf94d6966c6fc7aee24f1fbaa60ab3",
+   "destination": "scripts/live/poll-lanes.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/project-ignores.mjs",
+   "sha256": "b4088c6fbc231bc13b11804bea90a223d077d3762f3d93990c6044c7ea10d9e1",
+   "destination": "scripts/live/project-ignores.mjs",
+   "disposition": "adapted",
+   "reason": "Replaced the upstream hook runtime config reader with a local minimal detector-ignore reader; hook machinery stays out of the package."
+  },
+  {
+   "source": "skill/scripts/live/roots.mjs",
+   "sha256": "715e9658cb28746c126faf24bbd3cd949e1ebc5dd189eb455887544ae4efbf12",
+   "destination": "scripts/live/roots.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/session-store.mjs",
+   "sha256": "03217be8aad575f3ce44c1a634c40a013ca18edeefa81894450637af2603c411",
+   "destination": "scripts/live/session-store.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/source-lock.mjs",
+   "sha256": "2919dd7641a5ff2320a01a1bf9f9adcff6e7e2f2b3ccb1b48cdf0b5c091b3803",
+   "destination": "scripts/live/source-lock.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/source-search.mjs",
+   "sha256": "429dcbcf21785df225fa97a24906dec11b5170e76df6ed0a2b098fa2c2057de2",
+   "destination": "scripts/live/source-search.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/svelte-ast.mjs",
+   "sha256": "11feee00b0637e5960c2045f3dca290eb00ceef00f9a09e3fbf3458abfa8779d",
+   "destination": "scripts/live/svelte-ast.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/svelte-component.mjs",
+   "sha256": "234dae2735aae9385716416a4e958d6890ec7cb42dec2e158fe128e8856eaf97",
+   "destination": "scripts/live/svelte-component.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/sveltekit-adapter.mjs",
+   "sha256": "a17e39a2dc0cad436fc00aebeab64dcb2ec1b408e0fdba1a6a8a37844a3b46c3",
+   "destination": "scripts/live/sveltekit-adapter.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/tanstack-adapter.mjs",
+   "sha256": "5f59be858d71e40a8b70ce114a892511072547608a9e69858a8a66d6c782968c",
+   "destination": "scripts/live/tanstack-adapter.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/ui-surfaces.mjs",
+   "sha256": "eccf5853861fd2df44a094037b9fa9302f7de8035e53c956bf8cbac7cd6c4baa",
+   "destination": "scripts/live/ui-surfaces.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/vocabulary.mjs",
+   "sha256": "f1765c853a8894074f511f7b34bda815552e45ea6458babee0ace97416c652ed",
+   "destination": "scripts/live/vocabulary.mjs",
+   "disposition": "adapted",
+   "reason": "Picker vocabulary reduced to shipped capabilities; unsupported upstream verbs are removed rather than advertised as unavailable."
+  },
+  {
+   "source": "skill/scripts/live/frameworks/astro.mjs",
+   "sha256": "9bc679fd9e2f2800e97519bd16f36af7afb696d61391a08f7c9bbc687f03e87d",
+   "destination": "scripts/live/frameworks/astro.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/frameworks/detect-utils.mjs",
+   "sha256": "c69d859d73574784c33e6ac81e537022d619dbaf7f6f2d3637317a3df41b30f8",
+   "destination": "scripts/live/frameworks/detect-utils.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/frameworks/index.mjs",
+   "sha256": "54936fa60f0abb9483fbaac59ba9797c4173e9a77f504ff3df9a32b208ae1bab",
+   "destination": "scripts/live/frameworks/index.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/frameworks/journal.mjs",
+   "sha256": "536535b977a063fe220447a78cdd351fbc224ac1bfb1bdd1f0827577ad4a5954",
+   "destination": "scripts/live/frameworks/journal.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/frameworks/nextjs.mjs",
+   "sha256": "a724f8fd9be4ef0c58c268c81e0ff651da4ee6c5a7a7a96258932aaab0d3842e",
+   "destination": "scripts/live/frameworks/nextjs.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/frameworks/nuxt.mjs",
+   "sha256": "8f243e1e91f59b1a61036c0adf45ba4ea49e78983ee56d4634a6d567dfa7d263",
+   "destination": "scripts/live/frameworks/nuxt.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/frameworks/script-src.mjs",
+   "sha256": "3594a9941214bcea837f2807bd1e77aca33aeb5cea5f4212f5c03f802e6d7f26",
+   "destination": "scripts/live/frameworks/script-src.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/frameworks/static-html.mjs",
+   "sha256": "4521a21f9b2d171d78a923d4e2c000b729549055f1f82ca1f1725be9455c10f1",
+   "destination": "scripts/live/frameworks/static-html.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/frameworks/sveltekit.mjs",
+   "sha256": "4f4cb04e6c584f7f179933c79f75514f2c7086a29205527667ba214a60022c2b",
+   "destination": "scripts/live/frameworks/sveltekit.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/frameworks/tag-strategy.mjs",
+   "sha256": "deb03caaaaef15da569c7453d7a6839dc9a47cf504d5c6c74f1127a84d23c4eb",
+   "destination": "scripts/live/frameworks/tag-strategy.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/frameworks/tanstack-start.mjs",
+   "sha256": "be7b9135a7b934f29f119c301cf3572b622045120d65ec47444ee58ca51acd62",
+   "destination": "scripts/live/frameworks/tanstack-start.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/live/frameworks/vite-generic.mjs",
+   "sha256": "63fadafbecf340f037e9d52912483774aa9a41761b1680b9c8cf9c2e5bba30b3",
+   "destination": "scripts/live/frameworks/vite-generic.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/lib/design-parser.mjs",
+   "sha256": "42d37e97db82ca8082033f582bcdbd341373d0cc1c6927605d1a4385f8f34131",
+   "destination": "scripts/lib/design-parser.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/lib/impeccable-paths.mjs",
+   "sha256": "276ec7ac47e3c250e76616755d83cca4846f0f951b51c29f985ec84b51282aa2",
+   "destination": "scripts/lib/impeccable-paths.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/lib/is-generated.mjs",
+   "sha256": "2d6c37f821cb42161264068b81c4c97629a653b661403cedadb5eb23099d0acc",
+   "destination": "scripts/lib/is-generated.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/lib/live-path-globs.mjs",
+   "sha256": "f2657a25351ae5bc4d503e7257f84e014815fc562225ebf8fe15d3e277ca6f53",
+   "destination": "scripts/lib/live-path-globs.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/lib/template-extensions.mjs",
+   "sha256": "1a3808237835998f3fea600424c64ab1775beac7e0c344d6b23f472ffc2a3e64",
+   "destination": "scripts/lib/template-extensions.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/lib/staleness.mjs",
+   "sha256": "f900a3ce0cd836194859c575dd32f8802d6a078bb8af27e1b8b6bb49485ad7d6",
+   "destination": "scripts/lib/staleness.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/scripts/lib/artifact-schema.mjs",
+   "sha256": "ad0a72e96c74be09490b1aea095478e307f45d707b15021c922cbd4466619359",
+   "destination": "scripts/lib/artifact-schema.mjs",
+   "disposition": "retained"
+  },
+  {
+   "source": "skill/reference/live.md",
+   "sha256": "2b4b05cae6d54fe0f9633e79cfc5bc58262548de89c25225b7a7728221ca64be",
+   "destination": "procedures/live.md",
+   "disposition": "adapted",
+   "reason": "Pi adaptation: package helper paths, one Pi harness policy, actions map to shipped capabilities via impeccable_load, unavailable upstream CLI commands replaced with agent-owned preparation."
+  },
+  {
+   "source": "skill/reference/live-setup.md",
+   "sha256": "d649665aaead9e8ac4ccba57bbc7726d276c5bcb464130eb914f6c08cd79d711",
+   "destination": "procedures/live-setup.md",
+   "disposition": "adapted",
+   "reason": "Pi adaptation: package helper paths and disclosed-loading contract; upstream repo-internal reference outputs removed."
   }
+ ],
+ "excluded": [
+  {
+   "source": "skill/reference/ios.md",
+   "reason": "Native supplement not shipped; additional MIT provenance required."
+  },
+  {
+   "source": "skill/reference/android.md",
+   "reason": "Native supplement not shipped; additional MIT provenance required."
+  },
+  {
+   "source": "cli/engine/engines/browser/detect-url.mjs",
+   "reason": "Browser runtime excluded; explicit local static targets only."
+  }
+ ],
+ "detectorPolicy": {
+  "primary": [
+   "low-contrast",
+   "skipped-heading"
+  ],
+  "otherRules": "advisory: upstream heuristics require review against canonical taste; never unconditional project edits",
+  "limits": "Static estimates are not rendered accessibility verification. No browser, directory discovery, or automatic configuration writes. Primary means review triage, not categorical conformance failure; skipped headings can have context-dependent semantics."
+ },
+ "licenses": {
+  "jakub": {
+   "repository": "https://github.com/jakubkrehel/skills",
+   "revision": "267330e1adfc66a718fb65fa6918c1f06d0a689e",
+   "source": "LICENSE",
+   "destination": "licenses/jakub-krehel-MIT.txt",
+   "sha256": "ed1dfe988fc40511b4845ccd9050a143a2002fee3bedc8064c47fa342b5d8d4f",
+   "disposition": "retained"
+  },
+  "emil": {
+   "repository": "https://github.com/emilkowalski/skills",
+   "revision": "d23d7f88a2e21c9e4b1418c7abe420f5c1052ba7",
+   "source": "LICENSE",
+   "destination": "licenses/emil-kowalski-MIT.txt",
+   "sha256": "4ff5bdb7887ec1435c9cab0e8d1a7caee704d894d65c2a008ccc68b1cc2f260b",
+   "disposition": "retained"
+  }
+ }
 }

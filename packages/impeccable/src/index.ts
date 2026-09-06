@@ -11,14 +11,31 @@ function feedback(pi: ExtensionAPI, ctx: ExtensionCommandContext, text: string):
 }
 
 async function command(pi: ExtensionAPI, loader: Resolver, args: string, ctx: ExtensionCommandContext): Promise<void> {
-  const usage = `Usage: /impeccable <${loader.capabilities.map(entry => entry.id).join("|")}> <target/request>`;
+  const usage = `Usage: /impeccable <${loader.capabilities.map(entry => entry.id).join("|")}> <target/request>, or any freeform request`;
   const match = args.match(/^\s*(\S+)(?:\s([\s\S]*))?$/);
-  let capability = match?.[1];
+  const capability = match?.[1];
   const request = match?.[2] ?? "";
+  const implemented = capability !== undefined && loader.capabilities.some(entry => entry.id === capability);
+  if (match && !implemented) {
+    const guidance = [
+      "Design request without a chosen capability. Pick and load the matching guidance first with impeccable_load, then perform the work within the user's request.",
+      `Capabilities: ${loader.capabilities.map(entry => entry.id).join(" ")}. Start from polish for general refinement, clarify for product copy questions, live for browser variant iteration.`,
+      `User target/request:\n${args.trim()}`,
+    ].join("\n\n");
+    pi.sendUserMessage(guidance, { deliverAs: "followUp" });
+    return;
+  }
   if (!capability) {
     if (!ctx.hasUI) return feedback(pi, ctx, usage);
-    capability = await ctx.ui.select("Impeccable capability", loader.capabilities.map(entry => entry.id));
-    if (!capability) return;
+    const selected = await ctx.ui.select("Impeccable capability", loader.capabilities.map(entry => entry.id));
+    if (!selected) return;
+    try {
+      const bundle = loader.load(selected, "user");
+      pi.sendUserMessage(`${bundle.content}\n\nUser target/request:\n`, { deliverAs: "followUp" });
+    } catch (error) {
+      feedback(pi, ctx, `${error instanceof Error ? error.message : String(error)}\n${usage}`);
+    }
+    return;
   }
   try {
     const bundle = loader.load(capability, "user");

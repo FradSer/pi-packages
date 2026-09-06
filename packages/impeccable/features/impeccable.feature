@@ -97,9 +97,28 @@ Feature: A unified design capability in Pi
     When the user cancels the impeccable menu
     Then no follow-up request is sent
 
-  Scenario: Unknown capability does not fall back
-    When impeccable is invoked with an unknown capability
-    Then it reports the unknown capability without loading a default
+  Scenario: A freeform request routes design guidance
+    Given a request whose first word is not a capability id
+    When impeccable is invoked with that request
+    Then no unknown-capability diagnostic is emitted
+    And one follow-up is sent naming the implemented capabilities
+    And the request is preserved verbatim for the agent
+    And no default capability is loaded silently
+
+  Scenario: Live variant mode loads its procedure and target context
+    Given live requires target context and design principles
+    When the user invokes live with a request or the model loads live
+    Then both receive the same canonical live procedure and required context
+    And conditional live setup guidance is disclosed rather than included unconditionally
+    And the bundle stays within the loading budget
+
+  Scenario: Live runtime ships its helper scripts
+    Given the live capability is implemented with upstream helper scripts
+    When every packaged live helper script is parsed with the bundled runtime
+    Then parsing succeeds for each script
+    And no helper invokes an upstream host CLI as its automatic default
+    And the copy-edit applier selects Pi before upstream host CLIs
+    And the copy-edit applier rejects unsupported runners
 
   Scenario: Explicit-user actions remain command-owned
     Given a capability requires an explicit user action
