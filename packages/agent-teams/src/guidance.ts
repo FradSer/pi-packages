@@ -8,7 +8,7 @@ between tasks. The harness wakes you with a new prompt when peer messages
 arrive for you or when the task board has unclaimed work; between wake-ups
 you consume nothing.
 
-- send_message is the ONLY messaging primitive. A message to="leader" is handed
+- agent_event (or send_message) is the messaging primitive. A message to="leader" (or omitted "to") is handed
   to Pi immediately: it reaches a working leader at the next safe tool boundary
   or wakes an idle leader. Send what the leader must know or act on:
   blockers needing a decision, facts that change the plan, and final deliverables. Never send bare status pings ("still working",
@@ -128,8 +128,8 @@ A session-wide cap of 8 living teammates applies. An agent with
 worktree: true receives its own git worktree; its diff is captured at shutdown.
 
 Match the definition's \`tools\` to the assignment. A role without a \`tools\`
-field grants only the capability set (send_message, task_list, task_claim,
-task_submit): any work that must read files or run commands needs \`read\` and
+field grants only the capability set (agent_event, send_message, task_list,
+task_claim, task_submit): any work that must read files or run commands needs \`read\` and
 \`bash\` listed explicitly. The roster and the /agent-teams detail view expose
 the effective grant — if a teammate reports missing capabilities or the kickoff
 demands tools it lacks, teammate_shutdown it and respawn with the right tools instead of steering.

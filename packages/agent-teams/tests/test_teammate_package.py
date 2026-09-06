@@ -881,7 +881,8 @@ def test_spawn_model_resolution_precedence() -> None:
           inherit: resolveSpawnModel("inherit", "openai/gpt-5.2", "openai/gpt-5.2-leader"),
           inheritCaseInsensitive: resolveSpawnModel("Inherit", undefined, "google/gemini-3-pro"),
           teamDefault: resolveSpawnModel(undefined, "openai/gpt-5.2", "google/gemini-3-pro"),
-          none: resolveSpawnModel(undefined, undefined, "google/gemini-3-pro"),
+          none: resolveSpawnModel(undefined, undefined, undefined),
+          fallbackSession: resolveSpawnModel(undefined, undefined, "google/gemini-3-pro"),
           inheritWithoutLeaderModel: resolveSpawnModel("inherit", undefined, undefined),
           blankPinIsUnset: resolveSpawnModel("  ", "openai/gpt-5.2", undefined),
         }}));
@@ -892,8 +893,47 @@ def test_spawn_model_resolution_precedence() -> None:
     assert payload["inheritCaseInsensitive"] == {"model": "google/gemini-3-pro", "source": "inherit"}
     assert payload["teamDefault"] == {"model": "openai/gpt-5.2", "source": "team-default"}
     assert payload["none"] == {"source": "none"}
+    assert payload["fallbackSession"] == {"model": "google/gemini-3-pro", "source": "leader-session"}
     assert payload["inheritWithoutLeaderModel"] == {"source": "none"}
     assert payload["blankPinIsUnset"] == {"model": "openai/gpt-5.2", "source": "team-default"}
+
+
+def test_leader_model_and_thinking_switch_apply_to_later_spawns() -> None:
+    payload = run_node(
+        f'''\
+        import {{ currentLeaderModelRef, currentLeaderThinkingLevel, initTeamMachine, shutdownTeamMachine, syncLeaderContext }} from "{(SRC / "team-machine.ts").as_uri()}";
+        initTeamMachine(
+          {{ cwd: "/tmp", model: {{ provider: "cli-proxy", id: "gpt-6-astra" }}, thinkingLevel: "low" }},
+          {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }},
+        );
+        const beforeModel = currentLeaderModelRef();
+        const beforeThinking = currentLeaderThinkingLevel();
+        syncLeaderContext({{ model: {{ provider: "cli-proxy", id: "omen-alpha" }}, thinkingLevel: "high" }});
+        const afterModel = currentLeaderModelRef();
+        const afterThinking = currentLeaderThinkingLevel();
+        const restore = process.env.PI_REASONING_LEVEL;
+        process.env.PI_REASONING_LEVEL = "medium";
+        syncLeaderContext({{}});
+        const envFallbackThinking = currentLeaderThinkingLevel();
+        const envFallbackModel = currentLeaderModelRef();
+        process.env.PI_REASONING_LEVEL = restore;
+        shutdownTeamMachine();
+        console.log(JSON.stringify({{ beforeModel, beforeThinking, afterModel, afterThinking, envFallbackThinking, envFallbackModel }}));
+        '''
+    )
+    assert payload["beforeModel"] == "cli-proxy/gpt-6-astra"
+    assert payload["beforeThinking"] == "low"
+    assert payload["afterModel"] == "cli-proxy/omen-alpha"
+    assert payload["afterThinking"] == "high"
+    assert payload["envFallbackThinking"] == "medium"
+    # With no leader model ref, the env fallback still answers (PI_MODEL is set in this repo's env).
+    assert isinstance(payload["envFallbackModel"], str) and "/" in payload["envFallbackModel"]
+
+
+def test_spawner_forwards_thinking_flag() -> None:
+    spawner = source("spawner.ts")
+    assert '"--thinking", options.thinking' in spawner
+    assert 'thinking?: string;' in spawner
 
 
 def test_team_default_model_persists_in_state_snapshot() -> None:
@@ -2387,8 +2427,8 @@ def test_every_agent_teams_tool_executes_through_real_registrations(tmp_path: Pa
         ''',
         env_overrides={"PI_CODING_AGENT_DIR": str(tmp_path / "agent")},
     )
-    assert payload["leaderNames"] == ["teammate_spawn", "teammate_shutdown", "send_message", "task_create", "task_list"]
-    assert payload["workerNames"] == ["send_message", "task_list", "task_claim", "task_submit"]
+    assert payload["leaderNames"] == ["agent", "agent_event", "teammate_spawn", "teammate_shutdown", "send_message", "task_create", "task_list"]
+    assert payload["workerNames"] == ["agent_event", "send_message", "task_list", "task_claim", "task_submit"]
     assert payload["leaderSuccess"] is True
     assert payload["workerSuccess"] is True
     assert payload["messageQueued"] is True
@@ -2442,7 +2482,7 @@ def test_worker_tool_grant_is_visible_at_spawn() -> None:
         }}));
         '''
     )
-    capability = ["send_message", "task_list", "task_claim", "task_submit"]
+    capability = ["agent_event", "send_message", "task_list", "task_claim", "task_submit"]
     assert payload["capabilityOnly"] == capability
     assert payload["emptyRole"] == capability
     assert payload["withShell"] == ["read", "bash"] + capability
@@ -2488,12 +2528,12 @@ def test_unknown_tool_ids_fail_the_spawn_before_side_effects() -> None:
           keepsValidMixed: unknownWorkerTools(["functions.read", "read"]),
           dedupesUnknowns: unknownWorkerTools(["mcp.search", "mcp.search"]),
           acceptsUndefined: unknownWorkerTools(undefined),
-          acceptsCapability: unknownWorkerTools(["send_message"]),
+          acceptsCapability: unknownWorkerTools(["send_message", "agent_event"]),
           universe: WORKER_TOOL_UNIVERSE,
         }}));
         '''
     )
-    capability = ["send_message", "task_list", "task_claim", "task_submit"]
+    capability = ["agent_event", "send_message", "task_list", "task_claim", "task_submit"]
     builtins = ["read", "bash", "edit", "write", "grep", "find", "ls", "powershell"]
     assert payload["typoDetected"] == ["functions.read"]
     assert payload["keepsValidMixed"] == ["functions.read"]

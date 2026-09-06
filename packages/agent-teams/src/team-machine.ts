@@ -10,6 +10,10 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+
+/** pi thinking levels, mirrored from @earendil-works/pi-agent-core. */
+type LeaderThinkingLevel = NonNullable<ExtensionContext["thinkingLevel"]>;
+const THINKING_LEVELS: readonly LeaderThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 import { modelLabel, runPiWorker } from "@fradser/pi-kit";
 import { MODEL_INHERIT_ALIAS, discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "./agents.ts";
 import {
@@ -145,6 +149,7 @@ let boardFile = "";
 let leaderCwd = "";
 /** Live view of the leader session's current model, resolved at spawn time. */
 let leaderModelRef: () => string | undefined = () => undefined;
+let leaderThinkingLevelRef: () => LeaderThinkingLevel | undefined = () => undefined;
 let sendUpdate: (report: LeaderReport) => void = () => {};
 let notifyChange: () => void = () => {};
 
@@ -173,12 +178,13 @@ export interface MachineHooks {
 }
 
 export function initTeamMachine(
-  ctx: Pick<ExtensionContext, "sessionManager" | "cwd" | "model">,
+  ctx: Pick<ExtensionContext, "sessionManager" | "cwd" | "model" | "thinkingLevel">,
   hooks: MachineHooks,
 ): void {
   generation++;
   leaderCwd = ctx.cwd || process.cwd();
   leaderModelRef = () => (ctx.model ? modelLabel(ctx.model) : undefined);
+  leaderThinkingLevelRef = () => ctx.thinkingLevel;
   const sessionFile = ctx.sessionManager?.getSessionFile();
   runtimeStateFile = stateFilePath(sessionFile, leaderCwd);
   boardFile = boardFilePath(sessionFile, leaderCwd);
@@ -189,6 +195,16 @@ export function initTeamMachine(
   if (persisted) loadBoard(persisted.tasks);
 }
 
+/** Re-bind the leader context closures after a mid-session model or
+ *  thinking-level switch, so later spawns resolve against the current
+ *  session configuration instead of the session_start snapshot. */
+export function syncLeaderContext(
+  ctx: Pick<ExtensionContext, "model" | "thinkingLevel">,
+): void {
+  leaderModelRef = () => (ctx.model ? modelLabel(ctx.model) : undefined);
+  leaderThinkingLevelRef = () => ctx.thinkingLevel;
+}
+
 export function shutdownTeamMachine(): void {
   generation++;
   if (livePollTimer) clearInterval(livePollTimer);
@@ -197,6 +213,7 @@ export function shutdownTeamMachine(): void {
   boardFile = "";
   leaderCwd = "";
   leaderModelRef = () => undefined;
+  leaderThinkingLevelRef = () => undefined;
   setVerifyGateRunner(undefined);
   sendUpdate = () => {};
   notifyChange = () => {};
@@ -215,12 +232,13 @@ export function shutdownTeamMachine(): void {
 // ── Spawn model resolution ────────────────────────────────────
 
 /** How a spawn's effective model was chosen. */
-export type SpawnModelSource = "pin" | "inherit" | "team-default" | "none";
+export type SpawnModelSource = "pin" | "inherit" | "team-default" | "leader-session" | "none";
 
 /**
  * Resolve the effective spawn model. Precedence: explicit role pin beats the
  * `inherit` alias (the leader session's current model), which beats the team
- * default set from the console; with none of these Pi picks its own default.
+ * default set from the console; if unset, falls back to the current session's
+ * model; with none of these Pi picks its own default.
  * The value is resolved at spawn time so mid-session leader model switches
  * apply to later spawns.
  */
@@ -234,12 +252,30 @@ export function resolveSpawnModel(
   if (pin && leaderModel) return { model: leaderModel, source: "inherit" };
   const fallback = teamDefault?.trim();
   if (fallback) return { model: fallback, source: "team-default" };
+  const currentLeader = leaderModel?.trim();
+  if (currentLeader) return { model: currentLeader, source: "leader-session" };
   return { model: undefined, source: "none" };
 }
 
 /** The leader session's current model reference, when one is selected. */
 export function currentLeaderModelRef(): string | undefined {
-  return leaderModelRef();
+  const fromRef = leaderModelRef();
+  if (fromRef) return fromRef;
+  if (process.env.PI_PROVIDER && process.env.PI_MODEL) {
+    return `${process.env.PI_PROVIDER}/${process.env.PI_MODEL}`;
+  }
+  return process.env.PI_MODEL;
+}
+
+/** The leader session's current thinking level, when one is selected. */
+export function currentLeaderThinkingLevel(): LeaderThinkingLevel | undefined {
+  const fromRef = leaderThinkingLevelRef();
+  if (fromRef) return fromRef;
+  const fromEnv = process.env.PI_REASONING_LEVEL?.trim();
+  if (fromEnv && THINKING_LEVELS.includes(fromEnv as LeaderThinkingLevel)) {
+    return fromEnv as LeaderThinkingLevel;
+  }
+  return undefined;
 }
 
 /** Terminate every resident teammate; returns unconfirmed-close diagnostics. */
@@ -402,7 +438,7 @@ export function spawnTeammate(input: {
     return { ok: false, error: registered.error };
   }
 
-  const spawnModel = resolveSpawnModel(agent.model, getTeamDefaultModel(), leaderModelRef());
+  const spawnModel = resolveSpawnModel(agent.model, getTeamDefaultModel(), currentLeaderModelRef());
   // Record the grant before the first wake: a role derived without tools shows
   // its narrow capability-only allowlist right on the spawn surface.
   const assignment = directAssignment(effectiveKickoff, directResources, spawnId);
@@ -425,6 +461,7 @@ export function spawnTeammate(input: {
       isolation,
     ),
     model: spawnModel.model,
+    thinking: currentLeaderThinkingLevel(),
     tools: agent.tools,
     cwd: workerCwd,
     env: teammateEnv(stateFile, input, spawnId, agent.verify),
@@ -1513,7 +1550,7 @@ export async function runVerifyReview(input: VerifyReviewInput): Promise<VerifyR
   const outcome = await runPiWorker({
     prompt: buildVerifyReviewPrompt(input),
     cwd: input.cwd || leaderCwd,
-    model: resolveSpawnModel(undefined, getTeamDefaultModel(), leaderModelRef()).model,
+    model: resolveSpawnModel(undefined, getTeamDefaultModel(), currentLeaderModelRef()).model,
   });
   // A reviewer that did not exit cleanly produced no trustworthy verdict,
   // even if partial output happens to contain a PASS line.

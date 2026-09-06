@@ -64,9 +64,10 @@ claims/submissions through exclusive-create marker files.
   `task_submit` and its effective verify gate. Resource locks survive
   supersession until cancellation acknowledgement or shutdown. Lost claim
   races return actionable errors, not blocking waits.
-- For verify escalation, spawn identity, one-shot board notices, and heartbeat
-  behavior, consult @README.md sections “Reliability Protocol” and “State and
-  Sessions” before changing `team-machine.ts` or `statefile.ts`.
+- For verify escalation, spawn identity, one-shot board notices, and
+  console-only silence telemetry, consult @README.md sections “Reliability
+  Protocol” and “State and Sessions” before changing `team-machine.ts` or
+  `statefile.ts`. The harness never sends the leader heartbeat or stall notices.
 
 ## Testing Guidelines
 

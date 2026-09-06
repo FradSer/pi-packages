@@ -943,6 +943,12 @@ Feature: Agent Teams collaborative organization contract
       When the leader spawns a teammate from that definition
       Then the child launches with --model anthropic/claude-opus-4-6
 
+    Scenario: A mid-session model switch applies to later spawns
+      Given the leader started a session with one model
+      When the leader switches the session model to "cli-proxy/omen-alpha"
+      Then later spawns without a role pin launch with --model cli-proxy/omen-alpha
+      And the child inherits the leader's current thinking level via --thinking
+
     Scenario: A role without a model uses the team default model
       Given an agent definition without a model field
       And a team default model set to "openai/gpt-5.2" from the console
@@ -950,9 +956,15 @@ Feature: Agent Teams collaborative organization contract
       Then the child launches with --model openai/gpt-5.2
 
     Scenario: Without a role model and without a team default no --model flag passes
-      Given an agent definition without a model field and no team default model
+      Given an agent definition without a model field, no team default model, and no leader model
       When the leader spawns a teammate from that definition
       Then the child launches without a --model flag and Pi picks its default
+
+    Scenario: An unset role model falls back to the leader session model
+      Given an agent definition without a model field and no team default model
+      And the leader session model is "google/gemini-3-pro"
+      When the leader spawns a teammate from that definition
+      Then the child launches with --model google/gemini-3-pro
 
     Scenario: The inherit alias falls back when the leader has no model
       Given an agent definition whose model is "inherit"

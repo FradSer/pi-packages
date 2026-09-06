@@ -28,7 +28,7 @@ export function refreshLeaderToolDisclosure(): void {
   leaderToolApi.setActiveTools([...withoutDynamic, ...revealed]);
 }
 
-import { LEADER_RECIPIENT, SendMessageParams, TeammateShutdownParams, TeammateSpawnParams, TaskCreateParams } from "./types.ts";
+import { LEADER_RECIPIENT, SendMessageParams, TeammateShutdownParams, TeammateSpawnParams, TaskCreateParams, AgentToolParams, AgentEventParams } from "./types.ts";
 import { registerTaskListTool } from "./worker.ts";
 import { openTeamConsole, refreshTeamUI } from "./ui.ts";
 import { discoverAgents } from "./agents.ts";
@@ -53,6 +53,78 @@ function spawnAssignment(params: { name: string; agent: string; prompt?: string 
 }
 
 export function registerLeaderTools(pi: ExtensionAPI): void {
+  pi.registerTool({
+    name: "agent",
+    promptSnippet: "Delegate work or inspect a persistent Agent",
+    label: "Agent Control",
+    description: "Delegate work to a persistent or temporary Agent, steer existing work by work ID, or inspect presence.",
+    parameters: AgentToolParams,
+    renderShell: "self",
+    renderCall: emptyToolCall,
+    renderResult(result, _options, theme, context) {
+      const text = result.content.find((part) => part.type === "text")?.text ?? "";
+      if (context.isError) return new Text(theme.fg("error", text.split("\n")[0] || "Agent delegation failed."), 0, 0);
+      const params = context.args as { name: string; prompt?: string; work?: string };
+      const prefix = theme.fg("customMessageLabel", theme.bold("[agent]"));
+      const action = params.prompt ? `assigned · ${formatAgentTaskName(params.prompt, "task")}` : "inspected";
+      return new Text(`${prefix} @${params.name} ${action}`, 0, 0);
+    },
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      if (!params.prompt) {
+        return {
+          content: [{ type: "text", text: `AGENT PRESENCE · @${params.name}\nSTATUS · idle\nWORK SESSIONS · (none active)` }],
+          details: { name: params.name, status: "idle", activeSessions: 0 },
+        };
+      }
+      const spawnResult = spawnTeammate({
+        name: params.name,
+        agent: params.name,
+        prompt: params.prompt,
+        definition: params.model ? {
+          description: `Agent ${params.name}`,
+          prompt: `You are ${params.name}.`,
+          model: params.model,
+        } : undefined,
+      });
+      if (!spawnResult.ok) throw new Error(spawnResult.error);
+      refreshTeamUI(ctx);
+      refreshLeaderToolDisclosure();
+      return {
+        content: [{ type: "text", text: `AGENT PRESENCE · @${params.name}\nSTATUS · working\nWORK SESSIONS · 1 active (work: ${spawnResult.teammate.assignment?.id ?? "active"})\nACTION · ${params.prompt}` }],
+        details: { name: params.name, status: "working", activeSessions: 1, workId: spawnResult.teammate.assignment?.id },
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "agent_event",
+    promptSnippet: "Send an event or message to a participant",
+    label: "Agent Event",
+    description: "Shared communication interface across Leader, Worker, and Peers.",
+    parameters: AgentEventParams,
+    renderShell: "self",
+    renderCall: emptyToolCall,
+    renderResult(result, options, theme, context) {
+      const to = String((context.args as { to?: string }).to ?? "bound-route");
+      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+        "message",
+        "routed",
+        { label: `to @${to}` },
+      ));
+    },
+    async execute(_toolCallId, params) {
+      if (!params.to) {
+        throw new Error("No bound reply route exists. Please specify 'to' explicitly.");
+      }
+      const result = sendLeaderMessage(params.to, params.message, {});
+      if (!result.ok) throw new Error(result.error);
+      return {
+        content: [{ type: "text", text: `EVENT DELIVERED · to=@${params.to}\nSTATUS · ${params.status ?? "inform"}` }],
+        details: { to: params.to, outcome: result.outcome, status: params.status ?? "inform" },
+      };
+    },
+  });
+
   pi.registerTool({
     name: "teammate_spawn",
     promptSnippet: "Spawn a named resident teammate or sub-agent",

@@ -9,7 +9,7 @@ import { getMarkdownTheme, keyHint } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildTeamLeaderGuidance, TEAMMATE_SPAWN_GUIDANCE, WORKER_GUIDANCE } from "./guidance.ts";
 import { clearSessionAgents } from "./agents.ts";
-import { initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, teardownTeammates } from "./team-machine.ts";
+import { initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownTeammates } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
 import { livingTeammates, listTasks, resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
@@ -127,6 +127,16 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
+  pi.on("model_select", async (_event, ctx) => {
+    leaderCtx = ctx;
+    syncLeaderContext(ctx);
+  });
+
+  pi.on("thinking_level_select", async (_event, ctx) => {
+    leaderCtx = ctx;
+    syncLeaderContext(ctx);
+  });
+
   pi.on("session_start", async (_event, ctx) => {
     clearSessionAgents();
     resetState();
@@ -147,6 +157,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
+    leaderCtx = ctx;
     const teamIsActive = hasActiveTeamState();
     return {
       systemPrompt: event.systemPrompt + (teamIsActive

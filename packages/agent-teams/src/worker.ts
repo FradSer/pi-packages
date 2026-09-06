@@ -12,6 +12,7 @@ import { emptyToolCall, renderLifecycleResult } from "./tool-render.ts";
 import { livingTeammates, listTasks } from "./state.ts";
 import { appendInboxMessage, appendWorkerEvent, createTaskIntent, readBoardFile, readRoster } from "./statefile.ts";
 import {
+  AgentEventParams,
   LEADER_RECIPIENT,
   messageTitle,
   SendMessageParams,
@@ -198,6 +199,63 @@ export function registerTaskListTool(pi: ExtensionAPI): void {
 
 export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosure {
   const disclosure = createWorkerToolDisclosure(pi);
+  pi.registerTool({
+    name: "agent_event",
+    promptSnippet: "Send an event or message to a participant",
+    label: "Agent Event",
+    description: "Shared communication interface across Leader, Worker, and Peers.",
+    parameters: AgentEventParams,
+    renderShell: "self",
+    renderCall: emptyToolCall,
+    renderResult(result, options, theme, context) {
+      const to = String((context.args as { to?: string }).to ?? "leader");
+
+      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+        "message",
+        detailField<"steered" | "queued">(result.details, "outcome") ?? "queued",
+        { label: `to @${to}` },
+      ));
+    },
+    async execute(_toolCallId, params) {
+      const binding = workerBinding();
+      if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
+      if (!params.to || params.to === LEADER_RECIPIENT) {
+        appendWorkerEvent(binding.outbox, {
+          id: randomUUID(),
+          type: "message",
+          worker: binding.worker,
+          spawnId: binding.spawnId,
+          body: params.message,
+          status: params.status as any,
+          timestamp: Date.now(),
+        });
+        const isTerminal = params.status === "completed" || params.status === "failed";
+        return {
+          content: [{ type: "text", text: isTerminal
+            ? `MESSAGING\nREPORT · to=leader · status=${params.status}\nNEXT · harness will deliver this report`
+            : `MESSAGING\nREPORT · to=leader · status=${params.status ?? "inform"}\nNEXT · report sent to leader` }],
+          details: { to: LEADER_RECIPIENT, status: params.status ?? "inform", outcome: "queued" },
+          terminate: isTerminal,
+        };
+      }
+      if (params.to === binding.worker) throw new Error("You are already the recipient — no need to message yourself.");
+      if (!livingRecipients(binding).has(params.to)) {
+        throw new Error(`No living teammate named "${params.to}". Check the roster or ask the leader.`);
+      }
+      const recipientInbox = path.join(path.dirname(binding.inbox), `inbox-${encodeURIComponent(params.to)}.jsonl`);
+      appendInboxMessage(recipientInbox, {
+        id: randomUUID(),
+        from: binding.worker,
+        subject: messageTitle(params.message),
+        body: params.message,
+      });
+      return {
+        content: [{ type: "text", text: `MESSAGING\nQUEUED · to=@${params.to}\nNEXT · harness will route the inbox message into a recipient turn` }],
+        details: { to: params.to, outcome: "queued", status: params.status ?? "inform" },
+      };
+    },
+  });
+
   pi.registerTool({
     name: "send_message",
     promptSnippet: "Send a message to the leader or a teammate",

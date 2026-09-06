@@ -145,7 +145,7 @@ export interface MailboxMessage {
   from: string;
   subject: string;
   body: string;
-  status?: "in_progress" | "completed" | "failed";
+  status?: "in_progress" | "completed" | "failed" | "inform" | "request" | "handoff";
   /** The harness retained this report for console inspection after shutdown;
    * it never initiated a leader follow-up. */
   archived?: boolean;
@@ -160,7 +160,7 @@ export interface WorkerReportEvent {
   worker: string;
   spawnId: string;
   body: string;
-  status?: "in_progress" | "completed" | "failed";
+  status?: "in_progress" | "completed" | "failed" | "inform" | "request" | "handoff";
   /** Wall-clock time the teammate wrote the event. */
   timestamp?: number;
 }
@@ -176,7 +176,7 @@ export function isWorkerEvent(value: unknown): value is WorkerReportEvent {
     && typeof event.worker === "string"
     && typeof event.spawnId === "string"
     && typeof event.body === "string"
-    && (event.status === undefined || ["in_progress", "completed", "failed"].includes(event.status))
+    && (event.status === undefined || ["in_progress", "completed", "failed", "inform", "request", "handoff"].includes(event.status))
     && (event.timestamp === undefined || (typeof event.timestamp === "number" && Number.isFinite(event.timestamp)));
 }
 
@@ -199,6 +199,14 @@ export interface InboxMessage {
 }
 
 // ── Tool parameter schemas (typebox) ──────────────────────────────
+
+/** The single minimal delegation and work control tool (leader-only). */
+export const AgentToolParams = Type.Object({
+  name: Type.String({ minLength: 1, description: "Persistent or temporary Agent name" }),
+  prompt: Type.Optional(Type.String({ description: "Instruction or task for the Agent. Omit to inspect presence or run queued work." })),
+  work: Type.Optional(Type.String({ description: "Specific Work Item ID to steer or reopen" })),
+  model: Type.Optional(Type.String({ description: "Optional model override for this agent (e.g. 'provider/model'). Defaults to current session model." })),
+});
 
 /** Spawn one named resident teammate or sub-agent. */
 export const TeammateSpawnParams = Type.Object({
@@ -240,6 +248,20 @@ export const TaskCreateParams = Type.Object({
 
 /** Shared leader/worker read-only board view. */
 export const TaskListParams = Type.Object({});
+
+/** Shared communication event parameters across Leader, Worker, and Peers. */
+export const AgentEventParams = Type.Object({
+  message: Type.String({ description: "Message content or report" }),
+  to: Type.Optional(Type.String({ minLength: 1, description: "Recipient Agent name, leader, or precise reply route. Omit only when an unambiguous bound reply route exists." })),
+  status: Type.Optional(Type.Union([
+    Type.Literal("inform"),
+    Type.Literal("request"),
+    Type.Literal("handoff"),
+    Type.Literal("in_progress"),
+    Type.Literal("completed"),
+    Type.Literal("failed"),
+  ], { description: "Allowed message intent or terminal transition" })),
+});
 
 /** The reserved recipient name for reports to the team leader. */
 export const LEADER_RECIPIENT = "leader";

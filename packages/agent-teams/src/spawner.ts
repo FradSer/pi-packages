@@ -59,6 +59,7 @@ export function isCleanExit(result: Pick<WorkerProcessResult, "exitCode" | "sign
 
 /** Tools every teammate receives regardless of its role definition. */
 export const WORKER_CAPABILITY_TOOLS: readonly string[] = [
+  "agent_event",
   "send_message",
   "task_list",
   "task_claim",
@@ -363,6 +364,8 @@ export interface ResidentSpawnOptions {
   model?: string;
   /** Execution-tool allowlist; capability tools are always appended. */
   tools?: string[];
+  /** Leader session's thinking level, forwarded as the child's default. */
+  thinking?: string;
   env?: Record<string, string | undefined>;
   cwd?: string;
   onUpdate?: (update: WorkerProgressUpdate) => void;
@@ -391,6 +394,7 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
     "--extension", WORKER_EXTENSION,
   ];
   if (options.model) args.push("--model", options.model);
+  if (options.thinking) args.push("--thinking", options.thinking);
   args.push("--tools", resolveWorkerTools(options.tools).join(","));
 
   let tempDir: string | undefined;

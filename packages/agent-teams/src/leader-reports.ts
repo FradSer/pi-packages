@@ -16,7 +16,7 @@ export interface LeaderReport {
   /** Original append-only outbox event identifier, retained for session forensics. */
   eventId?: string;
   /** Original worker status, including omitted status, retained for session forensics. */
-  status?: "in_progress" | "completed" | "failed";
+  status?: "in_progress" | "completed" | "failed" | "inform" | "request" | "handoff";
   runId?: string;
   /** Wall-clock time the message was authored, not when Pi consumed it. */
   timestamp?: number;
