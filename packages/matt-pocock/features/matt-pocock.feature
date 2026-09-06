@@ -165,11 +165,20 @@ Feature: Matt Pocock workflow harness
     Then the tool presents choices using the Pi UI selection dialog
     And it supports a recommended option and custom user input
 
-  Scenario: A user-owned decision remains pending without an answer
+  Scenario: A recommended decision automatically adopts the recommendation on timeout
     Given an active grilling or interview procedure
-    When the matt_pocock_ask selection times out, Pi has no UI, or custom input is cancelled or blank
+    When the agent calls matt_pocock_ask with a recommended option
+    And the selection times out
+    Then the tool automatically selects the recommended option
+    And it does not leave the decision pending
+
+  Scenario: A decision without a recommendation has no timeout and remains pending when unanswered
+    Given an active grilling or interview procedure
+    When the agent calls matt_pocock_ask without a recommended option
+    Then the selection dialog has no timeout
+    When the selection is cancelled, Pi has no UI, or custom input is blank
     Then the tool reports that the decision is pending user input
-    And it does not select a recommended option or authorize workflow progression
+    And it does not authorize workflow progression
 
   Scenario: The package has no recursively discoverable child skills
     Given pi-matt-pocock is packaged

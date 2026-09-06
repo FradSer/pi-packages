@@ -434,8 +434,8 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     parameters: Type.Object({
       question: Type.String({ description: "The interview or decision question to ask the user." }),
       options: Type.Array(Type.String(), { description: "2 to 4 suggested options, recommended option first." }),
-      recommended: Type.Optional(Type.String({ description: "The recommended option shown to the user." })),
-      timeout_seconds: Type.Optional(Type.Number({ description: "Seconds to wait; default 60, timeout leaves the decision pending." })),
+      recommended: Type.Optional(Type.String({ description: "The recommended option. When provided, timeout automatically adopts this option." })),
+      timeout_seconds: Type.Optional(Type.Number({ description: "Seconds to wait when a recommended option is provided; default 60. Omitted/ignored when no recommended option is provided." })),
       allow_custom: Type.Optional(Type.Boolean({ description: "Allow a custom typed answer; default true." })),
     }),
     renderShell: "self",
@@ -451,6 +451,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         ? ["Status: pending user decision"]
         : answerLines.map((line, index) => index === 0 ? `Answer: ${line}` : `  ${line}`);
       const metadata = [
+        details.timed_out && details.source === "timeout_recommended" ? "Reason: selection timed out (used recommendation)" : undefined,
         details.timed_out && details.pending ? "Reason: selection timed out" : undefined,
         details.source === "no_ui" ? "Reason: no UI available" : undefined,
         details.is_custom ? "Source: custom input" : undefined,
@@ -469,23 +470,33 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (!activeWorkflow) throw new Error("No active Matt Pocock workflow.");
-      const allowCustom = params.allow_custom ?? true;
-      const timeoutSec = params.timeout_seconds ?? 60;
-      const timeoutMs = timeoutSec > 0 ? timeoutSec * 1000 : undefined;
       if (!ctx.hasUI) {
         return {
           content: [{ type: "text", text: "[Pending user decision] No UI is available. Do not proceed until the user responds." }],
           details: { pending: true, source: "no_ui" },
         };
       }
+      const allowCustom = params.allow_custom ?? true;
+      const hasRecommended = typeof params.recommended === "string" && params.recommended.trim().length > 0;
+      const timeoutMs = hasRecommended
+        ? ((params.timeout_seconds !== undefined && params.timeout_seconds > 0) ? params.timeout_seconds * 1000 : 60 * 1000)
+        : undefined;
+
       const customOption = "Type custom answer...";
       const choices = [...params.options];
       if (allowCustom && !choices.includes(customOption)) choices.push(customOption);
       const selected = await ctx.ui.select(params.question, choices, timeoutMs !== undefined ? { timeout: timeoutMs } : undefined);
       if (selected === undefined) {
+        if (hasRecommended) {
+          const answer = params.recommended!.trim();
+          return {
+            content: [{ type: "text", text: `User selected (timeout default): ${answer}` }],
+            details: { answer, is_custom: false, timed_out: true, pending: false, source: "timeout_recommended" },
+          };
+        }
         return {
           content: [{ type: "text", text: "[Pending user decision] No answer was selected. Do not proceed until the user responds." }],
-          details: { pending: true, timed_out: true, source: "timeout" },
+          details: { pending: true, timed_out: false, source: "cancelled" },
         };
       }
       if (selected === customOption) {

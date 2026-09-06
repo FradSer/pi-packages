@@ -441,26 +441,43 @@ def test_matt_pocock_ask_selection_custom_input_pending_cases() -> None:
         let selectChoice = "Option A", inputChoice = "", lastTimeout = null;
         const ctx = { hasUI: true, ui: {
           setStatus() {}, notify() {},
-          select: async (_title, _choices, options) => { lastTimeout = options?.timeout; return selectChoice; },
+          select: async (_title, _choices, options) => { lastTimeout = options?.timeout ?? null; return selectChoice; },
           input: async () => inputChoice,
         }};
         mattPocock(pi);
         await tools.get("matt_pocock_workflow").execute("start", { mode: "workflow", route: "hard-bug" }, undefined, undefined, ctx);
         const ask = tools.get("matt_pocock_ask");
-        const selected = await ask.execute("a", { question: "Which scope?", options: ["Option A", "Option B"], timeout_seconds: 30 }, undefined, undefined, ctx);
-        selectChoice = "Type custom answer..."; inputChoice = "Custom";
-        const custom = await ask.execute("b", { question: "Which scope?", options: ["Option A", "Option B"] }, undefined, undefined, ctx);
+        // Case 1: with recommendation and selection
+        const selected = await ask.execute("a", { question: "Which scope?", options: ["Option A", "Option B"], recommended: "Option A", timeout_seconds: 30 }, undefined, undefined, ctx);
+        const timeoutWithSec = lastTimeout;
+        // Case 2: with recommendation and timeout -> automatically adopts recommended
         selectChoice = undefined;
-        const timeout = await ask.execute("c", { question: "Which scope?", options: ["Option A", "Option B"] }, undefined, undefined, ctx);
-        const noUi = await ask.execute("d", { question: "Which scope?", options: ["Option A", "Option B"] }, undefined, undefined, { hasUI: false, ui: { setStatus() {} } });
-        console.log(JSON.stringify({ selected, custom, timeout, noUi, lastTimeout }));
+        const timeoutRecommended = await ask.execute("b", { question: "Which scope?", options: ["Option A", "Option B"], recommended: "Option A" }, undefined, undefined, ctx);
+        const timeoutDefaultSec = lastTimeout;
+        // Case 3: without recommendation -> NO timeout (timeout is null/undefined) and cancel remains pending
+        lastTimeout = "not-cleared";
+        const noRecommendedCancel = await ask.execute("c", { question: "Which scope?", options: ["Option A", "Option B"] }, undefined, undefined, ctx);
+        const noRecommendedTimeout = lastTimeout;
+        // Case 4: custom answer
+        selectChoice = "Type custom answer..."; inputChoice = "Custom";
+        const custom = await ask.execute("d", { question: "Which scope?", options: ["Option A", "Option B"] }, undefined, undefined, ctx);
+        // Case 5: no UI
+        const noUi = await ask.execute("e", { question: "Which scope?", options: ["Option A", "Option B"] }, undefined, undefined, { hasUI: false, ui: { setStatus() {} } });
+        console.log(JSON.stringify({ selected, timeoutRecommended, noRecommendedCancel, custom, noUi, timeoutWithSec, timeoutDefaultSec, noRecommendedTimeout }));
     """)
     assert result["selected"]["details"]["answer"] == "Option A"
+    assert result["timeoutWithSec"] == 30000
+    assert result["timeoutDefaultSec"] == 60000
+    assert result["timeoutRecommended"]["details"]["answer"] == "Option A"
+    assert result["timeoutRecommended"]["details"]["pending"] is False
+    assert result["timeoutRecommended"]["details"]["timed_out"] is True
+    assert result["timeoutRecommended"]["details"]["source"] == "timeout_recommended"
+    assert "User selected (timeout default): Option A" in result["timeoutRecommended"]["content"][0]["text"]
+    assert result["noRecommendedTimeout"] is None
+    assert result["noRecommendedCancel"]["details"]["pending"] is True
+    assert "Do not proceed" in result["noRecommendedCancel"]["content"][0]["text"]
     assert result["custom"]["details"] == {"answer": "Custom", "is_custom": True, "source": "custom_input"}
-    assert result["timeout"]["details"]["pending"] is True
-    assert "Do not proceed" in result["timeout"]["content"][0]["text"]
     assert result["noUi"]["details"] == {"pending": True, "source": "no_ui"}
-    assert result["lastTimeout"] == 60000
 
 
 def test_tool_and_message_rendering_preserves_compact_lifecycle_rows() -> None:
