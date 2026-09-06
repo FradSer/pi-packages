@@ -60,6 +60,16 @@ update installed paths in `~/.pi/agent/settings.json`.
   @.memory/reference_pi_kitty_csi_u_keys.md.
 - Workflow menus are commands; routing uses `before_agent_start`. For user
   interaction/gates, consult @.memory/feedback_no_custom_interaction_tools.md.
+- Flow/procedure starts are abstract lifecycle lines, never full-text dumps:
+  send the procedure via `pi.sendMessage({ customType: "<pkg>-procedure",
+  content, display: true, details }, { deliverAs: "followUp", triggerTurn:
+  true })` and render it with `pi.registerMessageRenderer` as one
+  `[<pkg>] started · <subject>` row (bold `customMessageLabel` prefix,
+  `safeDisplayText` subject). Tool starts render the same shape through
+  pi-kit lifecycle renderers in `renderResult`. Full content stays in LLM
+  context; the transcript shows only the line. Reference:
+  @packages/impeccable/src/index.ts, @packages/matt-pocock/src/index.ts,
+  @.memory/project_monitor_display_pattern.md.
 
 ## Commit & Pull Request Guidelines
 
