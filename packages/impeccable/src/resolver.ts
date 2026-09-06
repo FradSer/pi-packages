@@ -71,15 +71,18 @@ export function createResolver(packageRoot: string, entries: CatalogEntry[]): Re
     capabilities,
     load(capability, actor, reference, signal) {
       signal?.throwIfAborted();
-      const entry = capabilities.find(candidate => candidate.id === capability);
+      const capId = capability.trim().replace(/^impeccable:/, "");
+      const entry = capabilities.find(candidate => candidate.id === capId);
       if (!entry) throw new Error(`Unknown Impeccable capability: ${capability}. Use /impeccable ${capabilities.map(item => item.id).join("|")} <target/request>.`);
-      if (actor === "model" && entry.invocation === "user") throw new Error(`Requires explicit user action: /impeccable ${capability}`);
-      if (reference !== undefined) {
-        const reachable = closure(capability, byId, actor, true).filter(item => item.kind === "reference");
-        if (!reachable.some(item => item.id === reference)) throw new Error(`Reference ${reference} is not reachable from ${capability}. Available references: ${reachable.map(item => item.id).join(", ") || "none"}`);
+      if (actor === "model" && entry.invocation === "user") throw new Error(`Requires explicit user action: /impeccable ${capId}`);
+      const refId = reference !== undefined ? reference.trim().replace(/^impeccable:/, "").split("#")[0] : undefined;
+      if (refId !== undefined) {
+        const reachable = closure(capId, byId, actor, true).filter(item => item.kind === "reference" || item.invocation === "internal");
+        if (!reachable.some(item => item.id === refId)) throw new Error(`Reference ${reference} is not reachable from ${capId}. Available references: ${reachable.map(item => item.id).join(", ") || "none"}`);
       }
-      const selected = closure(reference ?? capability, byId, actor);
-      return renderBundle(packageRoot, capability, selected, entries);
+      const targetId = refId ?? capId;
+      const selected = closure(targetId, byId, actor);
+      return renderBundle(packageRoot, capId, selected, entries);
     },
   };
 }

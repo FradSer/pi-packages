@@ -15,7 +15,6 @@ def test_all_canonical_reference_links_are_reachable() -> None:
 import assert from "node:assert/strict";
 import { resolver } from "./packages/impeccable/src/resolver.ts";
 import { catalog } from "./packages/impeccable/src/catalog.ts";
-const references = new Set(catalog.filter(entry => entry.kind === "reference").map(entry => entry.id));
 const failures = [];
 for (const capability of resolver.capabilities) {
   const actor = capability.invocation === "user" ? "user" : "model";
@@ -23,17 +22,20 @@ for (const capability of resolver.capabilities) {
   const visited = new Set();
   while (queue.length) {
     const bundle = queue.shift();
-    for (const match of bundle.content.matchAll(/\\]\\(impeccable:([a-z][a-z0-9-]*)(?:#[^)]*)?\\)/g)) {
-      const reference = match[1];
-      if (!references.has(reference) || visited.has(reference)) continue;
-      visited.add(reference);
+    // Test the exact link strings found in Markdown without artificial client-side stripping
+    for (const match of bundle.content.matchAll(/\\]\\(impeccable:([^\\s)]+)\\)/g)) {
+      const linkTarget = match[1];
+      if (visited.has(`${capability.id}->${linkTarget}`)) continue;
+      visited.add(`${capability.id}->${linkTarget}`);
       try {
-        queue.push(resolver.load(capability.id, actor, reference));
+        // Must succeed with raw target as written in link
+        queue.push(resolver.load(capability.id, actor, linkTarget));
+        // Must also succeed with URI-prefixed form
+        resolver.load(capability.id, actor, "impeccable:" + linkTarget);
       } catch (error) {
-        failures.push(`${capability.id} via ${bundle.root} -> ${reference}: ${error.message}`);
+        failures.push(`${capability.id} via ${bundle.root} -> ${linkTarget}: ${error.message}`);
       }
     }
-    assert.ok(visited.size <= references.size);
   }
 }
 assert.deepEqual(failures, []);
