@@ -4,7 +4,7 @@ Pi adaptation of Impeccable `skill/reference/live.md` at `63b04e2530f5c7b41ea83c
 
 ## Prerequisites
 
-A running dev server with HMR (Vite, Next.js, Bun, etc.), OR a static HTML file open in the browser. If the dev server's default port is busy, the app is very likely ALREADY running; probe the default URL before spawning a second server.
+A running dev server with HMR (Vite, Next.js, Bun, etc.), OR a static HTML file open in the browser. Never ask the user whether the dev server is running — probe the default URL after booting. If the dev server's default port is busy, the app is very likely ALREADY running; probe the default URL before spawning a second server.
 
 Live mode depends on localhost network access and package-manager installs; run the dev server and helpers in the user's project with the session's normal tooling, and report what you could not start instead of working around it.
 
@@ -12,7 +12,7 @@ Live mode depends on localhost network access and package-manager installs; run 
 
 Execute in order. No step skipped, no step reordered. Every tool output in live mode may carry an `_instructions` field: it is the authoritative next step for that exact situation, with real ids and paths substituted; when it conflicts with your recollection of this document, `_instructions` wins.
 
-1. `live.mjs`: boot. If the request names or implies a file, route, or app inside a monorepo, infer the concrete path and run `node "{{PKG_DIR}}/scripts/live.mjs" --target <path>` instead; then run the rest of this live session from the returned `projectRoot`. The boot resolves the app root from dev-server config files and persists it in `.impeccable/live/roots.json`; every helper re-anchors to that manifest at startup (a wrong cwd cannot fork session state), PRODUCT.md / DESIGN.md are discovered upward to the git root, and relative helper args like `--file` resolve against the app root.
+1. `live.mjs`: boot **immediately**. Never interview the user first — do not ask which surface to use or whether the dev server is running before booting. If the request names or implies a file, route, or app inside a monorepo, infer the concrete path and run `node "{{PKG_DIR}}/scripts/live.mjs" --target <path>` instead; otherwise run the bare boot and let its output (`pageFiles`, `_instructions`, config/drift diagnostics) resolve the target. Ask the user only when the boot itself cannot resolve the app root. Then run the rest of this live session from the returned `projectRoot`. The boot resolves the app root from dev-server config files and persists it in `.impeccable/live/roots.json`; every helper re-anchors to that manifest at startup (a wrong cwd cannot fork session state), PRODUCT.md / DESIGN.md are discovered upward to the git root, and relative helper args like `--file` resolve against the app root.
 2. Open the app URL that serves `pageFile` (infer from `package.json`, docs, terminal output, or an open tab) with the session's browser automation before polling; do not skip. Never use `serverPort`; it's the helper, not the app. If the URL is uncertain, ask the user once.
 3. Poll loop with the default long timeout (600000 ms). Run `live-poll.mjs` again immediately after every event or `--reply`. Never pass a short `--timeout=`. The global bar's **Impeccable mark** dims with a pulsing amber dot when nothing is polling `/poll`; restart `live-poll.mjs` to reconnect.
 4. On `generate`: reuse `event.scaffold` when present; read the screenshot if present; load the action's reference; deliver variants; `--reply done`; poll again. Generate in this thread: you already hold the project's tokens and layout. The overlay preview IS the verification channel; do not screenshot, re-render, or QA variants between generate and accept. Apply the components taste guidance's contrast, spacing, and type floors by construction as you write; full verification runs once at accept on the chosen variant.
@@ -53,6 +53,8 @@ LOOP:
 **Stream mode** (`--stream`, experimental): one long-lived process, one JSON line per event, `--reply` from a separate command. Only for harnesses that read incremental stdout reliably.
 
 ## Start
+
+Run the boot as the FIRST live-mode action — before asking the user anything. Without `--target` it resolves the app root from the current project and still returns everything needed to continue.
 
 ```bash
 node "{{PKG_DIR}}/scripts/live.mjs"

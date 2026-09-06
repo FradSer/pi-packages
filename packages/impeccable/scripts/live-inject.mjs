@@ -67,6 +67,7 @@ export const LIVE_IGNORE_PATTERNS = Object.freeze([
   '.impeccable/hook.pending.json',
   '.impeccable/config.local.json',
   '.impeccable/live/server.json',
+  '.impeccable/live/token.json',
   '.impeccable/live/roots.json',
   '.impeccable/live/app-root.json',
   '.impeccable/live/inject-journal.json',

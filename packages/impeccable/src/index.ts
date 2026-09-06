@@ -1,8 +1,23 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Container, type Component, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Container, Text, type Component, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { createStaticToolLifecycleResultRenderer, eventToolLifecycle, safeDisplayText } from "@fradser/pi-kit";
 import { Type } from "typebox";
 import { resolver, type Bundle, type Resolver } from "./resolver.ts";
+
+const PROCEDURE_ENTRY = "impeccable-procedure";
+
+function capabilityLabel(loader: Resolver, id: string): string {
+  return loader.capabilities.find(entry => entry.id === id)?.label ?? id;
+}
+
+function sendProcedure(pi: ExtensionAPI, loader: Resolver, bundle: Bundle, request: string): void {
+  pi.sendMessage({
+    customType: PROCEDURE_ENTRY,
+    content: `${bundle.content}\n\nUser target/request:\n${request}`,
+    display: true,
+    details: { capability: bundle.capability, label: capabilityLabel(loader, bundle.capability) },
+  }, { deliverAs: "followUp", triggerTurn: true });
+}
 
 function feedback(pi: ExtensionAPI, ctx: ExtensionCommandContext, text: string): void {
   const content = safeDisplayText(text);
@@ -30,22 +45,28 @@ async function command(pi: ExtensionAPI, loader: Resolver, args: string, ctx: Ex
     const selected = await ctx.ui.select("Impeccable capability", loader.capabilities.map(entry => entry.id));
     if (!selected) return;
     try {
-      const bundle = loader.load(selected, "user");
-      pi.sendUserMessage(`${bundle.content}\n\nUser target/request:\n`, { deliverAs: "followUp" });
+      sendProcedure(pi, loader, loader.load(selected, "user"), "");
     } catch (error) {
       feedback(pi, ctx, `${error instanceof Error ? error.message : String(error)}\n${usage}`);
     }
     return;
   }
   try {
-    const bundle = loader.load(capability, "user");
-    pi.sendUserMessage(`${bundle.content}\n\nUser target/request:\n${request}`, { deliverAs: "followUp" });
+    sendProcedure(pi, loader, loader.load(capability, "user"), request);
   } catch (error) {
     feedback(pi, ctx, `${error instanceof Error ? error.message : String(error)}\n${usage}`);
   }
 }
 
 export function registerImpeccable(pi: ExtensionAPI, loader: Resolver): void {
+  if (typeof pi.registerMessageRenderer === "function") {
+    pi.registerMessageRenderer(PROCEDURE_ENTRY, (message, _options, theme) => {
+      const details = (message.details ?? {}) as { capability?: string; label?: string };
+      const subject = safeDisplayText(details.label ?? details.capability ?? "procedure");
+      const prefix = theme.fg("customMessageLabel", theme.bold("[impeccable] started ·"));
+      return new Text(`${prefix} ${subject}`, 0, 0);
+    });
+  }
   pi.registerCommand("impeccable", {
     description: "Load a design procedure or choose an implemented capability",
     handler: (args, ctx) => command(pi, loader, args, ctx),

@@ -25,7 +25,7 @@ register({
   registerCommand: (id, command) => commands.set(id, command),
   registerTool: tool => tools.push(tool),
   sendUserMessage: (...args) => sent.push(args),
-  sendMessage: message => { throw new Error(message.content); },
+  sendMessage: (message, options) => { sent.push([message.content, options, message]); },
 });
 const output = {};
 for (const capability of ["polish", "animate"]) {
@@ -49,7 +49,10 @@ for (const capability of ["polish", "animate"]) {
   const model = await tools[0].execute("bundle", { capability });
   assert.equal(model.content[0].text, bundle.content);
   assert.equal(sent.at(-1)[0], bundle.content + "\\n\\nUser target/request:\\n" + request);
-  assert.deepEqual(sent.at(-1)[1], { deliverAs: "followUp" });
+  assert.deepEqual(sent.at(-1)[1], { deliverAs: "followUp", triggerTurn: true });
+  assert.equal(sent.at(-1)[2].customType, "impeccable-procedure");
+  assert.equal(sent.at(-1)[2].display, true);
+  assert.equal(sent.at(-1)[2].details.capability, capability);
   output[capability] = { loaded: bundle.loaded, bytes: bundle.byteLength };
 }
 assert.equal(sent.length, 2);

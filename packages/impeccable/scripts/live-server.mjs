@@ -1662,7 +1662,8 @@ if (existingRecord?.info) {
   }
 }
 
-state.token = randomUUID();
+const persistedToken = readPersistedToken(process.cwd());
+state.token = persistedToken || randomUUID();
 state.sessionStore = createLiveSessionStore({ cwd: process.cwd() });
 manualApply.rollbackTransaction({
   reason: 'manual_edit_server_start_recovered_abandoned_transaction',
@@ -1686,6 +1687,7 @@ httpServer = http.createServer(createRequestHandler({ detectScript, liveScriptPa
 
 httpServer.listen(state.port, '127.0.0.1', () => {
   writeLiveServerInfo(process.cwd(), { pid: process.pid, port: state.port, token: state.token });
+  writePersistedToken(process.cwd(), state.token);
   const url = `http://localhost:${state.port}`;
   console.log(`\nImpeccable live server running on ${url}`);
   console.log(`Token: ${state.token}\n`);
@@ -1696,3 +1698,29 @@ httpServer.listen(state.port, '127.0.0.1', () => {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+
+/**
+ * The injected <script src="/live.js?token=..."> tag is baked into project
+ * HTML; regenerating the token on every helper restart would 401 the browser
+ * and leave live mode permanently disconnected until a manual re-inject.
+ * The token is a localhost-only capability gate, so persisting it across
+ * restarts keeps the same project's tag valid.
+ */
+function persistedTokenPath(cwd) {
+  return path.join(getLiveDir(cwd), 'token.json');
+}
+
+function readPersistedToken(cwd) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(persistedTokenPath(cwd), 'utf-8'));
+    return typeof parsed?.token === 'string' ? parsed.token : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedToken(cwd, token) {
+  try {
+    fs.writeFileSync(persistedTokenPath(cwd), JSON.stringify({ token }));
+  } catch { /* token persistence is best-effort */ }
+}

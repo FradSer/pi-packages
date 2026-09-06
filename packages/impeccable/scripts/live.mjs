@@ -11,7 +11,7 @@
  *   5. Print a single JSON blob with everything the agent needs
  *
  * After this, the agent's only remaining steps are:
- *   - Open the project's live dev/preview URL in the browser (optional, if browser automation exists)—not `serverPort`; that port is the Impeccable helper for /live.js and /poll
+ *   - Open the project's live dev/preview URL in the browser (auto-attempted; `--no-open` to skip)—not `serverPort`; that port is the Impeccable helper for /live.js and /poll
  *   - Enter the harness-native poll loop: `node live-poll.mjs`
  *
  * Usage:
@@ -19,7 +19,7 @@
  *   node live.mjs --help
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +36,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function liveCli() {
   const args = process.argv.slice(2);
+  const noOpen = args.includes('--no-open');
+  const openUrlArgIdx = args.indexOf('--open-url');
+  const openUrlArg = openUrlArgIdx !== -1 ? args[openUrlArgIdx + 1] : null;
   const liveTarget = resolveLiveTarget(process.cwd(), args);
 
   if (args.includes('--help') || args.includes('-h')) {
@@ -62,7 +65,11 @@ The agent should then:
   1. If target_selection_required, ask which app to use and rerun from that child cwd
   2. If config_missing, create the config and re-run this script
   3. Optionally open the project's dev/preview URL in the browser (see reference/live.md—not serverPort)
-  4. Enter the poll loop: node live-poll.mjs`);
+  4. Enter the poll loop: node live-poll.mjs
+
+Options:
+  --open-url <url>  Open this exact URL instead of probing candidates
+  --no-open         Skip opening the browser entirely`);
     process.exit(0);
   }
 
@@ -190,6 +197,23 @@ The agent should then:
       break;
     }
   } catch { /* briefs are optional context */ }
+  // 6. Open the app URL in the default browser so the injected live.js can
+  //    connect to the helper (SSE). Without this, live mode sits disconnected.
+  let openedUrl = null;
+  let openNote = null;
+  if (noOpen) {
+    openNote = 'skipped (--no-open)';
+  } else {
+    const probe = await probeAppUrl({ explicitUrl: openUrlArg, pageFiles: resolvedFiles, activeCwd });
+    if (probe.url) {
+      openedUrl = probe.url;
+      const openErr = openInBrowser(probe.url);
+      if (openErr) openNote = `open failed: ${openErr}`;
+    } else {
+      openNote = probe.reason;
+    }
+  }
+
   console.log(JSON.stringify({
     ok: true,
     serverPort: serverInfo.port,
@@ -210,8 +234,71 @@ The agent should then:
     hasSurfaceBrief: !!surfaceBrief,
     surfaceBrief,
     surfaceBriefPath,
-    _instructions: bootInstructions({ scriptsPath: __dirname }),
+    openedUrl,
+    openNote,
+    _instructions: bootInstructions({ scriptsPath: __dirname, openedUrl }),
   }, null, 2));
+}
+
+/**
+ * Probe candidate app URLs and return the first one serving the live target.
+ * Prefers a response whose HTML carries the injected /live.js tag (proof the
+ * page is the live-connected one); falls back to the first 200 candidate.
+ */
+async function probeAppUrl({ explicitUrl, pageFiles, activeCwd }) {
+  const candidates = [];
+  if (explicitUrl) candidates.push(explicitUrl);
+  for (const port of candidatePorts(activeCwd)) {
+    candidates.push(`http://localhost:${port}/`);
+  }
+  let firstOk = null;
+  for (const url of [...new Set(candidates)]) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(1500) });
+      if (!res.ok) continue;
+      const body = await res.text();
+      if (body.includes('/live.js')) return { url };
+      if (!firstOk) firstOk = url;
+    } catch { /* not running on this port */ }
+  }
+  if (firstOk) return { url: firstOk };
+  return { url: null, reason: 'no dev server responded on common ports; open the app URL manually or pass --open-url' };
+}
+
+/**
+ * Port candidates: common dev-server ports, plus any ports parsed from the
+ * project's dev/start scripts and framework configs (wrangler, vite, next).
+ */
+function candidatePorts(rootDir) {
+  const ports = new Set([3000, 5173, 8787, 8080, 4321, 5174, 3001, 1420, 4000, 5000]);
+  const pushPorts = (text) => {
+    if (!text) return;
+    for (const m of text.matchAll(/(?:--port[ =]|PORT[=]|:)(\d{2,5})/g)) {
+      const n = Number(m[1]);
+      if (n >= 1000 && n <= 65535) ports.add(n);
+    }
+  };
+  try { pushPorts(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf-8')); } catch { }
+  for (const cfg of ['wrangler.jsonc', 'wrangler.toml', 'vite.config.ts', 'vite.config.js', 'next.config.js']) {
+    try { pushPorts(fs.readFileSync(path.join(rootDir, cfg), 'utf-8')); } catch { }
+  }
+  return [...ports];
+}
+
+/** Open a URL in the default browser. Returns an error string or null. */
+function openInBrowser(url) {
+  try {
+    if (process.platform === 'darwin') {
+      spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
+    } else if (process.platform === 'win32') {
+      spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' }).unref();
+    } else {
+      spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref();
+    }
+    return null;
+  } catch (err) {
+    return err.message;
+  }
 }
 
 function safeRead(p) {

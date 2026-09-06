@@ -27,12 +27,12 @@ async function fixture(run) {
 }
 
 function host(resolver, hasUI = false, choice) {
-  const sent = [], messages = [], commands = new Map(), tools = [];
-  const pi = { registerCommand: (id, command) => commands.set(id, command), registerTool: tool => tools.push(tool), sendUserMessage: (...args) => sent.push(args), sendMessage: (...args) => messages.push(args) };
+  const sent = [], messages = [], commands = new Map(), tools = [], renderers = new Map();
+  const pi = { registerCommand: (id, command) => commands.set(id, command), registerTool: tool => tools.push(tool), sendUserMessage: (...args) => sent.push(args), sendMessage: (...args) => messages.push(args), registerMessageRenderer: (id, fn) => renderers.set(id, fn) };
   let selects = 0;
   const ctx = { hasUI, ui: { select: async () => { selects++; return choice; }, notify() {} } };
   registerImpeccable(pi, resolver);
-  return { sent, messages, command: commands.get('impeccable'), tool: tools[0], ctx, selects: () => selects };
+  return { sent, messages, renderers, command: commands.get('impeccable'), tool: tools[0], ctx, selects: () => selects };
 }
 
 test('required closure once, canonical links, optional per-load paths', () => fixture((resolver, root) => {
@@ -63,11 +63,13 @@ test('command and tool share bundle; tool never sends a follow-up', async () => 
     await h.command.handler('polish src/a b.ts  keep spacing', h.ctx);
     {
       const result = await h.tool.execute('call', { capability: 'polish' }, undefined, undefined, h.ctx);
-      assert.ok(h.sent[0][0].includes(result.content[0].text));
-      assert.ok(h.sent[0][0].endsWith('src/a b.ts  keep spacing'));
-      assert.deepEqual(h.sent[0][1], { deliverAs: 'followUp' });
+      assert.ok(h.messages[0][0].content.includes(result.content[0].text));
+      assert.ok(h.messages[0][0].content.endsWith('src/a b.ts  keep spacing'));
+      assert.deepEqual(h.messages[0][1], { deliverAs: 'followUp', triggerTurn: true });
+      assert.equal(h.messages[0][0].customType, 'impeccable-procedure');
+      assert.equal(h.messages[0][0].display, true);
       await h.tool.execute('ref', { capability: 'polish', reference: 'motion' }, undefined, undefined, h.ctx);
-      assert.equal(h.sent.length, 1);
+      assert.equal(h.messages.length, 1);
     }
   });
 });
@@ -94,20 +96,33 @@ test('successful menu selection sends exactly the selected guidance', () => fixt
   const menu = host(resolver, true, 'polish');
   await menu.command.handler('', menu.ctx);
   assert.equal(menu.selects(), 1);
-  assert.equal(menu.sent.length, 1);
-  assert.equal(menu.messages.length, 0);
-  assert.equal(menu.sent[0][0], resolver.load('polish', 'user').content + '\n\nUser target/request:\n');
-  assert.deepEqual(menu.sent[0][1], { deliverAs: 'followUp' });
+  assert.equal(menu.sent.length, 0);
+  assert.equal(menu.messages.length, 1);
+  assert.equal(menu.messages[0][0].content, resolver.load('polish', 'user').content + '\n\nUser target/request:\n');
+  assert.deepEqual(menu.messages[0][1], { deliverAs: 'followUp', triggerTurn: true });
 }));
 
 test('explicit user command loads user-only capability but model stays gated', () => fixture(async resolver => {
   const h = host(resolver);
   await h.command.handler('promote chosen preview', h.ctx);
-  assert.equal(h.sent.length, 1);
-  assert.equal(h.sent[0][0], resolver.load('promote', 'user').content + '\n\nUser target/request:\nchosen preview');
+  assert.equal(h.messages.length, 1);
+  assert.equal(h.messages[0][0].content, resolver.load('promote', 'user').content + '\n\nUser target/request:\nchosen preview');
   await assert.rejects(h.tool.execute('gate', { capability: 'promote' }), /explicit user/);
   await assert.rejects(h.tool.execute('gate-ref', { capability: 'promote', reference: 'private' }), /explicit user/);
-  assert.equal(h.sent.length, 1);
+  assert.equal(h.messages.length, 1);
+}));
+
+test('procedure messages render as one abstract pi-kit lifecycle line', () => fixture(async resolver => {
+  const h = host(resolver);
+  const renderer = h.renderers.get('impeccable-procedure');
+  assert.ok(renderer, 'message renderer registered');
+  await h.command.handler('promote chosen preview', h.ctx);
+  const [message] = h.messages[0];
+  const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text };
+  const lines = renderer(message, { expanded: false, outputPad: 0 }, theme).render(80);
+  assert.equal(lines.length, 1);
+  assert.match(lines[0].trimEnd(), /^\[impeccable\] started \u00b7 Promote$/);
+  assert.ok(!lines[0].includes('chosen preview'));
 }));
 
 test('catalog rejects missing edges and required cycles, optional cycles terminate', () => fixture((resolver, root, entries) => {

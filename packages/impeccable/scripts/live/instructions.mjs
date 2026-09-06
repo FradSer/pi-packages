@@ -139,6 +139,9 @@ function acceptInstructions(event, scriptsPath) {
 }
 
 /** Boot instructions attached to live.mjs's success payload. */
-export function bootInstructions({ scriptsPath = '{{scripts_path}}' } = {}) {
-  return `Open the app URL that serves a pageFiles entry (never serverPort; that is the helper). Then start the poll loop per your harness policy in the live procedure and re-run ${pollCmd(scriptsPath)} immediately after every event or reply. Every event carries _instructions: follow them; they are the authoritative next step with real ids and paths filled in. A poll you started must stay serviced: with a background watch, end the turn and act on its terminal result; with a foreground poll, never idle away the turn while it runs.`;
+export function bootInstructions({ scriptsPath = '{{scripts_path}}', openedUrl = null } = {}) {
+  const opened = openedUrl
+    ? `The boot already opened ${openedUrl} in the default browser; verify the Impeccable bar shows connected (if it does not, the page needs a reload or the dev server needs starting).`
+    : 'No app URL was auto-opened (no dev server responded on common ports). Start the dev server, then open the URL that serves a pageFiles entry (never serverPort; that is the helper) — or rerun the boot with --open-url <url> after it is up.';
+  return `${opened} Then start the poll loop per your harness policy in the live procedure and re-run ${pollCmd(scriptsPath)} immediately after every event or reply. Every event carries _instructions: follow them; they are the authoritative next step with real ids, paths, and URLs filled in. A poll you started must stay serviced: with a background watch, end the turn and act on its terminal result; with a foreground poll, never idle away the turn while it runs.`;
 }
