@@ -9,7 +9,7 @@ import { getMarkdownTheme, keyHint } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildTeamLeaderGuidance, TEAMMATE_SPAWN_GUIDANCE, WORKER_GUIDANCE } from "./guidance.ts";
 import { clearSessionAgents } from "./agents.ts";
-import { formatSilenceDuration, initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, teardownTeammates } from "./team-machine.ts";
+import { initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, teardownTeammates } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
 import { livingTeammates, listTasks, resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
@@ -25,17 +25,14 @@ let leaderPi: ExtensionAPI | undefined;
 let leaderCtx: ExtensionContext | undefined;
 
 export const TEAMMATE_FINISHED_ENTRY_TYPE = "agent-teams-teammate-finished";
-export const TEAMMATE_HEALTH_MESSAGE_TYPE = "agent-teams-health";
 
 function sendLeaderReport(report: LeaderReport): void {
   try {
     leaderPi?.sendMessage({
-      customType: report.health
-        ? TEAMMATE_HEALTH_MESSAGE_TYPE
-        : report.origin === "harness" || report.harnessEvent
-          ? TEAMMATE_HARNESS_MESSAGE_TYPE
-          : TEAMMATE_REPORT_MESSAGE_TYPE,
-      content: report.health ? report.body : formatReports([report]),
+      customType: report.origin === "harness" || report.harnessEvent
+        ? TEAMMATE_HARNESS_MESSAGE_TYPE
+        : TEAMMATE_REPORT_MESSAGE_TYPE,
+      content: formatReports([report]),
       display: true,
       details: report,
     }, { triggerTurn: true, deliverAs: "steer" });
@@ -45,11 +42,6 @@ function sendLeaderReport(report: LeaderReport): void {
       notifyPi(leaderCtx.ui, `Agent Teams report delivery failed: ${detail}. The report remains in /agent-teams.`, "warning");
     }
   }
-}
-
-function extractHealthReport(details: unknown): LeaderReport | undefined {
-  const report = details as LeaderReport | undefined;
-  return report?.health?.state === "stalled" ? report : undefined;
 }
 
 export function hasActiveTeamState(): boolean {
@@ -82,20 +74,6 @@ export default function (pi: ExtensionAPI) {
     const data = entry.data as { teammate?: string; agent?: string } | undefined;
     const name = data?.teammate ?? data?.agent ?? "teammate";
     return new Text(theme.fg("success", `Teammate @${name} finished.`), 0, 0);
-  });
-  pi.registerMessageRenderer(TEAMMATE_HEALTH_MESSAGE_TYPE, (message, { expanded }, theme) => {
-    const healthReport = extractHealthReport(message.details);
-    const health = healthReport?.health;
-    if (!health || !healthReport) return new Text(String(message.content), 0, 0);
-    const subject = `@${healthReport.teammate} ${health.state} · silent ${formatSilenceDuration(health.silenceMs)}`;
-    return createStaticToolLifecycleMessageRenderer({
-      createSpec: () => eventToolLifecycle("agent", subject, {
-        details: healthReport.body.split("\n").filter((line) => line.trim()),
-      }),
-      expandHint: keyHint("app.tools.expand", "to expand"),
-      fit: truncateToWidth,
-      visibleWidth,
-    })(message, { expanded }, theme);
   });
   pi.registerMessageRenderer(TEAMMATE_HARNESS_MESSAGE_TYPE, (message, { expanded }, theme) => {
     const report = extractHarnessReport(message.details);

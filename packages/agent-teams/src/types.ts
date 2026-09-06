@@ -69,15 +69,13 @@ export interface Teammate {
    *  the capability set). Absent only for legacy snapshots. */
   tools?: string[];
   /** True once recognized model/stream activity was observed for this
-   * incarnation; the stall classifier uses this, not usage totals. */
+   * incarnation; console telemetry only, never a leader notification. */
   modelOutputSeen?: boolean;
   createdAt: number;
   updatedAt: number;
   stoppedAt?: number;
   /** Last wall-clock time output was observed (any stream event or prompt delivery). */
   lastOutputAt?: number;
-  /** When the current stall episode notice was sent (one per episode). */
-  stallNoticeSentAt?: number;
 }
 
 // ── Task board ────────────────────────────────────────────────────

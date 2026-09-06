@@ -2005,7 +2005,7 @@ def test_peer_only_kickoff_does_not_synthesize_leader_report() -> None:
     # A worker can remain idle while waiting for peer mail; only its own
     # explicit send_message(to="leader", ...) enters the leader pipeline.
     idle_transition = machine[machine.index("if (progress.finalResponse && teammate.status !== \"idle\")"):]
-    idle_transition = idle_transition[: idle_transition.index("export function formatAgentHealthReport")]
+    idle_transition = idle_transition[: idle_transition.index("interface VerifyFailureRecord")]
     assert "nudgeIfUnfinalized(name, spawnId)" in idle_transition
     assert "deliverToLeader" not in idle_transition
 
@@ -2189,99 +2189,88 @@ def test_harness_reports_have_a_distinct_event_renderer() -> None:
     }
 
 
-def test_stall_report_has_a_distinct_agent_health_event_renderer() -> None:
+def test_stall_telemetry_never_nags_the_leader() -> None:
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    machine = source("team-machine.ts")
+    reports = source("leader-reports.ts")
     index_ts = source("index.ts")
-    machine = source("team-machine.ts")
-    assert "one `[agent] @name stalled · silent <duration>` row" in feature
-    assert "message routing rows never repeat the teammate health state" in feature
-    assert "TEAMMATE_HEALTH_MESSAGE_TYPE" in index_ts
-    assert "registerMessageRenderer(TEAMMATE_HEALTH_MESSAGE_TYPE" in index_ts
-    assert 'eventToolLifecycle(' in index_ts
-    assert 'healthReport.teammate' in index_ts
-    assert 'formatSilenceDuration(health.silenceMs)' in index_ts
-    assert "formatAgentHealthReport" in machine
-
-
-def test_stall_health_event_renders_compact_and_expandable() -> None:
-    payload = run_node(
-        f'''\
-        import extension, {{ TEAMMATE_HEALTH_MESSAGE_TYPE }} from "{(SRC / "index.ts").as_uri()}";
-        import {{ initTheme }} from "@earendil-works/pi-coding-agent";
-        initTheme("dark");
-        const renderers = new Map();
-        extension({{
-          on() {{}},
-          registerCommand() {{}},
-          registerEntryRenderer() {{}},
-          registerMessageRenderer(name, renderer) {{ renderers.set(name, renderer); }},
-          registerTool() {{}},
-        }});
-        const renderer = renderers.get(TEAMMATE_HEALTH_MESSAGE_TYPE);
-        const message = {{
-          content: "@audit has been silent. Decide whether to wait or shut it down.",
-          details: {{
-            teammate: "audit",
-            body: "@audit has been silent. Decide whether to wait or shut it down.",
-            health: {{ state: "stalled", silenceMs: 125_000 }},
-          }},
-        }};
-        const theme = {{ fg: (_color, text) => text, bold: (text) => text, bg: (_color, text) => text }};
-        const collapsed = renderer(message, {{ expanded: false, outputPad: 0 }}, theme).render(100);
-        const expanded = renderer(message, {{ expanded: true, outputPad: 0 }}, theme).render(100);
-        console.log(JSON.stringify({{
-          collapsed,
-          expanded,
-          compact: collapsed.some((line) => line.trim().startsWith("[agent] @audit stalled · silent 2m")),
-          expandedTitle: expanded.some((line) => line.trim() === "[agent] @audit stalled · silent 2m"),
-          expandedDiagnostic: expanded.some((line) => line.includes("Decide whether to wait")),
-          noMessageRow: !collapsed.join(" ").includes("[message]"),
-        }}));
-        '''
-    )
-    assert payload["compact"] is True
-    assert payload["expandedTitle"] is True
-    assert payload["expandedDiagnostic"] is True
-    assert payload["noMessageRow"] is True
-
-
-def test_silent_teammate_watchdog_contract() -> None:
-    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
-    machine = source("team-machine.ts")
-    state = source("state.ts")
     types = source("types.ts")
-    tools = source("tools.ts")
     ui = source("ui.ts")
     for phrase in (
-        "A silent working teammate raises one stall notice per episode",
-        "Activity re-arms the stall watchdog",
-        "the notice is the last automatic action",
-        "last output time",
-        "stall notice",
+        "The harness never nags the leader with heartbeat stall notices",
+        "A provider hang surfaces as a terminal outcome instead of a mid-task prompt",
+        "silence durations, spawn age, and usage remain visible only in the /agent-teams console roster",
     ):
         assert phrase in feature, phrase
-    assert "lastOutputAt" in types
-    assert "stallNoticeSentAt" in types
-    assert "STALL_NOTICE_MS" in machine
+    # The heartbeat notice path is removed, not gated: no stall report, health
+    # message type, or decision prompt can reach the leader context.
+    assert "STALL_NOTICE_MS" not in machine
+    assert "PI_TEAMMATE_STALL_NOTICE_MS" not in machine
+    assert "SILENT_STALL_MS" not in machine
+    assert "PI_TEAMMATE_SILENT_STALL_MS" not in machine
+    assert "checkStalledTeammates" not in machine
+    assert "stallNoticeBody" not in machine
+    assert "formatAgentHealthReport" not in machine
+    assert 'subject: `Possible stall' not in machine
+    assert "stallNoticeSentAt" not in types
+    assert "TEAMMATE_HEALTH_MESSAGE_TYPE" not in index_ts
+    assert "health" not in reports
     # No automatic reclaim may exist: shutdown thresholds are banned by design.
     assert "STALL_SHUTDOWN_MS" not in machine
     assert "PI_TEAMMATE_STALL_SHUTDOWN_MS" not in machine
     assert "void shutdownTeammate(teammate.name, reason)" not in machine
-    assert "checkStalledTeammates" in machine
+    # Silence telemetry stays console-side for the roster and detail views.
     assert "stallSilenceMs" in machine
-    assert "sendUpdate" in machine
-    assert "stalledMs" not in tools
-    assert 'formatAgentHealthReport("stalled"' in machine
-    assert "formatSilenceDuration" in ui
+    assert "stallThresholdMs" in machine
+    assert "stallSuffix" in ui
+    assert "modelOutputSeen?: boolean" in types
     payload = run_node(
         f'''\
-        import {{ stallSilenceMs, formatSilenceDuration, isStallThresholdReached, STALL_NOTICE_MS }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ stallSilenceMs, formatSilenceDuration, isStallThresholdReached, stallThresholdMs }} from "{(SRC / "team-machine.ts").as_uri()}";
         const now = Date.now();
         const teammate = {{ status: "working", lastOutputAt: now - 3_725_000 }};
         console.log(JSON.stringify({{
           silence: stallSilenceMs(teammate, now),
           formatted: formatSilenceDuration(3_725_000),
-          thresholdConfigured: STALL_NOTICE_MS > 0,
+          thresholdPositive: stallThresholdMs(teammate) > 0,
+          reached: isStallThresholdReached(teammate, now, 3_000_000),
+          notReached: isStallThresholdReached(teammate, now, 4_000_000),
+        }}));
+        '''
+    )
+    assert payload == {
+        "silence": 3_725_000,
+        "formatted": "1h 2m",
+        "thresholdPositive": True,
+        "reached": True,
+        "notReached": False,
+    }
+
+
+def test_silent_teammate_watchdog_contract() -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    machine = source("team-machine.ts")
+    types = source("types.ts")
+    tools = source("tools.ts")
+    ui = source("ui.ts")
+    for phrase in (
+        "turn counts and silence durations exist only as passive console telemetry",
+        "The harness never nags the leader with heartbeat stall notices",
+        "last output time",
+    ):
+        assert phrase in feature, phrase
+    assert "lastOutputAt" in types
+    assert "stallSilenceMs" in machine
+    assert "stalledMs" not in tools
+    assert "formatSilenceDuration" in ui
+    payload = run_node(
+        f'''\
+        import {{ stallSilenceMs, formatSilenceDuration, isStallThresholdReached }} from "{(SRC / "team-machine.ts").as_uri()}";
+        const now = Date.now();
+        const teammate = {{ status: "working", lastOutputAt: now - 3_725_000 }};
+        console.log(JSON.stringify({{
+          silence: stallSilenceMs(teammate, now),
+          formatted: formatSilenceDuration(3_725_000),
           reached: isStallThresholdReached(teammate, now, 3_000_000),
           notReached: isStallThresholdReached(teammate, now, 4_000_000),
         }}));
@@ -2289,97 +2278,32 @@ def test_silent_teammate_watchdog_contract() -> None:
     )
     assert payload["silence"] == 3_725_000
     assert payload["formatted"] == "1h 2m"
-    assert payload["thresholdConfigured"] is True
     assert payload["reached"] is True
     assert payload["notReached"] is False
 
 
-def test_provider_hang_silent_stall_tier() -> None:
+def test_provider_hang_surfaces_through_the_close_path() -> None:
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     machine = source("team-machine.ts")
     spawner = source("spawner.ts")
     state = source("state.ts")
-    ui = source("ui.ts")
-    for phrase in (
-        "A provider hang is flagged before the default stall window",
-        "Stall notices carry lifetime usage diagnostics",
-    ):
-        assert phrase in feature, phrase
-    assert "PI_TEAMMATE_SILENT_STALL_MS" in machine
-    assert "stallThresholdMs" in machine and "hasModelOutput" in machine
-    assert "stallNoticeBody" in machine
+    assert "A provider hang surfaces as a terminal outcome instead of a mid-task prompt" in feature
+    assert "the child close path reports the failure as one terminal diagnostic" in feature
     # Streaming activity and usage reach the roster so hangs are visible before shutdown.
-    assert "modelOutputSeen?: boolean" in spawner
     assert "modelOutputSeen: streamState.modelOutputSeen" in spawner
     assert "progress.usage" in state
     assert "if (progress.modelOutputSeen) teammate.modelOutputSeen = true;" in state
     # Usage never sets the classifier: only streamed content does.
     assert "if (parts.trim()) state.modelOutputSeen = true;" in spawner
     assert "totalTokens ?? 0) > 0)) state.modelOutputSeen" not in spawner
-    # The console marks the silent tier with the same effective threshold.
-    assert "stallThresholdMs" in ui
-    payload = run_node(
-        f'''\
-        import {{ hasModelOutput, stallThresholdMs, stallNoticeBody }} from "{(SRC / "team-machine.ts").as_uri()}";
-        const now = 5 * 60_000;
-        const hung = {{ status: "working", createdAt: 0, lastOutputAt: 0, activeTool: undefined, modelOutputSeen: undefined, usage: undefined }};
-        const longTool = {{ ...hung, activeTool: "bash: pio run -t upload", modelOutputSeen: true }};
-        const activityNoUsage = {{ ...hung, modelOutputSeen: true, usage: undefined }};
-        const midWork = {{ ...hung, modelOutputSeen: true, usage: {{ input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: 0.01 }} }};
-        console.log(JSON.stringify({{
-          silentTier: stallThresholdMs(hung),
-          longToolTier: stallThresholdMs(longTool),
-          activityTier: stallThresholdMs(activityNoUsage),
-          modelOutputTier: stallThresholdMs(midWork),
-          zeroOutputDetected: !hasModelOutput(hung),
-          outputDetected: hasModelOutput(midWork),
-          hungBody: stallNoticeBody(hung, now, now),
-          longToolBody: stallNoticeBody(longTool, now, now),
-          midWorkBody: stallNoticeBody(midWork, 30 * 60_000, 30 * 60_000),
-        }}));
-        '''
-    )
-    assert payload["zeroOutputDetected"] is True
-    assert payload["outputDetected"] is True
-    # The provider-hang signature uses the shorter window; recognized stream
-    # activity counts as output even when usage totals are absent.
-    assert payload["silentTier"] < payload["longToolTier"] == payload["activityTier"] == payload["modelOutputTier"]
-    hung_body: str = payload["hungBody"]  # type: ignore[assignment]
-    assert "No model output received yet" in hung_body
-    assert "respawning a successor" in hung_body
-    assert "spawn age" in hung_body
-    long_tool_body: str = payload["longToolBody"]  # type: ignore[assignment]
-    assert "No model output received yet" not in long_tool_body
-    assert "Tool still running: bash: pio run -t upload" in long_tool_body
-    mid_work_body: str = payload["midWorkBody"]  # type: ignore[assignment]
-    assert "Lifetime usage: 15 tokens, $0.0100." in mid_work_body
-    assert "steer delivery is uncertain" in mid_work_body
-
-
-def test_silent_stall_env_override() -> None:
-    payload = run_node(
-        f'''\
-        import {{ stallThresholdMs }} from "{(SRC / "team-machine.ts").as_uri()}";
-        const teammate = {{ status: "working", createdAt: 0, lastOutputAt: 0, activeTool: undefined, usage: undefined }};
-        console.log(JSON.stringify({{ tier: stallThresholdMs(teammate) }}));
-        ''',
-        env_overrides={"PI_TEAMMATE_SILENT_STALL_MS": "120000"},
-    )
-    assert payload["tier"] == 120_000
-
-
-def test_silent_stall_independent_of_notice_pace() -> None:
-    # The provider-hang tier is documented as a fixed five-minute default; the
-    # notice-pace floor must not silently move or disable it.
-    payload = run_node(
-        f'''\
-        import {{ stallThresholdMs }} from "{(SRC / "team-machine.ts").as_uri()}";
-        const teammate = {{ status: "working", createdAt: 0, lastOutputAt: 0, activeTool: undefined, usage: undefined }};
-        console.log(JSON.stringify({{ tier: stallThresholdMs(teammate) }}));
-        ''',
-        env_overrides={"PI_TEAMMATE_NOTICE_PACE_MS": "120000"},
-    )
-    assert payload["tier"] == 300_000
+    # An unexpected close — provider hang death included — delivers one terminal
+    # crash diagnostic; there is no separate mid-task heartbeat interruption.
+    close = machine[machine.index("async function handleTeammateClose") :]
+    assert 'subject: "Teammate stopped unexpectedly"' in close
+    assert 'harnessEvent: { type: "unexpected-stop"' in close
+    assert close.count("recordTerminalReport(closeReport)") == 1
+    assert close.count("sendUpdate(closeReport)") == 1
+    assert "stallNoticeBody" not in machine
 
 
 def test_every_agent_teams_tool_executes_through_real_registrations(tmp_path: Path) -> None:
@@ -2589,25 +2513,23 @@ def test_stall_recovery_belongs_to_leader_alone() -> None:
     assert "no configuration may automatically terminate a working teammate" in feature
     assert "STALL_SHUTDOWN_MS" not in machine and "PI_TEAMMATE_STALL_SHUTDOWN_MS" not in machine
     assert "pendingShutdownReasons" not in machine
-    # The stall notice itself carries the recovery decision menu.
-    notice = machine[machine.index("export function stallNoticeBody"):]
-    assert "keep waiting, steer again, or shut it down" in notice
-    assert "respawn a successor with context" in notice
-    # Leader guidance teaches recovery over punishment.
+    # No stall notices exist: the console roster is the observation surface.
+    assert "stallNoticeBody" not in machine
+    assert "formatAgentHealthReport" not in machine
+    # Leader guidance teaches recovery over punishment without heartbeat prompts.
     assert "Teammates are autonomous: recover, never punish" in guidance
     assert "Never terminate a teammate" in guidance
     assert "The harness never reclaims, restarts, or replaces a teammate" in guidance or "never reclaims, restarts, or replaces a teammate" in guidance
     assert 'Rely on its status="completed" or\nstatus="failed" report when possible' in guidance
-    # A wake prompt restarts the silence clock so long-idle teammates never insta-stall.
+    assert "heartbeat notifies you" not in guidance
+    # A wake prompt restarts the silence clock so the roster never insta-marks a fresh teammate.
     wake = machine[machine.index("export function wakeIdleTeammates"):]
     assert "lastOutputAt: Date.now()" in wake
-    assert "stallNoticeSentAt: undefined" in wake
-    # Steering reports only its synchronous routing transition. Teammate health
-    # remains a separate watchdog report and transcript event.
+    assert "stallNoticeSentAt" not in wake
+    # Steering reports only its synchronous routing transition.
     send = machine[machine.index("export function sendLeaderMessage"):]
     assert "stalledMs" not in send
     assert "isStallThresholdReached" not in send
-    assert 'formatAgentHealthReport("stalled"' in machine
     assert "stalledMs" not in tools
 
 

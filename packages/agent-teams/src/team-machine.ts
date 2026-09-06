@@ -96,17 +96,10 @@ export const VERIFY_FAILURE_ESCALATE_AFTER = 2;
 const MAX_NOTICED_TASK_IDS = 256;
 /** Claimable tasks listed in one wake-prompt board notice. */
 const WAKE_NOTICE_TASK_LIMIT = 10;
-/** Silence is not a work deadline: active stream output keeps a teammate alive.
- * The watchdog may only notify; termination decisions belong to the leader model. */
-const DEFAULT_STALL_NOTICE_MS = 30 * 60 * 1000;
-export const STALL_NOTICE_MS = readDurationEnv("PI_TEAMMATE_STALL_NOTICE_MS", DEFAULT_STALL_NOTICE_MS);
-/** Silence with zero lifetime model output and no tool running is the provider-
- * hang signature: an in-flight request stuck on the model backend will not
- * recover by waiting or steering, so flag it well before the general window so
- * the leader can respawn early. Defaults to five minutes, independent of the
- * notice-pace floor; 0 disables the tier. */
-const DEFAULT_SILENT_STALL_MS = 5 * 60 * 1000;
-export const SILENT_STALL_MS = readDurationEnv("PI_TEAMMATE_SILENT_STALL_MS", DEFAULT_SILENT_STALL_MS);
+/** Console-only silence marker: after this long without output the roster
+ * shows "stalled". It never notifies the leader or terminates anything. */
+const DEFAULT_STALL_SILENCE_MS = 5 * 60 * 1000;
+const STALL_SILENCE_MS = readDurationEnv("PI_TEAMMATE_STALL_SILENCE_MS", DEFAULT_STALL_SILENCE_MS);
 /** Fully-consumed inboxes larger than this are truncated. */
 const INBOX_COMPACT_BYTES = 256 * 1024;
 
@@ -140,42 +133,9 @@ export function formatSilenceDuration(milliseconds: number): string {
   return `${minutes}m`;
 }
 
-/** True when the stream has delivered recognized model activity (text,
- * thinking, tool-call, or tool execution events) at least once — the stall
- * classifier. Usage totals stay diagnostics only: providers may omit them
- * after real output, and an empty message_end artifact must not count. */
-export function hasModelOutput(teammate: Pick<Teammate, "modelOutputSeen">): boolean {
-  return teammate.modelOutputSeen === true;
-}
-
-/** Silence threshold for one teammate. A worker that has never received model
- * output and runs no tool is almost certainly blocked on the provider rather
- * than doing slow work; that signature uses the shorter silent-stall window. */
-export function stallThresholdMs(teammate: Pick<Teammate, "modelOutputSeen" | "activeTool">): number {
-  if (STALL_NOTICE_MS <= 0 || SILENT_STALL_MS <= 0) return STALL_NOTICE_MS;
-  if (!hasModelOutput(teammate) && !teammate.activeTool) return SILENT_STALL_MS;
-  return STALL_NOTICE_MS;
-}
-
-function usageLine(usage: WorkerUsage | undefined): string {
-  if (!usage) return "";
-  return ` Lifetime usage: ${usage.totalTokens} tokens, $${usage.cost.toFixed(4)}.`;
-}
-
-/** Stall notice body with the diagnostics a leader needs to decide: silence
- * duration, spawn age, lifetime usage, and — for the zero-output provider-hang
- * signature — the remedy that actually works (shutdown + respawn). */
-export function stallNoticeBody(
-  teammate: Pick<Teammate, "name" | "createdAt" | "activeTool" | "modelOutputSeen" | "usage">,
-  silenceMs: number,
-  now = Date.now(),
-): string {
-  const head = `@${teammate.name} has been silent for ${formatSilenceDuration(silenceMs)} (spawn age ${formatSilenceDuration(Math.max(0, now - teammate.createdAt))}).`;
-  if (!hasModelOutput(teammate) && !teammate.activeTool) {
-    return `${head} No model output received yet.${usageLine(teammate.usage)} An in-flight request stuck on the provider will not recover by steering; recovery usually means shutting this teammate down and respawning a successor (optionally pinning another model). Decide: keep waiting, steer again, or shut it down.`;
-  }
-  const toolNote = teammate.activeTool ? ` Tool still running: ${teammate.activeTool}.` : "";
-  return `${head}${toolNote}${usageLine(teammate.usage)} The child may be blocked in a provider or tool call; steer delivery is uncertain. Decide: keep waiting, steer again, or shut it down (and respawn a successor with context from the original kickoff, its mailbox reports, board claims, and the /agent-teams detail transcript).`;
+/** Console-only silence threshold for the roster "stalled" marker. */
+export function stallThresholdMs(_teammate: Pick<Teammate, "modelOutputSeen" | "activeTool">): number {
+  return STALL_SILENCE_MS;
 }
 
 let livePollTimer: ReturnType<typeof setInterval> | undefined;
@@ -359,7 +319,6 @@ function tick(): void {
   processTaskIntents();
   routePeerInboxes();
   wakeIdleTeammates();
-  checkStalledTeammates();
   flushSnapshots();
   ensureLivePoll();
   notifyChange();
@@ -667,41 +626,12 @@ function applyProgress(name: string, spawnId: string, progress: {
     modelOutputSeen: progress.modelOutputSeen,
     usage: progress.usage,
   });
-  updateTeammate(name, { lastOutputAt: Date.now(), stallNoticeSentAt: undefined });
+  updateTeammate(name, { lastOutputAt: Date.now() });
   if (progress.finalResponse && teammate.status !== "idle") {
     updateTeammate(name, { status: "idle", activeTool: undefined });
     nudgeIfUnfinalized(name, spawnId);
   }
   ensureLivePoll();
-}
-
-export function formatAgentHealthReport(
-  state: "stalled",
-  teammate: Pick<Teammate, "name" | "agent">,
-  body: string,
-  silenceMs: number,
-): LeaderReport {
-  return {
-    teammate: teammate.name,
-    agent: teammate.agent,
-    body,
-    finished: false,
-    health: { state, silenceMs },
-  };
-}
-
-function checkStalledTeammates(now = Date.now()): void {
-  if (STALL_NOTICE_MS <= 0) return;
-  for (const teammate of livingTeammates()) {
-    if (teammate.status !== "working" && teammate.status !== "starting") continue;
-    const silence = stallSilenceMs(teammate, now);
-    if (silence === undefined || teammate.stallNoticeSentAt !== undefined) continue;
-    if (silence < stallThresholdMs(teammate)) continue;
-    const body = stallNoticeBody(teammate, silence, now);
-    updateTeammate(teammate.name, { stallNoticeSentAt: now });
-    deliverToLeader({ from: "harness", subject: `Possible stall: @${teammate.name}`, body });
-    sendUpdate(formatAgentHealthReport("stalled", teammate, body, silence));
-  }
 }
 
 interface VerifyFailureRecord {
@@ -1697,7 +1627,6 @@ export function wakeIdleTeammates(immediateTaskId?: string): string[] {
         ? {}
         : { reportSequenceEnded: false }),
       lastOutputAt: Date.now(),
-      stallNoticeSentAt: undefined,
       ...(dueNotice ? { lastNoticeAt: Date.now() } : {}),
     });
   }

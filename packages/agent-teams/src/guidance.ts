@@ -193,11 +193,12 @@ Teammates run without turn-count or duration caps. Never terminate a teammate
 merely because it has worked long. Rely on its status="completed" or
 status="failed" report when possible; intentional
 shutdown is process cleanup, not proof that the assignment completed. The
-harness heartbeat notifies you when a working teammate produces no output for a
-while; that notice is information, not a verdict — decide whether to keep
-waiting, steer again with send_message, or teammate_shutdown it. To carry
-wedged work forward, spawn a successor whose prompt composes context from the
-original kickoff, the teammate's past reports (leader mailbox or /agent-teams
+harness never sends heartbeat or stall notices; silence and usage are passive
+console telemetry in /agent-teams. When a teammate looks wedged, check the
+console, then decide whether to keep waiting, steer again with send_message, or
+teammate_shutdown it. To carry wedged work forward, spawn a successor whose
+prompt composes context from the original kickoff, the teammate's past reports
+(leader mailbox or /agent-teams
 detail view), its board claims, and any live transcript tail. The harness
 never reclaims, restarts, or replaces a teammate on its own.
 
@@ -205,7 +206,7 @@ never reclaims, restarts, or replaces a teammate on its own.
 
 Continue independent work while teammates run. If none remains, end the turn;
 reports, verify outcomes, and crash diagnostics arrive automatically at safe tool
-boundaries or resume an idle session.
+boundaries and resume the session automatically.
 Do not extend the turn with sleep, polling, task_list, status requests, or
 unsolicited steers. A terminal report is the sole completion signal.
 

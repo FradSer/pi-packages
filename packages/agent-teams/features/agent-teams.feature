@@ -226,40 +226,21 @@ Feature: Agent Teams collaborative organization contract
       Given a teammate is woken by a delivery or a new prompt
       Then the wake-up sequence runs without any turn-count or wall-clock ceiling
       And no configuration may automatically terminate a working teammate
-      And turn counts and silence durations exist only as telemetry and heartbeat signals for the leader's decisions
+      And turn counts and silence durations exist only as passive console telemetry
 
-    Scenario: A silent working teammate raises one stall notice per episode
-      Given a teammate is working and has produced no stream output for the stall-notice interval
+    Scenario: The harness never nags the leader with heartbeat stall notices
+      Given a teammate is working and has produced no stream output for any interval
       When the harness poll checks teammate liveness
-      Then the roster records the last output time and a stall notice
-      And the leader receives one actionable diagnostic naming the teammate
-      And the transcript renders the health diagnostic as one `[agent] @name stalled · silent <duration>` row
-      And message routing rows never repeat the teammate health state
-      And the notice wakes the idle leader without requiring model polling
-      And the notice is the last automatic action: continuing, steering, shutting down, or respawning belongs to the leader alone
+      Then no stall notice, health report, or decision prompt enters the leader context
+      And the roster records the last output time for passive console telemetry
+      And silence durations, spawn age, and usage remain visible only in the /agent-teams console roster
+      And an unexpected teammate close reports one terminal crash diagnostic through the standard close path
 
-    Scenario: Activity re-arms the stall watchdog
-      Given a teammate has already received a stall notice
-      When any new RPC stream output arrives for that teammate
-      Then the stall episode marker is cleared
-      And a later silent episode can raise a fresh notice
-
-    Scenario: A provider hang is flagged before the default stall window
+    Scenario: A provider hang surfaces as a terminal outcome instead of a mid-task prompt
       Given a working teammate has received no recognized stream activity and runs no tool
-      When its silence passes the silent-stall interval while staying under the default stall-notice interval
-      Then the leader receives one stall notice reporting zero model output
-      And the notice names shutdown plus respawn as the effective remedy instead of steering
-
-    Scenario: Recognized stream activity counts as output regardless of usage totals
-      Given a working teammate whose stream delivered text, thinking, or tool events without usage totals
-      When its silence grows past the silent-stall interval
-      Then the general stall window governs instead of the provider-hang tier
-      And an empty message_end artifact alone never counts as model output
-
-    Scenario: Stall notices carry lifetime usage diagnostics
-      Given a silent working teammate with recorded lifetime token usage
-      When the harness raises a stall notice for that teammate
-      Then the body reports the silence duration, spawn age, and lifetime usage totals
+      When the provider request hangs or the child process dies
+      Then the child close path reports the failure as one terminal diagnostic
+      And the leader decides recovery from that failure report without heartbeat interruptions
 
   Rule: Messaging is peer-to-peer through local inboxes
 
@@ -774,11 +755,12 @@ Feature: Agent Teams collaborative organization contract
       And wake-ups, deliveries, and verify outcomes arrive as automatic follow-ups
 
     Scenario: The leader guidance teaches recovery over punishment
-      Given the leader receives a stall notice for a wedged teammate
+      Given a wedged teammate needs recovery
       When before_agent_start builds the leader guidance
       Then it explains deciding to keep waiting, steer again, shut down, or respawn a successor
       And a respawn composes context from the original kickoff, mailbox reports, board claims, and the console detail transcript
       And the harness never reclaims, restarts, or replaces a teammate on its own
+      And no heartbeat or stall notice interrupts the leader while teammates work
 
     Scenario: The leader guidance requires explicit worker tooling
       Given the leader derives an inline role for file-inspecting work

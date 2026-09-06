@@ -17,10 +17,6 @@ export interface LeaderReport {
   eventId?: string;
   /** Original worker status, including omitted status, retained for session forensics. */
   status?: "in_progress" | "completed" | "failed";
-  health?: {
-    state: "stalled";
-    silenceMs: number;
-  };
   runId?: string;
   /** Wall-clock time the message was authored, not when Pi consumed it. */
   timestamp?: number;
@@ -35,10 +31,6 @@ export function groupReportsByTeammate(reports: LeaderReport[]): LeaderReportGro
   const groups = new Map<string, LeaderReportGroup>();
   for (const report of reports) {
     const teammate = report.teammate ?? report.agent ?? "teammate";
-    if (report.health) {
-      groups.set(`health:${groups.size}:${teammate}`, { teammate, reports: [report] });
-      continue;
-    }
     if (report.origin === "harness" || report.harnessEvent) {
       groups.set(`harness:${groups.size}:${teammate}`, { teammate, reports: [report] });
       continue;
