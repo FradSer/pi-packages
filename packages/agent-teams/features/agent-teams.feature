@@ -205,7 +205,7 @@ Feature: Agent Teams collaborative organization contract
     Scenario: Shutdown without a finish announcement keeps its event line
       Given a living teammate that announced no terminal report
       When the leader shuts that teammate down
-      Then the shutdown event line renders with its expandable diagnostics
+      Then the shutdown event line renders as one static pi-kit row
       And the requested shutdown does not create a leader follow-up message
 
     Scenario: An unexpected teammate crash is reported to the leader
@@ -831,12 +831,12 @@ Feature: Agent Teams collaborative organization contract
       And it lists the valid teammate tool universe and explains that the child runs without extensions
       And the universe is exactly the pi built-in tools plus the teammate capability set
 
-    Scenario: Shutting down renders one collapsible agent event line
+    Scenario: Shutting down renders one static agent event line
       Given the leader shuts down a teammate
       When the shutdown tool call renders in the transcript
-      Then it shows one event line following the `[agent] @name shut down` shape
-      And the collapsed line appends the shared dim expand hint from pi-kit
-      And expanding the line reveals the shutdown detail lines such as exit code, released tasks, and usage
+      Then it shows one static row following the `[agent] @name shut down` shape
+      And the row needs no expansion: collapsed and expanded renders are identical
+      And shutdown diagnostics such as exit code and released tasks stay model-facing only
       And the event line is never labeled as a monitor event
       And a failed shutdown keys off the render context isError flag and renders one plain error line without an event row
 

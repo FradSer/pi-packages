@@ -1,6 +1,6 @@
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { detailField, eventToolLifecycle, formatAgentTaskName, formatToolLifecycleTitle, notifyPi } from "@fradser/pi-kit";
+import { detailField, eventToolLifecycle, formatAgentTaskName, formatToolErrorLine, formatToolLifecycleTitle, notifyPi } from "@fradser/pi-kit";
 import {
   createBoardTask,
   formatBoardTaskCreation,
@@ -32,7 +32,7 @@ import { LEADER_RECIPIENT, SendMessageParams, TeammateShutdownParams, TeammateSp
 import { registerTaskListTool } from "./worker.ts";
 import { openTeamConsole, refreshTeamUI } from "./ui.ts";
 import { discoverAgents } from "./agents.ts";
-import { emptyToolCall, renderLifecycleResult } from "./tool-render.ts";
+import { emptyToolCall, renderLifecycleResult, textOf } from "./tool-render.ts";
 
 function rosterSummary(): string {
   const alive = livingTeammates();
@@ -168,16 +168,18 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     parameters: TeammateShutdownParams,
     renderShell: "self",
     renderCall: emptyToolCall,
-    renderResult(result, options, theme, context) {
+    renderResult(result, _options, theme, context) {
       const name = String((context.args as { name?: string }).name ?? "");
+      if (context.isError) {
+        return new Text(theme.fg("error", formatToolErrorLine(textOf(result))), 0, 0);
+      }
       // The finish entry already announced this end of life (or its terminal
       // report is queued to); a second event row is noise.
       if (hasAnnouncedFinish(name) || hasTerminalReport(name)) return { render: () => [], invalidate: () => {} };
-      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
-        "agent",
-        `@${name} shut down`,
-        {},
-      ));
+      // End of life is a one-line static event row — no expansion needed.
+      const title = formatToolLifecycleTitle({ kind: "event", tool: "agent", subject: `@${name} shut down` }).replace(/^\[agent\]\s*/, "");
+      const prefix = theme.fg("customMessageLabel", theme.bold("[agent]"));
+      return new Text(`${prefix} ${title}`, 0, 0);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await shutdownTeammate(params.name);

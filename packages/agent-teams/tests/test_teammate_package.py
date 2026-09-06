@@ -1496,10 +1496,8 @@ def test_teammate_spawn_started_row_fits_narrow_transcript_widths() -> None:
 def test_shutdown_renders_one_collapsible_agent_event_line() -> None:
     tools = source("tools.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
-    assert "Shutting down renders one collapsible agent event line" in feature
-    assert "eventToolLifecycle(" in tools
-    assert "renderLifecycleResult(" in tools
-    assert "expandHint: keyHint(" in source("tool-render.ts")
+    assert "Shutting down renders one static agent event line" in feature
+    assert "formatToolLifecycleTitle({ kind: \"event\", tool: \"agent\", subject: `@${name} shut down` })" in tools
 
 
 def test_shutdown_row_hides_details_behind_the_shared_expand_hint() -> None:
@@ -1523,23 +1521,22 @@ def test_shutdown_row_hides_details_behind_the_shared_expand_hint() -> None:
         console.log(JSON.stringify({{
           collapsed,
           expandedRows,
-          zeroWidthCollapsedIsEmpty: render(false, 0).length === 0,
-          collapsedIsSingleLine: collapsed.length === 3 && collapsed[0].trim() === "" && collapsed[2].trim() === "" && !collapsed[1].includes("\\n"),
-          collapsedNamesAgentEvent: collapsed[1].includes("[agent] @scribe shut down"),
-          collapsedHasSharedHint: collapsed[1].includes(" · ") && collapsed[1].includes("to expand"),
-          expandedKeepsTitle: expandedRows[1].includes("[agent] @scribe shut down") && !expandedRows[1].includes("to expand"),
-          expandedRevealsDetails: expandedRows.some((line) => line.includes("exit code 0"))
-            && expandedRows.some((line) => line.includes("Lifetime usage")),
+          rowBoundedToWidth: render(false, 100).join("").length === 100,
+          collapsedIsSingleLine: collapsed.length === 1 && !collapsed[0].includes("\\n"),
+          collapsedNamesAgentEvent: collapsed[0].includes("[agent] @scribe shut down"),
+          expandedIsIdentical: JSON.stringify(expandedRows) === JSON.stringify(collapsed),
+          noExpandHint: !collapsed[0].includes("to expand"),
+          noDetailsInRow: !collapsed[0].includes("exit code"),
           neverLabeledMonitor: !collapsed.join(" ").includes("[monitor]"),
         }}));
         '''
     )
-    assert payload["zeroWidthCollapsedIsEmpty"] is True
+    assert payload["rowBoundedToWidth"] is True
     assert payload["collapsedIsSingleLine"] is True
     assert payload["collapsedNamesAgentEvent"] is True
-    assert payload["collapsedHasSharedHint"] is True
-    assert payload["expandedKeepsTitle"] is True
-    assert payload["expandedRevealsDetails"] is True
+    assert payload["expandedIsIdentical"] is True
+    assert payload["noExpandHint"] is True
+    assert payload["noDetailsInRow"] is True
     assert payload["neverLabeledMonitor"] is True
 
 
