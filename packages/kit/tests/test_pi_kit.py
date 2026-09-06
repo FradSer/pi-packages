@@ -727,6 +727,81 @@ def test_select_model_menu_no_models_notifies_and_returns_undefined() -> None:
     assert result["notified"] == {"msg": "No models are available in the model registry.", "type": "warning"}
 
 
+def test_search_model_from_picker_filtering_navigation_and_selection() -> None:
+    result = run_typescript(
+        f"""
+        import {{ searchModelFromPicker }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const models = [
+          {{ provider: "openai", id: "gpt-4o", name: "GPT-4o" }},
+          {{ provider: "anthropic", id: "claude-sonnet-3.5", name: "Claude 3.5 Sonnet" }},
+          {{ provider: "anthropic", id: "claude-haiku-3.5", name: "Claude 3.5 Haiku" }},
+        ];
+
+        let customFactory = null;
+        const fakeTheme = {{
+          fg: (_color, text) => text,
+          bold: (text) => text,
+        }};
+        const fakeKb = {{
+          matches: (key, action) => {{
+            if (action === "tui.select.down" && key === "down") return true;
+            if (action === "tui.select.up" && key === "up") return true;
+            if (action === "tui.select.confirm" && key === "enter") return true;
+            if (action === "tui.select.cancel" && key === "escape") return true;
+            return false;
+          }},
+        }};
+
+        const mockUi = {{
+          async custom(factory) {{
+            customFactory = factory;
+            return new Promise((resolve) => {{
+              const component = factory({{}}, fakeTheme, fakeKb, resolve);
+              // Test initial render
+              const initialLines = component.render(80);
+              // Type search query
+              component.handleInput("h");
+              component.handleInput("a");
+              component.handleInput("i");
+              const filteredLines = component.render(80);
+              // Confirm selection
+              component.handleInput("enter");
+            }});
+          }},
+          notify() {{}},
+        }};
+
+        const selected = await searchModelFromPicker(mockUi, models, "openai/gpt-4o", {{ title: "Pick model" }});
+
+        // Test cancellation
+        const cancelUi = {{
+          async custom(factory) {{
+            return new Promise((resolve) => {{
+              const component = factory({{}}, fakeTheme, fakeKb, resolve);
+              component.handleInput("escape");
+            }});
+          }},
+          notify() {{}},
+        }};
+        const cancelled = await searchModelFromPicker(cancelUi, models, undefined);
+
+        // Test empty models
+        let emptyNotified = null;
+        const emptyUi = {{
+          async custom() {{}},
+          notify(msg, type) {{ emptyNotified = {{ msg, type }}; }},
+        }};
+        const emptyResult = await searchModelFromPicker(emptyUi, []);
+
+        console.log(JSON.stringify({{ selected, cancelled, emptyResult, emptyNotified }}, (k, v) => (v === undefined ? null : v)));
+        """
+    )
+    assert result["selected"] == {"provider": "anthropic", "model": "claude-haiku-3.5"}
+    assert result["cancelled"] is None
+    assert result["emptyResult"] is None
+    assert result["emptyNotified"] == {"msg": "No models are available in the model registry.", "type": "warning"}
+
+
 def test_enter_model_from_input_parses_and_validates() -> None:
     result = run_typescript(
         f"""

@@ -189,6 +189,13 @@ Feature: Shared pi-kit runtime helpers
     Then the selection stays within bounds
     And an empty result list has no selection
 
+  Scenario: Model search picker renders interactive TUI with search input and model list
+    Given a list of models and an interactive custom UI context
+    When searchModelFromPicker is displayed
+    Then typing filters models dynamically
+    And confirm selects the highlighted model
+    And cancel dismisses the picker without a selection
+
   Scenario: Pi workers inherit their working directory without an unsupported flag
     Given a worker is launched with cwd set on the child process
     When pi-kit builds the non-interactive Pi command

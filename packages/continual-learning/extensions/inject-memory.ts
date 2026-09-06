@@ -40,6 +40,7 @@ import {
   PI_SPINNER_INTERVAL_MS,
   resolvePiCli,
   selectModelFromMenu,
+  searchModelFromPicker,
   sortModels,
   spawnPiChild,
 } from "@fradser/pi-kit";
@@ -468,9 +469,12 @@ function setDreamingWidget(ctx: ExtensionContext): void {
 }
 
 function availableMemoryModels(ctx: ExtensionContext) {
-  const models = ctx.scopedModels.length > 0
-    ? ctx.scopedModels.map((scoped) => scoped.model)
-    : ctx.modelRegistry.getAvailable();
+  const models =
+    typeof ctx.modelRegistry.getAll === "function"
+      ? ctx.modelRegistry.getAll()
+      : ctx.scopedModels.length > 0
+        ? ctx.scopedModels.map((scoped) => scoped.model)
+        : ctx.modelRegistry.getAvailable();
   return sortModels(models);
 }
 
@@ -489,11 +493,11 @@ function saveMemoryConfig(next: MemoryConfig): void {
 }
 
 async function chooseMemoryModel(ctx: ExtensionContext): Promise<void> {
-  const result = await selectModelFromMenu(
+  const result = await searchModelFromPicker(
     ctx.ui,
     availableMemoryModels(ctx),
     configuredMemoryModel(),
-    "Select a memory model",
+    { title: "Select a memory model" },
   );
   if (!result) return;
   saveMemoryConfig(result);

@@ -1088,6 +1088,191 @@ export interface InputUi {
   notify(msg: string, type?: "error" | "info" | "warning"): void;
 }
 
+/** Interactive picker options for searchModelFromPicker. */
+export interface ModelPickerOptions {
+  title?: string;
+  maxVisible?: number;
+  onSelectAsDefault?: (model: { provider: string; model: string }) => void;
+}
+
+/**
+ * Interactive model search picker component using ctx.ui.custom.
+ * Provides live type-to-filter search across all supplied models,
+ * keyboard navigation, current model indicator, and optional default selection.
+ */
+export async function searchModelFromPicker(
+  ui: {
+    custom<T>(
+      factory: (
+        tui: any,
+        theme: any,
+        keybindings: any,
+        done: (result: T) => void,
+      ) => any,
+      options?: { overlay?: boolean },
+    ): Promise<T>;
+    notify(msg: string, type?: "error" | "info" | "warning"): void;
+  },
+  models: { provider: string; id: string; name?: string }[],
+  currentModel: string | undefined,
+  options?: ModelPickerOptions,
+): Promise<{ provider: string; model: string } | undefined> {
+  if (models.length === 0) {
+    ui.notify("No models are available in the model registry.", "warning");
+    return undefined;
+  }
+
+  const defaultFilter = (
+    items: { provider: string; id: string; name?: string }[],
+    query: string,
+    getText: (item: { provider: string; id: string; name?: string }) => string,
+  ) => {
+    const q = query.toLowerCase();
+    return items.filter((item) => getText(item).toLowerCase().includes(q));
+  };
+
+  return ui.custom<{ provider: string; model: string } | undefined>((_tui, theme, kb, done) => {
+    let filterFn = defaultFilter;
+    try {
+      // Dynamic import / global check if fuzzyFilter is available
+      const tuiMod = (globalThis as any).__PI_TUI_MODULE__;
+      if (tuiMod && typeof tuiMod.fuzzyFilter === "function") {
+        filterFn = (items, q, gt) => tuiMod.fuzzyFilter(items, q, gt);
+      }
+    } catch {
+      // Fall back to defaultFilter
+    }
+
+    const picker = createSearchPicker(models, {
+      filter: filterFn,
+      getText: modelSearchText,
+    });
+
+    const maxVisible = options?.maxVisible ?? 10;
+    const title = options?.title ?? "Select a model";
+
+    const render = (width: number): string[] => {
+      const results = picker.results();
+      const selectedIndex = picker.selectedIndex();
+      const lines: string[] = [];
+
+      // Top border & Title
+      const border = "─".repeat(Math.max(1, width));
+      lines.push(theme.fg("border", border));
+      lines.push(theme.fg("accent", theme.bold(` ${title}`)));
+
+      // Search input line
+      const query = picker.query();
+      const inputPrefix = theme.fg("muted", " Search: ");
+      const inputCursor = theme.fg("accent", "▏");
+      lines.push(`${inputPrefix}${query}${inputCursor}`);
+      lines.push("");
+
+      // Windowing slice
+      const startIndex = Math.max(
+        0,
+        Math.min(selectedIndex - Math.floor(maxVisible / 2), results.length - maxVisible),
+      );
+      const endIndex = Math.min(startIndex + maxVisible, results.length);
+
+      if (results.length === 0) {
+        lines.push(theme.fg("muted", "  No matching models"));
+      } else {
+        for (let i = startIndex; i < endIndex; i++) {
+          const item = results[i];
+          const isSelected = i === selectedIndex;
+          const label = modelLabel(item);
+          const isCurrent = label === currentModel;
+
+          const cursor = isSelected ? theme.fg("accent", "→ ") : "  ";
+          const currentMarker = isCurrent ? theme.fg("accent", "✓ ") : "  ";
+          const modelText = isSelected ? theme.fg("accent", item.id) : item.id;
+          const providerBadge = theme.fg("muted", `[${item.provider}]`);
+          const nameBadge = item.name && item.name !== item.id ? theme.fg("dim", ` · ${item.name}`) : "";
+
+          lines.push(`${cursor}${currentMarker}${modelText} ${providerBadge}${nameBadge}`);
+        }
+      }
+
+      // Scroll info
+      if (results.length > 0 && (startIndex > 0 || endIndex < results.length)) {
+        lines.push(theme.fg("muted", `  (${selectedIndex + 1}/${results.length})`));
+      }
+
+      lines.push("");
+      // Key hints
+      const confirmHint = "Enter to select";
+      const cancelHint = "Esc to cancel";
+      const navHint = "↑/↓ to navigate";
+      lines.push(theme.fg("dim", `  ${navHint} · ${confirmHint} · ${cancelHint}`));
+      lines.push(theme.fg("border", border));
+
+      return lines;
+    };
+
+    const handleInput = (keyData: string): void => {
+      if (kb && typeof kb.matches === "function") {
+        if (kb.matches(keyData, "tui.select.up") || keyData === "\x1b[A" || keyData === "k") {
+          picker.up();
+          return;
+        }
+        if (kb.matches(keyData, "tui.select.down") || keyData === "\x1b[B" || keyData === "j") {
+          picker.down();
+          return;
+        }
+        if (kb.matches(keyData, "tui.select.confirm") || keyData === "\r" || keyData === "\n") {
+          const sel = picker.selected();
+          if (sel) {
+            done({ provider: sel.provider, model: sel.id });
+          }
+          return;
+        }
+        if (kb.matches(keyData, "tui.select.cancel") || keyData === "\x1b" || keyData === "\x03") {
+          done(undefined);
+          return;
+        }
+      } else {
+        // Fallback key handling when kb matcher is not provided
+        if (keyData === "\x1b[A") {
+          picker.up();
+          return;
+        }
+        if (keyData === "\x1b[B") {
+          picker.down();
+          return;
+        }
+        if (keyData === "\r" || keyData === "\n") {
+          const sel = picker.selected();
+          if (sel) {
+            done({ provider: sel.provider, model: sel.id });
+          }
+          return;
+        }
+        if (keyData === "\x1b" || keyData === "\x03") {
+          done(undefined);
+          return;
+        }
+      }
+
+      // Backspace: \x7f (DEL) or \x08 (BS)
+      if (keyData === "\x7f" || keyData === "\x08") {
+        picker.backspace();
+        return;
+      }
+
+      // Printable text (exclude escape sequences)
+      if (keyData.length > 0 && !keyData.startsWith("\x1b") && keyData >= " ") {
+        picker.type(keyData);
+      }
+    };
+
+    return {
+      render,
+      handleInput,
+    };
+  }, { overlay: true });
+}
+
 /**
  * Interactive model selection via ctx.ui.select. Pass the available models
  * (already filtered and sorted by the caller), the current model reference

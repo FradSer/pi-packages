@@ -33,6 +33,7 @@ import {
   parseModelRef,
   PI_SPINNER_FRAMES,
   renderPiWidgetRow,
+  searchModelFromPicker,
   selectModelFromMenu,
   sortModels,
 } from "@fradser/pi-kit";
@@ -58,9 +59,11 @@ function configuredModelLabel(): string {
 
 function availableModels(ctx: ExtensionContext) {
   const currentPiModels =
-    ctx.scopedModels && ctx.scopedModels.length > 0
-      ? ctx.scopedModels.map((scoped) => scoped.model)
-      : ctx.modelRegistry.getAvailable();
+    typeof ctx.modelRegistry.getAll === "function"
+      ? ctx.modelRegistry.getAll()
+      : ctx.scopedModels && ctx.scopedModels.length > 0
+        ? ctx.scopedModels.map((scoped) => scoped.model)
+        : ctx.modelRegistry.getAvailable();
 
   return sortModels([...currentPiModels]);
 }
@@ -316,11 +319,11 @@ export default function (pi: ExtensionAPI) {
   }
 
   async function chooseRecapModel(ctx: ExtensionCommandContext): Promise<void> {
-    const result = await selectModelFromMenu(
+    const result = await searchModelFromPicker(
       ctx.ui,
       availableModels(ctx),
       modelRef(config),
-      "Select a model for recap generation:",
+      { title: "Select a model for recap generation:" },
     );
 
     if (!result) return;

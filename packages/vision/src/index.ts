@@ -15,6 +15,7 @@ import {
   modelRef,
   notifyPi,
   parseModelRef,
+  searchModelFromPicker,
   setPiStatus,
   startPiWorkingIndicator,
   selectModelFromMenu,
@@ -100,9 +101,11 @@ function configuredModelLabel(): string {
 
 function imageModels(ctx: ExtensionContext): Model<Api>[] {
   const currentPiModels =
-    ctx.scopedModels.length > 0
-      ? ctx.scopedModels.map((scoped) => scoped.model)
-      : ctx.modelRegistry.getAvailable();
+    typeof ctx.modelRegistry.getAll === "function"
+      ? ctx.modelRegistry.getAll()
+      : ctx.scopedModels.length > 0
+        ? ctx.scopedModels.map((scoped) => scoped.model)
+        : ctx.modelRegistry.getAvailable();
 
   return sortModels(
     currentPiModels.filter((model) => model.input.includes("image")),
@@ -172,11 +175,11 @@ async function chooseVisionModel(ctx: ExtensionCommandContext): Promise<void> {
     return;
   }
 
-  const result = await selectModelFromMenu(
+  const result = await searchModelFromPicker(
     ctx.ui,
     models,
     modelRef(config),
-    "Select a vision model",
+    { title: "Select a vision model" },
   );
   if (!result) return;
 
