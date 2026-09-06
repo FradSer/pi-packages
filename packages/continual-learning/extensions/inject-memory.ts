@@ -240,9 +240,13 @@ interface ChildJsonEvent {
   result?: unknown;
   isError?: boolean;
   error?: unknown;
+  success?: boolean;
+  finalError?: string;
   message?: {
     role?: string;
     content?: unknown;
+    stopReason?: string;
+    errorMessage?: string;
   };
   assistantMessageEvent?: {
     type?: string;
@@ -373,6 +377,8 @@ export interface ConsolidationEvidence {
   parentReceiptVerified: boolean;
   planCount: number;
   lastJsonError: string;
+  /** Latest planner model execution failure (quota, cooldown, provider error). */
+  plannerModelError?: string;
   finalPlan?: unknown;
 }
 
@@ -406,14 +412,45 @@ function parseFinalPlan(event: ChildJsonEvent): unknown {
 
 export function recordConsolidationEvent(evidence: ConsolidationEvidence, event: ChildJsonEvent): void {
   if (typeof event.error === "string") evidence.lastJsonError = event.error.slice(-2_000);
+  if (event.type === "message_end" && event.message?.role === "assistant") {
+    if (event.message.stopReason === "error") {
+      evidence.plannerModelError = (event.message.errorMessage || "planner model call failed").slice(-2_000);
+    } else if (typeof event.message.stopReason === "string") {
+      evidence.plannerModelError = undefined;
+    }
+  }
+  if (event.type === "auto_retry_end") {
+    if (event.success === false && typeof event.finalError === "string") {
+      evidence.plannerModelError = event.finalError.slice(-2_000);
+    } else if (event.success === true) {
+      evidence.plannerModelError = undefined;
+    }
+  }
   if (event.type === "tool_execution_end" && event.isError) {
     evidence.lastJsonError = evidence.lastJsonError || "child tool execution failed";
   }
   const plan = parseFinalPlan(event);
   if (plan !== undefined) {
+    evidence.plannerModelError = undefined;
     evidence.planCount += 1;
     evidence.finalPlan = plan;
   }
+}
+
+/**
+ * Split plan-phase failures: a planner model execution error (quota, cooldown,
+ * provider outage) is not a rejected plan — a fresh planner inherits the same
+ * failing model, so the parent must label it and skip the retry. Child stderr
+ * output indicates the worker itself misbehaved, which stays retryable.
+ */
+export function classifyPlanPhaseFailure(
+  evidence: ConsolidationEvidence,
+  stderr: string,
+): { kind: "model-error"; detail: string } | { kind: "missing-plan"; detail: string } {
+  const stderrDetail = stderr.trim();
+  if (stderrDetail) return { kind: "missing-plan", detail: stderrDetail };
+  if (evidence.plannerModelError) return { kind: "model-error", detail: evidence.plannerModelError };
+  return { kind: "missing-plan", detail: evidence.lastJsonError };
 }
 
 export function missingConsolidationEvidence(evidence: ConsolidationEvidence): string[] {
@@ -886,6 +923,13 @@ async function spawnAsyncConsolidation(
     state.run = undefined;
     await spawnAsyncConsolidation(ctx, state, { ...opts, attempt: attempt + 1 });
   };
+  const failWithPlannerModelError = (detail: string): void => {
+    state.outcome = "failed";
+    notifyPi(ctx.ui,
+      `Memory dreaming failed: planner model error: ${detail.slice(-300)}; the fresh-planner retry is skipped because it inherits the same failing model`,
+      "error",
+    );
+  };
   const persistRunDiagnostics = async (): Promise<void> => {
     failureRecorded = true;
     try {
@@ -955,7 +999,12 @@ async function spawnAsyncConsolidation(
         if (!plan || evidence.planCount !== 1) {
           await persistRunDiagnostics();
           if (!ownsCurrentRun()) return;
-          const detail = stderr.trim() || evidence.lastJsonError;
+          const failure = classifyPlanPhaseFailure(evidence, stderr);
+          if (failure.kind === "model-error") {
+            failWithPlannerModelError(failure.detail);
+            return;
+          }
+          const detail = failure.detail || evidence.lastJsonError;
           if (attempt === 0) {
             await retryPlanPhase(`missing exactly one schema-valid consolidation plan${detail ? ` (${detail.slice(-300)})` : ""}`);
             return;
@@ -1012,7 +1061,12 @@ async function spawnAsyncConsolidation(
       } else {
         await persistRunDiagnostics();
         if (!ownsCurrentRun()) return;
-        const errReason = stderr.trim() || evidence.lastJsonError || `exit code ${code}`;
+        const failure = classifyPlanPhaseFailure(evidence, stderr);
+        if (failure.kind === "model-error") {
+          failWithPlannerModelError(failure.detail);
+          return;
+        }
+        const errReason = failure.detail || evidence.lastJsonError || `exit code ${code}`;
         if (attempt === 0) {
           await retryPlanPhase(errReason);
           return;

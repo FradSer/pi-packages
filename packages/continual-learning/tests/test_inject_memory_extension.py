@@ -96,6 +96,57 @@ def test_valid_plan_is_parsed_but_not_self_attested_as_complete() -> None:
     assert result == ["completed tool work", "a parent-owned validation receipt"]
 
 
+PLANNER_QUOTA_ERROR = '429: {"type":"usage_limit_reached","message":"The usage limit has been reached","plan_type":"prolite"}'
+PLANNER_COOLDOWN_ERROR = '429: {"code":"model_cooldown","message":"All credentials for model gpt-5.6-luna are cooling down via provider codex"}'
+
+
+def test_planner_model_error_is_classified_as_model_error_not_missing_plan() -> None:
+    result = run_bun(
+        f"""
+        import {{ createConsolidationEvidence, recordConsolidationEvent, classifyPlanPhaseFailure }} from './packages/continual-learning/extensions/inject-memory.ts';
+        const evidence = createConsolidationEvidence();
+        recordConsolidationEvent(evidence, {{ type: 'message_end', message: {{ role: 'assistant', content: [], stopReason: 'error', errorMessage: {json.dumps(PLANNER_QUOTA_ERROR)} }} }});
+        recordConsolidationEvent(evidence, {{ type: 'auto_retry_end', success: false, attempt: 3, finalError: {json.dumps(PLANNER_COOLDOWN_ERROR)} }});
+        console.log(JSON.stringify(classifyPlanPhaseFailure(evidence, '')));
+        """
+    )
+    assert result["kind"] == "model-error"
+    assert "model_cooldown" in result["detail"]
+
+
+def test_successful_model_retry_attempt_clears_the_earlier_planner_error() -> None:
+    result = run_bun(
+        f"""
+        import {{ createConsolidationEvidence, recordConsolidationEvent, classifyPlanPhaseFailure }} from './packages/continual-learning/extensions/inject-memory.ts';
+        const evidence = createConsolidationEvidence();
+        recordConsolidationEvent(evidence, {{ type: 'message_end', message: {{ role: 'assistant', content: [], stopReason: 'error', errorMessage: {json.dumps(PLANNER_QUOTA_ERROR)} }} }});
+        recordConsolidationEvent(evidence, {{ type: 'message_end', message: {{ role: 'assistant', content: 'prose without a plan', stopReason: 'stop' }} }});
+        console.log(JSON.stringify(classifyPlanPhaseFailure(evidence, '')));
+        """
+    )
+    assert result["kind"] == "missing-plan"
+
+
+def test_plan_failure_with_child_stderr_stays_missing_plan_even_with_model_error() -> None:
+    result = run_bun(
+        f"""
+        import {{ createConsolidationEvidence, recordConsolidationEvent, classifyPlanPhaseFailure }} from './packages/continual-learning/extensions/inject-memory.ts';
+        const evidence = createConsolidationEvidence();
+        recordConsolidationEvent(evidence, {{ type: 'message_end', message: {{ role: 'assistant', content: [], stopReason: 'error', errorMessage: {json.dumps(PLANNER_QUOTA_ERROR)} }} }});
+        console.log(JSON.stringify(classifyPlanPhaseFailure(evidence, 'child crashed')));
+        """
+    )
+    assert result["kind"] == "missing-plan"
+    assert result["detail"] == "child crashed"
+
+
+def test_model_error_plan_phase_fails_labeled_without_a_fresh_planner_retry() -> None:
+    content = source()
+    assert 'failure.kind === "model-error"' in content
+    assert "planner model error" in content
+    assert content.count("classifyPlanPhaseFailure(evidence, stderr)") == 2
+
+
 def test_bounded_jsonl_parser_ignores_terminal_newline() -> None:
     result = run_bun(
         """

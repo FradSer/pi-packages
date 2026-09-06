@@ -176,11 +176,21 @@ Feature: Memory management with auto-memory guidance and manual consolidation
   Scenario: Pre-mutation plan failures retry once with a fresh planner
     Given a consolidation child produced no schema-valid plan or its plan was rejected by validation
     And no memory mutation has been applied yet
+    And the failure was not caused by a planner model execution error
     When the parent handles the failure on the first attempt
     Then it releases the failed run while keeping its diagnostics
     And it spawns exactly one replacement planner against the same run inputs
     And every attempt passes the same validation gates before any mutation
     And a failure after memory mutation is never retried
+
+  Scenario: Planner model execution failures are labeled as model errors
+    Given a consolidation child exits with every planner model call ending in stopReason error
+    And the child produced no stderr output and no structured consolidation plan
+    When the parent classifies the plan phase failure
+    Then on both zero and non-zero exit codes it labels the failure as a planner model error carrying the captured provider error, truncated only for the notification budget
+    And it does not spend the fresh-planner retry because the replacement inherits the same failing model
+    But a plan-phase failure with child stderr output stays classified as missing-plan and keeps the retry
+    And a successful model retry attempt clears the earlier execution error so a later structured plan still passes
 
   Scenario: Readable private root normalizes path whitespace
     Given the canonical project path contains a directory named Home Lab
