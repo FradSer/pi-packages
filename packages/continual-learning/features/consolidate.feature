@@ -187,10 +187,31 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     Given a consolidation child exits with every planner model call ending in stopReason error
     And the child produced no stderr output and no structured consolidation plan
     When the parent classifies the plan phase failure
-    Then on both zero and non-zero exit codes it labels the failure as a planner model error carrying the captured provider error, truncated only for the notification budget
+    Then on both zero and non-zero exit codes it labels the failure as a planner model error carrying the captured provider error, truncated from the head only for the notification budget
+    And validator rejection reasons are emitted once per category without duplicated prefixes
     And it does not spend the fresh-planner retry because the replacement inherits the same failing model
     But a plan-phase failure with child stderr output stays classified as missing-plan and keeps the retry
     And a successful model retry attempt clears the earlier execution error so a later structured plan still passes
+
+  Scenario: Dreaming timeout is labeled as the budget it exceeded
+    Given the consolidation child outlives the dreaming budget and is terminated by the parent timer
+    When the parent reports the non-zero completion
+    Then it names the exceeded dreaming budget instead of a raw exit code like 143
+    And the timeout is not classified as a planner model error
+
+  Scenario: Fresh planner retry receives the rejection feedback
+    Given the first attempt failed with a validator rejection or a missing-plan classification
+    And no memory mutation has been applied yet
+    When the parent spawns the fresh planner re-running the same immutable-input capture pipeline
+    Then the task header additionally carries the previous rejection reason and instructs the planner to resolve every cited issue
+    And only that feedback line may differ in the task text; validation gates and receipt requirements stay identical across attempts
+    And each attempt captures its own fresh snapshot under its own run identity
+
+  Scenario: Grounding observations cite files not directories
+    Given the consolidation procedure instructs repository grounding
+    When the planner cites a found or updated observation
+    Then the cited path must resolve to an existing file under the repository root
+    And the procedure states skill directories must be cited through a concrete file such as the skill's SKILL.md
 
   Scenario: Readable private root normalizes path whitespace
     Given the canonical project path contains a directory named Home Lab

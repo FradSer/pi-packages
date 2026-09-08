@@ -103,8 +103,11 @@ Grounding is per memory, not one aggregate claim. For every `project_*` item,
 provide repository-relative observations with `found`, `missing`, or `updated`
 status, or explicitly use `N/A (no repo)` / `UNVERIFIABLE` with a reason. Every
 observation path must remain below `repoRoot`; never emit an absolute path or a
-path containing `..`. Feedback and reference items still require a grounding
-record; use an explicit non-repository status when no repository claim exists.
+path containing `..`. A `found` or `updated` observation path must be an
+existing file — directories fail validation, so cite a skill directory through
+a concrete file inside it such as the skill's `SKILL.md`. Feedback and
+reference items still require a grounding record; use an explicit
+non-repository status when no repository claim exists.
 
 The plan describes intended work only. It is not evidence that the parent has
 applied anything, and it must not contain success markers, gate prose, or a

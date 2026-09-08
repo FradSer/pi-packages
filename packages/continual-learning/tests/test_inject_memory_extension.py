@@ -10,6 +10,14 @@ MEMORY_PKG_DIR = Path(__file__).resolve().parents[1]
 REPO = MEMORY_PKG_DIR.parents[1]
 
 
+def initialize_git_repo(repo: Path) -> None:
+    import subprocess
+
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+
+
 def run_bun(source: str) -> dict[str, object] | list[object]:
     result = subprocess.run(
         ["bun", "-e", source],
@@ -69,6 +77,8 @@ def test_procedure_is_read_only_and_structured() -> None:
     assert "exactly one JSON object" in content
     assert "validate-consolidate.py" in content
     assert "G1–G8" not in content
+    assert "existing file" in content
+    assert "SKILL.md" in content
 
 
 def test_forged_validator_text_does_not_prove_a_plan() -> None:
@@ -145,6 +155,79 @@ def test_model_error_plan_phase_fails_labeled_without_a_fresh_planner_retry() ->
     assert 'failure.kind === "model-error"' in content
     assert "planner model error" in content
     assert content.count("classifyPlanPhaseFailure(evidence, stderr)") == 2
+
+
+def test_validator_error_entry_does_not_duplicate_its_category_prefix() -> None:
+    result = run_bun(
+        """
+        import { formatValidatorErrorEntry } from './packages/continual-learning/extensions/inject-memory.ts';
+        console.log(JSON.stringify([
+          formatValidatorErrorEntry({ code: 'grounding', message: 'grounding: douyin.md observation path missing' }),
+          formatValidatorErrorEntry({ code: 'privacy', message: 'raw leaked token' }),
+        ]));
+        """
+    )
+    assert result[0] == "grounding: douyin.md observation path missing"
+    assert result[1] == "privacy: raw leaked token"
+
+
+def test_planner_failure_reason_prefers_timeout_and_keeps_stderr_detail() -> None:
+    result = run_bun(
+        """
+        import { plannerFailureReason } from './packages/continual-learning/extensions/inject-memory.ts';
+        console.log(JSON.stringify([
+          plannerFailureReason({ timedOut: true, stderrDetail: "boom", lastJsonError: "", exitCode: 143 }),
+          plannerFailureReason({ timedOut: true, stderrDetail: "", lastJsonError: "", exitCode: 143 }),
+          plannerFailureReason({ timedOut: false, stderrDetail: "boom", lastJsonError: "j", exitCode: 1 }),
+          plannerFailureReason({ timedOut: false, stderrDetail: "", lastJsonError: "j", exitCode: 1 }),
+          plannerFailureReason({ timedOut: false, stderrDetail: "", lastJsonError: "", exitCode: 7 }),
+        ]));
+        """
+    )
+    assert result[0].startswith("planner exceeded the dreaming budget (30 minutes)")
+    assert "(stderr: boom)" in result[0]
+    assert "stderr" not in result[1]
+    assert result[2] == "boom" and result[3] == "j" and result[4] == "exit code 7"
+
+
+def test_model_error_guard_requires_no_timeout_on_both_exit_paths() -> None:
+    content = source()
+    assert content.count('failure.kind === "model-error" && !timedOut') == 2
+
+
+def test_rejection_reason_is_head_clipped_at_a_word_agnostic_budget() -> None:
+    result = run_bun(
+        """
+        import { clipRejectionReason } from './packages/continual-learning/extensions/inject-memory.ts';
+        const long = "Consolidation validator rejected the plan: " + "g".repeat(400);
+        console.log(JSON.stringify([clipRejectionReason("short reason"), clipRejectionReason(long)]));
+        """
+    )
+    assert result[0] == "short reason"
+    assert result[1].startswith("Consolidation validator rejected the plan:")
+    assert result[1].endswith("…") and len(result[1]) == 241
+
+
+def test_task_feedback_lines_only_exist_with_rejection_feedback() -> None:
+    result = run_bun(
+        """
+        import { buildTaskFeedbackLines } from './packages/continual-learning/extensions/inject-memory.ts';
+        const absent = buildTaskFeedbackLines(undefined);
+        const present = buildTaskFeedbackLines("grounding: douyin.md observation path does not exist as a file");
+        console.log(JSON.stringify([absent, present]));
+        """
+    )
+    assert result[0] == []
+    assert len(result[1]) == 1
+    assert result[1][0].startswith("- Previous planning attempt was rejected: ")
+    assert "resolves every cited issue" in result[1][0]
+
+
+def test_retry_spawns_carry_rejection_feedback_into_task_text() -> None:
+    content = source()
+    assert "...buildTaskFeedbackLines(opts.rejectionFeedback)" in content
+    assert "rejectionFeedback: reason" in content
+    assert "reason.slice(-160)" not in content
 
 
 def test_bounded_jsonl_parser_ignores_terminal_newline() -> None:
@@ -682,3 +765,71 @@ def test_identical_duplicate_plan_records_collapse_conflicting_do_not() -> None:
         {"name": "b.md", "verdict": "KEEP"},
         {"name": "b.md", "verdict": "SUPERSEDED"},
     ]
+
+
+def _memory_repo(tmp: Path) -> tuple[Path, Path]:
+    repo = tmp / "repo"
+    agent = tmp / "agent"
+    (repo / ".memory").mkdir(parents=True)
+    initialize_git_repo(repo)
+    (repo / ".memory" / "git-agent-commits.md").write_text(
+        "---\nname: git-agent-commits\ndescription: How to commit via git-agent\ntype: decision\n---\n\nLong body that must not be injected.\n",
+        encoding="utf-8",
+    )
+    (repo / ".memory" / "no-description.md").write_text(
+        "---\nname: no-description\n---\n\nBody only, no frontmatter description.\n",
+        encoding="utf-8",
+    )
+    return repo, agent
+
+
+def _format_block(repo: Path, agent: Path, options: str = "") -> dict[str, object]:
+    result = subprocess.run(
+        [
+            "bun", "-e",
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            const {{ loadAndDeduplicateMemories, formatMemoriesBlock }} = await import('./packages/continual-learning/extensions/memory-files.ts');
+            const memories = await loadAndDeduplicateMemories({json.dumps(str(repo))});
+            console.log(JSON.stringify({{ block: formatMemoriesBlock(memories{options}) }}));
+            """,
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout.strip().splitlines()[-1])
+
+
+def test_memory_block_is_an_index_without_entry_bodies() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo, agent = _memory_repo(Path(tmp))
+        block = _format_block(repo, agent)["block"]
+        assert "- git-agent-commits.md (public) — How to commit via git-agent" in block
+        assert "must not be injected" not in block
+        assert "Body only" not in block
+        assert "read" in block.lower()
+
+
+def test_memory_block_without_description_still_indexed() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo, agent = _memory_repo(Path(tmp))
+        block = _format_block(repo, agent)["block"]
+        assert "- no-description.md (public)" in block
+
+
+def test_memory_index_is_bounded_at_entry_boundaries() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo, agent = _memory_repo(Path(tmp))
+        (repo / ".memory" / "huge.md").write_text(
+            "---\nname: huge\ndescription: " + ("x" * 400) + "\n---\n\nbody\n",
+            encoding="utf-8",
+        )
+        block = _format_block(repo, agent, ", 400")["block"]
+        assert "git-agent-commits.md" in block
+        assert "huge.md" not in block
+        assert "no-description.md" not in block
+        lines = [line for line in block.splitlines() if line.startswith("- ")]
+        assert all(len(line) <= 500 for line in lines)

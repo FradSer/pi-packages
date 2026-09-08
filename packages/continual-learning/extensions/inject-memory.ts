@@ -453,6 +453,28 @@ export function classifyPlanPhaseFailure(
   return { kind: "missing-plan", detail: evidence.lastJsonError };
 }
 
+/** Non-zero completion reason: a parent-timer termination is its own budget failure. */
+export function plannerFailureReason(
+  args: { timedOut: boolean; stderrDetail: string; lastJsonError: string; exitCode: number | null },
+): string {
+  if (args.timedOut) {
+    const budget = `planner exceeded the dreaming budget (${Math.round(DREAM_TIMEOUT_MS / 60_000)} minutes) and was terminated`;
+    return args.stderrDetail ? `${budget} (stderr: ${args.stderrDetail.slice(0, 200)})` : budget;
+  }
+  return args.stderrDetail || args.lastJsonError || `exit code ${args.exitCode}`;
+}
+
+/** Keep the causal head of a rejection reason; truncate for the notification budget. */
+export function clipRejectionReason(reason: string, budget = 240): string {
+  return reason.length <= budget ? reason : `${reason.slice(0, budget)}…`;
+}
+
+/** Feedback lines injected into the fresh planner's task header on retry attempts. */
+export function buildTaskFeedbackLines(rejectionFeedback?: string): string[] {
+  if (!rejectionFeedback) return [];
+  return [`- Previous planning attempt was rejected: ${rejectionFeedback.slice(0, 800)} — produce a corrected plan that resolves every cited issue.`];
+}
+
 export function missingConsolidationEvidence(evidence: ConsolidationEvidence): string[] {
   const missing: string[] = [];
   if (!evidence.completedToolWork) missing.push("completed tool work");
@@ -572,6 +594,13 @@ function clearDreamingWidget(ctx: ExtensionContext): void {
 
 const execFileAsync = promisify(execFile);
 
+/** Python validator errors already embed their category in the message; keep one prefix. */
+export function formatValidatorErrorEntry(e: { code?: string; message?: string }): string {
+  const code = e.code ?? "error";
+  const message = e.message ?? JSON.stringify(e);
+  return message.startsWith(`${code}: `) ? message : `${code}: ${message}`;
+}
+
 async function runConsolidationValidator(
   pkgDir: string,
   run: ConsolidationRun,
@@ -617,7 +646,7 @@ async function runConsolidationValidator(
   }
   if (parsed.ok !== true) {
     const errs = Array.isArray((parsed as { errors?: unknown }).errors)
-      ? (parsed.errors as Array<{ code?: string; message?: string }>).map((e) => `${e.code ?? "error"}: ${e.message ?? JSON.stringify(e)}`).join("; ")
+      ? (parsed.errors as Array<{ code?: string; message?: string }>).map(formatValidatorErrorEntry).join("; ")
       : rawStdout.trim().slice(0, 1200);
     throw new Error(`Consolidation validator rejected the plan: ${errs}`);
   }
@@ -650,7 +679,7 @@ async function runConsolidationValidator(
 async function spawnAsyncConsolidation(
   ctx: ExtensionContext,
   state: DreamState,
-  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; attempt?: number },
+  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; attempt?: number; rejectionFeedback?: string },
 ): Promise<boolean> {
   const attempt = opts.attempt ?? 0;
   if (state.active && attempt === 0) {
@@ -722,6 +751,7 @@ async function spawnAsyncConsolidation(
   const taskText = [
     `Task: produce a read-only structured consolidation plan for the project at ${opts.cwd}.`,
     `- Reason: ${opts.reason}`,
+    ...buildTaskFeedbackLines(opts.rejectionFeedback),
     `- Run ID: ${run.manifest.runId}`,
     `- Scope key: ${run.manifest.scopeKey}`,
     `- Scope digest: ${run.manifest.scopeDigest}`,
@@ -898,6 +928,7 @@ async function spawnAsyncConsolidation(
   });
 
   const timer = setTimeout(() => {
+    timedOut = true;
     void terminateConsolidationChild(child, 5_000);
   }, DREAM_TIMEOUT_MS);
   timer.unref?.();
@@ -908,6 +939,7 @@ async function spawnAsyncConsolidation(
   let finished = false;
   let failureRecorded = false;
   let mutatedMemory = false;
+  let timedOut = false;
   /**
    * One parent-owned retry for failures before any memory mutation: a fresh
    * child re-plans from the same immutable run inputs. Every retry attempt is
@@ -915,18 +947,18 @@ async function spawnAsyncConsolidation(
    */
   const retryPlanPhase = async (reason: string): Promise<void> => {
     if (attempt > 0) {
-      notifyPi(ctx.ui, `Memory dreaming failed: ${reason.slice(-300)}`, "error");
+      notifyPi(ctx.ui, `Memory dreaming failed: ${clipRejectionReason(reason)}`, "error");
       return;
     }
-    notifyPi(ctx.ui, `Memory consolidation plan was rejected (${reason.slice(-160)}); retrying once with a fresh planner…`, "info");
+    notifyPi(ctx.ui, `Memory consolidation plan was rejected (${clipRejectionReason(reason)}); retrying once with a fresh planner…`, "info");
     await releaseConsolidationRun(run, { keepArtifacts: true });
     state.run = undefined;
-    await spawnAsyncConsolidation(ctx, state, { ...opts, attempt: attempt + 1 });
+    await spawnAsyncConsolidation(ctx, state, { ...opts, attempt: attempt + 1, rejectionFeedback: reason });
   };
   const failWithPlannerModelError = (detail: string): void => {
     state.outcome = "failed";
     notifyPi(ctx.ui,
-      `Memory dreaming failed: planner model error: ${detail.slice(-300)}; the fresh-planner retry is skipped because it inherits the same failing model`,
+      `Memory dreaming failed: planner model error: ${clipRejectionReason(detail)}; the fresh-planner retry is skipped because it inherits the same failing model`,
       "error",
     );
   };
@@ -1000,17 +1032,17 @@ async function spawnAsyncConsolidation(
           await persistRunDiagnostics();
           if (!ownsCurrentRun()) return;
           const failure = classifyPlanPhaseFailure(evidence, stderr);
-          if (failure.kind === "model-error") {
+          if (failure.kind === "model-error" && !timedOut) {
             failWithPlannerModelError(failure.detail);
             return;
           }
           const detail = failure.detail || evidence.lastJsonError;
           if (attempt === 0) {
-            await retryPlanPhase(`missing exactly one schema-valid consolidation plan${detail ? ` (${detail.slice(-300)})` : ""}`);
+            await retryPlanPhase(`missing exactly one schema-valid consolidation plan${detail ? ` (${clipRejectionReason(detail, 300)})` : ""}`);
             return;
           }
           notifyPi(ctx.ui,
-            `Memory dreaming finished without verified consolidation: missing exactly one schema-valid consolidation plan${detail ? ` (${detail.slice(-300)})` : ""}`,
+            `Memory dreaming finished without verified consolidation: missing exactly one schema-valid consolidation plan${detail ? ` (${clipRejectionReason(detail, 300)})` : ""}`,
             "warning",
           );
           state.outcome = "unverified";
@@ -1062,17 +1094,22 @@ async function spawnAsyncConsolidation(
         await persistRunDiagnostics();
         if (!ownsCurrentRun()) return;
         const failure = classifyPlanPhaseFailure(evidence, stderr);
-        if (failure.kind === "model-error") {
+        if (failure.kind === "model-error" && !timedOut) {
           failWithPlannerModelError(failure.detail);
           return;
         }
-        const errReason = failure.detail || evidence.lastJsonError || `exit code ${code}`;
+        const errReason = plannerFailureReason({
+          timedOut,
+          stderrDetail: stderr.trim(),
+          lastJsonError: evidence.lastJsonError,
+          exitCode: code,
+        });
         if (attempt === 0) {
           await retryPlanPhase(errReason);
           return;
         }
         state.outcome = "failed";
-        notifyPi(ctx.ui, `Memory dreaming failed: ${errReason.slice(-300)}`, "error");
+        notifyPi(ctx.ui, `Memory dreaming failed: ${clipRejectionReason(errReason)}`, "error");
       }
     } catch (finishError: unknown) {
       if (ownsCurrentRun()) {
@@ -1116,7 +1153,7 @@ async function spawnAsyncConsolidation(
 async function startConsolidationPipeline(
   ctx: ExtensionContext,
   state: DreamState,
-  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string },
+  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; availableSkills: readonly string[] },
 ): Promise<void> {
   const started = await spawnAsyncConsolidation(ctx, state, opts);
   if (!started) return; // racing invocation: never wait on or unlock another run's phases
@@ -1137,6 +1174,7 @@ async function startConsolidationPipeline(
       pkgDir: opts.pkgDir,
       cwd: opts.cwd,
       reason: opts.reason,
+      availableSkills: opts.availableSkills,
     });
     if (state.cancelled) return;
     const settings = await readSettings(opts.cwd);
@@ -1144,6 +1182,7 @@ async function startConsolidationPipeline(
       pkgDir: opts.pkgDir,
       cwd: opts.cwd,
       reason: opts.reason,
+      availableSkills: opts.availableSkills,
       budgetBytes: settings.agentsMd?.budgetBytes ?? DEFAULT_AGENTS_MD_BUDGET_BYTES,
       disabled: settings.agentsMd?.disabled === true,
     });
@@ -1287,6 +1326,7 @@ export default function (pi: ExtensionAPI) {
           pkgDir,
           cwd,
           noContext: false,
+          availableSkills: pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')),
           reason: "Consolidate the project memory now (user-invoked via /memory menu).",
         });
       } else if (choice.startsWith("Edit user instructions")) {
@@ -1344,6 +1384,7 @@ export default function (pi: ExtensionAPI) {
         pkgDir,
         cwd,
         noContext: args === "no-context",
+        availableSkills: pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')),
         reason: "Consolidate the project memory and harness now (user-invoked via /consolidate command).",
       });
     },
