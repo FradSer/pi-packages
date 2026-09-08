@@ -184,7 +184,8 @@
    "source": "skill/scripts/live-server.mjs",
    "sha256": "0e2def4cdea1f59d70403f9606723b0391018e31a522f6b639135c8d1b320b7f",
    "destination": "scripts/live-server.mjs",
-   "disposition": "retained"
+   "disposition": "adapted",
+   "reason": "Pi-adapted live server: persistent token support and streamlined boot."
   },
   {
    "source": "skill/scripts/live-wrap.mjs",
@@ -202,7 +203,8 @@
    "source": "skill/scripts/live-inject.mjs",
    "sha256": "bb3a120472b757e96dbc2f5e24b37f39f31dee3c54d785c571baf686cf71096d",
    "destination": "scripts/live-inject.mjs",
-   "disposition": "retained"
+   "disposition": "adapted",
+   "reason": "Pi-adapted ignore patterns: ignore persisted token file."
   },
   {
    "source": "skill/scripts/live-target.mjs",

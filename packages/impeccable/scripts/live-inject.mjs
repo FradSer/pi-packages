@@ -1,3 +1,4 @@
+// Modified for @fradser/pi-impeccable: ignore patterns updated for persisted tokens.
 /**
  * CLI helper: insert/remove the live variant mode script tag in the project's
  * main HTML entry point.

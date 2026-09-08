@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Modified for @fradser/pi-impeccable: persistent live session tokens and streamlined boot.
 /**
  * Live variant mode server (self-contained, zero dependencies).
  *
