@@ -104,12 +104,15 @@ def test_superseding_claimed_work_keeps_holder_locked_until_cancellation_acknowl
         registerTeammate({{ name: "worker", agent: "executor", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const old = createTask({{ subject: "obsolete" }}).task;
         applyClaimIntent({{ taskId: old.id, worker: "worker", spawnId: "s1", timestamp: 1 }});
+        const holdingId = getTeammate("worker").assignment.id;
         const replacement = createTask({{ subject: "replacement", supersedes: [old.id] }});
         const cancellation = applySubmissionIntent({{ taskId: old.id, worker: "worker", spawnId: "s1", status: "failed", result: "stopped", timestamp: 2 }});
         console.log(JSON.stringify({{
           oldStatus: getTask(old.id)?.status,
           supersededBy: getTask(old.id)?.supersededBy,
           holderAssignment: getTeammate("worker")?.lastAssignment ?? null,
+          holdingId,
+          lastTaskId: getTeammate("worker")?.lastTaskId,
           assignmentAfterAck: getTeammate("worker")?.assignment ?? null,
           completeObsolete: completeTask(old.id, "late") ?? null,
           cancellation,
@@ -119,7 +122,9 @@ def test_superseding_claimed_work_keeps_holder_locked_until_cancellation_acknowl
     )
     assert payload["oldStatus"] == "superseded"
     assert payload["supersededBy"] == payload["replacementId"]
-    assert payload["holderAssignment"] == {"id": "obsolete", "kind": "board", "resources": []}
+    assert payload["holdingId"].startswith("board:")
+    assert payload["holderAssignment"] == {"id": payload["holdingId"], "kind": "board", "resources": []}
+    assert payload["lastTaskId"] == "obsolete"
     assert payload["assignmentAfterAck"] is None
     assert payload["completeObsolete"] is None
     assert payload["cancellation"] == {"ok": True}

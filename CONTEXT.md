@@ -73,6 +73,14 @@ _Avoid_: Shared control, automatic access, transcript view
 An isolated context in which one Agent performs one Assignment Attempt. An Agent may hold several concurrent Work Sessions, but their prompts, process state, tools, and uncommitted memory remain isolated.
 _Avoid_: Agent identity, shared chat, task thread
 
+**Fresh Work Session**:
+A new Work Session that receives its own assignment without inheriting the Leader's conversation history. Agent instructions and authorized capabilities are separate from that history.
+_Avoid_: New Agent identity, new process only
+
+**Forked Work Session**:
+A new Work Session that inherits a snapshot of the Leader's active conversation context before pursuing its own assignment. It neither continues the Leader's session nor transfers the Leader's execution authority.
+_Avoid_: Handoff summary, shared mutable conversation, workspace copy
+
 **Process Incarnation**:
 One temporary process executing a Work Session. A Process Incarnation may stop and later be replaced without ending the Agent, Work Session, or responsibility.
 _Avoid_: Agent, Work Session, identity, permanent worker

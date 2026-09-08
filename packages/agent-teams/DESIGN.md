@@ -2,7 +2,7 @@
 
 ## Status
 
-Product direction agreed; the coordination protocol is not yet implementation-ready. [DESIGN-REVIEW.md](./DESIGN-REVIEW.md) records unresolved contracts and proposed simplifications without changing the agreed product requirements. No implementation has started.
+The compact delegation slice is implemented and specified in @SPEC-work-sessions.md: independent concurrent Work Sessions, explicit fresh/fork context selection, precise work routing, and automatic direct-work results. The broader cross-project identity, learning, and coordination design below remains a target, not an implemented guarantee. [DESIGN-REVIEW.md](./DESIGN-REVIEW.md) records its unresolved contracts.
 
 ## Product model
 
@@ -21,13 +21,15 @@ Agent Teams is organized around cross-project persistent Agents, not leader-sess
 The coordinating role uses a compact delegation interface. This is not its only tool: Leaders and Workers both use the shared communication interface below.
 
 ```ts
-agent({ name, prompt?, work? })
+agent({ name, prompt?, work?, model?, fork? })
 ```
 
 - `name` resolves a persisted or Temporary Agent.
 - `prompt` without `work` creates a new Work Item and isolated Work Session.
 - `prompt` with `work` directs guidance to the specified work's current Work Session. Delivery uses the shared communication protocol rather than a separate leader-only transport.
-- no `prompt` checks the Agent's persistent inbox and queued Work Items. A Work Session starts only when actionable work exists; otherwise the result synchronously reports `idle`.
+- no `prompt` inspects actual Work Sessions without starting execution. Persistent-inbox scheduling is not part of this inspection operation.
+- `fork` defaults to false. With a new prompt and no `work`, true copies the Leader's active context into an independent session; it never continues or mutates the Leader's session. Model overrides apply only at creation.
+- ordinary final answers for direct work are reported automatically on settled execution; completed output, verification, and process shutdown remain distinct.
 - every result includes Agent Presence: an Agent summary plus one compact row per active Work Session. The row identifies its state, Work Item, current action or waiting reason, and next actor.
 
 The interface does not expose Agent creation, promotion, memory, capability grants, Work Session creation, task claiming, verification, routines, preview, takeover, or shutdown as permanent tool parameters. Those concerns stay behind the Agent module or in the Team Console.

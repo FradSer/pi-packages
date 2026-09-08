@@ -100,7 +100,7 @@ export function ensureTeamWidget(ctx?: { ui?: ExtensionUIContext; mode?: string 
             runningTeammateActivity(teammate) + stallSuffix(teammate),
             Math.max(1, width - 1),
             (activity) => theme.bold(style.fg("accent", activity)),
-          ), width, truncateToWidth));
+          ), width, truncateToWidth, 0));
         }
         return lines;
       },

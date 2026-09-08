@@ -79,15 +79,15 @@ export function appendInboxMessage(file: string, message: { id: string; from: st
 }
 
 /** Publish the worker-readable roster of living teammates. */
-export function writeRoster(file: string, teammates: Array<{ name: string; agent: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }>): void {
+export function writeRoster(file: string, teammates: Array<{ name: string; agent: string; spawnId?: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }>): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   writeJsonAtomic(file, { teammates });
 }
 
 /** Read the roster from inside a teammate process; unknown roster = empty. */
-export function readRoster(file: string): Array<{ name: string; agent: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }> {
+export function readRoster(file: string): Array<{ name: string; agent: string; spawnId?: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }> {
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as { teammates?: Array<{ name: string; agent: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }> };
+    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as { teammates?: Array<{ name: string; agent: string; spawnId?: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }> };
     return Array.isArray(parsed.teammates) ? parsed.teammates : [];
   } catch {
     return [];
@@ -95,7 +95,7 @@ export function readRoster(file: string): Array<{ name: string; agent: string; s
 }
 
 /** Read complete JSONL records after byteOffset (shared by outboxes and inboxes). */
-export function readJsonlBatch(file: string, byteOffset: number): {
+export function readJsonlBatch(file: string, byteOffset: number, endOffset = Number.POSITIVE_INFINITY): {
   records: unknown[];
   nextOffset: number;
   diagnostics: string[];
@@ -106,7 +106,7 @@ export function readJsonlBatch(file: string, byteOffset: number): {
     const size = fs.fstatSync(fd).size;
     // A truncated/recreated file starts at zero; message ids make replay safe.
     const offset = byteOffset > size ? 0 : Math.max(0, byteOffset);
-    const toRead = Math.min(MAX_OUTBOX_READ_BYTES, size - offset);
+    const toRead = Math.max(0, Math.min(MAX_OUTBOX_READ_BYTES, Math.min(size, endOffset) - offset));
     if (toRead === 0) return { records: [], nextOffset: offset, diagnostics: [] };
     const raw = Buffer.allocUnsafe(toRead);
     const bytesRead = fs.readSync(fd, raw, 0, toRead, offset);

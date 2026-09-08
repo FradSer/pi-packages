@@ -47,7 +47,7 @@ export interface TeammateRowWidths {
 /** Reserve enough width for the live activity before truncating the identity. */
 export function teammateRowWidths(spinner: string, agent: string, width: number): TeammateRowWidths {
   const lineWidth = Math.max(10, width - 1);
-  const fixedWidth = visibleWidth(` ${spinner}  · `);
+  const fixedWidth = visibleWidth(`${spinner}  · `);
   const availableWidth = Math.max(2, lineWidth - fixedWidth);
   const nameWidth = Math.max(1, Math.min(visibleWidth(agent), Math.floor(availableWidth * 0.4)));
   return {
@@ -69,7 +69,7 @@ export function fitTeammateRow(
   const sizes = teammateRowWidths(spinner, agent, width);
   const nameText = truncateToWidth(agent, sizes.nameWidth);
   const activityText = formatActivity(truncateToWidth(renderActivityMarkdown(activity, markdownTheme), sizes.activityWidth));
-  const line = ` ${spinner} ${nameText} · ${activityText}`;
+  const line = `${spinner} ${nameText} · ${activityText}`;
   return truncateToWidth(line, sizes.lineWidth);
 }
 

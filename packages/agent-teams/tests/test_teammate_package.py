@@ -384,9 +384,9 @@ def test_direct_kickoff_executes_without_checking_task_list() -> None:
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "Direct kickoff tasks execute immediately without querying the task board" in feature
     guidance = source("guidance.ts")
-    assert "When you have an assigned task" in guidance
+    assert "A direct assignment from a kickoff prompt" in guidance
     assert "without calling task_list" in guidance
-    assert "terminal report is the sole completion signal" in guidance
+    assert "runtime delivers ordinary final answers automatically" in guidance
     assert "Continue independent work while teammates run" in guidance
 
     payload = run_node(
@@ -913,6 +913,8 @@ def test_leader_model_and_thinking_switch_apply_to_later_spawns() -> None:
         const afterThinking = currentLeaderThinkingLevel();
         const restore = process.env.PI_REASONING_LEVEL;
         process.env.PI_REASONING_LEVEL = "medium";
+        process.env.PI_PROVIDER = "test-provider";
+        process.env.PI_MODEL = "test-model";
         syncLeaderContext({{}});
         const envFallbackThinking = currentLeaderThinkingLevel();
         const envFallbackModel = currentLeaderModelRef();
@@ -926,8 +928,7 @@ def test_leader_model_and_thinking_switch_apply_to_later_spawns() -> None:
     assert payload["afterModel"] == "cli-proxy/omen-alpha"
     assert payload["afterThinking"] == "high"
     assert payload["envFallbackThinking"] == "medium"
-    # With no leader model ref, the env fallback still answers (PI_MODEL is set in this repo's env).
-    assert isinstance(payload["envFallbackModel"], str) and "/" in payload["envFallbackModel"]
+    assert payload["envFallbackModel"] == "test-provider/test-model"
 
 
 def test_spawner_forwards_thinking_flag() -> None:
@@ -1186,7 +1187,7 @@ def test_teammate_completion_guidance_yields_to_automatic_delivery() -> None:
     assert "If none remains, end the turn" in guidance
     assert "resume the session automatically" in guidance
     assert "Do not extend the turn with sleep, polling, task_list, status requests" in guidance
-    assert "A terminal report is the sole completion signal" in guidance
+    assert "runtime delivers ordinary final answers automatically" in guidance
     assert "wait for its\nstatus=" not in guidance
     assert "end your\nturn and wait" not in guidance
     assert "prompt guidance only; the runtime never infers waiting intent from shell syntax" in feature
@@ -1222,7 +1223,7 @@ def test_guidance_is_static_and_team_shaped() -> None:
     for capability in ("send_message", "task_list", "task_claim", "task_submit"):
         assert capability in guidance
     assert 'to="leader"' in guidance
-    assert "may arrive mid-turn" in guidance
+    assert "Peer messages use follow-up delivery after leader steering" in guidance
     payload = run_node(
         f'''\
         import {{ buildTeamLeaderGuidance }} from "{(SRC / "guidance.ts").as_uri()}";
@@ -1245,9 +1246,9 @@ def test_first_turn_guidance_explains_how_to_create_a_role_on_demand() -> None:
         console.log(JSON.stringify({{
           hasNoBuiltins: TEAMMATE_SPAWN_GUIDANCE.includes("no built-in roles"),
           requiresName: TEAMMATE_SPAWN_GUIDANCE.includes("`name`"),
-          requiresAgent: TEAMMATE_SPAWN_GUIDANCE.includes("required `agent` role"),
+          requiresAgent: TEAMMATE_SPAWN_GUIDANCE.includes("role id"),
           requiresDefinition: TEAMMATE_SPAWN_GUIDANCE.includes("`definition`"),
-          explainsRegistration: TEAMMATE_SPAWN_GUIDANCE.includes("registered in memory under"),
+          explainsRegistration: TEAMMATE_SPAWN_GUIDANCE.includes("registered in memory"),
           explainsAgentEquivalence: TEAMMATE_SPAWN_GUIDANCE.includes("agents / sub-agents"),
           routesAgentRequests: TEAMMATE_SPAWN_GUIDANCE.includes("teammate_spawn"),
         }}));
@@ -1497,7 +1498,7 @@ def test_shutdown_renders_one_collapsible_agent_event_line() -> None:
     tools = source("tools.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "Shutting down renders one static agent event line" in feature
-    assert "formatToolLifecycleTitle({ kind: \"event\", tool: \"agent\", subject: `@${name} shut down` })" in tools
+    assert "formatToolLifecycleTitle({ kind: \"event\", tool: \"agent\", subject: `@${name} stopped` })" in tools
 
 
 def test_shutdown_row_hides_details_behind_the_shared_expand_hint() -> None:
@@ -1511,7 +1512,7 @@ def test_shutdown_row_hides_details_behind_the_shared_expand_hint() -> None:
         const shutdown = tools.find((tool) => tool.name === "teammate_shutdown");
         const theme = {{ fg: (_color, text) => text, bold: (text) => text, bg: (_color, text) => text }};
         const render = (expanded, width = 100) => shutdown.renderResult(
-          {{ content: [{{ type: "text", text: "Teammate @scribe shut down (exit code 0).\\nLifetime usage: 1200 tokens, $0.0012." }}] }},
+          {{ content: [{{ type: "text", text: "Agent @scribe stopped (exit code 0).\\nLifetime usage: 1200 tokens, $0.0012." }}] }},
           {{ expanded }},
           theme,
           {{ args: {{ name: "scribe" }} }},
@@ -1523,7 +1524,7 @@ def test_shutdown_row_hides_details_behind_the_shared_expand_hint() -> None:
           expandedRows,
           rowBoundedToWidth: render(false, 100).join("").length === 100,
           collapsedIsSingleLine: collapsed.length === 1 && !collapsed[0].includes("\\n"),
-          collapsedNamesAgentEvent: collapsed[0].includes("[agent] @scribe shut down"),
+          collapsedNamesAgentEvent: collapsed[0].includes("[agent] @scribe stopped"),
           expandedIsIdentical: JSON.stringify(expandedRows) === JSON.stringify(collapsed),
           noExpandHint: !collapsed[0].includes("to expand"),
           noDetailsInRow: !collapsed[0].includes("exit code"),
@@ -1642,15 +1643,17 @@ def test_leader_tools_are_progressively_disclosed_by_team_and_board_state() -> N
     assert payload["board"] == ["read", "teammate_spawn", "task_create", "task_list"]
 
 
-def test_worker_board_tools_are_progressively_disclosed() -> None:
+def test_worker_board_tools_are_progressively_disclosed(tmp_path: Path) -> None:
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
     assert "Worker board controls follow board-notice and claim transitions" in feature
     payload = run_node(
         f'''\
         import {{ registerWorkerCapabilities }} from "{(SRC / "worker.ts").as_uri()}";
+        const root = {str(tmp_path)!r};
         let active = ["read", "bash", "send_message", "task_list", "task_claim", "task_submit"];
         const tools = [];
         const pi = {{
+          on() {{}},
           registerTool(tool) {{ tools.push(tool); }},
           getActiveTools() {{ return active; }},
           setActiveTools(next) {{ active = next; }},
@@ -1664,17 +1667,17 @@ def test_worker_board_tools_are_progressively_disclosed() -> None:
         const spoofedClaim = [...active];
         Object.assign(process.env, {{
           PI_TEAMMATE_WORKER_NAME: "worker", PI_TEAMMATE_SPAWN_ID: "s1",
-          PI_TEAMMATE_OUTBOX_FILE: "/tmp/disclosure-outbox.jsonl", PI_TEAMMATE_INBOX_FILE: "/tmp/disclosure-inbox.jsonl",
-          PI_TEAMMATE_ROSTER_FILE: "/tmp/disclosure-roster.json", PI_TEAMMATE_BOARD_FILE: "/tmp/disclosure-board.json",
-          PI_TEAMMATE_CLAIMS_DIR: "/tmp/disclosure-claims", PI_TEAMMATE_SUBMISSIONS_DIR: "/tmp/disclosure-submissions",
+          PI_TEAMMATE_OUTBOX_FILE: `${{root}}/outbox.jsonl`, PI_TEAMMATE_INBOX_FILE: `${{root}}/inbox.jsonl`,
+          PI_TEAMMATE_ROSTER_FILE: `${{root}}/roster.json`, PI_TEAMMATE_BOARD_FILE: `${{root}}/board.json`,
+          PI_TEAMMATE_CLAIMS_DIR: `${{root}}/claims`, PI_TEAMMATE_SUBMISSIONS_DIR: `${{root}}/submissions`,
         }});
         const fs = await import("node:fs");
-        fs.writeFileSync("/tmp/disclosure-roster.json", JSON.stringify({{ teammates: [{{ name: "worker", agent: "worker", status: "working", assignment: {{ id: "t-disclosure", kind: "board", resources: [] }} }}] }}));
+        fs.writeFileSync(`${{root}}/roster.json`, JSON.stringify({{ teammates: [{{ name: "worker", agent: "worker", status: "working", assignment: {{ id: "t-disclosure", kind: "board", resources: [] }} }}] }}));
         workerToolDisclosure.update("Claim accepted");
         const claimed = [...active];
         const message = tools.find((tool) => tool.name === "send_message");
         await message.execute("terminal", {{ to: "leader", message: "finished", status: "completed" }});
-        fs.writeFileSync("/tmp/disclosure-roster.json", JSON.stringify({{ teammates: [{{ name: "worker", agent: "worker", status: "idle", assignment: {{ id: "t-disclosure", kind: "board", resources: [] }} }}] }}));
+        fs.writeFileSync(`${{root}}/roster.json`, JSON.stringify({{ teammates: [{{ name: "worker", agent: "worker", status: "idle", assignment: {{ id: "t-disclosure", kind: "board", resources: [] }} }}] }}));
         workerToolDisclosure.update("terminal report follow-up");
         const afterNextWorkerSession = [...active];
         const submit = tools.find((tool) => tool.name === "task_submit");
@@ -1703,7 +1706,7 @@ def test_worker_send_message_reports_peer_and_leader_writes_as_queued() -> None:
         import {{ initTheme }} from "@earendil-works/pi-coding-agent";
         initTheme("dark");
         const tools = [];
-        registerWorkerCapabilities({{ registerTool(tool) {{ tools.push(tool); }} }});
+        registerWorkerCapabilities({{ on() {{}}, registerTool(tool) {{ tools.push(tool); }} }});
         const send = tools.find((tool) => tool.name === "send_message");
         const theme = {{ fg: (_color, text) => text, bold: (text) => text, bg: (_color, text) => text }};
         const render = (to) => send.renderResult(
@@ -1735,17 +1738,19 @@ def test_terminal_worker_report_terminates_its_current_turn(tmp_path: Path) -> N
           PI_TEAMMATE_SUBMISSIONS_DIR: {json.dumps(str(tmp_path / "submissions"))},
         }};
         Object.assign(process.env, env);
-        registerWorkerCapabilities({{ registerTool(tool) {{ tools.push(tool); }} }});
+        registerWorkerCapabilities({{ on() {{}}, registerTool(tool) {{ tools.push(tool); }} }});
         const send = tools.find((tool) => tool.name === "send_message");
         const intermediate = await send.execute("intermediate", {{ to: "leader", message: "progress", status: "in_progress" }});
         const unstated = await send.execute("unstated", {{ to: "leader", message: "finding" }});
         const completed = await send.execute("completed", {{ to: "leader", message: "done", status: "completed" }});
-        const failed = await send.execute("failed", {{ to: "leader", message: "failed", status: "failed" }});
+        let duplicateRejected = false;
+        try {{ await send.execute("failed", {{ to: "leader", message: "failed", status: "failed" }}); }}
+        catch {{ duplicateRejected = true; }}
         console.log(JSON.stringify({{
           intermediateTerminates: intermediate.terminate === true,
           unstatedTerminates: unstated.terminate === true,
           completedTerminates: completed.terminate === true,
-          failedTerminates: failed.terminate === true,
+          duplicateRejected,
         }}));
         '''
     )
@@ -1753,7 +1758,7 @@ def test_terminal_worker_report_terminates_its_current_turn(tmp_path: Path) -> N
         "intermediateTerminates": False,
         "unstatedTerminates": False,
         "completedTerminates": True,
-        "failedTerminates": True,
+        "duplicateRejected": True,
     }
 
 
@@ -1956,13 +1961,12 @@ def test_task_create_renders_one_created_line() -> None:
     assert payload["errorIsPlainLine"] is True
 
 
-def test_completion_announced_once_per_spawn_incarnation() -> None:
+def test_completion_announced_once_per_assignment_attempt() -> None:
     machine = source("team-machine.ts")
     extension = source("index.ts")
     feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
-    assert "Completion is announced once per spawn incarnation" in feature
-    # Both close paths (requested shutdown and unexpected stop) key their
-    # terminal report on the incarnation so display dedup works per spawn.
+    assert "Completion is announced once per assignment attempt" in feature
+    # Process identity still separates stopped and replacement workers.
     close = machine[machine.index("async function handleTeammateClose") :]
     assert close.count("spawnId: teammate.spawnId,") >= 2
     assert "markTeammateFinished(report)" in extension
@@ -2020,7 +2024,7 @@ def test_requested_shutdown_does_not_enqueue_harness_follow_up(tmp_path: Path) -
         console.log(JSON.stringify({{
           shutdownSucceeded: result.ok,
           noFollowUp: sent.length === 0,
-          mailboxKeepsSummary: getState().leaderMailbox.some((message) => message.subject === "Teammate shut down"),
+          mailboxKeepsSummary: getState().leaderMailbox.some((message) => message.subject === "Agent stopped"),
         }}));
         shutdownTeamMachine();
         '''
@@ -2080,15 +2084,20 @@ def test_live_activity_renders_markdown_without_literal_emphasis_markers() -> No
     payload = run_node(
         f'''\
         import {{ fitTeammateRow, renderActivityMarkdown }} from "{(SRC / "activity.ts").as_uri()}";
-        import {{ visibleWidth }} from "@earendil-works/pi-tui";
+        import {{ visibleWidth, truncateToWidth }} from "@earendil-works/pi-tui";
+        import {{ renderPiWidgetRow }} from "{(PACKAGE.parent / "kit" / "src" / "index.ts").as_uri()}";
         const emphasis = renderActivityMarkdown("**Inspecting unused variable in report code**");
         const row = fitTeammateRow("⠼", "security", "**Inspecting unused variable**", 48);
+        const widgetRow = renderPiWidgetRow(fitTeammateRow("⠼", "security", "**Inspecting unused variable**", 47), 48, truncateToWidth, 0);
         console.log(JSON.stringify({{
           emphasis,
           emphasisHasMarkers: emphasis.includes("**"),
           rowHasMarkers: row.includes("**"),
           rowIsSingleLine: !row.includes("\\n"),
           rowFitsWidth: visibleWidth(row) <= 47,
+          rowLeadingSpaces: row.match(/^ */)?.[0].length ?? 0,
+          widgetLeadingSpaces: widgetRow.match(/^ */)?.[0].length ?? 0,
+          widgetFitsWidth: visibleWidth(widgetRow) <= 48,
         }}));
         '''
     )
@@ -2097,6 +2106,9 @@ def test_live_activity_renders_markdown_without_literal_emphasis_markers() -> No
     assert payload["rowHasMarkers"] is False
     assert payload["rowIsSingleLine"] is True
     assert payload["rowFitsWidth"] is True
+    assert payload["rowLeadingSpaces"] == 0
+    assert payload["widgetLeadingSpaces"] == 0
+    assert payload["widgetFitsWidth"] is True
 
 
 def test_activity_priority_tool_then_thinking_then_text(tmp_path: Path) -> None:
@@ -2145,8 +2157,9 @@ def test_consolidated_tool_schemas_keep_one_message_primitive() -> None:
 
 def test_rpc_control_stream_protocol_lines() -> None:
     spawner = source("spawner.ts")
-    assert '{ type: "prompt", id: randomUUID(), message }' in spawner
-    assert '{ type: "steer", message }' in spawner
+    assert 'streamingBehavior: "followUp"' in spawner
+    assert 'streamingBehavior: "steer"' in spawner
+    assert '{ type: "steer", message }' not in spawner
     assert '"--mode", "rpc"' in spawner
     assert '"--no-session"' in spawner
     # The constitution: sequences are uncapped; the harness never terminates a
@@ -2224,6 +2237,30 @@ def test_harness_reports_have_a_distinct_event_renderer() -> None:
         "noAgentEnvelope": True,
         "expandedDiagnostic": True,
     }
+
+
+def test_finish_entry_announces_assignment_finished() -> None:
+    payload = run_node(
+        f'''\
+        import extension from "{(PACKAGE / "index.ts").as_uri()}";
+        import {{ initTheme }} from "@earendil-works/pi-coding-agent";
+        initTheme("dark");
+        const renderers = new Map();
+        extension({{
+          on() {{}},
+          registerCommand() {{}},
+          registerEntryRenderer(type, renderer) {{ renderers.set(type, renderer); }},
+          registerMessageRenderer() {{}},
+          registerTool() {{}},
+        }});
+        const renderer = renderers.get("agent-teams-teammate-finished");
+        const theme = {{ fg: (_color, text) => text, bold: (text) => text, bg: (_color, text) => text }};
+        const lines = renderer({{ data: {{ teammate: "e2e-layout-luna" }} }}, {{}}, theme).render(80);
+        console.log(JSON.stringify({{ lines }}));
+        '''
+    )
+    assert any("Assignment for @e2e-layout-luna finished." in line for line in payload["lines"])
+    assert not any("Teammate @" in line for line in payload["lines"])
 
 
 def test_stall_telemetry_never_nags_the_leader() -> None:
@@ -2336,7 +2373,7 @@ def test_provider_hang_surfaces_through_the_close_path() -> None:
     # An unexpected close — provider hang death included — delivers one terminal
     # crash diagnostic; there is no separate mid-task heartbeat interruption.
     close = machine[machine.index("async function handleTeammateClose") :]
-    assert 'subject: "Teammate stopped unexpectedly"' in close
+    assert 'subject: "Agent stopped unexpectedly"' in close
     assert 'harnessEvent: { type: "unexpected-stop"' in close
     assert close.count("recordTerminalReport(closeReport)") == 1
     assert close.count("sendUpdate(closeReport)") == 1
@@ -2380,10 +2417,10 @@ def test_every_agent_teams_tool_executes_through_real_registrations(tmp_path: Pa
             description: "test worker", tools: [], prompt: "test", worktree: false,
           }}, prompt: "test",
         }}, undefined, undefined, {{ cwd: root }});
-        const worker = registerTeammate({{ name: "peer", agent: "worker", spawnId: "peer-spawn", pid: 0, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const worker = registerTeammate({{ name: "peer", agent: "peer", spawnId: "peer-spawn", pid: 0, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
         writeRoster(path.join(root, "roster.json"), [
           {{ name: "worker", agent: "worker", status: "idle" }},
-          {{ name: "peer", agent: "worker", status: "idle" }},
+          {{ name: "peer", agent: "peer", status: "idle" }},
         ]);
         leaderResults.message = await leader.send_message.execute("message", {{ to: "worker", message: "hello" }});
         leaderResults.create = await leader.task_create.execute("create", {{ subject: "integration task" }}, undefined, undefined, {{}});
@@ -2400,7 +2437,7 @@ def test_every_agent_teams_tool_executes_through_real_registrations(tmp_path: Pa
           PI_TEAMMATE_SUBMISSIONS_DIR: submissionsDir,
         }};
         for (const [key, value] of Object.entries(workerEnv)) process.env[key] = value;
-        registerWorkerCapabilities({{ registerTool(tool) {{ workerTools.push(tool); }} }});
+        registerWorkerCapabilities({{ on() {{}}, registerTool(tool) {{ workerTools.push(tool); }} }});
         const workerMap = Object.fromEntries(workerTools.map((tool) => [tool.name, tool]));
         const workerResults = {{}};
         workerResults.message = await workerMap.send_message.execute("message", {{ to: "leader", message: "report", status: "completed" }});
@@ -2415,7 +2452,7 @@ def test_every_agent_teams_tool_executes_through_real_registrations(tmp_path: Pa
           leaderNames: Object.keys(leader), workerNames: Object.keys(workerMap),
           leaderSuccess: Object.values(leaderResults).every(Boolean),
           workerSuccess: Object.values(workerResults).every(Boolean),
-          messageQueued: leaderResults.message.details?.outcome === "queued",
+          messageSteered: leaderResults.message.details?.outcome === "steered",
           workerReportWritten: fs.existsSync(path.join(root, "peer-outbox.jsonl")),
           claimMarkerWritten: claimed === 1,
           submissionMarkerWritten: submitted === 1,
@@ -2428,7 +2465,7 @@ def test_every_agent_teams_tool_executes_through_real_registrations(tmp_path: Pa
     assert payload["workerNames"] == ["agent_event", "send_message", "task_list", "task_claim", "task_submit"]
     assert payload["leaderSuccess"] is True
     assert payload["workerSuccess"] is True
-    assert payload["messageQueued"] is True
+    assert payload["messageSteered"] is True
     assert payload["workerReportWritten"] is True
     assert payload["claimMarkerWritten"] is True
     assert payload["submissionMarkerWritten"] is True
@@ -2690,7 +2727,7 @@ def test_terminal_report_closes_reporting_and_suppresses_following_reports(tmp_p
         const replayAfterWake = getState().leaderMailbox.length;
         const rejectedSteer = sendLeaderMessage("w", "please report again");
         const reopened = sendLeaderMessage("w", "review a distinct follow-up assignment", {{ reopen: true }});
-        appendWorkerEvent(outbox, {{ id: "evt5", type: "message", worker: "w", spawnId: "s1", body: "follow-up complete", status: "completed" }});
+        appendWorkerEvent(outbox, {{ id: "evt5", type: "message", worker: "w", spawnId: "s1", assignmentId: getState().teammates.w.assignment.id, body: "follow-up complete", status: "completed" }});
         drainTeammateOutboxes();
         console.log(JSON.stringify({{
           afterTerminal,
@@ -2711,7 +2748,7 @@ def test_terminal_report_closes_reporting_and_suppresses_following_reports(tmp_p
     rejected_steer = str(payload.pop("rejectedSteer"))
     rejected_report = payload.pop("rejectedReport")
     assert payload == {
-        "afterTerminal": {"sent": 3, "mailbox": 3, "closed": True, "idle": True, "sequenceEnded": True},
+        "afterTerminal": {"sent": 3, "mailbox": 3, "closed": True, "idle": False, "sequenceEnded": False},
         "sentBodies": ["analysis", "recommendation", "review complete"],
         "reopened": True,
         "reopenedPrior": "review complete",
@@ -2898,7 +2935,7 @@ def test_leader_bound_harness_events_dispatch_through_the_queue() -> None:
     # An already-gone child gets its shutdown summary in the console mailbox;
     # no close event will fire, and requested shutdowns do not wake the leader.
     synth = machine[machine.index("export async function shutdownTeammate") : machine.index("async function handleTeammateClose")]
-    assert "deliverToLeader({ from: name, subject: \"Teammate shut down\", body: summary })" in synth
+    assert "deliverToLeader({ from: name, subject: \"Agent stopped\", body: summary })" in synth
     assert "sendUpdate(closeReport)" not in synth
     # Task outcome notices stay mailbox-only: workers announce outcomes
     # themselves via terminal send_message; no double reporting.
@@ -2913,7 +2950,7 @@ def test_worker_guidance_rations_messages_by_value() -> None:
     assert "next safe tool boundary" in guidance
     assert "wakes an idle leader" in guidance
     assert "starts a full leader turn" not in guidance
-    assert "Never send bare status pings" in guidance
+    assert "never bare\n  status pings" in guidance
     assert "blockers needing a decision" in guidance
     assert 'status="completed" or status="failed"' in guidance
 
@@ -2925,21 +2962,21 @@ def test_worker_guidance_requires_one_substantive_terminal_report() -> None:
     assert "one concise terminal report bundles those findings, the recommendation, verification, and remaining risks" in feature
     assert "genuinely new blockers, plan-changing facts, or evidence that changes the conclusion" in feature
     assert "does not send a separate status-only assignment-complete message" in feature
-    assert "after the terminal report, leader reporting resumes only for a new assignment or decision-useful fact" in feature
+    assert "after the terminal report, leader reporting resumes only after a new assignment opens" in feature
     assert "For bounded reviewer assignments" in guidance
-    assert "terminal leader report ends the current worker turn" in guidance
-    assert "harness suppresses all later reports" in guidance
+    assert "A terminal report ends the worker turn" in guidance
+    assert "later reports are suppressed" in guidance
     assert "identical bodies before terminal status" in guidance
     assert "same content is accepted again for a new assignment" in guidance.replace("\n  ", " ")
     assert "findings, the recommendation," in guidance
-    assert "verification evidence" in guidance
+    assert "evidence, and remaining risks" in guidance
     assert "risks in one concise terminal report" in guidance.replace("\n  ", " ")
     normalized_guidance = guidance.replace("\n  ", " ")
     assert "genuinely new blockers, plan-changing facts, or evidence that changes the conclusion" in normalized_guidance
     assert "status-only assignment-complete message" in normalized_guidance
     assert "repeat unchanged findings" in normalized_guidance
     assert "After a terminal" in guidance
-    assert "new assignment or decision-useful" in normalized_guidance
+    assert "only after a new assignment opens" in normalized_guidance
 
 
 def test_read_receipts_and_legacy_registry_are_gone() -> None:
@@ -2961,15 +2998,15 @@ def test_idle_without_terminal_report_self_finalizes_before_escalating() -> None
     # The decision reads post-drain mailbox state: the terminal report is
     # written to the outbox file before the final response arrives.
     nudge_body = machine[machine.index("function nudgeIfUnfinalized"):]
-    assert "drainTeammateOutboxes();" in nudge_body[:400]
+    assert "drainTeammateOutboxes(name);" in nudge_body[:400]
     # First miss: one inbox finalize request per spawn incarnation, no leader alert yet.
     assert "selfFinalizeAttempts" in machine
     assert "selfFinalizeAttempts.clear();" in machine
     assert machine.count("selfFinalizeAttempts.delete(") == 2
     # Second miss: the existing once-per-incarnation leader reminder.
     assert "idleNudgesSent" in machine
-    # The worker-side send tool reinforces the rule at the exact moment of use.
-    assert 'send status="completed" or status="failed" to end the assignment' in worker
+    # The normal direct-work path reports automatically; reminders cover missing evidence.
+    assert "direct final answer is reported automatically after Pi settles" in worker
     # A spawned teammate runs a kickoff turn, so status must stay "starting"
     # until real stream events arrive: the old synchronous idle mark mislabeled
     # an actively-running turn as idle and misrouted queued deliveries.
@@ -2988,8 +3025,97 @@ def test_worker_task_list_includes_roster_tail() -> None:
 def test_terminal_status_discipline_is_documented_for_workers() -> None:
     templates = " ".join((PACKAGE / "references" / "agent-roles.md").read_text(encoding="utf-8").split())
     guidance = source("guidance.ts")
-    assert 'MUST carry status="completed"' in templates
-    assert "MUST carry" in guidance and 'status="completed"' in guidance
+    assert "ordinary final answer" in templates
+    assert "automatically" in templates
+    assert "runtime delivers ordinary final answers automatically" in guidance
+    assert "MUST carry" not in guidance
+    assert "fork=true" in guidance
+    assert "without work always creates" in guidance
     assert 'status="completed" or status="failed"' in templates
     assert "status-only assignment-complete" in templates
     assert "repeat unchanged findings" in templates
+
+
+def test_tool_descriptions_stay_under_char_budget() -> None:
+    payload = run_node(
+        f'''\
+        import {{ AgentToolParams, AgentEventParams, TeammateSpawnParams, TeammateShutdownParams, SendMessageParams, TaskCreateParams }} from "{(SRC / "types.ts").as_uri()}";
+        const schemas = {{ AgentToolParams, AgentEventParams, TeammateSpawnParams, TeammateShutdownParams, SendMessageParams, TaskCreateParams }};
+        const sizes = Object.fromEntries(Object.entries(schemas).map(([name, schema]) => [name, JSON.stringify(schema).length]));
+        console.log(JSON.stringify(sizes));
+        '''
+    )
+    # Parameter schemas are serialized into every request; budgets pin the
+    # optimized sizes so re-inflated descriptions fail the suite.
+    assert payload["TeammateSpawnParams"] <= 1700
+    assert payload["SendMessageParams"] <= 750
+    assert payload["TaskCreateParams"] <= 800
+    assert payload["AgentEventParams"] <= 560
+
+
+def test_teammate_report_message_renderer_toggles_with_mouse_click() -> None:
+    payload = run_node(
+        f'''\
+        import extension from "{(PACKAGE / "index.ts").as_uri()}";
+        import {{ TEAMMATE_REPORT_MESSAGE_TYPE }} from "{(SRC / "leader-reports.ts").as_uri()}";
+        import {{ initTheme }} from "@earendil-works/pi-coding-agent";
+
+        initTheme();
+
+        const messageRenderers = new Map();
+        const fakePi = {{
+          registerEntryRenderer() {{}},
+          registerMessageRenderer(type, renderer) {{ messageRenderers.set(type, renderer); }},
+          registerTool() {{}},
+          registerCommand() {{}},
+          on() {{}},
+        }};
+        extension(fakePi);
+
+        const renderer = messageRenderers.get(TEAMMATE_REPORT_MESSAGE_TYPE);
+        const message = {{
+          customType: TEAMMATE_REPORT_MESSAGE_TYPE,
+          content: "Audit complete",
+          details: [
+            {{
+              teammate: "audit",
+              agent: "audit",
+              body: "PASS with verified evidence.",
+            }}
+          ],
+        }};
+
+        const theme = {{
+          fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
+          bg: (_color, text) => text,
+          bold: (text) => text,
+        }};
+
+        const comp = renderer(message, {{ expanded: false, outputPad: 1 }}, theme);
+        const collapsedLines = comp.render(120);
+        // Mouse click on content row (y: 0 in child coordinates)
+        const clickRes1 = comp.handleMouse({{ type: "click", button: "left", x: 10, y: 0 }});
+        const expandedLines = comp.render(120);
+        const clickRes2 = comp.handleMouse({{ type: "click", button: "left", x: 10, y: 0 }});
+        const reCollapsedLines = comp.render(120);
+
+        console.log(JSON.stringify({{
+          hasHandleMouse: typeof comp.handleMouse === "function",
+          click1Handled: clickRes1?.handled,
+          collapsed: collapsedLines,
+          expanded: expandedLines,
+          click2Handled: clickRes2?.handled,
+          reCollapsed: reCollapsedLines,
+        }}));
+        '''
+    )
+    assert payload["hasHandleMouse"] is True
+    assert payload["click1Handled"] is True
+    assert "[message] from" in payload["collapsed"][1]
+    assert "@audit" in payload["collapsed"][1]
+    assert "to expand" in payload["collapsed"][1]
+    assert "PASS with verified evidence" not in payload["collapsed"][1]
+    assert "PASS with verified evidence" in " ".join(payload["expanded"])
+    assert payload["click2Handled"] is True
+    assert "[message] from" in payload["reCollapsed"][1]
+    assert "to expand" in payload["reCollapsed"][1]

@@ -4,12 +4,14 @@
  * and worker processes; claiming and submitting remain worker-only.
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import * as fs from "node:fs";
 import * as path from "node:path";
-import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { truncateTail, type ExtensionAPI, type MessageEndEvent } from "@earendil-works/pi-coding-agent";
 import { detailField, eventToolLifecycle } from "@fradser/pi-kit";
 import { emptyToolCall, renderLifecycleResult } from "./tool-render.ts";
 import { livingTeammates, listTasks } from "./state.ts";
+import { resolveRecipient } from "./recipient.ts";
 import { appendInboxMessage, appendWorkerEvent, createTaskIntent, readBoardFile, readRoster } from "./statefile.ts";
 import {
   AgentEventParams,
@@ -89,12 +91,6 @@ export function workerBinding(): WorkerBinding | undefined {
   if (values.some((value) => !value)) return undefined;
   const [worker, spawnId, outbox, inbox, rosterFile, boardFile, claimsDir, submissionsDir] = values as string[];
   return { worker, spawnId, outbox, inbox, rosterFile, boardFile, claimsDir, submissionsDir };
-}
-
-function livingRecipients(binding: WorkerBinding): Set<string> {
-  return new Set(readRoster(binding.rosterFile)
-    .filter((entry) => entry.status !== "stopped")
-    .map((entry) => entry.name));
 }
 
 function loadBoardTasks(binding: WorkerBinding): BoardTask[] {
@@ -197,13 +193,139 @@ export function registerTaskListTool(pi: ExtensionAPI): void {
   });
 }
 
+type AssistantResponse = Extract<MessageEndEvent["message"], { role: "assistant" }>;
+type AutomaticResult = { status: "completed" | "failed"; body: string };
+
+function executionResult(message?: AssistantResponse): AutomaticResult {
+  if (message?.stopReason === "error" || message?.stopReason === "aborted") {
+    return { status: "failed", body: message.errorMessage?.trim() || `Execution ${message.stopReason} without a final answer.` };
+  }
+  if (message?.stopReason === "length") return { status: "failed", body: "Execution reached the response length limit without a complete final answer." };
+  if (message && message.stopReason !== "stop" && message.stopReason !== "toolUse") {
+    return { status: "failed", body: `Execution settled with an incomplete response (${message.stopReason}) and no final answer.` };
+  }
+  const body = message?.content.filter((part) => part.type === "text").map((part) => part.text).join("\n") ?? "";
+  if (message?.stopReason === "stop" && !message.content.some((part) => part.type === "toolCall") && body.trim()) {
+    return { status: "completed", body };
+  }
+  return { status: "failed", body: "Execution settled without a final answer." };
+}
+
+function automaticResultBody(binding: WorkerBinding, assignmentId: string, body: string): string {
+  if (Buffer.byteLength(JSON.stringify(body), "utf-8") <= 48 * 1024) return body;
+  const key = createHash("sha256").update(binding.spawnId).update("\0").update(assignmentId).digest("hex");
+  const file = path.join(path.dirname(binding.outbox), `${key}.result.txt`);
+  const temporary = `${file}.${process.pid}.tmp`;
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  try {
+    fs.writeFileSync(temporary, body, { encoding: "utf-8", mode: 0o600 });
+    fs.renameSync(temporary, file);
+  } finally {
+    fs.rmSync(temporary, { force: true });
+  }
+  const preview = truncateTail(body, { maxBytes: 8 * 1024, maxLines: 200 });
+  return `${preview.content}\n\n[Result truncated; ${preview.totalBytes} bytes total]\nFull result: ${file}`;
+}
+
+function createWorkerReports(pi: ExtensionAPI) {
+  const initial = workerBinding();
+  const initialAssignment = initial ? readRoster(initial.rosterFile).find((entry) => entry.name === initial.worker)?.assignment : undefined;
+  let assignmentId = initialAssignment?.id;
+  let reportClosed = initialAssignment?.closed === true;
+  let pending: { binding: WorkerBinding; assignmentId: string; timestamp: number; awaitingFinal?: boolean; outcome?: AutomaticResult } | undefined;
+  const finalizedMessages = new WeakSet<AssistantResponse>();
+  const currentDirect = (binding: WorkerBinding) => {
+    const self = readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker);
+    const assignment = self?.assignment;
+    return !reportClosed && self?.spawnId === binding.spawnId && self.status !== "stopped"
+      && assignment?.kind === "direct" && assignment.id === assignmentId && !assignment.closed ? assignment : undefined;
+  };
+  const close = () => {
+    reportClosed = true;
+    pending = undefined;
+  };
+  const reportAssignment = (binding: WorkerBinding) => {
+    const current = readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker)?.assignment;
+    if (current?.kind === "board" && current.id !== assignmentId) {
+      assignmentId = current.id;
+      reportClosed = false;
+      pending = undefined;
+    }
+    if (reportClosed) throw new Error("Leader report rejected: this assignment already has a terminal report. Wait for an explicit leader assignment.");
+    return assignmentId;
+  };
+  pi.on("message_start", ({ message }) => {
+    const binding = workerBinding();
+    if (!binding) return;
+    if (message.role === "user") {
+      const content = message.content;
+      const text = typeof content === "string" ? content : content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
+      const marker = /^\[agent-teams-assignment:([^\n]+)\]\n/.exec(text);
+      const current = readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker)?.assignment;
+      if (marker) {
+        const id = marker[1] === "none" ? undefined : marker[1];
+        if (id !== current?.id) return;
+        if (id !== assignmentId || current?.kind === "board") reportClosed = current?.closed === true;
+        assignmentId = id;
+        pending = undefined;
+      }
+      const assignment = currentDirect(binding);
+      if (assignment) pending = { binding, assignmentId: assignment.id, timestamp: message.timestamp };
+    } else if (message.role === "assistant" && pending && message.timestamp >= pending.timestamp) {
+      pending.timestamp = message.timestamp;
+      pending.awaitingFinal = true;
+      pending.outcome = undefined;
+    }
+  });
+  pi.on("agent_start", () => {
+    if (pending) {
+      pending.outcome = undefined;
+      pending.awaitingFinal = false;
+    }
+  });
+  pi.on("message_end", ({ message }) => {
+    if (message.role !== "assistant" || !pending?.awaitingFinal || message.timestamp < pending.timestamp
+      || finalizedMessages.has(message) || !currentDirect(pending.binding)) return;
+    finalizedMessages.add(message);
+    pending.timestamp = message.timestamp;
+    pending.awaitingFinal = false;
+    pending.outcome = executionResult(message);
+  });
+  pi.on("agent_settled", (_event, ctx) => {
+    if (!pending || !ctx.isIdle()) return;
+    const binding = workerBinding();
+    if (!binding || binding.worker !== pending.binding.worker || binding.spawnId !== pending.binding.spawnId
+      || binding.outbox !== pending.binding.outbox || pending.assignmentId !== assignmentId || !currentDirect(binding)) return;
+    const result = pending.outcome ?? executionResult();
+    appendWorkerEvent(binding.outbox, {
+      id: randomUUID(), type: "message", worker: binding.worker, spawnId: binding.spawnId,
+      assignmentId: pending.assignmentId, timestamp: Date.now(), status: result.status,
+      body: automaticResultBody(binding, pending.assignmentId, result.body),
+    });
+    close();
+  });
+  return {
+    send(binding: WorkerBinding, body: string, status: import("./types.ts").WorkerReportEvent["status"]) {
+      appendWorkerEvent(binding.outbox, {
+        assignmentId: reportAssignment(binding), id: randomUUID(), type: "message",
+        worker: binding.worker, spawnId: binding.spawnId, body, status, timestamp: Date.now(),
+      });
+      const isTerminal = status === "completed" || status === "failed";
+      if (isTerminal) close();
+      return isTerminal;
+    },
+    reset() { pending = undefined; },
+  };
+}
+
 export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosure {
   const disclosure = createWorkerToolDisclosure(pi);
+  const reports = createWorkerReports(pi);
   pi.registerTool({
     name: "agent_event",
     promptSnippet: "Send an event or message to a participant",
     label: "Agent Event",
-    description: "Shared communication interface across Leader, Worker, and Peers.",
+    description: "Shared communication interface across Leader, Worker, and Peers. A direct assignment's final answer is reported automatically after Pi settles; no finalization call is needed. Explicit terminal reports remain available. Board tasks still require task_submit.",
     parameters: AgentEventParams,
     renderShell: "self",
     renderCall: emptyToolCall,
@@ -220,29 +342,19 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
       const binding = workerBinding();
       if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
       if (!params.to || params.to === LEADER_RECIPIENT) {
-        appendWorkerEvent(binding.outbox, {
-          id: randomUUID(),
-          type: "message",
-          worker: binding.worker,
-          spawnId: binding.spawnId,
-          body: params.message,
-          status: params.status as any,
-          timestamp: Date.now(),
-        });
-        const isTerminal = params.status === "completed" || params.status === "failed";
+        const isTerminal = reports.send(binding, params.message, params.status);
         return {
           content: [{ type: "text", text: isTerminal
             ? `MESSAGING\nREPORT · to=leader · status=${params.status}\nNEXT · harness will deliver this report`
-            : `MESSAGING\nREPORT · to=leader · status=${params.status ?? "inform"}\nNEXT · report sent to leader` }],
+            : `MESSAGING\nREPORT · to=leader · status=${params.status ?? "inform"}\nNEXT · continue the assignment; the direct final answer is reported automatically after Pi settles; board work still requires task_submit` }],
           details: { to: LEADER_RECIPIENT, status: params.status ?? "inform", outcome: "queued" },
           terminate: isTerminal,
         };
       }
-      if (params.to === binding.worker) throw new Error("You are already the recipient — no need to message yourself.");
-      if (!livingRecipients(binding).has(params.to)) {
-        throw new Error(`No living teammate named "${params.to}". Check the roster or ask the leader.`);
-      }
-      const recipientInbox = path.join(path.dirname(binding.inbox), `inbox-${encodeURIComponent(params.to)}.jsonl`);
+      if (params.status === "completed" || params.status === "failed") throw new Error('terminal status is valid only when to="leader".');
+      const to = resolveRecipient(params.to, readRoster(binding.rosterFile));
+      if (to === binding.worker) throw new Error("You are already the recipient — no need to message yourself.");
+      const recipientInbox = path.join(path.dirname(binding.inbox), `inbox-${encodeURIComponent(to)}.jsonl`);
       appendInboxMessage(recipientInbox, {
         id: randomUUID(),
         from: binding.worker,
@@ -250,8 +362,8 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
         body: params.message,
       });
       return {
-        content: [{ type: "text", text: `MESSAGING\nQUEUED · to=@${params.to}\nNEXT · harness will route the inbox message into a recipient turn` }],
-        details: { to: params.to, outcome: "queued", status: params.status ?? "inform" },
+        content: [{ type: "text", text: `MESSAGING\nQUEUED · to=@${to}\nNEXT · harness will route the inbox message into a recipient turn` }],
+        details: { to, outcome: "queued", status: params.status ?? "inform" },
       };
     },
   });
@@ -260,7 +372,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
     name: "send_message",
     promptSnippet: "Send a message to the leader or a teammate",
     label: "Send Message",
-    description: "The only messaging primitive. Use to=\"leader\" for reports; use a teammate name for direct peer mail. status is valid only for leader reports.",
+    description: "Use to=\"leader\" for reports; use a teammate name for direct peer mail. status is valid only for leader reports. A direct assignment's final answer is reported automatically after Pi settles; no finalization call is needed. Board tasks still require task_submit.",
     parameters: SendMessageParams,
     renderShell: "self",
     renderCall: emptyToolCall,
@@ -277,29 +389,19 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
       const binding = workerBinding();
       if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
       if (params.to === LEADER_RECIPIENT) {
-        appendWorkerEvent(binding.outbox, {
-          id: randomUUID(),
-          type: "message",
-          worker: binding.worker,
-          spawnId: binding.spawnId,
-          body: params.message,
-          status: params.status,
-          timestamp: Date.now(),
-        });
+        const isTerminal = reports.send(binding, params.message, params.status);
         return {
-          content: [{ type: "text", text: params.status
+          content: [{ type: "text", text: isTerminal
             ? `MESSAGING\nREPORT · to=leader · status=${params.status}\nNEXT · harness will deliver this report`
-            : 'MESSAGING\nREPORT · to=leader · status=in_progress\nNEXT · send status="completed" or status="failed" to end the assignment' }],
+            : `MESSAGING\nREPORT · to=leader · status=${params.status ?? "in_progress"}\nNEXT · continue the assignment; the direct final answer is reported automatically after Pi settles; board work still requires task_submit` }],
           details: { to: LEADER_RECIPIENT, status: params.status ?? "in_progress", outcome: "queued" },
-          terminate: params.status === "completed" || params.status === "failed",
+          terminate: isTerminal,
         };
       }
       if (params.status) throw new Error('status is valid only when to="leader".');
-      if (params.to === binding.worker) throw new Error("You are already the recipient — no need to message yourself.");
-      if (!livingRecipients(binding).has(params.to)) {
-        throw new Error(`No living teammate named "${params.to}". Check the roster or ask the leader.`);
-      }
-      const recipientInbox = path.join(path.dirname(binding.inbox), `inbox-${encodeURIComponent(params.to)}.jsonl`);
+      const to = resolveRecipient(params.to, readRoster(binding.rosterFile));
+      if (to === binding.worker) throw new Error("You are already the recipient — no need to message yourself.");
+      const recipientInbox = path.join(path.dirname(binding.inbox), `inbox-${encodeURIComponent(to)}.jsonl`);
       appendInboxMessage(recipientInbox, {
         id: randomUUID(),
         from: binding.worker,
@@ -307,8 +409,8 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
         body: params.message,
       });
       return {
-        content: [{ type: "text", text: `MESSAGING\nQUEUED · to=@${params.to}\nNEXT · harness will route the inbox message into a recipient turn` }],
-        details: { to: params.to, outcome: "queued" },
+        content: [{ type: "text", text: `MESSAGING\nQUEUED · to=@${to}\nNEXT · harness will route the inbox message into a recipient turn` }],
+        details: { to, outcome: "queued" },
       };
     },
   });
@@ -416,5 +518,11 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
     },
   });
 
-  return disclosure;
+  return {
+    update: disclosure.update,
+    reset() {
+      disclosure.reset();
+      reports.reset();
+    },
+  };
 }

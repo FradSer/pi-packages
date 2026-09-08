@@ -33,12 +33,30 @@ belong to the role definition, not top-level spawn overrides.
 
 `send_message` has six parameter fields separating destination, text,
 assignment controls, and status. Its leader controls include `reopen` and
-`resources`; `status` describes worker reports to `leader`. Leader steering is
-strictly for newly discovered information that affects the worker's task;
-progress requests and repeated instructions add no value. `task_create` has
+`resources`; `status` describes worker reports to `leader`. Leader steering carries authoritative task direction at the next safe boundary,
+ahead of worker plans and peer follow-ups, while preserving system/user constraints.
+Send newly discovered information or changed priorities rather than status requests. `task_create` has
 six flat fields separating dependencies, verification, resources, and
 supersession. Only the leader writes state/board snapshots; workers express
 claims/submissions through exclusive-create marker files.
+
+## Independent Work Sessions
+
+`agent` with prompt and no work starts independent work even for the same Agent;
+work selects a stable Work Item handle and validates Agent ownership. Each reopen
+changes assignment identity, not the Work Item handle. Inspection lists actual
+sessions and precise routes without starting execution. `fork` defaults false;
+true snapshots the Leader's active Pi context, excluding unfinished tool exchanges
+and extension runtime identity. It is invalid with work or without prompt.
+Keep context seeding in `work-context.ts`; never switch or mutate the Leader's
+session. Context files belong to the child lifetime. Reference:
+@SPEC-work-sessions.md and @features/work-session-delegation.feature.
+
+Direct-work ordinary final answers are reported by worker settlement hooks, with
+failed outcomes for errors/aborts/incomplete responses. Explicit terminal reports
+suppress duplicate automatic results. Board completion still requires submission
+and verification. Finish announcements are per assignment attempt, not process.
+Use `recipient.ts` for precise or unambiguous shared message routing.
 
 ## Lifecycle and Coordination Contracts
 
@@ -52,12 +70,14 @@ claims/submissions through exclusive-create marker files.
 - Leaders always expose spawn/create; living teammates reveal shutdown/send,
   and board tasks reveal list. Workers reveal list/claim on a board notice,
   then submit while holding a claim.
-- `steered` means the control stream accepted a write; inbox/outbox writes are
-  `queued`, not read or processed. Worker reports hand off to Pi immediately;
+- `steered` means the control stream accepted a native prompt with steering behavior;
+  that prompt also starts idle execution. Peer input uses lower-priority follow-up.
+  Inbox/outbox writes are `queued`, not read or processed. Worker reports hand off to Pi immediately;
   Pi delivers them at the next safe tool boundary or wakes an idle leader.
   Agent Teams has no additional queue, debounce, or wait for `agent_settled`.
-  The first terminal report in a wake-up sequence ends the worker turn and
-  suppresses later reports until a new prompt. Preserve intermediate reports,
+  A terminal report closes its assignment and ends the worker turn; only
+  `agent_settled` confirms execution settlement. Further reports from the closed
+  assignment are rejected. A new assignment cannot inherit an older PASS. Preserve intermediate reports,
   including identical bodies, and repeated content across assignments.
 - Direct assignments and board claims are mutually exclusive. Direct terminal
   reports close assignments until explicit reopen; board completion requires

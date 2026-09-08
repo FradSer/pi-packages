@@ -1,0 +1,66 @@
+import assert from "node:assert/strict";
+import childProcess from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
+import { EventEmitter } from "node:events";
+import { PassThrough, Writable } from "node:stream";
+import { mock } from "node:test";
+
+const commands: Array<{ type: string; message?: string; streamingBehavior?: string }> = [];
+const child = new EventEmitter() as EventEmitter & { stdin: Writable; stdout: PassThrough; stderr: PassThrough; pid: number };
+child.pid = 100;
+child.stdout = new PassThrough();
+child.stderr = new PassThrough();
+child.stdin = new Writable({ write(chunk, _encoding, callback) { commands.push(JSON.parse(String(chunk))); callback(); } });
+mock.method(childProcess, "spawn", () => child);
+syncBuiltinESMExports();
+const { spawnResident, sendWorkerSteer, sendWorkerFollowUp } = await import("../src/spawner.ts");
+const updates: Array<{ finalResponse?: boolean; controlError?: string }> = [];
+spawnResident({ workerName: "fixture", onUpdate: (update) => updates.push(update), onExit: () => {} });
+sendWorkerFollowUp("fixture", "peer");
+sendWorkerSteer("fixture", "leader active");
+assert.deepEqual(commands.map(({ type, streamingBehavior }) => ({ type, streamingBehavior })), [
+  { type: "prompt", streamingBehavior: "followUp" }, { type: "prompt", streamingBehavior: "steer" },
+]);
+child.stdout.write(JSON.stringify({ type: "agent_start" }) + "\n");
+assert.equal(updates.at(-1)?.finalResponse, false);
+child.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop" } }) + "\n");
+assert.equal(updates.at(-1)?.finalResponse, false);
+child.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\n");
+assert.equal(updates.at(-1)?.finalResponse, true);
+sendWorkerSteer("fixture", "leader idle");
+assert.equal(commands.at(-1)?.type, "prompt", "Idle delivery must start work, not strand a queue-only steer");
+child.stdout.write(JSON.stringify({ type: "response", command: "prompt", success: false, error: "input rejected" }) + "\n");
+assert.match(updates.at(-1)?.controlError ?? "", /input rejected/);
+const { mkdtempSync, rmSync } = await import("node:fs");
+const { tmpdir } = await import("node:os");
+const { join } = await import("node:path");
+const { initTeamMachine, shutdownTeamMachine, sendLeaderMessage, drainTeammateOutboxes } = await import("../src/team-machine.ts");
+const { resetState, registerTeammate, getTeammate } = await import("../src/state.ts");
+const { stateFilePath, workerOutboxPath, appendWorkerEvent } = await import("../src/statefile.ts");
+const cwd = mkdtempSync(join(tmpdir(), "leader-lifecycle-"));
+try {
+  resetState();
+  initTeamMachine({ cwd }, { sendUpdate: () => {}, notifyChange: () => {} });
+  registerTeammate({ name: "fixture", agent: "role", spawnId: "s", pid: 100, status: "working", isolation: "none", createdAt: 1, updatedAt: 1,
+    assignment: { id: "old", kind: "direct", resources: [] } });
+  const outbox = workerOutboxPath(stateFilePath(undefined, cwd), "fixture", "s");
+  appendWorkerEvent(outbox, { id: "terminal", type: "message", worker: "fixture", spawnId: "s", assignmentId: "old", body: "done", status: "completed" });
+  drainTeammateOutboxes();
+  assert.equal(getTeammate("fixture")?.status, "working", "Terminal report cannot settle execution");
+  const reopened = sendLeaderMessage("fixture", "distinct new work", { reopen: true });
+  assert.equal(reopened.ok, true);
+  assert.equal(commands.at(-1)?.type, "prompt");
+  assert.equal(commands.at(-1)?.streamingBehavior, "steer");
+  assert.match(commands.at(-1)?.message ?? "", /^\[agent-teams-assignment:direct:/);
+  assert.notEqual(getTeammate("fixture")?.assignment?.id, "old");
+  appendWorkerEvent(outbox, { id: "late", type: "message", worker: "fixture", spawnId: "s", assignmentId: "old", body: "late", status: "completed" });
+  drainTeammateOutboxes();
+  assert.notEqual(getTeammate("fixture")?.assignment?.closed, true);
+} finally {
+  shutdownTeamMachine();
+  rmSync(join(stateFilePath(undefined, cwd), ".."), { recursive: true, force: true });
+  rmSync(cwd, { recursive: true, force: true });
+}
+child.emit("close", 0, null);
+mock.restoreAll();
+console.log(JSON.stringify({ ok: true }));

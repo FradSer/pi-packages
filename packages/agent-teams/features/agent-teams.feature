@@ -261,7 +261,8 @@ Feature: Agent Teams collaborative organization contract
     Scenario: Messages reach a working teammate without dropping
       Given teammate backend is working on a turn
       When a peer message arrives in backend's inbox
-      Then the harness delivers the message into the running turn
+      Then the harness queues the message as a lower-priority native follow-up
+      And leader steering is processed before that peer follow-up
       Or delivers it at the next wake-up if the control stream is momentarily unavailable
       And no message is silently discarded
 
@@ -340,10 +341,11 @@ Feature: Agent Teams collaborative organization contract
       And it forbids bare status pings that carry no new information
       And it keeps immediate reporting for blockers, plan-changing facts, and final deliverables
       And it combines the final outcome, evidence, verification, and remaining risks in one substantive terminal report when relevant
-      And it puts status="completed" or status="failed" on that final substantive report
+      And an ordinary final answer is delivered automatically after execution settles
+      And an explicit terminal report uses status="completed" or status="failed"
       And it does not send a separate completion-only message after the final report
       And it avoids repeating the same findings across reports unless new information changes the conclusion
-      And it keeps terminal status mandatory when the assignment ends
+      And it does not require a completion-only tool call after the final answer
 
     Scenario: The leader sends new information instead of chasing worker progress
       Given a worker has an active assignment
@@ -360,14 +362,18 @@ Feature: Agent Teams collaborative organization contract
       Then one concise terminal report bundles those findings, the recommendation, verification, and remaining risks
       And earlier leader reports are limited to genuinely new blockers, plan-changing facts, or evidence that changes the conclusion
       And the reviewer does not send a separate status-only assignment-complete message
-      And after the terminal report, leader reporting resumes only for a new assignment or decision-useful fact
-      And the terminal report carries status="completed" or status="failed"
+      And after the terminal report, leader reporting resumes only after a new assignment opens
+      And the runtime attaches completed or failed status to automatic final results
+      And an explicitly sent terminal report carries status="completed" or status="failed"
+      And a second terminal report for the closed assignment is rejected
+      And execution remains active until Pi emits agent_settled
 
-    Scenario: Completion is announced once per spawn incarnation
-      Given a teammate delivered several leader-bound reports carrying terminal status within one spawn
+    Scenario: Completion is announced once per assignment attempt
+      Given a teammate delivered several leader-bound reports carrying terminal status for one assignment
       When the reports arrive through Pi's steering channel
-      Then exactly one "Teammate finished" entry is appended for that teammate and spawn identity
-      And repeated terminal reports from the same spawn stay ordinary report rows without extra finished entries
+      Then exactly one "Assignment for @name finished" finish entry is appended for that assignment and spawn identity
+      And repeated terminal reports from the same assignment stay ordinary report rows without extra finished entries
+      And a new assignment in the same Work Session announces its completion again
       And respawning a teammate with the same name announces its completion again
 
     Scenario: A terminal report closes reporting until a new wake-up or explicit new assignment
@@ -688,6 +694,7 @@ Feature: Agent Teams collaborative organization contract
   Rule: Worker board controls are progressively disclosed
 
     Scenario: Worker board controls follow board-notice and claim transitions
+      # Each test execution uses an isolated board and marker directory.
       Given a spawned teammate starts without a board assignment
       Then only send_message is active from the teammate capability set
       When the harness delivers a BOARD NOTICE for eligible unassigned work
@@ -834,7 +841,7 @@ Feature: Agent Teams collaborative organization contract
     Scenario: Shutting down renders one static agent event line
       Given the leader shuts down a teammate
       When the shutdown tool call renders in the transcript
-      Then it shows one static row following the `[agent] @name shut down` shape
+      Then it shows one static row following the `[agent] @name stopped` shape
       And the row needs no expansion: collapsed and expanded renders are identical
       And shutdown diagnostics such as exit code and released tasks stay model-facing only
       And the event line is never labeled as a monitor event
@@ -878,6 +885,7 @@ Feature: Agent Teams collaborative organization contract
       And expanded event details use pi-kit's shared expansion behavior
       And rows carrying detail lines render in pi-kit's shared background style
       And successful rows render inside the shared full-width `[message] from @name` band language, matching the teammate report rows
+      And teammate report message rows and tool result rows both expand on mouse click through the shared ToolExecutionComponent wrapper
       And failed results use pi-kit's shared plain error formatting
       And task_list uses the event adapter with the `listed` semantic label
 
@@ -926,7 +934,7 @@ Feature: Agent Teams collaborative organization contract
       When before_agent_start runs inside the teammate
       Then the system prompt gains the resident protocol
       And the protocol covers reporting, peer messaging, claiming, submitting, and inbox wake-ups
-      And it states that peer messages may arrive mid-turn from other Claude-style teammates
+      And it states that peer messages use follow-up delivery after leader steering
 
   Rule: Teammate models resolve at spawn time
 
@@ -948,6 +956,7 @@ Feature: Agent Teams collaborative organization contract
       When the leader switches the session model to "cli-proxy/omen-alpha"
       Then later spawns without a role pin launch with --model cli-proxy/omen-alpha
       And the child inherits the leader's current thinking level via --thinking
+      And a missing leader model uses explicitly configured PI_PROVIDER and PI_MODEL environment values
 
     Scenario: A role without a model uses the team default model
       Given an agent definition without a model field
@@ -1002,6 +1011,7 @@ Feature: Agent Teams collaborative organization contract
       Given teammates are alive
       When the passive widget renders
       Then each working or starting teammate renders one spinner row with live activity
+      And the above-editor widget contributes no leading spaces before each spinner row
       And idle and stopped teammates never appear above the input box
       And the widget stays hidden when nobody is working
       And it does not intercept global terminal input
@@ -1077,3 +1087,9 @@ Feature: Agent Teams collaborative organization contract
       Then completions are gated by the verify reviews rather than self-report
       And the leader synthesizes the final review from the three completed tasks
       And peer challenges never passed through the leader's context
+
+    Scenario: Tool descriptions stay under a fixed character budget
+      Given the agent-teams leader and worker tools are registered
+      When each tool description and parameter schema is measured
+      Then each serialized parameter schema stays under its pinned size budget
+      And tool behavior is unchanged

@@ -1,4 +1,4 @@
-# Frad's Pi Packages ![](https://img.shields.io/badge/packages-12-blue)
+# Frad's Pi Packages ![](https://img.shields.io/badge/packages-14-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -10,11 +10,11 @@ Native Pi packages for reusable skills, extensions, and workflow commands.
 
 ### [`@fradser/pi-agent-teams`](packages/agent-teams/)
 
-Claude-Code-style collaborative agent teams for Pi with named resident teammates, a shared task board, and peer messaging.
+Compact `agent` delegation and shared `agent_event` communication for Pi. New work starts an independent session, fresh by default or forked from the Leader's context with `fork: true`; final answers return automatically. Work IDs target existing execution. Resident teams, board work, and peer messaging remain available.
 
-**Tools:** `teammate_spawn`, `teammate_shutdown`, `task_create`, `send_message`, `task_list`
+**Tools:** `agent`, `agent_event`, `teammate_spawn`, `teammate_shutdown`, `task_create`, `send_message`, `task_list`
 
-**Command:** `/agent-teams`, `/teammate`
+**Command:** `/agent-teams`
 
 **Install:**
 
@@ -36,11 +36,9 @@ pi install npm:@fradser/pi-btw
 
 ### [`@fradser/pi-context`](packages/context/)
 
-Researches repositories, libraries, and technical questions through an isolated read-only Pi child process.
+Researches repositories, libraries, and technical questions through an isolated read-only Pi child process. Natural-language research requests invoke the tool automatically; the started display wraps the complete query without an ellipsis, while results remain compact and expandable.
 
 **Tool:** `context_get`
-
-**Command:** `/context`
 
 **Install:**
 
@@ -52,7 +50,7 @@ pi install npm:@fradser/pi-context
 
 Continual learning for Pi at the harness and prompt surfaces: declarative tool-call guardrails with corrective guidance, plus memory retrieval, injection, and manual consolidation.
 
-**Commands:** `/memory`, `/consolidate`, `/guardrails`
+**Commands:** `/memory`, `/consolidate`, `/harness`
 
 **Install:**
 
@@ -60,9 +58,25 @@ Continual learning for Pi at the harness and prompt surfaces: declarative tool-c
 pi install npm:pi-continual-learning
 ```
 
+### [`@fradser/pi-impeccable`](packages/impeccable/)
+
+Loads design guidance for interface polish, animation, typography, color, layout, copy, and browser-based iteration. Loading guidance does not execute scripts or authorize edits.
+
+**Tool:** `impeccable_load`
+
+**Command:** `/impeccable`
+
+Install from this checkout (Node.js 22.18+):
+
+```bash
+pi install ./packages/impeccable
+```
+
 ### [`pi-keyboard`](packages/keyboard/)
 
-Controls VIA and QMK keyboard lighting to reflect Pi states, including idle, thinking, unread messages, approval prompts, and fatal errors.
+Controls VIA and QMK keyboard lighting to reflect Pi states, including idle, thinking, unread messages, approval prompts, and fatal errors. Requires a compatible keyboard.
+
+**Command:** `/keyboard`
 
 **Install:**
 
@@ -114,7 +128,7 @@ pi install npm:@fradser/pi-plan-mode
 
 Displays a concise summary of session progress above the TUI editor and restores it across restarts.
 
-**Command:** `/recap`, `/recap on`, `/recap off`, `/recap language <lang>`, `/recap model <model>`
+**Command:** `/recap`, `/recap now`, `/recap on`, `/recap off`, `/recap auto`, `/recap model [provider/model]`
 
 **Install:**
 
@@ -160,12 +174,18 @@ Bridges images to a configured vision-capable model when the active Pi model onl
 pi install npm:@fradser/pi-vision
 ```
 
+### [`@fradser/pi-session-control`](packages/session-control/)
+
+Private Unix-socket discovery and prompt delivery to live sessions, with replay-safe stdin JSON-lines CLI `pi-session-control`. Accepted or queued receipts never imply completion.
+
+For local installation and the versioned API, see the [package README](packages/session-control/README.md). First npm publication is pending.
+
 ## Development
 
 ```bash
 pnpm install
 python3 -m pytest packages
-npx tsc --noEmit -p tsconfig.extensions.json
+pnpm exec tsc --noEmit -p tsconfig.extensions.json
 ```
 
 Each package keeps behavior scenarios in `features/` and tests in `tests/`.

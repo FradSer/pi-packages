@@ -58,6 +58,15 @@ def test_agent_tool_schema():
     assert "prompt" in data["params"]["properties"]
     assert "work" in data["params"]["properties"]
 
+def test_registered_agent_control_runtime_contracts():
+    res = subprocess.run(
+        ["node", "tests/agent-control-fixture.ts"], cwd=PACKAGE,
+        capture_output=True, text=True, timeout=30,
+    )
+    assert res.returncode == 0, f"{res.stderr}\n{res.stdout}"
+    assert "AGENT_CONTROL_OK" in res.stdout
+
+
 def test_agent_presence_query_without_prompt():
     """Verify querying presence without prompt returns idle without side effects."""
     script = """
@@ -81,6 +90,6 @@ def test_agent_presence_query_without_prompt():
     res = run_node(script)
     assert res.returncode == 0, f"Script failed: {res.stderr}\n{res.stdout}"
     data = json.loads(res.stdout)
-    assert data["details"]["status"] == "idle"
-    assert data["details"]["activeSessions"] == 0
+    assert data["details"]["status"] == "unknown"
+    assert "activeSessions" not in data["details"]
     assert "AGENT PRESENCE" in data["content"][0]["text"]

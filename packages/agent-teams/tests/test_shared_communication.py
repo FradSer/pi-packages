@@ -64,6 +64,7 @@ def test_agent_event_registered_on_worker_and_allowed_in_universe():
     import { registerWorkerCapabilities } from "./src/worker.ts";
     import { unknownWorkerTools, WORKER_TOOL_UNIVERSE, resolveWorkerTools } from "./src/spawner.ts";
     
+    const subscriptions = new Map();
     const registeredTools = new Map();
     const fakePi = {
       registerTool(def) {
@@ -73,6 +74,7 @@ def test_agent_event_registered_on_worker_and_allowed_in_universe():
       setActiveTools() {}
     };
 
+    fakePi.on = (event, handler) => subscriptions.set(event, handler);
     registerWorkerCapabilities(fakePi);
     
     const hasWorkerEvent = registeredTools.has("agent_event");
@@ -81,6 +83,7 @@ def test_agent_event_registered_on_worker_and_allowed_in_universe():
     
     console.log(JSON.stringify({
       hasWorkerEvent,
+      lifecycleEvents: [...subscriptions.keys()],
       unknownWithEvent,
       hasInResolved: resolvedTools.includes("agent_event"),
       universeHasEvent: WORKER_TOOL_UNIVERSE.includes("agent_event")
@@ -90,6 +93,7 @@ def test_agent_event_registered_on_worker_and_allowed_in_universe():
     assert res.returncode == 0, f"Script failed: {res.stderr}\n{res.stdout}"
     data = json.loads(res.stdout)
     assert data["hasWorkerEvent"] is True
+    assert "message_start" in data["lifecycleEvents"]
     assert data["unknownWithEvent"] == []
     assert data["hasInResolved"] is True
     assert data["universeHasEvent"] is True

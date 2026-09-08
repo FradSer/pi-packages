@@ -23,10 +23,10 @@ The Markdown body is the role prompt, built from five parts:
    observation targets, depending on the judgment axis.
 3. Boundaries — what must never be touched or changed.
 4. Evidence — what every claim or finding must carry.
-5. Terminal report — delivery via `send_message(to="leader", message=...)`;
-   the last message to the leader MUST
-   carry status="completed" (or status="failed"); work without a terminal
-   status counts as unfinished work.
+5. Final result — an ordinary final answer is delivered automatically for
+   direct work after execution settles. An explicit result through
+   `agent_event(to="leader", message=...)` uses status="completed" or
+   status="failed" and replaces the automatic result.
 
 ## Archetype axes
 
@@ -60,7 +60,7 @@ Non-negotiable in every generated definition:
   timestamps — never bare assertions.
 - Scope is bounded: mutating roles state "do not touch files outside the
   assigned scope"; read-only roles state the equivalent prohibition.
-- Terminal-status discipline applies to all shapes alike.
+- Final results carry evidence; execution completion does not imply independent verification.
 
 ## Skeleton
 
@@ -77,7 +77,11 @@ verification evidence, and remaining risks in one concise terminal message;
 allow earlier messages only for genuinely new blockers, plan-changing facts,
 or evidence that changes the conclusion. Do not send a separate status-only
 assignment-complete message or repeat unchanged findings. After a terminal
-report, report to the leader again only for a new assignment or decision-useful
-fact. The terminal message ends the current worker turn. Send it via
-send_message(to="leader", message=...) with status="completed" or status="failed".
+report, report to the leader again only after a new assignment opens. Include all
+known decision-useful facts before closing; further reports for a closed assignment
+are rejected. Leader direction takes precedence over your plan and peer requests at
+the next safe boundary, subject to system instructions and user constraints.
+For direct work, return the result as an ordinary final answer; the runtime delivers it
+automatically after execution settles. If submitting explicitly through agent_event,
+use status="completed" or status="failed" and avoid a second copy of the result.
 ```

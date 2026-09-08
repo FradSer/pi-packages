@@ -4,6 +4,7 @@
  * is the sole writer of this snapshot and of board.json.
  */
 
+import { randomUUID } from "node:crypto";
 import {
   messageTitle,
   type BoardTask,
@@ -150,7 +151,9 @@ export function assignTeammate(
   if (!teammate) return undefined;
   const lastAssignment = assignment ?? teammate.assignment ?? teammate.lastAssignment;
   const lastTaskId = currentTaskId ?? teammate.currentTaskId ?? teammate.lastTaskId;
-  return updateTeammate(name, { assignment, currentTaskId, lastAssignment, lastTaskId });
+  return updateTeammate(name, { assignment, currentTaskId, lastAssignment, lastTaskId,
+    ...(assignment && assignment.id !== teammate.assignment?.id ? { reportSequenceEnded: false } : {}),
+  });
 }
 
 export function updateTeammateProgress(
@@ -209,6 +212,8 @@ export function receiveWorkerMessage(event: WorkerReportEvent, options?: { archi
   state.leaderMailbox.push({
     id: event.id,
     from: event.worker,
+    assignmentId: event.assignmentId,
+    spawnId: event.spawnId,
     subject: messageTitle(event.body),
     body: event.body,
     status: event.status,
@@ -476,7 +481,7 @@ export function setTaskClaimed(taskId: string, workerName: string): BoardTask | 
   task.status = "claimed";
   task.claimedBy = workerName;
   task.updatedAt = Date.now();
-  assignTeammate(workerName, { id: task.id, kind: "board", resources: task.resources }, task.id);
+  assignTeammate(workerName, { id: `board:${randomUUID()}`, kind: "board", resources: task.resources }, task.id);
   markStateDirty();
   return task;
 }
@@ -564,7 +569,7 @@ export function applySubmissionIntent(intent: TaskIntent): { ok: boolean; error?
     return { ok: false, error: `task "${intent.taskId}" was superseded by "${task.supersededBy ?? "a replacement"}"; submit failed to acknowledge cancellation` };
   }
   if (intent.status === "failed") {
-    releaseTask(intent.taskId, intent.result?.trim() || "Teammate reported failure.");
+    releaseTask(intent.taskId, intent.result?.trim() || "Agent reported failure.");
     return { ok: true };
   }
   completeTask(intent.taskId, intent.result?.trim() || undefined);

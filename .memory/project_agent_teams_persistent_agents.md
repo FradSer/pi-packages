@@ -1,10 +1,20 @@
 ---
 name: agent-teams-persistent-agents
-description: Agent Teams redesign uses cross-project persistent Agents, isolated Work Sessions, capability-only Agent Memory, a minimal delegation tool, and shared role-independent communication
+description: Preserve the compact agent and shared agent_event interface; borrow Codex context and lifecycle semantics without inferring a larger tool surface or removal of persistent-Agent goals
 type: project
 ---
 
+## Current direction
+
+The user clarified that the existing overall tool design is deliberately concise after a review proposed expanding it into Codex-style spawn, messaging, follow-up, interrupt, and listing tools. Preserve the compact delegation/work-control interface (`agent`) and shared communication interface (`agent_event`) as the design baseline. A preference for Codex is not authorization to copy its tool inventory, abandon persistent-Agent goals, or move lifecycle bookkeeping onto the caller.
+
+Use Codex's actual model-facing subagent implementation to assess fresh-versus-fork context selection and lifecycle correctness, not unrelated Workspace Agents or app-server thread operations. Distinguish runtime gaps and legacy entry-point overlap from flaws in the intended compact interface. Evaluate whether necessary semantics fit the existing contract before proposing more tools or parameters. Persistent identity, capability memory, and collaboration remain existing goals unless explicitly revised.
+
+The user has now confirmed one implementation slice: prompt without work always creates an independent Work Session (including concurrent work for one Agent); work targets existing execution; optional fork defaults false and true copies the current Leader context into new work; fork is invalid with work or without a prompt; ordinary final answers are delivered automatically on settlement. Keep memory/promotion outside this slice. Record the execution specification locally in the package, without a remote issue or repository-wide workflow setup. See @packages/agent-teams/SPEC-work-sessions.md and @packages/agent-teams/features/work-session-delegation.feature.
+
 ## Why
+
+The earlier design proposed an Agent as the central object. Its prior rationale follows for comparison, not as a current implementation mandate.
 
 The redesigned Agent Teams object is an Agent, not a session-bound teammate process. An Agent can work across projects. User Agent Definitions establish the durable identity; project definitions specialize the same named Agent without creating a project-owned identity. Unknown names create Temporary Agents, which can be promoted automatically after the leader judges their first result high-quality from evidence, verification, and reuse value.
 

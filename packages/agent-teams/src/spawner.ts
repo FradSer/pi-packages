@@ -12,6 +12,7 @@
 
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
+import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -23,6 +24,8 @@ import {
 } from "@fradser/pi-kit";
 import type { ChildProcess } from "node:child_process";
 import type { WorkerUsage } from "./types.ts";
+import { writeWorkContext } from "./work-context.ts";
+import type { SessionContext } from "@earendil-works/pi-coding-agent";
 
 const OUTPUT_CAP = 16_000;
 
@@ -50,6 +53,7 @@ export interface WorkerProgressUpdate {
   modelOutputSeen?: boolean;
   /** Lifetime accumulated usage parsed from message_end events. */
   usage?: WorkerUsage;
+  controlError?: string;
 }
 
 /** A crashed teammate is one that closed without a normal zero exit. */
@@ -123,10 +127,13 @@ export function isWorkerCloseObserved(name: string): boolean {
 export { terminateChildProcess };
 
 /** Terminate a living teammate and wait until its child process has closed. */
-export async function terminateTeammate(name: string, graceMs = DEFAULT_TERMINATION_GRACE_MS): Promise<boolean> {
+export type TeammateTermination = { outcome: "missing" } | { outcome: "closed" } | { outcome: "unconfirmed" };
+
+export async function terminateTeammate(name: string, graceMs = DEFAULT_TERMINATION_GRACE_MS): Promise<TeammateTermination> {
   const child = workers.get(name);
-  if (!child) return false;
-  return terminateChildProcess(child, graceMs);
+  if (!child) return { outcome: "missing" };
+  const closed = closedWorkers.has(child) || await terminateChildProcess(child, graceMs);
+  return { outcome: closed ? "closed" : "unconfirmed" };
 }
 
 export async function terminateAllTeammates(graceMs = DEFAULT_TERMINATION_GRACE_MS): Promise<Array<{ name: string; confirmedClosed: boolean }>> {
@@ -152,7 +159,7 @@ function writeToControlStream(child: ChildProcess, line: unknown): boolean {
 export function deliverPrompt(name: string, message: string): boolean {
   const child = workers.get(name);
   if (!child) return false;
-  const sent = writeToControlStream(child, { type: "prompt", id: randomUUID(), message });
+  const sent = writeToControlStream(child, { type: "prompt", id: randomUUID(), message, streamingBehavior: "followUp" });
   if (sent) beginSequence(name);
   return sent;
 }
@@ -174,13 +181,22 @@ function beginSequence(name: string): void {
 /** Send a mid-turn steer to a working teammate; no peer mailbox is involved. */
 export function sendWorkerSteer(name: string, message: string): boolean {
   const child = workers.get(name);
-  return child ? writeToControlStream(child, { type: "steer", message }) : false;
+  return child ? writeToControlStream(child, { type: "prompt", id: randomUUID(), message, streamingBehavior: "steer" }) : false;
+}
+
+/** Peer traffic yields to leader steering without depending on roster freshness. */
+export function sendWorkerFollowUp(name: string, message: string): boolean {
+  const child = workers.get(name);
+  return child ? writeToControlStream(child, { type: "prompt", id: randomUUID(), message, streamingBehavior: "followUp" }) : false;
 }
 
 // ── Stream parsing ────────────────────────────────────────────────
 
 type JsonEvent = {
   type?: string;
+  command?: string;
+  success?: boolean;
+  error?: string;
   toolCallId?: string;
   toolName?: string;
   args?: unknown;
@@ -216,6 +232,7 @@ interface StreamState {
    *  message_end artifact. The stall classifier uses this, not usage. */
   modelOutputSeen?: boolean;
   usage?: WorkerUsage;
+  controlError?: string;
 }
 
 function createStreamState(): StreamState {
@@ -267,6 +284,19 @@ function applyStreamLine(state: StreamState, line: string): boolean {
   } catch {
     return false;
   }
+  if (event.type === "response" && event.success === false) {
+    state.controlError = truncate(`RPC ${event.command ?? "command"} rejected: ${event.error ?? "unknown error"}`, 1000);
+    return true;
+  }
+  if (event.type === "agent_settled") {
+    state.finalResponse = true;
+    clearActiveTools(state);
+    return true;
+  }
+  if (event.type === "agent_start") {
+    state.finalResponse = false;
+    return true;
+  }
   if (event.type === "tool_execution_start") {
     state.modelOutputSeen = true;
     state.activeTools.set(event.toolCallId ?? `tool-${state.activeTools.size}`, toolExecutionLabel(event.toolName, event.args));
@@ -285,7 +315,6 @@ function applyStreamLine(state: StreamState, line: string): boolean {
     state.turns++;
     clearActiveTools(state);
     state.thinking = "";
-    if (event.message.stopReason === "stop") state.finalResponse = true;
     const parts = extractTextContent(event.message.content, "");
     if (parts.trim()) state.text = parts;
     // Usage stays diagnostics: only streamed content counts as model output,
@@ -366,6 +395,8 @@ export interface ResidentSpawnOptions {
   tools?: string[];
   /** Leader session's thinking level, forwarded as the child's default. */
   thinking?: string;
+  /** Detached active-context snapshot; undefined starts with fresh history. */
+  context?: SessionContext["messages"];
   env?: Record<string, string | undefined>;
   cwd?: string;
   onUpdate?: (update: WorkerProgressUpdate) => void;
@@ -389,7 +420,6 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
   const args: string[] = [
     ...cli.args,
     "--mode", "rpc",
-    "--no-session",
     "--no-extensions",
     "--extension", WORKER_EXTENSION,
   ];
@@ -411,6 +441,12 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
 
   let child: ChildProcess;
   try {
+    if (options.context !== undefined) {
+      tempDir = fs.mkdtempSync(path.join(tmpdir(), "pi-work-context-"));
+      args.push("--session", writeWorkContext(options.cwd ?? process.cwd(), tempDir, options.context));
+    } else {
+      args.push("--no-session");
+    }
     child = spawnPiChild(cli.command, args, {
       cwd: options.cwd,
       env: { ...process.env, ...options.env },
@@ -442,6 +478,7 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
     finalResponse: streamState.finalResponse,
     modelOutputSeen: streamState.modelOutputSeen,
     usage: streamState.usage,
+    controlError: streamState.controlError,
   });
 
   child.stdout?.on("data", (chunk: Buffer) => {
@@ -456,11 +493,12 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
     }
     streamTurns.set(options.workerName, streamState.turns);
     if (changed) emitProgress();
+    streamState.controlError = undefined;
   });
   child.stderr?.on("data", (chunk: Buffer) => appendCapped(stderrChunks, chunk.toString(), OUTPUT_CAP * 2));
 
   child.on("error", (error) => {
-    cleanupTempDir();
+    if (child.pid === undefined) cleanupTempDir();
     settled = true;
     // Keep the registry entry until close is observed so shutdown diagnostics
     // can distinguish an error/exit code from a confirmed close event.

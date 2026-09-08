@@ -5,18 +5,18 @@
  * passive widget and console live in ui.ts.
  */
 
-import { getMarkdownTheme, keyHint } from "@earendil-works/pi-coding-agent";
+import { getMarkdownTheme, keyHint, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildTeamLeaderGuidance, TEAMMATE_SPAWN_GUIDANCE, WORKER_GUIDANCE } from "./guidance.ts";
 import { clearSessionAgents } from "./agents.ts";
-import { initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownTeammates } from "./team-machine.ts";
+import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownTeammates } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
 import { livingTeammates, listTasks, resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
 import { refreshLeaderToolDisclosure, registerLeaderTools, registerTeamCommand } from "./tools.ts";
 import { registerWorkerCapabilities, workerBinding } from "./worker.ts";
-import { agentColor, clearPiStatus, createStaticToolLifecycleMessageRenderer, eventToolLifecycle, formatAgentMessagePrefix, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
-import { formatReports, groupReportsByTeammate, TEAMMATE_HARNESS_MESSAGE_TYPE, TEAMMATE_REPORT_MESSAGE_TYPE, type LeaderReport } from "./leader-reports.ts";
+import { agentColor, clearPiStatus, createStaticToolLifecycleMessageRenderer, createToolExecutionWrapper, eventToolLifecycle, formatAgentMessagePrefix, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
+import { annotateReportDelivery, formatReports, groupReportsByTeammate, TEAMMATE_HARNESS_MESSAGE_TYPE, TEAMMATE_REPORT_MESSAGE_TYPE, type LeaderReport } from "./leader-reports.ts";
 import { Box, Markdown, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 const STATE_DIR_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -70,10 +70,11 @@ export default function (pi: ExtensionAPI) {
   }
 
   leaderPi = pi;
+  const deliveries = new WeakMap<object, LeaderReport[]>();
   pi.registerEntryRenderer(TEAMMATE_FINISHED_ENTRY_TYPE, (entry, _options, theme) => {
     const data = entry.data as { teammate?: string; agent?: string } | undefined;
     const name = data?.teammate ?? data?.agent ?? "teammate";
-    return new Text(theme.fg("success", `Teammate @${name} finished.`), 0, 0);
+    return new Text(theme.fg("success", `Assignment for @${name} finished.`), 0, 0);
   });
   pi.registerMessageRenderer(TEAMMATE_HARNESS_MESSAGE_TYPE, (message, { expanded }, theme) => {
     const report = extractHarnessReport(message.details);
@@ -84,47 +85,89 @@ export default function (pi: ExtensionAPI) {
       expandHint: keyHint("app.tools.expand", "to expand"),
       fit: truncateToWidth,
       visibleWidth,
+      hostComponent: ToolExecutionComponent,
+      ui: leaderCtx?.ui,
+      cwd: leaderCtx?.cwd,
     })(message, { expanded }, theme);
   });
   pi.registerMessageRenderer(TEAMMATE_REPORT_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) => {
-    const reports = extractReports(message.details);
-    const box = new Box(outputPad, 1, (text) => theme.bg("customMessageBg", text));
+    const reports = deliveries.get(message) ?? extractReports(message.details);
     if (reports.length === 0) {
+      const box = new Box(outputPad, 1, (text) => theme.bg("customMessageBg", text));
       box.addChild(new Markdown(String(message.content), 0, 0, getMarkdownTheme()));
       return box;
     }
-    if (!expanded) {
-      const groups = groupReportsByTeammate(reports);
-      return renderAgentMessageBand(
-        groups.map((group) => ({ direction: "from", teammate: group.teammate, count: group.reports.length })),
-        { theme, fit: truncateToWidth, expandHint: keyHint("app.tools.expand", "to expand") },
-      );
-    }
-    for (const [index, report] of reports.entries()) {
-      const teammate = report.teammate ?? report.agent ?? "teammate";
-      const prefix = theme.fg("customMessageLabel", theme.bold(formatAgentMessagePrefix("from")));
-      const name = theme.fg(agentColor(teammate), `@${teammate}`);
-      box.addChild(new Text(`${prefix}${name}`, 0, 0));
-      box.addChild(new Markdown(report.body, 0, 0, getMarkdownTheme(), {
-        color: (text) => theme.fg("customMessageText", text),
-      }));
-      if (index < reports.length - 1) box.addChild(new Text("", 0, 0));
-    }
-    return box;
+
+    return createToolExecutionWrapper(
+      (opt, currentTheme) => {
+        const effTheme = currentTheme ?? theme;
+        if (!opt.expanded) {
+          const groups = groupReportsByTeammate(reports);
+          const band = renderAgentMessageBand(
+            groups.map((group) => ({ direction: "from", teammate: group.teammate, count: group.reports.length })),
+            { theme: effTheme, fit: truncateToWidth, expandHint: keyHint("app.tools.expand", "to expand") },
+          );
+          if (!reports.some((report) => report.deliveredAfterStop)) return band;
+          const box = new Box(0, 0);
+          box.addChild(band);
+          box.addChild(new Text(effTheme.fg("warning", "Late delivery: process already stopped."), 0, 0));
+          return box;
+        }
+        const box = new Box(outputPad, 1, (text) => effTheme.bg("customMessageBg", text));
+        for (const [index, report] of reports.entries()) {
+          const teammate = report.teammate ?? report.agent ?? "teammate";
+          const prefix = effTheme.fg("customMessageLabel", effTheme.bold(formatAgentMessagePrefix("from")));
+          const name = effTheme.fg(agentColor(teammate), `@${teammate}`);
+          const delivery = report.deliveredAfterStop ? effTheme.fg("warning", " (late delivery; process stopped)") : "";
+          box.addChild(new Text(`${prefix}${name}${delivery}`, 0, 0));
+          box.addChild(new Markdown(report.body, 0, 0, getMarkdownTheme(), {
+            color: (text) => effTheme.fg("customMessageText", text),
+          }));
+          if (index < reports.length - 1) box.addChild(new Text("", 0, 0));
+        }
+        return box;
+      },
+      {
+        hostComponent: ToolExecutionComponent,
+        toolName: "message",
+        expanded,
+        ui: leaderCtx?.ui,
+        cwd: leaderCtx?.cwd,
+      },
+      theme,
+    );
   });
   registerLeaderTools(pi);
   registerTeamCommand(pi);
 
+  pi.on("message_start", (event) => {
+    if (event.message.role !== "custom" || event.message.customType !== TEAMMATE_REPORT_MESSAGE_TYPE) return;
+    const deliveredAt = Date.now();
+    deliveries.set(event.message, extractReports(event.message.details).map((report) => annotateReportDelivery(
+      report, deliveredAt, report.spawnId ? getConfirmedStopTime(report.spawnId) : undefined,
+    )));
+  });
+
   pi.on("message_end", async (event) => {
     if (event.message.role !== "custom" || event.message.customType !== TEAMMATE_REPORT_MESSAGE_TYPE) return;
-    const reports = extractReports(event.message.details);
+    const deliveredAt = Date.now();
+    const reports = deliveries.get(event.message) ?? extractReports(event.message.details).map((report) => annotateReportDelivery(
+      report, deliveredAt, report.spawnId ? getConfirmedStopTime(report.spawnId) : undefined,
+    ));
+    if (reports.length === 0) return;
     for (const report of reports) {
       if (!markTeammateFinished(report)) continue;
       pi.appendEntry(TEAMMATE_FINISHED_ENTRY_TYPE, {
         teammate: report.teammate ?? report.agent,
         agent: report.agent,
+        assignmentId: report.assignmentId,
+        workId: report.workId,
+        spawnId: report.spawnId,
       });
     }
+    return {
+      message: { ...event.message, content: formatReports(reports), details: reports.length === 1 ? reports[0] : { reports } },
+    };
   });
 
   pi.on("model_select", async (_event, ctx) => {
@@ -182,6 +225,7 @@ export default function (pi: ExtensionAPI) {
 }
 
 function extractReports(details: unknown): LeaderReport[] {
+  if (Array.isArray(details)) return details as LeaderReport[];
   const typed = details as LeaderReport | { reports?: LeaderReport[] } | undefined;
   if (typed && "reports" in typed && Array.isArray(typed.reports)) return typed.reports;
   if (typed && "teammate" in typed) return [typed as LeaderReport];

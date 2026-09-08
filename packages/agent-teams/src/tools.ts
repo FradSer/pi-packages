@@ -33,6 +33,8 @@ import { registerTaskListTool } from "./worker.ts";
 import { openTeamConsole, refreshTeamUI } from "./ui.ts";
 import { discoverAgents } from "./agents.ts";
 import { emptyToolCall, renderLifecycleResult, textOf } from "./tool-render.ts";
+import { controlAgent, type AgentControlRuntime } from "./agent-control.ts";
+import { resolveRecipient } from "./recipient.ts";
 
 function rosterSummary(): string {
   const alive = livingTeammates();
@@ -52,12 +54,12 @@ function spawnAssignment(params: { name: string; agent: string; prompt?: string 
   return formatAgentTaskName(prompt, "check task board");
 }
 
-export function registerLeaderTools(pi: ExtensionAPI): void {
+export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentControlRuntime = { spawnTeammate, sendLeaderMessage }): void {
   pi.registerTool({
     name: "agent",
     promptSnippet: "Delegate work or inspect a persistent Agent",
     label: "Agent Control",
-    description: "Delegate work to a persistent or temporary Agent, steer existing work by work ID, or inspect presence.",
+    description: "Delegate independent work to an Agent. A prompt without work always starts a new Work Session; work selects existing execution. Omit prompt to inspect. Results arrive automatically. fork optionally inherits the leader context; fresh by default.",
     parameters: AgentToolParams,
     renderShell: "self",
     renderCall: emptyToolCall,
@@ -66,33 +68,17 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       if (context.isError) return new Text(theme.fg("error", text.split("\n")[0] || "Agent delegation failed."), 0, 0);
       const params = context.args as { name: string; prompt?: string; work?: string };
       const prefix = theme.fg("customMessageLabel", theme.bold("[agent]"));
-      const action = params.prompt ? `assigned · ${formatAgentTaskName(params.prompt, "task")}` : "inspected";
+      const outcome = detailField<string>(result.details, "outcome") ?? "pending";
+      const action = params.prompt ? `${outcome} · ${formatAgentTaskName(params.prompt, "task")}` : "inspected";
       return new Text(`${prefix} @${params.name} ${action}`, 0, 0);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      if (!params.prompt) {
-        return {
-          content: [{ type: "text", text: `AGENT PRESENCE · @${params.name}\nSTATUS · idle\nWORK SESSIONS · (none active)` }],
-          details: { name: params.name, status: "idle", activeSessions: 0 },
-        };
+      const result = controlAgent(params, ctx.cwd, runtime, ctx.sessionManager);
+      if (params.prompt) {
+        refreshTeamUI(ctx);
+        refreshLeaderToolDisclosure();
       }
-      const spawnResult = spawnTeammate({
-        name: params.name,
-        agent: params.name,
-        prompt: params.prompt,
-        definition: params.model ? {
-          description: `Agent ${params.name}`,
-          prompt: `You are ${params.name}.`,
-          model: params.model,
-        } : undefined,
-      });
-      if (!spawnResult.ok) throw new Error(spawnResult.error);
-      refreshTeamUI(ctx);
-      refreshLeaderToolDisclosure();
-      return {
-        content: [{ type: "text", text: `AGENT PRESENCE · @${params.name}\nSTATUS · working\nWORK SESSIONS · 1 active (work: ${spawnResult.teammate.assignment?.id ?? "active"})\nACTION · ${params.prompt}` }],
-        details: { name: params.name, status: "working", activeSessions: 1, workId: spawnResult.teammate.assignment?.id },
-      };
+      return result;
     },
   });
 
@@ -108,7 +94,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       const to = String((context.args as { to?: string }).to ?? "bound-route");
       return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
         "message",
-        "routed",
+        detailField<string>(result.details, "outcome") ?? "pending",
         { label: `to @${to}` },
       ));
     },
@@ -116,11 +102,16 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       if (!params.to) {
         throw new Error("No bound reply route exists. Please specify 'to' explicitly.");
       }
-      const result = sendLeaderMessage(params.to, params.message, {});
+      if (params.to === LEADER_RECIPIENT) throw new Error("The leader cannot send an event to itself.");
+      if (params.status && !["inform", "request", "handoff"].includes(params.status)) {
+        throw new Error("Report statuses are valid only for worker reports to the leader.");
+      }
+      const to = resolveRecipient(params.to, livingTeammates());
+      const result = runtime.sendLeaderMessage(to, params.message, {});
       if (!result.ok) throw new Error(result.error);
       return {
-        content: [{ type: "text", text: `EVENT DELIVERED · to=@${params.to}\nSTATUS · ${params.status ?? "inform"}` }],
-        details: { to: params.to, outcome: result.outcome, status: params.status ?? "inform" },
+        content: [{ type: "text", text: `EVENT ROUTING · ${result.outcome} · to=@${to}\nINTENT · ${params.status ?? "inform"}${result.outcome === "not-sent" ? `\nRECORDED TERMINAL REPORT · ${result.terminalReport}` : ""}` }],
+        details: { to, outcome: result.outcome, status: params.status ?? "inform" },
       };
     },
   });
@@ -129,7 +120,7 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     name: "teammate_spawn",
     promptSnippet: "Spawn a named resident teammate or sub-agent",
     label: "Spawn Teammate",
-    description: "Spawn one named resident teammate / sub-agent. Use this tool whenever instructions, third-party skills, or workflows ask to launch or delegate work to an agent, sub-agent (subagent), worker, or teammate. Generated role definitions stay in memory by default; persist one only when the user explicitly asks to keep it for future sessions.",
+    description: "Spawn one named resident teammate / sub-agent. Use whenever instructions, third-party skills, or workflows ask to launch or delegate work to an agent, sub-agent (subagent), worker, or teammate. Generated role definitions stay in memory by default; persist one only when the user explicitly asks to keep it for future sessions.",
     parameters: TeammateSpawnParams,
     renderShell: "self",
     renderCall: emptyToolCall,
@@ -173,11 +164,10 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
       if (context.isError) {
         return new Text(theme.fg("error", formatToolErrorLine(textOf(result))), 0, 0);
       }
-      // The finish entry already announced this end of life (or its terminal
-      // report is queued to); a second event row is noise.
+      // Keep cleanup quiet when an assignment-finish report already covers it.
       if (hasAnnouncedFinish(name) || hasTerminalReport(name)) return { render: () => [], invalidate: () => {} };
-      // End of life is a one-line static event row — no expansion needed.
-      const title = formatToolLifecycleTitle({ kind: "event", tool: "agent", subject: `@${name} shut down` }).replace(/^\[agent\]\s*/, "");
+      // Confirmed process exit is a static event row, not an expandable result.
+      const title = formatToolLifecycleTitle({ kind: "event", tool: "agent", subject: `@${name} stopped` }).replace(/^\[agent\]\s*/, "");
       const prefix = theme.fg("customMessageLabel", theme.bold("[agent]"));
       return new Text(`${prefix} ${title}`, 0, 0);
     },
@@ -212,7 +202,8 @@ export function registerLeaderTools(pi: ExtensionAPI): void {
     },
     async execute(_toolCallId, params) {
       if (params.to === LEADER_RECIPIENT) throw new Error('The leader cannot send a message to itself.');
-      const result = sendLeaderMessage(params.to, params.message, {
+      const to = resolveRecipient(params.to, livingTeammates());
+      const result = sendLeaderMessage(to, params.message, {
         reopen: params.reopen,
         resources: params.resources,
       });

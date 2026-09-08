@@ -1,4 +1,4 @@
-# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-12-blue)
+# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-14-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -10,11 +10,11 @@
 
 ### [`@fradser/pi-agent-teams`](packages/agent-teams/)
 
-面向 Pi 的 Claude Code 风格多 Agent 协同团队：支持具名常驻队友、共享任务看板和点对点消息通信。
+通过简洁的 `agent` 委派和共享 `agent_event` 通信进行协作。每次新工作启动独立会话，默认使用全新上下文，也可用 `fork: true` 继承 Leader 上下文；最终回答自动回传，`work` 定向已有执行。仍支持常驻团队、任务看板和点对点消息。
 
-**工具：** `teammate_spawn`、`teammate_shutdown`、`task_create`、`send_message`、`task_list`
+**工具：** `agent`、`agent_event`、`teammate_spawn`、`teammate_shutdown`、`task_create`、`send_message`、`task_list`
 
-**命令：** `/agent-teams`、`/teammate`
+**命令：** `/agent-teams`
 
 **安装：**
 
@@ -36,11 +36,9 @@ pi install npm:@fradser/pi-btw
 
 ### [`@fradser/pi-context`](packages/context/)
 
-通过独立的只读 Pi 子进程检索代码仓库、库与技术问题。
+通过独立的只读 Pi 子进程检索代码仓库、库与技术问题。自然语言调研请求会自动调用工具；开始时完整显示请求文本，超宽自动换行，不加省略号，结果仍保持紧凑且可展开。
 
 **工具：** `context_get`
-
-**命令：** `/context`
 
 **安装：**
 
@@ -52,7 +50,7 @@ pi install npm:@fradser/pi-context
 
 harness 与提示词表面的持续学习：声明式工具调用 guardrails（拦截并给出更正指引），以及记忆检索、注入与手动整合。
 
-**命令：** `/memory`、`/consolidate`、`/guardrails`
+**命令：** `/memory`、`/consolidate`、`/harness`
 
 **安装：**
 
@@ -60,9 +58,25 @@ harness 与提示词表面的持续学习：声明式工具调用 guardrails（�
 pi install npm:pi-continual-learning
 ```
 
+### [`@fradser/pi-impeccable`](packages/impeccable/)
+
+加载界面打磨、动画、排版、配色、布局、文案和浏览器迭代的设计指导。加载指导本身不会执行脚本，也不代表授权修改。
+
+**工具：** `impeccable_load`
+
+**命令：** `/impeccable`
+
+从本地仓库安装（需要 Node.js 22.18+）：
+
+```bash
+pi install ./packages/impeccable
+```
+
 ### [`pi-keyboard`](packages/keyboard/)
 
-控制 VIA 和 QMK 键盘灯光以反映 Pi 的运行状态，包括空闲、思考、未读消息、审批提问和致命异常。
+控制 VIA 和 QMK 键盘灯光以反映 Pi 的运行状态，包括空闲、思考、未读消息、审批提问和致命异常。需要兼容的键盘。
+
+**命令：** `/keyboard`
 
 **安装：**
 
@@ -114,7 +128,7 @@ pi install npm:@fradser/pi-plan-mode
 
 在 TUI 输入框上方显示会话进展摘要，并支持在重启后恢复。
 
-**命令：** `/recap`、`/recap on`、`/recap off`、`/recap language <lang>`、`/recap model <model>`
+**命令：** `/recap`、`/recap now`、`/recap on`、`/recap off`、`/recap auto`、`/recap model [provider/model]`
 
 **安装：**
 
@@ -160,17 +174,23 @@ pi install npm:@fradser/pi-utils
 pi install npm:@fradser/pi-vision
 ```
 
+### [`@fradser/pi-session-control`](packages/session-control/)
+
+通过私有 Unix socket 发现运行中的 Pi 会话，并使用 `pi-session-control` 的标准输入 JSON-lines 协议发送提示词。请求去重防止重放；已接受或已排队不代表任务已完成。
+
+本地安装和版本化 API 见[包文档](packages/session-control/README.md)。首次 npm 发布尚未进行。
+
 ## 开发
 
 ```bash
 pnpm install
 python3 -m pytest packages
-npx tsc --noEmit -p tsconfig.extensions.json
+pnpm exec tsc --noEmit -p tsconfig.extensions.json
 ```
 
 每个包将行为场景放在 `features/`，测试放在 `tests/`。
 
-在包目录执行 `pnpm --dir packages/<name> pack --dry-run` 可以检查将要发布的文件。
+在仓库根目录执行 `pnpm --dir packages/<name> pack --dry-run` 可以检查将要发布的文件。
 
 共享运行时辅助位于内部包 [`@fradser/pi-kit`](packages/kit/)。它是内部工作区依赖，不能通过 `pi install` 安装。
 

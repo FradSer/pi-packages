@@ -31,6 +31,9 @@ export interface Teammate {
   agent: string;
   /** Per-spawn capability identity, regenerated for every process. */
   spawnId: string;
+  /** Stable Work Item selected by agent; each reopen creates a new assignment attempt. */
+  workId?: string;
+  context?: "fresh" | "fork";
   pid: number;
   status: TeammateStatus;
   /** Working directory (the worktree root when isolated). */
@@ -142,6 +145,8 @@ export interface WorkerUsage {
 
 export interface MailboxMessage {
   id: string;
+  assignmentId?: string;
+  spawnId?: string;
   from: string;
   subject: string;
   body: string;
@@ -156,6 +161,7 @@ export interface MailboxMessage {
  * is derived by the harness from the first line of the body. */
 export interface WorkerReportEvent {
   id: string;
+  assignmentId?: string;
   type: "message";
   worker: string;
   spawnId: string;
@@ -176,6 +182,7 @@ export function isWorkerEvent(value: unknown): value is WorkerReportEvent {
     && typeof event.worker === "string"
     && typeof event.spawnId === "string"
     && typeof event.body === "string"
+    && (event.assignmentId === undefined || typeof event.assignmentId === "string")
     && (event.status === undefined || ["in_progress", "completed", "failed", "inform", "request", "handoff"].includes(event.status))
     && (event.timestamp === undefined || (typeof event.timestamp === "number" && Number.isFinite(event.timestamp)));
 }
@@ -203,31 +210,32 @@ export interface InboxMessage {
 /** The single minimal delegation and work control tool (leader-only). */
 export const AgentToolParams = Type.Object({
   name: Type.String({ minLength: 1, description: "Persistent or temporary Agent name" }),
-  prompt: Type.Optional(Type.String({ description: "Instruction or task for the Agent. Omit to inspect presence or run queued work." })),
+  prompt: Type.Optional(Type.String({ description: "New work without work ID; guidance to selected work with an ID. Omit to inspect without starting execution." })),
   work: Type.Optional(Type.String({ description: "Specific Work Item ID to steer or reopen" })),
-  model: Type.Optional(Type.String({ description: "Optional model override for this agent (e.g. 'provider/model'). Defaults to current session model." })),
+  model: Type.Optional(Type.String({ description: "Optional model override for new work (e.g. 'provider/model'). Defaults to current session model." })),
+  fork: Type.Optional(Type.Boolean({ description: "Copy the current leader conversation into new work. Defaults to false (fresh context); invalid with work or without prompt." })),
 });
 
 /** Spawn one named resident teammate or sub-agent. */
 export const TeammateSpawnParams = Type.Object({
-  name: Type.String({ minLength: 1, description: "Teammate name, unique among living teammates; used for messaging and claiming" }),
-  agent: Type.String({ description: "Agent definition name or role id; an inline definition may create this role in memory for the current session" }),
-  prompt: Type.Optional(Type.String({ description: "Optional kickoff prompt delivered as the agent / teammate's first turn; omit to let it wait for messages or board claims" })),
-  resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Stable resource tags owned by this direct assignment. Overlapping board claims are rejected until it closes." })),
-  handoffFrom: Type.Optional(Type.String({ minLength: 1, description: "Stopped teammate whose assignment, claim, and recent reports should be summarized in this successor kickoff." })),
+  name: Type.String({ minLength: 1, description: "Unique teammate name" }),
+  agent: Type.String({ description: "Role id; inline definition may create the role for this session" }),
+  prompt: Type.Optional(Type.String({ description: "Kickoff prompt; omit to let it wait for messages or board claims" })),
+  resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Resource tags for this direct assignment; overlapping active claims are rejected" })),
+  handoffFrom: Type.Optional(Type.String({ minLength: 1, description: "Stopped teammate whose assignment and reports feed this successor kickoff" })),
   definition: Type.Optional(Type.Object({
     description: Type.String({ description: "Routing contract for the generated role" }),
-    tools: Type.Optional(Type.Array(Type.String(), { description: "Pi tool ids for the generated role; only pi built-ins (read, bash, edit, write, grep, find, ls, powershell) are grantable — teammates run without extensions, so MCP/extension ids fail the spawn" })),
-    model: Type.Optional(Type.String({ description: 'Optional provider/model pin, or "inherit" to run on the leader\'s current model' })),
-    verify: Type.Optional(Type.String({ description: "Role-default completion gate: a review prompt a fresh reviewer answers with VERDICT: PASS or FAIL" })),
-    worktree: Type.Optional(Type.Boolean({ description: "Whether this role receives a dedicated Git worktree" })),
-    prompt: Type.String({ minLength: 1, description: "Role prompt for this generated teammate / sub-agent" }),
-    persist: Type.Optional(Type.Boolean({ description: "Persist only when the user explicitly asks to keep this role for future sessions" })),
+    tools: Type.Optional(Type.Array(Type.String(), { description: "Pi tool ids for the role; built-ins only, no extension ids" })),
+    model: Type.Optional(Type.String({ description: 'Provider/model pin, or "inherit" for the leader\'s current model' })),
+    verify: Type.Optional(Type.String({ description: "Review prompt a fresh reviewer answers with VERDICT: PASS or FAIL" })),
+    worktree: Type.Optional(Type.Boolean({ description: "Dedicated Git worktree for this role" })),
+    prompt: Type.String({ minLength: 1, description: "Role prompt" }),
+    persist: Type.Optional(Type.Boolean({ description: "Persist only when the user explicitly asks" })),
     persistScope: Type.Optional(Type.Union([
       Type.Literal("project"),
       Type.Literal("project-local"),
-    ], { description: "Persistence scope; defaults to project-local when persist is true" })),
-  }, { description: "Optional generated role definition; kept in memory unless explicitly persisted" })),
+    ], { description: "Scope; defaults to project-local when persist is true" })),
+  }, { description: "Generated role definition; in-memory unless persisted" })),
 });
 
 /** Shut down one living teammate. */
@@ -237,13 +245,13 @@ export const TeammateShutdownParams = Type.Object({
 
 /** Create a board task (leader-only). */
 export const TaskCreateParams = Type.Object({
-  subject: Type.String({ minLength: 1, description: "Short task title shown on the board" }),
+  subject: Type.String({ minLength: 1, description: "Task title shown on the board" }),
   description: Type.Optional(Type.String({ description: "Full task description for the claiming teammate" }),
   ),
-  dependsOn: Type.Optional(Type.Array(Type.String(), { description: "Task ids that must complete before this task is claimable" })),
-  verify: Type.Optional(Type.String({ description: "Completion gate: a fresh reviewer judges the acceptance criteria. Explicit PASS/FAIL completes or returns the task; an inconclusive review escalates without counting as failure." })),
-  resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Stable resource tags this task mutates, e.g. firmware/sub-node. Overlapping active tags cannot be claimed concurrently." })),
-  supersedes: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Obsolete task ids this new task replaces. Superseded work cannot be claimed or completed." })),
+  dependsOn: Type.Optional(Type.Array(Type.String(), { description: "Task ids that must complete first" })),
+  verify: Type.Optional(Type.String({ description: "Completion gate: a fresh reviewer judges acceptance; PASS completes, FAIL returns the task" })),
+  resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Resource tags this task mutates; overlapping active claims are rejected" })),
+  supersedes: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Obsolete task ids this replaces" })),
 });
 
 /** Shared leader/worker read-only board view. */
@@ -252,7 +260,7 @@ export const TaskListParams = Type.Object({});
 /** Shared communication event parameters across Leader, Worker, and Peers. */
 export const AgentEventParams = Type.Object({
   message: Type.String({ description: "Message content or report" }),
-  to: Type.Optional(Type.String({ minLength: 1, description: "Recipient Agent name, leader, or precise reply route. Omit only when an unambiguous bound reply route exists." })),
+  to: Type.Optional(Type.String({ minLength: 1, description: "Recipient Agent name, leader, or precise reply route" })),
   status: Type.Optional(Type.Union([
     Type.Literal("inform"),
     Type.Literal("request"),
@@ -269,15 +277,15 @@ export const LEADER_RECIPIENT = "leader";
 /** The single messaging primitive: addressed peer mail and leader reports.
  * `status` is honored only for to="leader" terminal reports. */
 export const SendMessageParams = Type.Object({
-  to: Type.String({ minLength: 1, description: 'Recipient: a teammate name on the roster, or "leader" to report to the team leader' }),
-  message: Type.String({ description: "Message content; the first line becomes the title shown in the console" }),
-  reopen: Type.Optional(Type.Boolean({ description: "Leader only: explicitly start a new assignment after the teammate reported completion" })),
-  resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Leader only: resource tags for a reopened direct assignment. Ignored for worker reports." })),
+  to: Type.String({ minLength: 1, description: 'Teammate name, or "leader" to report' }),
+  message: Type.String({ description: "Message content; first line becomes the console title" }),
+  reopen: Type.Optional(Type.Boolean({ description: "Leader only: start a new assignment after completion" })),
+  resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Leader only: resource tags for a reopened assignment" })),
   status: Type.Optional(Type.Union([
     Type.Literal("in_progress"),
     Type.Literal("completed"),
     Type.Literal("failed"),
-  ], { description: 'Only for to="leader": completed or failed ends the current assignment and triggers immediate follow-up delivery' })),
+  ], { description: 'Only for to="leader": completed or failed ends reporting; in_progress keeps the assignment open' })),
 });
 
 /** Self-claim a pending board task. */
