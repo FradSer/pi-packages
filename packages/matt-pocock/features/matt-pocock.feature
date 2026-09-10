@@ -133,6 +133,14 @@ Feature: Matt Pocock workflow harness
     And internal Markdown pointers use stable catalog source ids instead of unresolved relative paths
     And references outside the active procedure disclosure set are rejected
 
+  Scenario: Procedure texts route agents through the catalog gateway, not Pi skills
+    Given one procedure references another catalog procedure by id
+    When the agent follows that reference
+    Then model-reachable capabilities name matt_pocock_workflow mode capability
+    And disclosed references name the matt_pocock_active load action
+    And required dependencies are described as already bundled
+    And no procedure text calls a catalog procedure a skill, arms a skill state, runs user-invoked setup, or points at available_skills
+
   Scenario: Loaded references survive workflow restoration
     Given an active workflow has loaded one or more disclosed references
     When the session restores that workflow state

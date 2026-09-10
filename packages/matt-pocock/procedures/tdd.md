@@ -1,14 +1,14 @@
 # BDD-Driven TDD (Automation)
 
-BDD cycles through three phases: **Discovery** (conversations → examples), **Formulation** (Gherkin scenarios), **Automation** (red-green-refactor, driven by BDD). This skill is the **BDD-driven Automation** reference — the how of test implementation, once [bdd](bdd.md) has defined the what.
+BDD cycles through three phases: **Discovery** (conversations → examples), **Formulation** (Gherkin scenarios), **Automation** (red-green-refactor, driven by BDD). This procedure is the **BDD-driven Automation** reference — the how of test implementation, once [bdd](bdd.md) has defined the what.
 
-When invoked during [implement](implement.md) or [bdd](bdd.md), use this skill as the test-writing authority. The [bdd](bdd.md) skill governs the scenario design and Iron Law; this skill governs the test code quality under BDD discipline.
+When invoked during [implement](implement.md) or [bdd](bdd.md), use this procedure as the test-writing authority. The bundled [bdd](bdd.md) procedure governs the scenario design and Iron Law; this procedure governs the test code quality under BDD discipline.
 
 ## CRITICAL: BDD scenarios come first
 
-If you reached this skill directly (not via [bdd](bdd.md) or [implement](implement.md)), inspect the repository and conversation for Gherkin scenarios first.
+If you reached this procedure directly (not via [bdd](bdd.md) or [implement](implement.md)), inspect the repository and conversation for Gherkin scenarios first.
 
-- If scenarios are absent → invoke [bdd](bdd.md) to define them, then return here for Automation.
+- If scenarios are absent → follow the bundled [bdd](bdd.md) to define them, then return here for Automation.
 - If scenarios exist in `.feature` files or equivalent → proceed with the red-green loop below.
 - Ask the user only if the behavior itself is genuinely unresolved; do not ask for confirmation of facts that repository exploration can establish.
 
@@ -24,7 +24,7 @@ A **seam** is the public boundary you test at: the interface where you observe b
 
 **Test at the highest established seam.** Record the public boundary under test and select the highest existing seam that expresses the confirmed behavior. Not everything can be tested — choosing the critical public seam deliberately is how effort lands on complex behavior instead of every edge case. Ask only when the public contract is genuinely ambiguous.
 
-When the shape of that interface is itself in question — how deep the module is, where the seam belongs, what the interface should expose — use the [codebase-design](codebase-design.md) skill for the vocabulary. It is the shared source of the module, interface, depth, seam, adapter, leverage and locality terms, and it is a reference to consult, not a session to run.
+When the shape of that interface is itself in question — how deep the module is, where the seam belongs, what the interface should expose — load the [codebase-design](codebase-design.md) reference with `matt_pocock_active` (`action: "load"`, from available references) for the vocabulary. It is the shared source of the module, interface, depth, seam, adapter, leverage and locality terms, and it is a reference to consult, not a session to run.
 
 ## Anti-patterns
 
@@ -40,21 +40,21 @@ When the shape of that interface is itself in question — how deep the module i
 
 ## CRITICAL: BDD-Driven — not standalone TDD
 
-This skill is the **Automation** phase of the BDD lifecycle. It always runs under [bdd](bdd.md) or [implement](implement.md) as **BDD-driven TDD**. If invoked directly, see the CRITICAL check at the top of this file — confirm scenarios exist before writing test code.
+This procedure is the **Automation** phase of the BDD lifecycle. It always runs under [bdd](bdd.md) or [implement](implement.md) as **BDD-driven TDD**. If invoked directly, see the CRITICAL check at the top of this file — confirm scenarios exist before writing test code.
 
 1. **Discovery** (what behavior matters) — owned by [bdd](bdd.md) via Gherkin scenarios
 2. **Formulation** (scenario as specification) — owned by [bdd](bdd.md) via `.feature` files
-3. **Automation** (this skill) — the red-green loop that makes the scenario pass
+3. **Automation** (this procedure) — the red-green loop that makes the scenario pass
 
 ## When to invoke
 
-Invoke this skill explicitly when:
+Load this capability (`matt_pocock_workflow`, `mode: "capability"`) explicitly when:
 - The user asks "how should I test this?" during BDD implementation
 - The user asks about mocking, seams, or test structure
 - The user writes a test that looks implementation-coupled
 - The user asks about mocking strategy at system boundaries
 - The user is unsure whether a test is good or tautological
 
-When invoked directly, first check if Gherkin scenarios exist (see the CRITICAL check at the top). If not, redirect to [bdd](bdd.md) before proceeding with Automation.
+When invoked directly, first check if Gherkin scenarios exist (see the CRITICAL check at the top). If not, follow the bundled [bdd](bdd.md) before proceeding with Automation.
 
-The [bdd](bdd.md) and [implement](implement.md) skills load this automatically during the Automation phase — you do not need to invoke it separately in those flows.
+The [implement](implement.md) procedure bundles this automatically as a required dependency during the Automation phase — you do not need to invoke it separately in that flow. From [bdd](bdd.md), load this capability (`matt_pocock_workflow`, `mode: "capability"`) when Automation begins.

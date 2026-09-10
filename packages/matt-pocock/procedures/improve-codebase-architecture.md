@@ -4,7 +4,7 @@ Surface architectural friction and propose **deepening opportunities** — refac
 
 This command is _informed_ by the project's domain model and built on a shared design vocabulary:
 
-- Run the [codebase-design](codebase-design.md) skill for the architecture vocabulary (**module**, **interface**, **depth**, **seam**, **adapter**, **leverage**, **locality**) and its principles (the deletion test, "the interface is the test surface", "one adapter = hypothetical seam, two = real"). Use these terms exactly in every suggestion — don't drift into "component," "service," "API," or "boundary."
+- Follow the bundled [codebase-design](codebase-design.md) procedure for the architecture vocabulary (**module**, **interface**, **depth**, **seam**, **adapter**, **leverage**, **locality**) and its principles (the deletion test, "the interface is the test surface", "one adapter = hypothetical seam, two = real"). Use these terms exactly in every suggestion — don't drift into "component," "service," "API," or "boundary."
 - The domain language in `CONTEXT.md` gives names to good seams; ADRs in `docs/adr/` record decisions this command should not re-litigate.
 
 ## Process
@@ -59,11 +59,11 @@ Decide where to look before looking: follow the user's direction, or walk the co
 
 ### 3. Grilling loop
 
-Once the user picks a candidate, run the [grilling](grilling.md) skill to walk the decision tree with them — constraints, dependencies, the shape of the deepened module, what sits behind the seam, what tests survive.
+Once the user picks a candidate, load the [grilling](grilling.md) reference with `matt_pocock_active` (`action: "load"`, from available references) to walk the decision tree with them — constraints, dependencies, the shape of the deepened module, what sits behind the seam, what tests survive.
 
-Side effects happen inline as decisions crystallize — run the [domain-modeling](domain-modeling.md) skill to keep the domain model current as you go:
+Side effects happen inline as decisions crystallize — load the [domain-modeling](domain-modeling.md) reference with `matt_pocock_active` (`action: "load"`, from available references) to keep the domain model current as you go:
 
 - **Naming a deepened module after a concept not in `CONTEXT.md`?** Add the term to `CONTEXT.md`. Create the file lazily if it doesn't exist.
 - **Sharpening a fuzzy term during the conversation?** Update `CONTEXT.md` right there.
 - **User rejects the candidate with a load-bearing reason?** Offer an ADR, framed as: _"Want me to record this as an ADR so future architecture reviews don't re-suggest it?"_ Only offer when the reason would actually be needed by a future explorer to avoid re-suggesting the same thing — skip ephemeral reasons ("not worth it right now") and self-evident ones.
-- **Want to explore alternative interfaces for the deepened module?** Run the [codebase-design](codebase-design.md) skill and use its Design It Twice pattern with teammates when the teammate facility is available, or compare designs sequentially in the current context.
+- **Want to explore alternative interfaces for the deepened module?** Follow the bundled [codebase-design](codebase-design.md) procedure and use its Design It Twice pattern with teammates when the teammate facility is available, or compare designs sequentially in the current context.

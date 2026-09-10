@@ -37,6 +37,7 @@ def test_feature_covers_the_catalog_gateway_contract() -> None:
         "The standards baseline rejects AI slop patterns in code review",
         "A local-only capability stays out of the upstream selection metadata",
         "Conditional references load through the active gateway",
+        "Procedure texts route agents through the catalog gateway, not Pi skills",
         "The active gateway is progressively disclosed",
         "A prompt cancels active workflow before rerouting",
         "A user explicitly selects a legal next procedure",

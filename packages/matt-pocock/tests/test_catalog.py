@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import textwrap
 from pathlib import Path
@@ -175,8 +176,29 @@ def test_feature_file_covers_catalog_gateway_and_lifecycle_contracts() -> None:
         "The standards baseline rejects AI slop patterns in code review",
         "A local-only capability stays out of the upstream selection metadata",
         "Conditional references load through the active gateway",
+        "Procedure texts route agents through the catalog gateway, not Pi skills",
         "Loaded references survive workflow restoration",
         "The active gateway is progressively disclosed",
         "Upstream synchronization metadata is verifiable",
     ):
         assert scenario in feature
+
+
+def test_procedure_texts_route_agents_through_the_catalog_gateway() -> None:
+    catalog = json.loads((PACKAGE / "src" / "catalog.json").read_text())
+    patterns = {
+        "catalog procedure called a skill": re.compile(r"\]\([^)]*\.md\) skills?\b"),
+        "skill armed as loadable state": re.compile(r"skills? (loaded|active|together)\b"),
+        "model runs user-invoked setup": re.compile(
+            r"run \[setup-matt-pocock-skills\]\(setup-matt-pocock-skills\.md\)"
+        ),
+        "pointer at the Pi skill index": re.compile(r"available_skills"),
+    }
+    violations = []
+    for entry in catalog:
+        lines = (PACKAGE / "procedures" / entry["file"]).read_text().splitlines()
+        for number, line in enumerate(lines, start=1):
+            for label, pattern in patterns.items():
+                if pattern.search(line):
+                    violations.append(f"{entry['file']}:{number}: {label}: {line.strip()}")
+    assert violations == []

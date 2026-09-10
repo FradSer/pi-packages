@@ -1,6 +1,6 @@
-This skill takes the current conversation context and codebase understanding and produces a spec (you may know this document as a PRD). Do NOT interview the user — just synthesize what you already know.
+This procedure takes the current conversation context and codebase understanding and produces a spec (you may know this document as a PRD). Do NOT interview the user — just synthesize what you already know.
 
-The issue tracker and triage label vocabulary should have been provided to you — run [setup-matt-pocock-skills](setup-matt-pocock-skills.md) if not.
+The issue tracker and triage label vocabulary should have been provided to you — load [setup-matt-pocock-skills](setup-matt-pocock-skills.md) with `matt_pocock_active` (`action: "load"`, from available references) if not. It is a package procedure, not a Pi skill.
 
 ## CRITICAL: No interview — synthesize what you already know
 

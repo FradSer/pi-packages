@@ -1,10 +1,10 @@
 # Behavior-Driven Development (BDD)
 
-BDD is not just about tools; it's a methodology for shared understanding and high-quality implementation. This skill governs the **Discovery → Formulation → Automation** lifecycle: Gherkin scenarios define the behavior, and the Automation phase (red-green loop) is delegated to [tdd](tdd.md) (BDD-driven).
+BDD is not just about tools; it's a methodology for shared understanding and high-quality implementation. This procedure governs the **Discovery → Formulation → Automation** lifecycle: Gherkin scenarios define the behavior, and the Automation phase (red-green loop) is delegated to [tdd](tdd.md) (BDD-driven).
 
 When exploring the codebase, read `CONTEXT.md` (if it exists) so test names and interface vocabulary match the project's domain language, and respect ADRs in the area you're touching.
 
-## How to Use This Skill
+## How to Use This Procedure
 
 When the user asks for a feature, bug fix, or refactor, apply the following mindset:
 
@@ -35,7 +35,7 @@ See `./references/gherkin-guide.md` for syntax and storage structure.
 
 ## Automation Phase
 
-The Automation phase (red-green loop) is governed by the [tdd](tdd.md) skill (BDD-driven). When the Gherkin scenario is defined and the seam is agreed, invoke [tdd](tdd.md) for:
+The Automation phase (red-green loop) is governed by the [tdd](tdd.md) capability (BDD-driven). When the Gherkin scenario is defined and the seam is agreed, load [tdd](tdd.md) with `matt_pocock_workflow` (`mode: "capability"`) — it is a package capability, not a Pi skill — for:
 
 - **Seams** — where tests go at the public boundary
 - **Test quality** — what makes a good test, anti-patterns
