@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import textwrap
 from pathlib import Path
@@ -1170,3 +1171,13 @@ def test_monitor_extension_does_not_register_bash_guard() -> None:
     assert 'pi.on("tool_call"' not in extension
     assert 'evaluateBashGuard' not in extension
 
+
+
+def test_tool_descriptions_stay_under_char_budget() -> None:
+    src = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
+    match = re.search(r'description: \[\n(.*?)\n    \]\.join\(" "\)', src, re.S)
+    assert match is not None
+    description = " ".join(re.findall(r'"([^"]*)"', match.group(1)))
+    # Budget pins the compressed monitor_start description; the pre-optimization
+    # version was ~540 chars over six lines.
+    assert len(description) <= 440

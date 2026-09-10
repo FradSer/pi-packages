@@ -1,5 +1,6 @@
 import {
   keyHint,
+  ToolExecutionComponent,
   type ExtensionAPI,
   type ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
@@ -186,6 +187,7 @@ export default function (pi: ExtensionAPI) {
       expandHint: keyHint("app.tools.expand", "to expand"),
       fit: truncateToWidth,
       visibleWidth,
+      hostComponent: ToolExecutionComponent,
     })(message, { expanded }, theme);
   });
 
@@ -212,17 +214,14 @@ export default function (pi: ExtensionAPI) {
     name: "monitor_start",
     label: "Start Result Monitor",
     description: [
-      "Run a non-interactive shell command without exposing its progress output to the agent.",
-      "result_pattern is required and scans both stdout and stderr. failure_pattern is optional.",
-      "Named regex captures are returned as structured fields; a named 'json' capture is parsed as JSON.",
-      "Ordinary output is retained in a bounded buffer; failure and missing-result terminals include a small diagnostic tail.",
-      "timeout_ms defaults to ten minutes and emits timeout when the command does not finish.",
-      "Interactive sessions receive exactly one terminal notification; print and JSON sessions return that result from this tool call.",
+      "Run a non-interactive shell command in the background without streaming progress output.",
+      "result_pattern (required) scans stdout+stderr; named captures return as fields, a 'json' capture parses as JSON.",
+      "Output stays in a bounded buffer; failure/missing-result terminals add a small diagnostic tail.",
+      "timeout_ms defaults to ten minutes. Interactive sessions get exactly one terminal notification; print/JSON sessions return it from this call.",
     ].join(" "),
     promptSnippet: "Run a background command and expose one contracted terminal result without streaming progress logs",
     promptGuidelines: [
-      "Declare the exact terminal result before starting a monitor; prefer a unique JSON sentinel for commands you can wrap.",
-      "Wait for the terminal notification; it includes a bounded diagnostic tail without a polling step.",
+      "Declare the exact terminal result before starting; prefer a unique JSON sentinel.",
     ],
     parameters: MonitorStartParams,
     renderShell: "self",
