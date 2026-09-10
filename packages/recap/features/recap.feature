@@ -121,7 +121,7 @@ Feature: Session Recap
   Scenario: Recap marker aligns with the native working spinner
     Given the recap widget is displayed above the editor
     When the recap content is rendered
-    Then the recap marker starts in the same visual column as the native working spinner
+    Then the recap marker starts at column zero with no leading spaces
     And continuation lines align with the first recap character rather than the marker
 
   Scenario: Existing recap prevents redundant startup generation

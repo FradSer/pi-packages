@@ -202,7 +202,7 @@ export default function (pi: ExtensionAPI) {
 
               if (generatingRecap) {
                 const spinner = PI_SPINNER_FRAMES[recapSpinnerFrame];
-                lines.push(renderPiWidgetRow(theme.fg("accent", `${spinner} Recapping...`), width, truncateToWidth));
+                lines.push(renderPiWidgetRow(theme.fg("accent", `${spinner} Recapping...`), width, truncateToWidth, 0));
               }
 
               if (currentRecap) {
@@ -217,7 +217,7 @@ export default function (pi: ExtensionAPI) {
                     ? style.dim("─".repeat(Math.max(1, contentWidth)))
                     : raw;
                   const prefix = i === 0 ? firstPrefix : indent;
-                  lines.push(renderPiWidgetRow(`${prefix}${content}`, width, truncateToWidth));
+                  lines.push(renderPiWidgetRow(`${prefix}${content}`, width, truncateToWidth, 0));
                 }
               }
 

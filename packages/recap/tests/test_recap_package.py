@@ -208,6 +208,7 @@ def test_first_prompt_starts_recap_before_agent_settled_and_refreshes_after_comp
           finalPromptHasAssistantOutcome: promptTexts[1]?.includes("I implemented feature X") ?? false,
           finalRecapPersisted: appendedEntries.some((entry) => entry.data.recap === "Recapped feature X (2)"),
           showsProgress: progressLines.some((line) => line.includes("Recapping...")),
+          progressLeadingSpaces: progressLines.find((line) => line.includes("Recapping..."))?.match(/^ */)?.[0].length ?? 0,
         }}));
         """
     )
@@ -218,6 +219,7 @@ def test_first_prompt_starts_recap_before_agent_settled_and_refreshes_after_comp
     assert result["finalPromptHasAssistantOutcome"] is True
     assert result["finalRecapPersisted"] is True
     assert result["showsProgress"] is True
+    assert result["progressLeadingSpaces"] == 0
 
 
 def test_session_replacement_aborts_pending_first_prompt_recap() -> None:
@@ -740,12 +742,14 @@ def test_extension_restores_recap_from_session_branch_on_startup() -> None:
           widgetSet: setWidgetCall !== null,
           widgetName: setWidgetCall?.name,
           lines,
+          recapLeadingSpaces: lines.find((line) => line.includes("✦ Recap:"))?.match(/^ */)?.[0].length ?? 0,
         }}));
         """
     )
     assert result["widgetSet"] is True
     assert result["widgetName"] == "recap"
     assert any("Persisted: Fixed auth bug in auth.ts" in line for line in result["lines"])
+    assert result["recapLeadingSpaces"] == 0
 
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert "pi-package" in manifest["keywords"]
@@ -793,7 +797,7 @@ def test_extension_registers_recap_command_with_menu() -> None:
     assert "PI_SPINNER_FRAMES[recapSpinnerFrame]" in extension
     assert "requestRender" in extension
     assert "generatingRecap" in extension
-    assert "same visual column as the native working spinner" in (PACKAGE / "features" / "recap.feature").read_text(encoding="utf-8")
+    assert "starts at column zero with no leading spaces" in (PACKAGE / "features" / "recap.feature").read_text(encoding="utf-8")
 
 
 def test_extension_listens_to_agent_settled_and_session_start() -> None:
@@ -972,7 +976,7 @@ def test_widget_refresh_ignores_disposed_context() -> None:
 
 def test_recap_marker_matches_native_working_spinner_indent() -> None:
     extension = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
-    assert 'renderPiWidgetRow(theme.fg("accent", `${spinner} Recapping...`), width, truncateToWidth)' in extension
+    assert 'renderPiWidgetRow(theme.fg("accent", `${spinner} Recapping...`), width, truncateToWidth, 0)' in extension
     assert "const prefix = i === 0 ? firstPrefix : indent;" in extension
     assert 'const icon = theme.fg("accent", "✦");' in extension
     assert 'const firstPrefix = `${icon} ${label} `;' in extension
