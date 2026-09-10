@@ -503,6 +503,15 @@
     "standalone": true
   },
   {
+    "id": "deslop",
+    "file": "deslop.md",
+    "kind": "utility",
+    "invocation": "model",
+    "label": "De-slop",
+    "description": "Remove AI slop (fabricated casts, evidence widening, defensive clutter, mock patching, vacuous names) from recent changes while keeping tests green.",
+    "standalone": true
+  },
+  {
     "id": "wizard",
     "file": "wizard.md",
     "kind": "utility",

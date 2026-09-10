@@ -15,26 +15,50 @@ Feature: Isolated Pi research tool
     Then Pi guides the agent to invoke context_get automatically
     And the user does not need to type the tool name or a slash command
 
-  Scenario: Research runs in an isolated child Pi session
+  Scenario: Research runs in a child Pi session via the shared worker
     Given the agent calls context_get with a research question
-    When the tool starts its child Pi process
+    When the tool starts its child Pi process through pi-kit's runPiWorker
     Then the child runs in print JSON mode without a session
     And its available tools are limited to read and bash
     And edit and write are excluded
     And the child receives a research-only prompt
+    And the child runs in the caller's working directory with no sandbox
+    And there is no wall-clock timeout and no result truncation
 
-  Scenario: Research may clone a repository only in the temporary directory
+  Scenario: Repository clones stay prompt-level guidance
     Given the child needs line-level repository evidence
     When it inspects a public repository
-    Then it may git clone with depth 1 under /tmp
-    And it removes its temporary clone after inspection
-    But it does not modify the caller's working directory
+    Then the prompt suggests git clone with depth 1 under /tmp
+    And the prompt tells the child to remove its temporary clone after inspection
 
-  Scenario: Research results are bounded and rendered as one lifecycle result
-    Given the child Pi process returns a research answer
-    When context_get completes
-    Then the answer is bounded before it enters the main session
-    And Pi renders one compact expandable context lifecycle row
+  Scenario: Research renders an informative call row while executing
+    Given the agent calls context_get with a research query
+    When the tool call is rendered in the TUI
+    Then Pi renders an active context started row showing the query
+    And a blank line follows the started row
+    And Pi renders one compact expandable context lifecycle row when finished
+    And expanding the researched row reveals the complete answer without line truncation
+
+  Scenario: Research call rows fit the current TUI width
+    Given a long research query with paths, CJK text and ANSI styling
+    When the call component renders at widths 40, 80 and 160
+    Then the started query wraps within the available display columns
+    And it preserves the themed context prefix and the complete query without an ellipsis
+    And whitespace and unsafe query escape sequences are sanitized
+
+  Scenario: Research rows adapt when the TUI is resized
+    Given a research query longer than 120 characters
+    When the same call component renders wide, narrow and wide again
+    Then the wide row shows the complete query when it fits
+    And the narrow row wraps without omitting any query text
+    And invalidation uses the current theme
+    And the completed researched row also retains the complete query when it fits
+
+  Scenario: Research shows a running status widget above the editor
+    Given the agent calls context_get with a research question
+    When the research child is running
+    Then a status widget above the editor shows the researching query with live activity
+    And the widget clears when research completes
 
   Scenario: Pi cancellation terminates the child process
     Given a context research child is still running
@@ -43,6 +67,6 @@ Feature: Isolated Pi research tool
     And the tool reports a cancellation error rather than a partial answer
 
   Scenario: A failed child process does not return an answer
-    Given an isolated Pi research child exits unsuccessfully
+    Given a Pi research child exits unsuccessfully
     When context_get completes
     Then the tool reports the child failure

@@ -429,6 +429,7 @@ interface PhaseOpts {
   reason: string;
   budgetBytes: number;
   disabled: boolean;
+  availableSkills?: readonly string[];
 }
 
 async function readRegularFileIfExists(filePath: string, maxBytes: number): Promise<Buffer | null> {
@@ -657,7 +658,7 @@ export async function runAgentsMdConsolidationPhase(
       }
     }
     if (harnessOps.length > 0) {
-      const appliedHarness = await applyHarnessOps(configPaths(opts.cwd).projectLocal, harnessOps);
+      const appliedHarness = await applyHarnessOps(configPaths(opts.cwd).projectLocal, harnessOps, new Set(opts.availableSkills ?? []));
       if (appliedHarness.ok) extractionNotes.push(...appliedHarness.applied);
       else extractionNotes.push(`skillPrompts FAILED: ${appliedHarness.error.slice(0, 120)}`);
     }

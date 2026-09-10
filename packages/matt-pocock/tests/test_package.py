@@ -33,6 +33,9 @@ def test_feature_covers_the_catalog_gateway_contract() -> None:
         "A workflow advertises only legal next transitions",
         "The agent explicitly completes or cancels a workflow",
         "Standalone capabilities are reachable without child skills",
+        "A de-slop capability removes AI slop without workflow state",
+        "The standards baseline rejects AI slop patterns in code review",
+        "A local-only capability stays out of the upstream selection metadata",
         "Conditional references load through the active gateway",
         "The active gateway is progressively disclosed",
         "A prompt cancels active workflow before rerouting",
@@ -139,6 +142,7 @@ def test_gateway_schema_is_compact_and_catalog_backed() -> None:
     assert result["routes"] == result["expectedRoutes"]
     assert result["capabilities"] == result["expectedCapabilities"]
     assert "writing-for-agents" in result["capabilities"]
+    assert "deslop" in result["capabilities"]
 
 
 def test_gateway_starts_workflow_with_versioned_work_item_state() -> None:
@@ -411,8 +415,66 @@ def test_menu_includes_standalone_capabilities() -> None:
     assert result["commands"] == ["matt-pocock"]
     assert result["menus"] == [{
         "title": "Matt Pocock",
-        "choices": ["Start a workflow", "Run a standalone capability", "View current workflow"],
+        "choices": ["Start a task", "Start a workflow", "Run a standalone capability", "View current workflow"],
     }]
+
+
+def test_menu_context_auto_start_forwards_conversation_context() -> None:
+    result = run_typescript("""
+        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+        const mattPocock = importedMattPocock.default ?? importedMattPocock;
+        const commands = new Map(), entries = [], sent = [];
+        mattPocock({
+          on() {}, registerCommand(name, command) { commands.set(name, command); }, registerTool() {},
+          appendEntry(customType, data) { entries.push({ customType, data }); },
+          sendUserMessage(message, options) { sent.push({ message, options }); },
+        });
+        await commands.get("matt-pocock").handler("", {
+          hasUI: true,
+          ui: { setStatus() {}, notify() {}, select: async () => "Start a task" },
+        });
+        console.log(JSON.stringify({ entries, sent }));
+    """)
+    assert result["entries"] == []
+    assert len(result["sent"]) == 1
+    message = result["sent"][0]["message"]
+    assert "recent conversation context" in message
+    assert "matt_pocock_workflow" in message
+    assert "Begin immediately once the route is clear" in message
+    assert result["sent"][0]["options"] == {"deliverAs": "followUp"}
+
+
+def test_menu_context_auto_start_supersedes_active_workflow() -> None:
+    result = run_typescript("""
+        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+        const mattPocock = importedMattPocock.default ?? importedMattPocock;
+        const commands = new Map(), tools = new Map(), entries = [], sent = [];
+        let activeTools = ["bash", "matt_pocock_workflow"];
+        const pi = {
+          on() {}, registerCommand(name, command) { commands.set(name, command); },
+          registerTool(tool) { tools.set(tool.name, tool); },
+          appendEntry(customType, data) { entries.push({ customType, data }); },
+          sendUserMessage(message, options) { sent.push({ message, options }); },
+          getActiveTools() { return activeTools; }, setActiveTools(names) { activeTools = names; },
+        };
+        mattPocock(pi);
+        const ctx = { hasUI: true, ui: { setStatus() {}, notify() {}, input: async () => "" } };
+        await tools.get("matt_pocock_workflow").execute("start", { mode: "workflow", route: "hard-bug" }, undefined, undefined, ctx);
+        await commands.get("matt-pocock").handler("", {
+          hasUI: true,
+          ui: { setStatus() {}, notify() {}, select: async () => "Start a task" },
+        });
+        console.log(JSON.stringify({ entries, sent }));
+    """)
+    assert len(result["entries"]) == 2
+    assert result["entries"][0]["data"]["status"] == "active"
+    terminal = result["entries"][1]["data"]
+    assert terminal["status"] == "cancelled"
+    assert terminal["workItemId"] == result["entries"][0]["data"]["workItemId"]
+    assert "Superseded" in terminal["reason"]
+    assert len(result["sent"]) == 1
+    assert "previous active workflow has been cancelled" in result["sent"][0]["message"]
+    assert "recent conversation context" in result["sent"][0]["message"]
 
 
 def test_inactive_guidance_advertises_workflows_and_model_capabilities() -> None:
@@ -430,6 +492,7 @@ def test_inactive_guidance_advertises_workflows_and_model_capabilities() -> None
 
 def test_matt_pocock_ask_selection_custom_input_pending_cases() -> None:
     result = run_typescript("""
+        process.env.PI_NO_NATIVE_DIALOG = "1";
         import importedMattPocock from "./packages/matt-pocock/src/index.ts";
         const mattPocock = importedMattPocock.default ?? importedMattPocock;
         const tools = new Map();
@@ -515,6 +578,120 @@ def test_tool_and_message_rendering_preserves_compact_lifecycle_rows() -> None:
     assert "Restored body" not in result["messageRows"][0]
 
 
+def test_native_macos_dialog_environment_guards() -> None:
+    result = run_typescript("""
+        import { isNativeDialogSupported, macosPrompt } from "./packages/matt-pocock/src/native-dialog.ts";
+
+        const checks = {
+          linux: isNativeDialogSupported({ platform: "linux", env: {} }),
+          win32: isNativeDialogSupported({ platform: "win32", env: {} }),
+          darwinLocal: isNativeDialogSupported({ platform: "darwin", env: {} }),
+          darwinSshConnection: isNativeDialogSupported({ platform: "darwin", env: { SSH_CONNECTION: "1.1.1.1 1234 2.2.2.2 22" } }),
+          darwinSshClient: isNativeDialogSupported({ platform: "darwin", env: { SSH_CLIENT: "1.1.1.1 1234 22" } }),
+          darwinSshTty: isNativeDialogSupported({ platform: "darwin", env: { SSH_TTY: "/dev/pts/1" } }),
+          darwinCi: isNativeDialogSupported({ platform: "darwin", env: { CI: "true" } }),
+          darwinOptOut: isNativeDialogSupported({ platform: "darwin", env: { PI_NO_NATIVE_DIALOG: "1" } }),
+        };
+
+        let linuxError = false;
+        try {
+          await macosPrompt({ message: "Test" }, { platform: "linux", env: {} });
+        } catch {
+          linuxError = true;
+        }
+
+        let sshError = false;
+        try {
+          await macosPrompt({ message: "Test" }, { platform: "darwin", env: { SSH_CONNECTION: "true" } });
+        } catch {
+          sshError = true;
+        }
+
+        let buttonLimitError = false;
+        try {
+          await macosPrompt({ message: "Test", buttons: ["1", "2", "3", "4"] }, { platform: "darwin", env: {} });
+        } catch {
+          buttonLimitError = true;
+        }
+
+        console.log(JSON.stringify({ checks, linuxError, sshError, buttonLimitError }));
+    """)
+    assert result["checks"]["linux"] is False
+    assert result["checks"]["win32"] is False
+    assert result["checks"]["darwinLocal"] is True
+    assert result["checks"]["darwinSshConnection"] is False
+    assert result["checks"]["darwinSshClient"] is False
+    assert result["checks"]["darwinSshTty"] is False
+    assert result["checks"]["darwinCi"] is False
+    assert result["checks"]["darwinOptOut"] is False
+    assert result["linuxError"] is True
+    assert result["sshError"] is True
+    assert result["buttonLimitError"] is True
+
+
+def test_native_dialog_config_and_ask_integration(tmp_path: Path) -> None:
+    cfg_true = tmp_path / "cfg-true.json"
+    cfg_true.write_text('{"useNativeDialog": true}\n')
+    cfg_false = tmp_path / "cfg-false.json"
+    cfg_false.write_text('{"useNativeDialog": false}\n')
+    cfg_invalid = tmp_path / "cfg-invalid.json"
+    cfg_invalid.write_text('{not valid json}\n')
+
+    result = run_typescript(f"""
+        import {{ loadConfig, defaultConfigFile }} from "./packages/matt-pocock/src/native-dialog.ts";
+        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+        const mattPocock = importedMattPocock.default ?? importedMattPocock;
+
+        const c1 = loadConfig("{cfg_true}");
+        const c2 = loadConfig("{cfg_false}");
+        const c3 = loadConfig("{cfg_invalid}");
+        const c4 = loadConfig("/nonexistent/file.json");
+        const defFile = defaultConfigFile();
+
+        // Test ask with config disabled -> uses ctx.ui.select
+        const tools = new Map();
+        let activeTools = ["matt_pocock_workflow"];
+        const pi = {{
+          on() {{}}, registerCommand() {{}}, registerTool(tool) {{ tools.set(tool.name, tool); }}, appendEntry() {{}}, sendUserMessage() {{}},
+          getActiveTools() {{ return activeTools; }}, setActiveTools(names) {{ activeTools = names; }},
+        }};
+        let selectCalled = false;
+        const ctx = {{ hasUI: true, ui: {{
+          setStatus() {{}}, notify() {{}},
+          select: async () => {{ selectCalled = true; return "Option A"; }},
+          input: async () => "",
+        }}}};
+        mattPocock(pi);
+        await tools.get("matt_pocock_workflow").execute("start", {{ mode: "workflow", route: "hard-bug" }}, undefined, undefined, ctx);
+        const ask = tools.get("matt_pocock_ask");
+
+        process.env.PI_MATT_POCOCK_CONFIG_FILE = "{cfg_false}";
+        const resTui = await ask.execute("call-tui", {{ title: "Testing Title", question: "Which scope?", options: ["Option A", "Option B"] }}, undefined, undefined, ctx);
+
+        console.log(JSON.stringify({{ c1, c2, c3, c4, defFile, selectCalled, resTui }}));
+    """)
+    assert result["c1"]["useNativeDialog"] is True
+    assert result["c2"]["useNativeDialog"] is False
+    assert result["c3"]["useNativeDialog"] is False
+    assert result["c4"]["useNativeDialog"] is False
+    assert result["defFile"].endswith(".pi/agent/pi-matt-pocock.json")
+    assert result["selectCalled"] is True
+    assert result["resTui"]["details"]["answer"] == "Option A"
+
+
+def test_deslop_capability_and_ai_slop_baseline_are_bundled() -> None:
+    deslop = (PROCEDURES / "deslop.md").read_text()
+    review = (PROCEDURES / "code-review.md").read_text()
+    for category in ("Fabricated evidence", "Evidence widening", "Defensive clutter", "Mock patching", "Vacuous names"):
+        assert category in deslop, f"deslop.md misses {category}"
+        assert category in review, f"code-review.md misses {category}"
+    assert "CLEAN" in deslop and "PARTIAL" in deslop
+    assert "Tests and types must stay green" in deslop
+    # The AI slop baseline binds to the same repo-override and tooling-skip rules as the smell baseline.
+    assert "repo overrides" in review or "repo standard overrides" in review
+    assert "Skip anything tooling enforces" in review or "tooling already enforces" in review
+
+
 def test_procedures_are_internal_linked_resources() -> None:
     assert not list(PACKAGE.rglob("SKILL.md"))
     for procedure in PROCEDURES.glob("*.md"):
@@ -536,3 +713,13 @@ def test_package_documents_installation_and_deferred_automation() -> None:
         assert term in guide
     for deferred in ("Automatically create a new Pi session", "Automatically create teammates", "tool-level production-write blocking"):
         assert deferred in todo
+
+
+def test_tool_descriptions_stay_under_char_budget() -> None:
+    import re
+    src = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
+    match = re.search(r'name: "matt_pocock_workflow",\n\s*label: "[^"]*",\n\s*description: "([^"]*)"', src)
+    assert match is not None
+    # Budget pins the compressed workflow gateway description; the
+    # pre-optimization version was ~353 chars.
+    assert len(match.group(1)) <= 345

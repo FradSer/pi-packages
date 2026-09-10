@@ -272,12 +272,96 @@ export function renderAgentMessageBand(
 export interface PiMessageComponent {
   render(width: number): string[];
   invalidate(): void;
+  handleMouse?(event: unknown): unknown;
+  setExpanded?(expanded: boolean): void;
 }
 
 /** Structural message input used by custom transcript renderers. */
 export interface PiCustomMessageLike {
   content: unknown;
   details?: unknown;
+}
+
+/** Options for wrapping a lifecycle rendering callback in a host ToolExecutionComponent. */
+export interface ToolExecutionWrapperOptions {
+  hostComponent?: any;
+  toolName?: string;
+  toolCallId?: string;
+  expanded?: boolean;
+  ui?: any;
+  cwd?: string;
+  emptyCall?: () => any;
+}
+
+/**
+ * Wrap a lifecycle component or render callback inside a host ToolExecutionComponent.
+ * When hostComponent is supplied, this equips the custom message with native
+ * mouse click toggling and self-render container layout.
+ */
+export function createToolExecutionWrapper<C extends PiMessageComponent>(
+  render: (options: { expanded?: boolean }, theme?: ToolLifecycleTheme) => C,
+  options: ToolExecutionWrapperOptions = {},
+  theme?: ToolLifecycleTheme,
+): C {
+  const {
+    hostComponent,
+    toolName = "message",
+    toolCallId = "lifecycle_message",
+    expanded = false,
+    ui = { requestRender: () => {} },
+    cwd = process.cwd(),
+  } = options;
+
+  if (!hostComponent) {
+    return render({ expanded }, theme);
+  }
+
+  class LifecycleToolExecutionWrapper extends (hostComponent as any) {
+    constructor(...args: any[]) {
+      super(...args);
+    }
+    render(width: number): string[] {
+      const lines = super.render(width);
+      return lines.length > 0 && lines[0] === "" ? lines.slice(1) : lines;
+    }
+    handleMouse(event: any): any {
+      if (event.type === "click" && event.button === "left") {
+        this.setExpanded(!this.expanded);
+        if (typeof this.updateDisplay === "function") {
+          this.updateDisplay();
+        }
+        if (this.ui?.requestRender) {
+          this.ui.requestRender();
+        }
+        return { handled: true };
+      }
+      if (!this.hasRendererDefinition || !this.hasRendererDefinition() || this.getRenderShell?.() !== "self") {
+        return super.handleMouse?.(event);
+      }
+      if (event.y < 0 || (this.selfRenderHeight !== undefined && event.y >= this.selfRenderHeight)) {
+        return undefined;
+      }
+      return this.selfRenderContainer?.handleMouse
+        ? this.selfRenderContainer.handleMouse({
+            ...event,
+            y: event.y,
+            height: this.selfRenderHeight,
+          })
+        : super.handleMouse?.(event);
+    }
+  }
+
+  const toolDefinition = {
+    renderShell: "self",
+    renderCall: options.emptyCall ?? (() => ({ render: () => [], invalidate: () => {} })),
+    renderResult: (_result: unknown, opt: { expanded?: boolean }, toolTheme: ToolLifecycleTheme) =>
+      render(opt, theme ?? toolTheme),
+  };
+
+  const comp = new LifecycleToolExecutionWrapper(toolName, toolCallId, {}, {}, toolDefinition, ui, cwd);
+  comp.updateResult?.({ content: [{ type: "text", text: "details" }], isError: false });
+  comp.setExpanded?.(expanded);
+  return comp as unknown as C;
 }
 
 /** Shared host-independent renderer inputs for custom messages and native tools. */
@@ -287,6 +371,10 @@ export interface ToolLifecycleRendererOptions<T> {
   fit: ToolLifecycleRenderOptions["fit"];
   visibleWidth: ToolLifecycleRenderOptions["visibleWidth"];
   wrapDetail?: ToolLifecycleRenderOptions["wrapDetail"];
+  hostComponent?: any;
+  emptyCall?: () => any;
+  ui?: any;
+  cwd?: string;
 }
 
 /**
@@ -306,15 +394,34 @@ export function createToolLifecycleMessageRenderer(
     const text = extractTextContent(message.content);
     const details = textLines(message.details === undefined ? text : message.details);
     const spec = options.createSpec(message, text, details);
-    return lifecycleComponent(spec, {
-      expanded: state.expanded,
-      expandable: message.details !== undefined || details.length > 0,
-      expandHint: options.expandHint,
-      theme,
-      fit: options.fit,
-      visibleWidth: options.visibleWidth,
-      wrapDetail: options.wrapDetail,
-    });
+    const renderContent = (contentState: { expanded?: boolean }, currentTheme: ToolLifecycleTheme = theme) =>
+      lifecycleComponent(spec, {
+        expanded: contentState.expanded,
+        expandable: message.details !== undefined || details.length > 0,
+        expandHint: options.expandHint,
+        theme: currentTheme,
+        fit: options.fit,
+        visibleWidth: options.visibleWidth,
+        wrapDetail: options.wrapDetail,
+      });
+
+    if (options.hostComponent) {
+      return createToolExecutionWrapper(
+        (opt, t) => renderContent(opt, t),
+        {
+          hostComponent: options.hostComponent,
+          toolName: spec.tool,
+          toolCallId: "msg_lifecycle",
+          expanded: state.expanded,
+          ui: options.ui,
+          cwd: options.cwd,
+          emptyCall: options.emptyCall,
+        },
+        theme,
+      );
+    }
+
+    return renderContent(state, theme);
   };
 }
 
@@ -331,18 +438,38 @@ export function createStaticToolLifecycleMessageRenderer<T extends PiCustomMessa
   state: { expanded?: boolean },
   theme: ToolLifecycleTheme,
 ) => PiMessageComponent {
-  return (message, state, theme) => ({
-    render: (width) => renderToolLifecycle(options.createSpec(message), {
-      expanded: state.expanded,
-      expandHint: options.expandHint,
-      theme,
-      fit: options.fit,
-      visibleWidth: options.visibleWidth,
-      wrapDetail: options.wrapDetail,
-      width,
-    }),
-    invalidate: () => {},
-  });
+  return (message, state, theme) => {
+    const renderContent = (contentState: { expanded?: boolean }, currentTheme: ToolLifecycleTheme = theme) => ({
+      render: (width: number) => renderToolLifecycle(options.createSpec(message), {
+        expanded: contentState.expanded,
+        expandHint: options.expandHint,
+        theme: currentTheme,
+        fit: options.fit,
+        visibleWidth: options.visibleWidth,
+        wrapDetail: options.wrapDetail,
+        width,
+      }),
+      invalidate: () => {},
+    });
+
+    if (options.hostComponent) {
+      return createToolExecutionWrapper(
+        (opt, t) => renderContent(opt, t),
+        {
+          hostComponent: options.hostComponent,
+          toolName: options.createSpec(message).tool,
+          toolCallId: "msg_lifecycle",
+          expanded: state.expanded,
+          ui: options.ui,
+          cwd: options.cwd,
+          emptyCall: options.emptyCall,
+        },
+        theme,
+      );
+    }
+
+    return renderContent(state, theme);
+  };
 }
 
 export function createToolLifecycleResultRenderer<T extends PiCustomMessageLike, E>(
@@ -544,13 +671,15 @@ export function renderPiPanel(options: PiPanelOptions): string[] {
   ];
 }
 
-/** Render a passive widget row aligned with Pi's native leading-space rows. */
+/** Render a passive widget row aligned with Pi's native leading-space rows.
+ * leadingSpaces defaults to one; pass zero for flush-left rows. */
 export function renderPiWidgetRow(
   content: string,
   width: number,
   fit: (text: string, width: number, ellipsis?: string, pad?: boolean) => string,
+  leadingSpaces = 1,
 ): string {
-  return width <= 0 ? "" : fit(` ${content}`, width, "", true);
+  return width <= 0 ? "" : fit(`${" ".repeat(Math.max(0, leadingSpaces))}${content}`, width, "", true);
 }
 
 // ── Overlay layout helpers ──────────────────────────────────────────

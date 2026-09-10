@@ -62,6 +62,20 @@ Feature: Matt Pocock workflow harness
     Then the agent calls matt_pocock_workflow in capability mode for writing-for-agents
     And it does not create persistent engineering workflow state
 
+  Scenario: A de-slop capability removes AI slop without workflow state
+    Given no workflow is active in the session
+    When the user asks to remove AI slop from the recent changes
+    Then the agent calls matt_pocock_workflow in capability mode for deslop
+    And it does not create persistent engineering workflow state
+    And it rewrites fabricated evidence, evidence widening, defensive clutter, mock patching, and vacuous names while behavior, public interfaces, and test outcomes stay identical
+
+  Scenario: The standards baseline rejects AI slop patterns in code review
+    Given the code-review procedure builds its fixed standards baseline
+    When the standards axis evaluates the diff
+    Then the baseline includes cross-language AI slop patterns for fabricated evidence, evidence widening, defensive clutter, mock patching, and vacuous names
+    And each pattern is a labelled judgement call overridden by a documented repository standard
+    And the baseline skips any pattern that repository tooling already enforces
+
   Scenario: Agent autonomously starts a workflow through the baseline gateway
     Given a task matching a structured engineering workflow
     When the agent calls matt_pocock_workflow in workflow mode
@@ -245,9 +259,49 @@ Feature: Matt Pocock workflow harness
     And ignored upstream skills carry an explicit reason
     And the packed package includes the selection metadata and offline checker
 
+  Scenario: A local-only capability stays out of the upstream selection metadata
+    Given deslop is a local capability with no upstream origin
+    When the upstream selection metadata is validated
+    Then every selected entry still maps to an upstream skill and a catalog capability
+    And the local capability is not listed as selected or excluded upstream content
+
   Scenario: Deferred lifecycle automation remains documented
     Given the first harness version is packaged
     When TODO.md is inspected
     Then it lists automatic session creation
     And it lists automatic teammate creation
     And it lists tool-level BDD or TDD write blocking
+
+  Scenario: Native macOS dialog is guarded against non-macOS and SSH environments
+    Given the native dialog helper
+    When a dialog is requested on linux, win32, an SSH session, CI, or with PI_NO_NATIVE_DIALOG set
+    Then the helper reports the native dialog as unsupported
+    And macOS dialogs raise on unsupported environments and enforce a three-button limit
+
+  Scenario: Native dialog configuration defaults to disabled and respects user opt-in
+    Given a configuration file path or absence in ~/.pi/agent/pi-matt-pocock.json
+    When loading the package configuration
+    Then it defaults to native dialogs disabled
+    And it enables native dialogs only when useNativeDialog is explicitly true
+
+  Scenario: Native dialog presents choice list and opens an input dialog for custom answers
+    Given native macOS dialog is enabled and supported
+    When the agent asks a structured question with options
+    Then it presents a native choice list dialog
+    And the dialog title is derived from an explicit tool title or active workflow context
+    And selecting custom input opens a native text input dialog for typing the answer
+    And timeout with recommendation automatically adopts the recommended option
+
+  Scenario: The harness offers a default start-a-task entry in the menu
+    Given no Matt Pocock workflow is active
+    When the user invokes /matt-pocock without arguments
+    Then the harness presents Start a task first alongside manual route selection
+    When the user selects Start a task
+    Then the harness forwards the conversation context for autonomous workflow routing and execution
+    And it does not require the user to manually pick a route
+
+  Scenario: Starting a new task supersedes the active workflow
+    Given a Matt Pocock workflow is active
+    When the user selects Start a task from the harness menu
+    Then the harness records that the current workflow was cancelled as superseded
+    And it forwards the conversation context for autonomous workflow or capability routing

@@ -97,13 +97,74 @@ Feature: A unified design capability in Pi
     When the user cancels the impeccable menu
     Then no follow-up request is sent
 
-  Scenario: A freeform request routes design guidance
-    Given a request whose first word is not a capability id
+  Scenario: A freeform request without a trigger match receives a router pack
+    Given a request whose first word is not a capability id and which matches no command trigger
     When impeccable is invoked with that request
     Then no unknown-capability diagnostic is emitted
-    And one follow-up is sent naming the implemented capabilities
+    And one follow-up is sent carrying the capability trigger table and routing rules
     And the request is preserved verbatim for the agent
     And no default capability is loaded silently
+
+  Scenario: A paraphrased check request still routes to audit
+    Given a Chinese request paraphrasing checks without exact trigger words
+    When impeccable is invoked with that request
+    Then the audit capability is loaded
+    And the request is preserved verbatim for the agent
+
+  Scenario: A freeform check-then-fix request loads every matched command
+    Given a request asking to run all checks and then fix until top score
+    When impeccable is invoked with that request
+    Then one follow-up request opens with an explicit command plan naming each loaded command
+    And it carries the evaluate bundle first and the fix bundle second
+    And shared required topics appear once across bundles
+    And at most two bundles load while further matches are named as suggestions
+    And the request is preserved verbatim for the agent
+    And no unknown-capability diagnostic is emitted
+
+  Scenario: A procedure start renders the full request with no expansion
+    Given a follow-up carrying one or more loaded bundles
+    When Pi renders the procedure start row
+    Then the row shows `[impeccable] started` plus the full raw user request on a tinted band
+    And the row offers no expansion and paints no routing notes or bundle text
+    And model-facing guidance stays complete in message content
+
+  Scenario: Chinese freeform intent loads the matching capability
+    Given a Chinese request clearly implying the audit or critique command
+    When impeccable is invoked with that request
+    Then the matching implemented evaluate capability is loaded
+    And the request is preserved verbatim for the agent
+
+  Scenario: Ambiguous freeform names the runner-up
+    Given a freeform request closely matching two implemented capabilities
+    When impeccable is invoked with that request
+    Then the top-ranked capability is loaded as one follow-up request
+    And the follow-up names the runner-up as the explicit alternative
+
+  Scenario: Recognized but unported intent degrades honestly
+    Given a freeform request clearly matching an upstream command with no ported procedure yet
+    When impeccable is invoked with that request
+    Then the closest implemented capability is loaded
+    And the follow-up states the recognized command is not yet ported
+    And the request is preserved verbatim for the agent
+
+  Scenario: Audit and critique load their evaluate procedures
+    Given audit and critique are implemented capabilities
+    When the user invokes audit or critique with a target request
+    And the model loads audit or critique
+    Then both receive the same canonical procedure and required topics
+    And the command preserves the target request verbatim
+    And each bundle stays within the loading budget
+
+  Scenario: Audit defines the top score
+    Given audit guidance is loaded
+    When the audit report is produced
+    Then dimensions are scored 0-4 with P0-P3 severities and rating bands
+    And recommended actions map to implemented commands ending with polish
+
+  Scenario: Deprecated craft aliases shape
+    Given craft is a deprecated upstream alias with no standalone behavior
+    When impeccable is invoked with craft
+    Then the request routes to shape and notes the deprecation
 
   Scenario: Live variant mode loads its procedure and target context
     Given live requires target context and design principles

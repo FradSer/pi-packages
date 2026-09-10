@@ -1,0 +1,543 @@
+{
+  "_provenance": "Adapted from Impeccable upstream .claude/skills/impeccable/scripts/command-metadata.json at cd12f8660e2dde57b9615c8a6b8ea674101f9cfc (skill 4.3.1). Descriptions condensed to intent trigger phrases; Chinese aliases authored for Pi freeform routing. Apache-2.0, see ../../licenses/impeccable-Apache-2.0.txt.",
+  "_note": "implemented=false means no ported procedure yet: the router loads closestImplemented and states the gap instead of misloading. null closestImplemented falls back to legacy capability-listing guidance.",
+  "triggers": [
+    {
+      "id": "critique",
+      "implemented": true,
+      "closestImplemented": "critique",
+      "en": [
+        "review",
+        "critique",
+        "evaluate",
+        "feedback on",
+        "ux review",
+        "heuristic",
+        "emotional resonance",
+        "cognitive load"
+      ],
+      "zh": [
+        "评审",
+        "点评",
+        "评价",
+        "打分",
+        "诊断",
+        "体验评审",
+        "启发式",
+        "走查"
+      ],
+      "hint": "[area (feature, page, component...)]",
+      "does": "Evaluate design from a UX perspective with heuristic scoring and actionable feedback. Fixes nothing."
+    },
+    {
+      "id": "audit",
+      "implemented": true,
+      "closestImplemented": "audit",
+      "en": [
+        "audit",
+        "accessibility check",
+        "a11y",
+        "performance audit",
+        "technical quality",
+        "contrast",
+        "responsive check",
+        "all checks",
+        "scan"
+      ],
+      "zh": [
+        "审计",
+        "检查",
+        "检测",
+        "合规",
+        "无障碍",
+        "扫描",
+        "全面检查",
+        "质量检查",
+        "跑分",
+        "体检"
+      ],
+      "hint": "[area (feature, page, component...)]",
+      "does": "Run technical quality checks with a scored P0-P3 report and action plan. Fixes nothing."
+    },
+    {
+      "id": "polish",
+      "implemented": true,
+      "closestImplemented": "polish",
+      "en": [
+        "polish",
+        "finishing touches",
+        "pre-launch",
+        "final pass",
+        "looks off",
+        "good to great",
+        "fix",
+        "shipping readiness"
+      ],
+      "zh": [
+        "抛光",
+        "润色",
+        "完善",
+        "收尾",
+        "修复",
+        "最后一遍",
+        "上线前",
+        "满分",
+        "改完",
+        "改好",
+        "修好"
+      ],
+      "hint": "[target]",
+      "does": "Final quality pass: fix alignment, spacing, consistency and micro-details before shipping."
+    },
+    {
+      "id": "animate",
+      "implemented": true,
+      "closestImplemented": "animate",
+      "en": [
+        "animation",
+        "transitions",
+        "micro-interactions",
+        "motion design",
+        "hover effects",
+        "feel more alive"
+      ],
+      "zh": [
+        "动画",
+        "动效",
+        "过渡",
+        "微交互",
+        "悬停"
+      ],
+      "hint": "[target]",
+      "does": "Add purposeful animation, transitions and micro-interactions."
+    },
+    {
+      "id": "typeset",
+      "implemented": true,
+      "closestImplemented": "typeset",
+      "en": [
+        "fonts",
+        "type",
+        "readability",
+        "text hierarchy",
+        "sizing",
+        "typography"
+      ],
+      "zh": [
+        "字体",
+        "排版",
+        "字阶",
+        "字号",
+        "行高",
+        "可读性"
+      ],
+      "hint": "[target]",
+      "does": "Fix font choices, hierarchy, sizing and readability."
+    },
+    {
+      "id": "colorize",
+      "implemented": true,
+      "closestImplemented": "colorize",
+      "en": [
+        "color",
+        "monochromatic",
+        "gray",
+        "dull",
+        "vibrant",
+        "palette",
+        "warmth"
+      ],
+      "zh": [
+        "配色",
+        "上色",
+        "色彩",
+        "灰暗",
+        "单调",
+        "调色"
+      ],
+      "hint": "[target]",
+      "does": "Add strategic color to monochromatic designs."
+    },
+    {
+      "id": "layout",
+      "implemented": true,
+      "closestImplemented": "layout",
+      "en": [
+        "layout",
+        "spacing",
+        "visual hierarchy",
+        "crowded",
+        "alignment",
+        "composition",
+        "grid"
+      ],
+      "zh": [
+        "布局",
+        "间距",
+        "对齐",
+        "拥挤",
+        "栅格",
+        "构图",
+        "留白"
+      ],
+      "hint": "[target]",
+      "does": "Fix layout, spacing, rhythm and visual hierarchy."
+    },
+    {
+      "id": "clarify",
+      "implemented": true,
+      "closestImplemented": "clarify",
+      "en": [
+        "copy",
+        "microcopy",
+        "labels",
+        "error messages",
+        "instructions",
+        "ux writing",
+        "unclear text"
+      ],
+      "zh": [
+        "文案",
+        "措辞",
+        "报错",
+        "标签",
+        "指引",
+        "用词"
+      ],
+      "hint": "[target]",
+      "does": "Improve UX copy, labels, error messages and instructions."
+    },
+    {
+      "id": "live",
+      "implemented": true,
+      "closestImplemented": "live",
+      "en": [
+        "live",
+        "browser",
+        "variants",
+        "hot-swapped",
+        "visually experiment",
+        "in-browser"
+      ],
+      "zh": [
+        "实时预览",
+        "浏览器调",
+        "变体",
+        "可视化调"
+      ],
+      "hint": "",
+      "does": "Browser variant iteration with hot-swapped markup. Requires a running dev server."
+    },
+    {
+      "id": "bolder",
+      "implemented": true,
+      "closestImplemented": "bolder",
+      "en": [
+        "bland",
+        "generic",
+        "too safe",
+        "boring",
+        "personality",
+        "visual impact",
+        "amplify"
+      ],
+      "zh": [
+        "平淡",
+        "无聊",
+        "保守",
+        "大胆",
+        "个性",
+        "冲击力"
+      ],
+      "hint": "[target]",
+      "does": "Amplify bland designs while keeping usability."
+    },
+    {
+      "id": "quieter",
+      "implemented": true,
+      "closestImplemented": "quieter",
+      "en": [
+        "too bold",
+        "too loud",
+        "overwhelming",
+        "aggressive",
+        "garish",
+        "calmer",
+        "tone down"
+      ],
+      "zh": [
+        "太吵",
+        "刺眼",
+        "收敛",
+        "克制",
+        "柔和",
+        "过载"
+      ],
+      "hint": "[target]",
+      "does": "Tone down overstimulating designs while preserving quality."
+    },
+    {
+      "id": "distill",
+      "implemented": true,
+      "closestImplemented": "distill",
+      "en": [
+        "simplify",
+        "declutter",
+        "reduce noise",
+        "remove elements",
+        "cleaner",
+        "essence"
+      ],
+      "zh": [
+        "简化",
+        "精简",
+        "去杂",
+        "本质",
+        "做减法"
+      ],
+      "hint": "[target]",
+      "does": "Strip to essence; remove complexity."
+    },
+    {
+      "id": "delight",
+      "implemented": true,
+      "closestImplemented": "delight",
+      "en": [
+        "delight",
+        "joy",
+        "personality",
+        "memorable",
+        "fun",
+        "playful"
+      ],
+      "zh": [
+        "惊喜",
+        "趣味",
+        "愉悦",
+        "彩蛋",
+        "生动"
+      ],
+      "hint": "[target]",
+      "does": "Add moments of joy and personality."
+    },
+    {
+      "id": "overdrive",
+      "implemented": true,
+      "closestImplemented": "overdrive",
+      "en": [
+        "wow",
+        "impress",
+        "extraordinary",
+        "shaders",
+        "physics",
+        "all-out",
+        "ambitious effects"
+      ],
+      "zh": [
+        "惊艳",
+        "炸裂",
+        "极致",
+        "特效",
+        "炫技"
+      ],
+      "hint": "[target]",
+      "does": "Technically ambitious effects: shaders, physics, scroll reveals."
+    },
+    {
+      "id": "adapt",
+      "implemented": true,
+      "closestImplemented": "adapt",
+      "en": [
+        "responsive",
+        "mobile layout",
+        "breakpoints",
+        "viewport",
+        "cross-device",
+        "tablet"
+      ],
+      "zh": [
+        "响应式",
+        "移动端",
+        "适配",
+        "断点",
+        "多端",
+        "手机端"
+      ],
+      "hint": "[target] [context (mobile, tablet, print...)]",
+      "does": "Responsive and cross-device adaptation. Web-only."
+    },
+    {
+      "id": "optimize",
+      "implemented": true,
+      "closestImplemented": "optimize",
+      "en": [
+        "slow",
+        "laggy",
+        "janky",
+        "performance",
+        "bundle size",
+        "load time",
+        "faster"
+      ],
+      "zh": [
+        "慢",
+        "卡顿",
+        "掉帧",
+        "性能",
+        "包体积",
+        "加载慢",
+        "优化性能",
+        "优化"
+      ],
+      "hint": "[target]",
+      "does": "Diagnose and fix UI performance issues."
+    },
+    {
+      "id": "harden",
+      "implemented": true,
+      "closestImplemented": "harden",
+      "en": [
+        "production-ready",
+        "edge cases",
+        "error states",
+        "overflow",
+        "i18n",
+        "resilience",
+        "harden"
+      ],
+      "zh": [
+        "生产级",
+        "边界",
+        "异常态",
+        "空态",
+        "国际化",
+        "兜底",
+        "健壮"
+      ],
+      "hint": "[target]",
+      "does": "Production-ready: errors, i18n, overflow, edge cases."
+    },
+    {
+      "id": "onboard",
+      "implemented": true,
+      "closestImplemented": "onboard",
+      "en": [
+        "onboarding",
+        "first-run",
+        "empty states",
+        "activation",
+        "getting started",
+        "new user",
+        "welcome"
+      ],
+      "zh": [
+        "新手引导",
+        "首次",
+        "空状态",
+        "激活",
+        "欢迎页",
+        "上手"
+      ],
+      "hint": "[target]",
+      "does": "First-run flows, empty states, activation."
+    },
+    {
+      "id": "shape",
+      "implemented": true,
+      "closestImplemented": "shape",
+      "en": [
+        "plan ux",
+        "plan ui",
+        "before code",
+        "discovery interview",
+        "design brief"
+      ],
+      "zh": [
+        "规划",
+        "方案先行",
+        "动工前",
+        "需求澄清",
+        "设计简报"
+      ],
+      "hint": "[feature to shape]",
+      "does": "Plan UX/UI and produce a user-confirmed brief. No code until confirmed."
+    },
+    {
+      "id": "init",
+      "implemented": true,
+      "closestImplemented": "init",
+      "en": [
+        "set up",
+        "setup",
+        "product.md",
+        "product context",
+        "once per project",
+        "getting started with impeccable"
+      ],
+      "zh": [
+        "初始化",
+        "项目建档",
+        "产品上下文"
+      ],
+      "hint": "",
+      "does": "Write PRODUCT.md once per project, then recommend next commands."
+    },
+    {
+      "id": "document",
+      "implemented": true,
+      "closestImplemented": "document",
+      "en": [
+        "design.md",
+        "visual spec",
+        "design system spec",
+        "extract colors",
+        "stay on-brand"
+      ],
+      "zh": [
+        "设计文档",
+        "视觉规范",
+        "沉淀规范"
+      ],
+      "hint": "",
+      "does": "Generate DESIGN.md capturing the visual system from code."
+    },
+    {
+      "id": "extract",
+      "implemented": true,
+      "closestImplemented": "extract",
+      "en": [
+        "design tokens",
+        "reusable components",
+        "consolidate",
+        "drift",
+        "consistent system"
+      ],
+      "zh": [
+        "抽 tokens",
+        "组件复用",
+        "收敛",
+        "治理"
+      ],
+      "hint": "[target]",
+      "does": "Pull tokens and components into the design system."
+    },
+    {
+      "id": "craft",
+      "implemented": false,
+      "closestImplemented": null,
+      "en": [
+        "craft",
+        "build flow",
+        "shape-then-build"
+      ],
+      "zh": [
+        "构建",
+        "从零做"
+      ],
+      "hint": "[feature description]",
+      "aliasOf": "shape",
+      "deprecated": true,
+      "does": "Deprecated alias of shape; adds no behavior."
+    }
+  ]
+}

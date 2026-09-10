@@ -125,7 +125,7 @@ pnpm --dir packages/matt-pocock pack --dry-run
 node packages/matt-pocock/scripts/check-upstream-sync.mjs --upstream /path/to/mattpocock-skills
 ```
 
-## 与上游纯 skills 方案的差异
+## 与上游纯 skills方案的差异
 
 | 维度 | `mattpocock/skills` | `pi-matt-pocock` |
 | --- | --- | --- |
@@ -137,3 +137,23 @@ node packages/matt-pocock/scripts/check-upstream-sync.mjs --upstream /path/to/ma
 | 推进 | 由方法正文解释 | `allowedNext` 在运行时强制执行 |
 | 公共命名 | 通用 skill 名可能冲突 | 无子 `SKILL.md`，通用 procedure 名不全局注册 |
 | 同步 | 直接跟随上游文件 | selection metadata 与 checker 约束选择性适配 |
+
+## 结构化决策与 macOS 原生弹窗配置
+
+工作流进行决策访谈（如 `grilling`、`domain-modeling`）时，通过 `matt_pocock_ask` 工具向用户发起选项选择或自定义输入。默认情况下，使用 Pi 终端内置的 TUI 界面（`ctx.ui.select` / `ctx.ui.input`）。
+
+用户可在 `~/.pi/agent/pi-matt-pocock.json` 中配置是否在本地 macOS 环境下启用系统原生弹窗：
+
+```json
+{
+  "useNativeDialog": true
+}
+```
+
+- **默认值**：`false`（默认使用终端内置交互，用户不配置或文件不存在时不启用）。
+- **严格环境守卫**：只有在 macOS 本地图形会话中才会唤起系统弹窗；非 macOS 平台、远程 SSH 会话（`SSH_CONNECTION` / `SSH_CLIENT` / `SSH_TTY`）或 CI/自动化环境下会自动优雅降级为终端内置 TUI。
+- **智能动态上下文**：弹窗标题由 AI 提问时指定或自动从当前工作流 Route/Phase 上下文关联派生；按钮文案自动根据提示语语言智能适应，配置文件仅保留 `useNativeDialog` 单一开关，保持极简。
+- **原生交互体验**：
+  1. **列表单选**：调用系统原生 `choose from list` 弹窗展示选项，支持上下键移动、回车选择；
+  2. **自定义输入**：当用户选择“输入自定义回答...”时，自动唤起原生文本输入窗口（`display dialog` 带输入框），供用户直接打字；
+  3. **推荐超时自动采纳**：在指定时间内未选择且包含推荐选项时，自动关闭弹窗并采纳推荐选项继续推进。

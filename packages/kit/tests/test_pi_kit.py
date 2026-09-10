@@ -65,6 +65,9 @@ def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
     assert "Scenario: pi-kit stays a pure runtime dependency" in feature
     assert "Scenario: Pi CLI resolution accepts only the coding-agent package" in feature
     assert "Scenario: Child termination observes close and escalates once" in feature
+    assert "Scenario: One-shot workers return final text with usage and diagnostics" in feature
+    assert "Scenario: Aborting a one-shot worker terminates the child" in feature
+    assert "Scenario: A failed one-shot worker surfaces diagnostics without trustworthy text" in feature
     assert "Scenario: Overlay panels use the shared frame layout" in feature
     assert "Scenario: Passive console widgets use the shared row layout" in feature
     assert "Scenario: Custom transcript messages use the standard lifecycle renderer" in feature
@@ -128,6 +131,125 @@ def test_run_pi_worker_uses_child_cwd_without_unsupported_cwd_flag() -> None:
     assert result["exitCode"] == 0
     assert "--no-session" in result["args"]
     assert "--cwd" not in result["args"]
+
+
+def test_parse_pi_worker_output_returns_last_text_and_usage() -> None:
+    result = run_typescript(
+        f"""
+        import {{ parsePiWorkerOutput }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const stdout = [
+          JSON.stringify({{ type: "message_end", message: {{ role: "assistant", content: [{{ type: "text", text: "first" }}], usage: {{ input: 1, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 3, cost: {{ total: 0.01 }} }} }} }}),
+          "not-json",
+          JSON.stringify({{ type: "message_update", assistantMessageEvent: {{ type: "text_delta", delta: "live" }} }}),
+          JSON.stringify({{ type: "message_end", message: {{ role: "user", content: [{{ type: "text", text: "ignore me" }}] }} }}),
+          JSON.stringify({{ type: "message_end", message: {{ role: "assistant", content: [{{ type: "text", text: "final" }}], usage: {{ input: 10, output: 20, cacheRead: 1, cacheWrite: 2, totalTokens: 33, cost: {{ total: 0.05 }} }} }} }}),
+        ].join(String.fromCharCode(10));
+        console.log(JSON.stringify(parsePiWorkerOutput(stdout)));
+        """
+    )
+    assert result == {
+        "text": "final",
+        "usage": {"input": 10, "output": 20, "cacheRead": 1, "cacheWrite": 2, "totalTokens": 33, "cost": 0.05},
+    }
+
+
+def test_run_pi_worker_returns_text_usage_and_diagnostics() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-kit-usage-"));
+        const cwd = path.join(root, "workspace");
+        fs.mkdirSync(cwd);
+        const fakePackage = path.join(root, "fake-package");
+        fs.mkdirSync(fakePackage);
+        fs.writeFileSync(path.join(fakePackage, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const fakePi = path.join(fakePackage, "cli.mjs");
+        fs.writeFileSync(
+          fakePi,
+          "#!/usr/bin/env node\\n" +
+            "console.log(JSON.stringify({{ type: 'message_end', message: {{ role: 'assistant', content: [{{ type: 'text', text: 'done' }}], usage: {{ input: 4, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 9, cost: {{ total: 0.02 }} }} }} }}));\\n" +
+            "console.error('worker note');\\n",
+          {{ mode: 0o755 }},
+        );
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = fakePi;
+        const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const worker = await runPiWorker({{ prompt: "inspect", cwd }});
+        process.argv[1] = originalArgv1;
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        console.log(JSON.stringify(worker));
+        """
+    )
+    assert result["text"] == "done"
+    assert result["usage"] == {"input": 4, "output": 5, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 9, "cost": 0.02}
+    assert result["exitCode"] == 0
+    assert "worker note" in result["stderr"]
+
+
+def test_run_pi_worker_abort_terminates_child() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-kit-abort-"));
+        const cwd = path.join(root, "workspace");
+        fs.mkdirSync(cwd);
+        const fakePackage = path.join(root, "fake-package");
+        fs.mkdirSync(fakePackage);
+        fs.writeFileSync(path.join(fakePackage, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const fakePi = path.join(fakePackage, "cli.mjs");
+        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\nsetInterval(() => {{}}, 1000);\\n", {{ mode: 0o755 }});
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = fakePi;
+        const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const controller = new AbortController();
+        const started = Date.now();
+        const pending = runPiWorker({{ prompt: "inspect", cwd, signal: controller.signal }});
+        setTimeout(() => controller.abort(), 200);
+        const worker = await pending;
+        process.argv[1] = originalArgv1;
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        console.log(JSON.stringify({{ text: worker.text, exitCode: worker.exitCode, elapsedMs: Date.now() - started }}));
+        """
+    )
+    assert result["text"] == ""
+    assert result["exitCode"] != 0
+    assert result["elapsedMs"] < 14000
+
+
+def test_run_pi_worker_failure_surfaces_diagnostics() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-kit-fail-"));
+        const cwd = path.join(root, "workspace");
+        fs.mkdirSync(cwd);
+        const fakePackage = path.join(root, "fake-package");
+        fs.mkdirSync(fakePackage);
+        fs.writeFileSync(path.join(fakePackage, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const fakePi = path.join(fakePackage, "cli.mjs");
+        fs.writeFileSync(
+          fakePi,
+          "#!/usr/bin/env node\\nconsole.error('boom: model unavailable');\\nprocess.exit(1);\\n",
+          {{ mode: 0o755 }},
+        );
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = fakePi;
+        const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const worker = await runPiWorker({{ prompt: "inspect", cwd }});
+        process.argv[1] = originalArgv1;
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        console.log(JSON.stringify({{ text: worker.text, exitCode: worker.exitCode, stderr: worker.stderr }}));
+        """
+    )
+    assert result["text"] == ""
+    assert result["exitCode"] == 1
+    assert "boom: model unavailable" in result["stderr"]
 
 
 def test_pi_cli_resolver_rejects_unrelated_process_entry() -> None:
@@ -263,6 +385,7 @@ def test_panel_and_widget_layout_primitives_share_tui_geometry() -> None:
         console.log(JSON.stringify({{
           panel: renderPiPanel({{ width: 20, style, fit, title: "Context", body: ["first", "second"], footer: "esc close" }}),
           widget: renderPiWidgetRow("Working...", 12, fit),
+          flushLeft: renderPiWidgetRow("Working...", 12, fit, 0),
         }}));
         """
     )
@@ -270,6 +393,7 @@ def test_panel_and_widget_layout_primitives_share_tui_geometry() -> None:
     assert "Context" in result["panel"][1]
     assert "esc close" in result["panel"][-2]
     assert result["widget"] == " Working... "
+    assert result["flushLeft"] == "Working...  "
 
 
 def test_reusable_message_tool_and_notification_renderers_share_tui_contract() -> None:
@@ -497,6 +621,95 @@ def test_agent_message_band_shares_the_report_row_language() -> None:
     assert len(multi_lines) == 4  # one band: pad + 2 rows + pad
     assert "<customMessageLabel>[message] from </customMessageLabel>" in multi_lines[1]
     assert "<customMessageLabel>[2 messages] from </customMessageLabel>" in multi_lines[2]
+
+
+def test_lifecycle_tool_execution_wrapper_enables_mouse_toggling() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createToolExecutionWrapper, createStaticToolLifecycleMessageRenderer, eventToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+
+        class FakeHostComponent {{
+          constructor(toolName, toolCallId, args, options, toolDefinition, ui, cwd) {{
+            this.toolName = toolName;
+            this.toolCallId = toolCallId;
+            this.args = args;
+            this.options = options;
+            this.toolDefinition = toolDefinition;
+            this.ui = ui;
+            this.cwd = cwd;
+            this.expanded = false;
+            this.selfRenderContainer = {{
+              handleMouse: (event) => {{
+                if (event.type === "click" && event.button === "left") {{
+                  this.setExpanded(!this.expanded);
+                  return {{ handled: true, target: this, y: event.y }};
+                }}
+                return undefined;
+              }},
+              render: (w) => this.toolDefinition.renderResult(this.result, {{ expanded: this.expanded }}, theme).render(w),
+            }};
+          }}
+          hasRendererDefinition() {{ return true; }}
+          getRenderShell() {{ return "self"; }}
+          updateResult(res) {{ this.result = res; }}
+          setExpanded(exp) {{ this.expanded = exp; }}
+          render(w) {{
+            const lines = this.selfRenderContainer.render(w);
+            return lines.length > 0 ? ["", ...lines] : [];
+          }}
+          handleMouse(event) {{
+            if (event.y <= 0) return undefined;
+            return this.selfRenderContainer.handleMouse(event);
+          }}
+        }}
+
+        const theme = {{
+          fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
+          bg: (_color, text) => text,
+          bold: (text) => text,
+        }};
+        const fit = (text) => text;
+        const visibleWidth = (text) => text.length;
+
+        const renderer = createStaticToolLifecycleMessageRenderer({{
+          createSpec: (msg) => eventToolLifecycle("message", msg.content, {{ label: "event", details: ["detail line"] }}),
+          fit,
+          visibleWidth,
+          expandHint: "ctrl+o to expand",
+          hostComponent: FakeHostComponent,
+        }});
+
+        const comp = renderer({{ content: "from @audit" }}, {{ expanded: false }}, theme);
+
+        const collapsedLines = comp.render(60);
+        // Simulate mouse click on content line (y: 0 in child coordinates because top line was trimmed)
+        const clickRes1 = comp.handleMouse({{ type: "click", button: "left", y: 0, x: 5 }});
+        const expandedLines = comp.render(60);
+        const clickRes2 = comp.handleMouse({{ type: "click", button: "left", y: 0, x: 5 }});
+        const reCollapsedLines = comp.render(60);
+
+        console.log(JSON.stringify({{
+          hasWrapper: typeof comp.handleMouse === "function",
+          collapsedCount: collapsedLines.length,
+          collapsed: collapsedLines,
+          click1Handled: clickRes1?.handled,
+          expandedCount: expandedLines.length,
+          expanded: expandedLines,
+          click2Handled: clickRes2?.handled,
+          reCollapsedCount: reCollapsedLines.length,
+          reCollapsed: reCollapsedLines,
+        }}));
+        """
+    )
+    assert result["hasWrapper"] is True
+    # The leading redundant empty line is stripped by wrapper
+    assert result["collapsedCount"] == 3  # pad + content + pad (no double empty line at start)
+    assert "ctrl+o to expand" in result["collapsed"][1]
+    assert result["click1Handled"] is True
+    assert "detail line" in " ".join(result["expanded"])
+    assert result["click2Handled"] is True
+    assert "ctrl+o to expand" in result["reCollapsed"][1]
+
 
 
 def test_status_and_working_indicator_adapters_sanitize_and_use_shared_spinner() -> None:

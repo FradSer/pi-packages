@@ -133,6 +133,10 @@ phase never touches applied memory or harness results.
 
 ### Skill prompt guidance
 
+`/harness <request>` supplies the current session's registered skill keys. Policy names may be descriptive; `skillPrompts` keys must be exact registered skill names, and values must be `{ "prompt": "...", "target": "system" | "user" }` objects, never strings. Complete `write` tool calls to harness configuration files are checked before writing: new or changed invalid/unknown skill entries are blocked. Unchanged existing entries and removal of stale entries remain allowed. The `edit` tool is blocked for these configuration paths with guidance to read and write the complete validated JSON instead. This gate does not intercept arbitrary shell writes or make semantic instructions globally enforceable.
+
+Automatic harness consolidation and AGENTS.md skill extraction also validate additions against the session registry; without a registry, adding a skill prompt fails closed. `/harness` status separates registered guidance from inactive unknown skill names and displays malformed-entry diagnostics. Registered does not mean trigger-tested: reading JSON back proves persistence only. A skill prompt is not a project-wide rule, and unsupported global/multi-step requirements must be reported rather than assigned an invented skill name.
+
 `skillPrompts` adds corrective guidance when Pi expands a configured
 `/skill:<name>` invocation. The same three user-owned layers apply, with the
 project-personal definition winning over project shared and user shared by skill name.

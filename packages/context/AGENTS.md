@@ -18,17 +18,17 @@ pnpm --dir packages/context pack --dry-run
 
 ## Architecture & Security
 
-The research child receives `read` and `bash`, excluding `edit` and `write`.
-Create its working directory with `mkdtempSync` under `os.tmpdir()` rather than
-assuming the platform's temp path is `/tmp`. On macOS, `sandbox-exec` limits
-writes to this directory; other platforms rely on tool and prompt restrictions.
-Permit depth-1 public-repository clones only in temporary research space.
-Preserve the 180-second deadline, abort handling, and cleanup on close or launch
-failure; failed or cancelled children must not return partial answers.
+The research child runs through pi-kit's shared `runPiWorker` in the caller's
+working directory with no sandbox, no temporary directory, no wall-clock
+timeout, and no result truncation. It receives `read` and `bash`, excluding
+`edit` and `write` via `--exclude-tools`. Public-repository clones stay
+prompt-level guidance only (`git clone --depth=1` under `/tmp`, removed after
+inspection). Preserve abort handling; failed or cancelled children must not
+return partial answers.
 
 ## Testing Guidelines
 
 Use `features/native-tool-runtime.feature` and `tests/test_context_package.py`
-for tool-count, no-command, sandbox, cleanup, and bounded-result contracts.
+for tool-count, no-command, and shared-worker contracts.
 `tests/context_tools_harness.mts` provides runtime coverage. Keep the result
 label `researched` and its compact, expandable transcript.

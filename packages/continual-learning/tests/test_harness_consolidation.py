@@ -33,7 +33,7 @@ def apply_ops(tmp_path: Path, ops: list[dict]) -> tuple[dict, Path]:
     target = tmp_path / "harness.local.json"
     src = f"""
         import {{ applyHarnessOps }} from './packages/continual-learning/extensions/harness-consolidation.ts';
-        const result = await applyHarnessOps({json.dumps(str(target))}, {json.dumps(ops)});
+        const result = await applyHarnessOps({json.dumps(str(target))}, {json.dumps(ops)}, new Set(['sk', 'impeccable']));
         let after = null;
         try {{ after = JSON.parse(await Bun.file({json.dumps(str(target))}).text()); }} catch {{}}
         console.log(JSON.stringify({{ ...result, after }}));
@@ -83,6 +83,18 @@ def valid_plan() -> dict:
 def test_valid_plan_with_operations_passes() -> None:
     errs = validate(valid_plan())
     assert errs == []
+
+
+def test_unknown_skill_prompt_is_rejected_when_registry_is_supplied() -> None:
+    src = """
+        import { validateHarnessPlan } from './packages/continual-learning/extensions/harness-consolidation.ts';
+        const plan = { kind: 'harness-consolidation-plan', operations: [{ op: 'addSkillPrompt', name: 'invented-skill', prompt: 'x', target: 'system' }], evidence: [{ index: 0, observation: 'x', count: 1 }] };
+        console.log(JSON.stringify(validateHarnessPlan(plan, new Set(['known-skill']))));
+    """
+    result = subprocess.run(['bun', '-e', src], cwd=REPO, capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    errors = json.loads(result.stdout.strip())
+    assert any('available registered skill' in error for error in errors)
 
 
 def test_empty_and_missing_operations_are_verified_noops() -> None:
@@ -345,7 +357,7 @@ def test_no_cli_dependency_fails_isolated_without_touching_state(tmp_path: Path)
 def test_phase_writes_pre_receipt_before_apply_and_post_after(tmp_path: Path) -> None:
     src = (PKG_DIR / "extensions" / "harness-consolidation.ts").read_text(encoding="utf-8")
     pre_idx = src.index('"harness-pre-receipt.json"')
-    apply_idx = src.index("const applied = await applyHarnessOps(target, ops);")
+    apply_idx = src.index("const applied = await applyHarnessOps(target, ops,")
     post_idx = src.index('"harness-post-receipt.json"')
     assert pre_idx < apply_idx < post_idx
     assert 'sha256Digest(beforeBytes)' in src and 'sha256Digest(postBytes)' in src

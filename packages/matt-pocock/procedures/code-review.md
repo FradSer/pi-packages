@@ -30,7 +30,7 @@ Look for the originating spec, in this order:
 
 Anything in the repo that documents how code should be written, such as `CODING_STANDARDS.md` or `CONTRIBUTING.md`.
 
-On top of whatever the repo documents, the Standards axis always carries the **smell baseline** below — a fixed set of Fowler code smells (_Refactoring_, ch.3) that applies even when a repo documents nothing. Two rules bind it:
+On top of whatever the repo documents, the Standards axis always carries the **smell and AI slop baselines** below — a fixed set of Fowler code smells (_Refactoring_, ch.3) plus cross-language AI slop patterns that applies even when a repo documents nothing. Two rules bind them:
 
 - **The repo overrides.** A documented repo standard always wins; where it endorses something the baseline would flag, suppress the smell.
 - **Always a judgement call.** Each smell is a labelled heuristic ("possible Feature Envy"), never a hard violation — and, like any standard here, skip anything tooling already enforces.
@@ -50,6 +50,18 @@ Each smell reads *what it is* → *how to fix*; match it against the diff:
 - **Middle Man** — a class or function that mostly just delegates onward. → cut it, call the real target direct.
 - **Refused Bequest** — a subclass or implementer that ignores or overrides most of what it inherits. → drop the inheritance, use composition.
 
+### AI slop baseline
+
+Language-model-generated code tends to emit low-evidence, low-signal patterns regardless of language. The smell baseline's two binding rules apply unchanged: the repo overrides, and skip any pattern that tooling already enforces (for example, a repository running dedicated anti-slop lint rules). Each pattern reads *what it is* → *how to fix it*:
+
+- **Fabricated evidence** — casts or suppressions that assert a type or invariant the code never established: chained `as`/`as unknown as`, `cast(Any, x)`, `# type: ignore`, unjustified `@ts-ignore`, `unsafe` blocks or `.unwrap()` standing in for real handling. → parse at the boundary or guard the type; require a written invariant justification for any suppression.
+- **Evidence widening** — known precise values funneled into `unknown`/`any`/`object`/`interface{}`/open dictionaries, or finite records degraded to open maps. → preserve the precise type end to end; widen only at an unparsed boundary.
+- **Defensive clutter** — `try/except: pass`, redundant null checks in trusted codepaths, conditional empty-spread omission tricks, silent fallbacks. → delete the check; validate at the boundary once.
+- **Mock patching** — tests that mock or monkey-patch the module's own internals instead of exercising real seams. → test through an injected adapter or the public interface.
+- **Vacuous names** — symbols named after their type or shape (`data`, `info`, `obj`, `helper`, `manager`, `*Shape`) instead of their domain meaning. → rename to the domain concept; no honest name means the design is murky.
+
+Match each pattern against the diff the same way as the smell baseline: labelled judgement calls, hard only when a documented standard forbids them, and skipped when repository tooling enforces the pattern.
+
 ### 4. Run the two independent reviews
 
 If the teammate facility is available, give each teammate one brief below and wait for both reports. Otherwise, run the Standards brief and then the Spec brief sequentially in the current context. Keep their notes separate until aggregation.
@@ -57,8 +69,8 @@ If the teammate facility is available, give each teammate one brief below and wa
 **Standards review brief** — include:
 
 - The full diff command and commit list.
-- The list of standards-source files you found in step 3, **plus the smell baseline from step 3** pasted in full — the reviewer needs this material to evaluate the diff.
-- The brief: "Report — per file/hunk where relevant — (a) every place the diff violates a documented standard: cite the standard (file + the rule); and (b) any baseline smell you spot: name it and quote the hunk. Distinguish hard violations from judgement calls — documented-standard breaches can be hard, but baseline smells are always judgement calls, and a documented repo standard overrides the baseline. Skip anything tooling enforces. Under 400 words."
+- The list of standards-source files you found in step 3, **plus the smell and AI slop baselines from step 3** pasted in full — the reviewer needs this material to evaluate the diff.
+- The brief: "Report — per file/hunk where relevant — (a) every place the diff violates a documented standard: cite the standard (file + the rule); and (b) any baseline smell or AI slop pattern you spot: name it and quote the hunk. Distinguish hard violations from judgement calls — documented-standard breaches can be hard, but baseline smells and AI slop patterns are always judgement calls, and a documented repo standard overrides the baseline. Skip anything tooling enforces. Under 400 words."
 
 **Spec review brief** — include:
 

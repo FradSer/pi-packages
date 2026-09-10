@@ -30,9 +30,9 @@ The child runs as:
 pi --print --mode json --no-session --tools read,bash --exclude-tools edit,write
 ```
 
-The child starts in a unique temporary working directory under `/tmp`. It is instructed to use only read-only investigation. If line-level evidence from a public repository is necessary, it may run `git clone --depth=1` in that directory, inspect the clone, and removes the entire temporary directory before completing. It must not modify the caller's working directory or run package-management, deployment, or interactive commands.
+The child runs in the caller's working directory with no sandbox, no timeout, and no truncation, launched through pi-kit's shared `runPiWorker`. It is instructed to use only read-only investigation. If line-level evidence from a public repository is necessary, the prompt suggests `git clone --depth=1` under `/tmp` with removal after inspection. It must not run package-management, deployment, or interactive commands.
 
-Results are bounded before entering the main session and render as compact, expandable context lifecycle rows.
+Results enter the main session untruncated and render as compact, expandable context lifecycle rows.
 
 ## Structure
 

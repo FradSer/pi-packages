@@ -14,6 +14,12 @@ import {
   notifyPi,
   safeDisplayText,
 } from "@fradser/pi-kit";
+import {
+  isNativeDialogSupported,
+  loadConfig,
+  macosChooseFromList,
+  macosInputDialog,
+} from "./native-dialog.ts";
 import { Type } from "typebox";
 import {
   findProcedure,
@@ -250,16 +256,32 @@ function showStatus(ctx: ExtensionContext): void {
 
 async function showMenu(ctx: ExtensionCommandContext): Promise<void> {
   const choices = activeWorkflow
-    ? ["View current workflow", "Transition current workflow", "Complete current workflow", "Cancel current workflow", "Run a standalone capability"]
-    : ["Start a workflow", "Run a standalone capability", "View current workflow"];
+    ? [START_TASK_CHOICE, "View current workflow", "Transition current workflow", "Complete current workflow", "Cancel current workflow", "Run a standalone capability"]
+    : [START_TASK_CHOICE, "Start a workflow", "Run a standalone capability", "View current workflow"];
   const choice = await ctx.ui.select("Matt Pocock", choices);
   if (!choice) return;
+  if (choice === START_TASK_CHOICE) return startFromContext(ctx);
   if (choice === "Start a workflow") return chooseRoute(ctx);
   if (choice === "Run a standalone capability") return chooseCapability(ctx);
   if (choice === "View current workflow") return showStatus(ctx);
   if (choice === "Transition current workflow") return chooseTransition(ctx);
   if (choice === "Complete current workflow") return completeWorkflow(ctx);
   cancelWorkflow(ctx, "Cancelled by user from the Matt Pocock menu.");
+}
+
+const START_TASK_CHOICE = "Start a task";
+
+function contextRoutingPrompt(cancelledWorkflow: boolean): string {
+  return `Infer the user's current task from recent conversation context and route and execute it through the relevant Matt Pocock workflow or standalone capability.\n\n${cancelledWorkflow ? "The previous active workflow has been cancelled because this is a new request. " : ""}Use matt_pocock_workflow with mode workflow for a structured multi-step engineering task, or mode capability for a matching standalone capability. If neither applies, handle the request normally. Begin immediately once the route is clear.`;
+}
+
+function startFromContext(ctx: ExtensionCommandContext): void {
+  const cancelledWorkflow = Boolean(activeWorkflow);
+  if (activeWorkflow) {
+    persistWorkflow(terminalState("cancelled", "Superseded by a new /matt-pocock context routing request."));
+  }
+  clearPiStatus(ctx.ui, "matt-pocock");
+  pi.sendUserMessage(contextRoutingPrompt(cancelledWorkflow), { deliverAs: "followUp" });
 }
 
 function workflowRoutingPrompt(prompt: string, cancelledWorkflow: boolean): string {
@@ -324,12 +346,12 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
   pi.registerTool({
     name: "matt_pocock_workflow",
     label: "Matt Pocock Gateway",
-    description: "Start a Matt Pocock engineering workflow, run a curated standalone capability, or load a reference disclosed by that standalone capability. Use workflows for structured multi-step engineering; use capabilities for focused methods such as writing-for-agents, merge-conflict resolution, wizards, research, prototypes, TDD, code review, grilling, domain modeling, and codebase design.",
+    description: "Start a Matt Pocock engineering workflow, run a curated standalone capability, or load a reference disclosed by that capability. Workflows for structured multi-step engineering; capabilities for focused methods (research, prototypes, TDD, code review, grilling, domain modeling, codebase design, writing-for-agents, merge conflicts, de-slop).",
     promptSnippet: "Start a Matt Pocock workflow or run a standalone capability",
     promptGuidelines: [
-      "Use mode workflow only for a structured multi-step engineering task.",
-      "Use mode capability when a curated standalone capability directly matches the request.",
-      "Use mode reference only for a reference named in a standalone capability result.",
+      "mode workflow: structured multi-step engineering task.",
+      "mode capability: a curated capability directly matches the request.",
+      "mode reference: a reference named in a capability result.",
     ],
     parameters: workflowGatewayParameters(),
     renderShell: "self",
@@ -379,7 +401,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
   pi.registerTool({
     name: "matt_pocock_active",
     label: "Matt Pocock Active Workflow",
-    description: "Operate on the active Matt Pocock workflow: transition to an allowed next procedure, load a disclosed reference, complete, or cancel.",
+    description: "Operate on the active Matt Pocock workflow: transition, load a reference, complete, or cancel.",
     promptSnippet: "Transition, load a reference, complete, or cancel the active Matt Pocock workflow",
     parameters: activeWorkflowParameters(),
     renderShell: "self",
@@ -426,16 +448,37 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     },
   });
 
+  function isChineseText(text: string): boolean {
+    return /[\u4e00-\u9fa5]/.test(text);
+  }
+
+  function deriveDialogTitle(explicitTitle?: string): string {
+    if (explicitTitle && explicitTitle.trim()) return explicitTitle.trim();
+    if (activeWorkflow) {
+      return formatReadableWorkflowSubject(activeWorkflow.route, activeWorkflow.phase);
+    }
+    return "Decision";
+  }
+
+  function deriveDialogButtonNames(question: string): { ok: string; cancel: string } {
+    const isZh = isChineseText(question);
+    return {
+      ok: isZh ? "确认" : "Select",
+      cancel: isZh ? "取消" : "Cancel",
+    };
+  }
+
   pi.registerTool({
     name: "matt_pocock_ask",
     label: "Matt Pocock Ask",
-    description: "Ask a structured workflow decision question during an active Matt Pocock workflow using Pi UI selection.",
+    description: "Ask a structured workflow decision question via Pi UI selection.",
     promptSnippet: "Ask a structured question during the active Matt Pocock workflow",
     parameters: Type.Object({
+      title: Type.Optional(Type.String({ description: "Short title summarizing the decision context; defaults to workflow route and phase." })),
       question: Type.String({ description: "The interview or decision question to ask the user." }),
       options: Type.Array(Type.String(), { description: "2 to 4 suggested options, recommended option first." }),
       recommended: Type.Optional(Type.String({ description: "The recommended option. When provided, timeout automatically adopts this option." })),
-      timeout_seconds: Type.Optional(Type.Number({ description: "Seconds to wait when a recommended option is provided; default 60. Omitted/ignored when no recommended option is provided." })),
+      timeout_seconds: Type.Optional(Type.Number({ description: "Seconds to wait; default 60; needs a recommended option." })),
       allow_custom: Type.Optional(Type.Boolean({ description: "Allow a custom typed answer; default true." })),
     }),
     renderShell: "self",
@@ -485,6 +528,82 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       const customOption = "Type custom answer...";
       const choices = [...params.options];
       if (allowCustom && !choices.includes(customOption)) choices.push(customOption);
+
+      const config = loadConfig();
+      if (config.useNativeDialog && isNativeDialogSupported()) {
+        try {
+          const defaultItem = (hasRecommended && choices.includes(params.recommended!.trim()))
+            ? params.recommended!.trim()
+            : choices[0];
+          const timeoutSeconds = hasRecommended
+            ? ((params.timeout_seconds !== undefined && params.timeout_seconds > 0) ? params.timeout_seconds : 60)
+            : undefined;
+
+          const dialogTitle = deriveDialogTitle(params.title);
+          const buttonNames = deriveDialogButtonNames(params.question);
+
+          const nativeChoice = await macosChooseFromList({
+            title: dialogTitle,
+            prompt: params.question,
+            items: choices,
+            defaultItem,
+            okButtonName: buttonNames.ok,
+            cancelButtonName: buttonNames.cancel,
+            timeoutSeconds,
+          });
+
+          if (nativeChoice.action === "timed_out") {
+            if (hasRecommended) {
+              const answer = params.recommended!.trim();
+              return {
+                content: [{ type: "text", text: `User selected (timeout default): ${answer}` }],
+                details: { answer, is_custom: false, timed_out: true, pending: false, source: "timeout_recommended" },
+              };
+            }
+            return {
+              content: [{ type: "text", text: "[Pending user decision] Selection timed out. Do not proceed until the user responds." }],
+              details: { pending: true, timed_out: true, source: "cancelled" },
+            };
+          }
+
+          if (nativeChoice.action === "cancelled" || !nativeChoice.item) {
+            return {
+              content: [{ type: "text", text: "[Pending user decision] No answer was selected. Do not proceed until the user responds." }],
+              details: { pending: true, timed_out: false, source: "cancelled" },
+            };
+          }
+
+          if (nativeChoice.item === customOption) {
+            const inputRes = await macosInputDialog({
+              title: dialogTitle,
+              prompt: params.question,
+              defaultAnswer: "",
+              buttons: [buttonNames.cancel, buttonNames.ok],
+              defaultButton: buttonNames.ok,
+              cancelButton: buttonNames.cancel,
+            });
+            const answer = inputRes.action === "confirmed" ? inputRes.text?.trim() : undefined;
+            if (!answer) {
+              return {
+                content: [{ type: "text", text: "[Pending user decision] No custom answer was provided. Do not proceed until the user responds." }],
+                details: { pending: true, source: "custom_input_cancelled" },
+              };
+            }
+            return {
+              content: [{ type: "text", text: `User answered (custom): ${answer}` }],
+              details: { answer, is_custom: true, source: "custom_input" },
+            };
+          }
+
+          return {
+            content: [{ type: "text", text: `User selected: ${nativeChoice.item}` }],
+            details: { answer: nativeChoice.item, is_custom: false, source: "choice_selected" },
+          };
+        } catch {
+          // Graceful fallback to TUI on any native dialog error
+        }
+      }
+
       const selected = await ctx.ui.select(params.question, choices, timeoutMs !== undefined ? { timeout: timeoutMs } : undefined);
       if (selected === undefined) {
         if (hasRecommended) {

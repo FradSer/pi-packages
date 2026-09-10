@@ -18,4 +18,16 @@ Each workflow has a stable `workItemId` and persisted `active`, `completed`, or 
 
 Procedures remain internal Markdown resources; the package ships no child `SKILL.md` files, so generic names such as `tdd`, `research`, and `code-review` do not become globally discoverable skills.
 
+## Configuration
+
+You can optionally configure native macOS dialog prompts for `matt_pocock_ask` via `~/.pi/agent/pi-matt-pocock.json`:
+
+```json
+{
+  "useNativeDialog": true
+}
+```
+
+By default (`useNativeDialog: false` or missing file), Pi uses its built-in TUI selection dialog. Native dialogs are automatically guarded to only trigger on local macOS GUI sessions (SSH sessions, non-macOS platforms, and CI environments always fall back cleanly to terminal TUI).
+
 See the detailed [中文架构说明](ARCHITECTURE.zh-CN.md), the upstream [selection metadata](upstream-selection.json) and [sync rules](UPSTREAM.md), and the deliberately deferred items in [TODO.md](TODO.md).

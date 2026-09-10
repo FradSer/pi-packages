@@ -1,22 +1,19 @@
-import type { ChildProcess } from "node:child_process";
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { DEFAULT_MAX_LINES, truncateHead, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { type Component, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
   createToolLifecycleResultRenderer,
   eventToolLifecycle,
-  resolvePiCli,
-  spawnPiChild,
-  terminateChildProcess,
+  PI_SPINNER_FRAMES,
+  PI_SPINNER_INTERVAL_MS,
+  renderPiWidgetRow,
+  runPiWorker,
+  safeDisplayText,
+  type PiWorkerProgressUpdate,
 } from "@fradser/pi-kit";
 import { Type } from "typebox";
 
 const READ_ONLY_TOOLS = ["read", "bash"];
 const EXCLUDED_TOOLS = ["edit", "write"];
-const MAX_CHARS = 60_000;
-const CHILD_TIMEOUT_MS = 180_000;
 
 interface ToolTextResult {
   content: [{ type: "text"; text: string }];
@@ -33,26 +30,35 @@ interface ChildResult {
   stderr: string;
   exitCode: number;
   cancelled: boolean;
-  timedOut: boolean;
 }
 
 function textResult(text: string, details: Record<string, unknown> = {}): ToolTextResult {
   return { content: [{ type: "text", text }], details };
 }
 
-function emptyToolCall(): Text {
-  return new Text("", 0, 0);
+function renderContextCall(
+  args: { query?: string },
+  theme: { fg(color: string, text: string): string; bold(text: string): string },
+): Component {
+  return {
+    render(width) {
+      if (width <= 0) return [];
+      const prefix = theme.fg("customMessageLabel", theme.bold("[context] started ·"));
+      // Trailing blank line separates the started row from the next transcript
+      // block; every other package renders an empty call, so context (the only
+      // package with a visible call row) owns its spacing locally.
+      return [
+        ...new Text(`${prefix} ${normalizeSubject(args.query)}`, 0, 0).render(width)
+          .map((line) => truncateToWidth(line, width, "")),
+        "",
+      ];
+    },
+    invalidate() {},
+  };
 }
 
-function compactSubject(value: unknown): string {
-  const normalized = String(value ?? "research").replace(/\s+/g, " ").trim();
-  return normalized.length <= 120 ? normalized : `${normalized.slice(0, 117)}...`;
-}
-
-function truncate(text: string): string {
-  if (text.length <= MAX_CHARS) return text;
-  const result = truncateHead(text, { maxLines: DEFAULT_MAX_LINES, maxBytes: MAX_CHARS });
-  return `${result.content}\n\n…[truncated ${text.length - MAX_CHARS} chars]`;
+function normalizeSubject(value: unknown): string {
+  return safeDisplayText(String(value ?? "research").replace(/\s+/g, " ").trim());
 }
 
 function renderContextResult(
@@ -66,7 +72,7 @@ function renderContextResult(
     createSpec: (_result, _text, details) => eventToolLifecycle("context", subject, {
       label: "researched",
       details,
-      detailLimit: 50,
+      detailLimit: "all",
     }),
     expandHint: "ctrl+o to expand",
     fit: truncateToWidth,
@@ -89,103 +95,109 @@ export function buildResearchPrompt(query: string): string {
   ].join("\n");
 }
 
-function parseChildOutput(stdout: string): string {
-  let text = "";
-  for (const line of stdout.split("\n")) {
-    try {
-      const event = JSON.parse(line) as { type?: string; message?: { role?: string; content?: Array<{ type?: string; text?: string }> } };
-      if (event.type !== "message_end" || event.message?.role !== "assistant") continue;
-      const candidate = (event.message.content ?? [])
-        .filter((part) => part.type === "text" && typeof part.text === "string")
-        .map((part) => part.text)
-        .join("");
-      if (candidate.trim()) text = candidate;
-    } catch {
-      // JSON mode may include non-event output; it is not part of the result.
-    }
-  }
-  return text.trim();
+/** Minimal structural view of the tool-execution context: only what the research widget needs. */
+export interface ResearchWidgetContext {
+  mode?: string;
+  ui?: {
+    setWidget(
+      key: string,
+      factory:
+        | undefined
+        | ((
+            tui: { requestRender(): void },
+            theme: { fg(color: string, text: string): string; bold(text: string): string },
+          ) => { render(width: number): string[]; invalidate(): void; dispose?(): void }),
+      options?: { placement?: string },
+    ): void;
+  };
 }
 
-function sandboxProfile(researchDirectory: string): string {
-  const temporaryDirectory = researchDirectory.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  return [
-    "(version 1)",
-    "(deny default)",
-    "(allow process*)",
-    "(allow sysctl-read)",
-    "(allow file-read*)",
-    `(allow file-write* (subpath \"${temporaryDirectory}\"))`,
-    "(allow network*)",
-  ].join("\n");
+interface ActiveResearch {
+  token: number;
+  query: string;
+  detail?: string;
 }
 
-export function runResearchChild(query: string, signal?: AbortSignal): Promise<ChildResult> {
-  const cli = resolvePiCli();
-  const researchDirectory = realpathSync(mkdtempSync(join(tmpdir(), "pi-context-")));
-  const piArgs = [
-    ...cli.args,
-    "--print",
-    "--mode",
-    "json",
-    "--no-session",
-    "--tools",
-    READ_ONLY_TOOLS.join(","),
-    "--exclude-tools",
-    EXCLUDED_TOOLS.join(","),
-    buildResearchPrompt(query),
-  ];
+let researchToken = 0;
+let activeResearch: ActiveResearch | undefined;
+let researchWidgetTui: { requestRender(): void } | undefined;
+let researchSpinnerTimer: ReturnType<typeof setInterval> | undefined;
+let researchSpinnerFrame = 0;
 
-  const sandboxed = process.platform === "darwin";
-  const command = sandboxed ? "sandbox-exec" : cli.command;
-  const args = sandboxed ? ["-p", sandboxProfile(researchDirectory), cli.command, ...piArgs] : piArgs;
+function firstProgressLine(text: string | undefined): string | undefined {
+  return text?.split("\n").map((line) => line.trim()).find((line) => line.length > 0);
+}
 
-  return new Promise((resolve, reject) => {
-    let child: ChildProcess;
-    let settled = false;
-    try {
-      child = spawnPiChild(command, args, { cwd: researchDirectory, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
-    } catch (error) {
-      rmSync(researchDirectory, { recursive: true, force: true });
-      reject(error);
-      return;
-    }
-
-    let stdout = "";
-    let stderr = "";
-    let termination: Promise<boolean> | undefined;
-    let timedOut = false;
-    let cancelled = false;
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      termination ??= terminateChildProcess(child);
-    }, CHILD_TIMEOUT_MS);
-    timeout.unref?.();
-    const abort = () => {
-      cancelled = true;
-      termination ??= terminateChildProcess(child);
+/** Show the running-research status above the editor; returns a token for updates/clear. */
+export function startResearchWidget(ctx: ResearchWidgetContext | undefined, query: string): number {
+  const token = ++researchToken;
+  activeResearch = { token, query };
+  if (typeof ctx?.ui?.setWidget !== "function" || (ctx.mode !== undefined && ctx.mode !== "tui")) return token;
+  if (researchSpinnerTimer) clearInterval(researchSpinnerTimer);
+  researchSpinnerFrame = 0;
+  researchSpinnerTimer = setInterval(() => {
+    researchSpinnerFrame = (researchSpinnerFrame + 1) % PI_SPINNER_FRAMES.length;
+    researchWidgetTui?.requestRender();
+  }, PI_SPINNER_INTERVAL_MS);
+  researchSpinnerTimer.unref?.();
+  ctx.ui.setWidget("context-research", (tui, theme) => {
+    researchWidgetTui = tui;
+    return {
+      render: (width: number) => {
+        const current = activeResearch;
+        if (!current || current.token !== token) return [];
+        const marker = theme.fg("warning", PI_SPINNER_FRAMES[researchSpinnerFrame]);
+        const detail = current.detail ? ` · ${current.detail}` : "";
+        return [renderPiWidgetRow(
+          `${marker} ${theme.bold("[context] researching")} · ${normalizeSubject(current.query)}${detail}`,
+          width,
+          truncateToWidth,
+        )];
+      },
+      invalidate: () => {},
+      dispose: () => { if (researchWidgetTui === tui) researchWidgetTui = undefined; },
     };
-    if (signal?.aborted) abort();
-    else signal?.addEventListener("abort", abort, { once: true });
+  }, { placement: "aboveEditor" });
+  return token;
+}
 
-    child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-    child.stderr?.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
-    child.on("error", (error) => {
-      if (settled) return;
-      settled = true;
-      signal?.removeEventListener("abort", abort);
-      clearTimeout(timeout);
-      rmSync(researchDirectory, { recursive: true, force: true });
-      reject(error);
-    });
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      signal?.removeEventListener("abort", abort);
-      clearTimeout(timeout);
-      rmSync(researchDirectory, { recursive: true, force: true });
-      resolve({ text: parseChildOutput(stdout), stderr: stderr.trim(), exitCode: code ?? 1, cancelled, timedOut });
-    });
+/** Refresh the live activity line; stale tokens are ignored. */
+export function updateResearchWidget(token: number, detail: string | undefined): void {
+  if (activeResearch?.token !== token) return;
+  if (detail) activeResearch.detail = detail;
+  researchWidgetTui?.requestRender();
+}
+
+/** Remove the status widget; stale tokens are ignored. */
+export function clearResearchWidget(ctx: ResearchWidgetContext | undefined, token: number): void {
+  if (activeResearch?.token !== token) return;
+  activeResearch = undefined;
+  if (researchSpinnerTimer) {
+    clearInterval(researchSpinnerTimer);
+    researchSpinnerTimer = undefined;
+  }
+  researchWidgetTui = undefined;
+  if (ctx?.mode === undefined || ctx.mode === "tui") ctx?.ui?.setWidget?.("context-research", undefined);
+}
+
+export function runResearchChild(
+  query: string,
+  signal?: AbortSignal,
+  onUpdate?: (update: PiWorkerProgressUpdate) => void,
+): Promise<ChildResult> {
+  let cancelled = signal?.aborted ?? false;
+  const onAbort = () => { cancelled = true; };
+  if (!signal?.aborted) signal?.addEventListener("abort", onAbort, { once: true });
+  return runPiWorker({
+    prompt: buildResearchPrompt(query),
+    cwd: process.cwd(),
+    tools: READ_ONLY_TOOLS,
+    extraArgs: ["--exclude-tools", EXCLUDED_TOOLS.join(",")],
+    signal,
+    onUpdate,
+  }).then((result) => {
+    signal?.removeEventListener("abort", onAbort);
+    return { text: result.text.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode, cancelled };
   });
 }
 
@@ -205,22 +217,32 @@ export function registerContextTools(pi: ExtensionAPI): void {
     parameters: ResearchParams,
     executionMode: "sequential",
     renderShell: "self",
-    renderCall: emptyToolCall,
+    renderCall(args, theme) {
+      return renderContextCall(args as { query?: string }, theme);
+    },
     renderResult(result, options, theme, context) {
       const params = context.args as { query?: string };
-      return renderContextResult(result, options, theme, context, compactSubject(params.query));
+      return renderContextResult(result, options, theme, context, normalizeSubject(params.query));
     },
-    async execute(_toolCallId, params, signal) {
-      const child = await runResearchChild(params.query, signal);
-      if (child.cancelled) throw new Error("Isolated Pi research was cancelled");
-      if (child.timedOut) throw new Error("Isolated Pi research timed out");
-      if (child.exitCode !== 0) {
-        throw new Error(`Isolated Pi research failed (exit ${child.exitCode}): ${child.stderr.slice(0, 400)}`);
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const widget = startResearchWidget(ctx as ResearchWidgetContext | undefined, params.query);
+      try {
+        const child = await runResearchChild(params.query, signal, (progress) => {
+          updateResearchWidget(widget, firstProgressLine(progress.activeTool)
+            ?? firstProgressLine(progress.liveThinking)
+            ?? firstProgressLine(progress.text));
+        });
+        if (child.cancelled) throw new Error("Isolated Pi research was cancelled");
+        if (child.exitCode !== 0) {
+          throw new Error(`Isolated Pi research failed (exit ${child.exitCode}): ${child.stderr.slice(0, 400)}`);
+        }
+        if (!child.text) {
+          throw new Error("Isolated Pi research returned no answer");
+        }
+        return textResult(child.text, { exitCode: child.exitCode });
+      } finally {
+        clearResearchWidget(ctx as ResearchWidgetContext | undefined, widget);
       }
-      if (!child.text) {
-        throw new Error("Isolated Pi research returned no answer");
-      }
-      return textResult(truncate(child.text), { exitCode: child.exitCode });
     },
   });
 }

@@ -50,6 +50,29 @@ function stringArray(value: unknown): string[] | undefined {
 const POLICY_FIELDS = ["name", "tools", "paths", "pattern", "patterns", "require", "action", "reason"] as const;
 const POLICY_FIELD_LIST = "name, tools, paths, pattern, patterns, require, action, and reason";
 
+/** Validate a skill prompt before authoring or applying harness JSON. When a
+ * registry is supplied, names must be exact loaded skill keys. */
+export function validateSkillPromptDeclaration(
+  name: unknown,
+  raw: unknown,
+  availableSkills?: ReadonlySet<string>,
+): string[] {
+  const errors: string[] = [];
+  if (typeof name !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) || name.length > 64) {
+    errors.push("skill prompt name must be an exact valid skill key");
+  } else if (availableSkills && !availableSkills.has(name)) {
+    errors.push(`skill prompt \"${name}\" is not an available registered skill`);
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    errors.push("skill prompt must be an object");
+    return errors;
+  }
+  const entry = raw as Record<string, unknown>;
+  if (typeof entry.prompt !== "string" || !entry.prompt.trim()) errors.push("skill prompt needs a non-empty prompt string");
+  if (entry.target !== "system" && entry.target !== "user") errors.push("skill prompt target must be system or user");
+  return errors;
+}
+
 /** Validate the authored declaration before it reaches normalization. Keeping
  * this contract shared with consolidation prevents a planner or direct caller
  * from writing a policy the runtime would silently ignore. */

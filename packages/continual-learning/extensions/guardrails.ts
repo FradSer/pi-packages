@@ -12,10 +12,10 @@
 import fs from "node:fs";
 import type { Stats } from "node:fs";
 import path from "node:path";
-import { parseSkillBlock, type ExtensionAPI, type BeforeAgentStartEvent } from "@earendil-works/pi-coding-agent";
+import { parseSkillBlock, ToolExecutionComponent, type ExtensionAPI, type BeforeAgentStartEvent } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { createStaticToolLifecycleMessageRenderer, eventToolLifecycle, notifyPi, safeDisplayText } from "@fradser/pi-kit";
-import { DEFAULT_POLICIES, evaluate, mergeLayers } from "./guardrail-engine.ts";
+import { DEFAULT_POLICIES, evaluate, mergeLayers, validateSkillPromptDeclaration } from "./guardrail-engine.ts";
 import { configPaths, loadLayers } from "./guardrail-config.ts";
 import type { PolicyLayer, ResolvedConfig } from "./guardrail-types.ts";
 
@@ -174,8 +174,9 @@ export function resolveHarnessTarget(
   return { request, targetFile, scope, scopeLabel };
 }
 
-export function buildHarnessRulePrompt(request: string, targetFile: string, scopeLabel?: string): string {
+export function buildHarnessRulePrompt(request: string, targetFile: string, scopeLabel?: string, availableSkills: readonly string[] = []): string {
   const label = scopeLabel ?? (targetFile.endsWith("harness.local.json") ? "personal harness.local.json" : "harness.json");
+  const skillRegistry = availableSkills.length ? availableSkills.join(", ") : "(none registered in this session)";
   return [
     "Create or update one Pi harness rule from the user's request below. This is an explicit write task, not a research task.",
     "",
@@ -188,7 +189,15 @@ export function buildHarnessRulePrompt(request: string, targetFile: string, scop
     `- If ${targetFile} returns ENOENT, create it at that exact path instead of searching elsewhere. The write tool creates missing parent directories.`,
     `- For a missing target, write this complete initial JSON object before adding the requested rule: {"policies":[],"disabled":[],"skillPrompts":{}}.`,
     "- Preserve every existing policy, disabled entry, and skill prompt, and make the smallest change that satisfies the request.",
-    "- Translate the request into a concrete declarative policy or skillPrompts entry with a stable, descriptive name.",
+    `- Registered skill keys for this session (the only valid skillPrompts names): ${skillRegistry}`,
+    "- Translate the request into a concrete declarative policy or skillPrompts entry. Policy names are descriptive identifiers; skillPrompts names must be exact registered skill keys above.",
+    "- A skillPrompts value must be an object with a non-empty prompt string and target exactly \"system\" or \"user\" (optionally userMessagePattern); never write a bare string.",
+    "- Reject or report any unknown skillPrompts key rather than writing an inert entry. Do not treat reading the JSON back as proof the skill prompt triggers; trigger-test the exact expanded skill invocation, or report that the runtime trigger was not verified.",
+    "- Generalize project lessons through evidence -> reusable error class -> supported mechanism. Describe the behavior to preserve or prevent before choosing a regex gate or semantic instruction.",
+    "- Treat incident document tokens, row numbers, or verbatim phrases as evidence, not rule boundaries. Retain resource identifiers only for an explicit resource-specific user requirement; do not confuse the authoritative harness output path with the resources a rule governs.",
+    "- Transfer-test the candidate against another same-kind document and a rephrasing of the same mistake, and verify unrelated actions remain allowed. Generalize the error class without widening the action surface: no blanket confirmation of all writes.",
+    "- For semantic instructions that regex cannot safely recognize, prefer skillPrompts only for an actual available skill established by the supplied context. Do not invent a skill. Guidance applies only to its matching expanded skill invocation, not a plain read of SKILL.md; it is not global interception or guaranteed project-wide semantic enforcement.",
+    "- If neither a narrow tool-call gate nor an established skill invocation safely represents the lesson, report the limitation and do not add a rule. This safety exception takes precedence over the instruction to perform a rule change; keep the exact target creation protocol unchanged.",
     "- A policy may use only name, tools, paths, pattern or patterns, optional require, action, and reason. Do not write scope or rule: those fields are unsupported and the policy will be rejected.",
     "- Guardrails are regex-based tool-call gates only: use action=block or action=confirm with a reason; do not represent runtime probes, token checks, process cleanup, or any multi-step automation as policy behavior.",
     "- Keep the rule narrowly scoped to the requested tools, argument paths, and content; choose block or confirm deliberately.",
@@ -196,6 +205,29 @@ export function buildHarnessRulePrompt(request: string, targetFile: string, scop
     "- If the request is ambiguous or cannot be represented safely, explain the issue instead of guessing or changing a different file.",
     "- Do not merely explain what should be done: perform the change and report the exact rule name and file changed.",
   ].join("\n");
+}
+
+export function validateHarnessWrite(input: unknown, availableSkills: ReadonlySet<string>, previous?: unknown): string[] {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return ["harness write input must be an object"];
+  const value = input as Record<string, unknown>;
+  const parsed = value.content;
+  if (typeof parsed !== "string") return ["harness write content must be JSON text"];
+  let json: unknown;
+  try { json = JSON.parse(parsed); } catch { return ["harness write content must be valid JSON"]; }
+  if (!json || typeof json !== "object" || Array.isArray(json)) return ["harness config must be an object"];
+  const config = json as Record<string, unknown>;
+  if (config.skillPrompts === undefined) return [];
+  if (!config.skillPrompts || typeof config.skillPrompts !== "object" || Array.isArray(config.skillPrompts)) return ["skillPrompts must be an object"];
+  const errors: string[] = [];
+  const priorPrompts = previous && typeof previous === "object" && !Array.isArray(previous)
+    ? (previous as Record<string, unknown>).skillPrompts
+    : undefined;
+  const prior = priorPrompts && typeof priorPrompts === "object" && !Array.isArray(priorPrompts) ? priorPrompts as Record<string, unknown> : {};
+  for (const [name, entry] of Object.entries(config.skillPrompts)) {
+    if (Object.prototype.hasOwnProperty.call(prior, name) && JSON.stringify(prior[name]) === JSON.stringify(entry)) continue;
+    errors.push(...validateSkillPromptDeclaration(name, entry, availableSkills));
+  }
+  return errors;
 }
 
 export function skillPromptTarget(
@@ -271,6 +303,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         fit: truncateToWidth,
         visibleWidth,
         wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+        hostComponent: ToolExecutionComponent,
       })({ content: "", details }, { expanded }, theme);
     }
 
@@ -294,6 +327,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       fit: truncateToWidth,
       visibleWidth,
       wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+      hostComponent: ToolExecutionComponent,
     })({ content: "", details }, { expanded }, theme);
   });
 
@@ -330,6 +364,20 @@ export default function registerGuardrails(pi: ExtensionAPI) {
   pi.on("tool_call", async (event, ctx) => {
     const cwd = ctx.cwd || process.cwd();
     const { config, paths } = resolveConfig(cwd);
+    if (event.toolName === "write" || event.toolName === "edit") {
+      const input = (event.input ?? {}) as Record<string, unknown>;
+      const target = typeof input.path === "string" ? input.path : "";
+      const targetPath = path.resolve(cwd, target);
+      const harnessPaths = new Set(Object.values(paths).map((file) => path.resolve(file)));
+      if (harnessPaths.has(targetPath)) {
+        if (event.toolName === "edit") return { block: true, reason: "Harness configuration requires a complete validated JSON write. Read the target, preserve its entries, and use write instead of edit." };
+        const availableSkills = new Set(pi.getCommands().filter((command) => command.source === "skill").map((command) => command.name.replace(/^skill:/, "")));
+        let previous: unknown;
+        try { previous = JSON.parse(fs.readFileSync(targetPath, "utf8")); } catch { /* new target or malformed predecessor */ }
+        const errors = validateHarnessWrite(input, availableSkills, previous);
+        if (errors.length) return { block: true, reason: `Invalid harness configuration: ${errors.join("; ")}` };
+      }
+    }
     const decision = evaluate(config, {
       toolName: event.toolName,
       args: (event.input ?? {}) as Record<string, unknown>,
@@ -431,13 +479,20 @@ export default function registerGuardrails(pi: ExtensionAPI) {
           notifyPi(ctx.ui, `Cannot prepare harness target: ${(error as Error).message}`, "error");
           return;
         }
-        pi.sendUserMessage(buildHarnessRulePrompt(request, targetFile, scopeLabel), { deliverAs: "followUp" });
+        const availableSkills = pi.getCommands()
+          .filter((command) => command.source === "skill")
+          .map((command) => command.name.replace(/^skill:/, ""));
+        pi.sendUserMessage(buildHarnessRulePrompt(request, targetFile, scopeLabel, availableSkills), { deliverAs: "followUp" });
         return;
       }
       const { config, paths } = resolveConfig(cwd);
+      const availableSkills = new Set(pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')));
+      const activeSkills = Object.keys(config.skillPrompts).filter(name => availableSkills.has(name));
+      const inactiveSkills = Object.keys(config.skillPrompts).filter(name => !availableSkills.has(name));
       const lines = [
         `policies: ${config.policies.length ? config.policies.map((p) => p.name).join(", ") : "(none)"}`,
-        `skill prompts: ${Object.keys(config.skillPrompts).length ? Object.keys(config.skillPrompts).join(", ") : "(none)"}`,
+        `skill prompts (registered; trigger not verified): ${activeSkills.length ? activeSkills.join(", ") : "(none)"}`,
+        `inactive skill prompts (no registered skill): ${inactiveSkills.length ? inactiveSkills.join(", ") : "(none)"}`,
         "built-in defaults are active unless disabled by name",
         "config paths:",
         `  ${paths.user}`,

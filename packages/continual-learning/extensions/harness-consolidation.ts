@@ -28,7 +28,7 @@ import {
   MAX_STDOUT_BYTES,
   type ConsolidationRun,
 } from "./consolidation-run";
-import { DEFAULT_POLICIES, mergeLayers, validatePolicyDeclaration } from "./guardrail-engine";
+import { DEFAULT_POLICIES, mergeLayers, validatePolicyDeclaration, validateSkillPromptDeclaration } from "./guardrail-engine";
 import { configPaths, loadLayers } from "./guardrail-config";
 
 export const HARNESS_PLAN_KIND = "harness-consolidation-plan";
@@ -91,7 +91,7 @@ function boundedString(value: unknown, max: number): value is string {
  * runs. Every proposed operation must cite concrete snapshot evidence via an
  * evidence entry whose index points back at it — unaudited proposals are
  * rejected fail-closed. */
-export function validateHarnessPlan(plan: unknown): string[] {
+export function validateHarnessPlan(plan: unknown, availableSkills?: ReadonlySet<string>): string[] {
   const p = plan as HarnessConsolidationPlan;
   const errors: string[] = [];
   if (!p || typeof p !== "object" || Array.isArray(p)) return ["plan is not an object"];
@@ -121,6 +121,7 @@ export function validateHarnessPlan(plan: unknown): string[] {
     if (op.op === "addSkillPrompt" || op.op === "removeSkillPrompt") {
       if (!policyNameValid(op.name)) errors.push(`${label}.name is invalid`);
       if (op.op === "addSkillPrompt") {
+        errors.push(...validateSkillPromptDeclaration(op.name, { prompt: op.prompt, target: op.target }, availableSkills).map((error) => `${label}: ${error}`));
         if (!boundedString(op.prompt, MAX_SKILL_PROMPT_CHARS)) errors.push(`${label}.prompt must be 1..${MAX_SKILL_PROMPT_CHARS} chars`);
         if (op.target !== "system" && op.target !== "user") errors.push(`${label}.target must be "system" or "user"`);
         if (op.userMessagePattern !== undefined) {
@@ -243,7 +244,10 @@ async function readLayerFileBytes(filePath: string): Promise<Buffer | null> {
 export async function applyHarnessOps(
   projectLocalPath: string,
   ops: readonly HarnessOp[],
+  availableSkills?: ReadonlySet<string>,
 ): Promise<{ ok: true; applied: string[] } | { ok: false; error: string }> {
+  const validationErrors = validateHarnessPlan({ kind: HARNESS_PLAN_KIND, operations: ops }, availableSkills ?? new Set()).filter((error) => !error.startsWith("evidence"));
+  if (validationErrors.length) return { ok: false, error: validationErrors.join("; ") };
   const applied: string[] = [];
   let base: Record<string, unknown> = {};
   const prior = await readLayerFileBytes(projectLocalPath);
@@ -319,6 +323,7 @@ interface PhaseOpts {
   /** Test seams: inject a CLI resolver or an explicit absolute target path. */
   resolveCli?: () => { command: string; args: string[] } | null;
   targetPath?: string;
+  availableSkills?: readonly string[];
 }
 
 /**
@@ -443,7 +448,10 @@ export async function runHarnessConsolidationPhase(
           maxPlanBytes: MAX_PLAN_BYTES,
         });
         if (!extracted.ok) return finish({ ok: false, detail: extracted.error });
-        const shapeErrors = validateHarnessPlan(extracted.plan);
+        const shapeErrors = validateHarnessPlan(
+          extracted.plan,
+          opts.availableSkills ? new Set(opts.availableSkills) : undefined,
+        );
         if (shapeErrors.length) return finish({ ok: false, detail: shapeErrors.join("; ").slice(-600) });
         finish({ ok: true, detail: JSON.stringify({ plan: extracted.plan, stderr: stderr.trim() }) });
       });
@@ -479,7 +487,7 @@ export async function runHarnessConsolidationPhase(
       planDigest,
     });
     await writeFileAtomic(path.join(runDir, "harness-pre-receipt.json"), `${JSON.stringify(preReceipt, null, 2)}\n`);
-    const applied = await applyHarnessOps(target, ops);
+    const applied = await applyHarnessOps(target, ops, opts.availableSkills ? new Set(opts.availableSkills) : undefined);
     if (!applied.ok) {
       notifyPi(ctx.ui, `Harness consolidation rejected: ${applied.error.slice(-300)}`, "warning");
       return;

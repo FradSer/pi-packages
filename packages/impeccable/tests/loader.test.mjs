@@ -82,6 +82,8 @@ test('headless usage and freeform requests route without a turn; menu cancellati
   assert.equal(h.messages[0][1].triggerTurn, false);
   await h.command.handler('make the pricing hero feel more confident', h.ctx);
   assert.match(h.sent[0][0], /impeccable_load/);
+  assert.match(h.sent[0][0], /- \/impeccable polish/);
+  assert.match(h.sent[0][0], /max 2 capabilities/);
   assert.ok(h.sent[0][0].endsWith('make the pricing hero feel more confident'));
   assert.deepEqual(h.sent[0][1], { deliverAs: "followUp" });
   assert.equal(h.messages.length, 1);
@@ -98,7 +100,8 @@ test('successful menu selection sends exactly the selected guidance', () => fixt
   assert.equal(menu.selects(), 1);
   assert.equal(menu.sent.length, 0);
   assert.equal(menu.messages.length, 1);
-  assert.equal(menu.messages[0][0].content, resolver.load('polish', 'user').content + '\n\nUser target/request:\n');
+  assert.ok(menu.messages[0][0].content.startsWith('Plan (in order):\n1. /impeccable polish — '));
+  assert.ok(menu.messages[0][0].content.endsWith(resolver.load('polish', 'user').content + '\n\nUser target/request:\n'));
   assert.deepEqual(menu.messages[0][1], { deliverAs: 'followUp', triggerTurn: true });
 }));
 
@@ -106,24 +109,56 @@ test('explicit user command loads user-only capability but model stays gated', (
   const h = host(resolver);
   await h.command.handler('promote chosen preview', h.ctx);
   assert.equal(h.messages.length, 1);
-  assert.equal(h.messages[0][0].content, resolver.load('promote', 'user').content + '\n\nUser target/request:\nchosen preview');
+  assert.ok(h.messages[0][0].content.startsWith('Plan for "chosen preview" (in order):\n1. /impeccable promote — '));
+  assert.ok(h.messages[0][0].content.endsWith(resolver.load('promote', 'user').content + '\n\nUser target/request:\nchosen preview'));
   await assert.rejects(h.tool.execute('gate', { capability: 'promote' }), /explicit user/);
   await assert.rejects(h.tool.execute('gate-ref', { capability: 'promote', reference: 'private' }), /explicit user/);
   assert.equal(h.messages.length, 1);
 }));
 
-test('procedure messages render as one abstract pi-kit lifecycle line', () => fixture(async resolver => {
+test('procedure start renders the raw request as an expandable pi-kit band', () => fixture(async resolver => {
   const h = host(resolver);
   const renderer = h.renderers.get('impeccable-procedure');
   assert.ok(renderer, 'message renderer registered');
   await h.command.handler('promote chosen preview', h.ctx);
   const [message] = h.messages[0];
+  assert.equal(message.details.request, 'chosen preview');
+  assert.deepEqual(message.details.loaded.map(entry => entry.id), ['promote']);
   const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text };
-  const lines = renderer(message, { expanded: false, outputPad: 0 }, theme).render(80);
-  assert.equal(lines.length, 1);
-  assert.match(lines[0].trimEnd(), /^\[impeccable\] started \u00b7 Promote$/);
-  assert.ok(!lines[0].includes('chosen preview'));
+  const collapsed = renderer(message, { expanded: false, outputPad: 0 }, theme).render(80);
+  assert.equal(collapsed.length, 3);
+  assert.match(collapsed[1], /\[impeccable\] started \u00b7 chosen preview/);
+  assert.ok(!collapsed.join('\n').includes('to expand'));
+  assert.ok(!collapsed.join('\n').includes('# promote'));
+  assert.ok(collapsed.every(line => visibleWidth(line) <= 80));
+  const expanded = renderer(message, { expanded: true, outputPad: 0 }, theme).render(80);
+  assert.deepEqual(expanded, collapsed);
 }));
+
+test('multi-intent freeform loads every matched bundle in one follow-up', async () => {
+  const { resolver: realResolver } = await import('../src/resolver.ts');
+  const { loadTriggers } = await import('../src/routing.ts');
+  const sent = [], messages = [], commands = new Map(), renderers = new Map();
+  const pi = { registerCommand: (id, command) => commands.set(id, command), registerTool: () => {}, sendUserMessage: (...args) => sent.push(args), sendMessage: (...args) => messages.push(args), registerMessageRenderer: (id, fn) => renderers.set(id, fn) };
+  registerImpeccable(pi, realResolver, loadTriggers());
+  const request = '运行全部检查，然后fix，直到满分';
+  await commands.get('impeccable').handler(request, { hasUI: false, ui: { select: async () => undefined, notify() {} } });
+  assert.equal(messages.length, 1);
+  const [message] = messages[0];
+  assert.deepEqual(message.details.loaded.map(entry => entry.id), ['audit', 'polish']);
+  assert.equal(message.details.request, request);
+  assert.ok(message.content.includes('Design Health Score') || message.content.includes('Audit Health Score'));
+  assert.ok(message.content.includes('Triage and implement'));
+  assert.match(message.content, /1\. \/impeccable audit — /);
+  assert.match(message.content, /2\. \/impeccable polish — /);
+  assert.equal(message.content.split('<impeccable-source id="setup">').length, 2);
+  assert.equal(message.content.split('<impeccable-source id="accessibility">').length, 2);
+  assert.ok(message.content.includes('--- Next capability: polish ---'));
+  assert.ok(message.content.endsWith(request));
+  const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text };
+  const collapsed = renderers.get('impeccable-procedure')(message, { expanded: false, outputPad: 0 }, theme).render(80);
+  assert.match(collapsed[1], /\[impeccable\] started \u00b7 运行全部检查，然后fix，直到满分/);
+});
 
 test('catalog rejects missing edges and required cycles, optional cycles terminate', () => fixture((resolver, root, entries) => {
   assert.throws(() => validateCatalog([...entries, { ...entries[0], id: 'bad', file: 'procedures/bad.md', requires: ['missing'] }]), /unknown catalog target/);

@@ -55,13 +55,15 @@ Feature: Shared pi-kit runtime helpers
   Scenario: Passive console widgets use the shared row layout
     Given a package displays a one-line status widget
     When it uses renderPiWidgetRow
-    Then the row has the native one-space leading alignment and is width-bounded
+    Then the row has the native one-space leading alignment by default and is width-bounded
+    And a caller-supplied leading width overrides the default, including zero for flush-left rows
 
   Scenario: Custom transcript messages use the standard lifecycle renderer
     Given a package sends a custom transcript message with a lifecycle spec
     When it creates the reusable pi-kit message renderer
     Then Pi receives a width-aware component using renderToolLifecycle
     And the renderer carries the shared expand hint and lifecycle band unchanged
+    And when a host component is supplied it returns a ToolExecutionComponent wrapper supporting mouse click toggling
 
   Scenario: Custom native tools use the standard lifecycle result renderer
     Given a native tool result with text content and optional structured details
@@ -228,3 +230,22 @@ Feature: Shared pi-kit runtime helpers
     Then it waits for close during the grace period
     And it escalates to SIGKILL only after the grace period
     And it resolves only after close is observed
+
+  Scenario: One-shot workers return final text with usage and diagnostics
+    Given a one-shot Pi worker runs to completion
+    When runPiWorker resolves
+    Then the result carries the final assistant text
+    And the last reported usage totals
+    And the exit code with captured stderr for diagnostics
+
+  Scenario: Aborting a one-shot worker terminates the child
+    Given a one-shot Pi worker is still running
+    When the caller aborts the signal
+    Then pi-kit terminates the child process
+    And pi-kit imposes no wall-clock timeout of its own
+
+  Scenario: A failed one-shot worker surfaces diagnostics without trustworthy text
+    Given a one-shot Pi worker exits unsuccessfully
+    When runPiWorker resolves
+    Then the exit code and stderr describe the failure
+    And callers treat partial text as untrustworthy

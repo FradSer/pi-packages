@@ -48,11 +48,17 @@ for (const capability of ["polish", "animate"]) {
   await commands.get("impeccable").handler(capability + " " + request, { hasUI: false });
   const model = await tools[0].execute("bundle", { capability });
   assert.equal(model.content[0].text, bundle.content);
-  assert.equal(sent.at(-1)[0], bundle.content + "\\n\\nUser target/request:\\n" + request);
+  const text = sent.at(-1)[0];
+  assert.ok(text.startsWith(`Plan for "${request}" (in order):`));
+  assert.ok(text.includes(`1. /impeccable ${capability} — `));
+  assert.ok(text.endsWith(bundle.content + "\\n\\nUser target/request:\\n" + request));
   assert.deepEqual(sent.at(-1)[1], { deliverAs: "followUp", triggerTurn: true });
   assert.equal(sent.at(-1)[2].customType, "impeccable-procedure");
   assert.equal(sent.at(-1)[2].display, true);
-  assert.equal(sent.at(-1)[2].details.capability, capability);
+  assert.equal(sent.at(-1)[2].details.request, request);
+  assert.deepEqual(sent.at(-1)[2].details.loaded.map(entry => entry.id), [capability]);
+  assert.ok(sent.at(-1)[2].details.routing[0].startsWith("Plan for "));
+  assert.ok(sent.at(-1)[2].details.routing[1].includes(`/impeccable ${capability} — `));
   output[capability] = { loaded: bundle.loaded, bytes: bundle.byteLength };
 }
 assert.equal(sent.length, 2);

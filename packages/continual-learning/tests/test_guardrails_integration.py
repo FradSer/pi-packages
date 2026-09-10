@@ -32,6 +32,7 @@ const pi = {
   registerCommand: (name, def) => {
     commands[name] = def;
   },
+  getCommands: () => [{ name: "skill:known-skill", source: "skill", sourceInfo: { path: "/tmp/known-skill/SKILL.md" } }],
   registerMessageRenderer: (name, renderer) => {
     renderers[name] = renderer;
   },

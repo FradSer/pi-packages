@@ -46,6 +46,32 @@ the approximate occurrence count). Never propose an operation from
 parametric plausibility alone. Propose nothing when the evidence does not
 clearly generalize beyond a one-off accident.
 
+## Generalize the lesson before choosing a mechanism
+
+Use evidence -> reusable error class -> supported mechanism. First describe
+what behavior the project should preserve or prevent, then choose a supported
+regex gate or semantic instruction. Incident document tokens, row numbers, or verbatim phrases
+belong in evidence, not rule boundaries. Retain resource identifiers only for an
+explicit resource-specific user requirement, not merely because the snapshot
+happens to mention one resource.
+
+Transfer-test each candidate against another same-kind document and a rephrasing
+of the same mistake; also verify unrelated actions remain allowed. Generalize
+the error class without widening the action surface: no blanket confirmation of all writes.
+Keep the affected tools, argument paths, and operation kinds as narrow as the
+supported mechanism permits. Include the reusable lesson and transfer-test
+rationale in the existing evidence/report fields, without adding schema fields.
+
+For semantic instructions that regex cannot safely recognize, prefer
+`addSkillPrompt` (`skillPrompts` at runtime) only for an actual available skill
+established by the supplied snapshot. Do not invent a skill. This guidance
+applies only to a matching expanded skill invocation, not a plain read of SKILL.md;
+it is not global interception or guaranteed project-wide semantic enforcement.
+If neither a narrow gate nor an established skill invocation safely represents
+the lesson, report the limitation and do not add a rule for that candidate.
+Use the existing report format and return an empty operations array when no
+safe candidates remain; do not relax the read-only boundary to find a mechanism.
+
 ## Policy declaration contract
 
 For `addPolicy` and `updatePolicy`, the `policy` object must use only these

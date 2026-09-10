@@ -115,6 +115,8 @@ def test_standalone_capability_inventory_preserves_invocation_modes() -> None:
     assert "writing-for-agents" in result["model"]
     assert "resolving-merge-conflicts" in result["model"]
     assert "wizard" in result["model"]
+    assert "deslop" in result["all"]
+    assert "deslop" in result["model"]
     assert "setup-matt-pocock-skills" in result["all"]
     assert "setup-matt-pocock-skills" not in result["model"]
     assert "teach" in result["all"]
@@ -169,6 +171,9 @@ def test_feature_file_covers_catalog_gateway_and_lifecycle_contracts() -> None:
         "A workflow advertises only legal next transitions",
         "The agent explicitly completes or cancels a workflow",
         "Standalone capabilities are reachable without child skills",
+        "A de-slop capability removes AI slop without workflow state",
+        "The standards baseline rejects AI slop patterns in code review",
+        "A local-only capability stays out of the upstream selection metadata",
         "Conditional references load through the active gateway",
         "Loaded references survive workflow restoration",
         "The active gateway is progressively disclosed",
