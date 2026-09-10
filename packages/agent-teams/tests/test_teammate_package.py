@@ -1173,7 +1173,7 @@ def test_leader_guidance_is_disclosed_only_for_active_team_state() -> None:
     assert payload == {"inactive": False, "rosterActive": True, "boardActive": True}
     index_ts = source("index.ts")
     assert "teamIsActive" in index_ts
-    assert "TEAMMATE_SPAWN_GUIDANCE" in index_ts
+    assert "buildIdleLeaderGuidance" in index_ts
     assert "? buildTeamLeaderGuidance" in index_ts
 
 
@@ -1270,6 +1270,38 @@ def test_unknown_agent_error_gives_the_complete_inline_spawn_recovery() -> None:
     assert "name and an existing agent role id" in team_machine
     assert "name, a new agent role id, and an inline definition" in team_machine
     assert "includes description and prompt" in team_machine
+    agent_control = source("agent-control.ts")
+    assert "unknownAgentError" in agent_control
+
+
+def test_idle_guidance_lists_available_agents_and_role_reference() -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "it lists the agents available now" in feature
+    assert "the shipped role reference when deriving an inline definition" in feature
+    guidance = source("guidance.ts")
+    assert "buildIdleLeaderGuidance" in guidance
+    index = source("index.ts")
+    assert "buildIdleLeaderGuidance" in index
+    payload = run_node(
+        f'''\
+        import {{ buildIdleLeaderGuidance }} from "{(SRC / "guidance.ts").as_uri()}";
+        const empty = buildIdleLeaderGuidance("/tmp");
+        console.log(JSON.stringify({{
+          statesNoBuiltins: empty.includes("no built-in roles"),
+          namesAgents: empty.includes("Available agents:"),
+          statesNoneDefined: empty.includes("none defined yet"),
+          pointsAtReference: empty.includes("agent-roles.md"),
+          routesNewRolesToSpawn: empty.includes("teammate_spawn"),
+        }}));
+        '''
+    )
+    assert payload == {
+        "statesNoBuiltins": True,
+        "namesAgents": True,
+        "statesNoneDefined": True,
+        "pointsAtReference": True,
+        "routesNewRolesToSpawn": True,
+    }
 
 
 def test_follow_up_reports_use_wrapped_marker_format() -> None:

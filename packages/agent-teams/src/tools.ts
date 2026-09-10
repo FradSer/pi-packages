@@ -59,7 +59,7 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentControlRunti
     name: "agent",
     promptSnippet: "Delegate work or inspect a persistent Agent",
     label: "Agent Control",
-    description: "Delegate independent work to an Agent. A prompt without work always starts a new Work Session; work selects existing execution. Omit prompt to inspect. Results arrive automatically. fork optionally inherits the leader context; fresh by default.",
+    description: "Delegate independent work to a defined Agent (see Available agents in guidance). Unknown names are rejected without spawning — create the role first with teammate_spawn and an inline definition. A prompt without work always starts a new Work Session; work selects existing execution. Omit prompt to inspect. Results arrive automatically. fork optionally inherits the leader context; fresh by default.",
     parameters: AgentToolParams,
     renderShell: "self",
     renderCall: emptyToolCall,

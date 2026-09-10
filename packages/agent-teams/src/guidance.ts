@@ -74,6 +74,25 @@ explicitly asks.
 ${LEADER_COORDINATION_CONTRACT}
 `;
 
+/**
+ * First-turn leader guidance while no team is active: the short spawn
+ * contract plus the live available-agents list and the create-on-demand
+ * pointer. Without the list, a delegation request for an undefined name
+ * becomes a guessed agent call that the agent tool must reject; with it,
+ * the same request becomes a teammate_spawn with an inline definition.
+ */
+export function buildIdleLeaderGuidance(cwd?: string): string {
+  return `${TEAMMATE_SPAWN_GUIDANCE}
+Available agents:
+${formatAgentGuidance(cwd)}
+
+When an assignment needs an agent whose name has no definition yet, derive an
+inline definition from the shipped abstract role reference at \`${AGENT_REFERENCE_PATH}\`
+and pass it with \`name\` and the required \`agent\` role id in the same
+\`teammate_spawn\` call. Never call \`agent\` with a name missing from the list
+above: unknown names are rejected without spawning.`;
+}
+
 export function buildTeamLeaderGuidance(cwd?: string): string {
   const agents = formatAgentGuidance(cwd);
   return `

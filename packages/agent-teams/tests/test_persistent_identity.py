@@ -69,4 +69,6 @@ def test_agent_tool_requires_explicit_definition_for_unregistered_names():
     assert data["ok"] is False
     assert "Unknown Agent @dynamic-helper" in data["error"]
     assert "teammate_spawn" in data["error"]
-    assert "explicit role definition and tools" in data["error"]
+    assert ".pi/agents" in data["error"]
+    assert "Available now:" in data["error"]
+    assert "references/agent-roles.md" in data["error"]

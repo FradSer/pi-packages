@@ -753,6 +753,8 @@ Feature: Agent Teams collaborative organization contract
       And it states that Agent Teams has no built-in roles
       And it requires name, agent, and definition when creating a role on demand
       And it explains that agent is the required in-memory role id
+      And it lists the agents available now, or states that none are defined yet
+      And it points at the shipped role reference when deriving an inline definition
       And long team orchestration guidance remains absent
 
     Scenario: The leader guidance forbids sleep-based coordination

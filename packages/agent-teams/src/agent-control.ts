@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { resolveAgent } from "./agents.ts";
 import { isValidTeammateName, listTeammates } from "./state.ts";
-import { sendLeaderMessage, spawnTeammate } from "./team-machine.ts";
+import { sendLeaderMessage, spawnTeammate, unknownAgentError } from "./team-machine.ts";
 import type { Teammate } from "./types.ts";
 import { snapshotWorkContext } from "./work-context.ts";
 import { sessionRoute } from "./recipient.ts";
@@ -59,7 +59,7 @@ export function controlAgent(
     return response;
   }
   const definition = resolveAgent(params.name, cwd);
-  if (!definition) throw new Error(`Unknown Agent @${params.name}. Use teammate_spawn with an explicit role definition and tools before delegating.`);
+  if (!definition) throw new Error(`Unknown Agent @${params.name}. ${unknownAgentError(params.name, cwd ?? process.cwd())}`);
   const context = params.fork ? snapshotWorkContext(sessionManager) : undefined;
   const id = randomUUID();
   const result = runtime.spawnTeammate({

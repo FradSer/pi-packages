@@ -57,6 +57,9 @@ Feature: Agent Delegation and Work Item Lifecycle
     Given an Agent name has no definition
     When the leader delegates a prompt to that name
     Then the tool rejects with guidance to define the role through teammate_spawn
+    And the rejection names every checked definition scope
+    And the rejection lists the agents available now
+    And the rejection points at the shipped role reference for the inline definition
     And no capability-empty temporary worker is spawned
 
   Scenario: Temporary Agent promotion after verified success
