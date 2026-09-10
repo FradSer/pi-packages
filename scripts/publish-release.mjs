@@ -16,6 +16,7 @@ const packages = [
   "pi-keyboard",
   "@fradser/pi-agent-teams",
   "@fradser/pi-context",
+  "@fradser/pi-session-control",
   "pi-matt-pocock",
   "pi-skill-router",
 ];
