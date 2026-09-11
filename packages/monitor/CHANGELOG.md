@@ -1,5 +1,20 @@
 # @fradser/pi-monitor
 
+## 2.3.0
+
+### Minor Changes
+
+- e0fd224: Remove the default bash tool-call guardrail. Monitor usage is now guidance-only, so native bash commands are no longer intercepted or required to use an allow-sync suffix.
+
+### Patch Changes
+
+- 9cabb0d: Bump every package by one patch version.
+- 919504f: Wrap custom transcript lifecycle messages in host ToolExecutionComponent so mouse click toggling works symmetrically with tool result rows.
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [28bdae2]
+  - @fradser/pi-kit@0.5.0
+
 ## 2.2.0
 
 ### Minor Changes

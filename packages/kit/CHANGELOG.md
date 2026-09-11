@@ -1,5 +1,18 @@
 # @fradser/pi-kit
 
+## 0.5.0
+
+### Minor Changes
+
+- 28bdae2: Add `searchModelFromPicker`, an interactive type-to-filter model picker built on `ctx.ui.custom`. Packages can pass the full registry model list (e.g. `ctx.modelRegistry.getAll()`) instead of only scoped or available models; the picker offers live search, keyboard navigation, a current-model marker, and empty-list warning fallback.
+  
+  `pi-recap`, `pi-vision`, and `pi-continual-learning` model menus now use the searchable picker and enumerate all registered models instead of limiting selection to scoped models.
+
+### Patch Changes
+
+- 9cabb0d: Bump every package by one patch version.
+- 919504f: Wrap custom transcript lifecycle messages in host ToolExecutionComponent so mouse click toggling works symmetrically with tool result rows.
+
 ## 0.4.2
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @fradser/pi-context
 
+## 0.6.1
+
+### Patch Changes
+
+- 9cabb0d: Bump every package by one patch version.
+- 919504f: Wrap the complete research query in the started display instead of truncating it to one line.
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [28bdae2]
+  - @fradser/pi-kit@0.5.0
+
 ## 0.6.0
 
 ### Minor Changes

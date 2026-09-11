@@ -1,5 +1,16 @@
 # pi-skill-router
 
+## 0.2.1
+
+### Patch Changes
+
+- 9cabb0d: Bump every package by one patch version.
+- e448729: Generate and directly save the Add collection capability summary with the active AI model from selected skill descriptions, without manual editing or confirmation. Abort installation with an error when generation is unavailable or invalid instead of substituting a deterministic fallback.
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [28bdae2]
+  - @fradser/pi-kit@0.5.0
+
 ## 0.2.0
 
 ### Minor Changes

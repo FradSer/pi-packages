@@ -1,5 +1,18 @@
 # @fradser/pi-plan-mode
 
+## 0.1.6
+
+### Patch Changes
+
+- 9cabb0d: Bump every package by one patch version.
+- ae01b20: Allow read-only bash pipelines and conditional chains while validating every stage. Reject malformed shell syntax and unsafe command options, and exercise the production validator in regression tests.
+- ae01b20: Open plan review after the agent settles without blocking its lifecycle. Fresh-session implementation no longer waits on its own completion event, and dismissing review leaves new prompts ready to run.
+- c9eb37d: Use bounded readable topic filenames for new plans, with numeric collision suffixes. Persist the exact plan path across session reloads, resumes, review, research, and fresh implementation without renaming existing files.
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [28bdae2]
+  - @fradser/pi-kit@0.5.0
+
 ## 0.1.5
 
 ### Patch Changes
