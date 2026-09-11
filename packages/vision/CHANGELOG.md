@@ -1,5 +1,15 @@
 # @fradser/pi-vision
 
+## 0.2.10
+
+### Patch Changes
+
+- 9cabb0d: Bump every package by one patch version.
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [28bdae2]
+  - @fradser/pi-kit@0.5.0
+
 ## 0.2.9
 
 ### Patch Changes

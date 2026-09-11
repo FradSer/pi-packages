@@ -1,5 +1,24 @@
 # pi-matt-pocock
 
+## 0.2.0
+
+### Minor Changes
+
+- 0ea4980: Replace the flat procedure allowlist with a catalog-backed capability gateway, bounded dependency resolver, legal workflow transitions, explicit completion and cancellation, progressively disclosed active tools, standalone capability routing, and verifiable upstream selection metadata.
+- 919504f: Add a default Start a task entry as the first option of the /matt-pocock menu. It infers the current task from recent conversation context and routes it through the relevant workflow or standalone capability without manual route selection, superseding any active workflow as a new routing request.
+- 919504f: Add a local `deslop` standalone capability that removes AI slop (fabricated evidence, evidence widening, defensive clutter, mock patching, vacuous names) from a bounded change set with frozen behavior, and extend the code-review Standards axis with a cross-language AI slop baseline that skips patterns repository tooling already enforces.
+- 919504f: Add opt-in native macOS dialog support for `matt_pocock_ask` via `~/.pi/agent/pi-matt-pocock.json`, with strict guards against non-macOS and SSH sessions, and a dedicated native text input window for custom answers.
+
+### Patch Changes
+
+- 9cabb0d: Bump every package by one patch version.
+- 93e3302: Fix TUI rendering issue when answer contains multiple lines or tabs in matt_pocock_ask
+- 2e2ef21: Route procedure cross-references through the catalog gateway instead of Pi skills. Model-reachable capabilities name matt_pocock_workflow mode capability, disclosed references name the matt_pocock_active load action, and required dependencies are described as already bundled. No procedure text calls a catalog procedure a skill, arms a skill state, runs user-invoked setup, or points at available_skills.
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [28bdae2]
+  - @fradser/pi-kit@0.5.0
+
 ## 0.1.1
 
 ### Patch Changes

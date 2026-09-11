@@ -1,5 +1,24 @@
 # @fradser/pi-agent-teams
 
+## 0.9.0
+
+### Minor Changes
+
+- f177948: Keep the compact agent and agent_event interface while making new delegations independent Work Sessions. Add optional fork (fresh context by default), exact work and message routing for concurrent assignments, and runtime-owned final-answer reporting after execution settles. Completion evidence and finish announcements now belong to each assignment attempt rather than an entire resident process.
+- 28c908c: Introduce persistent Agent delegation (`agent`) and symmetric shared communication (`agent_event`), transitioning from ephemeral teammates to cross-project persistent Agents.
+
+### Patch Changes
+
+- 43b51c5: Remove leader heartbeat and stall notices. Silence, spawn age, and usage stay as passive console telemetry in `/agent-teams` (roster "stalled" marker at `PI_TEAMMATE_STALL_SILENCE_MS`, default 5 minutes); the leader context is never interrupted by health prompts, and provider hangs surface only through the standard terminal close-path diagnostic. See `docs/adr/0002-no-leader-heartbeat-notices.md`.
+- 9cabb0d: Bump every package by one patch version.
+- d3efa47: Teach leaders to continue independent work or yield the turn while teammates run, relying on automatic result delivery instead of extending the turn with polling or wait commands.
+- 919504f: Fix agent presence and work control to use current-session state instead of reporting a fabricated idle result. Deliver leader direction through native priority steering that also starts idle execution, and isolate completion reports by assignment so an earlier PASS cannot close reopened work. Align first-delegation guidance, terminal-report rejection, and transport outcome wording with these contracts.
+- 919504f: Wrap custom transcript lifecycle messages in host ToolExecutionComponent so mouse click toggling works symmetrically with tool result rows.
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [28bdae2]
+  - @fradser/pi-kit@0.5.0
+
 ## 0.8.3
 
 ### Patch Changes

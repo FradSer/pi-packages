@@ -1,5 +1,23 @@
 # pi-continual-learning
 
+## 0.3.0
+
+### Minor Changes
+
+- d3efa47: Align memory and harness on user-shared, project-shared, and project-personal ownership layers. Remove the harness user-personal layer and make automatic consolidation write only project-personal memory and harness configuration.
+
+### Patch Changes
+
+- 9cabb0d: Bump every package by one patch version.
+- 919504f: Teach direct harness generation and consolidation to translate incident evidence into reusable error classes before choosing narrow supported mechanisms. Avoid incidental resource identifiers and blanket write gates, transfer-test lessons across documents and rephrasings, and state the invocation-only limits of semantic skill guidance.
+- 919504f: Require harness skill prompts to use exact registered skill keys and object-shaped prompt entries, with trigger verification guidance instead of treating JSON readback as effective enforcement.
+- 919504f: Validate newly authored skill guidance against actual registered skills, reject bare-string entries, and distinguish inactive configuration from verified triggers. Gate direct harness writes and automated additions while preserving unchanged legacy entries and allowing their removal.
+- 3a6cdda: Classify consolidation planner model errors (quota 429, model cooldown) as labeled model failures instead of generic "missing schema-valid consolidation plan" rejections, and skip the fresh-planner retry that inherits the same failing model. Label dreaming-budget terminations as timeouts instead of raw exit codes, carry the previous rejection reason into the fresh planner's task header, emit validator errors once per category without duplicated prefixes, clip rejection notifications from the head, and document that grounding observations must cite existing files (skill directories via their SKILL.md).
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [28bdae2]
+  - @fradser/pi-kit@0.5.0
+
 ## 0.2.2
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # pi-keyboard
 
+## 0.1.7
+
+### Patch Changes
+
+- 9cabb0d: Bump every package by one patch version.
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [28bdae2]
+  - @fradser/pi-kit@0.5.0
+
 ## 0.1.6
 
 ### Patch Changes
