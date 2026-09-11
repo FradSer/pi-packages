@@ -53,6 +53,22 @@ def test_feature_covers_the_catalog_gateway_contract() -> None:
         assert scenario in feature
 
 
+def test_capability_mode_targets_are_model_standalone() -> None:
+    catalog = json.loads((PACKAGE / "src" / "catalog.json").read_text())
+    model_capabilities = {
+        definition["id"]
+        for definition in catalog
+        if definition.get("standalone") and definition.get("invocation") == "model"
+    }
+    procedures = PACKAGE / "procedures"
+    for entry in catalog:
+        text = (procedures / entry["file"]).read_text()
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if "mode `capability`" in line:
+                for target in re.findall(r"\[([A-Za-z0-9-]+)\]\(", line):
+                    assert target in model_capabilities, f"{entry['file']}:{lineno}: {target}"
+
+
 def test_manifest_declares_one_package_root_extension() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text())
     assert manifest["name"] == "pi-matt-pocock"
