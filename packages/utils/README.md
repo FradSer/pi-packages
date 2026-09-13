@@ -1,6 +1,6 @@
 # @fradser/pi-utils
 
-A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks or continuing based on recommendations, `/init` for creating or updating scoped `AGENTS.md` contributor guides, multi-session directory awareness (`/sessions`), git worktree session switching, plus git worktree path and `@` completion isolation.
+A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks, `/init` for scoped `AGENTS.md` contributor guides, multi-session directory awareness (`/sessions`), private live-session control, and git worktree isolation.
 
 ## Structure
 
@@ -13,6 +13,8 @@ utils/
 │   ├── effort.ts         — /effort thinking-level menu
 │   ├── init.ts           — /init repository guide generation
 │   ├── sessions.ts       — /sessions directory awareness + listing tool
+│   ├── live-sessions.ts  — Live-session socket lifecycle
+│   ├── live-sessions/    — Protocol, client, server, and transport
 │   ├── worktree.ts       — git worktree add path redirect
 │   ├── worktree-completion.ts — worktree-aware @ filtering
 │   └── worktree-session.ts — EnterWorktree / ExitWorktree session switching
@@ -91,6 +93,25 @@ Valid levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
 Unknown values are rejected with a hint listing the valid levels. The level
 is clamped to the model's capabilities, and the menu is narrowed to what the
 model actually supports (a reasoning-off model only gets `off`).
+
+## Live session control
+
+Installing `@fradser/pi-utils` also enables private discovery and text delivery
+to running Pi sessions without terminal input injection or session-file edits.
+It is available on Unix/macOS with Node 20+.
+
+The extension reports live instances and their `idle` or `running` state through
+its internal versioned protocol. Text delivery returns `accepted` or `queued`;
+neither receipt means the task completed. Busy sessions default to `followUp`,
+while `steer` requests steering. Request IDs make retries replay-safe, and a
+live instance ID changes when Pi reloads, resumes, forks, or restarts.
+
+Sockets live in `~/.pi/live-sessions`, overridable for integration hosts with
+`PI_UTILS_LIVE_SESSIONS_DIR`. The user-owned directory is mode 0700 and sockets
+are mode 0600. The feature opens no TCP listener and treats same-user processes
+as trusted. Inputs, text, discovery, socket paths, timeouts, and replay receipts
+are bounded. This is an internal `@fradser/pi-utils` capability; the package
+does not publish a separate live-session executable or package.
 
 ## Git worktree redirect
 

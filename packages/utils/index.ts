@@ -3,6 +3,7 @@ import registerContinue from "./extensions/continue.ts";
 import registerEffort from "./extensions/effort.ts";
 import registerInit from "./extensions/init.ts";
 import registerNpmPublishGuard from "./extensions/npm-publish-guard.ts";
+import registerLiveSessions from "./extensions/live-sessions.ts";
 import registerSessions from "./extensions/sessions.ts";
 import registerWorktree from "./extensions/worktree.ts";
 import registerWorktreeCompletion from "./extensions/worktree-completion.ts";
@@ -12,6 +13,7 @@ export default function utilsExtension(pi: ExtensionAPI): void {
 	registerContinue(pi);
 	registerEffort(pi);
 	registerInit(pi);
+	registerLiveSessions(pi);
 	registerSessions(pi);
 	registerWorktree(pi);
 	registerWorktreeCompletion(pi);

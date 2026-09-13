@@ -4,8 +4,9 @@
 
 `packages/utils/` publishes `@fradser/pi-utils`, a native Pi extension. `index.ts`
 only wires the focused modules in `extensions/`: `/continue`, `/effort`, `/init`,
-`/sessions`, npm publish/credential guarding, git worktree path redirect,
-worktree-aware `@` completions, and EnterWorktree/ExitWorktree session switching. BDD contracts live in
+`/sessions`, private live-session socket control, npm publish/credential guarding,
+git worktree path redirect, worktree-aware `@`
+completions, and EnterWorktree/ExitWorktree session switching. BDD contracts live in
 `features/`; executable Python tests and runtime harnesses live in `tests/`.
 The published package is limited by `package.json`'s `files` list (`index.ts`,
 `extensions/`, and `README.md`).
@@ -33,6 +34,10 @@ package; its entry point is exercised through native Node and tsx.
   - Reads `~/.pi/agent/directory-sessions/`, filters dead PIDs, and collapses multi-writer records by PID.
   - Dynamically exposed via `pi.setActiveTools()` only when active/recent peer sessions exist in cwd.
   - Sanitizes untrusted registry fields with `safeDisplayText` before prompt injection or transcript rendering.
+- **Live Session Control**:
+  - Uses private user-owned Unix sockets; never inject terminal input or edit session files.
+  - Routes by opaque live-instance ID, preserves request-ID replay protection, and never treats accepted/queued as completion.
+  - Keep this capability internal to `@fradser/pi-utils`; do not add a separate package or executable.
 - **Publish Guard**: `extensions/npm-publish-guard.ts` checks command positions
   and exact dry-run flags. Preserve coverage for filtered/recursive publish
   forms; never route OTP codes through chat.

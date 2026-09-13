@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-utils",
   "version": "0.4.2",
-  "description": "Native /effort, /continue, /sessions (/recap) commands for pi — set thinking levels, resume interrupted steps, cross-session directory recap, and redirect git worktrees",
+  "description": "Native Pi commands and utilities for continuation, session awareness and control, thinking levels, and git worktrees",
   "keywords": [
     "pi-package",
     "effort",
@@ -11,7 +11,8 @@
     "recap",
     "cross-session",
     "git",
-    "worktree"
+    "worktree",
+    "live-sessions"
   ],
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",
@@ -38,5 +39,9 @@
   },
   "dependencies": {
     "@fradser/pi-kit": "workspace:*"
-  }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "module"
 }
