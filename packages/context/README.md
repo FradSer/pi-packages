@@ -27,10 +27,10 @@ Pi recognizes these requests and invokes `context_get` automatically. Users do n
 The child runs as:
 
 ```text
-pi --print --mode json --no-session --tools read,bash --exclude-tools edit,write
+pi --print --mode json --no-session --no-extensions --tools read,bash --exclude-tools edit,write
 ```
 
-The child runs in the caller's working directory with no sandbox, no timeout, and no truncation, launched through pi-kit's shared `runPiWorker`. It is instructed to use only read-only investigation. If line-level evidence from a public repository is necessary, the prompt suggests `git clone --depth=1` under `/tmp` with removal after inspection. It must not run package-management, deployment, or interactive commands.
+The child runs in the caller's working directory with extension discovery disabled, no sandbox, no timeout, and no display truncation, launched through pi-kit's shared `runPiWorker`. Its `read,bash` allowlist and prompt require no modifications; `bash` remains technically able to write because there is no OS sandbox. If line-level evidence from a public repository is necessary, the prompt suggests `git clone --depth=1` under `/tmp` with removal after inspection. It must not run package-management, deployment, or interactive commands. The shared worker fails closed if its bounded stdout, stderr, or JSONL line limits are exceeded.
 
 Results enter the main session untruncated and render as compact, expandable context lifecycle rows.
 

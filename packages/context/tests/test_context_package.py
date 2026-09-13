@@ -68,11 +68,12 @@ class TestContextPackage(unittest.TestCase):
         self.assertNotIn("registerCommand", source)
         self.assertNotIn('"context"', source)
 
-    def test_research_child_is_read_only_without_sandbox_limits(self) -> None:
+    def test_research_child_uses_prompt_constrained_tools_without_sandbox_limits(self) -> None:
         source = read("extensions/context-tools.ts")
-        self.assertIn('READ_ONLY_TOOLS = ["read", "bash"]', source)
+        self.assertIn('RESEARCH_TOOLS = ["read", "bash"]', source)
         self.assertIn('EXCLUDED_TOOLS = ["edit", "write"]', source)
         self.assertIn('"--exclude-tools"', source)
+        self.assertIn('"--no-extensions"', source)
         self.assertIn("runPiWorker", source)
         self.assertIn("child.cancelled", source)
         self.assertIn("child.exitCode !== 0", source)
@@ -137,6 +138,7 @@ class TestContextPackage(unittest.TestCase):
             "print JSON mode without a session",
             "available tools are limited to read and bash",
             "edit and write are excluded",
+            "extension discovery is disabled",
             "git clone with depth 1 under /tmp",
             "remove its temporary clone after inspection",
             "no sandbox",

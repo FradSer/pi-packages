@@ -1,12 +1,12 @@
 {
   "name": "@fradser/pi-context",
   "version": "0.6.0",
-  "description": "Retrieve context for repositories, libraries, and technical questions with one native tool that launches an isolated read-only Pi research child.",
+  "description": "Retrieve context for repositories, libraries, and technical questions with one native tool that launches an isolated prompt-constrained Pi research child.",
   "keywords": [
     "pi-package",
     "code-context",
     "isolated-research",
-    "read-only"
+    "prompt-constrained"
   ],
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",

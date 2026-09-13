@@ -12,7 +12,7 @@ import {
 } from "@fradser/pi-kit";
 import { Type } from "typebox";
 
-const READ_ONLY_TOOLS = ["read", "bash"];
+const RESEARCH_TOOLS = ["read", "bash"];
 const EXCLUDED_TOOLS = ["edit", "write"];
 
 interface ToolTextResult {
@@ -84,7 +84,7 @@ function renderContextResult(
 export function buildResearchPrompt(query: string): string {
   return [
     "Research the user's request independently and return a concise, evidence-based answer.",
-    "You are in a child Pi process. Use only read and bash; never edit or write files.",
+    "You are in a child Pi process with read and bash available. Treat the caller's working directory as read-only: never edit or write files. The bash tool can technically write, so this boundary is enforced by the research instruction rather than an OS sandbox.",
     "For public repository line-level evidence, you may run git clone --depth=1 into a unique /tmp directory, inspect it, and remove it before answering.",
     "Never modify the caller's working directory. Do not use package managers, deployment commands, or interactive commands.",
     "Cite concrete source URLs, repository paths, or documentation names when available.",
@@ -191,8 +191,8 @@ export function runResearchChild(
   return runPiWorker({
     prompt: buildResearchPrompt(query),
     cwd: process.cwd(),
-    tools: READ_ONLY_TOOLS,
-    extraArgs: ["--exclude-tools", EXCLUDED_TOOLS.join(",")],
+    tools: RESEARCH_TOOLS,
+    extraArgs: ["--no-extensions", "--exclude-tools", EXCLUDED_TOOLS.join(",")],
     signal,
     onUpdate,
   }).then((result) => {
@@ -209,10 +209,10 @@ export function registerContextTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "context_get",
     label: "Isolated Pi research",
-    description: "Research a repository, library, codebase, or technical topic in an independent read-only Pi child process. The child can inspect and temporarily clone public repositories under /tmp.",
-    promptSnippet: "Research independently in a read-only child Pi process",
+    description: "Research a repository, library, codebase, or technical topic in an independent prompt-constrained Pi child process. The child has read and bash available and can inspect or temporarily clone public repositories under /tmp.",
+    promptSnippet: "Research independently in a prompt-constrained Pi child process",
     promptGuidelines: [
-      "Use context_get when the user needs external context for a repository, library, codebase, or current technical topic. It retrieves that context in an isolated read-only Pi process.",
+      "Use context_get when the user needs external context for a repository, library, codebase, or current technical topic. It retrieves that context in an isolated Pi process with a read/bash allowlist and prompt-level no-modification guidance.",
     ],
     parameters: ResearchParams,
     executionMode: "sequential",

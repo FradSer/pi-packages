@@ -6,7 +6,7 @@ Feature: Context package modification guidance
   Scenario: A runtime change preserves the child constraints
     Given a change targets the context package
     When the maintainer changes the child launcher
-    Then the child remains limited to the documented read-only tool surface
+    Then the child remains limited to the documented prompt-constrained read/bash research surface
     And temporary research material remains under /tmp
 
   Scenario: Documentation-only changes do not require unrelated lookups

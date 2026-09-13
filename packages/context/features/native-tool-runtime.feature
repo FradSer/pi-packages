@@ -1,7 +1,7 @@
 Feature: Isolated Pi research tool
   To research external code without expanding the main Pi tool surface
   As a user of @fradser/pi-context
-  I want one tool that delegates research to a read-only child Pi process
+  I want one tool that delegates research to an independent prompt-constrained Pi process with read and bash
 
   Scenario: Context registers one research tool
     Given the context package is installed in Pi
@@ -21,6 +21,7 @@ Feature: Isolated Pi research tool
     Then the child runs in print JSON mode without a session
     And its available tools are limited to read and bash
     And edit and write are excluded
+    And extension discovery is disabled
     And the child receives a research-only prompt
     And the child runs in the caller's working directory with no sandbox
     And there is no wall-clock timeout and no result truncation
