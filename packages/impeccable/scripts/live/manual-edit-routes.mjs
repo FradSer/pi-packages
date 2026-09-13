@@ -1,6 +1,7 @@
-// Modified for @fradser/pi-impeccable: Pi-adapted provider validation.
+// Modified for @fradser/pi-impeccable: Pi-adapted provider validation and bounded HTTP bodies.
 // Derived from Impeccable, Copyright 2025 Paul Bakaus; Apache-2.0.
 import { validateEvent } from './event-validation.mjs';
+import { readLiveRequestBody } from './http-body.mjs';
 import {
   countByPage as countPendingByPage,
   readBuffer as readManualEditsBuffer,
@@ -34,9 +35,7 @@ export function createManualEditRoutes({
     // Save stages entries; Apply commits the staged page batch through the
     // local AI copy-edit runner.
     if (p === '/manual-edit-stash' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (c) => { body += c; });
-      req.on('end', () => {
+      readLiveRequestBody(req, res, (body) => {
         let msg;
         try { msg = JSON.parse(body); } catch {
           sendJson(res, 400, { error: 'Invalid JSON' });
@@ -252,9 +251,7 @@ export function createManualEditRoutes({
     }
 
     if (p === '/manual-edit-repair-decision' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk) => { body += chunk; });
-      req.on('end', () => {
+      readLiveRequestBody(req, res, (body) => {
         let payload = {};
         try { payload = body ? JSON.parse(body) : {}; } catch {
           sendJson(res, 400, { error: 'Invalid JSON' });

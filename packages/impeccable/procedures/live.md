@@ -8,6 +8,8 @@ A running dev server with HMR (Vite, Next.js, Bun, etc.), OR a static HTML file 
 
 Live mode depends on localhost network access and package-manager installs; run the dev server and helpers in the user's project with the session's normal tooling, and report what you could not start instead of working around it.
 
+Live JSON requests are limited to 1 MiB. A 413 response applies no event; reduce the batch before retrying. See [live request limits](../references/live-request-limits.md).
+
 ## The contract (read once)
 
 Execute in order. No step skipped, no step reordered. Every tool output in live mode may carry an `_instructions` field: it is the authoritative next step for that exact situation, with real ids and paths substituted; when it conflicts with your recollection of this document, `_instructions` wins.

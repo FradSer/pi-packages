@@ -185,7 +185,7 @@
    "sha256": "0e2def4cdea1f59d70403f9606723b0391018e31a522f6b639135c8d1b320b7f",
    "destination": "scripts/live-server.mjs",
    "disposition": "adapted",
-   "reason": "Pi-adapted live server: persistent token support and streamlined boot."
+   "reason": "Pi-adapted live server: persistent token support and streamlined boot; reject oversized live JSON bodies before parsing."
   },
   {
    "source": "skill/scripts/live-wrap.mjs",
@@ -360,7 +360,7 @@
    "sha256": "5517c40db7c91a5b24b134f79cb0f87c90e307b2f7831b1de670d60e529557c0",
    "destination": "scripts/live/manual-edit-routes.mjs",
    "disposition": "adapted",
-   "reason": "Provider validation admits the pi provider."
+   "reason": "Provider validation admits the pi provider; reject oversized live JSON bodies before parsing."
   },
   {
    "source": "skill/scripts/live/manual-edits-buffer.mjs",
@@ -569,6 +569,13 @@
    "destination": "procedures/live-setup.md",
    "disposition": "adapted",
    "reason": "Pi adaptation: package helper paths and disclosed-loading contract; upstream repo-internal reference outputs removed."
+  },
+  {
+   "source": null,
+   "sha256": null,
+   "destination": "scripts/live/http-body.mjs",
+   "disposition": "original",
+   "reason": "Locally authored bounded live HTTP JSON body reader; no upstream source."
   }
  ],
  "excluded": [

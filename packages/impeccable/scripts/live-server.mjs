@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Modified for @fradser/pi-impeccable: persistent live session tokens and streamlined boot.
+// Modified for @fradser/pi-impeccable: persistent tokens, streamlined boot, and bounded HTTP bodies.
 /**
  * Live variant mode server (self-contained, zero dependencies).
  *
@@ -34,6 +34,7 @@ import { runGenerationPreflight } from './live/generation-preflight.mjs';
 import { validateEvent } from './live/event-validation.mjs';
 import { selectAvailablePendingEvent } from './live/poll-lanes.mjs';
 import { createManualEditRoutes } from './live/manual-edit-routes.mjs';
+import { readLiveRequestBody } from './live/http-body.mjs';
 import {
   LIVE_COMMANDS,
   VARIANT_PROGRESS_CHECKPOINT_REASONS as VARIANT_PROGRESS_CHECKPOINT_REASON_LIST,
@@ -1023,9 +1024,7 @@ function createRequestHandler({ detectScript, liveScriptParts }) {
 
     // --- Browser→server events (replaces WebSocket messages) ---
     if (p === '/events' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (c) => { body += c; });
-      req.on('end', () => {
+      readLiveRequestBody(req, res, (body) => {
         let msg;
         try { msg = JSON.parse(body); } catch {
           res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -1282,9 +1281,7 @@ function inferSourceEventType(msg = {}, pendingEvents = state.pendingEvents) {
 }
 
 function handlePollPost(req, res) {
-  let body = '';
-  req.on('data', (c) => { body += c; });
-  req.on('end', () => {
+  readLiveRequestBody(req, res, (body) => {
     let msg;
     try { msg = JSON.parse(body); } catch {
       res.writeHead(400, { 'Content-Type': 'application/json' });
