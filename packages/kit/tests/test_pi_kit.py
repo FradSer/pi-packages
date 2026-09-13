@@ -881,26 +881,117 @@ def test_safe_display_text_sanitizes_terminal_output() -> None:
     assert result == {"ansi": "red", "osc": "EvilName", "control": "abc"}
 
 
-def test_agent_display_helpers_share_labels_and_message_counts() -> None:
+def test_agent_display_helpers_share_labels_names_and_message_counts() -> None:
     result = run_typescript(
         f"""
-        import {{ formatAgentMessagePrefix, formatAgentTaskName }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ formatAgentMessagePrefix, formatAgentTaskName, subagentDisplayName }} from {json.dumps((SRC / "index.ts").as_uri())};
         console.log(JSON.stringify({{
           prefix: formatAgentMessagePrefix("from"),
           multiPrefix: formatAgentMessagePrefix("from", 2),
           outgoingPrefix: formatAgentMessagePrefix("to"),
           taskName: formatAgentTaskName("  inspect   authentication  ", "fallback"),
           longTaskName: formatAgentTaskName("x".repeat(140), "fallback"),
+          stableName: subagentDisplayName("context", "tool-call-123"),
+          repeatedName: subagentDisplayName("context", "tool-call-123"),
+          distinctName: subagentDisplayName("context", "tool-call-456"),
         }}));
         """
     )
-    assert result == {
-        "prefix": "[message] from ",
-        "multiPrefix": "[2 messages] from ",
-        "outgoingPrefix": "[message] to ",
-        "taskName": "inspect authentication",
-        "longTaskName": "x" * 140,
-    }
+    assert result["prefix"] == "[message] from "
+    assert result["multiPrefix"] == "[2 messages] from "
+    assert result["outgoingPrefix"] == "[message] to "
+    assert result["taskName"] == "inspect authentication"
+    assert result["longTaskName"] == "x" * 140
+    assert result["stableName"] == result["repeatedName"]
+    assert result["stableName"] != result["distinctName"]
+    assert result["stableName"].startswith("context-")
+    assert len(result["stableName"]) <= 64
+
+
+def test_package_agent_run_loads_package_owned_resource(tmp_path: Path) -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as path from "node:path";
+        import {{ pathToFileURL }} from "node:url";
+        import {{ createPackageAgentRun }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const root = {json.dumps(str(tmp_path))};
+        const extensionDir = path.join(root, "extensions");
+        const agentDir = path.join(root, "agents");
+        fs.mkdirSync(extensionDir, {{ recursive: true }});
+        fs.mkdirSync(agentDir, {{ recursive: true }});
+        fs.writeFileSync(path.join(agentDir, "researcher.md"), "Package-owned instructions.\\n");
+        const moduleUrl = pathToFileURL(path.join(extensionDir, "tool.ts")).href;
+        const first = createPackageAgentRun({{
+          moduleUrl,
+          resourcePath: "../agents/researcher.md",
+          displayPath: "agents/researcher.md",
+          namePrefix: "context",
+          toolCallId: "call-one",
+          request: "Inspect authentication",
+        }});
+        const repeated = createPackageAgentRun({{
+          moduleUrl,
+          resourcePath: "../agents/researcher.md",
+          displayPath: "agents/researcher.md",
+          namePrefix: "context",
+          toolCallId: "call-one",
+          request: "Inspect authentication",
+        }});
+        const distinct = createPackageAgentRun({{
+          moduleUrl,
+          resourcePath: "../agents/researcher.md",
+          displayPath: "agents/researcher.md",
+          namePrefix: "context",
+          toolCallId: "call-two",
+          request: "Inspect authentication",
+        }});
+        console.log(JSON.stringify({{ first, repeatedName: repeated.name, distinctName: distinct.name }}));
+        """
+    )
+    assert result["first"]["prompt"] == "Package-owned instructions.\n\nUser request:\nInspect authentication"
+    assert result["first"]["displayPath"] == "agents/researcher.md"
+    assert result["first"]["name"] == result["repeatedName"]
+    assert result["first"]["name"] != result["distinctName"]
+
+
+def test_pi_worker_progress_reports_latest_activity_across_stream_kinds(tmp_path: Path) -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as path from "node:path";
+        const root = {json.dumps(str(tmp_path))};
+        const packageDir = path.join(root, "node_modules", "@earendil-works", "pi-coding-agent");
+        fs.mkdirSync(packageDir, {{ recursive: true }});
+        fs.writeFileSync(path.join(packageDir, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const fakePi = path.join(packageDir, "cli.mjs");
+        const events = [
+          {{ type: "message_update", assistantMessageEvent: {{ type: "thinking_delta", delta: "older reasoning" }} }},
+          {{ type: "message_update", assistantMessageEvent: {{ type: "text_delta", delta: "newer answer" }} }},
+          {{ type: "message_update", assistantMessageEvent: {{ type: "toolcall_start" }} }},
+          {{ type: "message_update", assistantMessageEvent: {{ type: "toolcall_delta", delta: JSON.stringify({{ command: "pnpm test" }}) }} }},
+          {{ type: "message_update", assistantMessageEvent: {{ type: "toolcall_end", toolCall: {{ name: "bash" }} }} }},
+          {{ type: "message_end", message: {{ role: "assistant", content: [{{ type: "text", text: "pre-tool answer" }}] }} }},
+          {{ type: "tool_execution_start", toolCallId: "call-1", toolName: "bash", args: {{ command: "pnpm check" }} }},
+          {{ type: "tool_execution_end", toolCallId: "call-1", toolName: "bash" }},
+          {{ type: "message_update", assistantMessageEvent: {{ type: "text_delta", delta: "final answer" }} }},
+          {{ type: "message_end", message: {{ role: "assistant", content: [{{ type: "text", text: "final answer" }}] }} }},
+        ];
+        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\n" + `const events = ${{JSON.stringify(events)}};\\nfor (const event of events) {{ console.log(JSON.stringify(event)); await new Promise((resolve) => setTimeout(resolve, 5)); }}\\n`, {{ mode: 0o755 }});
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = fakePi;
+        const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const activities = [];
+        await runPiWorker({{ prompt: "inspect", cwd: root, onUpdate: (update) => activities.push(update.activity) }});
+        process.argv[1] = originalArgv1;
+        console.log(JSON.stringify({{ activities }}));
+        """
+    )
+    assert "older reasoning" in result["activities"]
+    assert "newer answer" in result["activities"]
+    assert "bash: pnpm test" in result["activities"]
+    assert "bash: pnpm check" in result["activities"]
+    assert result["activities"][-1] == "final answer"
 
 
 def test_compute_scroll_window_clamps_and_slices() -> None:

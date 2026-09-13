@@ -10,6 +10,14 @@ Feature: Shared pi-kit runtime helpers
     Then the frames equal pi's native "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" braille sequence
     And the shared interval is 120 ms
 
+  Scenario: Packages load their own bundled agents
+    Given a package ships an agent Markdown file inside its published resources
+    When it creates a package agent run from its module URL, resource path, tool call id, and user request
+    Then pi-kit loads the agent instructions from that package resource
+    And appends the user request without requiring a project .agents directory
+    And returns a stable bounded display identity and logical agent display path
+    And the same tool call id produces the same name while a different id produces a different name
+
   Scenario: Theme style language is adapted from any pi theme
     Given a pi theme object with an fg(color, text) function
     When the shared theme style is created
@@ -45,6 +53,12 @@ Feature: Shared pi-kit runtime helpers
     When it uses renderPiPanel
     Then the panel has shared full-width border, padded header and footer lines
     And every emitted line is width-bounded by the supplied ANSI-aware fit helper
+
+  Scenario: Pi worker progress identifies the latest activity
+    Given a print-mode Pi worker streams thinking, text, and tool calls
+    When pi-kit emits progress snapshots
+    Then each snapshot carries the latest activity regardless of older accumulated fields
+    And a completed tool call remains the active status until newer model activity arrives
 
   Scenario: Consumer packages resolve workspace dependency protocols when packed
     Given a workspace package depending on @fradser/pi-kit via workspace:*

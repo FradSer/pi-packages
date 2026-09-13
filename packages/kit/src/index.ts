@@ -34,6 +34,46 @@ export function formatAgentTaskName(prompt: string, fallback: string): string {
   return prompt.replace(/\s+/g, " ").trim() || fallback;
 }
 
+/** Stable, bounded sub-agent identity derived from one tool execution id. */
+export function subagentDisplayName(prefix: string, toolCallId: string): string {
+  const normalized = prefix.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "agent";
+  const suffix = createHash("sha256").update(toolCallId).digest("hex").slice(0, 12);
+  return `${normalized.slice(0, 51)}-${suffix}`;
+}
+
+export interface PackageAgentRunOptions {
+  /** import.meta.url from the package module that owns the agent resource. */
+  moduleUrl: string;
+  /** Resource path relative to that module, for example ../agents/researcher.md. */
+  resourcePath: string;
+  /** Package-relative path shown in the lifecycle row. */
+  displayPath: string;
+  namePrefix: string;
+  toolCallId: string;
+  request: string;
+  requestLabel?: string;
+}
+
+export interface PackageAgentRun {
+  name: string;
+  displayPath: string;
+  prompt: string;
+}
+
+/** Load a package-owned agent prompt and bind it to one stable tool execution. */
+export function createPackageAgentRun(options: PackageAgentRunOptions): PackageAgentRun {
+  const resourceUrl = new URL(options.resourcePath, options.moduleUrl);
+  if (resourceUrl.protocol !== "file:") throw new Error("Package agent resources must use file URLs.");
+  const agentPrompt = fs.readFileSync(fileURLToPath(resourceUrl), "utf8").trim();
+  if (!agentPrompt) throw new Error(`Package agent resource is empty: ${options.displayPath}`);
+  const requestLabel = options.requestLabel?.trim() || "User request";
+  return {
+    name: subagentDisplayName(options.namePrefix, options.toolCallId),
+    displayPath: safeDisplayText(options.displayPath),
+    prompt: `${agentPrompt}\n\n${requestLabel}:\n${options.request}`,
+  };
+}
+
 /** Lifecycle row kind shared by background and coordination tools. */
 export type ToolLifecycleKind = "started" | "event";
 
@@ -808,6 +848,8 @@ export interface PiWorkerProgressUpdate {
   text: string;
   activeTool?: string;
   liveThinking?: string;
+  /** Authoritative latest worker activity across tools, thinking, and text. */
+  activity?: string;
   turns: number;
 }
 
@@ -951,6 +993,7 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
       text: progress.text,
       activeTool: progress.activeTool,
       liveThinking: progress.thinking,
+      activity: progress.activity,
       turns: progress.turns,
     });
 
@@ -1139,6 +1182,7 @@ interface PiWorkerProgressState {
   thinking: string;
   toolcallArgs: string;
   activeTool?: string;
+  activity?: string;
   turns: number;
 }
 
@@ -1146,10 +1190,22 @@ function createPiWorkerProgress(): PiWorkerProgressState {
   return { text: "", thinking: "", toolcallArgs: "", turns: 0 };
 }
 
+function latestActivityLine(text: string): string | undefined {
+  const lines = text.split("\n");
+  for (let index = lines.length - 1; index >= 0; index--) {
+    const line = lines[index].replace(/\s+/g, " ").trim();
+    if (line) return line;
+  }
+  return undefined;
+}
+
 function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): boolean {
   if (!line.trim()) return false;
   let event: {
     type?: string;
+    toolCallId?: string;
+    toolName?: string;
+    args?: unknown;
     assistantMessageEvent?: { type?: string; delta?: string; toolCall?: { name?: string } };
     message?: { role?: string; content?: Array<{ type?: string; text?: string }> };
   };
@@ -1158,10 +1214,23 @@ function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): bool
   } catch {
     return false;
   }
+  if (event.type === "tool_execution_start") {
+    const serialized = typeof event.args === "string" ? event.args : JSON.stringify(event.args ?? {});
+    state.activeTool = toolcallLabel(serialized) ?? event.toolName ?? "tool";
+    state.activity = state.activeTool;
+    return true;
+  }
+  if (event.type === "tool_execution_end") {
+    state.activity = state.activeTool ?? state.activity;
+    return true;
+  }
   if (event.type === "message_end" && event.message?.role === "assistant") {
     state.turns++;
     const text = extractTextContent(event.message.content, "");
-    if (text.trim()) state.text = text;
+    if (text.trim()) {
+      state.text = text;
+      state.activity = latestActivityLine(text);
+    }
     return true;
   }
   if (event.type !== "message_update" || !event.assistantMessageEvent) return false;
@@ -1170,10 +1239,12 @@ function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): bool
     case "text_delta":
       state.activeTool = undefined;
       state.text += update.delta ?? "";
+      state.activity = latestActivityLine(state.text) ?? state.activity;
       return true;
     case "thinking_delta":
       state.activeTool = undefined;
       state.thinking += update.delta ?? "";
+      state.activity = latestActivityLine(state.thinking) ?? state.activity;
       return true;
     case "toolcall_start":
       state.toolcallArgs = "";
@@ -1182,9 +1253,13 @@ function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): bool
     case "toolcall_delta":
       state.toolcallArgs += update.delta ?? "";
       state.activeTool = toolcallLabel(state.toolcallArgs) ?? state.activeTool;
+      state.activity = state.activeTool ?? state.activity;
       return true;
     case "toolcall_end":
-      state.activeTool = undefined;
+      state.activeTool = toolcallLabel(state.toolcallArgs)
+        ?? update.toolCall?.name
+        ?? state.activeTool;
+      state.activity = state.activeTool ?? state.activity;
       state.toolcallArgs = "";
       return true;
     default:

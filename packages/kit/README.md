@@ -33,8 +33,10 @@ no skills, and no extensions. Consumer packages declare it as
 - `createStaticToolLifecycleResultRenderer(options)` — compact native-tool factory that keeps model-only text out of the TUI row.
 - `notifyPi(ui, message, level)` — sanitized forwarding to Pi's native notification surface.
 
-### Workers and directory identity
+### Workers and package agents
 
+- `createPackageAgentRun(options)` — loads an agent Markdown resource relative to the owning package module URL, appends the current user request, and returns a stable per-tool-call display name plus the package-relative display path. This lets packages ship private agent logic under their own resources without using a project `.agents` directory.
+- `subagentDisplayName(prefix, toolCallId)` — creates the stable bounded identity used by package-agent runs.
 - `runPiWorker(options)` — runs a one-shot JSONL worker with pre-cancel checks,
   close-observed cancellation, and byte limits of 16 MiB for stdout, 8 MiB for
   stderr, and 8 MiB for each JSONL line. The line bound leaves room for normal
