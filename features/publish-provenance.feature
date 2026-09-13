@@ -19,6 +19,30 @@ Feature: Release publishing without local provenance assumptions
     Then it verifies the packed tarball manifest contains no workspace protocol dependencies
     And publication halts if an unresolved workspace protocol is detected
 
+  Scenario: Publishing queries the exact target version
+    Given a package has a newer version already published
+    When the release script checks the local package version
+    Then it queries npm for the local version explicitly
+    And it publishes only when that exact version is absent
+
+  Scenario: Registry failures stop release evaluation
+    Given npm returns a network or authentication error
+    When the release script checks a package version
+    Then it terminates with the registry error
+    And it does not attempt to publish that package
+
+  Scenario: Importing the release module has no side effects
+    Given a test imports the release module
+    When the module is evaluated
+    Then it does not query npm
+    And it does not invoke pnpm publish
+
+  Scenario: Pack validation can run without registry access
+    Given the release script is invoked in validation mode
+    When it validates the workspace package set
+    Then it verifies every package in kit-first order
+    And it does not query npm or publish
+
   Scenario: The release workflow publishes versions after version commits
     Given Changesets has already committed package versions and removed its changesets
     When the release workflow finds no changesets to publish

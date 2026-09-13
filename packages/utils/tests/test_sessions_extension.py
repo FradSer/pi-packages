@@ -27,6 +27,12 @@ class TestSessionsExtension(unittest.TestCase):
         self.assertIn('session_start', content)
         self.assertIn('session_shutdown', content)
 
+    def test_feature_covers_directory_key_isolation_and_ownership(self) -> None:
+        feature = (UTILS_PKG_DIR / "features" / "sessions.feature").read_text(encoding="utf-8")
+        self.assertIn("Scenario: Directory session keys keep distinct directories isolated", feature)
+        self.assertIn("Scenario: Directory session reads and cleanup verify record ownership", feature)
+        self.assertIn("Scenario: Malformed registry records remain unowned", feature)
+
     def test_list_directory_sessions_is_disclosed_only_while_peer_sessions_exist(self) -> None:
         script = f"""
 import ext, {{ getSessionFileKey, writeSessionInfo }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
@@ -193,6 +199,101 @@ fs.rmSync(tmpCwd, {{ recursive: true, force: true }});
         self.assertEqual(data["aliveSessionId"], "alive-1")
         self.assertTrue(data["isSelfAlive"])
         self.assertFalse(data["isFakeDead"])
+
+    def test_directory_registry_keys_are_distinct_and_foreign_records_are_not_owned(self) -> None:
+        script = f"""
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {{
+  cleanAndListDirectorySessions,
+  getDirectoryRegistryPath,
+  getSessionFileKey,
+  removeSessionInfo,
+  writeSessionInfo,
+}} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "session-key-scope-"));
+const left = path.join(root, "a-b");
+const right = path.join(root, "a", "b");
+fs.mkdirSync(left, {{ recursive: true }});
+fs.mkdirSync(right, {{ recursive: true }});
+const sleeper = Bun.spawn(["sleep", "30"], {{ stdout: "ignore", stderr: "ignore" }});
+const now = Date.now();
+writeSessionInfo({{ sessionId: "left", pid: sleeper.pid, cwd: left, startedAt: now, updatedAt: now, status: "running" }});
+writeSessionInfo({{ sessionId: "right", pid: sleeper.pid, cwd: right, startedAt: now, updatedAt: now, status: "running" }});
+
+const leftDir = getDirectoryRegistryPath(left);
+const foreignPath = path.join(leftDir, "foreign.json");
+fs.writeFileSync(foreignPath, JSON.stringify({{
+  sessionId: "foreign", pid: sleeper.pid, cwd: right,
+  startedAt: now, updatedAt: now, status: "running",
+}}));
+const leftSessions = cleanAndListDirectorySessions(left);
+removeSessionInfo(left, "foreign");
+const foreignStillPresent = fs.existsSync(foreignPath);
+const rightSessions = cleanAndListDirectorySessions(right);
+const keysDistinct = getSessionFileKey(left) !== getSessionFileKey(right);
+
+sleeper.kill();
+fs.rmSync(getDirectoryRegistryPath(left), {{ recursive: true, force: true }});
+fs.rmSync(getDirectoryRegistryPath(right), {{ recursive: true, force: true }});
+fs.rmSync(root, {{ recursive: true, force: true }});
+console.log(JSON.stringify({{
+  keysDistinct,
+  leftIds: leftSessions.map((session) => session.sessionId),
+  rightIds: rightSessions.map((session) => session.sessionId),
+  foreignStillPresent,
+}}));
+"""
+        result = subprocess.run(
+            ["bun", "run", "-"],
+            cwd=REPO,
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise AssertionError(f"TypeScript execution failed:\n{result.stderr}")
+        data = json.loads(result.stdout)
+        self.assertTrue(data["keysDistinct"])
+        self.assertEqual(data["leftIds"], ["left"])
+        self.assertEqual(data["rightIds"], ["right"])
+        self.assertTrue(data["foreignStillPresent"])
+
+    def test_malformed_registry_record_is_ignored_without_deletion(self) -> None:
+        script = f"""
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {{ cleanAndListDirectorySessions, getDirectoryRegistryPath }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+
+const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "session-malformed-"));
+const dir = getDirectoryRegistryPath(cwd);
+fs.mkdirSync(dir, {{ recursive: true }});
+const filePath = path.join(dir, "malformed.json");
+fs.writeFileSync(filePath, "{{not-json");
+const sessions = cleanAndListDirectorySessions(cwd);
+const remains = fs.existsSync(filePath);
+fs.rmSync(dir, {{ recursive: true, force: true }});
+fs.rmSync(cwd, {{ recursive: true, force: true }});
+console.log(JSON.stringify({{ count: sessions.length, remains }}));
+"""
+        result = subprocess.run(
+            ["bun", "run", "-"],
+            cwd=REPO,
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise AssertionError(f"TypeScript execution failed:\n{result.stderr}")
+        data = json.loads(result.stdout)
+        self.assertEqual(data["count"], 0)
+        self.assertTrue(data["remains"])
+
     def test_session_age_formatting_via_bun(self) -> None:
         script = f"""
 import {{ formatSessionAge }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};

@@ -366,3 +366,9 @@ pyrightconfig.json
 .artifacts/fragments.local/
 .artifacts/manifest.local.json
 .artifacts/previews/
+
+# Runtime source files in these package paths must remain visible to Git.
+!packages/impeccable/scripts/lib/
+!packages/impeccable/scripts/lib/*.mjs
+!packages/session-control/bin/
+!packages/session-control/bin/pi-session-control.mjs

@@ -1,6 +1,8 @@
 scopes:
     - name: ctx
       description: Code-context retrieval extensions and research workflows in packages/context/; does not cover package-local runtime logic.
+    - name: sctl
+      description: Live Pi session discovery, socket transport, and stdin JSON control in packages/session-control/; does not cover other package runtimes.
     - name: cl
       description: Harness guardrails, memory retrieval, injection, and consolidation in packages/continual-learning/; does not cover the shared kit runtime.
     - name: kit

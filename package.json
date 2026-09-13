@@ -4,11 +4,14 @@
   "private": true,
   "description": "Monorepo of Frad's pi packages — skills and extensions published to npm and listed on pi.dev/packages",
   "scripts": {
-    "test": "pytest packages",
+    "test": "python3 -m pytest packages tests",
     "check:install": "node scripts/check-installation.mjs",
     "example:sdk": "tsx examples/sdk-session.ts",
-    "publish": "pnpm -r publish --access public",
-    "publish:dry-run": "pnpm -r pack"
+    "publish": "pnpm check && node scripts/publish-release.mjs",
+    "publish:dry-run": "pnpm pack:check",
+    "typecheck": "pnpm exec tsc --noEmit -p tsconfig.extensions.json",
+    "check": "pnpm test && pnpm typecheck && pnpm pack:check",
+    "pack:check": "node scripts/publish-release.mjs --check"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.0",

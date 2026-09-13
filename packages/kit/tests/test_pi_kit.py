@@ -68,6 +68,10 @@ def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
     assert "Scenario: One-shot workers return final text with usage and diagnostics" in feature
     assert "Scenario: Aborting a one-shot worker terminates the child" in feature
     assert "Scenario: A failed one-shot worker surfaces diagnostics without trustworthy text" in feature
+    assert "Scenario: A pre-cancelled Pi worker never starts a child" in feature
+    assert "Scenario: Pi worker stream limits are measured in bytes" in feature
+    assert "And the failure diagnostic appears before captured child stderr" in feature
+    assert "Scenario: Directory session identity uses canonical paths" in feature
     assert "Scenario: Overlay panels use the shared frame layout" in feature
     assert "Scenario: Passive console widgets use the shared row layout" in feature
     assert "Scenario: Custom transcript messages use the standard lifecycle renderer" in feature
@@ -201,7 +205,7 @@ def test_run_pi_worker_abort_terminates_child() -> None:
         fs.mkdirSync(fakePackage);
         fs.writeFileSync(path.join(fakePackage, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
         const fakePi = path.join(fakePackage, "cli.mjs");
-        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\nsetInterval(() => {{}}, 1000);\\n", {{ mode: 0o755 }});
+        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\nconsole.log(JSON.stringify({{ type: 'message_end', message: {{ role: 'assistant', content: [{{ type: 'text', text: 'partial' }}] }} }}));\\nsetInterval(() => {{}}, 1000);\\n", {{ mode: 0o755 }});
         const originalArgv1 = process.argv[1];
         process.argv[1] = fakePi;
         const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
@@ -212,11 +216,12 @@ def test_run_pi_worker_abort_terminates_child() -> None:
         const worker = await pending;
         process.argv[1] = originalArgv1;
         fs.rmSync(root, {{ recursive: true, force: true }});
-        console.log(JSON.stringify({{ text: worker.text, exitCode: worker.exitCode, elapsedMs: Date.now() - started }}));
+        console.log(JSON.stringify({{ text: worker.text, exitCode: worker.exitCode, cancelled: worker.cancelled, elapsedMs: Date.now() - started }}));
         """
     )
     assert result["text"] == ""
     assert result["exitCode"] != 0
+    assert result["cancelled"] is True
     assert result["elapsedMs"] < 14000
 
 
@@ -250,6 +255,132 @@ def test_run_pi_worker_failure_surfaces_diagnostics() -> None:
     assert result["text"] == ""
     assert result["exitCode"] == 1
     assert "boom: model unavailable" in result["stderr"]
+
+
+def test_run_pi_worker_pre_cancel_does_not_spawn() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-kit-pre-cancel-"));
+        const cwd = path.join(root, "workspace");
+        fs.mkdirSync(cwd);
+        const fakePackage = path.join(root, "fake-package");
+        fs.mkdirSync(fakePackage);
+        fs.writeFileSync(path.join(fakePackage, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const marker = path.join(root, "spawned");
+        const fakePi = path.join(fakePackage, "cli.mjs");
+        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\nimport {{ writeFileSync }} from 'node:fs';\\nwriteFileSync(process.env.PI_MARKER, 'spawned');\\n", {{ mode: 0o755 }});
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = fakePi;
+        process.env.PI_MARKER = marker;
+        const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const controller = new AbortController();
+        controller.abort();
+        const worker = await runPiWorker({{ prompt: "inspect", cwd, signal: controller.signal }});
+        process.argv[1] = originalArgv1;
+        console.log(JSON.stringify({{ worker, spawned: fs.existsSync(marker) }}));
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        """
+    )
+    assert result["spawned"] is False
+    assert result["worker"]["text"] == ""
+    assert result["worker"]["exitCode"] != 0
+    assert result["worker"]["cancelled"] is True
+
+
+def test_run_pi_worker_rejects_oversized_jsonl_line_without_partial_text() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-kit-line-limit-"));
+        const cwd = path.join(root, "workspace");
+        fs.mkdirSync(cwd);
+        const fakePackage = path.join(root, "fake-package");
+        fs.mkdirSync(fakePackage);
+        fs.writeFileSync(path.join(fakePackage, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const fakePi = path.join(fakePackage, "cli.mjs");
+        fs.writeFileSync(
+          fakePi,
+          "#!/usr/bin/env node\\n" +
+            "process.stdout.write('é'.repeat(Number(process.env.PI_LINE_LIMIT) + 1) + '\\\\n');\\n",
+          {{ mode: 0o755 }},
+        );
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = fakePi;
+        const {{ runPiWorker, PI_WORKER_JSONL_LINE_LIMIT_BYTES }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        process.env.PI_LINE_LIMIT = String(Math.ceil(PI_WORKER_JSONL_LINE_LIMIT_BYTES / 2));
+        const worker = await runPiWorker({{ prompt: "inspect", cwd }});
+        process.argv[1] = originalArgv1;
+        console.log(JSON.stringify({{ worker }}));
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        """
+    )
+    assert result["worker"]["text"] == ""
+    assert result["worker"]["exitCode"] != 0
+    assert "exceeded" in result["worker"]["stderr"].lower()
+
+
+def test_run_pi_worker_rejects_oversized_stderr_without_partial_text() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-kit-stderr-limit-"));
+        const cwd = path.join(root, "workspace");
+        fs.mkdirSync(cwd);
+        const fakePackage = path.join(root, "fake-package");
+        fs.mkdirSync(fakePackage);
+        fs.writeFileSync(path.join(fakePackage, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const fakePi = path.join(fakePackage, "cli.mjs");
+        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\nprocess.stderr.write('child-diagnostic-noise'.repeat(400));\\nsetTimeout(() => process.stderr.write('x'.repeat(Number(process.env.PI_STDERR_LIMIT) + 1)), 50);\\n", {{ mode: 0o755 }});
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = fakePi;
+        const {{ runPiWorker, PI_WORKER_STDERR_LIMIT_BYTES }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        process.env.PI_STDERR_LIMIT = String(PI_WORKER_STDERR_LIMIT_BYTES);
+        const worker = await runPiWorker({{ prompt: "inspect", cwd }});
+        process.argv[1] = originalArgv1;
+        console.log(JSON.stringify({{ worker }}));
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        """
+    )
+    assert result["worker"]["text"] == ""
+    assert result["worker"]["exitCode"] != 0
+    assert result["worker"]["stderr"].startswith("Pi worker stderr exceeded")
+    assert "child-diagnostic-noise" in result["worker"]["stderr"]
+
+
+def test_directory_helpers_use_realpath_and_absolute_missing_paths() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-kit-directory-"));
+        const real = path.join(root, "real");
+        const link = path.join(root, "link");
+        fs.mkdirSync(real);
+        fs.symlinkSync(real, link, "dir");
+        const missing = path.join(root, "missing", "child");
+        const {{ getDirectorySessionKey, isSameDirectory }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const output = {{
+          same: isSameDirectory(real, link),
+          sameKey: getDirectorySessionKey(real) === getDirectorySessionKey(link),
+          missingKey: getDirectorySessionKey(missing),
+          absoluteMissing: path.isAbsolute(getDirectorySessionKey(missing)),
+        }};
+        console.log(JSON.stringify(output));
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        """
+    )
+    assert result["same"] is True
+    assert result["sameKey"] is True
+    assert len(result["missingKey"]) == 64
+    assert result["absoluteMissing"] is False
 
 
 def test_pi_cli_resolver_rejects_unrelated_process_entry() -> None:

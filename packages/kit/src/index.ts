@@ -9,6 +9,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { createHash } from "node:crypto";
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -746,6 +747,31 @@ export function computeScrollWindow(
   return { start: clampedScroll, end: clampedScroll + viewport, clampedScroll };
 }
 
+/** Resolve a directory to its filesystem identity. Existing paths use realpath;
+ * missing paths retain their absolute spelling so callers can still derive a
+ * stable identity before the directory is created. */
+function canonicalDirectoryPath(candidate: string): string {
+  const absolute = path.resolve(candidate);
+  try {
+    return fs.realpathSync(absolute);
+  } catch (error) {
+    if (error && typeof error === "object" && (error as NodeJS.ErrnoException).code === "ENOENT") {
+      return absolute;
+    }
+    throw error;
+  }
+}
+
+/** Hash a canonical directory path for use as a session identity. */
+export function getDirectorySessionKey(cwd: string): string {
+  return createHash("sha256").update(canonicalDirectoryPath(cwd)).digest("hex");
+}
+
+/** Compare directory identity after resolving existing symlinks. */
+export function isSameDirectory(left: string, right: string): boolean {
+  return canonicalDirectoryPath(left) === canonicalDirectoryPath(right);
+}
+
 // ── Worker process helpers ──────────────────────────────────────────
 // Shared by plan-mode, agent-teams, and btw for spawning child Pi processes.
 
@@ -773,6 +799,8 @@ export interface PiWorkerResult {
   usage?: PiWorkerUsage;
   exitCode: number;
   stderr: string;
+  /** True when the caller's signal was already or became aborted. */
+  cancelled?: boolean;
 }
 
 /** Live state extracted from a spawned worker's JSON-mode output. */
@@ -805,6 +833,17 @@ export interface RunPiWorkerOptions {
 
 /** Bounded grace period before a cancellation escalates from SIGTERM to SIGKILL. */
 export const DEFAULT_TERMINATION_GRACE_MS = 5_000;
+
+/** Maximum stdout bytes retained from one one-shot worker. */
+export const PI_WORKER_STDOUT_LIMIT_BYTES = 16 * 1024 * 1024;
+
+/** Maximum stderr bytes retained from one one-shot worker. */
+export const PI_WORKER_STDERR_LIMIT_BYTES = 8 * 1024 * 1024;
+
+/** Maximum bytes in one JSONL stream line from a one-shot worker. Eight MiB
+ * leaves room for the coding agent's normal 4.5 MiB inline image payload plus
+ * its JSON envelope. */
+export const PI_WORKER_JSONL_LINE_LIMIT_BYTES = 8 * 1024 * 1024;
 
 const processGroupChildren = new WeakSet<ChildProcess>();
 const closedChildren = new WeakSet<ChildProcess>();
@@ -880,6 +919,14 @@ function resolveInstalledPiCli(): PiCliResolution | undefined {
  */
 export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorkerResult> {
   const { prompt, cwd, tools, model, signal, env, extraArgs, onUpdate } = options;
+  if (signal?.aborted) {
+    return {
+      text: "",
+      exitCode: 1,
+      stderr: "Pi worker cancelled before start.",
+      cancelled: true,
+    };
+  }
   const cli = resolvePiCli();
 
   const args = [...cli.args, "--print", "--mode", "json", "--no-session"];
@@ -895,6 +942,10 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
     let stdout = "";
     let stderr = "";
     let stdoutBuffer = "";
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    let failureReason: string | undefined;
+    let cancelled = false;
     const progress = createPiWorkerProgress();
     const emitProgress = () => onUpdate?.({
       text: progress.text,
@@ -910,35 +961,74 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
     });
 
     let termination: Promise<boolean> | undefined;
-    const abortHandler = () => {
+    const failWorker = (reason: string) => {
+      failureReason ??= reason;
+      stdoutBuffer = "";
       termination ??= terminateChildProcess(child);
     };
-    signal?.addEventListener("abort", abortHandler, { once: true });
+    const abortHandler = () => {
+      cancelled = true;
+      failWorker("Pi worker cancelled.");
+    };
+    if (signal?.aborted) {
+      abortHandler();
+    } else {
+      signal?.addEventListener("abort", abortHandler, { once: true });
+    }
 
-    child.stdout?.on("data", (chunk) => {
+    const handleStdout = (chunk: Buffer) => {
+      if (failureReason) return;
+      const chunkBytes = chunk.byteLength;
+      if (stdoutBytes + chunkBytes > PI_WORKER_STDOUT_LIMIT_BYTES) {
+        failWorker(`Pi worker stdout exceeded ${PI_WORKER_STDOUT_LIMIT_BYTES} bytes.`);
+        return;
+      }
+      stdoutBytes += chunkBytes;
       const text = chunk.toString();
       stdout += text;
       stdoutBuffer += text;
       const lines = stdoutBuffer.split("\n");
       stdoutBuffer = lines.pop() ?? "";
       let changed = false;
-      for (const line of lines) changed = applyPiWorkerProgress(progress, line) || changed;
+      for (const line of lines) {
+        if (Buffer.byteLength(line, "utf8") > PI_WORKER_JSONL_LINE_LIMIT_BYTES) {
+          failWorker(`Pi worker JSONL line exceeded ${PI_WORKER_JSONL_LINE_LIMIT_BYTES} bytes.`);
+          return;
+        }
+        changed = applyPiWorkerProgress(progress, line) || changed;
+      }
+      if (Buffer.byteLength(stdoutBuffer, "utf8") > PI_WORKER_JSONL_LINE_LIMIT_BYTES) {
+        failWorker(`Pi worker JSONL line exceeded ${PI_WORKER_JSONL_LINE_LIMIT_BYTES} bytes.`);
+        return;
+      }
       if (changed) emitProgress();
-    });
-
-    child.stderr?.on("data", (chunk) => {
+    };
+    const handleStderr = (chunk: Buffer) => {
+      if (failureReason) return;
+      const chunkBytes = chunk.byteLength;
+      if (stderrBytes + chunkBytes > PI_WORKER_STDERR_LIMIT_BYTES) {
+        failWorker(`Pi worker stderr exceeded ${PI_WORKER_STDERR_LIMIT_BYTES} bytes.`);
+        return;
+      }
+      stderrBytes += chunkBytes;
       stderr += chunk.toString();
-    });
+    };
+
+    child.stdout?.on("data", handleStdout);
+    child.stderr?.on("data", handleStderr);
 
     child.on("close", (code) => {
       signal?.removeEventListener("abort", abortHandler);
 
-      const { text, usage } = parsePiWorkerOutput(stdout);
+      const failed = code !== 0 || cancelled || failureReason !== undefined;
+      const { text, usage } = failed ? { text: "", usage: undefined } : parsePiWorkerOutput(stdout);
+      const diagnostic = [failureReason, stderr.trim()].filter(Boolean).join("\n");
       resolve({
         text,
         usage,
-        exitCode: code ?? 1,
-        stderr,
+        exitCode: code === 0 && failed ? 1 : code ?? 1,
+        stderr: diagnostic,
+        cancelled,
       });
     });
 
@@ -947,7 +1037,8 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
       resolve({
         text: "",
         exitCode: 1,
-        stderr: err.message,
+        stderr: [failureReason, stderr.trim(), err.message].filter(Boolean).join("\n"),
+        cancelled,
       });
     });
   });

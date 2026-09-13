@@ -249,3 +249,25 @@ Feature: Shared pi-kit runtime helpers
     When runPiWorker resolves
     Then the exit code and stderr describe the failure
     And callers treat partial text as untrustworthy
+
+  Scenario: A pre-cancelled Pi worker never starts a child
+    Given a Pi worker abort signal is already cancelled
+    When pi-kit starts the worker
+    Then no child process is spawned
+    And the result is a cancelled failure without assistant text
+
+  Scenario: Pi worker stream limits are measured in bytes
+    Given a Pi worker emits a JSONL line or diagnostic stream beyond its byte limit
+    When pi-kit collects the worker result
+    Then the child is terminated
+    And the failure diagnostic appears before captured child stderr
+    And the result is a diagnostic failure without partial assistant text
+
+  Scenario: Directory session identity uses canonical paths
+    Given two directory paths resolve to the same existing directory through a symlink
+    When pi-kit compares their directory identity
+    Then isSameDirectory returns true
+    And getDirectorySessionKey returns the same stable hash
+    Given two missing directory paths are resolved absolutely
+    When pi-kit compares their directory identity
+    Then their session keys do not use the legacy encoded path fallback

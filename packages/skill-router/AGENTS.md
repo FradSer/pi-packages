@@ -34,6 +34,9 @@ pnpm --dir packages/skill-router pack --dry-run
   expanded `<skill name="...">` invocations are never rerouted.
 - **Atomicity**: materialization builds a temporary directory and renames it;
   failures leave no partial exposed directory and do not touch the registry.
+- Lock acquisition must remain asynchronous and cancellable. Await all mutation
+  APIs and forward the loading overlay's signal; cancellation must not remove
+  another process's lock or apply a pending change.
 - **Fail Closed**: invalid registry entries are dropped; duplicate collection
   ids, gateways, caches, or sources disable the conflicting entries.
 - **Prompt Preservation**: the router never mutates user prompts or injects

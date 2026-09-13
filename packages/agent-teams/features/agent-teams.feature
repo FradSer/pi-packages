@@ -101,6 +101,13 @@ Feature: Agent Teams collaborative organization contract
 
   Rule: Teammates are named resident processes
 
+    Scenario: Resident worker stream limits are per message or turn
+      Given a resident teammate emits an unterminated JSONL line or oversized turn text
+      When the harness reads the teammate stream
+      Then the child is terminated with a diagnostic
+      And the failure diagnostic appears before captured child stderr
+      And the harness does not report partial output as a successful result
+
     Scenario: Spawning creates one named resident teammate
       When the leader calls teammate_spawn with a unique name, an agent, and an optional kickoff prompt
       Then one resident child Pi process is started in RPC mode

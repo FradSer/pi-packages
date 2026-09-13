@@ -13,11 +13,14 @@ contracts and checks.
 ```bash
 pnpm install
 pnpm test
-python3 -m pytest tests/ -q
-pnpm exec tsc --noEmit -p tsconfig.extensions.json
+pnpm typecheck
+pnpm pack:check
+pnpm check
 ```
 
-`pnpm test` requires pytest; root checks run separately.
+`pnpm check` requires Python 3 with pytest and Bun 1.4.1 and runs
+package/root tests, the extension TypeScript project, and registry-free
+packed-manifest validation. CI installs both runtimes before this command.
 Focus: `python3 -m pytest packages/<name>/tests/ -q`.
 Pack: `pnpm --dir packages/<name> pack --dry-run`.
 SDK example: `pnpm example:sdk`. Pi loads TypeScript without a build step.

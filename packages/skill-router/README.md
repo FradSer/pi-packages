@@ -34,6 +34,8 @@ pi install npm:pi-skill-router
 
 ## Managing Collections
 
+Registry changes wait asynchronously for competing operations, for up to 10 seconds. Press Escape in the loading overlay to cancel a pending lock acquisition or summary generation; cancellation closes the overlay promptly, leaves the registry and the current owner's lock untouched, and prevents later installation stages. Pending authentication or model responses cannot resume a cancelled flow when they settle. The collection mutation APIs return promises and accept an optional final `AbortSignal` argument. Once a synchronous Git or filesystem mutation begins, it finishes its atomic operation before returning.
+
 Everything runs through the `/skill-router` menu:
 
 - **Add collection** — clone a repo, pick skills, install.

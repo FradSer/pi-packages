@@ -51,11 +51,34 @@ Feature: Session Recap
     Then the request is treated as planned work rather than completed work
     And unsupported actions, files, connections, and results are forbidden
 
+  Scenario: Recap pairs the latest complete answer with its preceding user request
+    Given the branch contains "Q1", a complete answer "A1", and a newer request "Q2"
+    When the latest recap exchange is extracted
+    Then it uses "Q1" with "A1"
+    And it does not pair "Q2" with the older answer
+
+  Scenario: Interrupted or failed answers are excluded from recap exchanges
+    Given a newer request has an aborted, failed, or otherwise incomplete assistant message
+    When the latest recap exchange is extracted
+    Then the incomplete request is omitted
+    And the last complete valid answer remains paired with its own preceding request
+
+  Scenario: Recap keeps the newest complete answer for one user request
+    Given one user request has a complete answer, a custom follow-up entry, and another complete answer
+    When the latest recap exchange is extracted
+    Then it uses the newest complete answer for that user request
+
   Scenario: Generated recap is persisted to the session
     Given a newly generated recap for the current exchange
     When generation completes
     Then the recap is persisted as a session entry via appendEntry
     And synced to the directory session registry
+
+  Scenario: Directory recap sync uses canonical session ownership
+    Given two project directories whose names differ only by slash versus hyphen
+    When recap state is read or synchronized
+    Then each registry record is addressed by its canonical hashed directory identity
+    And a record with a different canonical cwd is ignored
 
   Scenario: Existing session restores persisted recap on startup across restarts
     Given a session with a persisted recap in session branch history
@@ -142,6 +165,23 @@ Feature: Session Recap
     When the timeout is reached
     Then the request is cancelled
     And the previous recap remains visible
+
+  Scenario: Pre-cancelled recap generation does not authenticate or complete
+    Given recap generation receives an already aborted signal
+    When the recap request starts
+    Then it returns an empty recap
+    And it does not request credentials or call the provider
+
+  Scenario: Cancelling during authentication prevents provider completion
+    Given recap authentication is still pending
+    When the request signal is aborted before credentials resolve
+    Then it returns an empty recap
+    And it does not call the provider
+
+  Scenario: A provider that ignores cancellation cannot publish a late recap
+    Given the provider resolves after the request signal is aborted
+    When the late response is received
+    Then it returns an empty recap
 
   Scenario: Recap ignores thinking-only provider output
     Given a provider response contains thinking but no text

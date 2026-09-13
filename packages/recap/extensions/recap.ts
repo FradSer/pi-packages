@@ -22,6 +22,8 @@ export interface RecapSessionEntry {
   message?: {
     role?: string;
     content?: unknown;
+    stopReason?: string;
+    errorMessage?: string;
   };
 }
 
@@ -69,28 +71,42 @@ export function extractMessageText(
 export function getLastExchange(
   entries: RecapSessionEntry[],
 ): { user: string; assistant: string } | undefined {
-  let lastUser: string | undefined;
-  let lastAssistant: string | undefined;
+  let pendingUser: string | undefined;
+  let lastCompleteExchange: { user: string; assistant: string } | undefined;
 
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const entry = entries[i];
+  for (const entry of entries) {
     if (entry.type !== "message") continue;
     const msg = entry.message;
     if (!msg) continue;
 
-    if (msg.role === "assistant" && !lastAssistant) {
-      const text = extractMessageText(entry);
-      if (text) lastAssistant = text;
-    } else if (msg.role === "user" && !lastUser) {
-      const text = extractMessageText(entry);
-      if (text) lastUser = text;
+    if (msg.role === "user") {
+      pendingUser = extractMessageText(entry);
+      continue;
     }
 
-    if (lastUser && lastAssistant) break;
+    if (msg.role !== "assistant") continue;
+
+    // `toolUse` is an intermediate assistant message. A final answer is only
+    // complete when the provider stopped normally (or when an older entry has
+    // no stopReason field) and contains displayable text. Aborted, failed,
+    // length-limited, and other incomplete responses must not borrow the last
+    // answer from an earlier user request.
+    const stopReason = msg.stopReason;
+    if (stopReason === "toolUse") continue;
+    const text = extractMessageText(entry);
+    const failed = Boolean(msg.errorMessage) ||
+      (stopReason !== undefined && stopReason !== "stop");
+    if (failed || !text) {
+      pendingUser = undefined;
+      continue;
+    }
+
+    if (pendingUser) {
+      lastCompleteExchange = { user: pendingUser, assistant: text };
+    }
   }
 
-  if (!lastUser || !lastAssistant) return undefined;
-  return { user: lastUser, assistant: lastAssistant };
+  return lastCompleteExchange;
 }
 
 /**
@@ -217,43 +233,47 @@ export async function generateRecap(
   language: string = "auto",
   signal?: AbortSignal,
 ): Promise<string> {
-  const auth = await registry.getApiKeyAndHeaders(model);
-  if (!auth.ok) return "";
-
-  const prompt = buildRecapPrompt(user, assistant, previousRecap, language);
-  const message: UserMessage = {
-    role: "user",
-    content: [{ type: "text", text: prompt }],
-    timestamp: Date.now(),
-  };
-
+  if (signal?.aborted) return "";
   const controller = new AbortController();
   const abort = () => controller.abort();
-  const timeout = setTimeout(abort, RECAP_TIMEOUT_MS);
   signal?.addEventListener("abort", abort, { once: true });
 
   try {
-    const response = await registry.complete(
-      model,
-      {
-        systemPrompt: "You generate ultra-concise, single-line session recaps.",
-        messages: [message],
-      },
-      {
-        apiKey: auth.apiKey,
-        headers: auth.headers,
-        signal: controller.signal,
-        maxTokens: 96,
-        temperature: 0,
-        cacheRetention: "none",
-      },
-    );
+    const auth = await registry.getApiKeyAndHeaders(model);
+    if (!auth.ok || controller.signal.aborted) return "";
 
-    return cleanRecapText(textFromResponse(response));
-  } catch {
-    return "";
+    const prompt = buildRecapPrompt(user, assistant, previousRecap, language);
+    const message: UserMessage = {
+      role: "user",
+      content: [{ type: "text", text: prompt }],
+      timestamp: Date.now(),
+    };
+    const timeout = setTimeout(abort, RECAP_TIMEOUT_MS);
+    try {
+      const response = await registry.complete(
+        model,
+        {
+          systemPrompt: "You generate ultra-concise, single-line session recaps.",
+          messages: [message],
+        },
+        {
+          apiKey: auth.apiKey,
+          headers: auth.headers,
+          signal: controller.signal,
+          maxTokens: 96,
+          temperature: 0,
+          cacheRetention: "none",
+        },
+      );
+
+      if (controller.signal.aborted) return "";
+      return cleanRecapText(textFromResponse(response));
+    } catch {
+      return "";
+    } finally {
+      clearTimeout(timeout);
+    }
   } finally {
-    clearTimeout(timeout);
     signal?.removeEventListener("abort", abort);
   }
 }

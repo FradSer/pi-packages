@@ -38,6 +38,9 @@ def test_feature_covers_recap_scenarios() -> None:
     assert "Scenario: Recap widget is displayed above the editor by default" in feature
     assert "Scenario: Recap is informative and scannable" in feature
     assert "Scenario: Recap reflects only evidenced progress" in feature
+    assert "Scenario: Recap pairs the latest complete answer with its preceding user request" in feature
+    assert "Scenario: Interrupted or failed answers are excluded from recap exchanges" in feature
+    assert "Scenario: Recap keeps the newest complete answer for one user request" in feature
     assert "Scenario: /recap opens an interactive management menu" in feature
     assert "Scenario: Generate recap now bypasses same-exchange deduplication" in feature
     assert "Scenario: Model selection supports custom provider and model overrides" in feature
@@ -46,6 +49,7 @@ def test_feature_covers_recap_scenarios() -> None:
     assert "Scenario: Recap preserves a leading inline code marker" in feature
     assert "Scenario: Recap maintains context continuity using previous recap and last exchange" in feature
     assert "Scenario: Generated recap is persisted to the session" in feature
+    assert "Scenario: Directory recap sync uses canonical session ownership" in feature
     assert "Scenario: Existing session restores persisted recap on startup across restarts" in feature
     assert "Scenario: Session replacement cancels a pending first-prompt recap" in feature
     assert "Scenario: Existing session without saved recap computes initial recap on startup" in feature
@@ -62,6 +66,13 @@ def test_notifications_use_pi_kits_portable_helper() -> None:
     source = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
     assert "notifyPi" in source
     assert "ctx.ui.notify(" not in source
+
+
+def test_directory_recap_sync_uses_shared_canonical_identity_helpers() -> None:
+    source = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
+    assert "getDirectorySessionKey" in source
+    assert "isSameDirectory" in source
+    assert "replace(/^[/\\\\]/" not in source
 
 
 def test_extract_latest_saved_recap_logic() -> None:
@@ -293,6 +304,75 @@ def test_session_replacement_aborts_pending_first_prompt_recap() -> None:
     assert result["signalAborted"] is True
     assert result["replacementPreserved"] is True
     assert result["staleResultDiscarded"] is True
+
+
+def test_generate_recap_cancellation_covers_auth_and_late_provider_results() -> None:
+    result = run_typescript(
+        f"""
+        import {{ generateRecap }} from "{RECAP_URI}";
+
+        const model = {{ provider: "mock", id: "m1" }};
+        const response = {{ role: "assistant", content: [{{ type: "text", text: "late recap" }}] }};
+
+        const preController = new AbortController();
+        preController.abort();
+        let preAuthCalls = 0;
+        let preCompleteCalls = 0;
+        const preResult = await generateRecap(
+          {{
+            getApiKeyAndHeaders: async () => {{ preAuthCalls++; return {{ ok: true, apiKey: "k", headers: {{}} }}; }},
+            complete: async () => {{ preCompleteCalls++; return response; }},
+          }}, model, "user", "assistant", undefined, "auto", preController.signal,
+        );
+
+        const authController = new AbortController();
+        let resolveAuth;
+        const authPending = new Promise((resolve) => {{ resolveAuth = resolve; }});
+        let authCompleteCalls = 0;
+        const authRequest = generateRecap(
+          {{
+            getApiKeyAndHeaders: async () => authPending,
+            complete: async () => {{ authCompleteCalls++; return response; }},
+          }}, model, "user", "assistant", undefined, "auto", authController.signal,
+        );
+        authController.abort();
+        resolveAuth({{ ok: true, apiKey: "k", headers: {{}} }});
+        const authResult = await authRequest;
+
+        const lateController = new AbortController();
+        let resolveComplete;
+        let completeStartedResolve;
+        const completeStarted = new Promise((resolve) => {{ completeStartedResolve = resolve; }});
+        const lateResponse = new Promise((resolve) => {{ resolveComplete = resolve; }});
+        const lateRequest = generateRecap(
+          {{
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => {{ completeStartedResolve(); return lateResponse; }},
+          }}, model, "user", "assistant", undefined, "auto", lateController.signal,
+        );
+        await completeStarted;
+        lateController.abort();
+        resolveComplete(response);
+        const lateResult = await lateRequest;
+
+        console.log(JSON.stringify({{
+          preResult,
+          preAuthCalls,
+          preCompleteCalls,
+          authResult,
+          authCompleteCalls,
+          lateResult,
+        }}));
+        """
+    )
+    assert result == {
+        "preResult": "",
+        "preAuthCalls": 0,
+        "preCompleteCalls": 0,
+        "authResult": "",
+        "authCompleteCalls": 0,
+        "lateResult": "",
+    }
 
 
 def test_startup_does_not_regenerate_when_saved_recap_exists() -> None:
@@ -1073,6 +1153,61 @@ def test_extract_last_exchange_without_assistant() -> None:
         """
     )
     assert result["hasExchange"] is False
+
+
+def test_extract_last_complete_exchange_does_not_mismatch_new_request_with_old_answer() -> None:
+    result = run_typescript(
+        f"""
+        import {{ getLastExchange }} from "{RECAP_URI}";
+
+        const entries = [
+            {{ type: "message", message: {{ role: "user", content: "Q1" }} }},
+            {{ type: "message", message: {{ role: "assistant", content: "A1", stopReason: "stop" }} }},
+            {{ type: "message", message: {{ role: "user", content: "Q2" }} }},
+            {{ type: "message", message: {{ role: "assistant", content: "partial", stopReason: "aborted" }} }},
+        ];
+
+        console.log(JSON.stringify(getLastExchange(entries)));
+        """
+    )
+    assert result == {"user": "Q1", "assistant": "A1"}
+
+
+def test_extract_last_complete_exchange_skips_failed_and_tool_only_answers() -> None:
+    result = run_typescript(
+        f"""
+        import {{ getLastExchange }} from "{RECAP_URI}";
+
+        const entries = [
+            {{ type: "message", message: {{ role: "user", content: "Q1" }} }},
+            {{ type: "message", message: {{ role: "assistant", content: "A1", stopReason: "stop" }} }},
+            {{ type: "message", message: {{ role: "user", content: "Q2" }} }},
+            {{ type: "message", message: {{ role: "assistant", content: [{{ type: "toolCall", name: "run" }}], stopReason: "toolUse" }} }},
+            {{ type: "message", message: {{ role: "assistant", content: "failed", stopReason: "error", errorMessage: "boom" }} }},
+        ];
+
+        console.log(JSON.stringify(getLastExchange(entries)));
+        """
+    )
+    assert result == {"user": "Q1", "assistant": "A1"}
+
+
+def test_extract_last_complete_exchange_keeps_newest_answer_for_same_user() -> None:
+    result = run_typescript(
+        f"""
+        import {{ getLastExchange }} from "{RECAP_URI}";
+
+        const entries = [
+            {{ type: "message", message: {{ role: "user", content: "U1" }} }},
+            {{ type: "message", message: {{ role: "assistant", content: "A1", stopReason: "stop" }} }},
+            {{ type: "custom", customType: "tool_result", data: {{ ok: true }} }},
+            {{ type: "message", message: {{ role: "assistant", content: "A2", stopReason: "stop" }} }},
+        ];
+
+        console.log(JSON.stringify(getLastExchange(entries)));
+        """
+    )
+    assert result == {"user": "U1", "assistant": "A2"}
 
 
 def test_extract_message_text_string_and_array() -> None:

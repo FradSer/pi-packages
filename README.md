@@ -36,7 +36,7 @@ pi install npm:@fradser/pi-btw
 
 ### [`@fradser/pi-context`](packages/context/)
 
-Researches repositories, libraries, and technical questions through an isolated read-only Pi child process. Natural-language research requests invoke the tool automatically; the started display wraps the complete query without an ellipsis, while results remain compact and expandable.
+Researches repositories, libraries, and technical questions through an isolated prompt-constrained Pi child process with read and bash tools; its no-modification boundary comes from the research prompt rather than an OS sandbox. Natural-language research requests invoke the tool automatically; the started display wraps the complete query without an ellipsis, while results remain compact and expandable.
 
 **Tool:** `context_get`
 
@@ -184,13 +184,20 @@ For local installation and the versioned API, see the [package README](packages/
 
 ```bash
 pnpm install
-python3 -m pytest packages
-pnpm exec tsc --noEmit -p tsconfig.extensions.json
+pnpm test
+pnpm typecheck
+pnpm pack:check
+# or run all three checks together
+pnpm check
 ```
 
 Each package keeps behavior scenarios in `features/` and tests in `tests/`.
 
-Use `pnpm --dir packages/<name> pack --dry-run` to inspect package contents before publishing.
+`pnpm check` runs the package and root pytest suites, the extension TypeScript project, and a registry-free packed-manifest check for every workspace package. Use `pnpm check:install` separately to audit the packages in the live Pi settings file.
+
+The test suite requires Python 3 with `pytest` and Bun 1.4.1 for subprocess fixtures. The CI workflows install both runtimes before running `pnpm check`.
+
+Use `pnpm --dir packages/<name> pack --dry-run` to inspect one package's contents before publishing.
 
 Shared runtime helpers live in the internal [`@fradser/pi-kit`](packages/kit/) package. It is an internal workspace dependency and is not installable via `pi install`.
 
@@ -204,7 +211,7 @@ Shared runtime helpers live in the internal [`@fradser/pi-kit`](packages/kit/) p
 
 ## Publishing
 
-Releases use Changesets and the GitHub Actions workflow in `.github/workflows/release.yml`. Push changes to `main`, then merge the generated version PR. The workflow publishes the explicit package list through npm Trusted Publishing and skips versions already present in the npm registry.
+Releases use Changesets and the GitHub Actions workflow in `.github/workflows/release.yml`. Pull requests and releases run `pnpm check` before release actions; the root `pnpm run publish` command runs the same gate before its local release script. Push changes to `main`, then merge the generated version PR. The workflow publishes the explicit package list through npm Trusted Publishing, in dependency order, and skips exact versions already present in the npm registry.
 
 New packages require one manual first publication and npm Trusted Publishing configuration before later versions can be released by GitHub Actions.
 

@@ -45,6 +45,24 @@ Feature: Cross-session awareness and directory recap
     And the status falls back to "exited" and the pid is coerced to a number
     And no escape sequence from the record survives into any consumer
 
+  Scenario: Directory session keys keep distinct directories isolated
+    Given two project directories whose names differ only by slash versus hyphen
+    When both sessions write registry records
+    Then each directory reads only its own records
+    And the registry keys remain distinct
+
+  Scenario: Directory session reads and cleanup verify record ownership
+    Given a registry file is placed under a directory key with a different canonical cwd
+    When the directory session reader or cleanup runs
+    Then the foreign record is ignored
+    And it is not deleted as though it belonged to the requested directory
+
+  Scenario: Malformed registry records remain unowned
+    Given a registry file cannot be parsed as JSON
+    When the directory session cleanup runs
+    Then the malformed record is ignored
+    And it is left in place because ownership cannot be verified
+
   Scenario: /sessions command lists directory sessions
     Given a session in directory "/app/my-project"
     When the user runs /sessions

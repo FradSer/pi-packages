@@ -37,3 +37,10 @@ Feature: Package-root index entry points
     And every package directory has a dedicated scope
     And scope names are concise, unique identifiers
     And no scope description points to a removed package directory
+
+  Scenario: Installation audit follows Pi package source forms
+    Given Pi settings contain string and filtered object package entries
+    When the installation audit resolves those entries
+    Then it extracts npm package names from versioned sources
+    And it resolves local and file URL paths using the settings directory
+    And it does not print unrelated settings values

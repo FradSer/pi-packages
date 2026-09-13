@@ -1,10 +1,16 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { execFileSync as defaultExecFileSync } from "node:child_process";
+import {
+  mkdtempSync as defaultMkdtempSync,
+  readFileSync as defaultReadFileSync,
+  readdirSync as defaultReaddirSync,
+  rmSync as defaultRmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const packages = [
-  // pi-kit publishes first: consumer packages depend on it.
+// pi-kit publishes first because the consumer packages use it at runtime.
+export const PUBLISH_SCOPE = Object.freeze([
   "@fradser/pi-kit",
   "pi-continual-learning",
   "@fradser/pi-btw",
@@ -19,48 +25,153 @@ const packages = [
   "@fradser/pi-session-control",
   "pi-matt-pocock",
   "pi-skill-router",
-];
+]);
 
-const workspacePackages = new Map();
-for (const directory of readdirSync("packages")) {
-  const manifestPath = join("packages", directory, "package.json");
-  try {
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    workspacePackages.set(manifest.name, { directory, version: manifest.version });
-  } catch {
-    // Ignore workspace directories without a package manifest.
-  }
+const SCRIPT_PATH = fileURLToPath(import.meta.url);
+const REPO_ROOT = resolve(dirname(SCRIPT_PATH), "..");
+
+function errorCode(error) {
+  return error && typeof error === "object" && typeof error.code === "string" ? error.code : undefined;
 }
 
-const unpublished = packages.filter((name) => {
-  const local = workspacePackages.get(name);
-  if (!local) throw new Error(`Missing workspace package: ${name}`);
+function errorStatus(error) {
+  return error && typeof error === "object" && typeof error.status === "number" ? error.status : undefined;
+}
 
-  let published;
-  try {
-    published = execFileSync("npm", ["view", name, "version", "--json"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-  } catch {
-    published = "";
+function errorStderr(error) {
+  if (!error || typeof error !== "object") return "";
+  const stderr = error.stderr;
+  return typeof stderr === "string" ? stderr : Buffer.isBuffer(stderr) ? stderr.toString("utf8") : "";
+}
+
+function structuredNpmErrorCode(error) {
+  if (!error || typeof error !== "object") return undefined;
+  for (const output of [error.stdout, error.stderr]) {
+    const text = Buffer.isBuffer(output) ? output.toString("utf8").trim() : typeof output === "string" ? output.trim() : "";
+    if (!text) continue;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed.code === "string") return parsed.code;
+      if (parsed?.error && typeof parsed.error.code === "string") return parsed.error.code;
+    } catch {
+      // npm normally writes its error code as a text line; inspect that below.
+    }
   }
+  return undefined;
+}
 
-  return published !== JSON.stringify(local.version) && published !== local.version;
-});
+function stderrNpmErrorCodes(error) {
+  return [...errorStderr(error).matchAll(/^\s*npm\s+(?:error|err!)\s+code\s+(E\d+)\s*$/gim)].map(
+    (match) => match[1],
+  );
+}
 
-const useProvenance = process.env.GITHUB_ACTIONS === "true";
+/** Return true only when npm explicitly reports that the requested version is absent. */
+export function isRegistryNotFound(error) {
+  const explicitCode = errorCode(error);
+  if (explicitCode) return explicitCode === "E404";
+  const structuredCode = structuredNpmErrorCode(error);
+  if (structuredCode) return structuredCode === "E404";
+  const stderrCodes = stderrNpmErrorCodes(error);
+  if (stderrCodes.length > 0) return stderrCodes.every((code) => code === "E404");
+  return errorStatus(error) === 404;
+}
 
-export function verifyPackedManifest(packageDir) {
-  const tempDir = mkdtempSync(join(tmpdir(), "pi-pack-verify-"));
+function registryQueryError(name, version, error) {
+  const code = errorCode(error);
+  const status = errorStatus(error);
+  const detail = code ?? (status === undefined ? undefined : `status ${status}`);
+  return new Error(
+    `Unable to query npm for ${name}@${version}${detail ? ` (${detail})` : ""}; release stopped.`,
+  );
+}
+
+function parseVersionOutput(output, name, version) {
+  const text = Buffer.isBuffer(output) ? output.toString("utf8").trim() : String(output).trim();
+  let value;
   try {
-    const packOutput = execFileSync("pnpm", ["--dir", packageDir, "pack", "--pack-destination", tempDir], {
+    value = JSON.parse(text);
+  } catch {
+    throw new Error(`npm returned an invalid version for ${name}@${version}; release stopped.`);
+  }
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`npm returned no usable version for ${name}@${version}; release stopped.`);
+  }
+  if (value !== version) {
+    throw new Error(`npm returned ${value} for ${name}@${version}; release stopped.`);
+  }
+  return value;
+}
+
+/** Query one exact package version. Undefined means npm explicitly returned 404. */
+export function queryExactVersion(name, version, execFileSync = defaultExecFileSync) {
+  const specifier = `${name}@${version}`;
+  try {
+    const output = execFileSync("npm", ["view", specifier, "version", "--json"], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     });
-    const tarballMatch = packOutput.match(/([^\s]+\.tgz)/);
-    const tarballPath = tarballMatch ? tarballMatch[1] : null;
-    if (!tarballPath) throw new Error(`Could not determine tarball path from pnpm pack output: ${packOutput}`);
+    return parseVersionOutput(output, name, version);
+  } catch (error) {
+    if (isRegistryNotFound(error)) return undefined;
+    if (error instanceof Error && error.message.startsWith("npm returned")) throw error;
+    throw registryQueryError(name, version, error);
+  }
+}
+
+/** Read package manifests without touching npm or invoking any release command. */
+export function loadWorkspacePackages(
+  packagesDir = join(REPO_ROOT, "packages"),
+  readFile = defaultReadFileSync,
+  readdir = defaultReaddirSync,
+) {
+  const workspacePackages = new Map();
+  for (const directory of readdir(packagesDir)) {
+    const manifestPath = join(packagesDir, directory, "package.json");
+    try {
+      const manifest = JSON.parse(readFile(manifestPath, "utf8"));
+      if (typeof manifest.name === "string" && typeof manifest.version === "string") {
+        workspacePackages.set(manifest.name, { directory, version: manifest.version });
+      }
+    } catch (error) {
+      if (errorCode(error) === "ENOENT") continue;
+      throw error;
+    }
+  }
+  return workspacePackages;
+}
+
+function packedFilename(packOutput) {
+  const text = Buffer.isBuffer(packOutput) ? packOutput.toString("utf8").trim() : String(packOutput).trim();
+  let result;
+  try {
+    result = JSON.parse(text);
+  } catch {
+    throw new Error("pnpm pack returned invalid JSON; packed manifest validation stopped.");
+  }
+  const filename = Array.isArray(result) ? result[0]?.filename : result?.filename;
+  if (typeof filename !== "string" || filename.length === 0) {
+    throw new Error("pnpm pack returned no tarball filename; packed manifest validation stopped.");
+  }
+  return filename;
+}
+
+/**
+ * Pack one package and inspect the manifest that pnpm would publish.
+ */
+export function verifyPackedManifest(packageDir, options = {}) {
+  const execFileSync = options.execFileSync ?? defaultExecFileSync;
+  const mkdtemp = options.mkdtemp ?? defaultMkdtempSync;
+  const remove = options.remove ?? defaultRmSync;
+  const tempDir = mkdtemp(join(tmpdir(), "pi-pack-verify-"));
+  try {
+    const packOutput = execFileSync(
+      "pnpm",
+      ["--dir", packageDir, "pack", "--pack-destination", tempDir, "--json"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+    const packedPath = packedFilename(packOutput);
+    const tarballPath = isAbsolute(packedPath) ? packedPath : join(tempDir, packedPath);
     const manifestJson = execFileSync("tar", ["-xOf", tarballPath, "package/package.json"], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -72,32 +183,106 @@ export function verifyPackedManifest(packageDir) {
       ...manifest.peerDependencies,
       ...manifest.optionalDependencies,
     };
-    for (const [dep, spec] of Object.entries(allDeps)) {
+    for (const [dependency, spec] of Object.entries(allDeps)) {
       if (typeof spec === "string" && spec.includes("workspace:")) {
         throw new Error(
-          `Package in ${packageDir} has unresolved workspace protocol dependency "${dep}": "${spec}" in packed tarball.`
+          `Package in ${packageDir} has unresolved workspace protocol dependency "${dependency}": "${spec}" in packed tarball.`,
         );
       }
     }
+    return manifest;
   } finally {
-    rmSync(tempDir, { recursive: true, force: true });
+    remove(tempDir, { recursive: true, force: true });
   }
 }
 
-for (const name of unpublished) {
-  const result = workspacePackages.get(name);
-  console.log(`Verifying packed manifest for ${name}...`);
-  verifyPackedManifest(join("packages", result.directory));
-  console.log(`Publishing ${name}@${result.version}`);
-  execFileSync("pnpm", [
-    "publish",
-    "--filter",
-    name,
-    ...(useProvenance ? ["--provenance"] : []),
-    "--access",
-    "public",
-    "--no-git-checks",
-  ], { stdio: "inherit" });
+function resolveTargets(workspacePackages, publishScope) {
+  return publishScope.map((name) => {
+    const local = workspacePackages.get(name);
+    if (!local) throw new Error(`Missing workspace package: ${name}`);
+    return { name, directory: local.directory, version: local.version };
+  });
 }
 
-if (unpublished.length === 0) console.log("All selected packages are already published.");
+function resolvePackedTargets(workspacePackages, publishScope) {
+  const additional = [...workspacePackages.keys()].filter((name) => !publishScope.includes(name));
+  return resolveTargets(workspacePackages, [...publishScope, ...additional]);
+}
+
+/** Select exact versions absent from npm while preserving the explicit kit-first order. */
+export function selectUnpublishedPackages(targets, queryVersion) {
+  return targets.filter(({ name, version }) => queryVersion(name, version) === undefined);
+}
+
+/**
+ * Run release publication or registry-free packed-manifest validation.
+ * Inject `execFileSync` and `verifyPackedManifest` in tests; the default path is
+ * only used by the executable script and never during module import.
+ */
+export function publishRelease(options = {}) {
+  const rootDir = options.rootDir ?? REPO_ROOT;
+  const packagesDir = options.packagesDir ?? join(rootDir, "packages");
+  const publishScope = options.publishScope ?? PUBLISH_SCOPE;
+  const execFileSync = options.execFileSync ?? defaultExecFileSync;
+  const workspacePackages =
+    options.workspacePackages ?? loadWorkspacePackages(packagesDir, options.readFile, options.readdir);
+  const targets = resolveTargets(workspacePackages, publishScope);
+  const logger = options.logger ?? console;
+  const checkOnly = options.checkOnly === true;
+  const packedTargets = checkOnly ? resolvePackedTargets(workspacePackages, publishScope) : targets;
+  const useProvenance = options.useProvenance ?? process.env.GITHUB_ACTIONS === "true";
+  const verify =
+    options.verifyPackedManifest ??
+    ((packageDir) => verifyPackedManifest(packageDir, { execFileSync, readFile: options.readFile }));
+
+  if (checkOnly) {
+    for (const target of packedTargets) {
+      logger.log(`Verifying packed manifest for ${target.name}...`);
+      verify(join(packagesDir, target.directory));
+    }
+    logger.log(`Validated packed manifests for ${packedTargets.length} workspace packages.`);
+    return { checked: packedTargets, published: [], skipped: [] };
+  }
+
+  // Query every package before publishing any package so a registry outage
+  // cannot leave a release half-published before the error is discovered.
+  const unpublished = selectUnpublishedPackages(
+    targets,
+    options.queryVersion ?? ((name, version) => queryExactVersion(name, version, execFileSync)),
+  );
+  const skipped = targets.filter((target) => !unpublished.includes(target));
+  for (const target of unpublished) {
+    const packageDir = join(packagesDir, target.directory);
+    logger.log(`Verifying packed manifest for ${target.name}...`);
+    verify(packageDir);
+    logger.log(`Publishing ${target.name}@${target.version}`);
+    execFileSync(
+      "pnpm",
+      [
+        "publish",
+        "--filter",
+        target.name,
+        ...(useProvenance ? ["--provenance"] : []),
+        "--access",
+        "public",
+        "--no-git-checks",
+      ],
+      { cwd: rootDir, stdio: "inherit" },
+    );
+  }
+  if (unpublished.length === 0) logger.log("All selected packages are already published.");
+  return { checked: targets, published: unpublished, skipped };
+}
+
+export function isMainModule() {
+  return process.argv[1] !== undefined && resolve(process.argv[1]) === SCRIPT_PATH;
+}
+
+if (isMainModule()) {
+  try {
+    await publishRelease({ checkOnly: process.argv.includes("--check") });
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
+}

@@ -131,7 +131,7 @@ async function main(): Promise<void> {
     }
     case "describe": {
       try {
-        const collection = sync.updateCollectionDescription(root, positional[0], positional.slice(1).join(" "));
+        const collection = await sync.updateCollectionDescription(root, positional[0], positional.slice(1).join(" "));
         result = { ok: true, description: collection.description };
       } catch (error) {
         result = { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -140,7 +140,7 @@ async function main(): Promise<void> {
     }
     case "remove": {
       try {
-        sync.removeCollection(root, positional[0]);
+        await sync.removeCollection(root, positional[0]);
         result = { ok: true };
       } catch (error) {
         result = { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -149,7 +149,7 @@ async function main(): Promise<void> {
     }
     case "toggle": {
       try {
-        const collection = sync.setCollectionEnabled(root, positional[0], positional[1] === "on");
+        const collection = await sync.setCollectionEnabled(root, positional[0], positional[1] === "on");
         result = { ok: true, enabled: collection.enabled };
       } catch (error) {
         result = { ok: false, error: error instanceof Error ? error.message : String(error) };

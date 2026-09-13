@@ -33,6 +33,17 @@ no skills, and no extensions. Consumer packages declare it as
 - `createStaticToolLifecycleResultRenderer(options)` — compact native-tool factory that keeps model-only text out of the TUI row.
 - `notifyPi(ui, message, level)` — sanitized forwarding to Pi's native notification surface.
 
+### Workers and directory identity
+
+- `runPiWorker(options)` — runs a one-shot JSONL worker with pre-cancel checks,
+  close-observed cancellation, and byte limits of 16 MiB for stdout, 8 MiB for
+  stderr, and 8 MiB for each JSONL line. The line bound leaves room for normal
+  inline image payloads plus their JSON envelope. Limit failures terminate the
+  child and return no assistant text.
+- `getDirectorySessionKey(cwd)` — SHA-256 of the canonical directory path;
+  existing paths use realpath and missing paths use an absolute path.
+- `isSameDirectory(left, right)` — compares those canonical directory paths.
+
 ## Rules
 
 - Zero runtime dependencies beyond Node built-ins; no imports of pi core or

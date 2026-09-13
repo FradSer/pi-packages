@@ -28,6 +28,8 @@ import {
   buildMarkdownThemeCallbacks,
   createPiThemeStyle,
   enterModelFromInput,
+  getDirectorySessionKey,
+  isSameDirectory,
   modelRef,
   notifyPi,
   parseModelRef,
@@ -82,8 +84,7 @@ function readDirectorySessionRecap(
   try {
     if (!cwd || !sessionFile) return undefined;
     const sessionId = path.basename(sessionFile, ".jsonl");
-    const normalized = path.resolve(cwd);
-    const dirKey = `--${normalized.replace(/^[/\\\\]/, "").replace(/[/\\:]/g, "-")}--`;
+    const dirKey = getDirectorySessionKey(cwd);
     const regDir = path.join(
       os.homedir(),
       ".pi",
@@ -95,6 +96,9 @@ function readDirectorySessionRecap(
     if (fs.existsSync(filePath)) {
       const raw = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(raw);
+      if (typeof data.cwd !== "string" || !isSameDirectory(data.cwd, cwd)) {
+        return undefined;
+      }
       if (typeof data.recap === "string" && data.recap.trim()) {
         return data.recap.trim();
       }
@@ -113,8 +117,7 @@ function syncDirectorySessionRecap(
   try {
     if (!cwd || !sessionFile) return;
     const sessionId = path.basename(sessionFile, ".jsonl");
-    const normalized = path.resolve(cwd);
-    const dirKey = `--${normalized.replace(/^[/\\\\]/, "").replace(/[/\\:]/g, "-")}--`;
+    const dirKey = getDirectorySessionKey(cwd);
     const regDir = path.join(
       os.homedir(),
       ".pi",
@@ -126,6 +129,9 @@ function syncDirectorySessionRecap(
     if (fs.existsSync(filePath)) {
       const raw = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(raw);
+      if (typeof data.cwd !== "string" || !isSameDirectory(data.cwd, cwd)) {
+        return;
+      }
       data.recap = recapText;
       data.updatedAt = Date.now();
       const tmpPath = `${filePath}.tmp.${Date.now()}`;

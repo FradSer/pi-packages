@@ -36,7 +36,7 @@ pi install npm:@fradser/pi-btw
 
 ### [`@fradser/pi-context`](packages/context/)
 
-通过独立的只读 Pi 子进程检索代码仓库、库与技术问题。自然语言调研请求会自动调用工具；开始时完整显示请求文本，超宽自动换行，不加省略号，结果仍保持紧凑且可展开。
+通过独立的、受研究提示词约束的 Pi 子进程（提供 read 和 bash 工具）检索代码仓库、库与技术问题；不修改工作区的边界来自研究提示词，而非操作系统沙箱。自然语言调研请求会自动调用工具；开始时完整显示请求文本，超宽自动换行，不加省略号，结果仍保持紧凑且可展开。
 
 **工具：** `context_get`
 
@@ -184,13 +184,20 @@ pi install npm:@fradser/pi-vision
 
 ```bash
 pnpm install
-python3 -m pytest packages
-pnpm exec tsc --noEmit -p tsconfig.extensions.json
+pnpm test
+pnpm typecheck
+pnpm pack:check
+# 或一次运行全部检查
+pnpm check
 ```
 
 每个包将行为场景放在 `features/`，测试放在 `tests/`。
 
-在仓库根目录执行 `pnpm --dir packages/<name> pack --dry-run` 可以检查将要发布的文件。
+`pnpm check` 会运行包测试和根目录 pytest 测试、扩展 TypeScript 项目检查，以及对每个工作区包进行无需访问 registry 的打包清单检查。使用 `pnpm check:install` 可以单独审计当前 Pi 设置文件中的已安装包。
+
+测试需要 Python 3、`pytest` 以及供子进程测试使用的 Bun 1.4.1。CI 工作流会在运行 `pnpm check` 前安装这两个运行时。
+
+在仓库根目录执行 `pnpm --dir packages/<name> pack --dry-run` 可以检查单个包将要发布的文件。
 
 共享运行时辅助位于内部包 [`@fradser/pi-kit`](packages/kit/)。它是内部工作区依赖，不能通过 `pi install` 安装。
 
@@ -204,7 +211,7 @@ pnpm exec tsc --noEmit -p tsconfig.extensions.json
 
 ## 发布
 
-发布使用 `.github/workflows/release.yml` 中的 Changesets 和 GitHub Actions 工作流。将修改推送到 `main`，然后合并生成的 version PR。工作流通过 npm Trusted Publishing 发布明确列出的包，并跳过 npm registry 中已经存在的版本。
+发布使用 `.github/workflows/release.yml` 中的 Changesets 和 GitHub Actions 工作流。Pull request 和发布流程都会在发布动作前运行 `pnpm check`；根目录的 `pnpm run publish` 也会在本地发布脚本前运行同一质量门。将修改推送到 `main`，然后合并生成的 version PR。工作流按依赖顺序通过 npm Trusted Publishing 发布明确列出的包，并跳过 registry 中已经存在的精确版本。
 
 新包需要先手动完成一次首次发布并配置 npm Trusted Publishing，后续版本才能通过 GitHub Actions 发布。
 

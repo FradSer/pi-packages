@@ -11,5 +11,9 @@
     "noUnusedParameters": true,
     "types": []
   },
-  "include": ["packages/*/index.ts", "packages/*/extensions/**/*.ts"]
+  "include": [
+    "packages/*/index.ts",
+    "packages/*/extensions/**/*.ts",
+    "packages/*/src/**/*.ts"
+  ]
 }

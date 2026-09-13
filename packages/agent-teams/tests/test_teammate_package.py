@@ -86,6 +86,8 @@ def test_bdd_contract_covers_target_resources() -> None:
         "Multi-line YAML tool lists are declared like inline lists",
         "An unknown agent name fails the spawn",
         "Teammates are named resident processes",
+        "Resident worker stream limits are per message or turn",
+        "failure diagnostic appears before captured child stderr",
         "Spawning creates one named resident teammate",
         "Teammate names are unique among living teammates",
         "The session-wide cap bounds resident teammates",
@@ -2202,6 +2204,56 @@ def test_rpc_control_stream_protocol_lines() -> None:
     # Residents never auto-exit after a report: no post-report grace shutdown.
     assert "finishReportedWorker" not in spawner
     assert "POST_REPORT_GRACE_MS" not in spawner
+
+
+def test_resident_stream_limits_are_per_turn_and_fail_closed() -> None:
+    spawner = source("spawner.ts")
+    assert "MAX_JSONL_LINE_BYTES" in spawner
+    assert "MAX_TURN_OUTPUT_BYTES" in spawner
+    assert "outputLimitError" in spawner
+    assert "terminateChildProcess" in spawner
+    assert "failureReason" in spawner
+
+
+def test_resident_unterminated_output_is_terminated_without_partial_success() -> None:
+    payload = run_node(
+        f'''\
+        import fs from "node:fs";
+        import os from "node:os";
+        import path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "agent-teams-stream-limit-"));
+        const pkg = path.join(root, "fake-package");
+        fs.mkdirSync(pkg);
+        fs.writeFileSync(path.join(pkg, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const child = path.join(pkg, "cli.mjs");
+        fs.writeFileSync(child, `
+          process.stderr.write("child-diagnostic-noise".repeat(1000));
+          setTimeout(() => process.stdout.write("x".repeat(Number(process.env.PI_LINE_LIMIT) + 1)), 50);
+          process.on("SIGTERM", () => {{}});
+          const stream = setInterval(() => process.stdout.write("x".repeat(4096)), 1);
+          setTimeout(() => {{ clearInterval(stream); process.exit(0); }}, 1000);
+        `, {{ mode: 0o755 }});
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = child;
+        process.env.PI_LINE_LIMIT = "1048576";
+        const {{ spawnResident, MAX_JSONL_LINE_BYTES }} = await import("{(SRC / "spawner.ts").as_uri()}");
+        process.env.PI_LINE_LIMIT = String(MAX_JSONL_LINE_BYTES);
+        const outcome = await new Promise((resolve) => spawnResident({{
+          workerName: "limit-test",
+          cwd: root,
+          onUpdate: () => {{}},
+          onExit: (result) => resolve({{ exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }}),
+          onError: (error) => resolve({{ error: error.message }}),
+        }}));
+        process.argv[1] = originalArgv1;
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        console.log(JSON.stringify(outcome));
+        '''
+    )
+    assert payload["exitCode"] != 0
+    assert payload["stdout"] == ""
+    assert payload["stderr"].startswith("Resident worker JSONL line exceeded")
+    assert "child-diagnostic-noise" in payload["stderr"]
 
 
 def test_session_cap_and_shutdown_surface() -> None:

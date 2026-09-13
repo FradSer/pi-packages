@@ -54,9 +54,9 @@ history. An optional argument adds focus:
 ```
 
 **Features**:
-1. **Cross-Session Awareness**: Multiple Pi sessions in the same project directory register their status, latest goal, and touched files in `~/.pi/agent/directory-sessions/`.
+1. **Cross-Session Awareness**: Multiple Pi sessions in the same project directory register their status, latest goal, and touched files in `~/.pi/agent/directory-sessions/`. Directory names use pi-kit's canonical hashed identity, so slash-versus-hyphen paths remain separate; existing paths use `realpath` and missing paths use their absolute spelling.
 2. **Automated Prompt Injection**: When multiple sessions run in the same directory, `before_agent_start` automatically injects a concise directory recap into the system prompt so each agent is aware of parallel work.
-3. **Dead PID Pruning**: Stale or dead process IDs are automatically detected (`process.kill(pid, 0)`) and cleaned up from the directory registry.
+3. **Dead PID Pruning**: Stale or dead process IDs are automatically detected (`process.kill(pid, 0)`) and cleaned up from the directory registry. Reads and cleanup verify the record's canonical `cwd`; foreign or malformed records remain untouched when ownership cannot be proven, and old directory names are not migrated.
 4. **Agent Tool (`list_directory_sessions`)**: Exposes a tool for agents to inspect active sessions in the directory programmatically.
 
 ### `continue` — resume or continue execution

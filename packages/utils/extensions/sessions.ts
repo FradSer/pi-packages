@@ -15,7 +15,16 @@ import os from "node:os";
 import path from "node:path";
 import { keyHint, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Container, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { createStaticToolLifecycleResultRenderer, detailField, eventToolLifecycle, formatAgentTaskName, notifyPi, safeDisplayText } from "@fradser/pi-kit";
+import {
+  createStaticToolLifecycleResultRenderer,
+  detailField,
+  eventToolLifecycle,
+  formatAgentTaskName,
+  getDirectorySessionKey,
+  isSameDirectory,
+  notifyPi,
+  safeDisplayText,
+} from "@fradser/pi-kit";
 import { Type } from "typebox";
 
 export interface SessionInfo {
@@ -39,14 +48,8 @@ export function getRegistryDir(): string {
   return path.join(os.homedir(), ".pi", "agent", "directory-sessions");
 }
 
-/**
- * Encodes a cwd path into a file-system safe directory key.
- * E.g. "/Users/foo/bar" -> "--Users-foo-bar--"
- */
-export function getSessionFileKey(cwd: string): string {
-  const normalized = path.resolve(cwd);
-  return `--${normalized.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
-}
+/** Shared directory-session key used by every registry writer and reader. */
+export const getSessionFileKey = getDirectorySessionKey;
 
 /**
  * Returns the directory path for a specific cwd in the session registry.
@@ -93,6 +96,8 @@ export function removeSessionInfo(cwd: string, sessionId: string): void {
   try {
     const filePath = path.join(getDirectoryRegistryPath(cwd), `${sessionId}.json`);
     if (fs.existsSync(filePath)) {
+      const raw = JSON.parse(fs.readFileSync(filePath, "utf-8")) as { cwd?: unknown };
+      if (typeof raw.cwd !== "string" || !isSameDirectory(raw.cwd, cwd)) return;
       fs.unlinkSync(filePath);
     }
   } catch {
@@ -148,6 +153,12 @@ export function cleanAndListDirectorySessions(
       const raw = fs.readFileSync(filePath, "utf-8");
       const info = normalizeSessionRecord(JSON.parse(raw));
 
+      // A registry directory is keyed by the requested cwd. Ignore records
+      // whose stored canonical cwd belongs to another project.
+      if (!info.cwd || !isSameDirectory(info.cwd, cwd)) {
+        continue;
+      }
+
       // Exclude self by id or by owning process (registry records from
       // multiple writers use different id conventions for the same session).
       if ((excludeSessionId && info.sessionId === excludeSessionId) || info.pid === process.pid) {
@@ -178,10 +189,8 @@ export function cleanAndListDirectorySessions(
 
       sessions.push(info);
     } catch {
-      // Malformed file, prune
-      try {
-        fs.unlinkSync(filePath);
-      } catch {}
+      // Ownership cannot be verified when the registry JSON is malformed.
+      // Leave it untouched so a reader never deletes an unowned record.
     }
   }
 

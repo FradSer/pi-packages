@@ -28,6 +28,12 @@ import { writeWorkContext } from "./work-context.ts";
 import type { SessionContext } from "@earendil-works/pi-coding-agent";
 
 const OUTPUT_CAP = 16_000;
+/** A single JSONL record and an unterminated record may not exceed this many bytes. */
+export const MAX_JSONL_LINE_BYTES = 8 * 1024 * 1024;
+/** Live text, thinking, or tool arguments are bounded per assistant message. */
+export const MAX_TURN_OUTPUT_BYTES = 16 * 1024 * 1024;
+/** Diagnostic tail only; this is not a resident-process lifetime quota. */
+const DIAGNOSTIC_TAIL_BYTES = 64 * 1024;
 
 export interface WorkerProcessResult {
   pid: number;
@@ -174,6 +180,8 @@ function beginSequence(name: string): void {
     state.text = "";
     state.thinking = "";
     clearActiveTools(state);
+    state.turnBytes = 0;
+    state.outputLimitError = undefined;
   }
   baselines.set(name, streamTurns.get(name) ?? 0);
 }
@@ -233,10 +241,12 @@ interface StreamState {
   modelOutputSeen?: boolean;
   usage?: WorkerUsage;
   controlError?: string;
+  turnBytes: number;
+  outputLimitError?: string;
 }
 
 function createStreamState(): StreamState {
-  return { text: "", thinking: "", toolcallArgs: "", activeTools: new Map(), turns: 0 };
+  return { text: "", thinking: "", toolcallArgs: "", activeTools: new Map(), turns: 0, turnBytes: 0 };
 }
 
 function clearActiveTools(state: StreamState): void {
@@ -247,7 +257,7 @@ function clearActiveTools(state: StreamState): void {
 
 function toolExecutionLabel(toolName: string | undefined, args: unknown): string {
   const serialized = typeof args === "string" ? args : JSON.stringify(args ?? {});
-  return toolcallLabel(serialized) ?? toolName ?? "tool";
+  return truncate(toolcallLabel(serialized) ?? toolName ?? "tool", OUTPUT_CAP);
 }
 
 /** Human-readable label from a partially streamed tool-call argument JSON. */
@@ -276,6 +286,17 @@ function normalizeInline(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
+function appendTurnText(state: StreamState, field: "text" | "thinking" | "toolcallArgs", delta: string): boolean {
+  const nextBytes = state.turnBytes + Buffer.byteLength(delta, "utf8");
+  if (nextBytes > MAX_TURN_OUTPUT_BYTES) {
+    state.outputLimitError = `Resident worker ${field} exceeded ${MAX_TURN_OUTPUT_BYTES} bytes in one turn.`;
+    return false;
+  }
+  state.turnBytes = nextBytes;
+  state[field] += delta;
+  return true;
+}
+
 function applyStreamLine(state: StreamState, line: string): boolean {
   if (!line.trim()) return false;
   let event: JsonEvent;
@@ -295,6 +316,11 @@ function applyStreamLine(state: StreamState, line: string): boolean {
   }
   if (event.type === "agent_start") {
     state.finalResponse = false;
+    state.text = "";
+    state.thinking = "";
+    clearActiveTools(state);
+    state.turnBytes = 0;
+    state.outputLimitError = undefined;
     return true;
   }
   if (event.type === "tool_execution_start") {
@@ -316,7 +342,12 @@ function applyStreamLine(state: StreamState, line: string): boolean {
     clearActiveTools(state);
     state.thinking = "";
     const parts = extractTextContent(event.message.content, "");
+    if (Buffer.byteLength(parts, "utf8") > MAX_TURN_OUTPUT_BYTES) {
+      state.outputLimitError = `Resident worker message exceeded ${MAX_TURN_OUTPUT_BYTES} bytes.`;
+      return true;
+    }
     if (parts.trim()) state.text = parts;
+    state.turnBytes = 0;
     // Usage stays diagnostics: only streamed content counts as model output,
     // so input-only or failed responses cannot bypass the zero-output tier.
     const u = event.message.usage;
@@ -339,12 +370,12 @@ function applyStreamLine(state: StreamState, line: string): boolean {
     case "text_delta":
       state.modelOutputSeen = true;
       state.activeTool = undefined;
-      state.text += sub.delta ?? "";
+      appendTurnText(state, "text", sub.delta ?? "");
       return true;
     case "thinking_delta":
       state.modelOutputSeen = true;
       state.activeTool = undefined;
-      state.thinking += sub.delta ?? "";
+      appendTurnText(state, "thinking", sub.delta ?? "");
       return true;
     case "toolcall_start":
       state.modelOutputSeen = true;
@@ -352,7 +383,7 @@ function applyStreamLine(state: StreamState, line: string): boolean {
       return true;
     case "toolcall_delta": {
       state.modelOutputSeen = true;
-      state.toolcallArgs += sub.delta ?? "";
+      appendTurnText(state, "toolcallArgs", sub.delta ?? "");
       const label = toolcallLabel(state.toolcallArgs);
       if (label) state.activeTool = label;
       return true;
@@ -468,6 +499,7 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
   const streamState = createStreamState();
   streamStates.set(options.workerName, streamState);
   let stdoutBuffer = "";
+  let failureReason: string | undefined;
   let settled = false;
 
   const emitProgress = () => options.onUpdate?.({
@@ -481,21 +513,47 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
     controlError: streamState.controlError,
   });
 
+  let termination: Promise<boolean> | undefined;
+  const failWorker = (reason: string) => {
+    failureReason ??= reason;
+    stdoutBuffer = "";
+    streamState.outputLimitError ??= reason;
+    streamState.controlError = reason;
+    emitProgress();
+    termination ??= terminateChildProcess(child);
+  };
+
   child.stdout?.on("data", (chunk: Buffer) => {
+    if (failureReason) return;
     const text = chunk.toString();
-    appendCapped(stdoutChunks, text, OUTPUT_CAP * 4);
     stdoutBuffer += text;
     const lines = stdoutBuffer.split("\n");
     stdoutBuffer = lines.pop() ?? "";
     let changed = false;
     for (const line of lines) {
+      if (Buffer.byteLength(line, "utf8") > MAX_JSONL_LINE_BYTES) {
+        failWorker(`Resident worker JSONL line exceeded ${MAX_JSONL_LINE_BYTES} bytes.`);
+        return;
+      }
       changed = applyStreamLine(streamState, line) || changed;
+      if (streamState.outputLimitError) {
+        failWorker(streamState.outputLimitError);
+        return;
+      }
     }
+    if (Buffer.byteLength(stdoutBuffer, "utf8") > MAX_JSONL_LINE_BYTES) {
+      failWorker(`Resident worker JSONL line exceeded ${MAX_JSONL_LINE_BYTES} bytes.`);
+      return;
+    }
+    appendCapped(stdoutChunks, text, DIAGNOSTIC_TAIL_BYTES);
     streamTurns.set(options.workerName, streamState.turns);
     if (changed) emitProgress();
-    streamState.controlError = undefined;
+    if (!failureReason) streamState.controlError = undefined;
   });
-  child.stderr?.on("data", (chunk: Buffer) => appendCapped(stderrChunks, chunk.toString(), OUTPUT_CAP * 2));
+  child.stderr?.on("data", (chunk: Buffer) => {
+    if (failureReason) return;
+    appendCapped(stderrChunks, chunk.toString(), DIAGNOSTIC_TAIL_BYTES);
+  });
 
   child.on("error", (error) => {
     if (child.pid === undefined) cleanupTempDir();
@@ -514,13 +572,14 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
     // A spawn failure was already reported via onError (Node fires error then
     // close) — do not double-report through onExit.
     if (settled) return;
-    const parsed = parseTeammateOutput(stdoutChunks.join(""));
+    const failed = failureReason !== undefined;
+    const parsed = failed ? { text: "", usage: undefined } : parseTeammateOutput(stdoutChunks.join(""));
     options.onExit({
       pid: child.pid ?? 0,
-      exitCode: code,
+      exitCode: code === 0 && failed ? 1 : code,
       signal,
-      stdout: truncate(parsed.text, OUTPUT_CAP),
-      stderr: truncate(stderrChunks.join("").trim(), OUTPUT_CAP),
+      stdout: failed ? "" : truncate(parsed.text, OUTPUT_CAP),
+      stderr: truncate([failureReason, stderrChunks.join("").trim()].filter(Boolean).join("\n"), OUTPUT_CAP),
       usage: parsed.usage,
     });
   });
@@ -530,9 +589,11 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
 
 function appendCapped(chunks: string[], chunk: string, cap: number): void {
   chunks.push(chunk);
-  let total = chunks.reduce((sum, value) => sum + value.length, 0);
+  let total = chunks.reduce((sum, value) => sum + Buffer.byteLength(value, "utf8"), 0);
   while (total > cap && chunks.length > 1) {
-    total -= chunks.shift()?.length ?? 0;
+    total -= Buffer.byteLength(chunks.shift() ?? "", "utf8");
   }
-  if (total > cap && chunks.length === 1) chunks[0] = chunks[0].slice(-cap);
+  if (total > cap && chunks.length === 1) {
+    chunks[0] = Buffer.from(chunks[0], "utf8").subarray(-cap).toString("utf8");
+  }
 }

@@ -16,6 +16,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { cacheDir, exposedDir, gatewayDir, leafSkillFile, legacyExposedDir } from "./paths";
 import { isCollectionId, isSafeGitRef, isSlug, loadCollections, saveCollections, type RegistryCollection, type RegistryRoute } from "./registry";
 
@@ -197,13 +198,13 @@ function cloneOrUpdate(spec: RepoSpec, destination: string, ref?: string): strin
 }
 
 /** Clone (or refresh) the collection cache and return the scanned upstream skills. */
-export function fetchCollectionSkills(root: string, spec: RepoSpec): { cache: string; ref: string; skills: UpstreamSkill[] } {
+export async function fetchCollectionSkills(root: string, spec: RepoSpec, signal?: AbortSignal): Promise<{ cache: string; ref: string; skills: UpstreamSkill[] }> {
   return withLock(root, () => {
     prepareManagedDirectories(root);
     const cache = cacheDir(root, spec.cacheKey);
     const resolvedRef = cloneOrUpdate(spec, cache, spec.ref);
     return { cache, ref: spec.ref ?? resolvedRef, skills: scanSkills(cache) };
-  });
+  }, signal);
 }
 
 function frontmatterValue(frontmatter: string, key: string): string | undefined {
@@ -443,62 +444,63 @@ function materialize(root: string, collection: RegistryCollection, leaves: Upstr
   }
 }
 
-function pause(ms: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
 function processIsAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    return error instanceof Error && "code" in error && error.code === "ESRCH" ? false : true;
   }
 }
 
-function withLock<T>(root: string, action: () => T): T {
+function removeAbandonedLock(lock: string): void {
+  try {
+    const age = Date.now() - statSync(lock).mtimeMs;
+    let owner: number | undefined;
+    try {
+      owner = Number.parseInt(readFileSync(join(lock, "owner"), "utf8"), 10);
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+    }
+    const abandoned = owner !== undefined && Number.isInteger(owner) && owner > 0
+      ? !processIsAlive(owner)
+      : age > 1_000;
+    if (abandoned) rmSync(lock, { recursive: true, force: true });
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+  }
+}
+
+async function acquireLock(root: string, signal?: AbortSignal): Promise<string> {
+  signal?.throwIfAborted();
   ensureDirectoryNotSymlink(root, "root");
   const lock = join(root, ".lock");
-  const ownerPath = join(lock, "owner");
-  let acquired = false;
-  for (let attempt = 0; attempt < 200 && !acquired; attempt += 1) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    signal?.throwIfAborted();
     try {
       mkdirSync(lock);
-      try {
-        writeFileSync(ownerPath, `${process.pid}\n`, "utf8");
-      } catch (error) {
-        rmSync(lock, { recursive: true, force: true });
-        throw error;
-      }
-      acquired = true;
     } catch (error) {
-      if (acquired) throw error;
-      try {
-        const age = Date.now() - statSync(lock).mtimeMs;
-        let owner: number | undefined;
-        try {
-          owner = Number.parseInt(readFileSync(ownerPath, "utf8"), 10);
-        } catch {
-          // An ownerless lock may be left by a process killed during initialization.
-        }
-        if (Number.isInteger(owner)) {
-          if (processIsAlive(owner as number)) {
-            pause(50);
-            continue;
-          }
-          rmSync(lock, { recursive: true, force: true });
-        } else if (age > 1_000) {
-          rmSync(lock, { recursive: true, force: true });
-        }
-      } catch {
-        // lock vanished or is still being initialized
-      }
-      pause(50);
+      if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
+      removeAbandonedLock(lock);
+      await delay(50, undefined, { signal });
+      continue;
+    }
+    try {
+      writeFileSync(join(lock, "owner"), `${process.pid}\n`, "utf8");
+      return lock;
+    } catch (error) {
+      rmSync(lock, { recursive: true, force: true });
+      throw error;
     }
   }
-  if (!acquired) throw new Error("Another skill-router operation is in progress; try again later");
+  throw new Error("Another skill-router operation is in progress; try again later");
+}
+
+async function withLock<T>(root: string, action: () => T | Promise<T>, signal?: AbortSignal): Promise<T> {
+  const lock = await acquireLock(root, signal);
   try {
-    return action();
+    signal?.throwIfAborted();
+    return await action();
   } finally {
     rmSync(lock, { recursive: true, force: true });
   }
@@ -542,21 +544,26 @@ export async function generateWorkflowSummaries(
   skills: UpstreamSkill[],
   signal?: AbortSignal,
 ): Promise<WorkflowSummary[]> {
+  signal?.throwIfAborted();
   if (!model) return fallbackWorkflowSummaries(skills);
   try {
     const auth = await registry.getApiKeyAndHeaders(model);
+    signal?.throwIfAborted();
     if (!auth.ok) return fallbackWorkflowSummaries(skills);
     const message: UserMessage = { role: "user", content: [{ type: "text", text: summaryPrompt(skills) }], timestamp: Date.now() };
     const response = await registry.complete(model, { systemPrompt: "You create concise, faithful workflow navigation labels.", messages: [message] }, {
       apiKey: auth.apiKey, headers: auth.headers, signal, maxTokens: Math.max(128, skills.length * 32), temperature: 0, cacheRetention: "none",
     });
+    signal?.throwIfAborted();
     const parsed: unknown = JSON.parse(responseText(response));
     if (!Array.isArray(parsed)) throw new Error("Expected an array");
     if (!parsed.every(validWorkflowSummary)) throw new Error("Invalid workflow summary");
     const summaries = new Map(parsed.map((entry) => [entry.skill, entry.summary.trim()]));
     if (summaries.size !== skills.length || skills.some((skill) => !summaries.has(skill.name))) throw new Error("Incomplete workflow summaries");
     return skills.map((skill) => ({ skill: skill.name, summary: summaries.get(skill.name)! }));
-  } catch {
+  } catch (error) {
+    signal?.throwIfAborted();
+    if (error instanceof Error && error.name === "AbortError") throw error;
     return fallbackWorkflowSummaries(skills);
   }
 }
@@ -570,6 +577,7 @@ export async function generateCollectionDescription(
   signal?.throwIfAborted();
   if (!model) throw new Error("An active AI model is required to generate the collection capability summary");
   const auth = await registry.getApiKeyAndHeaders(model);
+  signal?.throwIfAborted();
   if (!auth.ok) throw new Error("AI authentication is required to generate the collection capability summary");
   const message: UserMessage = {
     role: "user",
@@ -637,8 +645,8 @@ function assertNameSpaceAvailable(
   }
 }
 
-export async function addCollection(root: string, options: AddCollectionOptions): Promise<AddCollectionResult> {
-  return withLock(root, () => addCollectionLocked(root, options));
+export async function addCollection(root: string, options: AddCollectionOptions, signal?: AbortSignal): Promise<AddCollectionResult> {
+  return withLock(root, () => addCollectionLocked(root, options), signal);
 }
 
 function addCollectionLocked(root: string, options: AddCollectionOptions): AddCollectionResult {
@@ -744,11 +752,11 @@ function updateCollectionLocked(root: string, id: string): UpdateCollectionResul
     return { id, kept: kept.map((route) => route.skill), dropped, newUpstream: [...upstreamByName.keys()].filter((name) => !selected.has(name)) };
 }
 
-export async function updateCollection(root: string, id: string): Promise<UpdateCollectionResult> {
-  return withLock(root, () => updateCollectionLocked(root, id));
+export async function updateCollection(root: string, id: string, signal?: AbortSignal): Promise<UpdateCollectionResult> {
+  return withLock(root, () => updateCollectionLocked(root, id), signal);
 }
 
-export async function updateCollectionSelection(root: string, id: string, selectedNames: string[]): Promise<SelectionUpdateResult> {
+export async function updateCollectionSelection(root: string, id: string, selectedNames: string[], signal?: AbortSignal): Promise<SelectionUpdateResult> {
   return withLock(root, () => {
     prepareManagedDirectories(root);
     const collections = loadCollections(root);
@@ -790,7 +798,7 @@ export async function updateCollectionSelection(root: string, id: string, select
     }
     swap.commit();
     return { id, selected: uniqueSelected };
-  });
+  }, signal);
 }
 
 export function collectionSkillNames(root: string, id: string): string[] {
@@ -799,8 +807,8 @@ export function collectionSkillNames(root: string, id: string): string[] {
   return scanSkills(cacheDir(root, collection.source.cacheKey)).map((skill) => skill.name);
 }
 
-export function removeCollection(root: string, id: string): void {
-  withLock(root, () => {
+export async function removeCollection(root: string, id: string, signal?: AbortSignal): Promise<void> {
+  return withLock(root, () => {
     prepareManagedDirectories(root);
     const collections = loadCollections(root);
     if (!collections.some((collection) => collection.id === id)) throw new Error(`Collection "${id}" is not installed`);
@@ -824,10 +832,10 @@ export function removeCollection(root: string, id: string): void {
     } catch {
       // Registry state is already committed; an orphaned backup is harmless and can be cleaned later.
     }
-  });
+  }, signal);
 }
 
-export function updateCollectionDescription(root: string, id: string, description: string): RegistryCollection {
+export async function updateCollectionDescription(root: string, id: string, description: string, signal?: AbortSignal): Promise<RegistryCollection> {
   const normalized = description.trim();
   if (!normalized) throw new Error("Collection capability summary is required");
   return withLock(root, () => {
@@ -854,10 +862,10 @@ export function updateCollectionDescription(root: string, id: string, descriptio
     }
     swap.commit();
     return updated;
-  });
+  }, signal);
 }
 
-export function setCollectionEnabled(root: string, id: string, enabled: boolean): RegistryCollection {
+export async function setCollectionEnabled(root: string, id: string, enabled: boolean, signal?: AbortSignal): Promise<RegistryCollection> {
   return withLock(root, () => {
     prepareManagedDirectories(root);
     const collections = loadCollections(root);
@@ -866,7 +874,7 @@ export function setCollectionEnabled(root: string, id: string, enabled: boolean)
     const updated = { ...collection, enabled };
     saveCollections(root, collections.map((entry) => (entry.id === id ? updated : entry)));
     return updated;
-  });
+  }, signal);
 }
 
 function containsSymlink(dir: string): boolean {

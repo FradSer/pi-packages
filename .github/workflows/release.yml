@@ -27,8 +27,22 @@ jobs:
         with:
           node-version: 22
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.1"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Install pytest
+        run: python3 -m pip install --disable-pip-version-check pytest
+
+      - name: Run quality gate
+        run: pnpm check
 
       # Standard changesets CLI (pnpm 11's native `pnpm version -r` has a bug:
       # it reads change intents but does not apply the bump — verified locally,

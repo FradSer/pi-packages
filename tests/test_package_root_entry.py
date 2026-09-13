@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 
 REPO = Path(__file__).resolve().parents[1]
 PACKAGES = REPO / "packages"
@@ -87,6 +88,32 @@ def test_git_agent_scopes_cover_the_current_package_layout() -> None:
     assert legacy_kit not in config
     assert all("packages/pi-" not in description for description in descriptions)
     assert "packages/" in config
+    assert "packages/session-control/" in config
+
+
+def test_typecheck_includes_unreferenced_runtime_entrypoints() -> None:
+    config = json.loads((REPO / "tsconfig.extensions.json").read_text(encoding="utf-8"))
+    includes = config["include"]
+    assert "packages/*/src/**/*.ts" in includes
+    assert "packages/session-control/src/client.ts" in includes or "packages/*/src/**/*.ts" in includes
+
+
+def test_declared_runtime_sources_are_not_ignored() -> None:
+    runtime_sources = sorted((REPO / "packages/impeccable/scripts/lib").glob("*.mjs"))
+    runtime_sources.append(REPO / "packages/session-control/bin/pi-session-control.mjs")
+    assert runtime_sources
+
+    ignored = [
+        path.relative_to(REPO).as_posix()
+        for path in runtime_sources
+        if subprocess.run(
+            ["git", "check-ignore", "--no-index", "--quiet", path.relative_to(REPO).as_posix()],
+            cwd=REPO,
+            check=False,
+        ).returncode
+        == 0
+    ]
+    assert ignored == []
 
 
 def test_skill_router_is_a_runtime_package() -> None:
