@@ -12,11 +12,18 @@ Feature: Shared pi-kit runtime helpers
 
   Scenario: Packages load their own bundled agents
     Given a package ships an agent Markdown file inside its published resources
-    When it creates a package agent run from its module URL, resource path, tool call id, and user request
+    When it creates a package agent run from its package root URL, resource path, tool call id, and user request
     Then pi-kit loads the agent instructions from that package resource
     And appends the user request without requiring a project .agents directory
-    And returns a stable bounded display identity and logical agent display path
+    And applies only the caller's explicit template replacements
+    And derives the logical display path from the validated package resource
+    And returns a stable bounded display identity
     And the same tool call id produces the same name while a different id produces a different name
+
+  Scenario: Package agent resources cannot escape their owning package
+    Given a package creates a bundled agent run
+    When its resource path is absolute, traverses outside the package root, or resolves through a symlink outside the package
+    Then pi-kit rejects the resource before loading it
 
   Scenario: Theme style language is adapted from any pi theme
     Given a pi theme object with an fg(color, text) function
@@ -54,11 +61,18 @@ Feature: Shared pi-kit runtime helpers
     Then the panel has shared full-width border, padded header and footer lines
     And every emitted line is width-bounded by the supplied ANSI-aware fit helper
 
+  Scenario: Minimal Pi workers disable unrelated discovery
+    Given a package agent needs only an explicit tool allowlist
+    When a package builds shared minimal worker arguments or runPiWorker starts in minimal mode
+    Then Pi receives -ne, -ns, -np, -nc, and --no-themes
+    And only the explicitly supplied tools remain available
+
   Scenario: Pi worker progress identifies the latest activity
-    Given a print-mode Pi worker streams thinking, text, and tool calls
+    Given a print-mode Pi worker streams multiple turns of thinking, text, and tool calls
     When pi-kit emits progress snapshots
-    Then each snapshot carries the latest activity regardless of older accumulated fields
+    Then each snapshot carries only the latest activity regardless of older accumulated fields
     And a completed tool call remains the active status until newer model activity arrives
+    And text or thinking from a new activity segment does not concatenate a previous segment
 
   Scenario: Consumer packages resolve workspace dependency protocols when packed
     Given a workspace package depending on @fradser/pi-kit via workspace:*

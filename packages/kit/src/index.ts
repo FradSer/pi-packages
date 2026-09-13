@@ -42,12 +42,10 @@ export function subagentDisplayName(prefix: string, toolCallId: string): string 
 }
 
 export interface PackageAgentRunOptions {
-  /** import.meta.url from the package module that owns the agent resource. */
-  moduleUrl: string;
-  /** Resource path relative to that module, for example ../agents/researcher.md. */
+  /** File URL for the package root directory, usually new URL("../", import.meta.url).href. */
+  packageRootUrl: string;
+  /** Package-relative resource path, for example agents/researcher.md. */
   resourcePath: string;
-  /** Package-relative path shown in the lifecycle row. */
-  displayPath: string;
   namePrefix: string;
   toolCallId: string;
   request: string;
@@ -62,14 +60,29 @@ export interface PackageAgentRun {
 
 /** Load a package-owned agent prompt and bind it to one stable tool execution. */
 export function createPackageAgentRun(options: PackageAgentRunOptions): PackageAgentRun {
-  const resourceUrl = new URL(options.resourcePath, options.moduleUrl);
-  if (resourceUrl.protocol !== "file:") throw new Error("Package agent resources must use file URLs.");
-  const agentPrompt = fs.readFileSync(fileURLToPath(resourceUrl), "utf8").trim();
-  if (!agentPrompt) throw new Error(`Package agent resource is empty: ${options.displayPath}`);
+  if (/^[a-z][a-z0-9+.-]*:/i.test(options.resourcePath) || path.isAbsolute(options.resourcePath)) {
+    throw new Error("Package agent resource path must be package-relative.");
+  }
+  const rootUrl = new URL(options.packageRootUrl);
+  if (rootUrl.protocol !== "file:") throw new Error("Package agent roots must use file URLs.");
+  const root = fs.realpathSync(fileURLToPath(rootUrl));
+  const candidate = path.resolve(root, options.resourcePath);
+  const relative = path.relative(root, candidate);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Package agent resource must stay inside its package root.");
+  }
+  const resource = fs.realpathSync(candidate);
+  const canonicalRelative = path.relative(root, resource);
+  if (canonicalRelative.startsWith("..") || path.isAbsolute(canonicalRelative)) {
+    throw new Error("Package agent resource symlink escapes its package root.");
+  }
+  const agentPrompt = fs.readFileSync(resource, "utf8").trim();
+  const displayPath = canonicalRelative.split(path.sep).join("/");
+  if (!agentPrompt) throw new Error(`Package agent resource is empty: ${displayPath}`);
   const requestLabel = options.requestLabel?.trim() || "User request";
   return {
     name: subagentDisplayName(options.namePrefix, options.toolCallId),
-    displayPath: safeDisplayText(options.displayPath),
+    displayPath,
     prompt: `${agentPrompt}\n\n${requestLabel}:\n${options.request}`,
   };
 }
@@ -867,6 +880,8 @@ export interface RunPiWorkerOptions {
   signal?: AbortSignal;
   /** Additional environment variables. */
   env?: Record<string, string | undefined>;
+  /** Disable extension, skill, prompt-template, context-file, and theme discovery. */
+  minimal?: boolean;
   /** Additional CLI arguments. */
   extraArgs?: string[];
   /** Called when JSON-mode output reveals live worker activity. */
@@ -960,7 +975,7 @@ function resolveInstalledPiCli(): PiCliResolution | undefined {
  * Parses the JSONL output to extract the final text and usage stats.
  */
 export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorkerResult> {
-  const { prompt, cwd, tools, model, signal, env, extraArgs, onUpdate } = options;
+  const { prompt, cwd, tools, model, signal, env, minimal, extraArgs, onUpdate } = options;
   if (signal?.aborted) {
     return {
       text: "",
@@ -972,6 +987,7 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
   const cli = resolvePiCli();
 
   const args = [...cli.args, "--print", "--mode", "json", "--no-session"];
+  if (minimal) args.push("-ne", "-ns", "-np", "-nc", "--no-themes");
   if (model) args.push("--model", model);
   if (tools) {
     const toolStr = Array.isArray(tools) ? tools.join(",") : tools;
@@ -1183,6 +1199,7 @@ interface PiWorkerProgressState {
   toolcallArgs: string;
   activeTool?: string;
   activity?: string;
+  activityKind?: "text" | "thinking" | "tool";
   turns: number;
 }
 
@@ -1218,6 +1235,7 @@ function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): bool
     const serialized = typeof event.args === "string" ? event.args : JSON.stringify(event.args ?? {});
     state.activeTool = toolcallLabel(serialized) ?? event.toolName ?? "tool";
     state.activity = state.activeTool;
+    state.activityKind = "tool";
     return true;
   }
   if (event.type === "tool_execution_end") {
@@ -1231,18 +1249,23 @@ function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): bool
       state.text = text;
       state.activity = latestActivityLine(text);
     }
+    state.activityKind = undefined;
     return true;
   }
   if (event.type !== "message_update" || !event.assistantMessageEvent) return false;
   const update = event.assistantMessageEvent;
   switch (update.type) {
     case "text_delta":
+      if (state.activityKind !== "text") state.text = "";
       state.activeTool = undefined;
+      state.activityKind = "text";
       state.text += update.delta ?? "";
       state.activity = latestActivityLine(state.text) ?? state.activity;
       return true;
     case "thinking_delta":
+      if (state.activityKind !== "thinking") state.thinking = "";
       state.activeTool = undefined;
+      state.activityKind = "thinking";
       state.thinking += update.delta ?? "";
       state.activity = latestActivityLine(state.thinking) ?? state.activity;
       return true;
@@ -1254,12 +1277,14 @@ function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): bool
       state.toolcallArgs += update.delta ?? "";
       state.activeTool = toolcallLabel(state.toolcallArgs) ?? state.activeTool;
       state.activity = state.activeTool ?? state.activity;
+      if (state.activeTool) state.activityKind = "tool";
       return true;
     case "toolcall_end":
       state.activeTool = toolcallLabel(state.toolcallArgs)
         ?? update.toolCall?.name
         ?? state.activeTool;
       state.activity = state.activeTool ?? state.activity;
+      if (state.activeTool) state.activityKind = "tool";
       state.toolcallArgs = "";
       return true;
     default:

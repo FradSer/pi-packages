@@ -137,6 +137,34 @@ def test_run_pi_worker_uses_child_cwd_without_unsupported_cwd_flag() -> None:
     assert "--cwd" not in result["args"]
 
 
+def test_run_pi_worker_minimal_mode_disables_discovery_and_keeps_tool_allowlist() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-kit-minimal-"));
+        const capture = path.join(root, "args.json");
+        const fakePackage = path.join(root, "fake-package");
+        fs.mkdirSync(fakePackage);
+        fs.writeFileSync(path.join(fakePackage, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const fakePi = path.join(fakePackage, "cli.mjs");
+        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\nimport * as fs from 'node:fs';\\nfs.writeFileSync(process.env.PI_CAPTURE, JSON.stringify(process.argv.slice(2)));\\nconsole.log(JSON.stringify({{ type: 'message_end', message: {{ role: 'assistant', content: [{{ type: 'text', text: 'ok' }}] }} }}));\\n", {{ mode: 0o755 }});
+        process.env.PI_CAPTURE = capture;
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = fakePi;
+        const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        await runPiWorker({{ prompt: "inspect", cwd: root, tools: ["read", "bash"], minimal: true }});
+        process.argv[1] = originalArgv1;
+        console.log(JSON.stringify({{ args: JSON.parse(fs.readFileSync(capture, "utf8")) }}));
+        """
+    )
+    args = result["args"]
+    for flag in ("-ne", "-ns", "-np", "-nc", "--no-themes"):
+        assert flag in args
+    assert args[args.index("--tools") + 1] == "read,bash"
+
+
 def test_parse_pi_worker_output_returns_last_text_and_usage() -> None:
     result = run_typescript(
         f"""
@@ -921,27 +949,24 @@ def test_package_agent_run_loads_package_owned_resource(tmp_path: Path) -> None:
         fs.mkdirSync(extensionDir, {{ recursive: true }});
         fs.mkdirSync(agentDir, {{ recursive: true }});
         fs.writeFileSync(path.join(agentDir, "researcher.md"), "Package-owned instructions.\\n");
-        const moduleUrl = pathToFileURL(path.join(extensionDir, "tool.ts")).href;
+        const packageRootUrl = pathToFileURL(`${{root}}/`).href;
         const first = createPackageAgentRun({{
-          moduleUrl,
-          resourcePath: "../agents/researcher.md",
-          displayPath: "agents/researcher.md",
+          packageRootUrl,
+          resourcePath: "agents/researcher.md",
           namePrefix: "context",
           toolCallId: "call-one",
           request: "Inspect authentication",
         }});
         const repeated = createPackageAgentRun({{
-          moduleUrl,
-          resourcePath: "../agents/researcher.md",
-          displayPath: "agents/researcher.md",
+          packageRootUrl,
+          resourcePath: "agents/researcher.md",
           namePrefix: "context",
           toolCallId: "call-one",
           request: "Inspect authentication",
         }});
         const distinct = createPackageAgentRun({{
-          moduleUrl,
-          resourcePath: "../agents/researcher.md",
-          displayPath: "agents/researcher.md",
+          packageRootUrl,
+          resourcePath: "agents/researcher.md",
           namePrefix: "context",
           toolCallId: "call-two",
           request: "Inspect authentication",
@@ -953,6 +978,72 @@ def test_package_agent_run_loads_package_owned_resource(tmp_path: Path) -> None:
     assert result["first"]["displayPath"] == "agents/researcher.md"
     assert result["first"]["name"] == result["repeatedName"]
     assert result["first"]["name"] != result["distinctName"]
+
+
+def test_package_agent_run_rejects_paths_outside_package(tmp_path: Path) -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as path from "node:path";
+        import {{ pathToFileURL }} from "node:url";
+        import {{ createPackageAgentRun }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const base = {json.dumps(str(tmp_path))};
+        const root = path.join(base, "package");
+        const agents = path.join(root, "agents");
+        fs.mkdirSync(agents, {{ recursive: true }});
+        fs.writeFileSync(path.join(agents, "safe.md"), "safe");
+        const outside = path.join(base, "outside.md");
+        fs.writeFileSync(outside, "outside");
+        fs.symlinkSync(outside, path.join(agents, "escape.md"));
+        const packageRootUrl = pathToFileURL(`${{root}}/`).href;
+        const attempt = (resourcePath) => {{
+          try {{
+            createPackageAgentRun({{ packageRootUrl, resourcePath, namePrefix: "context", toolCallId: "call", request: "q" }});
+            return "accepted";
+          }} catch (error) {{
+            return String(error.message);
+          }}
+        }};
+        console.log(JSON.stringify({{
+          traversal: attempt("../outside.md"),
+          absolute: attempt(pathToFileURL(outside).href),
+          symlink: attempt("agents/escape.md"),
+        }}));
+        """
+    )
+    for value in result.values():
+        assert value != "accepted"
+        assert "package" in value.lower()
+
+
+def test_pi_worker_progress_resets_text_at_message_boundaries(tmp_path: Path) -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as path from "node:path";
+        const root = {json.dumps(str(tmp_path))};
+        const packageDir = path.join(root, "node_modules", "@earendil-works", "pi-coding-agent");
+        fs.mkdirSync(packageDir, {{ recursive: true }});
+        fs.writeFileSync(path.join(packageDir, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const fakePi = path.join(packageDir, "cli.mjs");
+        const events = [
+          {{ type: "message_update", assistantMessageEvent: {{ type: "text_delta", delta: "first" }} }},
+          {{ type: "message_end", message: {{ role: "assistant", content: [{{ type: "text", text: "first" }}] }} }},
+          {{ type: "message_update", assistantMessageEvent: {{ type: "text_delta", delta: "second" }} }},
+          {{ type: "message_end", message: {{ role: "assistant", content: [{{ type: "text", text: "second" }}] }} }},
+        ];
+        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\n" + `const events = ${{JSON.stringify(events)}};\\nfor (const event of events) {{ console.log(JSON.stringify(event)); await new Promise((resolve) => setTimeout(resolve, 5)); }}\\n`, {{ mode: 0o755 }});
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = fakePi;
+        const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const activities = [];
+        await runPiWorker({{ prompt: "inspect", cwd: root, onUpdate: (update) => activities.push(update.activity) }});
+        process.argv[1] = originalArgv1;
+        console.log(JSON.stringify({{ activities }}));
+        """
+    )
+    assert "firstsecond" not in result["activities"]
+    assert "second" in result["activities"]
 
 
 def test_pi_worker_progress_reports_latest_activity_across_stream_kinds(tmp_path: Path) -> None:
@@ -992,6 +1083,7 @@ def test_pi_worker_progress_reports_latest_activity_across_stream_kinds(tmp_path
     assert "bash: pnpm test" in result["activities"]
     assert "bash: pnpm check" in result["activities"]
     assert result["activities"][-1] == "final answer"
+    assert all(activity not in ("pre-tool answerfinal answer", "older reasoningfinal answer") for activity in result["activities"])
 
 
 def test_compute_scroll_window_clamps_and_slices() -> None:
