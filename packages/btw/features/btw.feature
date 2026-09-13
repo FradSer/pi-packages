@@ -92,6 +92,24 @@ Feature: Read-only side questions
     Then the child receives graceful termination before escalation
     And the prompt directory is removed only after the child closes
 
+  Scenario: A pre-cancelled side question never starts a child
+    Given a side-question abort signal is already cancelled
+    When btw starts the child
+    Then no child process is spawned
+    And the result is a cancelled failure without assistant text
+
+  Scenario: A stream failure keeps its diagnostic ahead of child stderr
+    Given a side-question child writes stderr beyond the display cap before an oversized JSONL record
+    When btw terminates the child for the stream limit
+    Then the returned diagnostic starts with the stream-limit reason
+    And the captured child stderr follows the reason
+
+  Scenario: Side-question children do not discover extensions
+    Given a side question starts a Pi child
+    When btw builds the child command
+    Then extension discovery is disabled
+    And the read-only tool allowlist remains in force
+
   Scenario: Side-question CLI resolution rejects unrelated packages
     Given the current process entry belongs to an unrelated package whose name contains pi
     When the child CLI is resolved

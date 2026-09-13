@@ -49,6 +49,9 @@ def test_feature_covers_isolation_and_temp_prompt_lifecycle() -> None:
     assert "Scenario: Side answers are constrained to concise responses" in feature
     assert "Scenario: Side context stays compact" in feature
     assert "Scenario: Excessive side output is capped before display" in feature
+    assert "Scenario: A pre-cancelled side question never starts a child" in feature
+    assert "Scenario: A stream failure keeps its diagnostic ahead of child stderr" in feature
+    assert "Scenario: Side-question children do not discover extensions" in feature
 
 
 
@@ -115,11 +118,12 @@ def test_long_prompt_temp_file_is_available_to_read_only_child_then_removed() ->
     record = result["record"]
     assert result["sideRun"]["text"] == "verified"
     assert record["promptExists"] is True
-    assert record["args"][1:9] == [
+    assert record["args"][1:10] == [
         "--print",
         "--mode",
         "json",
         "--no-session",
+        "--no-extensions",
         "--tools",
         "read,grep,find,ls",
         "--exclude-tools",
@@ -221,6 +225,101 @@ def test_spawner_enforces_read_only_tool_scope() -> None:
     assert '"--exclude-tools"' in spawner
     # The child must never persist a session
     assert '"--no-session"' in spawner
+    # Extension discovery is disabled before applying the built-in allowlist.
+    assert '"--no-extensions"' in spawner
+
+
+def test_pre_cancelled_side_question_does_not_spawn() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "btw-pre-cancel-"));
+        const fakePi = path.join(root, "fake-pi");
+        fs.mkdirSync(fakePi);
+        fs.writeFileSync(path.join(fakePi, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const marker = path.join(root, "spawned");
+        const childScript = path.join(fakePi, "cli.mjs");
+        fs.writeFileSync(childScript, "import {{ writeFileSync }} from 'node:fs'; writeFileSync(process.env.BTW_MARKER, 'spawned');\\n", {{ mode: 0o755 }});
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = childScript;
+        process.env.BTW_MARKER = marker;
+        const {{ runBtw }} = await import({json.dumps((SRC / "spawner.ts").as_uri())});
+        const controller = new AbortController();
+        controller.abort();
+        const result = await runBtw({{ question: "inspect", context: "", cwd: root, signal: controller.signal }});
+        process.argv[1] = originalArgv1;
+        console.log(JSON.stringify({{ result, spawned: fs.existsSync(marker) }}));
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        """
+    )
+    assert result["spawned"] is False
+    assert result["result"]["text"] == ""
+    assert result["result"]["exitCode"] != 0
+    assert result["result"]["cancelled"] is True
+
+
+def test_running_side_question_rejects_partial_text_after_abort() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "btw-abort-"));
+        const fakePi = path.join(root, "fake-pi");
+        fs.mkdirSync(fakePi);
+        fs.writeFileSync(path.join(fakePi, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const childScript = path.join(fakePi, "cli.mjs");
+        fs.writeFileSync(childScript, `
+          console.log(JSON.stringify({{ type: "message_end", message: {{ role: "assistant", content: [{{ type: "text", text: "partial" }}] }} }}));
+          setInterval(() => {{}}, 1000);
+        `, {{ mode: 0o755 }});
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = childScript;
+        const {{ runBtw }} = await import({json.dumps((SRC / "spawner.ts").as_uri())});
+        const controller = new AbortController();
+        const pending = runBtw({{ question: "inspect", context: "", cwd: root, signal: controller.signal }});
+        setTimeout(() => controller.abort(), 100);
+        const sideRun = await pending;
+        process.argv[1] = originalArgv1;
+        console.log(JSON.stringify({{ sideRun }}));
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        """
+    )
+    assert result["sideRun"]["text"] == ""
+    assert result["sideRun"]["exitCode"] != 0
+    assert result["sideRun"]["cancelled"] is True
+
+
+def test_stream_failure_diagnostic_precedes_large_child_stderr() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "btw-stream-diagnostic-"));
+        const fakePi = path.join(root, "fake-pi");
+        fs.mkdirSync(fakePi);
+        fs.writeFileSync(path.join(fakePi, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const childScript = path.join(fakePi, "cli.mjs");
+        fs.writeFileSync(childScript, `
+          process.stderr.write("child-diagnostic-noise".repeat(1000));
+          setTimeout(() => process.stdout.write("x".repeat(8 * 1024 * 1024 + 1)), 50);
+        `, {{ mode: 0o755 }});
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = childScript;
+        const {{ runBtw }} = await import({json.dumps((SRC / "spawner.ts").as_uri())});
+        const sideRun = await runBtw({{ question: "inspect", context: "", cwd: root, timeoutMs: 5_000 }});
+        process.argv[1] = originalArgv1;
+        console.log(JSON.stringify({{ text: sideRun.text, exitCode: sideRun.exitCode, stderr: sideRun.stderr }}));
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        """
+    )
+    assert result["text"] == ""
+    assert result["exitCode"] != 0
+    assert result["stderr"].startswith("btw JSONL line exceeded")
+    assert "child-diagnostic-noise" in result["stderr"]
 
 
 def test_spawner_parses_jsonl_output() -> None:

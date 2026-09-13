@@ -61,7 +61,7 @@ five short bullets, and avoid report-style summaries.
 
 | Piece | What it does |
 |-------|--------------|
-| `src/spawner.ts` | Spawns `pi --print --mode json --no-session` with `--tools read,grep,find,ls --exclude-tools bash,edit,write`; parses the JSONL stream into the final answer + usage. |
+| `src/spawner.ts` | Spawns `pi --print --mode json --no-session --no-extensions` with `--tools read,grep,find,ls --exclude-tools bash,edit,write`; parses the JSONL stream into the final answer + usage. |
 | `src/context.ts` | Builds a compact most-recent-first excerpt of session user/assistant messages (4 messages, capped at 4000 chars). |
 | `src/overlay.ts` | The interactive popup: loading spinner → answer, `esc` closes, arrows/pgup/pgdn/home/end scroll, height adapts to content (capped at ~40% of the terminal). |
 | `index.ts` | Package-root entry point that loads the extension. |

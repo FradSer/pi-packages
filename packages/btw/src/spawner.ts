@@ -23,6 +23,9 @@ export const EXCLUDED_TOOLS = ["bash", "edit", "write"];
 const PROMPT_ARG_LIMIT = 8000;
 export const OUTPUT_CAP = 6_000;
 export const DEFAULT_TIMEOUT_MS = 180_000;
+const MAX_STDOUT_BYTES = 16 * 1024 * 1024;
+const MAX_STDERR_BYTES = 8 * 1024 * 1024;
+const MAX_JSONL_LINE_BYTES = 8 * 1024 * 1024;
 
 export interface BtwUsage {
   input: number;
@@ -44,6 +47,7 @@ export interface BtwResult {
   timedOut: boolean;
   exitCode: number;
   stderr: string;
+  cancelled?: boolean;
 }
 
 export interface RunBtwOptions {
@@ -159,6 +163,15 @@ export function buildBtwPrompt(
  * assistant text plus token/cost usage from the JSONL event stream.
  */
 export function runBtw(options: RunBtwOptions): Promise<BtwResult> {
+  if (options.signal?.aborted) {
+    return Promise.resolve({
+      text: "",
+      timedOut: false,
+      exitCode: 1,
+      stderr: "btw child cancelled before start.",
+      cancelled: true,
+    });
+  }
   return new Promise<BtwResult>((resolve) => {
     const cli = resolvePiCli();
     const args: string[] = [
@@ -167,6 +180,7 @@ export function runBtw(options: RunBtwOptions): Promise<BtwResult> {
       "--mode",
       "json",
       "--no-session",
+      "--no-extensions",
       "--tools",
       READ_ONLY_TOOLS.join(","),
       "--exclude-tools",
@@ -227,52 +241,102 @@ export function runBtw(options: RunBtwOptions): Promise<BtwResult> {
     const stdoutChunks: string[] = [];
     const stderrChunks: string[] = [];
     let timedOut = false;
+    let cancelled = false;
+    let failureReason: string | undefined;
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    let stdoutBuffer = "";
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let termination: Promise<boolean> | undefined;
+    let onAbort: (() => void) | undefined;
     const terminate = () => {
       if (!child) return;
       termination ??= terminateChildProcess(child);
+    };
+    const failChild = (reason: string) => {
+      failureReason ??= reason;
+      stdoutBuffer = "";
+      terminate();
     };
     const settle = (result: BtwResult) => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
+      if (onAbort) options.signal?.removeEventListener("abort", onAbort);
       cleanupPrompt();
       resolve(result);
     };
 
-    child.stdout?.on("data", (chunk: Buffer) => stdoutChunks.push(chunk.toString()));
-    child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk.toString()));
+    child.stdout?.on("data", (chunk: Buffer) => {
+      if (failureReason) return;
+      if (stdoutBytes + chunk.byteLength > MAX_STDOUT_BYTES) {
+        failChild(`btw stdout exceeded ${MAX_STDOUT_BYTES} bytes.`);
+        return;
+      }
+      stdoutBytes += chunk.byteLength;
+      const text = chunk.toString();
+      stdoutChunks.push(text);
+      stdoutBuffer += text;
+      const lines = stdoutBuffer.split("\n");
+      stdoutBuffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (Buffer.byteLength(line, "utf8") > MAX_JSONL_LINE_BYTES) {
+          failChild(`btw JSONL line exceeded ${MAX_JSONL_LINE_BYTES} bytes.`);
+          return;
+        }
+      }
+      if (Buffer.byteLength(stdoutBuffer, "utf8") > MAX_JSONL_LINE_BYTES) {
+        failChild(`btw JSONL line exceeded ${MAX_JSONL_LINE_BYTES} bytes.`);
+      }
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      if (failureReason) return;
+      if (stderrBytes + chunk.byteLength > MAX_STDERR_BYTES) {
+        failChild(`btw stderr exceeded ${MAX_STDERR_BYTES} bytes.`);
+        return;
+      }
+      stderrBytes += chunk.byteLength;
+      stderrChunks.push(chunk.toString());
+    });
     child.on("error", (error) => {
       settle({
         text: "",
         timedOut,
         exitCode: 1,
-        stderr: error instanceof Error ? error.message : String(error),
+        stderr: [failureReason, error instanceof Error ? error.message : String(error)].filter(Boolean).join("\n"),
+        cancelled,
       });
     });
     child.on("close", (code) => {
-      const parsed = parseBtwOutput(stdoutChunks.join(""));
+      const failed = (code ?? 1) !== 0 || timedOut || cancelled || failureReason !== undefined;
+      const parsed = failed ? { text: "", usage: undefined } : parseBtwOutput(stdoutChunks.join(""));
       settle({
-        text: truncate(parsed.text, OUTPUT_CAP),
+        text: failed ? "" : truncate(parsed.text, OUTPUT_CAP),
         usage: parsed.usage,
         timedOut,
-        exitCode: code ?? 0,
-        stderr: truncate(stderrChunks.join("").trim(), OUTPUT_CAP),
+        exitCode: code === 0 && failed ? 1 : code ?? 1,
+        stderr: truncate([failureReason, stderrChunks.join("").trim()].filter(Boolean).join("\n"), OUTPUT_CAP),
+        cancelled,
       });
     });
 
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     timer = setTimeout(() => {
       timedOut = true;
+      failureReason ??= "btw child timed out.";
+      stdoutBuffer = "";
       terminate();
     }, timeoutMs);
     timer.unref?.();
 
-    if (options.signal) {
-      if (options.signal.aborted) terminate();
-      else options.signal.addEventListener("abort", terminate, { once: true });
-    }
+    onAbort = () => {
+      cancelled = true;
+      failureReason ??= "btw child cancelled.";
+      stdoutBuffer = "";
+      terminate();
+    };
+    if (options.signal?.aborted) onAbort();
+    else options.signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
