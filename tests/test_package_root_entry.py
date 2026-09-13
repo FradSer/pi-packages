@@ -88,19 +88,18 @@ def test_git_agent_scopes_cover_the_current_package_layout() -> None:
     assert legacy_kit not in config
     assert all("packages/pi-" not in description for description in descriptions)
     assert "packages/" in config
-    assert "packages/session-control/" in config
+    assert "live session control" in config
 
 
 def test_typecheck_includes_unreferenced_runtime_entrypoints() -> None:
     config = json.loads((REPO / "tsconfig.extensions.json").read_text(encoding="utf-8"))
     includes = config["include"]
     assert "packages/*/src/**/*.ts" in includes
-    assert "packages/session-control/src/client.ts" in includes or "packages/*/src/**/*.ts" in includes
+    assert "packages/*/extensions/**/*.ts" in includes
 
 
 def test_declared_runtime_sources_are_not_ignored() -> None:
     runtime_sources = sorted((REPO / "packages/impeccable/scripts/lib").glob("*.mjs"))
-    runtime_sources.append(REPO / "packages/session-control/bin/pi-session-control.mjs")
     assert runtime_sources
 
     ignored = [

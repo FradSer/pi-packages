@@ -1,5 +1,6 @@
 ---
 "@fradser/pi-context": patch
+"@fradser/pi-kit": patch
 ---
 
-Wrap the complete research query in the started display instead of truncating it to one line.
+Add pi-kit support for package-owned bundled agents, then use it to run each context research request as a uniquely named sub-agent with the latest live activity above the editor.

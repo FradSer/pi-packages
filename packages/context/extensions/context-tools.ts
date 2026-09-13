@@ -1,8 +1,10 @@
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { type Component, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
+  createPackageAgentRun,
   createToolLifecycleResultRenderer,
   eventToolLifecycle,
+  formatToolLifecycleTitle,
   PI_SPINNER_FRAMES,
   PI_SPINNER_INTERVAL_MS,
   renderPiWidgetRow,
@@ -14,6 +16,8 @@ import { Type } from "typebox";
 
 const RESEARCH_TOOLS = ["read", "bash"];
 const EXCLUDED_TOOLS = ["edit", "write"];
+const CONTEXT_AGENT_RESOURCE = "../agents/context-researcher.md";
+const CONTEXT_AGENT_PATH = "agents/context-researcher.md";
 
 interface ToolTextResult {
   content: [{ type: "text"; text: string }];
@@ -36,24 +40,35 @@ function textResult(text: string, details: Record<string, unknown> = {}): ToolTe
   return { content: [{ type: "text", text }], details };
 }
 
+function contextAgentRun(toolCallId: string, query = ""): ReturnType<typeof createPackageAgentRun> {
+  return createPackageAgentRun({
+    moduleUrl: import.meta.url,
+    resourcePath: CONTEXT_AGENT_RESOURCE,
+    displayPath: CONTEXT_AGENT_PATH,
+    namePrefix: "context",
+    toolCallId,
+    request: query,
+    requestLabel: "User research request",
+  });
+}
+
 function renderContextCall(
-  args: { query?: string },
+  toolCallId: string,
   theme: { fg(color: string, text: string): string; bold(text: string): string },
 ): Component {
+  const title = formatToolLifecycleTitle({
+    kind: "started",
+    tool: "agent",
+    subject: `@${contextAgentRun(toolCallId).name} started · ${CONTEXT_AGENT_PATH}`,
+  }).replace(/^\[agent\]\s*/, "");
   return {
-    render(width) {
+    render: (width) => {
       if (width <= 0) return [];
-      const prefix = theme.fg("customMessageLabel", theme.bold("[context] started ·"));
-      // Trailing blank line separates the started row from the next transcript
-      // block; every other package renders an empty call, so context (the only
-      // package with a visible call row) owns its spacing locally.
-      return [
-        ...new Text(`${prefix} ${normalizeSubject(args.query)}`, 0, 0).render(width)
-          .map((line) => truncateToWidth(line, width, "")),
-        "",
-      ];
+      const prefix = theme.fg("customMessageLabel", theme.bold("[agent]"));
+      return new Text(`${prefix} ${title}`, 0, 0).render(width)
+        .map((line) => truncateToWidth(line, width, ""));
     },
-    invalidate() {},
+    invalidate: () => {},
   };
 }
 
@@ -81,18 +96,8 @@ function renderContextResult(
   })(result, options, theme, context);
 }
 
-export function buildResearchPrompt(query: string): string {
-  return [
-    "Research the user's request independently and return a concise, evidence-based answer.",
-    "You are in a child Pi process with read and bash available. Treat the caller's working directory as read-only: never edit or write files. The bash tool can technically write, so this boundary is enforced by the research instruction rather than an OS sandbox.",
-    "For public repository line-level evidence, you may run git clone --depth=1 into a unique /tmp directory, inspect it, and remove it before answering.",
-    "Never modify the caller's working directory. Do not use package managers, deployment commands, or interactive commands.",
-    "Cite concrete source URLs, repository paths, or documentation names when available.",
-    "Keep raw findings compact and synthesize the answer rather than dumping large payloads.",
-    "",
-    "User research request:",
-    query,
-  ].join("\n");
+export function buildResearchPrompt(query: string, toolCallId = "context-research"): string {
+  return contextAgentRun(toolCallId, query).prompt;
 }
 
 /** Minimal structural view of the tool-execution context: only what the research widget needs. */
@@ -114,8 +119,8 @@ export interface ResearchWidgetContext {
 
 interface ActiveResearch {
   token: number;
-  query: string;
-  detail?: string;
+  agentName: string;
+  activity?: string;
 }
 
 let researchToken = 0;
@@ -124,14 +129,10 @@ let researchWidgetTui: { requestRender(): void } | undefined;
 let researchSpinnerTimer: ReturnType<typeof setInterval> | undefined;
 let researchSpinnerFrame = 0;
 
-function firstProgressLine(text: string | undefined): string | undefined {
-  return text?.split("\n").map((line) => line.trim()).find((line) => line.length > 0);
-}
-
 /** Show the running-research status above the editor; returns a token for updates/clear. */
-export function startResearchWidget(ctx: ResearchWidgetContext | undefined, query: string): number {
+export function startResearchWidget(ctx: ResearchWidgetContext | undefined, agentName: string): number {
   const token = ++researchToken;
-  activeResearch = { token, query };
+  activeResearch = { token, agentName };
   if (typeof ctx?.ui?.setWidget !== "function" || (ctx.mode !== undefined && ctx.mode !== "tui")) return token;
   if (researchSpinnerTimer) clearInterval(researchSpinnerTimer);
   researchSpinnerFrame = 0;
@@ -147,9 +148,10 @@ export function startResearchWidget(ctx: ResearchWidgetContext | undefined, quer
         const current = activeResearch;
         if (!current || current.token !== token) return [];
         const marker = theme.fg("warning", PI_SPINNER_FRAMES[researchSpinnerFrame]);
-        const detail = current.detail ? ` · ${current.detail}` : "";
+        const name = theme.fg("success", theme.bold(`@${current.agentName}`));
+        const activity = theme.fg("accent", current.activity ?? "Working...");
         return [renderPiWidgetRow(
-          `${marker} ${theme.bold("[context] researching")} · ${normalizeSubject(current.query)}${detail}`,
+          `${marker} ${name} · ${activity}`,
           width,
           truncateToWidth,
         )];
@@ -162,9 +164,9 @@ export function startResearchWidget(ctx: ResearchWidgetContext | undefined, quer
 }
 
 /** Refresh the live activity line; stale tokens are ignored. */
-export function updateResearchWidget(token: number, detail: string | undefined): void {
+export function updateResearchWidget(token: number, activity: string | undefined): void {
   if (activeResearch?.token !== token) return;
-  if (detail) activeResearch.detail = detail;
+  if (activity) activeResearch.activity = activity;
   researchWidgetTui?.requestRender();
 }
 
@@ -182,6 +184,7 @@ export function clearResearchWidget(ctx: ResearchWidgetContext | undefined, toke
 
 export function runResearchChild(
   query: string,
+  toolCallId: string,
   signal?: AbortSignal,
   onUpdate?: (update: PiWorkerProgressUpdate) => void,
 ): Promise<ChildResult> {
@@ -189,7 +192,7 @@ export function runResearchChild(
   const onAbort = () => { cancelled = true; };
   if (!signal?.aborted) signal?.addEventListener("abort", onAbort, { once: true });
   return runPiWorker({
-    prompt: buildResearchPrompt(query),
+    prompt: buildResearchPrompt(query, toolCallId),
     cwd: process.cwd(),
     tools: RESEARCH_TOOLS,
     extraArgs: ["--no-extensions", "--exclude-tools", EXCLUDED_TOOLS.join(",")],
@@ -217,20 +220,21 @@ export function registerContextTools(pi: ExtensionAPI): void {
     parameters: ResearchParams,
     executionMode: "sequential",
     renderShell: "self",
-    renderCall(args, theme) {
-      return renderContextCall(args as { query?: string }, theme);
+    renderCall(_args, theme, context) {
+      return renderContextCall(context.toolCallId, theme);
     },
     renderResult(result, options, theme, context) {
       const params = context.args as { query?: string };
       return renderContextResult(result, options, theme, context, normalizeSubject(params.query));
     },
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const widget = startResearchWidget(ctx as ResearchWidgetContext | undefined, params.query);
+    async execute(toolCallId, params, signal, onUpdate, ctx) {
+      const agent = contextAgentRun(toolCallId, params.query);
+      const agentName = agent.name;
+      const widget = startResearchWidget(ctx as ResearchWidgetContext | undefined, agentName);
       try {
-        const child = await runResearchChild(params.query, signal, (progress) => {
-          updateResearchWidget(widget, firstProgressLine(progress.activeTool)
-            ?? firstProgressLine(progress.liveThinking)
-            ?? firstProgressLine(progress.text));
+        const child = await runResearchChild(params.query, toolCallId, signal, (progress) => {
+          updateResearchWidget(widget, progress.activity);
+          onUpdate?.(textResult(progress.activity ?? "Working...", { agentName, agentPath: agent.displayPath }));
         });
         if (child.cancelled) throw new Error("Isolated Pi research was cancelled");
         if (child.exitCode !== 0) {
@@ -239,7 +243,7 @@ export function registerContextTools(pi: ExtensionAPI): void {
         if (!child.text) {
           throw new Error("Isolated Pi research returned no answer");
         }
-        return textResult(child.text, { exitCode: child.exitCode });
+        return textResult(child.text, { exitCode: child.exitCode, agentName, agentPath: agent.displayPath });
       } finally {
         clearResearchWidget(ctx as ResearchWidgetContext | undefined, widget);
       }

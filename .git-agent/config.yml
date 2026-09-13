@@ -1,8 +1,6 @@
 scopes:
     - name: ctx
       description: Code-context retrieval extensions and research workflows in packages/context/; does not cover package-local runtime logic.
-    - name: sctl
-      description: Live Pi session discovery, socket transport, and stdin JSON control in packages/session-control/; does not cover other package runtimes.
     - name: cl
       description: Harness guardrails, memory retrieval, injection, and consolidation in packages/continual-learning/; does not cover the shared kit runtime.
     - name: kit
@@ -26,7 +24,7 @@ scopes:
     - name: sr
       description: External skill-collection routing and command behavior in packages/skill-router/; does not cover other package runtimes.
     - name: util
-      description: General-purpose extensions, npm guards, sessions, and worktree utilities in packages/utils/; does not cover release automation.
+      description: General-purpose extensions, npm guards, live session control, directory sessions, and worktree utilities in packages/utils/; does not cover release automation.
     - name: vis
       description: Text-model image analysis bridging and vision model configuration in packages/vision/; does not cover other package runtimes.
     - name: rel

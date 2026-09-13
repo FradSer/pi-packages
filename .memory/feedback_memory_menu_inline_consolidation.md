@@ -1,19 +1,19 @@
 ---
 name: memory-menu-inline-consolidation
-description: /memory menu and manual background consolidation workflow; consolidation is user-triggered and completion requires evidence
- type: feedback
+description: /memory manages automatic settled-task learning and explicit consolidation; completion requires parent validation
+type: feedback
 ---
 
 ## Why
 
-The @fradser/pi-memory `/memory` command uses a native Pi menu for model configuration, consolidation, instructions, memory-folder access, and the auto-memory toggle. Consolidation is an explicit user action and must not be triggered automatically by context thresholds or settled-agent events.
+The `/memory` command manages model configuration, consolidation, instructions, memory-folder access, and automatic learning. The user's September 2026 design update requires the model to learn durable context and executable constraints without waiting for a memory command; this supersedes the earlier manual-only consolidation decision.
 
 ## How to apply
 
 1. Keep the workflow exposed through `pi.registerCommand` and `ctx.ui.select`; do not reintroduce per-workflow skills or custom question tools.
-2. `/consolidate` and the menu action start a single-flight parent-owned consolidation transaction. The parent validates the structured plan, applies only selected operations, rebuilds indexes, checks the safe mirror, and writes the receipt.
-3. Auto-memory guidance is controlled by the persisted toggle. Existing project memories are injected independently of that toggle.
+2. With auto-memory enabled, `agent_settled` starts one parent-owned pipeline for completed user input. Coalesce pending tasks, ignore extension continuations as new triggers, freeze context before asynchronous work, and await receipts in headless runs. `/consolidate` and the menu remain explicit entry points.
+3. The persisted toggle controls automatic learning. Existing memory indexes are injected independently; the main model does not bypass parent validation by writing memory files during ordinary task execution.
 4. Resolve project instructions from the current project context, preferring `AGENTS.md` and falling back to `CLAUDE.md`.
-5. Do not treat a child process exit code of zero as proof of consolidation. Completion requires evidence such as tool activity, validator execution, or a structured consolidation report; empty output must be reported as uncertain.
+5. A zero child exit code is insufficient. Completion requires a bounded structured plan, parent validation, and verified receipts; empty output is uncertain.
 
 **Related:** [[pi-package-conventions]]

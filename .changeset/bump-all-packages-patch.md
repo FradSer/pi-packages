@@ -10,7 +10,6 @@
 "@fradser/pi-monitor": patch
 "@fradser/pi-plan-mode": patch
 "@fradser/pi-recap": patch
-"@fradser/pi-session-control": patch
 "pi-skill-router": patch
 "@fradser/pi-utils": patch
 "@fradser/pi-vision": patch

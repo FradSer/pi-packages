@@ -15,14 +15,15 @@ Feature: Isolated Pi research tool
     Then Pi guides the agent to invoke context_get automatically
     And the user does not need to type the tool name or a slash command
 
-  Scenario: Research runs in a child Pi session via the shared worker
+  Scenario: Research runs the context package's bundled agent via the shared worker
     Given the agent calls context_get with a research question
     When the tool starts its child Pi process through pi-kit's runPiWorker
     Then the child runs in print JSON mode without a session
     And its available tools are limited to read and bash
     And edit and write are excluded
     And extension discovery is disabled
-    And the child receives a research-only prompt
+    And pi-kit loads the child prompt from the context package's bundled agents/context-researcher.md
+    And the user research question is appended to that bundled agent prompt
     And the child runs in the caller's working directory with no sandbox
     And there is no wall-clock timeout and no result truncation
 
@@ -32,33 +33,35 @@ Feature: Isolated Pi research tool
     Then the prompt suggests git clone with depth 1 under /tmp
     And the prompt tells the child to remove its temporary clone after inspection
 
-  Scenario: Research renders an informative call row while executing
+  Scenario: Research starts as a named sub-agent
     Given the agent calls context_get with a research query
-    When the tool call is rendered in the TUI
-    Then Pi renders an active context started row showing the query
-    And a blank line follows the started row
+    When the research child starts
+    Then Pi renders one native Text row in the `[agent] @context-xxx started · agents/context-researcher.md` shape
+    And only the `[agent]` prefix uses the custom message label color
+    And the sub-agent name is unique to that research run
     And Pi renders one compact expandable context lifecycle row when finished
     And expanding the researched row reveals the complete answer without line truncation
 
-  Scenario: Research call rows fit the current TUI width
+  Scenario: Research rows fit the current TUI width
     Given a long research query with paths, CJK text and ANSI styling
-    When the call component renders at widths 40, 80 and 160
-    Then the started query wraps within the available display columns
-    And it preserves the themed context prefix and the complete query without an ellipsis
-    And whitespace and unsafe query escape sequences are sanitized
+    When the started and completed components render at widths 40, 80 and 160
+    Then every row stays within the available display columns
+    And the started row preserves its agent identity and agent definition path when they fit
+    And whitespace and unsafe query escape sequences are sanitized in the completed row
 
   Scenario: Research rows adapt when the TUI is resized
     Given a research query longer than 120 characters
-    When the same call component renders wide, narrow and wide again
+    When the completed component renders wide, narrow and wide again
     Then the wide row shows the complete query when it fits
-    And the narrow row wraps without omitting any query text
     And invalidation uses the current theme
-    And the completed researched row also retains the complete query when it fits
+    And the completed researched row retains the complete query when it fits
 
-  Scenario: Research shows a running status widget above the editor
+  Scenario: Research shows the child agent's latest running status above the editor
     Given the agent calls context_get with a research question
     When the research child is running
-    Then a status widget above the editor shows the researching query with live activity
+    Then a status widget above the editor identifies the child agent with the same @context-xxx name
+    And the widget shows the latest tool, thinking, or answer activity
+    And newer activity replaces older activity
     And the widget clears when research completes
 
   Scenario: Pi cancellation terminates the child process

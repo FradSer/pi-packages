@@ -35,6 +35,7 @@ class TestContextPackage(unittest.TestCase):
         self.assertIn("updateResearchWidget", source)
         self.assertIn("clearResearchWidget", source)
         self.assertIn("renderPiWidgetRow", source)
+        self.assertIn("current.agentName", source)
 
     def test_context_rows_fit_runtime_width(self) -> None:
         result = subprocess.run(
@@ -75,6 +76,8 @@ class TestContextPackage(unittest.TestCase):
         self.assertIn('"--exclude-tools"', source)
         self.assertIn('"--no-extensions"', source)
         self.assertIn("runPiWorker", source)
+        self.assertIn("createPackageAgentRun", source)
+        self.assertNotIn("readFileSync", source)
         self.assertIn("child.cancelled", source)
         self.assertIn("child.exitCode !== 0", source)
         self.assertNotIn("sandbox-exec", source)
@@ -98,11 +101,14 @@ class TestContextPackage(unittest.TestCase):
         self.assertNotIn("process.env.TMPDIR =", source)
 
     def test_research_prompt_limits_temp_clone_to_tmp(self) -> None:
+        agent = read("agents/context-researcher.md")
         source = read("extensions/context-tools.ts")
-        self.assertIn("git clone --depth=1", source)
-        self.assertIn("/tmp", source)
-        self.assertIn("remove it before answering", source)
-        self.assertIn("Never modify the caller's working directory", source)
+        self.assertIn("git clone --depth=1", agent)
+        self.assertIn("/tmp", agent)
+        self.assertIn("remove it before answering", agent)
+        self.assertIn("Never modify the caller's working directory", agent)
+        self.assertIn("createPackageAgentRun({", source)
+        self.assertIn("moduleUrl: import.meta.url", source)
 
     def test_result_uses_lifecycle_renderer_without_truncation(self) -> None:
         source = read("extensions/context-tools.ts")
@@ -113,8 +119,10 @@ class TestContextPackage(unittest.TestCase):
         self.assertIn('eventToolLifecycle("context", subject', source)
         self.assertIn('label: "researched"', source)
         self.assertIn('renderShell: "self"', source)
-        self.assertIn("renderCall(args, theme)", source)
-        self.assertIn("[context] started ·", source)
+        self.assertIn("renderCall(_args, theme, context)", source)
+        self.assertIn('theme.bold("[agent]")', source)
+        self.assertIn("renderContextCall(context.toolCallId, theme)", source)
+        self.assertIn('CONTEXT_AGENT_PATH = "agents/context-researcher.md"', source)
 
     def test_documentation_describes_only_the_single_tool(self) -> None:
         for relative in ("README.md", "references/workflow.md", "agents/context-researcher.md"):
@@ -139,13 +147,18 @@ class TestContextPackage(unittest.TestCase):
             "available tools are limited to read and bash",
             "edit and write are excluded",
             "extension discovery is disabled",
+            "context package's bundled agents/context-researcher.md",
+            "user research question is appended to that bundled agent prompt",
             "git clone with depth 1 under /tmp",
             "remove its temporary clone after inspection",
             "no sandbox",
             "no result truncation",
             "status widget above the editor",
+            "`[agent] @context-xxx started · agents/context-researcher.md` shape",
+            "identifies the child agent with the same @context-xxx name",
+            "latest tool, thinking, or answer activity",
+            "newer activity replaces older activity",
             "widget clears when research completes",
-            "blank line follows the started row",
             "reveals the complete answer without line truncation",
             "Pi cancellation terminates the child process",
             "cancellation error rather than a partial answer",

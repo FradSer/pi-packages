@@ -48,7 +48,7 @@ pi install npm:@fradser/pi-context
 
 ### [`pi-continual-learning`](packages/continual-learning/)
 
-Continual learning for Pi at the harness and prompt surfaces: declarative tool-call guardrails with corrective guidance, plus memory retrieval, injection, and manual consolidation.
+Learns durable memory and verifiable constraints from completed user tasks. Memory supplies relevant context before generation; Harness checks tool calls, assistant output, and configured file artifacts, with bounded corrective feedback. `/consolidate` also runs learning explicitly.
 
 **Commands:** `/memory`, `/consolidate`, `/harness`
 
@@ -150,7 +150,7 @@ pi install npm:pi-skill-router
 
 ### [`@fradser/pi-utils`](packages/utils/)
 
-Adds `/effort`, `/continue`, `/sessions`, `/init`, and redirects safe Git worktrees into `.pi/worktrees/`.
+Adds `/effort`, `/continue`, `/sessions`, `/init`, internal private live-session control, and safe Git worktree isolation.
 
 **Tools:** `enter_worktree`, `exit_worktree`, `list_directory_sessions`
 
@@ -173,12 +173,6 @@ Bridges images to a configured vision-capable model when the active Pi model onl
 ```bash
 pi install npm:@fradser/pi-vision
 ```
-
-### [`@fradser/pi-session-control`](packages/session-control/)
-
-Private Unix-socket discovery and prompt delivery to live sessions, with replay-safe stdin JSON-lines CLI `pi-session-control`. Accepted or queued receipts never imply completion.
-
-For local installation and the versioned API, see the [package README](packages/session-control/README.md). First npm publication is pending.
 
 ## Development
 

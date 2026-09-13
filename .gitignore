@@ -10,7 +10,8 @@
 .LSOverride
 
 # Icon must end with two \r
-Icon
+Icon
+
 
 # Thumbnails
 ._*
@@ -370,5 +371,3 @@ pyrightconfig.json
 # Runtime source files in these package paths must remain visible to Git.
 !packages/impeccable/scripts/lib/
 !packages/impeccable/scripts/lib/*.mjs
-!packages/session-control/bin/
-!packages/session-control/bin/pi-session-control.mjs

@@ -20,7 +20,7 @@ const ui = {
 };
 const ctx = { mode: "tui", ui };
 
-const token = startResearchWidget(ctx as never, "inspect auth flow");
+const token = startResearchWidget(ctx as never, "context-a1b2c3d4e5f6");
 assert.equal(calls.length, 1);
 assert.equal(calls[0].key, "context-research");
 assert.equal((calls[0].options as { placement?: string } | undefined)?.placement, "aboveEditor");
@@ -34,12 +34,18 @@ const widget = (calls[0].factory as (tui: unknown, theme: unknown) => {
 const lines = widget.render(80);
 assert.equal(lines.length, 1);
 const plain = stripVTControlCharacters(lines[0]);
-assert.ok(plain.includes("[context] researching"), plain);
-assert.ok(plain.includes("inspect auth flow"), plain);
+assert.ok(plain.includes("@context-a1b2c3d4e5f6"), plain);
+assert.ok(plain.includes("Working..."), plain);
+assert.ok(!plain.includes("inspect auth flow"), plain);
+
+updateResearchWidget(token, "Inspecting auth flow");
+assert.ok(renders > 0);
+assert.ok(stripVTControlCharacters(widget.render(80)[0]).includes("Inspecting auth flow"));
 
 updateResearchWidget(token, "bash: ls");
-assert.ok(renders > 0);
-assert.ok(stripVTControlCharacters(widget.render(80)[0]).includes("bash: ls"));
+const latest = stripVTControlCharacters(widget.render(80)[0]);
+assert.ok(latest.includes("bash: ls"), latest);
+assert.ok(!latest.includes("Inspecting auth flow"), latest);
 
 updateResearchWidget(token + 999, "stale detail");
 assert.ok(!stripVTControlCharacters(widget.render(80)[0]).includes("stale detail"));
@@ -51,8 +57,8 @@ assert.deepEqual(cleared, ["context-research"]);
 assert.deepEqual(widget.render(80), []);
 
 const before = calls.length;
-const printToken = startResearchWidget({ mode: "print", ui } as never, "background query");
+const printToken = startResearchWidget({ mode: "print", ui } as never, "context-print");
 assert.equal(calls.length, before);
 clearResearchWidget({ mode: "print", ui } as never, printToken);
 
-console.log("Context widget passed: aboveEditor placement, live activity, stale-token guard, clear, non-tui guard.");
+console.log("Context widget passed: unique @context identity, latest live activity, stale-token guard, clear, non-tui guard.");

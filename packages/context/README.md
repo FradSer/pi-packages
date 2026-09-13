@@ -32,7 +32,7 @@ pi --print --mode json --no-session --no-extensions --tools read,bash --exclude-
 
 The child runs in the caller's working directory with extension discovery disabled, no sandbox, no timeout, and no display truncation, launched through pi-kit's shared `runPiWorker`. Its `read,bash` allowlist and prompt require no modifications; `bash` remains technically able to write because there is no OS sandbox. If line-level evidence from a public repository is necessary, the prompt suggests `git clone --depth=1` under `/tmp` with removal after inspection. It must not run package-management, deployment, or interactive commands. The shared worker fails closed if its bounded stdout, stderr, or JSONL line limits are exceeded.
 
-Results enter the main session untruncated and render as compact, expandable context lifecycle rows.
+Each run is presented as a uniquely named sub-agent. Pi-kit's package-agent helper loads the prompt bundled by this package at `agents/context-researcher.md`; no project `.agents` directory is used. Startup renders `[agent] @context-<id> started · agents/context-researcher.md`, while the widget above the editor shows that same identity and its latest tool, thinking, or answer activity. Results enter the main session untruncated and render as compact, expandable context lifecycle rows.
 
 ## Structure
 

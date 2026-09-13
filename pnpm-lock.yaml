@@ -177,15 +177,6 @@ importers:
         specifier: workspace:*
         version: link:../kit
 
-  packages/session-control:
-    dependencies:
-      '@earendil-works/pi-coding-agent':
-        specifier: '*'
-        version: 0.84.1(ws@8.21.3)(zod@4.4.3)
-      tsx:
-        specifier: ^4.23.12
-        version: 4.23.12
-
   packages/skill-router:
     dependencies:
       '@earendil-works/pi-coding-agent':

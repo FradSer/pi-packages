@@ -48,7 +48,7 @@ pi install npm:@fradser/pi-context
 
 ### [`pi-continual-learning`](packages/continual-learning/)
 
-harness 与提示词表面的持续学习：声明式工具调用 guardrails（拦截并给出更正指引），以及记忆检索、注入与手动整合。
+从完成的用户任务中自动学习持久记忆与可验证约束。Memory 在生成前提供相关上下文；Harness 检查工具调用、模型输出和指定文件产物，并提供次数受限的纠错反馈。也可通过 `/consolidate` 显式整理。
 
 **命令：** `/memory`、`/consolidate`、`/harness`
 
@@ -150,7 +150,7 @@ pi install npm:pi-skill-router
 
 ### [`@fradser/pi-utils`](packages/utils/)
 
-提供 `/effort`、`/continue`、`/sessions`、`/init`，并将安全的 Git worktree 定向到 `.pi/worktrees/`。
+提供 `/effort`、`/continue`、`/sessions`、`/init`、内部私有实时会话控制，以及安全的 Git worktree 隔离。
 
 **工具：** `enter_worktree`、`exit_worktree`、`list_directory_sessions`
 
@@ -173,12 +173,6 @@ pi install npm:@fradser/pi-utils
 ```bash
 pi install npm:@fradser/pi-vision
 ```
-
-### [`@fradser/pi-session-control`](packages/session-control/)
-
-通过私有 Unix socket 发现运行中的 Pi 会话，并使用 `pi-session-control` 的标准输入 JSON-lines 协议发送提示词。请求去重防止重放；已接受或已排队不代表任务已完成。
-
-本地安装和版本化 API 见[包文档](packages/session-control/README.md)。首次 npm 发布尚未进行。
 
 ## 开发
 
