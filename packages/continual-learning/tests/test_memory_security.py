@@ -621,6 +621,74 @@ def test_legacy_hashed_scope_migration_unions_destination_private_markers_on_con
         assert "- [source-secret.md](source-secret.md) (harness only)" in result["index"]
 
 
+def test_project_memory_local_migrates_into_agent_private_root_and_is_removed() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        repo = root / "repo"
+        agent = root / "agent"
+        repo.mkdir()
+        initialize_git_repo(repo)
+        local = repo / ".memory.local"
+        local.mkdir()
+        (local / "private.md").write_text("private preference\n")
+        (local / "MEMORY.md").write_text("# Memory Index\n\n- [private.md](private.md)\n")
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ loadAndDeduplicateMemories }} from './packages/continual-learning/extensions/memory-files.ts';
+            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+            import {{ existsSync, readFileSync }} from 'node:fs';
+            const memory = resolveMemoryPaths({json.dumps(str(repo))});
+            const entries = await loadAndDeduplicateMemories({json.dumps(str(repo))});
+            console.log(JSON.stringify({{
+              localGone: !existsSync({json.dumps(str(local))}),
+              privateContent: readFileSync(memory.harnessDir + '/private.md', 'utf8'),
+              index: readFileSync(memory.harnessDir + '/MEMORY.md', 'utf8'),
+              injected: entries.map((entry) => entry.filename),
+            }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert result["localGone"] is True
+        assert result["privateContent"] == "private preference\n"
+        assert "(harness only)" in result["index"]
+        assert result["injected"] == ["private.md"]
+
+
+def test_project_memory_local_with_unsupported_content_is_not_removed() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        repo = root / "repo"
+        agent = root / "agent"
+        repo.mkdir()
+        initialize_git_repo(repo)
+        local = repo / ".memory.local"
+        local.mkdir()
+        (local / "private.md").write_text("private preference\n")
+        (local / "notes.txt").write_text("must not be discarded\n")
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ migrateLegacyMemoryDirs }} from './packages/continual-learning/extensions/memory-files.ts';
+            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+            import {{ existsSync, readFileSync }} from 'node:fs';
+            const memory = resolveMemoryPaths({json.dumps(str(repo))});
+            const migrated = await migrateLegacyMemoryDirs(memory);
+            console.log(JSON.stringify({{
+              sourceRemains: existsSync({json.dumps(str(local))}),
+              unsupportedContent: readFileSync({json.dumps(str(local / 'notes.txt'))}, 'utf8'),
+              copiedMemory: readFileSync(memory.harnessDir + '/private.md', 'utf8'),
+              reportedRemoved: migrated.includes({json.dumps(str(local))}),
+            }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert result["sourceRemains"] is True
+        assert result["unsupportedContent"] == "must not be discarded\n"
+        assert result["copiedMemory"] == "private preference\n"
+        assert result["reportedRemoved"] is False
+
+
 def test_legacy_hashed_scope_migrates_into_readable_root() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

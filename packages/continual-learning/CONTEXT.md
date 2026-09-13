@@ -45,7 +45,7 @@ For `/Users/FradSer/Developer/FradSer/cerberus`, the private directory is readab
 
 The escaped project path is derived from the canonical project working directory by replacing path separators and whitespace runs with `-`. For example, `/Users/FradSer/Documents/Home Lab` becomes `-Users-FradSer-Documents-Home-Lab`. It replaces the temporary SHA-256 directory naming: the on-disk scope must be recognizable to a human, contain no whitespace, and not be an opaque digest.
 
-The two roots have different privacy roles:
+The two roots have different privacy roles. A project `.memory.local/` directory is not a third layer: recognized legacy memories migrate into the agent-owned private root. The directory is removed only when it contains no unsupported entries; otherwise it remains intact to avoid destructive migration.
 
 - The Harness/private root is canonical and complete. It may contain both safe and private Memory.
 - The project `.memory/` root is a sanitized, Git-trackable mirror. It contains only Memory classified as safe to share with the project.
@@ -88,13 +88,13 @@ Only strict Memory basenames are accepted:
 
 ## Legacy directory migration
 
-The opaque SHA-256 project directory introduced during the abandoned three-layer experiment, and an older readable directory that preserved whitespace, must migrate to the normalized escaped-project-path directory. The migration is one-way and has no permanent compatibility read fallback:
+The opaque SHA-256 project directory introduced during the abandoned three-layer experiment, an older readable directory that preserved whitespace, and any obsolete project `.memory.local/` directory must migrate to the normalized escaped-project-path directory. The migration is one-way and has no permanent compatibility read fallback. Entries from `.memory.local/` are classified private regardless of its old index because project-local storage was intended to be non-shared:
 
 - If only the old opaque directory exists, move its valid Memory into the readable private directory.
 - Existing files in the readable destination win conflicts.
 - Preserve private markers from the old index.
 - Rebuild the readable private index after migration.
-- Remove the migrated opaque source only after successful application.
+- Remove a migrated source only after successful application and only when every source entry was recognized; preserve the source intact if it contains unsupported data.
 
 Older dash-encoded directories already matching the readable escaped project path are the desired destination, not legacy input.
 

@@ -230,6 +230,8 @@ Memory has exactly two synchronized roots:
 1. Harness/private (canonical and complete): `~/.pi/agent/memory/<escaped-canonical-project-path>/`
 2. Project shared (safe Git mirror): `<git-root>/.memory/`
 
+There is no project `.memory.local/` layer. If an older project contains that directory, its valid Markdown entries are migrated into the private agent root and marked private. The obsolete directory is removed only when every entry is a recognized regular memory file or index; otherwise it remains intact to prevent loss of unrecognized data. Private memory is never newly persisted anywhere inside the project.
+
 The private directory replaces each path separator in the canonical project path with `-`, including the leading POSIX separator (for example `-Users-FradSer-Developer-FradSer-cerberus`). Safe entries are byte-identical in both roots; entries marked `(harness only)` in the private `MEMORY.md` never appear in the project mirror. Before consolidation, newer-mtime-wins drift normalization runs bidirectionally, with ties preferring the private copy. The private root remains the runtime source of truth, while project `.memory/` participates in first adoption and committed-update synchronization.
 
 See `AGENTS.md` and `procedures/consolidate.md` for loading rules and the parent-owned transactional consolidation protocol.

@@ -44,6 +44,14 @@ Feature: Learn from settled user tasks without a memory command
     Then the settled handler waits for the complete learning pipeline
     And the process does not exit before validation and receipts finish
 
+  Scenario: Memory planning uses a package-owned minimal read-only agent
+    Given automatic or manual memory consolidation starts its planner
+    When the package launches the child Pi process
+    Then the planner instructions come from the package-owned agents/memory-consolidator.md resource
+    And the child disables extension, skill, prompt-template, context-file, and theme discovery
+    And the child receives only read, grep, find, and ls tools
+    And the parent remains the only process allowed to apply memory changes
+
   Scenario: Worker output closes before its exit event
     Given a headless learning worker has emitted its plan
     When both output pipes close before the worker exits

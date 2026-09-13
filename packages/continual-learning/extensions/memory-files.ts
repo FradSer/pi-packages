@@ -66,13 +66,17 @@ export async function migrateLegacyMemoryDirs(
   memory: MemoryPaths,
   _cwdVariants: readonly string[] = [],
 ): Promise<string[]> {
+  const projectLocalDir = path.join(memory.cwd, ".memory.local");
   const candidates = new Set<string>([
     path.join(memory.agentDir, "memory", memory.scopeKey),
     path.join(memory.agentDir, "memory", memory.cwd.replace(/[\\/]+/g, "-")),
+    projectLocalDir,
   ]);
   candidates.delete(memory.harnessDir);
-  const mergedSources: string[] = [];
+  const processedSources: string[] = [];
+  const removableSources: string[] = [];
   const privateNames = new Set<string>();
+  const projectLocalNames = new Set<string>();
   try {
     const destinationIndex = await fs.readFile(path.join(memory.harnessDir, "MEMORY.md"), "utf8");
     for (const line of destinationIndex.split(/\r?\n/)) {
@@ -90,33 +94,40 @@ export async function migrateLegacyMemoryDirs(
     } catch {
       continue;
     }
+    const entries = await Promise.all(names.map(async (name) => ({
+      name,
+      stat: await fs.lstat(path.join(legacyDir, name)).catch(() => undefined),
+    })));
+    const unsupported = entries.some(({ name, stat }) =>
+      !stat?.isFile() || (!isMemoryFilename(name) && !isIndexName(name))
+    );
     await fs.mkdir(memory.harnessDir, { recursive: true });
-    for (const name of names.sort((left, right) => left.localeCompare(right))) {
-      if (!isMemoryFilename(name)) continue;
+    for (const { name, stat } of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+      if (!isMemoryFilename(name) || !stat?.isFile()) continue;
+      if (legacyDir === projectLocalDir) projectLocalNames.add(name.toLowerCase());
       const source = path.join(legacyDir, name);
-      const stat = await fs.lstat(source).catch(() => undefined);
-      if (!stat?.isFile()) continue;
       const target = path.join(memory.harnessDir, name);
       const targetStat = await fs.lstat(target).catch(() => undefined);
       if (targetStat) continue;
       await fs.copyFile(source, target, fsConstants.COPYFILE_EXCL);
     }
-    try {
-      const indexText = await fs.readFile(path.join(legacyDir, "MEMORY.md"), "utf8");
+    const indexEntry = entries.find(({ name }) => isIndexName(name));
+    if (indexEntry?.stat?.isFile()) {
+      const indexText = await fs.readFile(path.join(legacyDir, indexEntry.name), "utf8");
       for (const line of indexText.split(/\r?\n/)) {
         if (!/\(\s*harness[\s_-]+only\s*\)/i.test(line)) continue;
         const match = /[A-Za-z0-9][A-Za-z0-9_.-]*\.md/i.exec(line);
         if (match && isMemoryFilename(match[0])) privateNames.add(match[0].toLowerCase());
       }
-    } catch {
-      // No legacy index: migrated entries are safe by default.
     }
-    mergedSources.push(legacyDir);
+    processedSources.push(legacyDir);
+    if (!unsupported) removableSources.push(legacyDir);
   }
-  if (!mergedSources.length) return [];
+  if (!processedSources.length) return [];
+  for (const name of projectLocalNames) privateNames.add(name);
   await rebuildMemoryIndex(memory.harnessDir, privateNames);
-  await Promise.all(mergedSources.map((legacyDir) => fs.rm(legacyDir, { recursive: true, force: true })));
-  return mergedSources;
+  await Promise.all(removableSources.map((legacyDir) => fs.rm(legacyDir, { recursive: true, force: true })));
+  return removableSources;
 }
 
 interface SafeRootHandle {

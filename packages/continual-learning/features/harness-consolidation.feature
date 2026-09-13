@@ -12,6 +12,14 @@ Feature: Harness consolidation alongside memory consolidation
     Then a harness planning phase starts against the same session history
     And its plan is validated against the same run identity fields
 
+  Scenario: Harness planning uses a package-owned minimal read-only agent
+    Given the pipeline starts harness consolidation
+    When the package launches the harness planner
+    Then its instructions come from the package-owned agents/harness-consolidator.md resource
+    And the child disables extension, skill, prompt-template, context-file, and theme discovery
+    And the child receives only read, grep, find, and ls tools
+    And the parent remains the only process allowed to apply harness changes
+
   Scenario: The harness planner mines guardrail evidence from history
     Given the captured session contains blocked tool calls, confirmation outcomes, or user corrections
     When the harness planner reads the immutable snapshot

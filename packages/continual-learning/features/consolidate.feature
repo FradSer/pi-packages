@@ -263,13 +263,15 @@ Feature: Memory management with automatic learning and manual consolidation
     When memory paths are resolved
     Then the private root uses Home-Lab with no whitespace
 
-  Scenario: Opaque hashed memory migrates into the readable Harness private root
-    Given a project has memory under an old SHA-256 agent directory or an older readable directory containing whitespace
+  Scenario: Legacy private memory migrates into the agent-owned private root
+    Given a project has private memory under an old SHA-256 agent directory, an older readable directory containing whitespace, or project .memory.local
     And the readable destination already contains harness-only index markers
     When memories are loaded or a consolidation run starts
     Then legacy files merge into the escaped-project-path private root without overwriting existing files
     And private index markers from both roots survive the migration even when the same filename conflicts
-    And the migrated opaque source is removed
+    And a migrated legacy source is removed only when every entry is a recognized regular memory file or index
+    But a source containing any unsupported entry remains intact so migration cannot discard unrecognized data
+    And project-local memory is never persisted outside .memory because private memory belongs only below the Pi agent directory
 
   Scenario: Pre-run mirror normalization repairs safe-file drift
     Given the private and project-shared copies of a safe memory file differ before the run

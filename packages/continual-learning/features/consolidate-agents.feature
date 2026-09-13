@@ -15,7 +15,9 @@ Feature: AGENTS.md consolidation as the third pipeline phase
     When the AGENTS.md planning phase starts
     Then it captures a fresh immutable snapshot of the same session context
     And its plan is bound to that run's runId, scopeDigest, and snapshotDigest identity fields
-    And the planner child is read-only with no extensions and read-only tools
+    And the planner instructions come from the package-owned agents/agents-md-consolidator.md resource
+    And the child disables extension, skill, prompt-template, context-file, and theme discovery
+    And the planner child receives only read, grep, find, and ls tools
 
   Scenario: Every surviving operation cites a verbatim snapshot quote
     Given a plan whose operations cite evidence quotes
