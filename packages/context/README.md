@@ -27,10 +27,10 @@ Pi recognizes these requests and invokes `context_get` automatically. Users do n
 The child runs as:
 
 ```text
-pi --print --mode json --no-session --no-extensions --tools read,bash --exclude-tools edit,write
+pi --print --mode json --no-session -ne -ns -np -nc --no-themes --tools read,bash
 ```
 
-The child runs in the caller's working directory with extension discovery disabled, no sandbox, no timeout, and no display truncation, launched through pi-kit's shared `runPiWorker`. Its `read,bash` allowlist and prompt require no modifications; `bash` remains technically able to write because there is no OS sandbox. If line-level evidence from a public repository is necessary, the prompt suggests `git clone --depth=1` under `/tmp` with removal after inspection. It must not run package-management, deployment, or interactive commands. The shared worker fails closed if its bounded stdout, stderr, or JSONL line limits are exceeded.
+The child runs in the caller's working directory through pi-kit's minimal `runPiWorker` mode: `-ne -ns -np -nc --no-themes` disables extension, skill, prompt-template, context-file, and theme discovery, while `--tools read,bash` exposes only the two required tools. It has no sandbox, timeout, or display truncation; `bash` remains technically able to write because there is no OS sandbox, so the bundled agent prompt requires no modifications. If line-level evidence from a public repository is necessary, it may use `git clone --depth=1` under `/tmp` with removal after inspection. It must not run package-management, deployment, or interactive commands. The shared worker fails closed if its bounded stdout, stderr, or JSONL line limits are exceeded.
 
 Each run is presented as a uniquely named sub-agent. Pi-kit's package-agent helper loads the prompt bundled by this package at `agents/context-researcher.md`; no project `.agents` directory is used. Startup renders `[agent] @context-<id> started · agents/context-researcher.md`, while the widget above the editor shows that same identity and its latest tool, thinking, or answer activity. Results enter the main session untruncated and render as compact, expandable context lifecycle rows.
 

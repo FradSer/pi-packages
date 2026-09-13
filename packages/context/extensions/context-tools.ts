@@ -15,8 +15,7 @@ import {
 import { Type } from "typebox";
 
 const RESEARCH_TOOLS = ["read", "bash"];
-const EXCLUDED_TOOLS = ["edit", "write"];
-const CONTEXT_AGENT_RESOURCE = "../agents/context-researcher.md";
+const CONTEXT_AGENT_RESOURCE = "agents/context-researcher.md";
 const CONTEXT_AGENT_PATH = "agents/context-researcher.md";
 
 interface ToolTextResult {
@@ -42,9 +41,8 @@ function textResult(text: string, details: Record<string, unknown> = {}): ToolTe
 
 function contextAgentRun(toolCallId: string, query = ""): ReturnType<typeof createPackageAgentRun> {
   return createPackageAgentRun({
-    moduleUrl: import.meta.url,
+    packageRootUrl: new URL("../", import.meta.url).href,
     resourcePath: CONTEXT_AGENT_RESOURCE,
-    displayPath: CONTEXT_AGENT_PATH,
     namePrefix: "context",
     toolCallId,
     request: query,
@@ -195,7 +193,7 @@ export function runResearchChild(
     prompt: buildResearchPrompt(query, toolCallId),
     cwd: process.cwd(),
     tools: RESEARCH_TOOLS,
-    extraArgs: ["--no-extensions", "--exclude-tools", EXCLUDED_TOOLS.join(",")],
+    minimal: true,
     signal,
     onUpdate,
   }).then((result) => {

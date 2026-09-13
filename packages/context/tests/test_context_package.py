@@ -72,9 +72,8 @@ class TestContextPackage(unittest.TestCase):
     def test_research_child_uses_prompt_constrained_tools_without_sandbox_limits(self) -> None:
         source = read("extensions/context-tools.ts")
         self.assertIn('RESEARCH_TOOLS = ["read", "bash"]', source)
-        self.assertIn('EXCLUDED_TOOLS = ["edit", "write"]', source)
-        self.assertIn('"--exclude-tools"', source)
-        self.assertIn('"--no-extensions"', source)
+        self.assertNotIn("EXCLUDED_TOOLS", source)
+        self.assertIn("minimal: true", source)
         self.assertIn("runPiWorker", source)
         self.assertIn("createPackageAgentRun", source)
         self.assertNotIn("readFileSync", source)
@@ -108,7 +107,7 @@ class TestContextPackage(unittest.TestCase):
         self.assertIn("remove it before answering", agent)
         self.assertIn("Never modify the caller's working directory", agent)
         self.assertIn("createPackageAgentRun({", source)
-        self.assertIn("moduleUrl: import.meta.url", source)
+        self.assertIn('packageRootUrl: new URL("../", import.meta.url).href', source)
 
     def test_result_uses_lifecycle_renderer_without_truncation(self) -> None:
         source = read("extensions/context-tools.ts")
@@ -145,8 +144,8 @@ class TestContextPackage(unittest.TestCase):
             "does not register a /context command",
             "print JSON mode without a session",
             "available tools are limited to read and bash",
-            "edit and write are excluded",
-            "extension discovery is disabled",
+            "edit and write are unavailable because only read and bash are allowlisted",
+            "extension, skill, prompt-template, context-file, and theme discovery are disabled",
             "context package's bundled agents/context-researcher.md",
             "user research question is appended to that bundled agent prompt",
             "git clone with depth 1 under /tmp",

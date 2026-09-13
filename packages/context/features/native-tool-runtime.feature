@@ -20,8 +20,8 @@ Feature: Isolated Pi research tool
     When the tool starts its child Pi process through pi-kit's runPiWorker
     Then the child runs in print JSON mode without a session
     And its available tools are limited to read and bash
-    And edit and write are excluded
-    And extension discovery is disabled
+    And edit and write are unavailable because only read and bash are allowlisted
+    And extension, skill, prompt-template, context-file, and theme discovery are disabled
     And pi-kit loads the child prompt from the context package's bundled agents/context-researcher.md
     And the user research question is appended to that bundled agent prompt
     And the child runs in the caller's working directory with no sandbox
