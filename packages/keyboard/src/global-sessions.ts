@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { getDirectorySessionKey, isSameDirectory } from "@fradser/pi-kit";
 import type { KeyboardState } from "./types";
 
 export interface SessionGlowRecord {
@@ -20,10 +21,8 @@ export function getRegistryDir(): string {
   return path.join(os.homedir(), ".pi", "agent", "directory-sessions");
 }
 
-export function getSessionFileKey(cwd: string): string {
-  const normalized = path.resolve(cwd || process.cwd());
-  return `--${normalized.replace(/^[/\\\\]/, "").replace(/[/\\\\:]/g, "-")}--`;
-}
+/** Shared directory-session key used by every registry writer and reader. */
+export const getSessionFileKey = getDirectorySessionKey;
 
 export function getDirectoryRegistryPath(cwd: string): string {
   return path.join(getRegistryDir(), getSessionFileKey(cwd));
@@ -78,6 +77,8 @@ export function removeSessionGlowState(cwd: string, sessionId: string): void {
   try {
     const filePath = path.join(getDirectoryRegistryPath(cwd), `${sessionId}.json`);
     if (fs.existsSync(filePath)) {
+      const record = JSON.parse(fs.readFileSync(filePath, "utf-8")) as { cwd?: unknown };
+      if (typeof record.cwd !== "string" || !isSameDirectory(record.cwd, cwd)) return;
       fs.unlinkSync(filePath);
     }
   } catch {
@@ -119,6 +120,9 @@ export function pruneOrphanedGlowStates(): number {
           const content = fs.readFileSync(filePath, "utf-8");
           const record = JSON.parse(content) as SessionGlowRecord;
           if (!record || typeof record !== "object" || typeof record.pid !== "number") continue;
+          if (typeof record.cwd !== "string" || dirEntry.name !== getDirectorySessionKey(record.cwd)) {
+            continue;
+          }
           if (!isProcessAlive(record.pid)) {
             try {
               fs.unlinkSync(filePath);
@@ -189,6 +193,9 @@ export function evaluateGlobalLightingState(
             const record = JSON.parse(content) as SessionGlowRecord;
 
             if (!record || typeof record !== "object") continue;
+            if (typeof record.cwd !== "string" || dirEntry.name !== getDirectorySessionKey(record.cwd)) {
+              continue;
+            }
 
             // Prune dead process IDs
             if (!isProcessAlive(record.pid)) {

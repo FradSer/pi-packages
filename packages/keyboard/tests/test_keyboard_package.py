@@ -14,6 +14,7 @@ PROTOCOL_URI = (SRC / "protocol.ts").as_uri()
 CONFIG_URI = (SRC / "config.ts").as_uri()
 STATE_MACHINE_URI = (SRC / "state-machine.ts").as_uri()
 GLOBAL_SESSIONS_URI = (SRC / "global-sessions.ts").as_uri()
+DRIVER_URI = (SRC / "driver.ts").as_uri()
 INDEX_URI = (SRC / "index.ts").as_uri()
 
 
@@ -47,10 +48,15 @@ def test_feature_covers_keyboard_scenarios() -> None:
     assert "Scenario: Upstream provider rate limit (429) triggers red blinking error light" in feature
     assert "Scenario: User submits input and clears unread chat status" in feature
     assert "Scenario: Orphaned unread record from an unexpectedly-exited session is cleaned up" in feature
+    assert "Scenario: Keyboard glow records verify canonical directory ownership" in feature
     assert "Scenario: Target lighting zone selection" in feature
     assert "Scenario: In-memory updates without EEPROM wear" in feature
     assert "Scenario: State change deduplication prevents redundant HID writes" in feature
     assert "Scenario: Keyboard disconnection handling" in feature
+    assert "Scenario: Missing via-rgb executable reports a failed hardware update" in feature
+    assert "Scenario: Non-zero via-rgb exit reports a failed hardware update" in feature
+    assert "Scenario: Hardware updates remain serial and recover after a failed command" in feature
+    assert "Scenario: Homebrew via-rgb candidate uses the executable path" in feature
     assert "Scenario: /keyboard command allows manual state testing and toggle" in feature
 
 
@@ -150,6 +156,68 @@ def test_protocol_packet_construction() -> None:
     assert result["allCh"] == [2, 3]
     assert result["matrixCh"] == [3]
     assert result["underglowCh"] == [2]
+
+
+def test_driver_reports_missing_and_nonzero_cli_failures() -> None:
+    result = run_typescript(
+        f"""
+        import {{ applyKeyboardState }} from "{DRIVER_URI}";
+
+        const config = {{
+          enabled: true,
+          zone: "all",
+          brightnessScale: 1,
+          saveToEeprom: false,
+          cliPath: "/tmp/pi-keyboard-cli-that-does-not-exist",
+        }};
+        const missing = await applyKeyboardState("idle", config);
+        console.log(JSON.stringify({{ success: missing.success, hasError: Boolean(missing.error) }}));
+        """
+    )
+    assert result == {"success": False, "hasError": True}
+
+
+def test_driver_serial_queue_returns_each_result_and_recovers_after_failure() -> None:
+    result = run_typescript(
+        f"""
+        import fs from "node:fs";
+        import os from "node:os";
+        import path from "node:path";
+        import {{ applyKeyboardState }} from "{DRIVER_URI}";
+
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-keyboard-driver-"));
+        const logPath = path.join(root, "log");
+        const failMarkerPath = path.join(root, "fail-once");
+        process.env.PI_KEYBOARD_TEST_LOG = logPath;
+        process.env.PI_KEYBOARD_TEST_FAIL_MARKER = failMarkerPath;
+        const cliPath = path.join(root, "via-rgb");
+        fs.writeFileSync(cliPath, `#!/bin/sh
+if [ ! -f "$PI_KEYBOARD_TEST_FAIL_MARKER" ]; then
+  printf '1:start\\n' >> "$PI_KEYBOARD_TEST_LOG"
+  touch "$PI_KEYBOARD_TEST_FAIL_MARKER"
+  sleep 0.1
+  printf '1:end\\n' >> "$PI_KEYBOARD_TEST_LOG"
+  exit 7
+fi
+printf '2:start\\n' >> "$PI_KEYBOARD_TEST_LOG"
+sleep 0.05
+printf '2:end\\n' >> "$PI_KEYBOARD_TEST_LOG"
+`, "utf8");
+        fs.chmodSync(cliPath, 0o755);
+        const config = {{ enabled: true, zone: "all", brightnessScale: 1, saveToEeprom: false, cliPath }};
+        const [first, second] = await Promise.all([
+          applyKeyboardState("idle", config),
+          applyKeyboardState("idle", config),
+        ]);
+        const log = fs.readFileSync(logPath, "utf8").trim().split(/\\s+/);
+        fs.rmSync(root, {{ recursive: true, force: true }});
+        console.log(JSON.stringify({{ first, second, log }}));
+        """
+    )
+    assert result["first"]["success"] is False, result
+    assert "Command failed" in result["first"]["error"], result
+    assert result["second"]["success"] is True, result
+    assert result["log"] == ["1:start", "1:end", "2:start", "2:end"]
 
 
 def test_state_machine_lifecycle_transitions() -> None:
@@ -275,24 +343,21 @@ def test_orphaned_unread_records_from_dead_sessions_are_pruned() -> None:
         import time
         time.sleep(0.05)
 
-        # Layout mirrors getSessionFileKey(cwd): a per-cwd directory holding session files.
-        cwd_dir = Path(tmp) / "--tmp-test-cwd--"
-        cwd_dir.mkdir(parents=True, exist_ok=True)
-        (cwd_dir / "live-session.json").write_text(
-            json.dumps({"sessionId": "live", "pid": live_pid, "cwd": "/tmp", "status": "settled", "hasUnread": True, "updatedAt": 123456}),
-            encoding="utf-8",
-        )
-        (cwd_dir / "dead-session.json").write_text(
-            json.dumps({"sessionId": "dead", "pid": dead_pid, "cwd": "/tmp", "status": "settled", "hasUnread": True, "updatedAt": 123456}),
-            encoding="utf-8",
-        )
-
         script = f"""
-        import {{ pruneOrphanedGlowStates }} from "{GLOBAL_SESSIONS_URI}";
+        import fs from "node:fs";
+        import path from "node:path";
+        import {{ pruneOrphanedGlowStates, getSessionFileKey }} from "{GLOBAL_SESSIONS_URI}";
+        const cwd = process.env.PI_TEST_CWD;
+        if (!cwd) throw new Error("missing test cwd");
+        fs.mkdirSync(cwd, {{ recursive: true }});
+        const cwdDir = path.join(process.env.PI_DIRECTORY_SESSIONS_DIR, getSessionFileKey(cwd));
+        fs.mkdirSync(cwdDir, {{ recursive: true }});
+        fs.writeFileSync(path.join(cwdDir, "live-session.json"), JSON.stringify({{ sessionId: "live", pid: {live_pid}, cwd, status: "settled", hasUnread: true, updatedAt: 123456 }}));
+        fs.writeFileSync(path.join(cwdDir, "dead-session.json"), JSON.stringify({{ sessionId: "dead", pid: {dead_pid}, cwd, status: "settled", hasUnread: true, updatedAt: 123456 }}));
         const removed = pruneOrphanedGlowStates();
-        console.log(JSON.stringify({{ removed }}));
+        console.log(JSON.stringify({{ removed, deadExists: fs.existsSync(path.join(cwdDir, "dead-session.json")), liveExists: fs.existsSync(path.join(cwdDir, "live-session.json")) }}));
         """
-        env = {**os.environ, "PI_DIRECTORY_SESSIONS_DIR": tmp}
+        env = {**os.environ, "PI_DIRECTORY_SESSIONS_DIR": tmp, "PI_TEST_CWD": str(Path(tmp) / "project")}
         result = sp.run(
             ["node", "--import", "tsx", "--input-type=module"],
             cwd=REPO,
@@ -305,8 +370,51 @@ def test_orphaned_unread_records_from_dead_sessions_are_pruned() -> None:
         assert result.returncode == 0, f"prune test failed:\n{result.stderr}\n{result.stdout}"
         parsed = json.loads(result.stdout.strip().splitlines()[-1])
         assert parsed["removed"] == 1
-        assert (cwd_dir / "dead-session.json").exists() is False
-        assert (cwd_dir / "live-session.json").exists() is True
+        assert parsed["deadExists"] is False
+        assert parsed["liveExists"] is True
+
+
+def test_glow_registry_does_not_remove_foreign_cwd_records() -> None:
+    import subprocess as sp
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        script = f"""
+        import fs from "node:fs";
+        import path from "node:path";
+        import {{
+          evaluateGlobalLightingState,
+          getDirectoryRegistryPath,
+          pruneOrphanedGlowStates,
+          removeSessionGlowState,
+        }} from "{GLOBAL_SESSIONS_URI}";
+        const cwd = path.join(process.env.PI_DIRECTORY_SESSIONS_DIR, "project");
+        const foreignCwd = path.join(process.env.PI_DIRECTORY_SESSIONS_DIR, "other");
+        const dir = getDirectoryRegistryPath(cwd);
+        fs.mkdirSync(dir, {{ recursive: true }});
+        const filePath = path.join(dir, "foreign.json");
+        fs.writeFileSync(filePath, JSON.stringify({{ sessionId: "foreign", pid: 9999999, cwd: foreignCwd, status: "settled", hasUnread: true, updatedAt: Date.now() }}));
+        removeSessionGlowState(cwd, "foreign");
+        const removed = pruneOrphanedGlowStates();
+        const summary = evaluateGlobalLightingState();
+        console.log(JSON.stringify({{ removed, remains: fs.existsSync(filePath), activeSessionCount: summary.activeSessionCount }}));
+        fs.rmSync(process.env.PI_DIRECTORY_SESSIONS_DIR, {{ recursive: true, force: true }});
+        """
+        env = {**os.environ, "PI_DIRECTORY_SESSIONS_DIR": tmp}
+        result = sp.run(
+            ["node", "--import", "tsx", "--input-type=module"],
+            cwd=REPO,
+            input=textwrap.dedent(script),
+            text=True,
+            capture_output=True,
+            timeout=15,
+            env=env,
+        )
+        assert result.returncode == 0, f"glow ownership test failed:\n{result.stderr}\n{result.stdout}"
+        parsed = json.loads(result.stdout.strip().splitlines()[-1])
+        assert parsed["removed"] == 0
+        assert parsed["remains"] is True
+        assert parsed["activeSessionCount"] == 0
 
 
 def test_extension_registers_expected_hooks() -> None:

@@ -27,6 +27,15 @@ Supports discrete control for keyboard lighting channels:
 - **Per-Key Matrix** (`matrix`): Keycap backlight (Channel 3 in VIA/QMK).
 - **Underglow / Side Strips** (`underglow`): Bottom and edge light strips (Channel 2 in VIA/QMK).
 
+## Shared Directory Session Registry
+
+Per-session glow records use pi-kit’s canonical directory identity, hashed into
+the registry directory name. Existing paths are resolved through `realpath`,
+while missing paths use their absolute path; this keeps slash-versus-hyphen
+project names separate. Reads, cleanup, and clean shutdown verify the stored
+`cwd` belongs to the requested directory. Older registry directory names are
+not migrated.
+
 ---
 
 ## Structure

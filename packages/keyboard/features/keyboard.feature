@@ -104,6 +104,12 @@ Feature: Pi Keyboard Lighting Indicator
     And it no longer contributes to the green unread light
     And a live unread session still keeps its green light
 
+  Scenario: Keyboard glow records verify canonical directory ownership
+    Given a registry file is stored under one directory key with another canonical cwd
+    When keyboard cleanup or global state evaluation runs
+    Then the foreign record is ignored
+    And clean shutdown does not delete the foreign record
+
   Scenario: Target lighting zone selection
     Given the user configures the target zone
     When the zone is set to "matrix"
@@ -127,6 +133,30 @@ Feature: Pi Keyboard Lighting Indicator
     Given the keyboard is unplugged or unavailable
     When a state transition occurs
     Then the driver fails gracefully without throwing unhandled exceptions or crashing Pi
+
+  Scenario: Missing via-rgb executable reports a failed hardware update
+    Given the configured via-rgb executable does not exist
+    When a keyboard state transition is queued
+    Then the transition result reports failure
+    And the driver does not report a successful HID write
+
+  Scenario: Non-zero via-rgb exit reports a failed hardware update
+    Given the configured via-rgb executable exits with a non-zero status
+    When a keyboard state transition is queued
+    Then the transition result reports failure
+    And its error identifies the failed command
+
+  Scenario: Hardware updates remain serial and recover after a failed command
+    Given two keyboard state transitions are queued
+    And the first transition fails
+    When the queue drains
+    Then the second transition starts only after the first settles
+    And the second transition result is reported independently
+
+  Scenario: Homebrew via-rgb candidate uses the executable path
+    Given via-rgb is installed under the Homebrew prefix
+    When the driver resolves standard executable candidates
+    Then it checks "/opt/homebrew/bin/via-rgb" as one candidate
 
   Scenario: /keyboard command allows manual state testing and toggle
     Given the /keyboard command is executed

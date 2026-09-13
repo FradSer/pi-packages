@@ -13,7 +13,7 @@ import {
 const execFileAsync = promisify(execFile);
 
 let activeBlinkTimer: NodeJS.Timeout | null = null;
-let commandQueue: Promise<void> = Promise.resolve();
+let commandQueue: Promise<HardwareApplyResult> | undefined;
 
 export function resolveCliPath(customPath?: string): string {
   if (customPath && existsSync(customPath)) {
@@ -22,7 +22,7 @@ export function resolveCliPath(customPath?: string): string {
 
   const standardPaths = [
     join(homedir(), ".local", "bin", "via-rgb"),
-    "/opt/homebrew/bin", "via-rgb",
+    join("/opt/homebrew/bin", "via-rgb"),
     "/usr/local/bin/via-rgb",
   ];
 
@@ -122,16 +122,9 @@ export async function applyKeyboardState(
   };
 
   // Queue to ensure strictly ordered HID writes
-  commandQueue = commandQueue.then(
-    async () => {
-      await task();
-    },
-    async () => {
-      await task();
-    },
-  );
-  await commandQueue;
-  return { success: true, state, zone: config.zone };
+  const queuedTask = (commandQueue ?? Promise.resolve()).then(task, task);
+  commandQueue = queuedTask;
+  return await queuedTask;
 }
 
 function startSoftwareStrobe(
