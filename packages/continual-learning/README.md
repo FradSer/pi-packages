@@ -3,13 +3,25 @@
 Continual learning for Pi across the two surfaces that matter at runtime —
 model weights are explicitly out of scope:
 
-- **Harness** — declarative tool-call guardrails. Layered JSON policies are
-  evaluated on every tool call; matching calls are blocked (or gated behind
-  user confirmation) with corrective guidance fed back to the model, so the
-  system's tool-use behavior evolves without touching weights.
-- **Prompts** — durable project memory: retrieval, injection, auto-memory
-  guidance, and manual consolidation keep task-intent mapping and system
-  guidance current across sessions.
+- **Memory and context guidance** — project facts, decisions, and personal
+  preferences help the model understand the task before generation. A bounded
+  memory index is injected and full entries are read when relevant. Skill
+  guidance is also context; it does not guarantee enforcement.
+- **Harness** — executable constraints check generated tool calls before
+  execution, and inspect assistant output and configured file artifacts after
+  generation. Violations produce concrete feedback with a bounded repair loop.
+
+With auto-memory enabled (the default), a completed user task triggers learning
+at `agent_settled`, after automatic retries and queued continuations. New user
+tasks are coalesced while learning runs; extension-generated continuations do
+not independently retrigger learning. Interactive sessions remain responsive;
+print/JSON runs wait for the pipeline and its receipts before exiting.
+
+The parent freezes the task context, runs read-only planners, validates their
+bounded proposals, and applies changes. Ordinary task execution no longer asks
+the main model to write memory directly. Turning auto-memory off stops new
+automatic learning while preserving retrieval of existing memory. `/consolidate`
+remains available for an explicit run, including headless execution.
 
 ## Install
 
@@ -22,8 +34,8 @@ pi install npm:pi-continual-learning
 | Command | Purpose |
 | --- | --- |
 | `/memory` | Memory management menu: instructions, model, consolidation, settings |
-| `/consolidate` | Consolidate now: memory first, then harness guardrails and project AGENTS.md mined from session history |
-| `/harness` | Show active tool-call guardrails, or create a rule from a prompt (default: project personal `.pi/harness.local.json`, `--shared` for project repo, `--global` for user) |
+| `/consolidate` | Run learning now: memory first, then harness constraints and project AGENTS.md mined from the frozen task context |
+| `/harness` | Show active constraints, or create a rule from a prompt (default: project personal `.pi/harness.local.json`, `--shared` for project repo, `--global` for user) |
 
 ## Guardrails configuration
 
@@ -60,12 +72,47 @@ Policy shape:
 }
 ```
 
-Only the declarative policy fields shown above are supported: `name`, `tools`,
-`paths`, `pattern` or `patterns`, optional `require`, `action`, and `reason`.
+Declarative policies support `name`, `phase`, `tools`, `paths`, `artifactPaths`,
+`pattern` or `patterns`, optional `require`, `action`, and `reason`.
 Fields such as `scope` and `rule` are not aliases and are rejected. A matching
 policy can `block`, `confirm`, or `observe`: observe leaves the call untouched
-and records a display-only harness event with its reason. Policies do not run
-multi-step checks, probe services, or repair runtime state.
+and records a display-only harness event with its reason. Policies do not execute
+generated scripts or probe external services.
+
+### Check phases
+
+| Phase | Checked input | Response to a violation |
+| --- | --- | --- |
+| `tool-call` (default) | Generated tool arguments, before execution | Block, ask for confirmation, or observe |
+| `output` | Completed assistant text | Request a corrected response, or observe |
+| `artifact` | Actual workspace file bytes | Request correction of the file, or observe |
+
+For example, an artifact rule can inspect the final dependency declaration even
+when it was written through a shell command:
+
+```json
+{
+  "name": "no-retired-sdk",
+  "phase": "artifact",
+  "tools": ["write", "edit", "bash"],
+  "artifactPaths": ["package.json"],
+  "pattern": "\"retired-sdk\"\\s*:",
+  "action": "block",
+  "reason": "The retired SDK is prohibited. Remove its dependency declaration."
+}
+```
+
+Artifact paths are explicit workspace files; checks read actual content rather
+than trusting the tool arguments. Unsafe paths, missing files, and files beyond
+the read limit are reported as unsupported, never as passed. Checks cover only
+their declared files and patterns; regex matching cannot establish arbitrary
+semantic correctness.
+
+Post-generation checks have a bounded repair budget per user task. They report
+unresolved violations when that budget is exhausted. Assistant text has already
+been streamed when an output check runs: a correction does not retract or hide
+the original response. Use tool-call gates for actions that must be prevented
+before their side effects occur.
 
 A generalized example — AI-generated UI widths violating layout rules — ships
 at `examples/ui-width.harness.json`: edits touching UI files that contain
@@ -88,14 +135,20 @@ blocked with guidance to hand those steps to the user's own terminal.
 
 ### Harness consolidation
 
-After a verified memory consolidation, `/consolidate` runs a second read-only
-planner against the same immutable session snapshot: it mines blocked tool
+After verified memory consolidation, learning runs a second read-only
+planner against the same frozen task context: it mines blocked tool
 calls, confirmation outcomes, and user corrections, then proposes bounded
-policy/skill-prompt changes citing that evidence. The parent alone applies
+policy/context-guidance changes citing that evidence. The parent alone applies
 them — atomically, and only to the personal project-local layer
 (`.pi/harness.local.json`). Shared layers are never written; a failed or
 rejected harness plan never touches applied memory results; `no-context`
-runs skip the phase entirely.
+runs skip the phase entirely. Evidence must quote real user or tool messages
+from the captured context. Policy additions and updates must also supply
+positive and negative examples that the parent executes with the runtime
+evaluator. A model-written evidence summary or occurrence count alone is not
+proof. Automatically learned rules cannot override shared, built-in, or
+manually authored constraints; explicit rule changes remain available through
+`/harness`.
 
 ### AGENTS.md consolidation
 
@@ -137,10 +190,12 @@ phase never touches applied memory or harness results.
 
 Automatic harness consolidation and AGENTS.md skill extraction also validate additions against the session registry; without a registry, adding a skill prompt fails closed. `/harness` status separates registered guidance from inactive unknown skill names and displays malformed-entry diagnostics. Registered does not mean trigger-tested: reading JSON back proves persistence only. A skill prompt is not a project-wide rule, and unsupported global/multi-step requirements must be reported rather than assigned an invented skill name.
 
-`skillPrompts` adds corrective guidance when Pi expands a configured
+`skillPrompts` is a context-guidance namespace stored alongside policies in the
+same configuration layers. Its separate `context-guidance` extension adds
+guidance when Pi expands a configured
 `/skill:<name>` invocation. The same three user-owned layers apply, with the
 project-personal definition winning over project shared and user shared by skill name.
-`disabled` only affects tool-call policies, not skill prompts:
+`disabled` affects declarative policies in every phase; it does not affect skill prompts:
 
 ```json
 {
@@ -178,3 +233,11 @@ Memory has exactly two synchronized roots:
 The private directory replaces each path separator in the canonical project path with `-`, including the leading POSIX separator (for example `-Users-FradSer-Developer-FradSer-cerberus`). Safe entries are byte-identical in both roots; entries marked `(harness only)` in the private `MEMORY.md` never appear in the project mirror. Before consolidation, newer-mtime-wins drift normalization runs bidirectionally, with ties preferring the private copy. The private root remains the runtime source of truth, while project `.memory/` participates in first adoption and committed-update synchronization.
 
 See `AGENTS.md` and `procedures/consolidate.md` for loading rules and the parent-owned transactional consolidation protocol.
+
+New memories are proposed separately from the parent-selected existing-file
+scope, so a project with no memory files can learn from its first task. Each
+proposal names a bounded Markdown file and cites the exact text and index of a
+user or tool-result message in the immutable snapshot. Preferences remain
+private; credentials and tokens are rejected even for private storage. New
+names cannot overwrite existing entries, and creations participate in the same
+rollback, index, privacy, hash, and receipt validation as existing-file edits.

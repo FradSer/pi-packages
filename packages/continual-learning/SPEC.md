@@ -103,13 +103,22 @@ Feature: Readable private Memory and sanitized project mirror
 - Harness tests verify three-layer precedence, command targets, and ignored global personal configuration.
 - Full package pytest, strict TypeScript, package dry-run, installation check, and live Pi smoke are required.
 
+## Context learning and executable constraints
+
+- With auto-memory enabled, a settled user task runs the parent-owned learning pipeline without requiring a command. Extension continuations do not independently retrigger it, overlapping completed tasks are coalesced, and headless execution waits for receipts.
+- The existing-memory `selected` scope remains immutable. Bounded `newMemories` proposals cite user/tool snapshot messages and can create the first memory in an empty project. Creations obey the same privacy split and transactional rollback as existing edits.
+- Memory and skill guidance supply context before generation. Harness policies explicitly check tool calls before execution, assistant output after generation, or actual file artifacts. Unsupported checks cannot report success.
+- Learned policies require verifiable source quotes and executable positive/negative examples. Automatic learning cannot replace or disable user-owned constraints.
+- Post-generation repair is bounded per user task and never claims already streamed output was withheld.
+
+Acceptance contracts: `features/automatic-learning.feature`, `features/consolidate.feature`, `features/harness-consolidation.feature`, and `features/guardrails.feature`.
+
 ## Out of Scope
 
 - A third physical Memory layer.
 - Opaque hash names for steady-state Memory data.
 - Automatic promotion of private Memory into shared Memory without safe classification.
 - Loading the obsolete global personal Harness configuration.
-- Changing the declarative Harness policy schema.
 
 ## Further Notes
 

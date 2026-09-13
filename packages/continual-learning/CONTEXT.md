@@ -5,16 +5,16 @@
 `pi-continual-learning` improves Pi without changing model weights. It learns across three runtime surfaces:
 
 1. **Memory** stores durable knowledge that is injected into future sessions as untrusted reference data.
-2. **Harness** evaluates declarative policies on tool calls and injects skill-specific corrective prompts.
+2. **Harness** evaluates declarative policies on tool calls, assistant output, and actual file artifacts. Skill-specific prompts are a separate pre-generation context-guidance module.
 3. **AGENTS.md consolidation** maintains the small, always-loaded project instruction document and extracts narrower material into Memory or Harness.
 
-The `/consolidate` pipeline runs these phases in order:
+Automatic learning after settled user tasks and explicit `/consolidate` runs use these phases in order:
 
 1. Memory consolidation
 2. Harness consolidation
 3. Project `AGENTS.md` consolidation
 
-Every phase follows the same trust boundary: the parent captures an immutable session snapshot, a `--no-extensions` child performs read-only planning, and only the parent validates and applies a bounded structured plan. Completion requires parent-owned validation and pre/post receipts; planner prose is never proof of success. Locks, path containment, symlink checks, atomic writes, rollback, output bounds, and shutdown generation checks remain mandatory.
+Every phase follows the same trust boundary: the parent freezes the task context before asynchronous work, a `--no-extensions` child performs read-only planning, and only the parent validates and applies a bounded structured plan. Each phase snapshots that same frozen context, including retries. Completion requires parent-owned validation and pre/post receipts; planner prose is never proof of success. Locks, path containment, symlink checks, atomic writes, rollback, output bounds, and shutdown generation checks remain mandatory.
 
 Later-phase failure does not roll back an earlier verified phase. Memory must complete and verify before Harness starts. Harness failure leaves Memory intact; AGENTS.md failure leaves both earlier phases intact.
 
@@ -105,7 +105,11 @@ Older dash-encoded directories already matching the readable escaped project pat
 - `/consolidate no-context` performs the context-disabled Memory path and skips Harness and AGENTS.md, which require session evidence.
 - `/harness` displays active policies and creates rules in the selected Harness configuration layer.
 
-Auto-memory only controls prompt guidance encouraging capture of durable facts. Existing Memory is injected regardless of the toggle, and consolidation is never triggered automatically by context usage or agent settlement.
+Auto-memory enables learning after `agent_settled` for real user input. It coalesces pending completed tasks, ignores extension-generated continuations as independent triggers, and waits for the full pipeline in headless mode. Existing Memory remains available regardless of the toggle. The main model is not asked to write memories directly; the parent validates new-memory proposals even when the existing corpus is empty.
+
+New memories live in a separate `newMemories` proposal array while `selected` remains the exact parent-owned existing-file list. Snapshot message indices and quotes ground the proposals; preferences stay private and credentials are rejected. Harness learning verifies user/tool evidence and executes positive and negative evaluator cases. Shared, built-in, and manually authored policies remain protected from automatic replacement or disabling.
+
+Post-generation policies explicitly choose `output` or `artifact`. Artifact checks read actual bounded workspace file contents, including explicit paths for command-produced files. Unreadable or unsafe artifacts are unsupported, not verified. Output checks run after streaming and can request bounded corrections but cannot hide the original response.
 
 ## Design assessment
 

@@ -338,7 +338,7 @@ await new Promise((r) => setTimeout(r, 20));
   const duplicateUser = await userHandler(userEvent(), sharedTurnCtx);
   const nextTurnUser = await userHandler(userEvent(), { ...baseCtx });
   const systemEvent = entries.find((e) => e.data?.kind === "skill-prompt" && e.data?.prompt === "inner guidance");
-  const renderer = entryRenderers["harness-event"];
+  const renderer = entryRenderers["context-guidance-event"];
   const theme = {
     fg: (_color, text) => text,
     bg: (_color, text) => text,
@@ -347,7 +347,7 @@ await new Promise((r) => setTimeout(r, 20));
   const rendered = renderer?.(systemEvent, { expanded: true }, theme)?.render(200).join("\\n") ?? "";
   const longPrompt = "Live guidance requires one active poller and records every accepted event without truncating the expanded prompt.";
   const longEvent = {
-    customType: "harness-event",
+    customType: "context-guidance-event",
     data: {
       kind: "skill-prompt",
       skill: "impeccable",
@@ -367,11 +367,12 @@ await new Promise((r) => setTimeout(r, 20));
     userMessage: user.results.length === 1 && user.results[0].message?.content === "user guidance" && user.results[0].message?.display === false && user.results[0].message?.details?.target === "user",
     userDedupedInTurn: firstUser?.message?.content === "user guidance" && duplicateUser === undefined,
     userReinjectedNextTurn: nextTurnUser?.message?.content === "user guidance",
-    systemEventIsVisible: systemEvent?.customType === "harness-event",
+    systemEventIsVisible: systemEvent?.customType === "context-guidance-event",
     systemEventUsesPrompt: systemEvent?.data?.kind === "skill-prompt" && systemEvent?.data?.prompt === "inner guidance",
     systemEventIdentifiesSource: systemEvent?.data?.source === "project" && systemEvent?.data?.file === path.join(project, ".pi", "harness.json"),
-    systemEventRenderUsesPrompt: rendered.includes("[harness] skill prompt · inner guidance") && rendered.includes("source=project"),
+    systemEventRenderUsesPrompt: rendered.includes("[context] skill prompt · review") && rendered.includes("prompt:") && rendered.includes("inner guidance") && rendered.includes("source=project"),
     expandHintUsesKeybinding: collapsedRows.some((row) => row.toLowerCase().includes("ctrl+o to expand")), 
+    collapsedGuidanceIsBounded: !collapsedRows.join("\\n").includes(longPrompt),
     expandedPromptIsComplete: longPrompt.split(" ").every((word) => expandedRows.join("\\n").includes(word)),
   });
 }
@@ -470,7 +471,7 @@ def test_s7_skill_prompts_are_layered_and_idempotent() -> None:
     assert s["userDedupedInTurn"] and s["userReinjectedNextTurn"]
     assert s["systemEventIsVisible"] and s["systemEventUsesPrompt"]
     assert s["systemEventIdentifiesSource"] and s["systemEventRenderUsesPrompt"]
-    assert s["expandHintUsesKeybinding"] and s["expandedPromptIsComplete"]
+    assert s["expandHintUsesKeybinding"] and s["collapsedGuidanceIsBounded"] and s["expandedPromptIsComplete"]
 
 
 def test_s8_command_reports_surface_and_routes_prompt() -> None:

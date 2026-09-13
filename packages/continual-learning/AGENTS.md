@@ -4,8 +4,9 @@
 
 `packages/continual-learning/` publishes `pi-continual-learning`, a native extension with no
 skill surface. Package-root `index.ts` composes `extensions/inject-memory.ts`
-(`/memory`, `/consolidate`, injection, cleanup) and `extensions/guardrails.ts`
-(`/harness`, tool-call policies, skill-prompt guidance).
+(`/memory`, `/consolidate`, injection, automatic learning), `context-guidance.ts`
+(skill prompt injection), `guardrails.ts` (`/harness`, tool-call policies), and
+`output-checks.ts` (assistant output and artifact checks).
 Supporting extension modules cover configuration, secure memory loading,
 canonical project paths, parent-owned consolidation, harness guardrail mining,
 and AGENTS.md consolidation (`extensions/agents-md-consolidation.ts`: plan
@@ -24,7 +25,11 @@ Run focused checks with:
 ```bash
 python3 -m pytest packages/continual-learning/tests/ -q
 pnpm --dir packages/continual-learning pack --dry-run
+python3 packages/continual-learning/tests/live_smoke.py
 ```
+
+The explicit live smoke uses the configured memory model/authentication in
+temporary project and agent directories; it is not collected by pytest.
 
 ## Style and Architecture
 
@@ -39,6 +44,15 @@ application only after mechanical validation, and never targets user-level
 instruction files.
 
 ## Testing Guidelines
+
+Automatic learning starts only for settled user input, coalesces pending tasks,
+and waits for parent receipts in headless mode. Preserve one frozen task context
+through all phases and retries. New memories have a separately bounded,
+evidence-cited creation scope; never extend the parent-selected existing scope.
+Learned policies require actual snapshot evidence and executed positive/negative
+examples. Post-generation checks cannot retract streamed output. Repair limits
+belong to the user task, never to individual ExtensionContext objects, which Pi
+recreates between hooks.
 
 Cover injection, command registration, model/config handling, locking,
 snapshots, bounds, rollback, layer precedence and immutability, receipts, and

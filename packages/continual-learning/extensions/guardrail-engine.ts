@@ -4,7 +4,7 @@
  * without a session.
  */
 
-import type { Policy, PolicyLayer, ResolvedConfig } from "./guardrail-types.ts";
+import type { Policy, PolicyLayer, PolicyPhase, ResolvedConfig } from "./guardrail-types.ts";
 
 export const USER_CONFIG_DIR = ["agent"] as const;
 
@@ -47,8 +47,9 @@ function stringArray(value: unknown): string[] | undefined {
     : undefined;
 }
 
-const POLICY_FIELDS = ["name", "tools", "paths", "pattern", "patterns", "require", "action", "reason"] as const;
-const POLICY_FIELD_LIST = "name, tools, paths, pattern, patterns, require, action, and reason";
+const POLICY_FIELDS = ["name", "phase", "tools", "paths", "artifactPaths", "pattern", "patterns", "require", "action", "reason"] as const;
+const POLICY_FIELD_LIST = "name, phase, tools, paths, pattern, patterns, artifactPaths, require, action, and reason";
+const POLICY_PHASES = ["tool-call", "output", "artifact"] as const satisfies readonly PolicyPhase[];
 
 /** Validate a skill prompt before authoring or applying harness JSON. When a
  * registry is supplied, names must be exact loaded skill keys. */
@@ -91,10 +92,26 @@ export function validatePolicyDeclaration(raw: unknown): string[] {
     errors.push("name must be a non-empty string");
   }
 
-  for (const field of ["tools", "paths"] as const) {
+  if (declaration.phase !== undefined && !POLICY_PHASES.includes(declaration.phase as PolicyPhase)) {
+    errors.push('phase must be "tool-call", "output", or "artifact"');
+  }
+  const phase = POLICY_PHASES.includes(declaration.phase as PolicyPhase)
+    ? declaration.phase as PolicyPhase
+    : "tool-call";
+
+  for (const field of ["tools", "paths", "artifactPaths"] as const) {
     if (declaration[field] !== undefined && !stringArray(declaration[field])) {
       errors.push(`${field} must be an array of strings`);
     }
+  }
+  if (phase !== "tool-call" && declaration.paths !== undefined) {
+    errors.push("paths is only supported in the tool-call phase");
+  }
+  if (phase === "output" && declaration.tools !== undefined) {
+    errors.push("tools is only supported in the tool-call or artifact phase");
+  }
+  if (phase !== "artifact" && declaration.artifactPaths !== undefined) {
+    errors.push("artifactPaths is only supported in the artifact phase");
   }
 
   const hasPattern = declaration.pattern !== undefined;
@@ -126,6 +143,7 @@ export function validatePolicyDeclaration(raw: unknown): string[] {
       const unsupportedGate = Object.keys(gate).filter((key) => key !== "path" && key !== "pattern");
       if (unsupportedGate.length) errors.push(`require has unsupported field(s): ${unsupportedGate.join(", ")}`);
       if (gate.path !== undefined && typeof gate.path !== "string") errors.push("require.path must be a string");
+      if (phase !== "tool-call" && gate.path !== undefined) errors.push("require.path is only supported in the tool-call phase");
       if (typeof gate.pattern !== "string" || !gate.pattern.trim()) {
         errors.push("require.pattern must be a non-empty regular expression string");
       }
@@ -138,6 +156,9 @@ export function validatePolicyDeclaration(raw: unknown): string[] {
     declaration.action !== "observe"
   ) {
     errors.push('action must be "block", "confirm", or "observe"');
+  }
+  if (phase !== "tool-call" && declaration.action === "confirm") {
+    errors.push("confirm action is unavailable after generation; use block for bounded repair or observe");
   }
   if (declaration.reason !== undefined && (typeof declaration.reason !== "string" || !declaration.reason.trim())) {
     errors.push("reason must be a non-empty string when provided");
@@ -229,8 +250,9 @@ export function mergeLayers(layers: PolicyLayer[]): ResolvedConfig {
       const declaration = raw as Record<string, unknown>;
       const tools = declaration.tools === undefined ? undefined : stringArray(declaration.tools);
       const paths = declaration.paths === undefined ? undefined : stringArray(declaration.paths);
+      const artifactPaths = declaration.artifactPaths === undefined ? undefined : stringArray(declaration.artifactPaths);
       const patterns = declaration.patterns === undefined ? undefined : stringArray(declaration.patterns);
-      byName.set(name as string, { policy: normalizePolicy(declaration, layer.source, tools, paths, patterns) });
+      byName.set(name as string, { policy: normalizePolicy(declaration, layer.source, tools, paths, artifactPaths, patterns) });
     }
     for (const err of layer.errors ?? []) errors.push(`${layer.source}: ${err}`);
   }
@@ -260,13 +282,16 @@ function normalizePolicy(
   source: string,
   tools: string[] | undefined,
   paths: string[] | undefined,
+  artifactPaths: string[] | undefined,
   patterns: string[] | undefined,
 ): Policy {
   const requirement = raw.require as Record<string, unknown> | undefined;
   return {
     name: String(raw.name),
+    phase: POLICY_PHASES.includes(raw.phase as PolicyPhase) ? raw.phase as PolicyPhase : "tool-call",
     tools,
     paths,
+    artifactPaths,
     pattern: typeof raw.pattern === "string" ? raw.pattern : undefined,
     patterns,
     require:
@@ -298,6 +323,19 @@ export interface Decision {
   source?: string;
 }
 
+export interface PhaseCheckInput {
+  phase: Exclude<PolicyPhase, "tool-call">;
+  text: string;
+  /** Restricts artifact checks to the tool that produced the file. */
+  toolName?: string;
+  /** Restricts evaluation to a named policy when several artifact policies
+   * inspect different explicit file lists. */
+  policyName?: string;
+  /** Final task checks may recheck a configured artifact regardless of which
+   * tool last touched it; this bypasses the policy's triggering-tool filter. */
+  ignoreTools?: boolean;
+}
+
 function valueAtPath(args: Record<string, unknown>, path?: string): string[] {
   if (!path) return [JSON.stringify(args)];
   return collectLeaves(args, path.split("."));
@@ -327,6 +365,7 @@ function collectLeaves(value: unknown, segs: string[]): string[] {
  */
 export function evaluate(config: ResolvedConfig, call: ToolCallInput): Decision | null {
   for (const policy of config.policies) {
+    if ((policy.phase ?? "tool-call") !== "tool-call") continue;
     if (policy.tools && !policy.tools.includes(call.toolName)) continue;
     // Optional require gate: every listed condition must ALSO match (AND).
     // This lets one policy combine "touches UI files" with "contains a
@@ -348,6 +387,30 @@ export function evaluate(config: ResolvedConfig, call: ToolCallInput): Decision 
         source: policy.source,
       };
     }
+  }
+  return null;
+}
+
+/** Evaluate text captured after a tool has run or after the assistant has
+ * finished streaming. The subject is supplied by the caller, so artifact
+ * checks can read the real file bytes instead of trusting tool arguments. */
+export function evaluatePhase(config: ResolvedConfig, input: PhaseCheckInput): Decision | null {
+  for (const policy of config.policies) {
+    if ((policy.phase ?? "tool-call") !== input.phase) continue;
+    if (input.policyName && policy.name !== input.policyName) continue;
+    if (!input.ignoreTools && policy.tools && (!input.toolName || !policy.tools.includes(input.toolName))) continue;
+    if (policy.require) {
+      const gateRe = compile(policy.require.pattern);
+      if (!gateRe || !gateRe.test(input.text)) continue;
+    }
+    if (!policy.regexps.some((re) => re.test(input.text))) continue;
+    return {
+      policyName: policy.name,
+      action: policy.action ?? "block",
+      reason: `[guardrails:${policy.name}] ${policy.reason}`,
+      cleanReason: policy.reason,
+      source: policy.source,
+    };
   }
   return null;
 }

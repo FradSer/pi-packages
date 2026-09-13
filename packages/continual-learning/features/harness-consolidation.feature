@@ -18,6 +18,34 @@ Feature: Harness consolidation alongside memory consolidation
     Then every proposed operation cites concrete observed evidence from that snapshot
     And the parent alone writes any configuration
 
+  Scenario: Harness evidence is bound to an observed actor and quote
+    Given a harness operation cites a user requirement, user correction, or tool outcome
+    When the parent validates the operation against the immutable snapshot
+    Then each evidence item carries a verbatim quote found in the snapshot
+    And each evidence item identifies source "user" or "tool"
+    And model-only speculation or an invented paraphrase is rejected
+
+  Scenario: SDK tool-result messages provide tool evidence from content
+    Given the immutable snapshot contains an SDK message with role "toolResult"
+    When the parent validates a harness operation against that snapshot
+    Then a quote from the tool-result content is accepted as source "tool"
+    And a quote from the tool name or envelope metadata is rejected
+    And assistant message content remains ineligible as tool evidence
+
+  Scenario: Policy learning requires executable positive and negative cases
+    Given an addPolicy or updatePolicy operation declares positive and negative tool calls
+    When the parent evaluates those cases with the actual harness policy evaluator
+    Then every positive case matches the proposed policy with its declared action
+    And every negative case remains unmatched by the proposed policy
+    And missing or failing cases reject the operation before any write
+
+  Scenario: Automatic learning protects explicit and manually authored rules
+    Given an existing rule comes from built-in defaults, a shared layer, or an unmarked project-local entry
+    When consolidation proposes to disable it or weaken its action or match scope
+    Then the operation is rejected because automatic learning cannot disable or weaken existing rules
+    And a user-looking quote or model authorization field cannot change that result
+    And a project-local rule marked as learned may be revised only with grounded evidence and passing cases
+
   Scenario: Oversized non-plan telemetry does not abort harness consolidation
     Given child output contains an oversized non-plan message_update event followed by a valid final plan
     When the harness phase extracts the child plan

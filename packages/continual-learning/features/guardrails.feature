@@ -101,3 +101,42 @@ Feature: Generic tool-call guardrails from layered config
     Then the malformed policy is skipped
     And the diagnostic names the unsupported fields and the accepted tools, paths, pattern, action, and reason fields
     And a valid declarative policy in the same layer remains active
+
+  Scenario: Existing and newly authored policies have an explicit check phase
+    Given a policy omits its phase
+    When the guardrail configuration is loaded
+    Then the policy is assigned the tool-call phase
+    And an output or artifact policy keeps its declared phase
+    And existing tool-call regex rules continue to run before execution
+
+  Scenario: Final assistant output is checked after it has streamed
+    Given an output-phase policy matching prohibited assistant text
+    When the final assistant message ends
+    Then the harness records a checked output violation
+    And it sends bounded corrective guidance back to the model
+    And it does not claim that already streamed text was withheld
+
+  Scenario: Actual written file content is checked after tool execution
+    Given an artifact-phase policy matching prohibited file content
+    When a write tool succeeds
+    Then the harness reads the regular file at the written path
+    And a matching file is recorded as a checked artifact violation
+    And a matching string present only in the tool arguments does not count as an artifact match
+
+  Scenario: Missing or unsafe artifact paths are reported as unsupported
+    Given an artifact-phase policy and a write result whose path is missing, outside the workspace, or a symlink
+    When the post-execution artifact check runs
+    Then the harness records unsupported instead of checked
+    And it does not send a repair for an artifact it could not safely inspect
+
+  Scenario: Output and artifact repairs stop at a bounded limit
+    Given a prohibited output or artifact remains after corrective guidance
+    When the harness observes repeated violations
+    Then it sends at most the configured repair limit
+    And it records repair-exhausted without creating an infinite self-turn loop
+
+  Scenario: Context guidance is a separate pre-generation surface
+    Given a skill prompt is configured for an expanded skill invocation
+    When context guidance is registered separately from guardrails
+    Then the skill prompt is injected before generation
+    And registering guardrails alone does not inject skill guidance

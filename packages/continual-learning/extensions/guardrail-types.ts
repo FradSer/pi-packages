@@ -1,9 +1,15 @@
 /** Declarative guardrail policy shapes shared by config loading and the
  * evaluation engine. */
 
+/** Point in the agent lifecycle where a policy is evaluated. Existing rules
+ * default to tool-call so older configuration remains a pre-execution gate. */
+export type PolicyPhase = "tool-call" | "output" | "artifact";
+
 export interface Policy {
   /** Unique name; innermost layer wins on conflicts, disable lists target it. */
   name: string;
+  /** Evaluation phase. Omitted declarations normalize to tool-call. */
+  phase?: PolicyPhase;
   /** Restrict to these tool names; undefined matches every tool. */
   tools?: string[];
   /** Dot paths into the tool arguments whose string values are tested
@@ -11,6 +17,10 @@ export interface Policy {
    * every edit). Prefer explicit content paths — the default scans the whole
    * argument JSON, which also matches replaced source quoted in edit inputs. */
   paths?: string[];
+  /** Workspace-relative files to inspect after any matching tool result.
+   * This is required when an artifact is produced by a command tool such as
+   * bash, whose result does not carry a canonical file path. */
+  artifactPaths?: string[];
   /** Single regex source. */
   pattern?: string;
   /** Multiple regex sources; any match triggers the action. */

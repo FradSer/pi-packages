@@ -7,8 +7,10 @@ passed; 1 means a validation failure; 2 means invalid command-line input or an
 I/O failure.
 
 Plan JSON requires ``runId``, ``scopeKey``, ``scopeDigest``, ``artifactHash``,
-``inventory``, ``clusters``, ``staleness``, ``grounding``, and ``report``.  A
-post receipt binds the run and scope identities to the final harness/public
+``inventory``, ``clusters``, ``staleness``, ``grounding``, and ``report``.
+Context-derived ``newMemories`` are separately bounded create proposals and
+must cite user or tool-result entries in the immutable ``--snapshot`` artifact.
+A post receipt binds the run and scope identities to the final harness/public
 hashes and declares ``phase: post``.  The command accepts ``--expected-*``
 values so a parent process can bind artifacts to its own run.
 """
@@ -50,6 +52,21 @@ TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9][A-Za-z0-9_.-]*\.md)", r
 MAX_MEMORY_FILES = 4_096
 MAX_MEMORY_FILE_BYTES = 64_000
 MAX_MEMORY_TOTAL_BYTES = MAX_MEMORY_FILES * MAX_MEMORY_FILE_BYTES
+MAX_NEW_MEMORY_PROPOSALS = 16
+MAX_NEW_MEMORY_NAME_CHARS = 96
+MAX_NEW_MEMORY_EVIDENCE = 8
+MAX_NEW_MEMORY_QUOTE_CHARS = 2_000
+MAX_NEW_MEMORY_TOTAL_BYTES = 256_000
+MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024
+
+SENSITIVE_MEMORY_PATTERNS = (
+    re.compile(r"-----BEGIN [^-\r\n]*PRIVATE KEY-----", re.IGNORECASE),
+    re.compile(r"(?<![A-Za-z])(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)\s*(?::|=|\bis\b)\s*[^\s,;]+", re.IGNORECASE),
+    re.compile(r"\b(?:sk|rk|pk|gh[oprsu]|github_pat|xox[baprs]|AIza|npm_|pypi-)[-_A-Za-z0-9]{8,}\b", re.IGNORECASE),
+    re.compile(r"\bbearer\s+[A-Za-z0-9._~+/=-]{16,}\b", re.IGNORECASE),
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b", re.IGNORECASE),
+)
+MISSING = object()
 
 
 class ValidationError(Exception):
@@ -163,6 +180,176 @@ def normalize_inventory(value: Any, label: str = "inventory") -> tuple[list[str]
     # binds its run and artifact identities and the per-item sections are
     # required (and therefore empty) in the same way as a non-empty scope.
     return names, metadata
+
+
+def contains_sensitive_memory_material(value: str) -> bool:
+    return any(pattern.search(value) is not None for pattern in SENSITIVE_MEMORY_PATTERNS)
+
+
+def normalize_evidence_text(value: str) -> str:
+    return " ".join(value.split()).strip()
+
+
+def snapshot_entry_record(entry: Any) -> dict[str, Any] | None:
+    if not isinstance(entry, dict):
+        return None
+    message = entry.get("message")
+    return message if isinstance(message, dict) else entry
+
+
+def snapshot_entry_role(entry: Any) -> str | None:
+    record = snapshot_entry_record(entry)
+    role = record.get("role") if record is not None else None
+    return role if isinstance(role, str) else None
+
+
+def snapshot_entry_text(entry: Any) -> str:
+    record = snapshot_entry_record(entry)
+    content = record.get("content") if record is not None else None
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict) and isinstance(item.get("text"), str):
+                parts.append(item["text"])
+            else:
+                parts.append(json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+        return "\n".join(parts)
+    return json.dumps(entry, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def snapshot_contains_quote(entry: Any, quote: str) -> bool:
+    wanted = normalize_evidence_text(quote)
+    if not wanted:
+        return False
+    text = normalize_evidence_text(snapshot_entry_text(entry))
+    if wanted in text:
+        return True
+    encoded = json.dumps(quote, ensure_ascii=False)[1:-1]
+    return normalize_evidence_text(encoded) in text
+
+
+def snapshot_entries(snapshot: dict[str, Any] | None) -> list[Any]:
+    if snapshot is None or snapshot.get("contextEnabled") is not True:
+        return []
+    entries = snapshot.get("entries")
+    return entries if isinstance(entries, list) else []
+
+
+def new_memory_raw_value(plan: dict[str, Any]) -> Any:
+    return plan.get("newMemories", MISSING)
+
+
+def normalize_new_memory_proposals(
+    value: Any,
+    selected: list[str],
+    snapshot: dict[str, Any] | None,
+    expected_run_id: str | None = None,
+    expected_scope_key: str | None = None,
+) -> list[dict[str, Any]]:
+    raw = [] if value is MISSING else value
+    if not isinstance(raw, list):
+        raise ValidationError("schema", "newMemories must be an array")
+    if len(raw) > MAX_NEW_MEMORY_PROPOSALS:
+        raise ValidationError("memory_bounds", f"newMemories exceeds the maximum of {MAX_NEW_MEMORY_PROPOSALS}")
+    if not raw:
+        return []
+    if snapshot is None:
+        raise ValidationError("context_evidence", "newMemories require the immutable snapshot artifact")
+    if snapshot.get("schemaVersion") != 1:
+        raise ValidationError("binding", "newMemories snapshot schema does not match the consolidation run")
+    if expected_run_id is not None and snapshot.get("runId") != expected_run_id:
+        raise ValidationError("binding", "newMemories snapshot run id does not match the parent run")
+    if expected_scope_key is not None and snapshot.get("scopeKey") != expected_scope_key:
+        raise ValidationError("binding", "newMemories snapshot scope key does not match the parent run")
+    entries = snapshot_entries(snapshot)
+    if not entries:
+        raise ValidationError("context_evidence", "newMemories require an enabled immutable context snapshot with entries")
+    selected_keys = {name.casefold() for name in selected}
+    names: set[str] = set()
+    total_bytes = 0
+    normalized: list[dict[str, Any]] = []
+    for index, proposal in enumerate(raw):
+        label = f"newMemories[{index}]"
+        if not isinstance(proposal, dict):
+            raise ValidationError("schema", f"{label} must be an object")
+        name = strict_name(proposal.get("name"), f"{label}.name")
+        if name is None:
+            raise ValidationError("artifact_identity", f"{label}.name must be a memory filename")
+        if len(name) > MAX_NEW_MEMORY_NAME_CHARS:
+            raise ValidationError("memory_bounds", f"{label}.name exceeds {MAX_NEW_MEMORY_NAME_CHARS} characters")
+        key = name.casefold()
+        if key in selected_keys:
+            raise ValidationError("scope", f"{label}: new memory name overlaps selected scope: {name}")
+        if key in names:
+            raise ValidationError("artifact_identity", f"{label}: duplicate new memory name: {name}")
+        names.add(key)
+
+        kind_value = proposal.get("kind")
+        if kind_value == "preference":
+            kind = "preference"
+        elif kind_value == "project":
+            kind = "project"
+        else:
+            raise ValidationError("schema", f"{label}.kind must be preference or project")
+        classification = proposal["classification"] if "classification" in proposal else (
+            "private" if kind == "preference" else "safe"
+        )
+        if classification not in {"safe", "private"}:
+            raise ValidationError("privacy", f"{label}.classification must be safe or private")
+        if kind == "preference" and classification == "safe":
+            raise ValidationError("privacy", f"{label}.classification: preferences must remain private")
+
+        content = proposal.get("content")
+        if not isinstance(content, str) or not content:
+            raise ValidationError("schema", f"{label}.content must be a non-empty string")
+        content_bytes = len(content.encode("utf-8"))
+        if content_bytes > MAX_MEMORY_FILE_BYTES:
+            raise ValidationError("memory_bounds", f"{label}.content exceeds {MAX_MEMORY_FILE_BYTES} bytes")
+        if contains_sensitive_memory_material(content):
+            raise ValidationError("sensitive", f"{label}.content contains sensitive material")
+        total_bytes += content_bytes
+        if total_bytes > MAX_NEW_MEMORY_TOTAL_BYTES:
+            raise ValidationError("memory_bounds", f"newMemories content exceeds {MAX_NEW_MEMORY_TOTAL_BYTES} bytes")
+
+        evidence = proposal.get("evidence")
+        if not isinstance(evidence, list) or not evidence or len(evidence) > MAX_NEW_MEMORY_EVIDENCE:
+            raise ValidationError("context_evidence", f"{label}.evidence must contain 1..{MAX_NEW_MEMORY_EVIDENCE} entries")
+        normalized_evidence: list[dict[str, Any]] = []
+        for evidence_index, item in enumerate(evidence):
+            evidence_label = f"{label}.evidence[{evidence_index}]"
+            if not isinstance(item, dict):
+                raise ValidationError("context_evidence", f"{evidence_label} must be an object")
+            raw_index = item.get("index")
+            if isinstance(raw_index, bool) or not isinstance(raw_index, int) or raw_index < 0:
+                raise ValidationError("context_evidence", f"{evidence_label} must use a non-negative snapshot entry index")
+            if raw_index >= len(entries):
+                raise ValidationError("context_evidence", f"{evidence_label} points outside the immutable snapshot")
+            quote = item.get("quote")
+            if not isinstance(quote, str) or not quote.strip() or len(quote) > MAX_NEW_MEMORY_QUOTE_CHARS:
+                raise ValidationError("context_evidence", f"{evidence_label}.quote must be 1..{MAX_NEW_MEMORY_QUOTE_CHARS} characters")
+            if contains_sensitive_memory_material(quote):
+                raise ValidationError("sensitive", f"{evidence_label}.quote contains sensitive material")
+            entry = entries[raw_index]
+            role = snapshot_entry_role(entry)
+            if role not in {"user", "toolResult"}:
+                raise ValidationError("context_evidence", f"{evidence_label} must cite a user or tool result snapshot entry")
+            if not snapshot_contains_quote(entry, quote):
+                raise ValidationError("context_evidence", f"{evidence_label}.quote is not present in the cited snapshot entry")
+            if "role" in item and item["role"] != role:
+                raise ValidationError("context_evidence", f"{evidence_label}.role does not match the cited snapshot entry")
+            normalized_evidence.append({"index": raw_index, "quote": quote, "role": role})
+        normalized.append({
+            "name": name,
+            "kind": kind,
+            "classification": classification,
+            "content": content,
+            "evidence": normalized_evidence,
+        })
+    return normalized
 
 
 def record_name(record: Any, label: str) -> str | None:
@@ -447,7 +634,12 @@ def validate_operations(
     return result
 
 
-def validate_plan(plan: dict[str, Any], expected: dict[str, str | None], repo_root: Path | None) -> dict[str, Any]:
+def validate_plan(
+    plan: dict[str, Any],
+    expected: dict[str, str | None],
+    repo_root: Path | None,
+    snapshot: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     kind = plan.get("kind")
     if kind != "memory-consolidation-plan":
         raise ValidationError("schema", f"plan: kind must be 'memory-consolidation-plan', got {kind!r}")
@@ -474,6 +666,13 @@ def validate_plan(plan: dict[str, Any], expected: dict[str, str | None], repo_ro
     grounding = validate_grounding(artifacts["grounding"], inventory, repo_root)
     report = validate_report(artifacts["report"], inventory)
     operations = validate_operations(plan.get("operations"), inventory, metadata)
+    new_memories = normalize_new_memory_proposals(
+        new_memory_raw_value(plan),
+        selected,
+        snapshot,
+        expected_run_id=plan.get("runId"),
+        expected_scope_key=plan.get("scopeKey"),
+    )
     supplied_hash = plan["artifactHash"]
     calculated_hash = digest(artifact_payload(plan))
     # A parent may bind a precomputed hash of the serialized artifact.  When it
@@ -489,6 +688,7 @@ def validate_plan(plan: dict[str, Any], expected: dict[str, str | None], repo_ro
         "grounding": grounding,
         "report": report,
         "operations": operations,
+        "newMemories": new_memories,
         "calculatedArtifactHash": calculated_hash,
     }
 
@@ -505,6 +705,46 @@ def lstat_regular(path: Path, label: str, directory: bool = False) -> os.stat_re
     if not directory and not path.is_file():
         raise ValidationError("privacy", f"{label}: expected a regular file: {path}")
     return stat
+
+
+def load_bounded_json_with_bytes(path: Path, label: str, max_bytes: int) -> tuple[dict[str, Any], bytes]:
+    lstat_regular(path, label)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise ValidationError("json", f"{label}: cannot open {path}: {exc}") from exc
+    try:
+        stat = os.fstat(descriptor)
+        if (stat.st_mode & 0o170000) != 0o100000:
+            raise ValidationError("json", f"{label}: expected a regular file: {path}")
+        if stat.st_size > max_bytes:
+            raise ValidationError("memory_bounds", f"{label}: exceeds {max_bytes} bytes")
+        chunks: list[bytes] = []
+        total = 0
+        while total < stat.st_size:
+            chunk = os.read(descriptor, min(64 * 1024, stat.st_size - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+        final_stat = os.fstat(descriptor)
+        if total != stat.st_size or final_stat.st_size != stat.st_size:
+            raise ValidationError("binding", f"{label}: changed while being read")
+        raw = b"".join(chunks)
+    except ValidationError:
+        raise
+    except OSError as exc:
+        raise ValidationError("json", f"{label}: cannot read {path}: {exc}") from exc
+    finally:
+        os.close(descriptor)
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise ValidationError("json", f"{label}: invalid JSON: {exc}") from exc
+    if not isinstance(value, dict):
+        raise ValidationError("schema", f"{label}: top level must be a JSON object")
+    return value, raw
 
 
 def open_memory_root(root: Path, label: str) -> int:
@@ -851,6 +1091,11 @@ def validate_receipt(
         expected_names, _ = normalize_inventory(expected_selected, "expected selected scope")
         if {name.casefold() for name in selected_names} != {name.casefold() for name in expected_names}:
             raise ValidationError("binding", "receipt: selected files do not match parent expectation")
+    created_value = receipt.get("created", [])
+    created_names, _ = normalize_inventory(created_value, "receipt.created")
+    expected_created = [item["name"] for item in plan_data["newMemories"]]
+    if {name.casefold() for name in created_names} != {name.casefold() for name in expected_created}:
+        raise ValidationError("binding", "receipt: created files do not match plan newMemories")
     if privacy is None:
         raise ValidationError("receipt", "receipt: privacy result is required to verify final hashes")
     expected_harness, expected_public = extract_final_hashes(receipt)
@@ -863,7 +1108,7 @@ def validate_receipt(
 
 
 def check_plan_classification(plan_data: dict[str, Any], privacy: dict[str, Any]) -> None:
-    private = set(privacy["private"])
+    private = {name.casefold() for name in privacy["private"]}
     for name, metadata in plan_data["metadata"].items():
         classification = field(metadata, "classification", "privacy", "visibility")
         if classification is None:
@@ -871,9 +1116,15 @@ def check_plan_classification(plan_data: dict[str, Any], privacy: dict[str, Any]
         if not isinstance(classification, str) or classification.lower() not in {"safe", "private", "harness-only", "harness_only"}:
             raise ValidationError("privacy", f"inventory: {name} has invalid classification {classification!r}")
         is_private = classification.lower() in {"private", "harness-only", "harness_only"}
-        if is_private != (name in private):
-            expected = "private" if name in private else "safe"
+        if is_private != (name.casefold() in private):
+            expected = "private" if name.casefold() in private else "safe"
             raise ValidationError("privacy", f"inventory: {name} classification disagrees with harness index (expected {expected})")
+    for proposal in plan_data["newMemories"]:
+        name = proposal["name"]
+        expected_private = proposal["classification"] == "private"
+        if expected_private != (name.casefold() in private):
+            expected = "private" if name.casefold() in private else "safe"
+            raise ValidationError("privacy", f"newMemories: {name} classification disagrees with harness index (expected {expected})")
 
 
 def parse_expected_selected(raw: list[str] | None) -> list[Any] | None:
@@ -933,6 +1184,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo-root", type=Path, help="repository root for grounding containment")
     parser.add_argument("--harness", type=Path, help="harness memory directory")
     parser.add_argument("--public", type=Path, help="public .memory directory")
+    parser.add_argument("--snapshot", type=Path, help="immutable session-context snapshot JSON")
     parser.add_argument("--expected-run-id", "--run-id", dest="expected_run_id")
     parser.add_argument("--expected-scope-key", "--scope-key", dest="expected_scope_key")
     parser.add_argument("--expected-scope-digest", "--scope-digest", dest="expected_scope_digest")
@@ -997,6 +1249,8 @@ def main(argv: list[str] | None = None) -> int:
     plan: dict[str, Any] | None = None
     plan_data: dict[str, Any] | None = None
     plan_bytes: bytes | None = None
+    snapshot: dict[str, Any] | None = None
+    snapshot_bytes: bytes | None = None
     privacy: dict[str, Any] | None = None
     if not errors and "plan" in checks:
         if args.plan is None:
@@ -1004,8 +1258,22 @@ def main(argv: list[str] | None = None) -> int:
         else:
             try:
                 plan, plan_bytes = load_json_with_bytes(args.plan, "plan")
-                plan_data = validate_plan(plan, parse_expected(args), args.repo_root)
+                expected = parse_expected(args)
+                snapshot_path = args.snapshot
+                if snapshot_path is None and expected.get("runDir") is not None and "newMemories" in plan:
+                    candidate = expected["runDir"] / "snapshot.json"
+                    if candidate.exists():
+                        snapshot_path = candidate
+                if snapshot_path is not None:
+                    expected_run_dir = expected.get("runDir")
+                    if expected_run_dir is not None and snapshot_path.resolve(strict=False).parent != expected_run_dir.resolve(strict=False):
+                        raise ValidationError("binding", "snapshot: path must be in the exact expected run directory")
+                    snapshot, snapshot_bytes = load_bounded_json_with_bytes(snapshot_path, "snapshot", MAX_SNAPSHOT_BYTES)
+                    if "newMemories" in plan and not hash_matches(hash_bytes(snapshot_bytes), plan["artifactHash"]):
+                        raise ValidationError("binding", "newMemories snapshot digest does not match plan artifactHash")
+                plan_data = validate_plan(plan, expected, args.repo_root, snapshot)
                 details["inventoryCount"] = len(plan_data["inventory"])
+                details["newMemoryCount"] = len(plan_data["newMemories"])
             except ValidationError as error:
                 errors.append(error)
     if not errors and "privacy" in checks:

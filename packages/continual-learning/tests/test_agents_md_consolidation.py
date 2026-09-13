@@ -308,8 +308,8 @@ def test_target_resolution_and_user_level_guard(tmp_path: Path) -> None:
 def test_pipeline_wires_autonomous_agents_phase_after_harness_phase() -> None:
     inject = (PKG_DIR / "extensions" / "inject-memory.ts").read_text(encoding="utf-8")
     agents = (PKG_DIR / "extensions" / "agents-md-consolidation.ts").read_text(encoding="utf-8")
-    harness_pos = inject.index("await runHarnessConsolidationPhase(ctx, state, {")
-    agents_pos = inject.index("await runAgentsMdConsolidationPhase(ctx, state, {")
+    harness_pos = inject.index("await runHarnessConsolidationPhase(frozenContext, state, {")
+    agents_pos = inject.index("await runAgentsMdConsolidationPhase(frozenContext, state, {")
     assert harness_pos < agents_pos
     assert "settings.agentsMd?.disabled === true" in inject
     assert "DEFAULT_AGENTS_MD_BUDGET_BYTES" in inject

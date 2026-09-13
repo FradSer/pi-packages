@@ -19,6 +19,12 @@ export const MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024;
 export const MAX_MEMORY_FILES = 4_096;
 export const MAX_MEMORY_BYTES = 64_000;
 export const MAX_SNAPSHOT_DEPTH = 128;
+/** New context-derived files are bounded independently of the existing scope. */
+export const MAX_NEW_MEMORY_PROPOSALS = 16;
+export const MAX_NEW_MEMORY_NAME_CHARS = 96;
+export const MAX_NEW_MEMORY_EVIDENCE = 8;
+export const MAX_NEW_MEMORY_QUOTE_CHARS = 2_000;
+export const MAX_NEW_MEMORY_TOTAL_BYTES = 256_000;
 
 export interface ConsolidationRunPaths {
   memory: MemoryPaths;
@@ -416,6 +422,57 @@ function cloneJson(value: unknown, maxBytes = MAX_SNAPSHOT_BYTES): unknown {
   if (encoded === undefined) throw new Error("Consolidation snapshot is not JSON-serializable.");
   if (Buffer.byteLength(encoded, "utf8") > maxBytes) throw new SnapshotLimitError(`Consolidation snapshot exceeds ${maxBytes} bytes.`);
   return JSON.parse(encoded) as unknown;
+}
+
+function freezeJson(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  for (const child of Object.values(value as Record<string, unknown>)) freezeJson(child);
+  return Object.freeze(value);
+}
+
+/**
+ * Capture the session reads used by later consolidation phases once. The
+ * returned context keeps the original context surface, while branch/context
+ * readers return bounded frozen clones and all other manager methods retain
+ * their original receiver.
+ */
+export function snapshotSessionContext(ctx: ExtensionContext): ExtensionContext {
+  const manager = ctx.sessionManager;
+  const cwd = ctx.cwd;
+  const hasGetCwd = typeof manager.getCwd === "function";
+  const hasGetSessionId = typeof manager.getSessionId === "function";
+  const hasGetSessionFile = typeof manager.getSessionFile === "function";
+  const hasGetHeader = typeof manager.getHeader === "function";
+  const sessionCwd = hasGetCwd ? manager.getCwd() : undefined;
+  const sessionId = hasGetSessionId ? manager.getSessionId() : undefined;
+  const sessionFile = hasGetSessionFile ? manager.getSessionFile() : undefined;
+  const header = hasGetHeader ? freezeJson(cloneJson(manager.getHeader(), MAX_SNAPSHOT_BYTES)) : undefined;
+  const frozenBranch = manager.getBranch
+    ? freezeJson(cloneJson(manager.getBranch(), MAX_SNAPSHOT_BYTES))
+    : undefined;
+  const frozenContext = manager.buildContextEntries
+    ? freezeJson(cloneJson(manager.buildContextEntries(), MAX_SNAPSHOT_BYTES))
+    : undefined;
+  const frozenManager = new Proxy(manager, {
+    get(target, property, receiver) {
+      if (property === "getBranch" && frozenBranch !== undefined) return () => frozenBranch;
+      if (property === "buildContextEntries" && frozenContext !== undefined) return () => frozenContext;
+      if (property === "getCwd" && hasGetCwd) return () => sessionCwd;
+      if (property === "getSessionId" && hasGetSessionId) return () => sessionId;
+      if (property === "getSessionFile" && hasGetSessionFile) return () => sessionFile;
+      if (property === "getHeader" && hasGetHeader) return () => header;
+      const member = Reflect.get(target, property, receiver);
+      return typeof member === "function" ? member.bind(target) : member;
+    },
+  });
+  return new Proxy(ctx, {
+    get(target, property, receiver) {
+      if (property === "sessionManager") return frozenManager;
+      if (property === "cwd") return cwd;
+      const member = Reflect.get(target, property, receiver);
+      return typeof member === "function" ? member.bind(target) : member;
+    },
+  });
 }
 
 function jsonText(value: unknown): string {
@@ -897,7 +954,7 @@ export function extractFinalPlan(stdout: string): unknown { const result = extra
 
 export interface FinalHashes { harness: Record<string, string>; public: Record<string, string> }
 const SHA256_RE = /^(?:sha256:)?[0-9a-f]{64}$/i;
-export interface ReceiptBindingInput { runId: string; scopeDigest: string; artifactHash: string; selected: readonly string[]; finalHashes?: FinalHashes; sourceHashes?: FinalHashes; planDigest?: string }
+export interface ReceiptBindingInput { runId: string; scopeDigest: string; artifactHash: string; selected: readonly string[]; created?: readonly string[]; finalHashes?: FinalHashes; sourceHashes?: FinalHashes; planDigest?: string }
 export interface ConsolidationReceipt {
   kind: "memory-consolidation-receipt";
   version: typeof CONSOLIDATION_SCHEMA_VERSION;
@@ -907,6 +964,7 @@ export interface ConsolidationReceipt {
   scopeDigest: string;
   artifactHash: string;
   selected: string[];
+  created?: string[];
   finalHashes?: FinalHashes;
   sourceHashes?: FinalHashes;
   planDigest?: string;
@@ -933,6 +991,7 @@ export function createReceiptBinding(phase: "pre" | "post", input: ReceiptBindin
   return {
     kind: "memory-consolidation-receipt", version: CONSOLIDATION_SCHEMA_VERSION, schemaVersion: CONSOLIDATION_SCHEMA_VERSION, phase, runId: input.runId,
     scopeDigest: input.scopeDigest, artifactHash: input.artifactHash, selected: sortedFiles(input.selected),
+    ...(input.created ? { created: sortedFiles(input.created) } : {}),
     ...(input.finalHashes ? { finalHashes: { harness: sortedHashes(input.finalHashes.harness), public: sortedHashes(input.finalHashes.public) } } : {}),
     ...(input.sourceHashes ? { sourceHashes: { harness: sortedHashes(input.sourceHashes.harness), public: sortedHashes(input.sourceHashes.public) } } : {}),
     ...(input.planDigest ? { planDigest: input.planDigest } : {}),
@@ -941,11 +1000,11 @@ export function createReceiptBinding(phase: "pre" | "post", input: ReceiptBindin
 }
 export function createPreApplyReceipt(input: ReceiptBindingInput): ConsolidationReceipt { return createReceiptBinding("pre", input); }
 export function createPostApplyReceipt(input: ReceiptBindingInput): ConsolidationReceipt { return createReceiptBinding("post", input); }
-export function createConsolidationReceipt(manifest: ConsolidationManifest, selected: string[], finalState: unknown, planDigest: string): ConsolidationReceipt {
+export function createConsolidationReceipt(manifest: ConsolidationManifest, selected: string[], finalState: unknown, planDigest: string, created: readonly string[] = []): ConsolidationReceipt {
   const hashes = finalState && typeof finalState === "object" && !Array.isArray(finalState) ? finalState as FinalHashes : { harness: {}, public: {} };
-  return createPostApplyReceipt({ runId: manifest.runId, scopeDigest: manifest.scopeDigest, artifactHash: manifest.snapshotDigest, selected, finalHashes: hashes, sourceHashes: manifest.sourceHashes, planDigest });
+  return createPostApplyReceipt({ runId: manifest.runId, scopeDigest: manifest.scopeDigest, artifactHash: manifest.snapshotDigest, selected, created, finalHashes: hashes, sourceHashes: manifest.sourceHashes, planDigest });
 }
-export interface ReceiptBindingExpectation { runId?: string; scopeDigest?: string; artifactHash?: string; selected?: readonly string[]; phase?: "pre" | "post" }
+export interface ReceiptBindingExpectation { runId?: string; scopeDigest?: string; artifactHash?: string; selected?: readonly string[]; created?: readonly string[]; phase?: "pre" | "post" }
 export function validateReceiptBinding(receipt: unknown, expected: ReceiptBindingExpectation = {}): { ok: true; receipt: ConsolidationReceipt } | { ok: false; error: string } {
   if (!receipt || typeof receipt !== "object" || Array.isArray(receipt)) return { ok: false, error: "receipt is not an object" };
   const value = receipt as Partial<ConsolidationReceipt>;
@@ -953,6 +1012,7 @@ export function validateReceiptBinding(receipt: unknown, expected: ReceiptBindin
   if (typeof value.runId !== "string" || typeof value.scopeDigest !== "string" || typeof value.artifactHash !== "string" || !Array.isArray(value.selected)) return { ok: false, error: "receipt identity or selected scope is invalid" };
   if (value.phase !== "pre" && value.phase !== "post") return { ok: false, error: "receipt phase is required and invalid" };
   try {
+    if (value.created !== undefined) sortedFiles(value.created);
     if (value.finalHashes) {
       if (!value.finalHashes || typeof value.finalHashes !== "object") return { ok: false, error: "receipt final hashes are invalid" };
       sortedHashes(value.finalHashes.harness);
@@ -980,7 +1040,10 @@ export function validateReceiptBinding(receipt: unknown, expected: ReceiptBindin
     const selected = sortedFiles(value.selected.filter((item): item is string => typeof item === "string"));
     if (selected.length !== value.selected.length) return { ok: false, error: "receipt selected scope is invalid" };
     if (expected.selected && JSON.stringify(selected) !== JSON.stringify(sortedFiles(expected.selected))) return { ok: false, error: "receipt selected scope mismatch" };
-    return { ok: true, receipt: { ...value, selected } as ConsolidationReceipt };
+    const created = value.created === undefined ? undefined : sortedFiles(value.created.filter((item): item is string => typeof item === "string"));
+    if (value.created !== undefined && created!.length !== value.created.length) return { ok: false, error: "receipt created scope is invalid" };
+    if (expected.created && JSON.stringify(created ?? []) !== JSON.stringify(sortedFiles(expected.created))) return { ok: false, error: "receipt created scope mismatch" };
+    return { ok: true, receipt: { ...value, selected, ...(created === undefined ? {} : { created }) } as ConsolidationReceipt };
   } catch (error) { return { ok: false, error: (error as Error).message }; }
 }
 export async function writeConsolidationReceipt(run: ConsolidationRun, receipt: ConsolidationReceipt, phase: "pre" | "post" = "post"): Promise<string> {
@@ -1246,11 +1309,202 @@ function scopeEntries(raw: unknown, label: string): { name: string; classificati
   });
 }
 
+export type NewMemoryKind = "preference" | "project";
+export type NewMemoryClassification = "safe" | "private";
+
+export interface NewMemoryEvidence {
+  index: number;
+  quote: string;
+  role: "user" | "toolResult";
+}
+
+export interface NewMemoryProposal {
+  name: string;
+  kind: NewMemoryKind;
+  classification: NewMemoryClassification;
+  content: string;
+  evidence: NewMemoryEvidence[];
+}
+
+const SENSITIVE_MEMORY_PATTERNS: readonly RegExp[] = [
+  /-----BEGIN [^-\r\n]*PRIVATE KEY-----/i,
+  /(?<![A-Za-z])(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)\s*(?::|=|\bis\b)\s*[^\s,;]+/i,
+  /\b(?:sk|rk|pk|gh[oprsu]|github_pat|xox[baprs]|AIza|npm_|pypi-)[-_A-Za-z0-9]{8,}\b/i,
+  /\bbearer\s+[A-Za-z0-9._~+/=-]{16,}\b/i,
+  /\bAKIA[0-9A-Z]{16}\b/i,
+];
+
+export function containsSensitiveMemoryMaterial(value: string): boolean {
+  return SENSITIVE_MEMORY_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+function normalizeEvidenceText(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function snapshotEntryRecord(entry: unknown): Record<string, unknown> | undefined {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return undefined;
+  const record = entry as Record<string, unknown>;
+  if (record.message && typeof record.message === "object" && !Array.isArray(record.message)) {
+    return record.message as Record<string, unknown>;
+  }
+  return record;
+}
+
+function snapshotEntryRole(entry: unknown): string | undefined {
+  return snapshotEntryRecord(entry)?.role as string | undefined;
+}
+
+function snapshotEntryText(entry: unknown): string {
+  const record = snapshotEntryRecord(entry);
+  const content = record?.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content.map((part) => {
+      if (typeof part === "string") return part;
+      if (!part || typeof part !== "object" || Array.isArray(part)) return JSON.stringify(part) ?? "";
+      const text = (part as Record<string, unknown>).text;
+      return typeof text === "string" ? text : JSON.stringify(part) ?? "";
+    }).join("\n");
+  }
+  return JSON.stringify(entry) ?? "";
+}
+
+function snapshotContainsQuote(entry: unknown, quote: string): boolean {
+  const normalizedQuote = normalizeEvidenceText(quote);
+  if (!normalizedQuote) return false;
+  const text = normalizeEvidenceText(snapshotEntryText(entry));
+  if (text.includes(normalizedQuote)) return true;
+  const encoded = JSON.stringify(quote);
+  return typeof encoded === "string" && text.includes(normalizeEvidenceText(encoded.slice(1, -1)));
+}
+
+function snapshotEntries(snapshot: unknown): unknown[] {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return [];
+  const entries = (snapshot as Record<string, unknown>).entries;
+  return Array.isArray(entries) ? entries : [];
+}
+
+function newMemoryRawValue(plan: Record<string, unknown>): unknown {
+  return plan.newMemories;
+}
+
+function newMemoryName(value: unknown, label: string): string {
+  const name = value;
+  assertMemoryName(name);
+  if (name.length > MAX_NEW_MEMORY_NAME_CHARS) throw new Error(`${label} exceeds ${MAX_NEW_MEMORY_NAME_CHARS} characters`);
+  return name;
+}
+
+function newMemoryKind(value: unknown, label: string): NewMemoryKind {
+  if (value === "preference") return value;
+  if (value === "project") return value;
+  throw new Error(`${label} must be preference or project`);
+}
+
+function newMemoryClassification(value: unknown, kind: NewMemoryKind, label: string): NewMemoryClassification {
+  if (value === undefined) return kind === "preference" ? "private" : "safe";
+  if (value !== "safe" && value !== "private") throw new Error(`${label} must be safe or private`);
+  if (kind === "preference" && value === "safe") throw new Error(`${label}: preferences must remain private`);
+  return value;
+}
+
+function evidenceIndex(value: Record<string, unknown>, label: string): number {
+  const raw = value.index;
+  if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0) throw new Error(`${label} must be a non-negative snapshot entry index`);
+  return raw;
+}
+
+function normalizeNewMemoryEvidence(raw: unknown, entries: readonly unknown[], label: string): NewMemoryEvidence[] {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_NEW_MEMORY_EVIDENCE) {
+    throw new Error(`${label} must contain 1..${MAX_NEW_MEMORY_EVIDENCE} entries`);
+  }
+  return raw.map((value, index) => {
+    const itemLabel = `${label}[${index}]`;
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${itemLabel} must be an object`);
+    const item = value as Record<string, unknown>;
+    const entryIndex = evidenceIndex(item, itemLabel);
+    const entry = entries[entryIndex];
+    if (entry === undefined) throw new Error(`${itemLabel} points outside the immutable snapshot`);
+    const quote = item.quote;
+    if (typeof quote !== "string" || quote.trim().length === 0 || quote.length > MAX_NEW_MEMORY_QUOTE_CHARS) {
+      throw new Error(`${itemLabel}.quote must be 1..${MAX_NEW_MEMORY_QUOTE_CHARS} characters`);
+    }
+    if (containsSensitiveMemoryMaterial(quote)) throw new Error(`${itemLabel}.quote contains sensitive material`);
+    const role = snapshotEntryRole(entry);
+    if (role !== "user" && role !== "toolResult") throw new Error(`${itemLabel} must cite a user or tool result snapshot entry`);
+    if (!snapshotContainsQuote(entry, quote)) throw new Error(`${itemLabel}.quote is not present in the cited snapshot entry`);
+    if (item.role !== undefined && item.role !== role) throw new Error(`${itemLabel}.role does not match the cited snapshot entry`);
+    return { index: entryIndex, quote, role };
+  });
+}
+
+/** Validate and normalize context-derived files before any filesystem mutation. */
+export function normalizeNewMemoryProposals(
+  plan: unknown,
+  snapshot: unknown,
+  selected: readonly string[] = [],
+): NewMemoryProposal[] {
+  if (!plan || typeof plan !== "object" || Array.isArray(plan)) throw new Error("Consolidation plan must be an object");
+  const rawValue = newMemoryRawValue(plan as Record<string, unknown>);
+  const raw = rawValue === undefined ? [] : rawValue;
+  if (!Array.isArray(raw)) throw new Error("newMemories must be an array");
+  if (raw.length > MAX_NEW_MEMORY_PROPOSALS) throw new Error(`newMemories exceeds the maximum of ${MAX_NEW_MEMORY_PROPOSALS}`);
+  if (raw.length === 0) return [];
+  const entries = snapshotEntries(snapshot);
+  if (!snapshot || typeof snapshot !== "object" || (snapshot as Record<string, unknown>).contextEnabled !== true) {
+    throw new Error("newMemories require an enabled immutable context snapshot");
+  }
+  if (entries.length === 0) throw new Error("newMemories require at least one immutable context entry");
+  const selectedNames = new Set(selected.map((name) => name.toLowerCase()));
+  const names = new Set<string>();
+  let totalBytes = 0;
+  return raw.map((value, index) => {
+    const label = `newMemories[${index}]`;
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be an object`);
+    const item = value as Record<string, unknown>;
+    const name = newMemoryName(item.name, `${label}.name`);
+    const key = name.toLowerCase();
+    if (selectedNames.has(key)) throw new Error(`${label}: new memory name overlaps selected scope: ${name}`);
+    if (names.has(key)) throw new Error(`${label}: duplicate new memory name: ${name}`);
+    names.add(key);
+    const kind = newMemoryKind(item.kind, `${label}.kind`);
+    const classification = newMemoryClassification(item.classification, kind, `${label}.classification`);
+    const content = item.content;
+    if (typeof content !== "string" || content.length === 0) throw new Error(`${label}.content must be a non-empty string`);
+    const contentBytes = Buffer.byteLength(content, "utf8");
+    if (contentBytes > MAX_MEMORY_BYTES) throw new Error(`${label}.content exceeds ${MAX_MEMORY_BYTES} bytes`);
+    if (containsSensitiveMemoryMaterial(content)) throw new Error(`${label}.content contains sensitive material`);
+    totalBytes += contentBytes;
+    if (totalBytes > MAX_NEW_MEMORY_TOTAL_BYTES) throw new Error(`newMemories content exceeds ${MAX_NEW_MEMORY_TOTAL_BYTES} bytes`);
+    const evidence = normalizeNewMemoryEvidence(item.evidence, entries, `${label}.evidence`);
+    return { name, kind, classification, content, evidence };
+  });
+}
+
+export function validateNewMemoryProposals(
+  plan: unknown,
+  snapshot: unknown,
+): { ok: true; proposals: NewMemoryProposal[] } | { ok: false; errors: string[] } {
+  try {
+    const selected = plan && typeof plan === "object" && !Array.isArray(plan) && Array.isArray((plan as Record<string, unknown>).selected)
+      ? scopeEntries((plan as Record<string, unknown>).selected, "selected scope").map((entry) => entry.name)
+      : [];
+    return { ok: true, proposals: normalizeNewMemoryProposals(plan, snapshot, selected) };
+  } catch (error) {
+    return { ok: false, errors: [(error as Error).message] };
+  }
+}
+
+function newMemoryNames(value: readonly NewMemoryProposal[]): string[] {
+  return value.map((proposal) => proposal.name).sort((left, right) => left.localeCompare(right));
+}
+
 export async function applyConsolidationPlan(
   run: ConsolidationRun,
   plan: unknown,
   isActive?: () => boolean,
-): Promise<{ selected: string[]; finalState: { harness: MemoryHashes; public: MemoryHashes } }> {
+): Promise<{ selected: string[]; created: string[]; finalState: { harness: MemoryHashes; public: MemoryHashes } }> {
   const ensureActive = (): void => {
     if (isActive && !isActive()) throw new Error("Memory consolidation was cancelled before apply completed.");
   };
@@ -1286,6 +1540,30 @@ export async function applyConsolidationPlan(
     }
   }
   const selected = [...selectedByKey.values()];
+  let newProposals: NewMemoryProposal[] = [];
+  if (newMemoryRawValue(value) !== undefined) {
+    const snapshotPath = run.paths.snapshotFile;
+    if (!snapshotPath) throw new Error("newMemories require the immutable snapshot path");
+    const snapshotBytes = await readBoundedRegularFile(snapshotPath, MAX_SNAPSHOT_BYTES);
+    if (sha256Digest(snapshotBytes) !== run.manifest.snapshotDigest) {
+      throw new Error("newMemories snapshot digest does not match the consolidation run");
+    }
+    let snapshot: unknown;
+    try {
+      snapshot = JSON.parse(snapshotBytes.toString("utf8")) as unknown;
+    } catch {
+      throw new Error("newMemories snapshot is not valid JSON");
+    }
+    if (
+      !snapshot || typeof snapshot !== "object" || Array.isArray(snapshot) ||
+      (snapshot as Record<string, unknown>).schemaVersion !== CONSOLIDATION_SCHEMA_VERSION ||
+      (snapshot as Record<string, unknown>).runId !== run.manifest.runId ||
+      (snapshot as Record<string, unknown>).scopeKey !== run.manifest.scopeKey
+    ) {
+      throw new Error("newMemories snapshot identity does not match the consolidation run");
+    }
+    newProposals = normalizeNewMemoryProposals(value, snapshot, selected);
+  }
   const operations = value.operations ?? [];
   if (!Array.isArray(operations) || operations.length > selected.length) throw new Error("Consolidation plan has invalid operations");
   const operationKeys = new Set<string>();
@@ -1316,6 +1594,15 @@ export async function applyConsolidationPlan(
   const rootStates = await Promise.all(roots.map(captureRootState));
   const currentSourceHashes = { harness: await hashMemoryRoot(run.manifest.harnessDir), public: publicDir ? await hashMemoryRoot(publicDir) : {} };
   if (digest(currentSourceHashes) !== digest(run.manifest.sourceHashes)) throw new Error("Memory sources changed after the consolidation snapshot; refusing stale apply.");
+  const sourceNames = new Set([
+    ...Object.keys(currentSourceHashes.harness),
+    ...Object.keys(currentSourceHashes.public),
+  ].map((name) => name.toLowerCase()));
+  for (const proposal of newProposals) {
+    if (sourceNames.has(proposal.name.toLowerCase())) {
+      throw new Error(`newMemories proposal would overwrite an existing memory: ${proposal.name}`);
+    }
+  }
   await ensureMemoryRoot(run.manifest.harnessDir);
   if (publicDir) await ensureMemoryRoot(publicDir);
   const privateNames = await readPrivateIndexNames(run.manifest.harnessDir);
@@ -1323,15 +1610,21 @@ export async function applyConsolidationPlan(
   if (publicPrivateNames.size > 0) throw new Error("Public memory index contains harness-only entries.");
   const transactionFiles = [...new Set([
     ...selected.flatMap((name) => [memoryFilePath(run.manifest.harnessDir, name), ...(publicDir ? [memoryFilePath(publicDir, name)] : [])]),
+    ...newProposals.flatMap((proposal) => [memoryFilePath(run.manifest.harnessDir, proposal.name), ...(publicDir ? [memoryFilePath(publicDir, proposal.name)] : [])]),
     path.join(run.manifest.harnessDir, "MEMORY.md"),
     ...(publicDir ? [path.join(publicDir, "MEMORY.md")] : []),
   ])];
   const snapshots = await captureMemoryFiles(transactionFiles);
   const snapshotSourceHashes = { harness: await hashMemoryRoot(run.manifest.harnessDir), public: publicDir ? await hashMemoryRoot(publicDir) : {} };
   if (digest(snapshotSourceHashes) !== digest(run.manifest.sourceHashes)) throw new Error("Memory sources changed while capturing the consolidation transaction; refusing stale apply.");
+  for (const proposal of newProposals) {
+    const key = proposal.name.toLowerCase();
+    const existed = snapshots.some((snapshot) => snapshot.existed && path.basename(snapshot.file).toLowerCase() === key);
+    if (existed) throw new Error(`newMemories proposal would overwrite an existing memory: ${proposal.name}`);
+  }
   try {
     ensureActive();
-    if (selected.length === 0) {
+    if (selected.length === 0 && newProposals.length === 0) {
       await ensureMemoryIndex(run.manifest.harnessDir, privateNames);
       ensureActive();
       if (publicDir) await ensureMemoryIndex(publicDir, new Set());
@@ -1355,6 +1648,18 @@ export async function applyConsolidationPlan(
           }
         }
       }
+      for (const proposal of newProposals) {
+        ensureActive();
+        await writeMemoryFileInRoot(run.manifest.harnessDir, proposal.name, proposal.content);
+        ensureActive();
+        if (proposal.classification === "safe") {
+          privateNames.delete(proposal.name.toLowerCase());
+          if (publicDir) await writeMemoryFileInRoot(publicDir, proposal.name, proposal.content);
+        } else {
+          privateNames.add(proposal.name.toLowerCase());
+          if (publicDir) await removeMemoryFile(publicDir, proposal.name);
+        }
+      }
       ensureActive();
       await updateMemoryIndex(run.manifest.harnessDir, privateNames, ensureActive);
       ensureActive();
@@ -1363,6 +1668,7 @@ export async function applyConsolidationPlan(
     ensureActive();
     return {
       selected: [...selected].sort(),
+      created: newMemoryNames(newProposals),
       finalState: { harness: await hashMemoryRoot(run.manifest.harnessDir), public: publicDir ? await hashMemoryRoot(publicDir) : {} },
     };
   } catch (error) {
@@ -1375,4 +1681,3 @@ export async function applyConsolidationPlan(
     throw error;
   }
 }
-

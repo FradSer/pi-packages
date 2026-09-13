@@ -229,3 +229,36 @@ Feature: Consolidate artifact validator
     Given a plan selected scope differs from the parent-supplied selected scope
     When I run the structured validator
     Then validation fails with a selected scope binding diagnostic
+
+  Scenario: New memory proposals have a separately bounded scope
+    Given selected is an empty parent-owned scope and newMemories contains one proposal
+    And the proposal cites a user entry in the immutable snapshot
+    When I run the structured validator with that snapshot
+    Then plan validation passes without adding the new name to selected or inventory
+    And the validator reports one new memory proposal
+
+  Scenario: New memory names cannot overlap selected names
+    Given selected contains project_example.md
+    And newMemories proposes project_example.md again
+    When I run the structured validator with the immutable snapshot
+    Then validation fails with a new memory scope diagnostic
+
+  Scenario: New memory evidence rejects assistant-only context
+    Given newMemories cites an assistant snapshot entry
+    When I run the structured validator with the immutable snapshot
+    Then validation fails with a context evidence diagnostic
+
+  Scenario: New memory evidence rejects stale or altered snapshots
+    Given newMemories cites a quote that exists in the original snapshot
+    When the snapshot bytes change before validation
+    Then validation fails with a snapshot digest or evidence diagnostic
+
+  Scenario: New memory content and evidence reject secrets
+    Given newMemories contains an API token in its content or evidence quote
+    When I run the structured validator with the immutable snapshot
+    Then validation fails with a sensitive material diagnostic
+
+  Scenario: Post receipt binds created new memory names
+    Given a valid plan creates a new memory
+    When the post receipt omits or changes its created names
+    Then receipt validation fails with a created scope binding diagnostic

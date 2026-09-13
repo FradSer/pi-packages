@@ -6,12 +6,19 @@
 import fs from "node:fs";
 import path from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { DEFAULT_POLICIES, mergeLayers } from "./guardrail-engine.ts";
 import type { PolicyLayer } from "./guardrail-types.ts";
+import type { ResolvedConfig } from "./guardrail-types.ts";
 
 export interface ConfigPaths {
   user: string;
   project: string;
   projectLocal: string;
+}
+
+export interface ResolvedHarnessConfig {
+  config: ResolvedConfig;
+  paths: ConfigPaths;
 }
 
 export function configPaths(cwd: string, agentDir?: string): ConfigPaths {
@@ -81,4 +88,32 @@ export function loadLayers(cwd: string, agentDir?: string): PolicyLayer[] {
   if (projLocalLayer) layers.push(projLocalLayer);
 
   return layers;
+}
+
+let cached: { key: string; value: ResolvedHarnessConfig } | undefined;
+
+function defaultLayer(): PolicyLayer {
+  return {
+    source: "built-in defaults",
+    policies: DEFAULT_POLICIES as unknown as Array<Record<string, unknown>>,
+  };
+}
+
+/** Resolve the same immutable config view for every harness surface. The
+ * cache key includes every layer's mtime so a lower layer edit is observed
+ * even when an inner layer still masks it. */
+export function resolveHarnessConfig(cwd: string, agentDir?: string): ResolvedHarnessConfig {
+  const paths = configPaths(cwd, agentDir);
+  let cacheKey = "";
+  for (const file of Object.values(paths)) {
+    try {
+      cacheKey += `${file}:${fs.statSync(file).mtimeMs};`;
+    } catch {
+      cacheKey += `${file}:-;`;
+    }
+  }
+  if (cached && cached.key === cacheKey) return cached.value;
+  const config = mergeLayers([defaultLayer(), ...loadLayers(cwd, agentDir)]);
+  cached = { key: cacheKey, value: { config, paths } };
+  return cached.value;
 }

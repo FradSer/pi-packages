@@ -13,11 +13,9 @@
  *     6. Open memory folder
  *     7. Toggle auto-memory
  *
- * Auto-memory on → `before_agent_start` injects prompt guidance that tells the
- * LLM to actively capture durable decisions/preferences into memory when needed.
- * Existing memories are always injected into the system prompt; the toggle only
- * controls the auto-write guidance. Consolidation uses a separately selected
- * Pi model when configured.
+ * Auto-memory learns from settled user tasks through parent-validated plans.
+ * Existing memory indexes are injected independently of the learning toggle.
+ * Consolidation uses a separately selected Pi model when configured.
  */
 
 import fs from "fs/promises";
@@ -52,6 +50,7 @@ import {
 } from "./config";
 import { formatMemoriesBlock, loadAndDeduplicateMemories } from "./memory-files";
 import { resolveMemoryPaths } from "./memory-paths";
+import { registerAutomaticLearning } from "./automatic-learning";
 import {
   DEFAULT_AGENTS_MD_BUDGET_BYTES,
   MAX_AGENTS_MD_FILE_BYTES,
@@ -70,11 +69,13 @@ import {
   MAX_JSONL_LINE_BYTES,
   MAX_JSONL_LINES,
   MAX_PLAN_BYTES,
+  MAX_NEW_MEMORY_PROPOSALS,
   MAX_STDOUT_BYTES,
   MAX_STDERR_BYTES,
   releaseConsolidationRun,
   writeConsolidationReceipt,
   writeFileAtomic,
+  snapshotSessionContext,
   type ConsolidationRun,
 } from "./consolidation-run";
 
@@ -141,16 +142,15 @@ const AUTO_MEMORY_GUIDANCE = `
 
 ## Auto-memory
 
-You maintain a durable project memory. When you encounter a decision, user
-preference, lesson, gotcha, or non-obvious project fact during this session,
-**write it down immediately** — do not wait for a memory command:
+After this user task settles, a read-only learner extracts durable preferences,
+decisions, and verified project facts from its context. The parent validates and
+persists the plan. Do not write memory files or mirrors as part of ordinary task
+execution. Never store credentials or tokens in memory.
 
-- Search existing memory files first; if one covers the topic, edit it instead of creating a near-duplicate.
-- One decision per file. Format: frontmatter (name, description, type) + **Why** + **How to apply** + **Related** [[links]].
-- Mirror safe technical content to the project's \`.memory/\`; keep private content (credentials, personal preferences) harness-only.
-- Do not log pure operations or timelines — those belong in git history.
-
-Run \`/memory\` to review, edit, or consolidate memory at any time.
+Use relevant existing memories as reference; current explicit user instructions
+take precedence. State the basis for project conclusions so future learning can
+distinguish observed facts from assumptions. \`/memory\` manages automatic learning;
+\`/consolidate\` runs it immediately.
 `;
 
 // ── locate this package (consolidate procedure doc) ────────────────
@@ -230,6 +230,8 @@ interface DreamState {
   run?: ConsolidationRun;
   cleanup?: () => void;
   completion?: Promise<void>;
+  /** Serializes the entire pipeline, including gaps between its phases. */
+  pipeline?: Promise<void>;
 }
 
 interface ChildJsonEvent {
@@ -347,15 +349,13 @@ function parentSelectedScope(run: ConsolidationRun, noContext: boolean): string[
  * derive this list itself: the snapshot holds session entries, not memory
  * names, so the authoritative scope must be stated in the task header.
  */
-export function formatSelectedScopeTaskLines(selectedScope: readonly string[]): string[] {
-  if (selectedScope.length === 0) {
-    return [
-      "- Selected memory scope (authoritative, complete): [] — verified no-op; every plan section must be empty",
-    ];
-  }
+export function formatSelectedScopeTaskLines(selectedScope: readonly string[], noContext = false): string[] {
   return [
     `- Selected memory scope (authoritative, complete, JSON): ${JSON.stringify(selectedScope)}`,
     "- Your plan's `selected` array MUST be exactly this list — same names, same casing, no additions or omissions.",
+    noContext
+      ? "- No-context mode: newMemories MUST be empty. No session knowledge may be created."
+      : `- New context-derived files belong only in newMemories (at most ${MAX_NEW_MEMORY_PROPOSALS}), with snapshot evidence; do not add their names to selected or its per-item sections. An empty selected list does not prevent new memory creation.`,
     ...selectedScope.map((name) => `  - ${name}`),
   ];
 }
@@ -513,7 +513,7 @@ function setDreamingWidget(ctx: ExtensionContext): void {
         const icon = style.accent(frame);
         const text = style.accent("Dreaming...");
         const detail = dreamingActivity ? style.muted(` · ${dreamingActivity}`) : "";
-        return [renderPiWidgetRow(`${icon} ${text}${detail}`, width, truncateToWidth)];
+        return [renderPiWidgetRow(`${icon} ${text}${detail}`, width, truncateToWidth, 0)];
       },
       invalidate: () => {},
       dispose: () => {
@@ -613,6 +613,7 @@ async function runConsolidationValidator(
   const args = [
     path.join(pkgDir, "scripts", "validate-consolidate.py"),
     "--plan", planPath,
+    "--snapshot", run.manifest.snapshotPath,
     "--repo-root", run.manifest.cwd,
     "--expected-run-id", run.manifest.runId,
     "--expected-scope-key", run.manifest.scopeKey,
@@ -759,7 +760,7 @@ async function spawnAsyncConsolidation(
     `- Run directory: ${run.manifest.runDir}`,
     `- Context mode: ${opts.noContext ? "no-context (do not capture session context)" : "parent-provided immutable snapshot"}`,
     `- Pre-run mirror normalization: ${JSON.stringify({ repaired: run.normalization.repaired, removed: run.normalization.removed })}`,
-    ...formatSelectedScopeTaskLines(selectedScope),
+    ...formatSelectedScopeTaskLines(selectedScope, Boolean(opts.noContext)),
     `- Immutable manifest: ${path.join(run.manifest.runDir, "manifest.json")}`,
     `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
     `- Harness memory dir: ${harnessDir}`,
@@ -950,7 +951,6 @@ async function spawnAsyncConsolidation(
       notifyPi(ctx.ui, `Memory dreaming failed: ${clipRejectionReason(reason)}`, "error");
       return;
     }
-    notifyPi(ctx.ui, `Memory consolidation plan was rejected (${clipRejectionReason(reason)}); retrying once with a fresh planner…`, "info");
     await releaseConsolidationRun(run, { keepArtifacts: true });
     state.run = undefined;
     await spawnAsyncConsolidation(ctx, state, { ...opts, attempt: attempt + 1, rejectionFeedback: reason });
@@ -1074,7 +1074,7 @@ async function spawnAsyncConsolidation(
           const applied = await applyConsolidationPlan(run, plan, ownsCurrentRun);
           mutatedMemory = true;
           if (!ownsCurrentRun()) return;
-          const receipt = createConsolidationReceipt(run.manifest, applied.selected, applied.finalState, planDigest);
+          const receipt = createConsolidationReceipt(run.manifest, applied.selected, applied.finalState, planDigest, applied.created);
           const receiptPath = await writeConsolidationReceipt(run, receipt);
           if (!ownsCurrentRun()) return;
           await runConsolidationValidator(opts.pkgDir, run, planPath, "plan,receipt,privacy", preSelected, receiptPath, mutationStartedAt);
@@ -1139,7 +1139,8 @@ async function spawnAsyncConsolidation(
 
   child.on("error", (err) => { void finish(null, err); });
   child.on("close", (code) => { void finish(code); });
-  child.unref();
+  // Keep the worker referenced until close: its pipes can end before its exit,
+  // and headless callers must remain alive for parent validation and receipts.
   return true;
 }
 
@@ -1155,22 +1156,21 @@ async function startConsolidationPipeline(
   state: DreamState,
   opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; availableSkills: readonly string[] },
 ): Promise<void> {
-  const started = await spawnAsyncConsolidation(ctx, state, opts);
-  if (!started) return; // racing invocation: never wait on or unlock another run's phases
-  void (async () => {
-    // Wait for the memory phase's terminal outcome (retries included): the
-    // last attempt sets `outcome` and its finally clears `active`.
-    for (let i = 0; i < 9000 && !(state.outcome !== undefined && !state.active); i++) {
-      if (state.cancelled) return;
-      await new Promise((r) => setTimeout(r, 200));
-    }
+  if (state.pipeline) return state.pipeline;
+  const pipeline = (async () => {
+    const frozenContext = opts.noContext ? ctx : snapshotSessionContext(ctx);
+    const started = await spawnAsyncConsolidation(frozenContext, state, opts);
+    if (!started) return;
+    // A retry replaces completion; wait for each attempt and its lock release.
+    while (state.completion) await state.completion;
+    if (state.cancelled) return;
     const gate = shouldRunHarnessPhase(state, opts.noContext);
     if (gate !== "run" && gate !== "skip-no-context") return;
     if (opts.noContext) {
       notifyPi(ctx.ui, "Harness and AGENTS.md consolidation need captured context; skipped (no-context run).", "info");
       return;
     }
-    await runHarnessConsolidationPhase(ctx, state, {
+    await runHarnessConsolidationPhase(frozenContext, state, {
       pkgDir: opts.pkgDir,
       cwd: opts.cwd,
       reason: opts.reason,
@@ -1178,7 +1178,7 @@ async function startConsolidationPipeline(
     });
     if (state.cancelled) return;
     const settings = await readSettings(opts.cwd);
-    await runAgentsMdConsolidationPhase(ctx, state, {
+    await runAgentsMdConsolidationPhase(frozenContext, state, {
       pkgDir: opts.pkgDir,
       cwd: opts.cwd,
       reason: opts.reason,
@@ -1186,7 +1186,14 @@ async function startConsolidationPipeline(
       budgetBytes: settings.agentsMd?.budgetBytes ?? DEFAULT_AGENTS_MD_BUDGET_BYTES,
       disabled: settings.agentsMd?.disabled === true,
     });
-  })();
+  })().catch((error: unknown) => {
+    state.outcome = "failed";
+    if (!state.cancelled) notifyPi(ctx.ui, `Learning pipeline failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+  }).finally(() => {
+    if (state.pipeline === pipeline) state.pipeline = undefined;
+  });
+  state.pipeline = pipeline;
+  return pipeline;
 }
 
 async function editInstructions(ctx: ExtensionCommandContext, filePath: string): Promise<void> {
@@ -1214,14 +1221,27 @@ async function editInstructions(ctx: ExtensionCommandContext, filePath: string):
 
 export default function (pi: ExtensionAPI) {
   const dreamState: DreamState = { active: false, generation: 0, cancelled: false };
+  let sessionGeneration = 0;
 
-  // Inject existing memories + auto-memory guidance before every turn
-  pi.on("session_start", () => {
-    memoryConfigState = safelyReadMemoryConfigState();
-    memoryConfig = memoryConfigState.config;
+  registerAutomaticLearning(pi, {
+    enabled: async (ctx) => (await readSettings(ctx.cwd)).autoMemory,
+    snapshot: snapshotSessionContext,
+    run: async (ctx) => {
+      const generation = sessionGeneration;
+      if (dreamState.pipeline) await dreamState.pipeline;
+      if (generation !== sessionGeneration) return;
+      await startConsolidationPipeline(ctx, dreamState, {
+        pkgDir: resolvePackageDir(),
+        cwd: ctx.cwd,
+        availableSkills: pi.getCommands().filter(command => command.source === "skill").map(command => command.name.replace(/^skill:/, "")),
+        reason: "Learn durable memory and verifiable constraints from the completed user task.",
+      });
+    },
+    reportError: (error, ctx) => notifyPi(ctx.ui, `Automatic learning failed: ${error instanceof Error ? error.message : String(error)}`, "error"),
   });
 
-  pi.on("session_shutdown", async () => {
+  const stopPipeline = async (): Promise<void> => {
+    sessionGeneration += 1;
     dreamState.cancelled = true;
     dreamState.generation += 1;
     dreamState.active = false;
@@ -1232,11 +1252,19 @@ export default function (pi: ExtensionAPI) {
     if (child) await terminateConsolidationChild(child, 5_000);
     const completion = dreamState.completion;
     if (completion) await completion;
+    if (dreamState.pipeline) await dreamState.pipeline;
     const run = dreamState.run;
     dreamState.run = undefined;
     if (run) await releaseConsolidationRun(run);
     dreamState.completion = undefined;
+  };
+
+  pi.on("session_start", async () => {
+    await stopPipeline();
+    memoryConfigState = safelyReadMemoryConfigState();
+    memoryConfig = memoryConfigState.config;
   });
+  pi.on("session_shutdown", stopPipeline);
 
   pi.on("before_agent_start", async (event, ctx) => {
     const cwd = ctx.cwd || process.cwd();
@@ -1317,12 +1345,12 @@ export default function (pi: ExtensionAPI) {
       } else if (choice === "Enter provider/model manually") {
         await enterMemoryModel(ctx);
       } else if (choice.startsWith("Consolidate memory now")) {
-        if (dreamState.active) {
+        if (dreamState.pipeline || dreamState.active) {
           notifyPi(ctx.ui, "Memory consolidation is already running in background.", "info");
           return;
         }
         notifyPi(ctx.ui, "Starting memory consolidation in the background…", "info");
-        await startConsolidationPipeline(ctx, dreamState, {
+        void startConsolidationPipeline(ctx, dreamState, {
           pkgDir,
           cwd,
           noContext: false,
@@ -1367,26 +1395,21 @@ export default function (pi: ExtensionAPI) {
       }
       const cwd = ctx.cwd || process.cwd();
       const pkgDir = await resolvePackageDir();
-      const procedureFile = path.join(pkgDir, "procedures", "consolidate.md");
 
-      if (!ctx.hasUI) {
-        notifyPi(ctx.ui, `Consolidate procedure: ${procedureFile}`, "info");
-        return;
-      }
-
-      if (dreamState.active) {
+      if (dreamState.pipeline || dreamState.active) {
         notifyPi(ctx.ui, "Memory consolidation is already running.", "info");
         return;
       }
 
       notifyPi(ctx.ui, "Starting memory consolidation in the background…", "info");
-      await startConsolidationPipeline(ctx, dreamState, {
+      const completion = startConsolidationPipeline(ctx, dreamState, {
         pkgDir,
         cwd,
         noContext: args === "no-context",
         availableSkills: pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')),
         reason: "Consolidate the project memory and harness now (user-invoked via /consolidate command).",
       });
+      if (!ctx.hasUI) await completion;
     },
   });
 }

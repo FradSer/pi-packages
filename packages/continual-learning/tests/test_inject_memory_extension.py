@@ -51,6 +51,7 @@ def test_dreaming_widget_and_notifications_use_shared_pi_kit_tui_primitives() ->
     assert "style.accent(frame)" in content
     assert "style.muted(` · ${dreamingActivity}`)" in content
     assert "renderPiWidgetRow" in content
+    assert "renderPiWidgetRow(`${icon} ${text}${detail}`, width, truncateToWidth, 0)" in content
     assert '{ placement: "aboveEditor" }' in content
     assert "notifyPi(ctx.ui" in content
     assert "ctx.ui.notify" not in content
@@ -227,6 +228,13 @@ def test_retry_spawns_carry_rejection_feedback_into_task_text() -> None:
     content = source()
     assert "...buildTaskFeedbackLines(opts.rejectionFeedback)" in content
     assert "rejectionFeedback: reason" in content
+
+
+def test_recoverable_plan_rejection_is_not_reported_and_pipeline_waits_for_retry() -> None:
+    content = source()
+    assert "Memory consolidation plan was rejected" not in content
+    assert "while (state.completion) await state.completion" in content
+    assert "await spawnAsyncConsolidation(ctx, state, { ...opts, attempt: attempt + 1, rejectionFeedback: reason })" in content
     assert "reason.slice(-160)" not in content
 
 
@@ -699,11 +707,11 @@ def test_worker_environment_is_an_explicit_non_credential_allowlist() -> None:
 def test_child_task_embeds_parent_selected_scope() -> None:
     content = source()
     assert "const selectedScope = parentSelectedScope(run, Boolean(opts.noContext));" in content
-    assert "...formatSelectedScopeTaskLines(selectedScope)," in content
+    assert "...formatSelectedScopeTaskLines(selectedScope, Boolean(opts.noContext))," in content
     procedure = (MEMORY_PKG_DIR / "procedures" / "consolidate.md").read_text(encoding="utf-8")
     assert "authoritative selected memory scope" in procedure
     assert "supplied by the parent snapshot" not in procedure
-    assert "only that header decides whether this run is a verified no-op" in procedure
+    assert "newMemories" in procedure
 
 
 def test_selected_scope_task_lines_render_exact_contract() -> None:
@@ -713,17 +721,18 @@ def test_selected_scope_task_lines_render_exact_contract() -> None:
         console.log(JSON.stringify({
           empty: formatSelectedScopeTaskLines([]),
           named: formatSelectedScopeTaskLines(['a.md', 'B.md']),
+          noContext: formatSelectedScopeTaskLines([], true),
         }));
         """
     )
-    assert result["empty"] == [
-        "- Selected memory scope (authoritative, complete): [] — verified no-op; every plan section must be empty",
-    ]
+    assert result["empty"][0].endswith("JSON): []")
+    assert "An empty selected list does not prevent new memory creation" in result["empty"][2]
+    assert "newMemories MUST be empty" in result["noContext"][2]
     named = result["named"]
     assert isinstance(named, list)
     assert 'JSON): ["a.md","B.md"]' in named[0]
     assert "MUST be exactly this list" in named[1]
-    assert named[2:] == ["  - a.md", "  - B.md"]
+    assert named[3:] == ["  - a.md", "  - B.md"]
 
 
 def test_failed_runs_persist_bounded_diagnostics_and_retain_artifacts() -> None:
@@ -827,7 +836,11 @@ def test_memory_index_is_bounded_at_entry_boundaries() -> None:
             "---\nname: huge\ndescription: " + ("x" * 400) + "\n---\n\nbody\n",
             encoding="utf-8",
         )
-        block = _format_block(repo, agent, ", 400")["block"]
+        full_block = _format_block(repo, agent)["block"]
+        full_lines = full_block.splitlines()
+        first_entry = next(index for index, line in enumerate(full_lines) if line.startswith("- "))
+        first_budget = len("\n".join(full_lines[:first_entry])) + 1 + len(full_lines[first_entry]) + 1
+        block = _format_block(repo, agent, f", {first_budget}")["block"]
         assert "git-agent-commits.md" in block
         assert "huge.md" not in block
         assert "no-description.md" not in block

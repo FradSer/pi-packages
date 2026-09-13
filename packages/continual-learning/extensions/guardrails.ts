@@ -12,26 +12,11 @@
 import fs from "node:fs";
 import type { Stats } from "node:fs";
 import path from "node:path";
-import { parseSkillBlock, ToolExecutionComponent, type ExtensionAPI, type BeforeAgentStartEvent } from "@earendil-works/pi-coding-agent";
+import { ToolExecutionComponent, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { createStaticToolLifecycleMessageRenderer, eventToolLifecycle, notifyPi, safeDisplayText } from "@fradser/pi-kit";
-import { DEFAULT_POLICIES, evaluate, mergeLayers, validateSkillPromptDeclaration } from "./guardrail-engine.ts";
-import { configPaths, loadLayers } from "./guardrail-config.ts";
-import type { PolicyLayer, ResolvedConfig } from "./guardrail-types.ts";
-
-interface ResolvedWithPaths {
-  config: ResolvedConfig;
-  paths: ReturnType<typeof configPaths>;
-}
-
-interface HarnessSkillPromptEvent {
-  kind: "skill-prompt";
-  skill: string;
-  target: "system" | "user";
-  prompt: string;
-  source: string;
-  file: string;
-}
+import { evaluate, validateSkillPromptDeclaration } from "./guardrail-engine.ts";
+import { configPaths, resolveHarnessConfig } from "./guardrail-config.ts";
 
 interface HarnessPolicyEvent {
   kind: "policy-matched";
@@ -44,7 +29,7 @@ interface HarnessPolicyEvent {
   file: string;
 }
 
-type HarnessEventData = HarnessSkillPromptEvent | HarnessPolicyEvent;
+type HarnessEventData = HarnessPolicyEvent;
 
 function harnessSourcePath(source: string | undefined, paths: ReturnType<typeof configPaths>): string {
   switch (source) {
@@ -57,18 +42,6 @@ function harnessSourcePath(source: string | undefined, paths: ReturnType<typeof 
     default:
       return "(built-in)";
   }
-}
-
-function defaultLayer(): PolicyLayer {
-  return {
-    source: "built-in defaults",
-    policies: DEFAULT_POLICIES as unknown as Array<Record<string, unknown>>,
-  };
-}
-
-function appendSystemGuidance(systemPrompt: string, guidance: string): string {
-  if (systemPrompt.includes(guidance)) return systemPrompt;
-  return systemPrompt ? `${systemPrompt}\n\n${guidance}` : guidance;
 }
 
 async function readHarnessTarget(targetFile: string): Promise<Buffer | null> {
@@ -198,8 +171,9 @@ export function buildHarnessRulePrompt(request: string, targetFile: string, scop
     "- Transfer-test the candidate against another same-kind document and a rephrasing of the same mistake, and verify unrelated actions remain allowed. Generalize the error class without widening the action surface: no blanket confirmation of all writes.",
     "- For semantic instructions that regex cannot safely recognize, prefer skillPrompts only for an actual available skill established by the supplied context. Do not invent a skill. Guidance applies only to its matching expanded skill invocation, not a plain read of SKILL.md; it is not global interception or guaranteed project-wide semantic enforcement.",
     "- If neither a narrow tool-call gate nor an established skill invocation safely represents the lesson, report the limitation and do not add a rule. This safety exception takes precedence over the instruction to perform a rule change; keep the exact target creation protocol unchanged.",
-    "- A policy may use only name, tools, paths, pattern or patterns, optional require, action, and reason. Do not write scope or rule: those fields are unsupported and the policy will be rejected.",
-    "- Guardrails are regex-based tool-call gates only: use action=block or action=confirm with a reason; do not represent runtime probes, token checks, process cleanup, or any multi-step automation as policy behavior.",
+    "- A policy may use only name, phase (tool-call, output, or artifact), tools, paths, artifactPaths, pattern or patterns, optional require, action, and reason. Do not write scope or rule: those fields are unsupported and the policy will be rejected.",
+    "- Existing rules default to phase=tool-call and remain pre-execution regex gates. Use phase=output for final assistant text, or phase=artifact with artifactPaths for files produced by bash or another command tool; artifact checks read actual regular files after execution.",
+    "- Existing guardrails are regex-based tool-call gates only; post-generation checks are deterministic regex checks with bounded corrective follow-ups. Do not represent runtime probes, token checks, process cleanup, or arbitrary generated code execution as policy behavior.",
     "- Keep the rule narrowly scoped to the requested tools, argument paths, and content; choose block or confirm deliberately.",
     `- Write the complete valid JSON back to ${targetFile}, then read that same path back and verify the resulting structure and behavior. Do not stop after describing the rule.`,
     "- If the request is ambiguous or cannot be represented safely, explain the issue instead of guessing or changing a different file.",
@@ -230,49 +204,10 @@ export function validateHarnessWrite(input: unknown, availableSkills: ReadonlySe
   return errors;
 }
 
-export function skillPromptTarget(
-  event: Pick<BeforeAgentStartEvent, "prompt">,
-  config: ResolvedConfig,
-): { name: string; prompt: string; target: "system" | "user"; source?: string } | undefined {
-  const skill = parseSkillBlock(event.prompt);
-  if (!skill) return undefined;
-  const guidance = config.skillPrompts[skill.name];
-  if (!guidance) return undefined;
-  if (guidance.userMessagePattern && !new RegExp(guidance.userMessagePattern).test(skill.userMessage ?? "")) {
-    return undefined;
-  }
-  return { name: skill.name, ...guidance };
-}
-
 /** The confirm gate blocks the agent loop while its dialog waits, so an
  * unattended session must fail closed after a bounded wait instead of
  * hanging. pi renders the remaining time as a live countdown. */
 const GUARDRAILS_CONFIRM_TIMEOUT_MS = 60_000;
-
-let cached: { key: string; value: ResolvedWithPaths } | undefined;
-
-// Pi shares one context among before_agent_start handlers in a turn, while
-// creating a fresh event for each one. Module scope also covers an accidental
-// duplicate extension registration; each later turn receives a new context.
-const injectedUserPromptContexts = new WeakSet<object>();
-
-function resolveConfig(cwd: string, agentDir?: string): ResolvedWithPaths {
-  const paths = configPaths(cwd, agentDir);
-  // Cache key covers every file's mtime: a max-only key goes stale when a
-  // newer project file masks later edits to an older user file.
-  let cacheKey = "";
-  for (const file of Object.values(paths)) {
-    try {
-      cacheKey += `${file}:${fs.statSync(file).mtimeMs};`;
-    } catch {
-      cacheKey += `${file}:-;`;
-    }
-  }
-  if (cached && cached.key === cacheKey) return cached.value;
-  const config = mergeLayers([defaultLayer(), ...loadLayers(cwd, agentDir)]);
-  cached = { key: cacheKey, value: { config, paths } };
-  return cached.value;
-}
 
 export default function registerGuardrails(pi: ExtensionAPI) {
   pi.registerEntryRenderer("harness-event", (entry, { expanded }, theme) => {
@@ -306,23 +241,9 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         hostComponent: ToolExecutionComponent,
       })({ content: "", details }, { expanded }, theme);
     }
-
-    const prompt = safeDisplayText(details?.prompt);
+    const message = "harness policy event";
     return createStaticToolLifecycleMessageRenderer({
-      createSpec: () => eventToolLifecycle("harness", prompt, {
-        label: details?.kind === "skill-prompt" ? "skill prompt" : "event",
-        details: details
-          ? [
-              `skill=${details.skill}`,
-              `target=${details.target}`,
-              `source=${details.source}`,
-              `file=${details.file}`,
-              "",
-              "prompt:",
-              prompt,
-            ]
-          : undefined,
-      }),
+      createSpec: () => eventToolLifecycle("harness", message, { label: "event" }),
       expandHint: "ctrl+o to expand",
       fit: truncateToWidth,
       visibleWidth,
@@ -331,39 +252,9 @@ export default function registerGuardrails(pi: ExtensionAPI) {
     })({ content: "", details }, { expanded }, theme);
   });
 
-  pi.on("before_agent_start", (event, ctx) => {
-    const cwd = ctx.cwd || process.cwd();
-    const { config, paths } = resolveConfig(cwd);
-    const matched = skillPromptTarget(event, config);
-    if (!matched) return undefined;
-    if (matched.target === "user" && injectedUserPromptContexts.has(ctx)) return undefined;
-    if (matched.target === "user") injectedUserPromptContexts.add(ctx);
-    const details: HarnessSkillPromptEvent = {
-      kind: "skill-prompt",
-      skill: matched.name,
-      target: matched.target,
-      prompt: matched.prompt,
-      source: matched.source ?? "unknown",
-      file: harnessSourcePath(matched.source, paths),
-    };
-    pi.appendEntry("harness-event", details);
-
-    if (matched.target === "system") {
-      return { systemPrompt: appendSystemGuidance(event.systemPrompt, matched.prompt) };
-    }
-    return {
-      message: {
-        customType: "skill-prompt-guidance",
-        content: matched.prompt,
-        display: false,
-        details: { skill: matched.name, target: "user" },
-      },
-    };
-  });
-
   pi.on("tool_call", async (event, ctx) => {
     const cwd = ctx.cwd || process.cwd();
-    const { config, paths } = resolveConfig(cwd);
+    const { config, paths } = resolveHarnessConfig(cwd);
     if (event.toolName === "write" || event.toolName === "edit") {
       const input = (event.input ?? {}) as Record<string, unknown>;
       const target = typeof input.path === "string" ? input.path : "";
@@ -485,7 +376,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         pi.sendUserMessage(buildHarnessRulePrompt(request, targetFile, scopeLabel, availableSkills), { deliverAs: "followUp" });
         return;
       }
-      const { config, paths } = resolveConfig(cwd);
+      const { config, paths } = resolveHarnessConfig(cwd);
       const availableSkills = new Set(pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')));
       const activeSkills = Object.keys(config.skillPrompts).filter(name => availableSkills.has(name));
       const inactiveSkills = Object.keys(config.skillPrompts).filter(name => !availableSkills.has(name));

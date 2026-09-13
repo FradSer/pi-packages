@@ -6,6 +6,8 @@ import { resolveMemoryPaths, type MemoryPaths } from "./memory-paths";
 export interface MemoryEntry {
   filename: string;
   source: "harness" | "public";
+  /** Exact local file to read for the bounded body when metadata is insufficient. */
+  readPath: string;
   content: string;
   /** One-line description parsed from the entry's frontmatter, when present. */
   description?: string;
@@ -219,7 +221,13 @@ async function readSource(
         options.diagnostics?.skipped.push(`${source}:${name}`);
         continue;
       }
-      entries.push({ filename: name, source, content, description: parseFrontmatterDescription(content) });
+      entries.push({
+        filename: name,
+        source,
+        readPath: path.resolve(root, name),
+        content,
+        description: parseFrontmatterDescription(content),
+      });
     }
     return entries;
   } catch {
@@ -248,10 +256,17 @@ export async function loadAndDeduplicateMemories(
   const maxTotalChars = nonNegativeLimit(options.maxTotalChars, DEFAULT_MAX_TOTAL_CHARS);
   let total = 0;
   return result.filter((entry) => {
-    if (total + entry.content.length > maxTotalChars) return false;
-    total += entry.content.length;
+    const line = memoryIndexLine(entry);
+    if (total + line.length + 1 > maxTotalChars) return false;
+    total += line.length + 1;
     return true;
   });
+}
+
+function memoryIndexLine(item: MemoryEntry): string {
+  const description = item.description ? ` — ${item.description.slice(0, 120)}` : "";
+  const readPath = item.readPath.replace(/[\r\n]/g, " ");
+  return `- ${item.filename} (${item.source})${description} [read: ${readPath}]`;
 }
 
 export function formatMemoriesBlock(memories: MemoryEntry[], maxChars = DEFAULT_MAX_TOTAL_CHARS): string {
@@ -263,13 +278,12 @@ export function formatMemoriesBlock(memories: MemoryEntry[], maxChars = DEFAULT_
     "",
     "## Memory index",
     "",
-    "Full content is not injected. When an entry's description is relevant to the task, read that memory file for the details.",
+    "Full content is not injected. When an entry's description is relevant, read the exact bounded local file after `read:` for details.",
     "",
   ];
   let output = lines.join("\n");
   for (const item of memories) {
-    const description = item.description ? ` — ${item.description.slice(0, 120)}` : "";
-    const line = `- ${item.filename} (${item.source})${description}`;
+    const line = memoryIndexLine(item);
     if (output.length + line.length + 1 > maxChars) break;
     output += `${line}\n`;
   }

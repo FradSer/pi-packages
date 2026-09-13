@@ -1,10 +1,7 @@
-Feature: Memory management with auto-memory guidance and manual consolidation
-  The memory extension provides an auto-memory prompt guidance toggle and manual
-  consolidation via the /memory menu and /consolidate command.
-  When auto-memory is on, prompt guidance is injected telling the LLM to capture
-  and organize durable decisions/preferences into memory on its own when needed.
-  Consolidation is NEVER triggered automatically by context fill or agent settle;
-  it only runs on manual user invocation in the background.
+Feature: Memory management with automatic learning and manual consolidation
+  The memory extension learns from settled user tasks when auto-memory is on.
+  The /memory menu and /consolidate command also start consolidation explicitly.
+  Read-only planners propose changes; the parent validates and applies them.
 
   Background:
     Given the pi-memory-fradser package is installed
@@ -12,7 +9,8 @@ Feature: Memory management with auto-memory guidance and manual consolidation
   Scenario: Injects auto-memory guidance when auto-memory is on
     Given auto-memory setting is on
     When before_agent_start runs
-    Then it injects auto-memory prompt guidance telling the LLM to actively capture durable facts
+    Then it explains that a parent-owned learner captures durable facts after the task
+    And it does not ask the main model to bypass validation by writing memory directly
     And it does not include auto-consolidation threshold instructions
 
   Scenario: Omits auto-memory guidance when auto-memory is off
@@ -26,9 +24,11 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     Then it offers options to consolidate memory, edit user instructions, edit project instructions, open memory folder, and toggle auto-memory
     And selecting toggle auto-memory flips the setting and persists it
 
-  Scenario: No automatic consolidation runs on context fill or agent settle
-    Given the agent settles after any turn regardless of context usage
-    Then no automatic consolidation run is started
+  Scenario: Automatic consolidation follows a settled user task
+    Given auto-memory is enabled and a user task has completed
+    When the agent settles after all automatic continuations
+    Then one automatic consolidation pipeline starts regardless of context usage
+    And repeated settled events do not start duplicate pipelines
 
   Scenario: Dedicated /consolidate command is a sibling of /memory
     Given the user types /consolidate
@@ -161,6 +161,45 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     And the procedure requires the plan's selected array to be exactly that set of names with identical casing
     And the child is never asked to derive selected names from the snapshot
 
+  Scenario: Context evidence can create bounded new memory beside the existing scope
+    Given the current project has no existing memory files
+    And the immutable snapshot contains a user preference
+    When the read-only planner returns a newMemories proposal
+    Then selected remains the empty parent-owned scope
+    And the new memory name is validated in a separate bounded scope
+    And the proposal is written transactionally to the private root
+    And a safe proposal is mirrored byte-for-byte to project .memory
+
+  Scenario: New memory evidence is tied to the immutable snapshot
+    Given a newMemories proposal cites a snapshot entry index and exact quote
+    When the parent validates the plan
+    Then the cited entry must be a user or tool result
+    And an assistant-only quote cannot create a durable memory
+    And changing the snapshot after planning rejects the proposal
+
+  Scenario: New memory privacy defaults follow its semantic kind
+    Given a context-derived preference and a verified project fact are proposed
+    When the parent validates the plan
+    Then the preference defaults to private
+    And the verified project fact may be explicitly safe and mirrored
+    And a preference cannot be classified safe without an explicit privacy-safe contract
+
+  Scenario: Context-derived memory never persists secrets
+    Given a new memory proposal or evidence quote contains a credential or token
+    When the parent validates the plan
+    Then the proposal is rejected before any root is mutated
+
+  Scenario: New memory writes roll back with existing memory writes
+    Given a transaction contains an existing rewrite and a new memory proposal
+    When a later write or index update fails
+    Then both roots and their indexes return byte-for-byte to their predecessor state
+
+  Scenario: A frozen session context survives later consolidation phases
+    Given the parent snapshots the session manager before memory planning
+    When the original branch and context entries are mutated
+    Then reads through the snapshot session context return the original bounded values
+    And other session manager methods remain callable with their original receiver
+
   Scenario: Failed consolidation runs keep bounded diagnostics
     Given a consolidation child exits without a verified consolidation
     When the parent finishes handling the failure
@@ -173,13 +212,14 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     Then identical duplicates collapse to their first occurrence and the run proceeds
     But conflicting duplicates stay intact so validation rejects the ambiguity
 
-  Scenario: Pre-mutation plan failures retry once with a fresh planner
+  Scenario: Pre-mutation plan failures recover silently and continue the live pipeline
     Given a consolidation child produced no schema-valid plan or its plan was rejected by validation
     And no memory mutation has been applied yet
     And the failure was not caused by a planner model execution error
     When the parent handles the failure on the first attempt
     Then it releases the failed run while keeping its diagnostics
-    And it spawns exactly one replacement planner against the same run inputs
+    And it spawns exactly one replacement planner against the same run inputs without reporting the recoverable rejection to the user
+    And the live pipeline waits for the replacement attempt before deciding whether to run Harness and AGENTS.md consolidation
     And every attempt passes the same validation gates before any mutation
     And a failure after memory mutation is never retried
 
@@ -192,6 +232,11 @@ Feature: Memory management with auto-memory guidance and manual consolidation
     And it does not spend the fresh-planner retry because the replacement inherits the same failing model
     But a plan-phase failure with child stderr output stays classified as missing-plan and keeps the retry
     And a successful model retry attempt clears the earlier execution error so a later structured plan still passes
+
+  Scenario: Dreaming status is flush-left
+    Given the consolidation pipeline is active in the TUI
+    When the Dreaming status row is rendered
+    Then the spinner starts in the first column without a leading space
 
   Scenario: Dreaming timeout is labeled as the budget it exceeded
     Given the consolidation child outlives the dreaming budget and is terminated by the parent timer

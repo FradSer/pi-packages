@@ -29,6 +29,15 @@ def validate(plan: dict) -> list[str]:
     return run_bun(src)  # type: ignore[return-value]
 
 
+def validate_against_snapshot(plan: dict, snapshot: dict, **context: object) -> list[str]:
+    validation_context = {"snapshot": snapshot, **context}
+    src = f"""
+        import {{ validateHarnessPlan }} from './packages/continual-learning/extensions/harness-consolidation.ts';
+        console.log(JSON.stringify(validateHarnessPlan({json.dumps(plan)}, {json.dumps(validation_context)})));
+    """
+    return run_bun(src)  # type: ignore[return-value]
+
+
 def apply_ops(tmp_path: Path, ops: list[dict]) -> tuple[dict, Path]:
     target = tmp_path / "harness.local.json"
     src = f"""
@@ -89,7 +98,7 @@ def test_unknown_skill_prompt_is_rejected_when_registry_is_supplied() -> None:
     src = """
         import { validateHarnessPlan } from './packages/continual-learning/extensions/harness-consolidation.ts';
         const plan = { kind: 'harness-consolidation-plan', operations: [{ op: 'addSkillPrompt', name: 'invented-skill', prompt: 'x', target: 'system' }], evidence: [{ index: 0, observation: 'x', count: 1 }] };
-        console.log(JSON.stringify(validateHarnessPlan(plan, new Set(['known-skill']))));
+        console.log(JSON.stringify(validateHarnessPlan(plan, { availableSkills: new Set(['known-skill']) })));
     """
     result = subprocess.run(['bun', '-e', src], cwd=REPO, capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr
@@ -144,6 +153,396 @@ def test_skill_prompt_requires_target_and_prompt() -> None:
         {"kind": "harness-consolidation-plan", "operations": [{"op": "addSkillPrompt", "name": "s"}]}
     )
     assert any("prompt" in e for e in errs) and any("target" in e for e in errs)
+
+
+# ── autonomous evidence and evaluator gates ───────────────────────────
+
+
+def evidence_snapshot() -> dict:
+    return {
+        "entries": [
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "user",
+                    "content": "Please keep blocking hard-coded widths in writes.",
+                },
+            },
+            {
+                "type": "tool_execution_end",
+                "toolName": "write",
+                "result": "blocked by ui-width policy; use design tokens",
+                "isError": True,
+            },
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": "The model speculates that all writes should be blocked.",
+                },
+            },
+        ]
+    }
+
+
+def executable_policy(name: str = "learned-width", action: str = "block") -> dict:
+    return {
+        "name": name,
+        "tools": ["write"],
+        "paths": ["content"],
+        "pattern": r"width:\s*\d{3,}px",
+        "action": action,
+        "reason": "Use design tokens for responsive widths.",
+    }
+
+
+def executable_cases(action: str = "block") -> dict:
+    return {
+        "positive": [
+            {
+                "phase": "tool-call",
+                "toolName": "write",
+                "args": {"content": "width: 480px"},
+                "action": action,
+            }
+        ],
+        "negative": [
+            {"phase": "tool-call", "toolName": "write", "args": {"content": "width: var(--card-width)"}}
+        ],
+    }
+
+
+def grounded_plan(op: dict, *, source: str = "tool", quote: str = "blocked by ui-width policy; use design tokens") -> dict:
+    return {
+        "kind": "harness-consolidation-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "operations": [op],
+        "evidence": [
+            {
+                "index": 0,
+                "quote": quote,
+                "source": source,
+                "observation": quote,
+                "count": 1,
+            }
+        ],
+    }
+
+
+def test_evidence_requires_verbatim_snapshot_quote_and_observed_actor() -> None:
+    plan = grounded_plan({"op": "addPolicy", "name": "learned-width", "policy": executable_policy(), "cases": executable_cases()})
+    assert validate_against_snapshot(plan, evidence_snapshot()) == []
+
+    invented = grounded_plan(
+        {"op": "addPolicy", "name": "invented", "policy": executable_policy("invented"), "cases": executable_cases()},
+        source="user",
+        quote="The user prefers a universal write prohibition.",
+    )
+    errors = validate_against_snapshot(invented, evidence_snapshot())
+    assert any("quote" in error and "snapshot" in error for error in errors)
+
+    model_quote = grounded_plan(
+        {"op": "addPolicy", "name": "model-only", "policy": executable_policy("model-only"), "cases": executable_cases()},
+        source="model",
+        quote="The model speculates that all writes should be blocked.",
+    )
+    errors = validate_against_snapshot(model_quote, evidence_snapshot())
+    assert any("source" in error and "user" in error and "tool" in error for error in errors)
+
+
+def test_evidence_matches_actual_content_leaves_and_distinct_events() -> None:
+    multiline = 'First line\nquoted "width: 480px" with a \\ slash.'
+    snapshot = {
+        "entries": [
+            {"type": "message_end", "message": {"role": "user", "content": multiline}},
+            {"type": "tool_execution_end", "toolName": "write", "result": "blocked once"},
+            {"type": "tool_execution_end", "toolName": "write", "result": "blocked once"},
+            {"type": "tool_execution_end", "toolName": "write", "policyName": "metadata-only", "result": "ordinary outcome"},
+            {"type": "message_end", "message": {"role": "assistant", "content": "assistant-only claim"}},
+        ]
+    }
+    user_plan = grounded_plan(
+        {"op": "addPolicy", "name": "multiline", "policy": executable_policy("multiline"), "cases": executable_cases()},
+        source="user",
+        quote=multiline,
+    )
+    assert validate_against_snapshot(user_plan, snapshot) == []
+
+    two_events = grounded_plan(
+        {"op": "addPolicy", "name": "two-events", "policy": executable_policy("two-events"), "cases": executable_cases()},
+        source="tool",
+        quote="blocked once",
+    )
+    two_events["evidence"][0]["count"] = 2
+    assert validate_against_snapshot(two_events, snapshot) == []
+
+    repeated_in_one_event = grounded_plan(
+        {"op": "addPolicy", "name": "one-event", "policy": executable_policy("one-event"), "cases": executable_cases()},
+        source="tool",
+        quote="ordinary outcome",
+    )
+    repeated_in_one_event["evidence"][0]["count"] = 2
+    errors = validate_against_snapshot(repeated_in_one_event, snapshot)
+    assert any("count exceeds" in error for error in errors)
+
+    metadata = grounded_plan(
+        {"op": "addPolicy", "name": "metadata", "policy": executable_policy("metadata"), "cases": executable_cases()},
+        source="tool",
+        quote="metadata-only",
+    )
+    errors = validate_against_snapshot(metadata, snapshot)
+    assert any("not grounded" in error for error in errors)
+
+    assistant = grounded_plan(
+        {"op": "addPolicy", "name": "assistant", "policy": executable_policy("assistant"), "cases": executable_cases()},
+        source="user",
+        quote="assistant-only claim",
+    )
+    errors = validate_against_snapshot(assistant, snapshot)
+    assert any("not grounded" in error for error in errors)
+
+
+def test_sdk_tool_result_message_content_is_tool_evidence() -> None:
+    snapshot = {
+        "entries": [
+            {
+                "type": "message",
+                "message": {
+                    "role": "toolResult",
+                    "toolName": "write",
+                    "content": [{"type": "text", "text": "blocked by sdk policy"}],
+                },
+                "policyName": "metadata-only",
+            },
+            {
+                "type": "message",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "assistant-only tool claim"}],
+                },
+            },
+        ]
+    }
+    accepted = grounded_plan(
+        {"op": "addPolicy", "name": "sdk-tool-result", "policy": executable_policy("sdk-tool-result"), "cases": executable_cases()},
+        source="tool",
+        quote="blocked by sdk policy",
+    )
+    assert validate_against_snapshot(accepted, snapshot) == []
+
+    metadata = grounded_plan(
+        {"op": "addPolicy", "name": "sdk-metadata", "policy": executable_policy("sdk-metadata"), "cases": executable_cases()},
+        source="tool",
+        quote="write",
+    )
+    errors = validate_against_snapshot(metadata, snapshot)
+    assert any("not grounded" in error for error in errors)
+
+    assistant = grounded_plan(
+        {"op": "addPolicy", "name": "sdk-assistant", "policy": executable_policy("sdk-assistant"), "cases": executable_cases()},
+        source="tool",
+        quote="assistant-only tool claim",
+    )
+    errors = validate_against_snapshot(assistant, snapshot)
+    assert any("not grounded" in error for error in errors)
+
+
+def test_policy_add_and_update_require_passing_positive_and_negative_evaluator_cases() -> None:
+    base = {"op": "addPolicy", "name": "learned-width", "policy": executable_policy()}
+    missing = validate_against_snapshot(grounded_plan(base), evidence_snapshot())
+    assert any("positive" in error and "negative" in error for error in missing)
+
+    bad_cases = executable_cases()
+    bad_cases["negative"][0]["args"]["content"] = "width: 480px"
+    errors = validate_against_snapshot(
+        grounded_plan({**base, "cases": bad_cases}), evidence_snapshot()
+    )
+    assert any("negative" in error and ("match" in error or "unmatched" in error) for error in errors)
+
+    valid = validate_against_snapshot(
+        grounded_plan({**base, "cases": executable_cases()}), evidence_snapshot()
+    )
+    assert valid == []
+
+
+def test_policy_cases_use_the_declared_output_and_artifact_evaluator_phases() -> None:
+    output_policy = {
+        "name": "output-secret",
+        "phase": "output",
+        "pattern": r"secret",
+        "action": "block",
+        "reason": "Do not disclose secrets.",
+    }
+    output_cases = {
+        "positive": [{"phase": "output", "text": "secret value", "action": "block"}],
+        "negative": [{"phase": "output", "text": "public value"}],
+    }
+    output_plan = grounded_plan(
+        {"op": "addPolicy", "name": "output-secret", "policy": output_policy, "cases": output_cases}
+    )
+    assert validate_against_snapshot(output_plan, evidence_snapshot()) == []
+
+    artifact_policy = {
+        "name": "artifact-secret",
+        "phase": "artifact",
+        "artifactPaths": ["dist/app.js"],
+        "pattern": r"secret",
+        "action": "block",
+        "reason": "Do not ship secrets.",
+    }
+    artifact_cases = {
+        "positive": [{"phase": "artifact", "text": "bundle contains secret", "action": "block"}],
+        "negative": [{"phase": "artifact", "text": "bundle is public"}],
+    }
+    artifact_plan = grounded_plan(
+        {"op": "addPolicy", "name": "artifact-secret", "policy": artifact_policy, "cases": artifact_cases}
+    )
+    assert validate_against_snapshot(artifact_plan, evidence_snapshot()) == []
+
+    missing_phase = grounded_plan(
+        {
+            "op": "addPolicy",
+            "name": "missing-phase",
+            "policy": executable_policy("missing-phase"),
+            "cases": {
+                "positive": [{"toolName": "write", "args": {"content": "width: 480px"}}],
+                "negative": [{"phase": "tool-call", "toolName": "write", "args": {"content": "safe"}}],
+            },
+        }
+    )
+    errors = validate_against_snapshot(missing_phase, evidence_snapshot())
+    assert any("phase is required" in error for error in errors)
+
+
+def test_automatic_learning_rejects_shared_and_manual_rule_changes() -> None:
+    layers = [
+        {"source": "built-in defaults", "policies": [executable_policy("built-in")]},
+        {"source": "user", "policies": [executable_policy("shared")]},
+        {"source": "project.local", "policies": [executable_policy("manual"), executable_policy("learned")]},
+    ]
+    update_manual = grounded_plan(
+        {"op": "updatePolicy", "name": "manual", "policy": executable_policy("manual", "confirm"), "cases": executable_cases("confirm")}
+    )
+    errors = validate_against_snapshot(
+        update_manual, evidence_snapshot(), layers=layers, learnedPolicyNames=["learned"]
+    )
+    assert any("manual" in error and ("owned" in error or "authored" in error) for error in errors)
+
+    disable_shared = grounded_plan(
+        {"op": "disablePolicy", "name": "shared"},
+        source="user",
+        quote="Please disable the shared rule now.",
+    )
+    errors = validate_against_snapshot(
+        disable_shared, evidence_snapshot(), layers=layers, learnedPolicyNames=["learned"]
+    )
+    assert any("shared" in error or "protected" in error for error in errors)
+
+    prompt_layers = layers + [{"source": "project.local", "skillPrompts": {"impeccable": {"prompt": "manual guidance", "target": "system"}}}]
+    overwrite_prompt = grounded_plan(
+        {"op": "addSkillPrompt", "name": "impeccable", "prompt": "replacement", "target": "system"}
+    )
+    errors = validate_against_snapshot(
+        overwrite_prompt, evidence_snapshot(), layers=prompt_layers, learnedPolicyNames=["learned"]
+    )
+    assert any("cannot be overwritten" in error for error in errors)
+
+
+def test_automatic_learning_cannot_weaken_even_with_user_looking_evidence() -> None:
+    layers = [{"source": "project.local", "policies": [executable_policy("learned")]}]
+    weaken = grounded_plan(
+        {"op": "updatePolicy", "name": "learned", "policy": executable_policy("learned", "confirm"), "cases": executable_cases("confirm")}
+    )
+    errors = validate_against_snapshot(
+        weaken, evidence_snapshot(), layers=layers, learnedPolicyNames=["learned"]
+    )
+    assert any("cannot weaken" in error for error in errors)
+
+    user_wording = grounded_plan(
+        {
+            "op": "updatePolicy",
+            "name": "learned",
+            "policy": executable_policy("learned", "confirm"),
+            "cases": executable_cases("confirm"),
+        },
+        source="user",
+        quote="Please weaken the learned width rule to confirmation.",
+    )
+    user_wording_snapshot = evidence_snapshot() | {
+        "entries": evidence_snapshot()["entries"][:1]
+        + [{"type": "message_end", "message": {"role": "user", "content": "Please weaken the learned width rule to confirmation."}}]
+    }
+    errors = validate_against_snapshot(
+        user_wording, user_wording_snapshot, layers=layers, learnedPolicyNames=["learned"]
+    )
+    assert any("cannot weaken" in error for error in errors)
+
+
+def test_learned_rule_can_receive_a_reason_only_revision() -> None:
+    layers = [{"source": "project.local", "policies": [executable_policy("learned")]}]
+    revision = grounded_plan(
+        {
+            "op": "updatePolicy",
+            "name": "learned",
+            "policy": executable_policy("learned") | {"reason": "Keep responsive widths tokenized."},
+            "cases": executable_cases(),
+        },
+        source="tool",
+        quote="blocked by ui-width policy; use design tokens",
+    )
+    assert validate_against_snapshot(
+        revision, evidence_snapshot(), layers=layers, learnedPolicyNames=["learned"]
+    ) == []
+
+
+def test_learned_rule_scope_changes_are_rejected_as_unproven_weakening() -> None:
+    layers = [{"source": "project.local", "policies": [executable_policy("learned")]}]
+    remove_tool = grounded_plan(
+        {
+            "op": "updatePolicy",
+            "name": "learned",
+            "policy": executable_policy("learned") | {"tools": ["edit"]},
+            "cases": executable_cases(),
+        }
+    )
+    errors = validate_against_snapshot(
+        remove_tool, evidence_snapshot(), layers=layers, learnedPolicyNames=["learned"]
+    )
+    assert any("cannot weaken" in error for error in errors)
+
+    add_require = grounded_plan(
+        {
+            "op": "updatePolicy",
+            "name": "learned",
+            "policy": executable_policy("learned") | {"require": {"path": "content", "pattern": "width"}},
+            "cases": executable_cases(),
+        }
+    )
+    errors = validate_against_snapshot(
+        add_require, evidence_snapshot(), layers=layers, learnedPolicyNames=["learned"]
+    )
+    assert any("cannot weaken" in error for error in errors)
+
+
+def test_automatic_apply_records_parent_owned_learned_provenance(tmp_path: Path) -> None:
+    op = {"op": "addPolicy", "name": "learned-on-apply", "policy": executable_policy("learned-on-apply"), "cases": executable_cases()}
+    evidence = grounded_plan(op)["evidence"]
+    target = tmp_path / "harness.local.json"
+    src = f"""
+        import {{ applyHarnessOps }} from './packages/continual-learning/extensions/harness-consolidation.ts';
+        const result = await applyHarnessOps(
+          {json.dumps(str(target))},
+          {json.dumps([op])},
+          {{ automatic: true, snapshot: {json.dumps(evidence_snapshot())}, evidence: {json.dumps(evidence)} }},
+        );
+        let after = null;
+        try {{ after = JSON.parse(await Bun.file({json.dumps(str(target))}).text()); }} catch {{}}
+        console.log(JSON.stringify({{ result, after }}));
+    """
+    out = run_bun(src)
+    assert out["result"]["ok"] is True
+    assert out["after"]["learnedPolicies"]["learned-on-apply"]["origin"] == "consolidation"
 
 
 # ── apply semantics ───────────────────────────────────────────────────
@@ -241,7 +640,7 @@ def test_consolidate_pipeline_gates_harness_phase() -> None:
     assert 'gate !== "run"' in src
     assert "skipped (no-context run)" in src
     assert "await startConsolidationPipeline(ctx, dreamState," in src
-    assert src.count("await spawnAsyncConsolidation(ctx, state, opts);") == 1
+    assert src.count("await spawnAsyncConsolidation(frozenContext, state, opts);") == 1
 
 
 def test_plan_requires_version_and_schema_version_one() -> None:
@@ -285,6 +684,10 @@ def test_report_entries_require_bounded_summaries() -> None:
     plan["report"] = [{"summary": ""}]
     errs = validate(plan)
     assert any("1..400 char summary" in e for e in errs)
+
+    plan["report"] = [{"summary": "ok"}] * 13
+    errs = validate(plan)
+    assert any("report exceeds" in e for e in errs)
 
 
 def test_should_run_harness_phase_decision_table() -> None:

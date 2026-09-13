@@ -42,8 +42,9 @@ memory name is a simple Markdown filename matching
 `[A-Za-z0-9][A-Za-z0-9_-]*.md`. `MEMORY.md` is an index, case-insensitively,
 and is never a selected item. Do not add an item merely because it was found
 outside the listed scope, and do not emit an empty scope when the header lists
-names; only that header decides whether this run is a verified no-op. Preserve
-case in names and reject path-qualified names.
+names. The header controls the existing-file scope; an empty selected scope may
+still carry verified `newMemories` proposals. Preserve case in names and reject
+path-qualified names.
 
 ## Required plan object
 
@@ -62,6 +63,7 @@ Markdown fences and do not add a second object. Its shape is:
   "snapshotDigest": "parent supplied snapshotDigest",
   "selected": ["project_example.md"],
   "operations": [],
+  "newMemories": [],
   "inventory": [
     {"name": "project_example.md", "classification": "safe"}
   ],
@@ -92,10 +94,10 @@ different values. `snapshotDigest` is an alias of `artifactHash` and, when
 emitted, must match it exactly.
 
 `inventory`, `clusters`, `staleness`, `grounding`, and `report` must cover the
-same selected non-index names. An empty inventory is a valid verified no-op;
-in that case all five sections are empty arrays. Each selected name appears
-exactly once in the cluster map and has exactly one staleness, grounding, and
-report record. Do not emit an orphan record. Use one of these staleness verdicts exactly (hyphens are
+same selected non-index names. When selected is empty, those five existing-file
+sections are empty arrays, while `newMemories` remains independently valid.
+Each selected name appears exactly once in the cluster map and has exactly one
+staleness, grounding, and report record. Do not emit an orphan record. Use one of these staleness verdicts exactly (hyphens are
 significant): `CONTRADICTED`, `SUPERSEDED`, `SUBSUMED`, `OPS-ONLY`, `ONE-SHOT`,
 `DORMANT`, or `KEEP`. `OPS_ONLY` is invalid.
 
@@ -112,3 +114,44 @@ non-repository status when no repository claim exists.
 The plan describes intended work only. It is not evidence that the parent has
 applied anything, and it must not contain success markers, gate prose, or a
 claim that validation passed.
+
+## Context-derived new memories
+
+`selected` is the parent-owned existing scope. Context learning uses the
+separate `newMemories` array and never adds a new name to `selected`,
+`inventory`, `clusters`, `staleness`, `grounding`, or `report`. New names are
+created only by the parent after validation, and must not appear in
+`operations`.
+
+Each proposal has this exact shape:
+
+```json
+{
+  "name": "preferences.md",
+  "kind": "preference",
+  "classification": "private",
+  "content": "---\ndescription: concise updates\n---\nPrefer concise updates.\n",
+  "evidence": [{"index": 0, "quote": "I prefer concise updates."}]
+}
+```
+
+`name` is a simple Markdown filename. Emit at most 16 proposals, each body is
+at most 64,000 UTF-8 bytes, the combined bodies are at most 256,000 bytes, and
+each proposal cites at most 8 entries with quotes of at most 2,000 characters.
+Every quote must match the cited entry in `snapshotPath` after whitespace
+normalization. The cited entry's role must be `user` or `toolResult`; an
+assistant entry is never evidence of a user preference or project fact. The
+parent verifies the snapshot digest and run identity again before writing.
+
+`preference` proposals default to `private` and must remain private.
+`project` proposals default to `safe` only when the cited user or tool-result
+evidence verifies a project fact; use `private` when the fact is not safe to
+share. Never include credentials, tokens, passwords, API keys, private keys, or
+other sensitive material in proposal content or evidence, even for private
+files. If the run has no context, or the snapshot has no usable entries, emit
+an empty `newMemories` array. An empty existing corpus may still receive
+verified proposals when context is present.
+
+The parent records the accepted new names in the post receipt's `created`
+array. It writes each proposal to the private harness root and mirrors only
+safe proposals to the public root in the same rollback-protected transaction.
