@@ -30,5 +30,7 @@ return partial answers.
 
 Use `features/native-tool-runtime.feature` and `tests/test_context_package.py`
 for tool-count, no-command, and shared-worker contracts.
-`tests/context_tools_harness.mts` provides runtime coverage. Keep the result
-label `researched` and its compact, expandable transcript.
+`tests/context_tools_harness.mts` provides runtime coverage. Keep the transcript
+on the single `[agent] @context-<adjective>-<noun> started · agents/context-researcher.md`
+row with a stable, pronounceable run name; the completed result must not add a
+separate `[context] researched` event row.

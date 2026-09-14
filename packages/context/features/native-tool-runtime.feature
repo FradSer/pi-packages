@@ -38,23 +38,25 @@ Feature: Isolated Pi research tool
     When the research child starts
     Then Pi renders one native Text row in the `[agent] @context-xxx started · agents/context-researcher.md` shape
     And only the `[agent]` prefix uses the custom message label color
-    And the sub-agent name is unique to that research run
-    And Pi renders one compact expandable context lifecycle row when finished
-    And expanding the researched row reveals the complete answer without line truncation
+    And the sub-agent uses a short pronounceable codename with a compact non-hex run suffix
+    And the sub-agent name is stable and unique across distinct research tool call ids
+    And the completed tool contributes no second agent-start row
+    And Pi does not render a `[context] researched` lifecycle row
+    And the complete answer remains model-facing without transcript details
 
   Scenario: Research rows fit the current TUI width
-    Given a long research query with paths, CJK text and ANSI styling
+    Given a context research agent starts
     When the started and completed components render at widths 40, 80 and 160
-    Then every row stays within the available display columns
-    And the started row preserves its agent identity and agent definition path when they fit
-    And whitespace and unsafe query escape sequences are sanitized in the completed row
+    Then the started row stays within the available display columns
+    And the completed renderer contributes zero transcript lines
+    And neither renderer exposes the model-facing research answer
 
   Scenario: Research rows adapt when the TUI is resized
-    Given a research query longer than 120 characters
-    When the completed component renders wide, narrow and wide again
-    Then the wide row shows the complete query when it fits
+    Given a context research agent starts
+    When the started component renders wide, narrow and wide again
+    Then the row retains the same agent identity and definition path when they fit
     And invalidation uses the current theme
-    And the completed researched row retains the complete query when it fits
+    And the completed renderer remains empty
 
   Scenario: Research shows the child agent's latest running status above the editor
     Given the agent calls context_get with a research question
@@ -74,3 +76,4 @@ Feature: Isolated Pi research tool
     Given a Pi research child exits unsuccessfully
     When context_get completes
     Then the tool reports the child failure
+    And the result renderer shows one error line instead of hiding it with the empty success renderer

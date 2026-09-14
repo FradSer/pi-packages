@@ -109,19 +109,22 @@ class TestContextPackage(unittest.TestCase):
         self.assertIn("createPackageAgentRun({", source)
         self.assertIn('packageRootUrl: new URL("../", import.meta.url).href', source)
 
-    def test_result_uses_lifecycle_renderer_without_truncation(self) -> None:
+    def test_result_is_empty_without_completion_event(self) -> None:
         source = read("extensions/context-tools.ts")
         self.assertNotIn("MAX_CHARS", source)
         self.assertNotIn("truncateHead", source)
-        self.assertIn("createToolLifecycleResultRenderer", source)
-        self.assertIn('detailLimit: "all"', source)
-        self.assertIn('eventToolLifecycle("context", subject', source)
-        self.assertIn('label: "researched"', source)
+        self.assertNotIn("createToolLifecycleResultRenderer", source)
+        self.assertNotIn('eventToolLifecycle("context"', source)
+        self.assertNotIn('label: "researched"', source)
         self.assertIn('renderShell: "self"', source)
         self.assertIn("renderCall(_args, theme, context)", source)
+        self.assertIn("renderResult(result, _options, theme, context)", source)
         self.assertIn('theme.bold("[agent]")', source)
-        self.assertIn("renderContextCall(context.toolCallId, theme)", source)
+        self.assertEqual(source.count("renderContextCall(context.toolCallId, theme)"), 1)
+        self.assertIn("return { render: () => [], invalidate: () => {} };", source)
         self.assertIn('CONTEXT_AGENT_PATH = "agents/context-researcher.md"', source)
+        self.assertIn("elegantContextAgentName", source)
+        self.assertIn("return { ...run, name: elegantContextAgentName(toolCallId) };", source)
 
     def test_documentation_describes_only_the_single_tool(self) -> None:
         for relative in ("README.md", "references/workflow.md", "agents/context-researcher.md"):
@@ -154,11 +157,14 @@ class TestContextPackage(unittest.TestCase):
             "no result truncation",
             "status widget above the editor",
             "`[agent] @context-xxx started · agents/context-researcher.md` shape",
+            "short pronounceable codename with a compact non-hex run suffix",
             "identifies the child agent with the same @context-xxx name",
             "latest tool, thinking, or answer activity",
             "newer activity replaces older activity",
             "widget clears when research completes",
-            "reveals the complete answer without line truncation",
+            "completed tool contributes no second agent-start row",
+            "does not render a `[context] researched` lifecycle row",
+            "complete answer remains model-facing without transcript details",
             "Pi cancellation terminates the child process",
             "cancellation error rather than a partial answer",
             "A failed child process does not return an answer",

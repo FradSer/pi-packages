@@ -1,15 +1,14 @@
+import { createHash } from "node:crypto";
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { type Component, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { type Component, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import {
   createPackageAgentRun,
-  createToolLifecycleResultRenderer,
-  eventToolLifecycle,
+  formatToolErrorLine,
   formatToolLifecycleTitle,
   PI_SPINNER_FRAMES,
   PI_SPINNER_INTERVAL_MS,
   renderPiWidgetRow,
   runPiWorker,
-  safeDisplayText,
   type PiWorkerProgressUpdate,
 } from "@fradser/pi-kit";
 import { Type } from "typebox";
@@ -17,15 +16,18 @@ import { Type } from "typebox";
 const RESEARCH_TOOLS = ["read", "bash"];
 const CONTEXT_AGENT_RESOURCE = "agents/context-researcher.md";
 const CONTEXT_AGENT_PATH = "agents/context-researcher.md";
+const CONTEXT_NAME_ADJECTIVES = [
+  "amber", "azure", "calm", "clear", "coral", "crisp", "dawn", "ember",
+  "gentle", "golden", "jade", "lucid", "lunar", "misty", "quiet", "silver",
+] as const;
+const CONTEXT_NAME_NOUNS = [
+  "atlas", "cedar", "comet", "finch", "grove", "heron", "lark", "lotus",
+  "maple", "nova", "otter", "pine", "raven", "sage", "willow", "wren",
+] as const;
 
 interface ToolTextResult {
   content: [{ type: "text"; text: string }];
   details: Record<string, unknown>;
-}
-
-interface ToolResultForRendering {
-  content: unknown;
-  details?: unknown;
 }
 
 interface ChildResult {
@@ -39,8 +41,16 @@ function textResult(text: string, details: Record<string, unknown> = {}): ToolTe
   return { content: [{ type: "text", text }], details };
 }
 
+function elegantContextAgentName(toolCallId: string): string {
+  const digest = createHash("sha256").update(toolCallId).digest();
+  const adjective = CONTEXT_NAME_ADJECTIVES[digest[0] % CONTEXT_NAME_ADJECTIVES.length];
+  const noun = CONTEXT_NAME_NOUNS[digest[1] % CONTEXT_NAME_NOUNS.length];
+  const suffix = digest.subarray(2, 8).toString("base64url").toLowerCase();
+  return `context-${adjective}-${noun}-${suffix}`;
+}
+
 function contextAgentRun(toolCallId: string, query = ""): ReturnType<typeof createPackageAgentRun> {
-  return createPackageAgentRun({
+  const run = createPackageAgentRun({
     packageRootUrl: new URL("../", import.meta.url).href,
     resourcePath: CONTEXT_AGENT_RESOURCE,
     namePrefix: "context",
@@ -48,6 +58,7 @@ function contextAgentRun(toolCallId: string, query = ""): ReturnType<typeof crea
     request: query,
     requestLabel: "User research request",
   });
+  return { ...run, name: elegantContextAgentName(toolCallId) };
 }
 
 function renderContextCall(
@@ -70,28 +81,8 @@ function renderContextCall(
   };
 }
 
-function normalizeSubject(value: unknown): string {
-  return safeDisplayText(String(value ?? "research").replace(/\s+/g, " ").trim());
-}
-
-function renderContextResult(
-  result: ToolResultForRendering,
-  options: { expanded?: boolean },
-  theme: { fg(color: string, text: string): string; bg(color: string, text: string): string; bold(text: string): string },
-  context: { isError?: boolean },
-  subject: string,
-) {
-  return createToolLifecycleResultRenderer<ToolResultForRendering, Text>({
-    createSpec: (_result, _text, details) => eventToolLifecycle("context", subject, {
-      label: "researched",
-      details,
-      detailLimit: "all",
-    }),
-    expandHint: "ctrl+o to expand",
-    fit: truncateToWidth,
-    visibleWidth,
-    renderError: (line, errorTheme) => new Text(errorTheme.fg("error", line), 0, 0),
-  })(result, options, theme, context);
+function resultText(result: ToolTextResult): string {
+  return result.content.find((part) => part.type === "text")?.text ?? "";
 }
 
 export function buildResearchPrompt(query: string, toolCallId = "context-research"): string {
@@ -221,9 +212,11 @@ export function registerContextTools(pi: ExtensionAPI): void {
     renderCall(_args, theme, context) {
       return renderContextCall(context.toolCallId, theme);
     },
-    renderResult(result, options, theme, context) {
-      const params = context.args as { query?: string };
-      return renderContextResult(result, options, theme, context, normalizeSubject(params.query));
+    renderResult(result, _options, theme, context) {
+      if (context.isError) {
+        return new Text(theme.fg("error", formatToolErrorLine(resultText(result as ToolTextResult))), 0, 0);
+      }
+      return { render: () => [], invalidate: () => {} };
     },
     async execute(toolCallId, params, signal, onUpdate, ctx) {
       const agent = contextAgentRun(toolCallId, params.query);
