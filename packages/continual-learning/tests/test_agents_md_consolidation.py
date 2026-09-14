@@ -305,21 +305,28 @@ def test_target_resolution_and_user_level_guard(tmp_path: Path) -> None:
 # ── wiring and procedure contract ─────────────────────────────────────
 
 
-def test_pipeline_wires_autonomous_agents_phase_after_harness_phase() -> None:
+def test_pipeline_plans_harness_and_agents_in_parallel_then_applies_sequentially() -> None:
     inject = (PKG_DIR / "extensions" / "inject-memory.ts").read_text(encoding="utf-8")
     agents = (PKG_DIR / "extensions" / "agents-md-consolidation.ts").read_text(encoding="utf-8")
-    harness_pos = inject.index("await runHarnessConsolidationPhase(frozenContext, state, {")
-    agents_pos = inject.index("await runAgentsMdConsolidationPhase(frozenContext, state, {")
-    assert harness_pos < agents_pos
-    assert "settings.agentsMd?.disabled === true" in inject
+    assert "Promise.all([harnessPromise, agentsPromise])" in inject
+    harness_apply = inject.index("await applyHarnessConsolidationPlan")
+    agents_apply = inject.index("await applyAgentsMdConsolidationPlan")
+    assert harness_apply < agents_apply
+    assert "settings.agentsMd?.disabled !== true" in inject
     assert "DEFAULT_AGENTS_MD_BUDGET_BYTES" in inject
     assert "hasUI" not in agents
     assert "ctx.ui.select" not in agents
     assert "apply without an interactive prompt" in agents
 
 
+def test_agents_planner_uses_package_agent_and_minimal_readonly_args() -> None:
+    source = (PKG_DIR / "extensions" / "agents-md-consolidation.ts").read_text(encoding="utf-8")
+    assert 'resourcePath: "agents/agents-md-consolidator.md"' in source
+    assert 'minimalPiWorkerArgs(["read", "grep", "find", "ls"])' in source
+
+
 def test_procedure_declares_readonly_boundary_and_discipline() -> None:
-    text = (PKG_DIR / "procedures" / "consolidate-agents.md").read_text(encoding="utf-8")
+    text = (PKG_DIR / "agents" / "agents-md-consolidator.md").read_text(encoding="utf-8")
     assert "Read-only boundary" in text
     assert "{{BUDGET_BYTES}}" in text
     assert "verbatim" in text

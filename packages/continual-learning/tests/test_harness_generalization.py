@@ -13,7 +13,7 @@ REPO = PKG_DIR.parents[1]
 @pytest.fixture(params=["direct", "consolidation"])
 def guidance(request: pytest.FixtureRequest) -> str:
     if request.param == "consolidation":
-        return (PKG_DIR / "procedures" / "consolidate-harness.md").read_text(encoding="utf-8")
+        return (PKG_DIR / "agents" / "harness-consolidator.md").read_text(encoding="utf-8")
     result = subprocess.run(
         ["bun", "-e", """
         import { buildHarnessRulePrompt } from './packages/continual-learning/extensions/guardrails.ts';

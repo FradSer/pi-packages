@@ -70,7 +70,7 @@ def test_consolidation_contract_is_parent_owned() -> None:
 
 
 def test_procedure_is_read_only_and_structured() -> None:
-    content = (MEMORY_PKG_DIR / "procedures" / "consolidate.md").read_text(encoding="utf-8")
+    content = (MEMORY_PKG_DIR / "agents" / "memory-consolidator.md").read_text(encoding="utf-8")
     assert "{{PKG_DIR}}" in content
     assert "{{RUN_ID}}" in content
     assert "{{SNAPSHOT_PATH}}" in content
@@ -638,8 +638,9 @@ def test_no_context_command_contract_is_present() -> None:
     content = source()
     assert 'args !== "" && args !== "no-context"' in content
     assert 'noContext: args === "no-context"' in content
-    assert '"--no-extensions"' in content
-    assert '"read,grep,find,ls"' in content
+    assert "minimalPiWorkerArgs" in content
+    assert '["read", "grep", "find", "ls"]' in content
+    assert 'resourcePath: "agents/memory-consolidator.md"' in content
 
 
 def test_child_output_uses_streaming_utf8_and_byte_bounded_diagnostics() -> None:
@@ -708,7 +709,7 @@ def test_child_task_embeds_parent_selected_scope() -> None:
     content = source()
     assert "const selectedScope = parentSelectedScope(run, Boolean(opts.noContext));" in content
     assert "...formatSelectedScopeTaskLines(selectedScope, Boolean(opts.noContext))," in content
-    procedure = (MEMORY_PKG_DIR / "procedures" / "consolidate.md").read_text(encoding="utf-8")
+    procedure = (MEMORY_PKG_DIR / "agents" / "memory-consolidator.md").read_text(encoding="utf-8")
     assert "authoritative selected memory scope" in procedure
     assert "supplied by the parent snapshot" not in procedure
     assert "newMemories" in procedure

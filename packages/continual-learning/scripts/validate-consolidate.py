@@ -591,6 +591,9 @@ def validate_operations(
     value: Any,
     inventory: list[str],
     metadata: dict[str, dict[str, Any]],
+    staleness: dict[str, dict[str, Any]],
+    repo_root: Path | None,
+    mode: str,
 ) -> list[dict[str, Any]]:
     if value is None:
         return []
@@ -630,6 +633,26 @@ def validate_operations(
                     raise ValidationError("binding", f"operations[{index}]: contentSha256 mismatch")
         elif "content" in operation or "contentSha256" in operation:
             raise ValidationError("schema", f"operations[{index}]: delete operation cannot contain content")
+        if kind == "delete":
+            verdict = field(staleness[name], "verdict", "status", "score")
+            if verdict not in {"CONTRADICTED", "SUPERSEDED", "SUBSUMED"}:
+                raise ValidationError("destructive", f"operations[{index}]: {verdict} memory cannot be deleted")
+            preserved = operation.get("preservedIn")
+            if not isinstance(preserved, list) or not preserved or any(not isinstance(item, str) or not item for item in preserved):
+                raise ValidationError("destructive", f"operations[{index}]: delete requires non-empty preservedIn")
+            operation_names = {
+                strict_name(field(item, "name", "filename", "targetName"), "operation.name")
+                for item in operations if isinstance(item, dict) and item.get("kind") in {"create", "rewrite"}
+            }
+            for target in preserved:
+                if target in operation_names:
+                    continue
+                if repo_root is None:
+                    raise ValidationError("destructive", f"operations[{index}]: preservedIn requires repository verification")
+                validate_repo_path(repo_root, target, f"operations[{index}].preservedIn")
+                preserved_path = (repo_root.resolve() / Path(target)).resolve(strict=False)
+                if not preserved_path.is_file():
+                    raise ValidationError("destructive", f"operations[{index}]: preservedIn target {target!r} does not exist as a file")
         result.append(operation)
     return result
 
@@ -665,7 +688,7 @@ def validate_plan(
     staleness = validate_staleness(artifacts["staleness"], inventory)
     grounding = validate_grounding(artifacts["grounding"], inventory, repo_root)
     report = validate_report(artifacts["report"], inventory)
-    operations = validate_operations(plan.get("operations"), inventory, metadata)
+    operations = validate_operations(plan.get("operations"), inventory, metadata, staleness, repo_root, expected.get("mode", "manual"))
     new_memories = normalize_new_memory_proposals(
         new_memory_raw_value(plan),
         selected,
@@ -1096,6 +1119,16 @@ def validate_receipt(
     expected_created = [item["name"] for item in plan_data["newMemories"]]
     if {name.casefold() for name in created_names} != {name.casefold() for name in expected_created}:
         raise ValidationError("binding", "receipt: created files do not match plan newMemories")
+    operations = plan_data["operations"]
+    expected_changes = {
+        "created": len(plan_data["newMemories"]),
+        "rewritten": sum(item.get("kind") in {"create", "rewrite"} for item in operations),
+        "deleted": sum(item.get("kind") == "delete" for item in operations),
+        "sharedToPrivate": sum(item.get("kind") != "delete" and item.get("classification") == "private" for item in operations),
+        "unpreservedDeletes": sum(item.get("kind") == "delete" and not item.get("preservedIn") for item in operations),
+    }
+    if receipt.get("changes") != expected_changes:
+        raise ValidationError("binding", "receipt: changes summary does not match plan operations")
     if privacy is None:
         raise ValidationError("receipt", "receipt: privacy result is required to verify final hashes")
     expected_harness, expected_public = extract_final_hashes(receipt)
@@ -1109,7 +1142,14 @@ def validate_receipt(
 
 def check_plan_classification(plan_data: dict[str, Any], privacy: dict[str, Any]) -> None:
     private = {name.casefold() for name in privacy["private"]}
+    changed = {
+        operation["name"].casefold()
+        for operation in plan_data["operations"]
+        if operation["kind"] != "delete"
+    }
     for name, metadata in plan_data["metadata"].items():
+        if name.casefold() not in changed:
+            continue
         classification = field(metadata, "classification", "privacy", "visibility")
         if classification is None:
             continue
@@ -1151,6 +1191,7 @@ def parse_expected(args: argparse.Namespace) -> dict[str, Any]:
         "scopeDigest": args.expected_scope_digest,
         "artifactHash": args.expected_artifact_hash,
         "runDir": args.expected_run_dir,
+        "mode": args.mode,
         "receiptAfter": args.expected_receipt_after,
         "receiptPhase": args.expected_receipt_phase,
         "selected": parse_expected_selected(args.expected_selected),
@@ -1198,6 +1239,7 @@ def main(argv: list[str] | None = None) -> int:
         help="parent-selected memory filename; repeat for each selected file",
     )
     parser.add_argument("--expected-receipt-phase", choices=("pre", "post"), default="post")
+    parser.add_argument("--mode", choices=("automatic", "manual"), default="manual")
     parser.add_argument("--check", default="plan,receipt,privacy", help="comma list: plan,receipt,privacy")
     parser.add_argument(
         "--max-total-bytes",

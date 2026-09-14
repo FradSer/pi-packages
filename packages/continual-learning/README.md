@@ -11,11 +11,9 @@ model weights are explicitly out of scope:
   execution, and inspect assistant output and configured file artifacts after
   generation. Violations produce concrete feedback with a bounded repair loop.
 
-With auto-memory enabled (the default), a completed user task triggers learning
-at `agent_settled`, after automatic retries and queued continuations. New user
-tasks are coalesced while learning runs; extension-generated continuations do
-not independently retrigger learning. Interactive sessions remain responsive;
-print/JSON runs wait for the pipeline and its receipts before exiting.
+With auto-memory enabled (the default), a completed user task first passes a deterministic, zero-token evidence screen at `agent_settled`, after automatic retries and queued continuations. Routine tasks with no durable signal launch no learning model. Automatic runs are lightweight and select only evidence-backed phases; explicit `/consolidate` remains the full manual path. New user tasks are coalesced while learning runs; extension-generated continuations do not independently retrigger learning. Interactive sessions remain responsive; print/JSON runs wait for the pipeline and its receipts before exiting.
+
+Later-phase learning uses one bounded read-only exploration dossier for Harness and AGENTS.md candidates. Their planning can run in parallel, while parent validation and mutation remain sequential. Pipeline receipts account for every explorer/planner attempt, including retries, with outcome, duration, operations, token/cache usage, and reported cost.
 
 The parent freezes the task context, runs read-only planners, validates their
 bounded proposals, and applies changes. Ordinary task execution no longer asks
@@ -230,11 +228,11 @@ Memory has exactly two synchronized roots:
 1. Harness/private (canonical and complete): `~/.pi/agent/memory/<escaped-canonical-project-path>/`
 2. Project shared (safe Git mirror): `<git-root>/.memory/`
 
-There is no project `.memory.local/` layer. If an older project contains that directory, its valid Markdown entries are migrated into the private agent root and marked private. The obsolete directory is removed only when every entry is a recognized regular memory file or index; otherwise it remains intact to prevent loss of unrecognized data. Private memory is never newly persisted anywhere inside the project.
+Private memory is never persisted anywhere inside the project. The package recognizes only the agent-owned private root and the project-shared `.memory/` mirror.
 
 The private directory replaces each path separator in the canonical project path with `-`, including the leading POSIX separator (for example `-Users-FradSer-Developer-FradSer-cerberus`). Safe entries are byte-identical in both roots; entries marked `(harness only)` in the private `MEMORY.md` never appear in the project mirror. Before consolidation, newer-mtime-wins drift normalization runs bidirectionally, with ties preferring the private copy. The private root remains the runtime source of truth, while project `.memory/` participates in first adoption and committed-update synchronization.
 
-See `AGENTS.md` and `procedures/consolidate.md` for loading rules and the parent-owned transactional consolidation protocol.
+See `AGENTS.md` and `agents/memory-consolidator.md` for loading rules and the parent-owned transactional consolidation protocol.
 
 New memories are proposed separately from the parent-selected existing-file
 scope, so a project with no memory files can learn from its first task. Each
@@ -243,3 +241,5 @@ user or tool-result message in the immutable snapshot. Preferences remain
 private; credentials and tokens are rejected even for private storage. New
 names cannot overwrite existing entries, and creations participate in the same
 rollback, index, privacy, hash, and receipt validation as existing-file edits.
+
+Automatic and manual consolidation may delete contradicted, superseded, or subsumed Memory only when a mechanically verifiable `preservedIn` repository file or same-transaction Memory target proves where the durable knowledge survives. The receipt's change summary is checked against the validated plan. Built-in Harness rules also block generated shell commands that bulk-delete `.memory` or the private Pi Memory root.

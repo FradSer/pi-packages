@@ -13,7 +13,7 @@ Memory uses exactly two synchronized physical roots:
 1. Complete Harness/private Memory at `~/.pi/agent/memory/<escaped-canonical-project-path>/`
 2. Sanitized project-shared Memory at `<project>/.memory/`
 
-The private directory replaces path separators with `-`, including the leading dash for POSIX absolute paths. Safe files are byte-identical in both roots; private files exist only in the Harness root and are marked `(harness only)` in its index. Project `.memory.local/` is not a supported layer; recognized legacy memories migrate into the Harness root as private memory, and the source is removed only when it contains no unsupported entries. Pre-run normalization, consolidation transactions, rollback, validation, and receipts preserve this privacy split.
+The private directory replaces path separators with `-`, including the leading dash for POSIX absolute paths. Safe files are byte-identical in both roots; private files exist only in the Harness root and are marked `(harness only)` in its index. No project-local private Memory directory is recognized. Pre-run normalization, consolidation transactions, rollback, validation, and receipts preserve this privacy split. Automatic and manual deletion require mechanically verified preservation, and generated shell bulk-deletion of Memory roots is blocked.
 
 Harness retains exactly three configuration layers: user shared, project shared, and project personal.
 

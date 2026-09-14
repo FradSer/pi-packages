@@ -68,11 +68,12 @@ Feature: Memory management with automatic learning and manual consolidation
     Then the background consolidation run uses that provider and model
     And no follow-up message blocks the current session
 
-  Scenario: Background consolidation disables installed extensions
+  Scenario: Background consolidation disables unrelated discovery
     Given memory consolidation is manually started
     When the child Pi process is launched in JSON print mode
-    Then it includes --no-session and --no-extensions
-    And installed recap extensions cannot run in the disposable child session
+    Then it uses the shared minimal Pi worker arguments
+    And extension, skill, prompt-template, context-file, and theme discovery are disabled
+    And only read, grep, find, and ls are available in the disposable child session
 
   Scenario: Shows a dreaming widget above the input editor while consolidating
     Given a consolidation run was just started
@@ -177,6 +178,13 @@ Feature: Memory management with automatic learning and manual consolidation
     And an assistant-only quote cannot create a durable memory
     And changing the snapshot after planning rejects the proposal
 
+  Scenario: Untouched existing memory keeps its index-owned privacy classification
+    Given the selected scope contains a private Harness-only memory
+    And the planner mislabels that memory as safe but proposes no operation for it
+    When the parent validates the unchanged final memory state
+    Then the valid Harness index remains authoritative
+    And the consolidation is not rejected for the planner's unused inventory label
+
   Scenario: New memory privacy defaults follow its semantic kind
     Given a context-derived preference and a verified project fact are proposed
     When the parent validates the plan
@@ -264,14 +272,19 @@ Feature: Memory management with automatic learning and manual consolidation
     Then the private root uses Home-Lab with no whitespace
 
   Scenario: Legacy private memory migrates into the agent-owned private root
-    Given a project has private memory under an old SHA-256 agent directory, an older readable directory containing whitespace, or project .memory.local
+    Given a project has private memory under an old SHA-256 agent directory or an older readable directory containing whitespace
     And the readable destination already contains harness-only index markers
     When memories are loaded or a consolidation run starts
     Then legacy files merge into the escaped-project-path private root without overwriting existing files
     And private index markers from both roots survive the migration even when the same filename conflicts
     And a migrated legacy source is removed only when every entry is a recognized regular memory file or index
     But a source containing any unsupported entry remains intact so migration cannot discard unrecognized data
-    And project-local memory is never persisted outside .memory because private memory belongs only below the Pi agent directory
+    And private memory belongs only below the Pi agent directory
+
+  Scenario: Project-local private memory storage is absent
+    Given the package supports an agent-owned private root and a project-shared mirror
+    When its runtime, tests, and documentation are inspected
+    Then no project-local private memory directory is recognized, migrated, guarded, or documented
 
   Scenario: Pre-run mirror normalization repairs safe-file drift
     Given the private and project-shared copies of a safe memory file differ before the run

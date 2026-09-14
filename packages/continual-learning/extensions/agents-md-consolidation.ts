@@ -17,7 +17,15 @@ import { realpathSync } from "node:fs";
 import path from "node:path";
 import type { ChildProcess } from "node:child_process";
 import { getAgentDir, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { notifyPi, resolvePiCli, spawnPiChild } from "@fradser/pi-kit";
+import {
+  createPackageAgentRun,
+  minimalPiWorkerArgs,
+  notifyPi,
+  parsePiWorkerOutput,
+  resolvePiCli,
+  spawnPiChild,
+  type PiWorkerUsage,
+} from "@fradser/pi-kit";
 import {
   createConsolidationRun,
   extractChildPlan,
@@ -423,13 +431,34 @@ export function resolveAgentsTargetFile(cwd: string, agentDir: string): AgentsTa
   return { path: target };
 }
 
-interface PhaseOpts {
+export interface AgentsMdConsolidationPhaseOptions {
   pkgDir: string;
   cwd: string;
   reason: string;
   budgetBytes: number;
   disabled: boolean;
   availableSkills?: readonly string[];
+  explorationPath?: string;
+  explorationDigest?: string;
+}
+
+export interface AgentsMdConsolidationPlanResult {
+  run: ConsolidationRun;
+  targetPath: string;
+  docBytes: Buffer;
+  doc: string;
+  preBytes: number;
+  snapshotText: string;
+  rawPlan: unknown;
+  operations: AgentsOp[];
+  droppedCount: number;
+  usage?: PiWorkerUsage;
+  durationMs: number;
+}
+
+export interface AgentsMdConsolidationApplyResult {
+  applied: number;
+  extractions: string[];
 }
 
 async function readRegularFileIfExists(filePath: string, maxBytes: number): Promise<Buffer | null> {
@@ -452,16 +481,246 @@ async function readSnapshotText(run: ConsolidationRun): Promise<string> {
   }
 }
 
-/** Third pipeline phase. Requires an already-completed memory phase (the
- * caller gates on that). Every failure path is self-contained: it notifies
- * and returns without throwing or touching memory or harness results. */
+/** Build and validate a repository-read-only AGENTS.md plan. */
+export async function planAgentsMdConsolidationPhase(
+  ctx: ExtensionContext,
+  state: { active: boolean; generation: number; cancelled: boolean; child?: ChildProcess },
+  opts: AgentsMdConsolidationPhaseOptions,
+  run: ConsolidationRun,
+  generation: number,
+): Promise<AgentsMdConsolidationPlanResult | undefined> {
+  const startedAt = Date.now();
+  const current = (): boolean => !state.cancelled && generation === state.generation;
+  const finalTarget = resolveAgentsTargetFile(opts.cwd, getAgentDir());
+  if (!finalTarget.path) {
+    notifyPi(ctx.ui, `AGENTS.md consolidation skipped: ${finalTarget.skipReason}`, "info");
+    return undefined;
+  }
+  const targetPath = finalTarget.path;
+  const docBytes = await readRegularFileIfExists(targetPath, MAX_AGENTS_MD_FILE_BYTES);
+  if (!docBytes) {
+    notifyPi(ctx.ui, "AGENTS.md consolidation: no project AGENTS.md found; nothing to consolidate.", "info");
+    return undefined;
+  }
+  const preBytes = docBytes.byteLength;
+  const doc = docBytes.toString("utf8");
+  const snapshotText = await readSnapshotText(run);
+  const cli = resolvePiCli();
+  if (!cli) throw new Error("could not resolve the Pi CLI");
+  const procedure = createPackageAgentRun({
+    packageRootUrl: new URL("../", import.meta.url).href,
+    resourcePath: "agents/agents-md-consolidator.md",
+    namePrefix: "agents-md-consolidator",
+    toolCallId: `agents-md:${generation}`,
+    request: "Follow the parent-provided task below.",
+  }).prompt
+    .replaceAll("{{PKG_DIR}}", opts.pkgDir)
+    .replaceAll("{{RUN_ID}}", run.manifest.runId)
+    .replaceAll("{{SCOPE_DIGEST}}", run.manifest.scopeDigest)
+    .replaceAll("{{ARTIFACT_HASH}}", run.manifest.snapshotDigest)
+    .replaceAll("{{SNAPSHOT_PATH}}", run.manifest.snapshotPath)
+    .replaceAll("{{REPO_ROOT}}", run.manifest.cwd)
+    .replaceAll("{{BUDGET_BYTES}}", String(opts.budgetBytes));
+  if (!current()) return undefined;
+  const taskText = [
+    `Task: produce a read-only structured AGENTS.md consolidation plan for the project at ${opts.cwd}.`,
+    `- Reason: ${opts.reason}`,
+    `- Run ID: ${run.manifest.runId}`,
+    `- Scope digest: ${run.manifest.scopeDigest}`,
+    `- Artifact/snapshot digest: ${run.manifest.snapshotDigest}`,
+    `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
+    ...(opts.explorationPath ? [`- Shared exploration dossier: ${opts.explorationPath}`, `- Exploration digest: ${opts.explorationDigest}`] : []),
+    `- Budget bytes: ${opts.budgetBytes}`,
+    `- Current AGENTS.md (${preBytes} bytes), authoritative for anchoring operations:`,
+    "<<<AGENTS.MD>>>",
+    doc,
+    "<<<END AGENTS.MD>>>",
+    "- Target file for every change: the embedded document's path on disk.",
+    "- Your final assistant message must be exactly one JSON object.",
+    "",
+    procedure,
+  ].join("\n");
+
+  const taskFile = path.join(run.manifest.runDir, "agents-task.md");
+  await fs.writeFile(taskFile, taskText, { mode: 0o600 });
+  const child = spawnPiChild(
+    cli.command,
+    [...cli.args, ...minimalPiWorkerArgs(["read", "grep", "find", "ls"]), `@${taskFile}`],
+    { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] },
+  );
+  if (!current()) {
+    void terminateConsolidationChild(child, 5_000).catch(() => {});
+    return undefined;
+  }
+  state.child = child;
+
+  const result = await new Promise<{ ok: true; stdout: string; stderr: string } | { ok: false; detail: string }>((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let done = false;
+    const finish = (value: { ok: true; stdout: string; stderr: string } | { ok: false; detail: string }) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => {
+      void terminateConsolidationChild(child, 5_000).catch(() => {});
+      finish({ ok: false, detail: "AGENTS.md planner timed out" });
+    }, AGENTS_PHASE_TIMEOUT_MS);
+    timer.unref?.();
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf-8");
+      if (Buffer.byteLength(stdout, "utf8") > MAX_STDOUT_BYTES) {
+        void terminateConsolidationChild(child, 5_000).catch(() => {});
+        finish({ ok: false, detail: `child stdout exceeded ${MAX_STDOUT_BYTES} bytes` });
+      }
+    });
+    child.stderr?.on("data", (chunk: Buffer) => { stderr = (stderr + chunk.toString("utf-8")).slice(-64_000); });
+    child.on("error", (err) => finish({ ok: false, detail: err.message }));
+    child.on("close", (code) => {
+      if (code !== 0) finish({ ok: false, detail: stderr.trim() || `exit code ${code}` });
+      else finish({ ok: true, stdout, stderr: stderr.trim() });
+    });
+  });
+  if (!current()) return undefined;
+  if (!result.ok) {
+    await writeFileAtomic(path.join(run.manifest.runDir, "agents-error.txt"), result.detail.slice(-8_000)).catch(() => {});
+    notifyPi(ctx.ui, `AGENTS.md consolidation finished without changes: ${result.detail.slice(-300)}`, "warning");
+    return undefined;
+  }
+
+  const { usage } = parsePiWorkerOutput(result.stdout);
+  const extracted = extractChildPlan(result.stdout, {
+    expectedIdentity: { runId: run.manifest.runId, scopeDigest: run.manifest.scopeDigest, artifactHash: run.manifest.snapshotDigest },
+    maxOutputBytes: MAX_STDOUT_BYTES,
+    maxLines: MAX_JSONL_LINES,
+    maxLineBytes: MAX_JSONL_LINE_BYTES,
+    maxPlanBytes: MAX_PLAN_BYTES,
+  });
+  if (!extracted.ok) {
+    await writeFileAtomic(path.join(run.manifest.runDir, "agents-error.txt"), extracted.error.slice(-8_000)).catch(() => {});
+    notifyPi(ctx.ui, `AGENTS.md consolidation finished without changes: ${extracted.error.slice(-300)}`, "warning");
+    return undefined;
+  }
+  const rawPlan = extracted.plan;
+  const shape = validateAgentsMdPlan(rawPlan);
+  if (!shape.ok) {
+    notifyPi(ctx.ui, `AGENTS.md plan rejected: ${shape.errors.join("; ").slice(-300)}`, "warning");
+    return undefined;
+  }
+  const quoteCheck = verifyPlanQuotes(shape.operations, snapshotText);
+  const operations = quoteCheck.operations.filter((op) => addUnitEvidenceSufficient(op));
+  const droppedCount = quoteCheck.dropped.length + quoteCheck.operations.length - operations.length;
+  if (operations.length === 0) {
+    await writeFileAtomic(path.join(run.manifest.runDir, "agents-noop.txt"), "verified no-op\n").catch(() => {});
+    notifyPi(ctx.ui, `AGENTS.md consolidation: verified no-op${droppedCount > 0 ? ` (${droppedCount} operation(s) failed evidence gates)` : ""}.`, "info");
+    return undefined;
+  }
+  const simulated = simulateAgentsOps(doc, operations);
+  if (!simulated.ok) {
+    notifyPi(ctx.ui, `AGENTS.md plan rejected during simulation: ${simulated.error.slice(-300)}`, "warning");
+    return undefined;
+  }
+  if (!budgetAllows(preBytes, Buffer.byteLength(simulated.doc, "utf8"), opts.budgetBytes)) {
+    notifyPi(ctx.ui, `AGENTS.md plan rejected: post-edit size exceeds the ${opts.budgetBytes}-byte budget and is not zero-sum.`, "warning");
+    return undefined;
+  }
+  return { run, targetPath, docBytes, doc, preBytes, snapshotText, rawPlan, operations, droppedCount, usage, durationMs: Date.now() - startedAt };
+}
+
+/** Revalidate and apply a previously planned result. */
+export async function applyAgentsMdConsolidationPlan(
+  ctx: ExtensionContext,
+  state: { active: boolean; generation: number; cancelled: boolean; child?: ChildProcess },
+  opts: AgentsMdConsolidationPhaseOptions,
+  planning: AgentsMdConsolidationPlanResult,
+  generation: number,
+): Promise<AgentsMdConsolidationApplyResult | undefined> {
+  const current = (): boolean => !state.cancelled && generation === state.generation;
+  if (!current()) return undefined;
+  const { run, targetPath, docBytes, doc, preBytes, rawPlan, operations } = planning;
+  const currentDocBytes = await readRegularFileIfExists(targetPath, MAX_AGENTS_MD_FILE_BYTES);
+  if (!currentDocBytes || !currentDocBytes.equals(docBytes)) {
+    notifyPi(ctx.ui, "AGENTS.md changed after planning; nothing was written.", "warning");
+    return undefined;
+  }
+  const resimulated = simulateAgentsOps(doc, operations);
+  if (!resimulated.ok || !budgetAllows(preBytes, Buffer.byteLength(resimulated.doc, "utf8"), opts.budgetBytes)) {
+    notifyPi(ctx.ui, "AGENTS.md plan failed re-validation; nothing was written.", "warning");
+    return undefined;
+  }
+
+  const planDigest = sha256Digest(JSON.stringify(rawPlan));
+  const digestBefore = docBytes.toString("base64");
+  const harnessOps: HarnessOp[] = [];
+  const extractionNotes: string[] = [];
+  for (const op of operations) {
+    if (op.op !== "extractUnit" || !op.extraction) continue;
+    if (op.extraction.target === "skillPrompt") {
+      harnessOps.push({ op: "addSkillPrompt", name: op.extraction.skillName, prompt: op.extraction.prompt, target: op.extraction.promptTarget });
+    } else {
+      const personalDir = run.manifest.harnessDir;
+      const memoryPath = path.join(personalDir, op.extraction.memoryName);
+      try {
+        const frontmatter = ["---", `name: ${op.extraction.memoryName.replace(/\.md$/i, "")}`, `description: ${op.extraction.description}`, `type: ${op.extraction.type}`, "---", ""].join("\n");
+        await writeFileAtomic(memoryPath, `${frontmatter}${(op.oldText ?? "").trim()}\n`, 0o600);
+        await rebuildMemoryIndex(personalDir);
+        extractionNotes.push(`memory:${op.extraction.memoryName}`);
+      } catch {
+        extractionNotes.push(`memory:${op.extraction.memoryName} FAILED`);
+      }
+    }
+  }
+  if (harnessOps.length > 0) {
+    const appliedHarness = await applyHarnessOps(configPaths(opts.cwd).projectLocal, harnessOps, new Set(opts.availableSkills ?? []));
+    if (appliedHarness.ok) extractionNotes.push(...appliedHarness.applied);
+    else extractionNotes.push(`skillPrompts FAILED: ${appliedHarness.error.slice(0, 120)}`);
+  }
+
+  const stat = await fs.lstat(targetPath);
+  const mode = stat.isFile() && !stat.isSymbolicLink() ? stat.mode & 0o777 : 0o644;
+  await writeFileAtomic(targetPath, Buffer.from(resimulated.doc, "utf8"), mode);
+  if (!current()) {
+    await writeFileAtomic(targetPath, docBytes, mode).catch(() => {});
+    return undefined;
+  }
+
+  const afterBytes = Buffer.from(resimulated.doc, "utf8");
+  const receipt = {
+    kind: "agents-md-consolidation-receipt",
+    phase: "post",
+    runId: run.manifest.runId,
+    scopeDigest: run.manifest.scopeDigest,
+    snapshotDigest: run.manifest.snapshotDigest,
+    targetFile: targetPath,
+    budgetBytes: opts.budgetBytes,
+    bytesBefore: preBytes,
+    bytesAfter: afterBytes.byteLength,
+    digestEncoding: "base64 of raw file bytes",
+    digestBefore,
+    digestAfter: afterBytes.toString("base64"),
+    sha256Before: sha256Digest(docBytes),
+    sha256After: sha256Digest(afterBytes),
+    applied: operations.map((op) => ({ op: op.op, fingerprint: fingerprintOp(op) })),
+    rejected: [],
+    extractions: extractionNotes,
+    planDigest,
+  };
+  await writeFileAtomic(path.join(run.manifest.runDir, "agents-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`).catch(() => {});
+  const parts = [`${operations.length} edit(s) applied`];
+  if (extractionNotes.length > 0) parts.push(`extractions: ${extractionNotes.join(", ")}`);
+  notifyPi(ctx.ui, `AGENTS.md consolidated: ${parts.join(" · ")} (${path.basename(targetPath)}).`, "info");
+  return { applied: operations.length, extractions: extractionNotes };
+}
+
+/** Third pipeline phase. Planning is read-only; validated operations apply without an interactive prompt. */
 export async function runAgentsMdConsolidationPhase(
   ctx: ExtensionContext,
   state: { active: boolean; generation: number; cancelled: boolean; child?: ChildProcess },
-  opts: PhaseOpts,
+  opts: AgentsMdConsolidationPhaseOptions,
 ): Promise<void> {
-  if (state.active) return;
-  if (opts.disabled) return;
+  if (state.active || opts.disabled) return;
   state.active = true;
   const generation = state.generation + 1;
   state.generation = generation;
@@ -482,230 +741,18 @@ export async function runAgentsMdConsolidationPhase(
     return;
   }
 
-  let child: ChildProcess | undefined;
   try {
-    const finalTarget = resolveAgentsTargetFile(opts.cwd, getAgentDir());
-    if (!finalTarget.path) {
-      notifyPi(ctx.ui, `AGENTS.md consolidation skipped: ${finalTarget.skipReason}`, "info");
-      return;
-    }
-    const targetPath = finalTarget.path;
-    const docBytes = await readRegularFileIfExists(targetPath, MAX_AGENTS_MD_FILE_BYTES);
-    if (!docBytes) {
-      notifyPi(ctx.ui, "AGENTS.md consolidation: no project AGENTS.md found; nothing to consolidate.", "info");
-      return;
-    }
-    const preBytes = docBytes.byteLength;
-    const doc = docBytes.toString("utf8");
-    const snapshotText = await readSnapshotText(run);
-    const cli = resolvePiCli();
-    if (!cli) throw new Error("could not resolve the Pi CLI");
-    let procedure = (
-      await fs.readFile(path.join(opts.pkgDir, "procedures", "consolidate-agents.md"), "utf-8")
-    )
-      .replaceAll("{{PKG_DIR}}", opts.pkgDir)
-      .replaceAll("{{RUN_ID}}", run.manifest.runId)
-      .replaceAll("{{SCOPE_DIGEST}}", run.manifest.scopeDigest)
-      .replaceAll("{{ARTIFACT_HASH}}", run.manifest.snapshotDigest)
-      .replaceAll("{{SNAPSHOT_PATH}}", run.manifest.snapshotPath)
-      .replaceAll("{{REPO_ROOT}}", run.manifest.cwd)
-      .replaceAll("{{BUDGET_BYTES}}", String(opts.budgetBytes));
-    if (!current()) return;
-    const taskText = [
-      `Task: produce a read-only structured AGENTS.md consolidation plan for the project at ${opts.cwd}.`,
-      `- Reason: ${opts.reason}`,
-      `- Run ID: ${run.manifest.runId}`,
-      `- Scope digest: ${run.manifest.scopeDigest}`,
-      `- Artifact/snapshot digest: ${run.manifest.snapshotDigest}`,
-      `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
-      `- Budget bytes: ${opts.budgetBytes}`,
-      `- Current AGENTS.md (${preBytes} bytes), authoritative for anchoring operations:`,
-      "<<<AGENTS.MD>>>",
-      doc,
-      "<<<END AGENTS.MD>>>",
-      "- Target file for every change: the embedded document's path on disk.",
-      "- Your final assistant message must be exactly one JSON object.",
-      "",
-      procedure,
-    ].join("\n");
-
-    const taskFile = path.join(run.manifest.runDir, "task.md");
-    await fs.writeFile(taskFile, taskText, { mode: 0o600 });
-    child = spawnPiChild(
-      cli.command,
-      [
-        ...cli.args,
-        "--print", "--mode", "json", "--no-session", "--no-extensions",
-        "--tools", "read,grep,find,ls",
-        `@${taskFile}`,
-      ],
-      { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] },
-    );
-    if (!current()) {
-      void terminateConsolidationChild(child, 5_000).catch(() => {});
-      return;
-    }
-    state.child = child;
-
-    const result = await new Promise<{ ok: boolean; detail: string }>((resolve) => {
-      let stdout = "";
-      let stderr = "";
-      let done = false;
-      const finish = (r: { ok: boolean; detail: string }) => { if (!done) { done = true; clearTimeout(timer); resolve(r); } };
-      const timer = setTimeout(() => {
-        void terminateConsolidationChild(child!, 5_000).catch(() => {});
-        finish({ ok: false, detail: "AGENTS.md planner timed out" });
-      }, AGENTS_PHASE_TIMEOUT_MS);
-      timer.unref?.();
-      child!.stdout?.on("data", (chunk: Buffer) => {
-        stdout += chunk.toString("utf-8");
-        if (Buffer.byteLength(stdout, "utf8") > MAX_STDOUT_BYTES) {
-          void terminateConsolidationChild(child!, 5_000).catch(() => {});
-          finish({ ok: false, detail: `child stdout exceeded ${MAX_STDOUT_BYTES} bytes` });
-        }
-      });
-      child!.stderr?.on("data", (chunk: Buffer) => {
-        stderr = (stderr + chunk.toString("utf-8")).slice(-64_000);
-      });
-      child!.on("error", (err) => finish({ ok: false, detail: err.message }));
-      child!.on("close", (code) => {
-        if (code !== 0) return finish({ ok: false, detail: stderr.trim() || `exit code ${code}` });
-        const extracted = extractChildPlan(stdout, {
-          expectedIdentity: {
-            runId: run.manifest.runId,
-            scopeDigest: run.manifest.scopeDigest,
-            artifactHash: run.manifest.snapshotDigest,
-          },
-          maxOutputBytes: MAX_STDOUT_BYTES,
-          maxLines: MAX_JSONL_LINES,
-          maxLineBytes: MAX_JSONL_LINE_BYTES,
-          maxPlanBytes: MAX_PLAN_BYTES,
-        });
-        if (!extracted.ok) return finish({ ok: false, detail: extracted.error });
-        finish({ ok: true, detail: JSON.stringify({ plan: extracted.plan, stderr: stderr.trim() }) });
-      });
-    });
-    if (!current()) return;
-
-    if (!result.ok) {
-      await writeFileAtomic(path.join(run.manifest.runDir, "agents-error.txt"), result.detail.slice(-8_000)).catch(() => {});
-      notifyPi(ctx.ui, `AGENTS.md consolidation finished without changes: ${result.detail.slice(-300)}`, "warning");
-      return;
-    }
-    const rawPlan = (JSON.parse(result.detail) as { plan: unknown }).plan;
-    const shape = validateAgentsMdPlan(rawPlan);
-    if (!shape.ok) {
-      notifyPi(ctx.ui, `AGENTS.md plan rejected: ${shape.errors.join("; ").slice(-300)}`, "warning");
-      return;
-    }
-    const quoteCheck = verifyPlanQuotes(shape.operations, snapshotText);
-    const candidateOps = quoteCheck.operations.filter((op) => addUnitEvidenceSufficient(op));
-    const droppedCount = quoteCheck.dropped.length + quoteCheck.operations.length - candidateOps.length;
-    if (candidateOps.length === 0) {
-      await writeFileAtomic(path.join(run.manifest.runDir, "agents-noop.txt"), "verified no-op\n").catch(() => {});
-      notifyPi(ctx.ui, `AGENTS.md consolidation: verified no-op${droppedCount > 0 ? ` (${droppedCount} operation(s) failed evidence gates)` : ""}.`, "info");
-      return;
-    }
-    const ops = candidateOps;
-    const simulated = simulateAgentsOps(doc, ops);
-    if (!simulated.ok) {
-      notifyPi(ctx.ui, `AGENTS.md plan rejected during simulation: ${simulated.error.slice(-300)}`, "warning");
-      return;
-    }
-    if (!budgetAllows(preBytes, Buffer.byteLength(simulated.doc, "utf8"), opts.budgetBytes)) {
-      notifyPi(ctx.ui, `AGENTS.md plan rejected: post-edit size exceeds the ${opts.budgetBytes}-byte budget and is not zero-sum.`, "warning");
-      return;
-    }
-
-    // Structural, evidence, simulation, and budget checks are the complete
-    // safety gate. Validated operations apply without an interactive prompt.
-    const planDigest = sha256Digest(JSON.stringify(rawPlan));
-    const digestBefore = docBytes.toString("base64");
-
-    const resimulated = simulateAgentsOps(doc, ops);
-    if (!resimulated.ok || !budgetAllows(preBytes, Buffer.byteLength(resimulated.doc, "utf8"), opts.budgetBytes)) {
-      notifyPi(ctx.ui, "AGENTS.md plan failed re-validation; nothing was written.", "warning");
-      return;
-    }
-
-    // Extraction side-effects go first: a failed document write then leaves
-    // the unit in place WITH its artifact (duplicate guidance, self-healing
-    // on the next run) instead of a removed unit without one.
-    const harnessOps: HarnessOp[] = [];
-    const extractionNotes: string[] = [];
-    for (const op of ops) {
-      if (op.op !== "extractUnit" || !op.extraction) continue;
-      if (op.extraction.target === "skillPrompt") {
-        harnessOps.push({ op: "addSkillPrompt", name: op.extraction.skillName, prompt: op.extraction.prompt, target: op.extraction.promptTarget });
-      } else {
-        const personalDir = run.manifest.harnessDir;
-        const memoryPath = path.join(personalDir, op.extraction.memoryName);
-        try {
-          const frontmatter = [
-            "---",
-            `name: ${op.extraction.memoryName.replace(/\.md$/i, "")}`,
-            `description: ${op.extraction.description}`,
-            `type: ${op.extraction.type}`,
-            "---",
-            "",
-          ].join("\n");
-          await writeFileAtomic(memoryPath, `${frontmatter}${(op.oldText ?? "").trim()}\n`, 0o600);
-          await rebuildMemoryIndex(personalDir);
-          extractionNotes.push(`memory:${op.extraction.memoryName}`);
-        } catch {
-          extractionNotes.push(`memory:${op.extraction.memoryName} FAILED`);
-        }
-      }
-    }
-    if (harnessOps.length > 0) {
-      const appliedHarness = await applyHarnessOps(configPaths(opts.cwd).projectLocal, harnessOps, new Set(opts.availableSkills ?? []));
-      if (appliedHarness.ok) extractionNotes.push(...appliedHarness.applied);
-      else extractionNotes.push(`skillPrompts FAILED: ${appliedHarness.error.slice(0, 120)}`);
-    }
-
-    const stat = await fs.lstat(targetPath);
-    const mode = stat.isFile() && !stat.isSymbolicLink() ? stat.mode & 0o777 : 0o644;
-    await writeFileAtomic(targetPath, Buffer.from(resimulated.doc, "utf8"), mode);
-    if (!current()) {
-      // Session shut down mid-apply: restore the pre-apply bytes.
-      await writeFileAtomic(targetPath, docBytes, mode).catch(() => {});
-      return;
-    }
-
-    const afterBytes = Buffer.from(resimulated.doc, "utf8");
-    const receipt = {
-      kind: "agents-md-consolidation-receipt",
-      phase: "post",
-      runId: run.manifest.runId,
-      scopeDigest: run.manifest.scopeDigest,
-      snapshotDigest: run.manifest.snapshotDigest,
-      targetFile: targetPath,
-      budgetBytes: opts.budgetBytes,
-      bytesBefore: preBytes,
-      bytesAfter: afterBytes.byteLength,
-      digestEncoding: "base64 of raw file bytes",
-      digestBefore,
-      digestAfter: afterBytes.toString("base64"),
-      sha256Before: sha256Digest(docBytes),
-      sha256After: sha256Digest(afterBytes),
-      applied: ops.map((op) => ({ op: op.op, fingerprint: fingerprintOp(op) })),
-      rejected: [],
-      extractions: extractionNotes,
-      planDigest,
-    };
-    await writeFileAtomic(path.join(run.manifest.runDir, "agents-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`).catch(() => {});
-    const parts = [`${ops.length} edit(s) applied`];
-    if (extractionNotes.length > 0) parts.push(`extractions: ${extractionNotes.join(", ")}`);
-    notifyPi(ctx.ui, `AGENTS.md consolidated: ${parts.join(" · ")} (${path.basename(targetPath)}).`, "info");
+    const planning = await planAgentsMdConsolidationPhase(ctx, state, opts, run, generation);
+    if (planning && current()) await applyAgentsMdConsolidationPlan(ctx, state, opts, planning, generation);
   } catch (err) {
     if (current()) notifyPi(ctx.ui, `AGENTS.md consolidation failed: ${(err as Error).message.slice(-300)}`, "warning");
   } finally {
     const owned = current();
     try {
       if (owned && state.child) {
-        const c = state.child;
+        const child = state.child;
         state.child = undefined;
-        if (!c.killed) void terminateConsolidationChild(c, 5_000).catch(() => {});
+        if (!child.killed) void terminateConsolidationChild(child, 5_000).catch(() => {});
       }
     } finally {
       await releaseConsolidationRun(run, { keepArtifacts: owned }).catch(() => {});

@@ -115,6 +115,13 @@ The plan describes intended work only. It is not evidence that the parent has
 applied anything, and it must not contain success markers, gate prose, or a
 claim that validation passed.
 
+## Destructive changes
+
+Automatic and manual consolidation may delete obsolete Memory, but permanent deletion is exceptional. A delete operation is valid only for a `CONTRADICTED`, `SUPERSEDED`, or `SUBSUMED` item and must include `preservedIn`, a non-empty array naming where the durable knowledge survives. Each target must be either an existing repository-relative
+regular file or another memory created/rewritten in the same plan. `KEEP`,
+`DORMANT`, `OPS-ONLY`, and `ONE-SHOT` are not deletion authorization. When no
+mechanically verifiable preservation target exists, keep or rewrite the memory.
+
 ## Context-derived new memories
 
 `selected` is the parent-owned existing scope. Context learning uses the

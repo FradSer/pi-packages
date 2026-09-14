@@ -119,6 +119,14 @@ class ValidatorContractTests(unittest.TestCase):
             }
 
         source_hashes = {"harness": hashes(self.harness), "public": hashes(self.public)}
+        operations = plan.get("operations", [])
+        changes = {
+            "created": len(plan.get("newMemories", [])),
+            "rewritten": sum(item.get("kind") in {"create", "rewrite"} for item in operations),
+            "deleted": sum(item.get("kind") == "delete" for item in operations),
+            "sharedToPrivate": sum(item.get("kind") != "delete" and item.get("classification") == "private" for item in operations),
+            "unpreservedDeletes": sum(item.get("kind") == "delete" and not item.get("preservedIn") for item in operations),
+        }
         return {
             "kind": "memory-consolidation-receipt",
             "version": 1,
@@ -131,6 +139,7 @@ class ValidatorContractTests(unittest.TestCase):
             "selected": plan["inventory"],
             "sourceHashes": source_hashes,
             "finalHashes": {"harness": hashes(self.harness), "public": hashes(self.public)},
+            "changes": changes,
         }
 
     def invoke_plan(self, plan: dict[str, object], *extra: str) -> subprocess.CompletedProcess[str]:
@@ -398,6 +407,62 @@ class ValidatorContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("does not exist", result.stdout)
 
+    def test_automatic_plan_accepts_preserved_delete_and_rejects_unpreserved_delete(self) -> None:
+        plan = self.plan(["project_example.md"])
+        plan["staleness"] = [{"name": "project_example.md", "verdict": "SUPERSEDED"}]
+        plan["operations"] = [{
+            "name": "project_example.md", "kind": "delete", "classification": "safe",
+            "preservedIn": ["src/example.ts"],
+        }]
+        write_json(self.root / "plan.json", plan)
+        accepted = run(["--plan", str(self.root / "plan.json"), "--repo-root", str(self.repo), "--check", "plan", "--mode", "automatic"])
+        self.assertEqual(accepted.returncode, 0, accepted.stdout)
+
+        del plan["operations"][0]["preservedIn"]
+        write_json(self.root / "plan.json", plan)
+        rejected = run(["--plan", str(self.root / "plan.json"), "--repo-root", str(self.repo), "--check", "plan", "--mode", "automatic"])
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("preservedIn", rejected.stdout)
+
+    def test_manual_delete_requires_verifiable_preservation_and_staleness(self) -> None:
+        plan = self.plan(["project_example.md"])
+        plan["staleness"] = [{"name": "project_example.md", "verdict": "SUPERSEDED"}]
+        plan["operations"] = [{
+            "name": "project_example.md", "kind": "delete", "classification": "safe",
+            "preservedIn": ["src/example.ts"],
+        }]
+        write_json(self.root / "plan.json", plan)
+        accepted = run(["--plan", str(self.root / "plan.json"), "--repo-root", str(self.repo), "--check", "plan", "--mode", "manual"])
+        self.assertEqual(accepted.returncode, 0, accepted.stdout)
+
+        del plan["operations"][0]["preservedIn"]
+        write_json(self.root / "plan.json", plan)
+        rejected = run(["--plan", str(self.root / "plan.json"), "--repo-root", str(self.repo), "--check", "plan", "--mode", "manual"])
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("preservedIn", rejected.stdout)
+
+        plan["operations"][0]["preservedIn"] = ["src/example.ts"]
+        plan["staleness"] = [{"name": "project_example.md", "verdict": "KEEP"}]
+        write_json(self.root / "plan.json", plan)
+        kept = run(["--plan", str(self.root / "plan.json"), "--repo-root", str(self.repo), "--check", "plan", "--mode", "manual"])
+        self.assertNotEqual(kept.returncode, 0)
+        self.assertIn("KEEP", kept.stdout)
+
+    def test_receipt_changes_summary_is_bound_to_plan(self) -> None:
+        self.memory_layout()
+        plan = self.plan()
+        plan_path = write_json(self.root / "plan.json", plan)
+        receipt = self.receipt(plan)
+        receipt["changes"]["deleted"] = 99
+        receipt_path = write_json(self.root / "post-receipt.json", receipt)
+        result = run([
+            "--plan", str(plan_path), "--receipt", str(receipt_path),
+            "--harness", str(self.harness), "--public", str(self.public),
+            "--repo-root", str(self.repo), "--check", "plan,receipt,privacy",
+        ])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("changes summary", result.stdout)
+
     def test_operation_classification_must_match_inventory(self) -> None:
         plan = self.plan()
         plan["operations"] = [{
@@ -409,6 +474,23 @@ class ValidatorContractTests(unittest.TestCase):
         result = self.invoke_plan(plan)
         self.assertEqual(result.returncode, 1)
         self.assertIn("classification does not match inventory", result.stdout)
+
+    def test_final_validation_ignores_unused_inventory_classification(self) -> None:
+        self.memory_layout()
+        plan = self.plan()
+        for item in plan["inventory"]:
+            if item["name"] == "feedback_preference.md":
+                item["classification"] = "safe"
+        plan_path = write_json(self.root / "plan.json", plan)
+        receipt_path = write_json(self.root / "post-receipt.json", self.receipt(plan))
+        result = run([
+            "--plan", str(plan_path),
+            "--receipt", str(receipt_path),
+            "--harness", str(self.harness),
+            "--public", str(self.public),
+            "--check=plan,receipt,privacy",
+        ])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_receipt_path_must_match_post_phase(self) -> None:
         self.memory_layout()

@@ -114,6 +114,25 @@ Feature: Consolidate artifact validator
     When I run the full validator
     Then exit code is 1
 
+  Scenario: Automatic deletion must prove where knowledge survives
+    Given an automatic plan proposes deleting a contradicted, superseded, or subsumed memory
+    When preservedIn names an existing repository file or a memory rewritten in the same transaction
+    Then validation accepts the deletion
+    But deletion without a mechanically verifiable preservation target is rejected
+
+  Scenario: Manual deletion must prove where knowledge survives
+    Given a manual plan proposes deleting a contradicted, superseded, or subsumed memory
+    When preservedIn names an existing repository file or a memory rewritten in the same transaction
+    Then validation accepts the deletion
+    But deletion without a mechanically verifiable preservation target is rejected
+    And KEEP, DORMANT, OPS-ONLY, and ONE-SHOT memories cannot be deleted
+
+  Scenario: Bulk external memory deletion is blocked
+    Given a generated shell call deletes the project memory directory, its index, or several memory files
+    When the built-in Harness evaluates the call
+    Then it blocks the call and directs the user to parent-owned consolidation
+    But unrelated project cleanup remains allowed
+
   # --- structured run binding and strict artifacts ---
 
   Scenario: Inventory rejects duplicate and path-qualified entries

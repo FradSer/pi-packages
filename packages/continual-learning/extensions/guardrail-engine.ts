@@ -12,6 +12,17 @@ export const USER_CONFIG_DIR = ["agent"] as const;
  * "more correct prompt" fed back to the model when the call is blocked. */
 export const DEFAULT_POLICIES: Policy[] = [
   {
+    name: "no-bulk-memory-deletion",
+    tools: ["bash"],
+    paths: ["command"],
+    patterns: [
+      "(?:\\brm\\b|\\bgit\\s+rm\\b|\\bunlink\\b|\\brsync\\b[^\\n]*--delete|\\b(?:python|python3|node|bun)\\b[^\\n]*(?:rmtree|rmSync|unlinkSync))[^\\n]*(?:\\.memory|\\.pi[/\\\\]agent[/\\\\]memory)",
+      "\\bfind\\b[^\\n]*(?:\\.memory|\\.pi[/\\\\]agent[/\\\\]memory)[^\\n]*-delete",
+    ],
+    action: "block",
+    reason: "Project memory must not be bulk-deleted through generated shell commands. Use the parent-owned /consolidate flow so preservation, privacy, rollback, and receipts are verified.",
+  },
+  {
     name: "no-interactive-auth-automation",
     tools: ["bash"],
     paths: ["command"],

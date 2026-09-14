@@ -954,7 +954,28 @@ export function extractFinalPlan(stdout: string): unknown { const result = extra
 
 export interface FinalHashes { harness: Record<string, string>; public: Record<string, string> }
 const SHA256_RE = /^(?:sha256:)?[0-9a-f]{64}$/i;
-export interface ReceiptBindingInput { runId: string; scopeDigest: string; artifactHash: string; selected: readonly string[]; created?: readonly string[]; finalHashes?: FinalHashes; sourceHashes?: FinalHashes; planDigest?: string }
+export interface ReceiptBindingInput { runId: string; scopeDigest: string; artifactHash: string; selected: readonly string[]; created?: readonly string[]; finalHashes?: FinalHashes; sourceHashes?: FinalHashes; planDigest?: string; changes?: MemoryChangeSummary }
+export interface MemoryChangeSummary {
+  created: number;
+  rewritten: number;
+  deleted: number;
+  sharedToPrivate: number;
+  unpreservedDeletes: number;
+}
+
+export function summarizeMemoryChanges(plan: unknown): MemoryChangeSummary {
+  const value = plan && typeof plan === "object" && !Array.isArray(plan) ? plan as Record<string, unknown> : {};
+  const operations = Array.isArray(value.operations) ? value.operations.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item))) : [];
+  const created = Array.isArray(value.newMemories) ? value.newMemories.length : 0;
+  return {
+    created,
+    rewritten: operations.filter((operation) => operation.kind === "rewrite" || operation.kind === "create").length,
+    deleted: operations.filter((operation) => operation.kind === "delete").length,
+    sharedToPrivate: operations.filter((operation) => operation.kind !== "delete" && operation.classification === "private").length,
+    unpreservedDeletes: operations.filter((operation) => operation.kind === "delete" && (!Array.isArray(operation.preservedIn) || operation.preservedIn.length === 0)).length,
+  };
+}
+
 export interface ConsolidationReceipt {
   kind: "memory-consolidation-receipt";
   version: typeof CONSOLIDATION_SCHEMA_VERSION;
@@ -969,6 +990,7 @@ export interface ConsolidationReceipt {
   sourceHashes?: FinalHashes;
   planDigest?: string;
   finalDigest?: string;
+  changes?: MemoryChangeSummary;
   createdAt: string;
 }
 function sortedFiles(files: readonly string[]): string[] {
@@ -995,14 +1017,15 @@ export function createReceiptBinding(phase: "pre" | "post", input: ReceiptBindin
     ...(input.finalHashes ? { finalHashes: { harness: sortedHashes(input.finalHashes.harness), public: sortedHashes(input.finalHashes.public) } } : {}),
     ...(input.sourceHashes ? { sourceHashes: { harness: sortedHashes(input.sourceHashes.harness), public: sortedHashes(input.sourceHashes.public) } } : {}),
     ...(input.planDigest ? { planDigest: input.planDigest } : {}),
+    ...(input.changes ? { changes: input.changes } : {}),
     createdAt: new Date().toISOString(),
   };
 }
 export function createPreApplyReceipt(input: ReceiptBindingInput): ConsolidationReceipt { return createReceiptBinding("pre", input); }
 export function createPostApplyReceipt(input: ReceiptBindingInput): ConsolidationReceipt { return createReceiptBinding("post", input); }
-export function createConsolidationReceipt(manifest: ConsolidationManifest, selected: string[], finalState: unknown, planDigest: string, created: readonly string[] = []): ConsolidationReceipt {
+export function createConsolidationReceipt(manifest: ConsolidationManifest, selected: string[], finalState: unknown, planDigest: string, created: readonly string[] = [], changes?: MemoryChangeSummary): ConsolidationReceipt {
   const hashes = finalState && typeof finalState === "object" && !Array.isArray(finalState) ? finalState as FinalHashes : { harness: {}, public: {} };
-  return createPostApplyReceipt({ runId: manifest.runId, scopeDigest: manifest.scopeDigest, artifactHash: manifest.snapshotDigest, selected, created, finalHashes: hashes, sourceHashes: manifest.sourceHashes, planDigest });
+  return createPostApplyReceipt({ runId: manifest.runId, scopeDigest: manifest.scopeDigest, artifactHash: manifest.snapshotDigest, selected, created, finalHashes: hashes, sourceHashes: manifest.sourceHashes, planDigest, changes });
 }
 export interface ReceiptBindingExpectation { runId?: string; scopeDigest?: string; artifactHash?: string; selected?: readonly string[]; created?: readonly string[]; phase?: "pre" | "post" }
 export function validateReceiptBinding(receipt: unknown, expected: ReceiptBindingExpectation = {}): { ok: true; receipt: ConsolidationReceipt } | { ok: false; error: string } {

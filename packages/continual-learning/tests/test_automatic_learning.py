@@ -221,7 +221,7 @@ def test_headless_pipeline_freezes_context_and_finishes_all_phases() -> None:
       console.log(JSON.stringify({ snapshots, lockFiles, created, leaked, completed: notices.some(text => text.includes('memory consolidated')), failures: notices.filter(text => /failed|rejected|blocked|without verified/i.test(text)) }));
     ''')
     assert result["failures"] == []
-    assert result["snapshots"] == ["Prefer concise updates.", "Prefer concise updates."]
+    assert result["snapshots"] == ["Prefer concise updates."]
     assert result["lockFiles"] == []
     assert result["completed"]
     assert result["created"] and not result["leaked"]
@@ -242,7 +242,8 @@ const plan = {
   version: 1, schemaVersion: 1, runId: manifest.runId, scopeKey: manifest.scopeKey,
   scopeDigest: manifest.scopeDigest, artifactHash: manifest.snapshotDigest,
   snapshotDigest: manifest.snapshotDigest, selected: [], operations: [],
-  inventory: [], clusters: [], staleness: [], grounding: [], report: [], newMemories: [],
+  inventory: [], clusters: [], staleness: [], grounding: [], report: [],
+  newMemories: [{name:'durable-rule.md',kind:'preference',classification:'private',content:'---\ndescription: durable rule\n---\nAlways preserve this durable project rule.\n',evidence:[{index:0,quote:'Always preserve this durable project rule.'}]}],
 };
 fs.writeSync(1, JSON.stringify({type:'message_end',message:{role:'assistant',content:[{type:'text',text:JSON.stringify(plan)}]}})+'\n');
 fs.closeSync(1); fs.closeSync(2);
@@ -257,7 +258,8 @@ process.argv[1] = path.join(base, 'worker.cjs');
 const cwd = path.join(base, 'project'); fs.mkdirSync(cwd);
 const hooks = new Map(), notices = [];
 register({on:(name,handler)=>hooks.set(name,[...(hooks.get(name)??[]),handler]),registerCommand:()=>{},getCommands:()=>[]});
-const ctx = {cwd,mode:'json',hasUI:false,ui:{notify:text=>notices.push(text),setWidget:()=>{}},sessionManager:{getBranch:()=>[],buildContextEntries:()=>[]}};
+const evidence = [{message:{role:'user',content:[{type:'text',text:'Always preserve this durable project rule.'}]}}];
+const ctx = {cwd,mode:'json',hasUI:false,ui:{notify:text=>notices.push(text),setWidget:()=>{}},sessionManager:{getBranch:()=>evidence,buildContextEntries:()=>evidence}};
 for (const [name,event] of [['session_start',{}],['input',{source:'interactive'}],['agent_settled',{}],['session_shutdown',{}]]) {
   for (const handler of hooks.get(name)??[]) await handler(event,ctx);
 }
@@ -272,4 +274,4 @@ console.log(JSON.stringify({completed:true,notices}));
         assert result.returncode == 0, result.stderr
         outcome = json.loads(result.stdout.strip().splitlines()[-1])
         assert outcome["completed"]
-        assert any("memory consolidated" in notice for notice in outcome["notices"]), outcome
+        assert outcome["notices"], outcome

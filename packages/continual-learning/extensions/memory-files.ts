@@ -66,17 +66,14 @@ export async function migrateLegacyMemoryDirs(
   memory: MemoryPaths,
   _cwdVariants: readonly string[] = [],
 ): Promise<string[]> {
-  const projectLocalDir = path.join(memory.cwd, ".memory.local");
   const candidates = new Set<string>([
     path.join(memory.agentDir, "memory", memory.scopeKey),
     path.join(memory.agentDir, "memory", memory.cwd.replace(/[\\/]+/g, "-")),
-    projectLocalDir,
   ]);
   candidates.delete(memory.harnessDir);
   const processedSources: string[] = [];
   const removableSources: string[] = [];
   const privateNames = new Set<string>();
-  const projectLocalNames = new Set<string>();
   try {
     const destinationIndex = await fs.readFile(path.join(memory.harnessDir, "MEMORY.md"), "utf8");
     for (const line of destinationIndex.split(/\r?\n/)) {
@@ -104,7 +101,6 @@ export async function migrateLegacyMemoryDirs(
     await fs.mkdir(memory.harnessDir, { recursive: true });
     for (const { name, stat } of entries.sort((left, right) => left.name.localeCompare(right.name))) {
       if (!isMemoryFilename(name) || !stat?.isFile()) continue;
-      if (legacyDir === projectLocalDir) projectLocalNames.add(name.toLowerCase());
       const source = path.join(legacyDir, name);
       const target = path.join(memory.harnessDir, name);
       const targetStat = await fs.lstat(target).catch(() => undefined);
@@ -124,7 +120,6 @@ export async function migrateLegacyMemoryDirs(
     if (!unsupported) removableSources.push(legacyDir);
   }
   if (!processedSources.length) return [];
-  for (const name of projectLocalNames) privateNames.add(name);
   await rebuildMemoryIndex(memory.harnessDir, privateNames);
   await Promise.all(removableSources.map((legacyDir) => fs.rm(legacyDir, { recursive: true, force: true })));
   return removableSources;

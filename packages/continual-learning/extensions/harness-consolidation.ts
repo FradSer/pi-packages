@@ -14,7 +14,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { ChildProcess } from "node:child_process";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { notifyPi, resolvePiCli, spawnPiChild } from "@fradser/pi-kit";
+import {
+  createPackageAgentRun,
+  minimalPiWorkerArgs,
+  notifyPi,
+  parsePiWorkerOutput,
+  resolvePiCli,
+  spawnPiChild,
+  type PiWorkerUsage,
+} from "@fradser/pi-kit";
 import {
   createConsolidationRun,
   extractChildPlan,
@@ -874,7 +882,7 @@ export async function harnessSurfaceSummary(cwd: string, agentDir?: string): Pro
   return JSON.stringify(summary, null, 1);
 }
 
-interface PhaseOpts {
+export interface HarnessConsolidationPhaseOptions {
   pkgDir: string;
   cwd: string;
   reason: string;
@@ -882,18 +890,257 @@ interface PhaseOpts {
   resolveCli?: () => { command: string; args: string[] } | null;
   targetPath?: string;
   availableSkills?: readonly string[];
+  skipPlanner?: boolean;
+  run?: ConsolidationRun;
+  explorationPath?: string;
+  explorationDigest?: string;
 }
 
-/**
- * Second pipeline phase. Requires an already-completed, verified memory phase
- * (the caller gates on that) and captured context. Every failure path is
- * self-contained: it notifies and returns without throwing or touching memory.
- */
+export interface HarnessConsolidationPlanningResult {
+  run: ConsolidationRun;
+  plan: HarnessConsolidationPlan;
+  validationOptions: HarnessPlanValidationOptions;
+  target: string;
+  durationMs: number;
+  usage?: PiWorkerUsage;
+}
+
+export type HarnessConsolidationPlanResult =
+  | { ok: true; value: HarnessConsolidationPlanningResult }
+  | { ok: false; detail: string; durationMs: number; usage?: PiWorkerUsage; run?: ConsolidationRun };
+
+export type HarnessConsolidationApplyResult =
+  | { outcome: "noop"; operations: number }
+  | { outcome: "applied"; operations: number; applied: string[] }
+  | { outcome: "rejected"; operations: number; error: string }
+  | { outcome: "cancelled"; operations: number };
+
+/** Run the read-only child planner and validate its output. This function never
+ * mutates the harness target; its result retains the run and validation inputs
+ * required for a later, separately scheduled apply. */
+export async function planHarnessConsolidationPhase(
+  ctx: ExtensionContext,
+  opts: HarnessConsolidationPhaseOptions,
+  hooks: { current?: () => boolean; onChild?: (child: ChildProcess) => void } = {},
+): Promise<HarnessConsolidationPlanResult> {
+  const startedAt = Date.now();
+  const current = hooks.current ?? (() => true);
+  let run: ConsolidationRun | undefined = opts.run;
+  let usage: PiWorkerUsage | undefined;
+  const fail = (detail: string): HarnessConsolidationPlanResult => ({
+    ok: false,
+    detail,
+    durationMs: Date.now() - startedAt,
+    ...(usage ? { usage } : {}),
+    ...(run ? { run } : {}),
+  });
+
+  try {
+    run ??= await createConsolidationRun(ctx, opts.cwd, false);
+    if (!current()) return fail("harness planner cancelled");
+
+    const cli = (opts.resolveCli ?? resolvePiCli)();
+    if (!cli) return fail("could not resolve the Pi CLI");
+    const procedure = createPackageAgentRun({
+      packageRootUrl: new URL("../", import.meta.url).href,
+      resourcePath: "agents/harness-consolidator.md",
+      namePrefix: "harness-consolidator",
+      toolCallId: `harness:${run.manifest.runId}`,
+      request: "Follow the parent-provided task below.",
+    }).prompt
+      .replaceAll("{{PKG_DIR}}", opts.pkgDir)
+      .replaceAll("{{RUN_ID}}", run.manifest.runId)
+      .replaceAll("{{SCOPE_DIGEST}}", run.manifest.scopeDigest)
+      .replaceAll("{{ARTIFACT_HASH}}", run.manifest.snapshotDigest)
+      .replaceAll("{{SNAPSHOT_PATH}}", run.manifest.snapshotPath)
+      .replaceAll("{{REPO_ROOT}}", run.manifest.cwd);
+    const surface = await harnessSurfaceSummary(opts.cwd);
+    if (!current()) return fail("harness planner cancelled");
+    const taskText = [
+      `Task: produce a read-only structured harness consolidation plan for the project at ${opts.cwd}.`,
+      `- Reason: ${opts.reason}`,
+      `- Run ID: ${run.manifest.runId}`,
+      `- Scope digest: ${run.manifest.scopeDigest}`,
+      `- Artifact/snapshot digest: ${run.manifest.snapshotDigest}`,
+      `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
+      ...(opts.explorationPath ? [`- Shared exploration dossier: ${opts.explorationPath}`, `- Exploration digest: ${opts.explorationDigest}`] : []),
+      "- Current harness surface summary:",
+      surface,
+      "- Target layer for every change: <project>/.pi/harness.local.json only.",
+      "- Your final assistant message must be exactly one JSON object with kind \"harness-consolidation-plan\".",
+      "",
+      procedure,
+    ].join("\n");
+    const taskFile = path.join(run.manifest.runDir, "harness-task.md");
+    await fs.writeFile(taskFile, taskText, { mode: 0o600 });
+    const child = spawnPiChild(cli.command, [
+      ...cli.args,
+      ...minimalPiWorkerArgs(["read", "grep", "find", "ls"]),
+      `@${taskFile}`,
+    ], { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] });
+    hooks.onChild?.(child);
+    if (!current()) {
+      void terminateConsolidationChild(child, 5_000).catch(() => {});
+      return fail("harness planner cancelled");
+    }
+
+    const childResult = await new Promise<{ ok: true; stdout: string } | { ok: false; detail: string }>((resolve) => {
+      let stdout = "";
+      let stderr = "";
+      let done = false;
+      const finish = (value: { ok: true; stdout: string } | { ok: false; detail: string }) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(value);
+      };
+      const timer = setTimeout(() => {
+        void terminateConsolidationChild(child, 5_000).catch(() => {});
+        finish({ ok: false, detail: "harness planner timed out" });
+      }, HARNESS_PHASE_TIMEOUT_MS);
+      timer.unref?.();
+      child.stdout?.on("data", (chunk: Buffer) => {
+        stdout += chunk.toString("utf8");
+        if (Buffer.byteLength(stdout, "utf8") > MAX_STDOUT_BYTES) {
+          void terminateConsolidationChild(child, 5_000).catch(() => {});
+          finish({ ok: false, detail: `child stdout exceeded ${MAX_STDOUT_BYTES} bytes` });
+        }
+      });
+      child.stderr?.on("data", (chunk: Buffer) => { stderr = (stderr + chunk.toString("utf8")).slice(-64_000); });
+      child.on("error", (error) => finish({ ok: false, detail: error.message }));
+      child.on("close", (code) => {
+        usage = parsePiWorkerOutput(stdout).usage;
+        if (stdout.split("\n").filter((line) => line.trim()).length > MAX_JSONL_LINES) {
+          finish({ ok: false, detail: `child JSONL exceeded ${MAX_JSONL_LINES} records` });
+        } else if (code !== 0) {
+          finish({ ok: false, detail: stderr.trim() || `exit code ${code}` });
+        } else {
+          finish({ ok: true, stdout });
+        }
+      });
+    });
+    if (!childResult.ok) return fail(childResult.detail);
+    if (!current()) return fail("harness planner cancelled");
+
+    const extracted = extractChildPlan<HarnessConsolidationPlan>(childResult.stdout, {
+      expectedIdentity: {
+        runId: run.manifest.runId,
+        scopeDigest: run.manifest.scopeDigest,
+        artifactHash: run.manifest.snapshotDigest,
+      },
+      maxOutputBytes: MAX_STDOUT_BYTES,
+      maxLines: MAX_JSONL_LINES,
+      maxLineBytes: MAX_JSONL_LINE_BYTES,
+      maxPlanBytes: MAX_PLAN_BYTES,
+    });
+    if (!extracted.ok) return fail(extracted.error);
+    const snapshotBytes = await readLayerFileBytes(run.manifest.snapshotPath);
+    if (!snapshotBytes) return fail("immutable harness evidence snapshot is missing");
+    if (sha256Digest(snapshotBytes) !== run.manifest.snapshotDigest) return fail("immutable harness evidence snapshot changed after capture");
+    let snapshot: unknown;
+    try { snapshot = JSON.parse(snapshotBytes.toString("utf8")) as unknown; }
+    catch { return fail("immutable harness evidence snapshot is not valid JSON"); }
+    if (isRecord(snapshot) && snapshot.runId !== undefined && snapshot.runId !== run.manifest.runId) {
+      return fail("immutable harness evidence snapshot run id mismatch");
+    }
+    const target = opts.targetPath ?? configPaths(opts.cwd).projectLocal;
+    let localConfig: unknown;
+    const localBytes = await readLayerFileBytes(target);
+    if (localBytes) {
+      try { localConfig = JSON.parse(localBytes.toString("utf8")) as unknown; } catch { localConfig = undefined; }
+    }
+    const validationOptions: HarnessPlanValidationOptions = {
+      availableSkills: opts.availableSkills,
+      snapshot,
+      snapshotText: snapshotBytes.toString("utf8"),
+      layers: [builtInDefaultsLayer(), ...loadLayers(opts.cwd)],
+      learnedPolicyNames: learnedPolicyNamesFromConfig(localConfig),
+      automatic: true,
+    };
+    const errors = validateHarnessPlan(extracted.plan, validationOptions);
+    if (errors.length) return fail(errors.join("; ").slice(-600));
+    return {
+      ok: true,
+      value: {
+        run,
+        plan: extracted.plan,
+        validationOptions,
+        target,
+        durationMs: Date.now() - startedAt,
+        ...(usage ? { usage } : {}),
+      },
+    };
+  } catch (error) {
+    return fail((error as Error).message);
+  }
+}
+
+/** Revalidate and atomically apply a previously produced planning result. */
+export async function applyHarnessConsolidationPlan(
+  planning: HarnessConsolidationPlanningResult,
+  current: () => boolean = () => true,
+): Promise<HarnessConsolidationApplyResult> {
+  const { run, plan, validationOptions, target } = planning;
+  const ops = Array.isArray(plan.operations) ? plan.operations as HarnessOp[] : [];
+  const runDir = run.manifest.runDir;
+  if (ops.length === 0) {
+    await writeFileAtomic(path.join(runDir, "harness-noop.txt"), "verified no-op\n").catch(() => {});
+    return { outcome: "noop", operations: 0 };
+  }
+  const errors = validateHarnessPlan(plan, validationOptions);
+  if (errors.length) return { outcome: "rejected", operations: ops.length, error: errors.join("; ") };
+  const planDigest = sha256Digest(JSON.stringify(plan));
+  const beforeBytes = await readLayerFileBytes(target);
+  const digestBefore = beforeBytes ? sha256Digest(beforeBytes) : null;
+  const preReceipt = buildHarnessReceipt({
+    phase: "pre",
+    runId: run.manifest.runId,
+    scopeDigest: run.manifest.scopeDigest,
+    snapshotDigest: run.manifest.snapshotDigest,
+    targetFile: target,
+    digestBefore,
+    planDigest,
+  });
+  await writeFileAtomic(path.join(runDir, "harness-pre-receipt.json"), `${JSON.stringify(preReceipt, null, 2)}\n`);
+  const applied = await applyHarnessOps(target, ops, {
+    ...validationOptions,
+    evidence: plan.evidence,
+    requireEvidence: false,
+    automatic: true,
+  });
+  if (!applied.ok) return { outcome: "rejected", operations: ops.length, error: applied.error };
+  const postBytes = await readLayerFileBytes(target);
+  if (!current()) {
+    const nowBytes = await readLayerFileBytes(target);
+    if (postBytes && nowBytes && postBytes.equals(nowBytes)) {
+      if (!beforeBytes) await fs.rm(target, { force: true }).catch(() => {});
+      else await writeFileAtomic(target, beforeBytes, 0o600).catch(() => {});
+    }
+    return { outcome: "cancelled", operations: ops.length };
+  }
+  const receipt = buildHarnessReceipt({
+    phase: "post",
+    runId: run.manifest.runId,
+    scopeDigest: run.manifest.scopeDigest,
+    snapshotDigest: run.manifest.snapshotDigest,
+    targetFile: target,
+    digestBefore,
+    digestAfter: postBytes ? sha256Digest(postBytes) : null,
+    applied: applied.applied,
+    planDigest,
+  });
+  await writeFileAtomic(path.join(runDir, "harness-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
+  return { outcome: "applied", operations: ops.length, applied: applied.applied };
+}
+
+/** Preserve the original sequential phase behavior while exposing planning and
+ * mutation separately for callers that schedule phases themselves. */
 export async function runHarnessConsolidationPhase(
   ctx: ExtensionContext,
   state: ConsolidationPhaseState & { child?: ChildProcess },
-  opts: PhaseOpts,
+  opts: HarnessConsolidationPhaseOptions,
 ): Promise<void> {
+  if (opts.skipPlanner) return;
   const resolveCli = opts.resolveCli ?? resolvePiCli;
   if (!resolveCli()) {
     notifyPi(ctx.ui, "Harness consolidation skipped: could not resolve the Pi CLI", "warning");
@@ -904,224 +1151,41 @@ export async function runHarnessConsolidationPhase(
   const generation = state.generation + 1;
   state.generation = generation;
   state.cancelled = false;
-  const current = (): boolean => !state.cancelled && generation === state.generation;
-
-  let run: ConsolidationRun;
+  const current = () => !state.cancelled && generation === state.generation;
+  let run: ConsolidationRun | undefined;
   try {
-    run = await createConsolidationRun(ctx, opts.cwd, false);
-    if (!current()) {
-      await releaseConsolidationRun(run);
-      state.active = false;
-      return;
-    }
-  } catch (err) {
-    state.active = false;
-    if (current()) notifyPi(ctx.ui, `Harness consolidation skipped: ${(err as Error).message}`, "warning");
-    return;
-  }
-
-  try {
-    const cli = resolvePiCli();
-    if (!cli) throw new Error("could not resolve the Pi CLI");
-    let procedure = (
-      await fs.readFile(path.join(opts.pkgDir, "procedures", "consolidate-harness.md"), "utf-8")
-    )
-      .replaceAll("{{PKG_DIR}}", opts.pkgDir)
-      .replaceAll("{{RUN_ID}}", run.manifest.runId)
-      .replaceAll("{{SCOPE_DIGEST}}", run.manifest.scopeDigest)
-      .replaceAll("{{ARTIFACT_HASH}}", run.manifest.snapshotDigest)
-      .replaceAll("{{SNAPSHOT_PATH}}", run.manifest.snapshotPath)
-      .replaceAll("{{REPO_ROOT}}", run.manifest.cwd);
-    const surface = await harnessSurfaceSummary(opts.cwd);
-    if (!current()) return;
-    const taskText = [
-      `Task: produce a read-only structured harness consolidation plan for the project at ${opts.cwd}.`,
-      `- Reason: ${opts.reason}`,
-      `- Run ID: ${run.manifest.runId}`,
-      `- Scope digest: ${run.manifest.scopeDigest}`,
-      `- Artifact/snapshot digest: ${run.manifest.snapshotDigest}`,
-      `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
-      `- Current harness surface summary:`,
-      surface,
-      "- Target layer for every change: <project>/.pi/harness.local.json only.",
-      "- Your final assistant message must be exactly one JSON object with kind \"harness-consolidation-plan\".",
-      "",
-      procedure,
-    ].join("\n");
-
-    const taskFile = path.join(run.manifest.runDir, "task.md");
-    await fs.writeFile(taskFile, taskText, { mode: 0o600 });
-    const child: ChildProcess = spawnPiChild(
-      cli.command,
-      [
-        ...cli.args,
-        "--print", "--mode", "json", "--no-session", "--no-extensions",
-        "--tools", "read,grep,find,ls",
-        `@${taskFile}`,
-      ],
-      { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] },
-    );
-    if (!current()) {
-      void terminateConsolidationChild(child, 5_000).catch(() => {});
-      return;
-    }
-    state.child = child;
-
-    const target = opts.targetPath ?? configPaths(opts.cwd).projectLocal;
-    let planValidationOptions: HarnessPlanValidationOptions | undefined;
-    const result = await new Promise<{ ok: boolean; detail: string }>((resolve) => {
-      let stdout = "";
-      let stderr = "";
-      let lines = 0;
-      let done = false;
-      const finish = (r: { ok: boolean; detail: string }) => { if (!done) { done = true; clearTimeout(timer); resolve(r); } };
-      const timer = setTimeout(() => {
-        void terminateConsolidationChild(child, 5_000).catch(() => {});
-        finish({ ok: false, detail: "harness planner timed out" });
-      }, HARNESS_PHASE_TIMEOUT_MS);
-      timer.unref?.();
-      child.stdout?.on("data", (chunk: Buffer) => {
-        stdout += chunk.toString("utf-8");
-        if (Buffer.byteLength(stdout, "utf8") > MAX_STDOUT_BYTES) {
-          void terminateConsolidationChild(child, 5_000).catch(() => {});
-          finish({ ok: false, detail: `child stdout exceeded ${MAX_STDOUT_BYTES} bytes` });
-        }
-      });
-      child.stderr?.on("data", (chunk: Buffer) => {
-        stderr = (stderr + chunk.toString("utf-8")).slice(-64_000);
-      });
-      child.on("error", (err) => finish({ ok: false, detail: err.message }));
-      child.on("close", (code) => {
-        void (async () => {
-          try {
-            const planLines = stdout.split("\n").filter((l) => l.trim());
-            lines = planLines.length;
-            if (lines > MAX_JSONL_LINES) return finish({ ok: false, detail: `child JSONL exceeded ${MAX_JSONL_LINES} records` });
-            if (code !== 0) return finish({ ok: false, detail: stderr.trim() || `exit code ${code}` });
-            const extracted = extractChildPlan(stdout, {
-              expectedIdentity: {
-                runId: run.manifest.runId,
-                scopeDigest: run.manifest.scopeDigest,
-                artifactHash: run.manifest.snapshotDigest,
-              },
-              maxOutputBytes: MAX_STDOUT_BYTES,
-              maxLines: MAX_JSONL_LINES,
-              maxLineBytes: MAX_JSONL_LINE_BYTES,
-              maxPlanBytes: MAX_PLAN_BYTES,
-            });
-            if (!extracted.ok) return finish({ ok: false, detail: extracted.error });
-            const snapshotBytes = await readLayerFileBytes(run.manifest.snapshotPath);
-            if (!snapshotBytes) return finish({ ok: false, detail: "immutable harness evidence snapshot is missing" });
-            if (sha256Digest(snapshotBytes) !== run.manifest.snapshotDigest) {
-              return finish({ ok: false, detail: "immutable harness evidence snapshot changed after capture" });
-            }
-            let snapshot: unknown;
-            try { snapshot = JSON.parse(snapshotBytes.toString("utf8")) as unknown; }
-            catch { return finish({ ok: false, detail: "immutable harness evidence snapshot is not valid JSON" }); }
-            if (isRecord(snapshot) && snapshot.runId !== undefined && snapshot.runId !== run.manifest.runId) {
-              return finish({ ok: false, detail: "immutable harness evidence snapshot run id mismatch" });
-            }
-            let localConfig: unknown = undefined;
-            const localBytes = await readLayerFileBytes(target);
-            if (localBytes) {
-              try { localConfig = JSON.parse(localBytes.toString("utf8")) as unknown; } catch { localConfig = undefined; }
-            }
-            planValidationOptions = {
-              availableSkills: opts.availableSkills,
-              snapshot,
-              snapshotText: snapshotBytes.toString("utf8"),
-              layers: [builtInDefaultsLayer(), ...loadLayers(opts.cwd)],
-              learnedPolicyNames: learnedPolicyNamesFromConfig(localConfig),
-              automatic: true,
-            };
-            const shapeErrors = validateHarnessPlan(extracted.plan, planValidationOptions);
-            if (shapeErrors.length) return finish({ ok: false, detail: shapeErrors.join("; ").slice(-600) });
-            finish({ ok: true, detail: JSON.stringify({ plan: extracted.plan, stderr: stderr.trim() }) });
-          } catch (error) {
-            finish({ ok: false, detail: (error as Error).message });
-          }
-        })();
-      });
+    const planned = await planHarnessConsolidationPhase(ctx, opts, {
+      current,
+      onChild: (child) => { state.child = child; },
     });
+    run = planned.ok ? planned.value.run : planned.run;
     if (!current()) return;
-
-    if (!result.ok) {
-      await writeFileAtomic(path.join(run.manifest.runDir, "harness-error.txt"), result.detail.slice(-8_000)).catch(() => {});
-      notifyPi(ctx.ui, `Harness consolidation finished without applying changes: ${result.detail.slice(-300)}`, "warning");
+    if (!planned.ok) {
+      if (run) await writeFileAtomic(path.join(run.manifest.runDir, "harness-error.txt"), planned.detail.slice(-8_000)).catch(() => {});
+      notifyPi(ctx.ui, `Harness consolidation finished without applying changes: ${planned.detail.slice(-300)}`, "warning");
       return;
     }
-    const plan = (JSON.parse(result.detail) as { plan: unknown }).plan as HarnessConsolidationPlan;
-    const ops = Array.isArray(plan.operations) ? plan.operations : [];
-    const planDigest = sha256Digest(JSON.stringify(plan));
-    const runDir = run.manifest.runDir;
-    if (ops.length === 0) {
-      await writeFileAtomic(path.join(runDir, "harness-noop.txt"), "verified no-op\n").catch(() => {});
+    const result = await applyHarnessConsolidationPlan(planned.value, current);
+    if (!current() || result.outcome === "cancelled") return;
+    if (result.outcome === "noop") {
       notifyPi(ctx.ui, "Harness consolidation: verified no-op — no guardrail evidence worth encoding.", "info");
-      return;
+    } else if (result.outcome === "rejected") {
+      notifyPi(ctx.ui, `Harness consolidation rejected: ${result.error.slice(-300)}`, "warning");
+    } else {
+      notifyPi(ctx.ui, `Harness consolidated: ${result.applied.length} change(s) applied to ${path.basename(planned.value.target)} (${result.operations} proposed).`, "info");
     }
-    const beforeBytes = await readLayerFileBytes(target);
-    const digestBefore = beforeBytes ? sha256Digest(beforeBytes) : null;
-    // Fail-closed receipt order: the pre-apply receipt must be durably on disk
-    // before any mutation; losing it aborts the apply.
-    const preReceipt = buildHarnessReceipt({
-      phase: "pre",
-      runId: run.manifest.runId,
-      scopeDigest: run.manifest.scopeDigest,
-      snapshotDigest: run.manifest.snapshotDigest,
-      targetFile: target,
-      digestBefore,
-      planDigest,
-    });
-    await writeFileAtomic(path.join(runDir, "harness-pre-receipt.json"), `${JSON.stringify(preReceipt, null, 2)}\n`);
-    const applied = await applyHarnessOps(target, ops, {
-      ...(planValidationOptions ?? { availableSkills: opts.availableSkills }),
-      evidence: plan.evidence,
-      requireEvidence: false,
-      automatic: true,
-    });
-    if (!applied.ok) {
-      notifyPi(ctx.ui, `Harness consolidation rejected: ${applied.error.slice(-300)}`, "warning");
-      return;
-    }
-    // Read back this generation's post-apply bytes immediately so a stale
-    // cleanup can restore the predecessor ONLY when the file still holds them
-    // (a later external write wins and is left untouched).
-    const postBytes = await readLayerFileBytes(target);
-    if (!current()) {
-      const nowBytes = await readLayerFileBytes(target);
-      if (postBytes && nowBytes && postBytes.equals(nowBytes)) {
-        if (!beforeBytes) await fs.rm(target, { force: true }).catch(() => {});
-        else await writeFileAtomic(target, beforeBytes, 0o600).catch(() => {});
-      }
-      return;
-    }
-    const digestAfter = postBytes ? sha256Digest(postBytes) : null;
-    const receipt = buildHarnessReceipt({
-      phase: "post",
-      runId: run.manifest.runId,
-      scopeDigest: run.manifest.scopeDigest,
-      snapshotDigest: run.manifest.snapshotDigest,
-      targetFile: target,
-      digestBefore,
-      digestAfter,
-      applied: applied.applied,
-      planDigest,
-    });
-    // Success is only reported from a durably stored post receipt.
-    await writeFileAtomic(path.join(runDir, "harness-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
-    notifyPi(ctx.ui, `Harness consolidated: ${applied.applied.length} change(s) applied to ${path.basename(target)} (${ops.length} proposed).`, "info");
-  } catch (err) {
-    if (current()) notifyPi(ctx.ui, `Harness consolidation failed: ${(err as Error).message.slice(-300)}`, "warning");
+  } catch (error) {
+    if (current()) notifyPi(ctx.ui, `Harness consolidation failed: ${(error as Error).message.slice(-300)}`, "warning");
   } finally {
     const owned = current();
     try {
       if (owned && state.child) {
-        const c = state.child;
+        const child = state.child;
         state.child = undefined;
-        if (!c.killed) void terminateConsolidationChild(c, 5_000).catch(() => {});
+        if (!child.killed) void terminateConsolidationChild(child, 5_000).catch(() => {});
       }
     } finally {
-      await releaseConsolidationRun(run, { keepArtifacts: owned }).catch(() => {});
+      if (run) await releaseConsolidationRun(run, { keepArtifacts: owned }).catch(() => {});
       if (owned) state.active = false;
     }
   }

@@ -7,7 +7,7 @@
  *     Auto-memory: on
  *     1. Select memory model
  *     2. Enter provider/model manually
- *     3. Consolidate memory now        (inline procedure from procedures/consolidate.md)
+ *     3. Consolidate memory now        (inline procedure from agents/memory-consolidator.md)
  *     4. Edit user instructions        (getAgentDir()/AGENTS.md)
  *     5. Edit project instructions     (./AGENTS.md or ./CLAUDE.md — whichever exists)
  *     6. Open memory folder
@@ -33,6 +33,8 @@ import {
   enterModelFromInput,
   notifyPi,
   modelRef,
+  createPackageAgentRun,
+  minimalPiWorkerArgs,
   parseModelRef,
   PI_SPINNER_FRAMES,
   PI_SPINNER_INTERVAL_MS,
@@ -51,13 +53,16 @@ import {
 import { formatMemoriesBlock, loadAndDeduplicateMemories } from "./memory-files";
 import { resolveMemoryPaths } from "./memory-paths";
 import { registerAutomaticLearning } from "./automatic-learning";
+import { buildLearningReceipt, formatLearningSummary, screenLearningEntries, shouldRetryPlanner, snapshotEntries, writeLearningReceipt, type LearningAttempt, type LearningMode, type LearningScreen } from "./learning-efficiency";
+import { exploreLearningContext } from "./learning-explorer";
 import {
   DEFAULT_AGENTS_MD_BUDGET_BYTES,
   MAX_AGENTS_MD_FILE_BYTES,
   MIN_BUDGET_BYTES,
-  runAgentsMdConsolidationPhase,
+  applyAgentsMdConsolidationPlan,
+  planAgentsMdConsolidationPhase,
 } from "./agents-md-consolidation";
-import { runHarnessConsolidationPhase, shouldRunHarnessPhase } from "./harness-consolidation";
+import { applyHarnessConsolidationPlan, planHarnessConsolidationPhase, shouldRunHarnessPhase } from "./harness-consolidation";
 import {
   applyConsolidationPlan,
   sha256Digest,
@@ -76,6 +81,7 @@ import {
   writeConsolidationReceipt,
   writeFileAtomic,
   snapshotSessionContext,
+  summarizeMemoryChanges,
   type ConsolidationRun,
 } from "./consolidation-run";
 
@@ -232,6 +238,10 @@ interface DreamState {
   completion?: Promise<void>;
   /** Serializes the entire pipeline, including gaps between its phases. */
   pipeline?: Promise<void>;
+  attempts?: LearningAttempt[];
+  mode?: LearningMode;
+  controller?: AbortController;
+  laterStates?: Array<{ cancelled: boolean; generation: number }>;
 }
 
 interface ChildJsonEvent {
@@ -249,6 +259,7 @@ interface ChildJsonEvent {
     content?: unknown;
     stopReason?: string;
     errorMessage?: string;
+    usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; totalTokens?: number; cost?: { total?: number } };
   };
   assistantMessageEvent?: {
     type?: string;
@@ -380,6 +391,7 @@ export interface ConsolidationEvidence {
   /** Latest planner model execution failure (quota, cooldown, provider error). */
   plannerModelError?: string;
   finalPlan?: unknown;
+  attemptUsage?: { input: number; output: number; cacheRead: number; cacheWrite: number; totalTokens: number; cost: number };
 }
 
 /** Oversized message_update telemetry is diagnostic stream data, not a plan.
@@ -395,7 +407,7 @@ export function isIgnorableOversizedJsonlEvent(line: string): boolean {
 }
 
 export function createConsolidationEvidence(): ConsolidationEvidence {
-  return { completedToolWork: false, parentReceiptVerified: false, planCount: 0, lastJsonError: "" };
+  return { completedToolWork: false, parentReceiptVerified: false, planCount: 0, lastJsonError: "", attemptUsage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: 0 } };
 }
 
 function parseFinalPlan(event: ChildJsonEvent): unknown {
@@ -413,6 +425,15 @@ function parseFinalPlan(event: ChildJsonEvent): unknown {
 export function recordConsolidationEvent(evidence: ConsolidationEvidence, event: ChildJsonEvent): void {
   if (typeof event.error === "string") evidence.lastJsonError = event.error.slice(-2_000);
   if (event.type === "message_end" && event.message?.role === "assistant") {
+    const usage = event.message.usage;
+    if (usage && evidence.attemptUsage) {
+      evidence.attemptUsage.input += usage.input ?? 0;
+      evidence.attemptUsage.output += usage.output ?? 0;
+      evidence.attemptUsage.cacheRead += usage.cacheRead ?? 0;
+      evidence.attemptUsage.cacheWrite += usage.cacheWrite ?? 0;
+      evidence.attemptUsage.totalTokens += usage.totalTokens ?? 0;
+      evidence.attemptUsage.cost += usage.cost?.total ?? 0;
+    }
     if (event.message.stopReason === "error") {
       evidence.plannerModelError = (event.message.errorMessage || "planner model call failed").slice(-2_000);
     } else if (typeof event.message.stopReason === "string") {
@@ -486,6 +507,7 @@ export function missingConsolidationEvidence(evidence: ConsolidationEvidence): s
 // A full-scope run reads every selected memory file plus repository grounding;
 // a measured 30-file pass took ~11 minutes, so keep headroom above that.
 const DREAM_TIMEOUT_MS = 30 * 60 * 1000;
+const runModeById = new Map<string, LearningMode>();
 
 let dreamingTimer: NodeJS.Timeout | undefined;
 let dreamingActivity = "";
@@ -619,6 +641,7 @@ async function runConsolidationValidator(
     "--expected-scope-key", run.manifest.scopeKey,
     "--expected-scope-digest", run.manifest.scopeDigest,
     "--expected-artifact-hash", run.manifest.snapshotDigest,
+    "--mode", runModeById.get(run.manifest.runId) ?? "manual",
     "--expected-run-dir", run.manifest.runDir,
     "--expected-selected", JSON.stringify([...expectedSelected].sort()),
     "--check", check,
@@ -680,9 +703,10 @@ async function runConsolidationValidator(
 async function spawnAsyncConsolidation(
   ctx: ExtensionContext,
   state: DreamState,
-  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; attempt?: number; rejectionFeedback?: string },
+  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; attempt?: number; rejectionFeedback?: string; mode?: LearningMode },
 ): Promise<boolean> {
   const attempt = opts.attempt ?? 0;
+  const attemptStartedAt = Date.now();
   if (state.active && attempt === 0) {
     notifyPi(ctx.ui, "Memory consolidation is already running in background.", "info");
     return false;
@@ -700,9 +724,13 @@ async function spawnAsyncConsolidation(
 
   let procedure: string;
   try {
-    procedure = (
-      await fs.readFile(path.join(opts.pkgDir, "procedures", "consolidate.md"), "utf-8")
-    ).replaceAll("{{PKG_DIR}}", opts.pkgDir);
+    procedure = createPackageAgentRun({
+      packageRootUrl: new URL("../", import.meta.url).href,
+      resourcePath: "agents/memory-consolidator.md",
+      namePrefix: "memory-consolidator",
+      toolCallId: `memory:${generation}`,
+      request: "Follow the parent-provided task below.",
+    }).prompt.replaceAll("{{PKG_DIR}}", opts.pkgDir);
   } catch (err: unknown) {
     if (isGenerationCurrent()) {
       state.active = false;
@@ -729,6 +757,7 @@ async function spawnAsyncConsolidation(
     return false;
   }
   state.run = run;
+  runModeById.set(run.manifest.runId, opts.mode ?? "manual");
   const selectedScope = parentSelectedScope(run, Boolean(opts.noContext));
   if (run.normalization.repaired.length > 0 || run.normalization.removed.length > 0) {
     notifyPi(ctx.ui,
@@ -802,13 +831,7 @@ async function spawnAsyncConsolidation(
       cli.command,
       [
         ...cli.args,
-        "--print",
-        "--mode",
-        "json",
-        "--no-session",
-        "--no-extensions",
-        "--tools",
-        "read,grep,find,ls",
+        ...minimalPiWorkerArgs(["read", "grep", "find", "ls"]),
         ...modelArgs,
         `@${taskFile}`,
       ],
@@ -946,8 +969,8 @@ async function spawnAsyncConsolidation(
    * child re-plans from the same immutable run inputs. Every retry attempt is
    * validated identically, so this never weakens the fail-closed gates.
    */
-  const retryPlanPhase = async (reason: string): Promise<void> => {
-    if (attempt > 0) {
+  const retryPlanPhase = async (reason: string, failure: "syntax" | "validation" | "model" | "timeout" | "cancelled" | "output-limit" | "stale" | "other" = "validation"): Promise<void> => {
+    if (!shouldRetryPlanner({ mode: opts.mode ?? "manual", phase: "memory", attempt, failure, mutated: mutatedMemory })) {
       notifyPi(ctx.ui, `Memory dreaming failed: ${clipRejectionReason(reason)}`, "error");
       return;
     }
@@ -1038,7 +1061,7 @@ async function spawnAsyncConsolidation(
           }
           const detail = failure.detail || evidence.lastJsonError;
           if (attempt === 0) {
-            await retryPlanPhase(`missing exactly one schema-valid consolidation plan${detail ? ` (${clipRejectionReason(detail, 300)})` : ""}`);
+            await retryPlanPhase(`missing exactly one schema-valid consolidation plan${detail ? ` (${clipRejectionReason(detail, 300)})` : ""}`, "syntax");
             return;
           }
           notifyPi(ctx.ui,
@@ -1074,7 +1097,7 @@ async function spawnAsyncConsolidation(
           const applied = await applyConsolidationPlan(run, plan, ownsCurrentRun);
           mutatedMemory = true;
           if (!ownsCurrentRun()) return;
-          const receipt = createConsolidationReceipt(run.manifest, applied.selected, applied.finalState, planDigest, applied.created);
+          const receipt = createConsolidationReceipt(run.manifest, applied.selected, applied.finalState, planDigest, applied.created, summarizeMemoryChanges(plan));
           const receiptPath = await writeConsolidationReceipt(run, receipt);
           if (!ownsCurrentRun()) return;
           await runConsolidationValidator(opts.pkgDir, run, planPath, "plan,receipt,privacy", preSelected, receiptPath, mutationStartedAt);
@@ -1105,7 +1128,7 @@ async function spawnAsyncConsolidation(
           exitCode: code,
         });
         if (attempt === 0) {
-          await retryPlanPhase(errReason);
+          await retryPlanPhase(errReason, timedOut ? "timeout" : outputLimitReason ? "output-limit" : "other");
           return;
         }
         state.outcome = "failed";
@@ -1117,7 +1140,7 @@ async function spawnAsyncConsolidation(
         if (!ownsCurrentRun()) return;
         const message = (finishError as Error).message;
         if (!mutatedMemory && attempt === 0) {
-          await retryPlanPhase(message);
+          await retryPlanPhase(message, /sources changed|snapshot/i.test(message) ? "stale" : "validation");
           return;
         }
         state.outcome = "failed";
@@ -1130,7 +1153,16 @@ async function spawnAsyncConsolidation(
         const ownedNow = generation === state.generation && !state.cancelled && state.run === run;
         if (ownedNow) state.run = undefined;
         await releaseConsolidationRun(run, { keepArtifacts: failureRecorded && ownedNow });
+        runModeById.delete(run.manifest.runId);
       } finally {
+        state.attempts?.push({
+          phase: "memory",
+          attempt,
+          outcome: state.outcome === "completed" ? "applied" : state.cancelled ? "cancelled" : state.outcome === "unverified" ? "rejected" : "failed",
+          durationMs: Date.now() - attemptStartedAt,
+          operations: 0,
+          usage: evidence.attemptUsage,
+        });
         resolveCompletion();
         if (state.completion === completion) state.completion = undefined;
       }
@@ -1154,11 +1186,29 @@ async function spawnAsyncConsolidation(
 async function startConsolidationPipeline(
   ctx: ExtensionContext,
   state: DreamState,
-  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; availableSkills: readonly string[] },
+  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; availableSkills: readonly string[]; mode: LearningMode },
 ): Promise<void> {
   if (state.pipeline) return state.pipeline;
   const pipeline = (async () => {
     const frozenContext = opts.noContext ? ctx : snapshotSessionContext(ctx);
+    const screen: LearningScreen = opts.noContext
+      ? { memory: true, harness: false, agents: false, reasons: ["no-context"] }
+      : screenLearningEntries(snapshotEntries(frozenContext), opts.mode);
+    if (!screen.memory && !screen.harness && !screen.agents) {
+      const receipt = buildLearningReceipt(opts.mode, screen, []);
+      await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt);
+      notifyPi(ctx.ui, formatLearningSummary(receipt), "info");
+      return;
+    }
+    if (!screen.memory && opts.mode === "automatic") {
+      const receipt = buildLearningReceipt(opts.mode, screen, []);
+      await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt);
+      notifyPi(ctx.ui, formatLearningSummary(receipt), "info");
+      return;
+    }
+    state.attempts = [];
+    state.mode = opts.mode;
+    state.controller = new AbortController();
     const started = await spawnAsyncConsolidation(frozenContext, state, opts);
     if (!started) return;
     // A retry replaces completion; wait for each attempt and its lock release.
@@ -1170,22 +1220,65 @@ async function startConsolidationPipeline(
       notifyPi(ctx.ui, "Harness and AGENTS.md consolidation need captured context; skipped (no-context run).", "info");
       return;
     }
-    await runHarnessConsolidationPhase(frozenContext, state, {
-      pkgDir: opts.pkgDir,
-      cwd: opts.cwd,
-      reason: opts.reason,
-      availableSkills: opts.availableSkills,
-    });
-    if (state.cancelled) return;
-    const settings = await readSettings(opts.cwd);
-    await runAgentsMdConsolidationPhase(frozenContext, state, {
-      pkgDir: opts.pkgDir,
-      cwd: opts.cwd,
-      reason: opts.reason,
-      availableSkills: opts.availableSkills,
-      budgetBytes: settings.agentsMd?.budgetBytes ?? DEFAULT_AGENTS_MD_BUDGET_BYTES,
-      disabled: settings.agentsMd?.disabled === true,
-    });
+    if (opts.mode === "automatic" && !screen.harness && !screen.agents) {
+      const receipt = buildLearningReceipt(opts.mode, screen, state.attempts ?? []);
+      await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt);
+      notifyPi(ctx.ui, formatLearningSummary(receipt), "info");
+      return;
+    }
+    const laterRun = await createConsolidationRun(frozenContext, opts.cwd, false);
+    const attempts = state.attempts ?? [];
+    const laterGeneration = state.generation + 1;
+    const agentsState = { active: true, generation: laterGeneration, cancelled: false, child: undefined as ChildProcess | undefined };
+    state.laterStates = [agentsState];
+    try {
+      const contextDigest = laterRun.manifest.snapshotDigest;
+      const explorer = await exploreLearningContext({
+        pkgDir: opts.pkgDir,
+        cwd: opts.cwd,
+        snapshotPath: laterRun.manifest.snapshotPath,
+        contextDigest,
+        outputDir: laterRun.manifest.runDir,
+        model: memoryConfig.provider && memoryConfig.model ? `${memoryConfig.provider}/${memoryConfig.model}` : undefined,
+        signal: state.controller?.signal,
+      });
+      attempts.push({ phase: "explorer", attempt: 0, outcome: explorer.outcome, durationMs: explorer.durationMs, operations: 0, usage: explorer.usage });
+      const exploration = explorer.outcome === "applied" ? { explorationPath: explorer.path, explorationDigest: explorer.digest } : {};
+      const settings = await readSettings(opts.cwd);
+      const harnessPromise = screen.harness
+        ? planHarnessConsolidationPhase(frozenContext, { pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills, run: laterRun, ...exploration }, { current: () => !state.cancelled, onChild: (child) => { state.child = child; } })
+        : Promise.resolve(undefined);
+      const agentsPromise = screen.agents && settings.agentsMd?.disabled !== true
+        ? planAgentsMdConsolidationPhase(frozenContext, agentsState, {
+            pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills,
+            budgetBytes: settings.agentsMd?.budgetBytes ?? DEFAULT_AGENTS_MD_BUDGET_BYTES, disabled: false, ...exploration,
+          }, laterRun, laterGeneration)
+        : Promise.resolve(undefined);
+      const [harnessPlan, agentsPlan] = await Promise.all([harnessPromise, agentsPromise]);
+      if (harnessPlan) {
+        attempts.push({ phase: "harness", attempt: 0, outcome: harnessPlan.ok ? "noop" : "failed", durationMs: harnessPlan.ok ? harnessPlan.value.durationMs : harnessPlan.durationMs, operations: harnessPlan.ok && Array.isArray(harnessPlan.value.plan.operations) ? harnessPlan.value.plan.operations.length : 0, usage: harnessPlan.ok ? harnessPlan.value.usage : harnessPlan.usage });
+        if (harnessPlan.ok) {
+          const applied = await applyHarnessConsolidationPlan(harnessPlan.value, () => !state.cancelled);
+          attempts[attempts.length - 1].outcome = applied.outcome;
+          attempts[attempts.length - 1].operations = applied.operations;
+        }
+      }
+      if (agentsPlan) {
+        attempts.push({ phase: "agents", attempt: 0, outcome: agentsPlan.operations.length ? "noop" : "noop", durationMs: agentsPlan.durationMs, operations: agentsPlan.operations.length, usage: agentsPlan.usage });
+        const applied = await applyAgentsMdConsolidationPlan(frozenContext, agentsState, {
+          pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills,
+          budgetBytes: settings.agentsMd?.budgetBytes ?? DEFAULT_AGENTS_MD_BUDGET_BYTES, disabled: false, ...exploration,
+        }, agentsPlan, laterGeneration);
+        attempts[attempts.length - 1].outcome = applied && applied.applied > 0 ? "applied" : "noop";
+        attempts[attempts.length - 1].operations = applied?.applied ?? 0;
+      }
+      const receipt = buildLearningReceipt(opts.mode, screen, attempts);
+      await writeLearningReceipt(laterRun.manifest.runDir, receipt);
+      notifyPi(ctx.ui, formatLearningSummary(receipt), "info");
+    } finally {
+      state.laterStates = undefined;
+      await releaseConsolidationRun(laterRun, { keepArtifacts: true });
+    }
   })().catch((error: unknown) => {
     state.outcome = "failed";
     if (!state.cancelled) notifyPi(ctx.ui, `Learning pipeline failed: ${error instanceof Error ? error.message : String(error)}`, "error");
@@ -1235,6 +1328,7 @@ export default function (pi: ExtensionAPI) {
         cwd: ctx.cwd,
         availableSkills: pi.getCommands().filter(command => command.source === "skill").map(command => command.name.replace(/^skill:/, "")),
         reason: "Learn durable memory and verifiable constraints from the completed user task.",
+        mode: "automatic",
       });
     },
     reportError: (error, ctx) => notifyPi(ctx.ui, `Automatic learning failed: ${error instanceof Error ? error.message : String(error)}`, "error"),
@@ -1243,6 +1337,11 @@ export default function (pi: ExtensionAPI) {
   const stopPipeline = async (): Promise<void> => {
     sessionGeneration += 1;
     dreamState.cancelled = true;
+    dreamState.controller?.abort();
+    for (const phase of dreamState.laterStates ?? []) {
+      phase.cancelled = true;
+      phase.generation += 1;
+    }
     dreamState.generation += 1;
     dreamState.active = false;
     const cleanup = dreamState.cleanup;
@@ -1257,6 +1356,8 @@ export default function (pi: ExtensionAPI) {
     dreamState.run = undefined;
     if (run) await releaseConsolidationRun(run);
     dreamState.completion = undefined;
+    dreamState.controller = undefined;
+    dreamState.laterStates = undefined;
   };
 
   pi.on("session_start", async () => {
@@ -1310,7 +1411,7 @@ export default function (pi: ExtensionAPI) {
       const harnessDir = memoryPaths.harnessDir;
       const home = getAgentDir();
       const pkgDir = await resolvePackageDir();
-      const procedureFile = path.join(pkgDir, "procedures", "consolidate.md");
+      const procedureFile = path.join(pkgDir, "agents", "memory-consolidator.md");
       const projectInstructions = await resolveProjectInstructionsFile(cwd, ctx);
 
       const options = [
@@ -1356,6 +1457,7 @@ export default function (pi: ExtensionAPI) {
           noContext: false,
           availableSkills: pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')),
           reason: "Consolidate the project memory now (user-invoked via /memory menu).",
+          mode: "manual",
         });
       } else if (choice.startsWith("Edit user instructions")) {
         await editInstructions(ctx, path.join(home, "AGENTS.md"));
@@ -1408,6 +1510,7 @@ export default function (pi: ExtensionAPI) {
         noContext: args === "no-context",
         availableSkills: pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')),
         reason: "Consolidate the project memory and harness now (user-invoked via /consolidate command).",
+        mode: "manual",
       });
       if (!ctx.hasUI) await completion;
     },

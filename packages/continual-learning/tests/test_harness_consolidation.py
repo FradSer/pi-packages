@@ -635,12 +635,14 @@ def test_command_registered_as_harness_not_guardrails() -> None:
 
 def test_consolidate_pipeline_gates_harness_phase() -> None:
     src = (PKG_DIR / "extensions" / "inject-memory.ts").read_text(encoding="utf-8")
-    assert 'import { runHarnessConsolidationPhase, shouldRunHarnessPhase } from "./harness-consolidation"' in src
+    assert 'planHarnessConsolidationPhase, shouldRunHarnessPhase' in src
+    assert "applyHarnessConsolidationPlan" in src
     assert 'shouldRunHarnessPhase(state, opts.noContext)' in src
     assert 'gate !== "run"' in src
     assert "skipped (no-context run)" in src
     assert "await startConsolidationPipeline(ctx, dreamState," in src
     assert src.count("await spawnAsyncConsolidation(frozenContext, state, opts);") == 1
+    assert "Promise.all([harnessPromise, agentsPromise])" in src
 
 
 def test_plan_requires_version_and_schema_version_one() -> None:
@@ -767,8 +769,14 @@ def test_phase_writes_pre_receipt_before_apply_and_post_after(tmp_path: Path) ->
     assert 'postBytes.equals(nowBytes)' in src
 
 
+def test_harness_planner_uses_package_agent_and_minimal_readonly_args() -> None:
+    src = (PKG_DIR / "extensions" / "harness-consolidation.ts").read_text(encoding="utf-8")
+    assert 'resourcePath: "agents/harness-consolidator.md"' in src
+    assert 'minimalPiWorkerArgs(["read", "grep", "find", "ls"])' in src
+
+
 def test_procedure_declares_readonly_boundary_and_bounds() -> None:
-    proc = (PKG_DIR / "procedures" / "consolidate-harness.md").read_text(encoding="utf-8")
+    proc = (PKG_DIR / "agents" / "harness-consolidator.md").read_text(encoding="utf-8")
     assert "Do not write, edit, delete, rename, or copy any file." in proc
     assert "At most 12 operations total." in proc
     assert '"harness-consolidation-plan"' in proc

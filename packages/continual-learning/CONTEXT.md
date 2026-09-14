@@ -14,7 +14,7 @@ Automatic learning after settled user tasks and explicit `/consolidate` runs use
 2. Harness consolidation
 3. Project `AGENTS.md` consolidation
 
-Every phase follows the same trust boundary: the parent freezes the task context before asynchronous work, a `--no-extensions` child performs read-only planning, and only the parent validates and applies a bounded structured plan. Each phase snapshots that same frozen context, including retries. Completion requires parent-owned validation and pre/post receipts; planner prose is never proof of success. Locks, path containment, symlink checks, atomic writes, rollback, output bounds, and shutdown generation checks remain mandatory.
+Every phase follows the same trust boundary: the parent freezes the task context before asynchronous work, a package-owned child agent runs with extension, skill, prompt-template, context-file, and theme discovery disabled plus only `read,grep,find,ls`, and only the parent validates and applies a bounded structured plan. Each phase snapshots that same frozen context, including retries. Completion requires parent-owned validation and pre/post receipts; planner prose is never proof of success. Locks, path containment, symlink checks, atomic writes, rollback, output bounds, and shutdown generation checks remain mandatory.
 
 Later-phase failure does not roll back an earlier verified phase. Memory must complete and verify before Harness starts. Harness failure leaves Memory intact; AGENTS.md failure leaves both earlier phases intact.
 
@@ -45,7 +45,7 @@ For `/Users/FradSer/Developer/FradSer/cerberus`, the private directory is readab
 
 The escaped project path is derived from the canonical project working directory by replacing path separators and whitespace runs with `-`. For example, `/Users/FradSer/Documents/Home Lab` becomes `-Users-FradSer-Documents-Home-Lab`. It replaces the temporary SHA-256 directory naming: the on-disk scope must be recognizable to a human, contain no whitespace, and not be an opaque digest.
 
-The two roots have different privacy roles. A project `.memory.local/` directory is not a third layer: recognized legacy memories migrate into the agent-owned private root. The directory is removed only when it contains no unsupported entries; otherwise it remains intact to avoid destructive migration.
+The two roots have different privacy roles. No project-local private memory directory is recognized: private memory exists only in the agent-owned root.
 
 - The Harness/private root is canonical and complete. It may contain both safe and private Memory.
 - The project `.memory/` root is a sanitized, Git-trackable mirror. It contains only Memory classified as safe to share with the project.
@@ -88,7 +88,7 @@ Only strict Memory basenames are accepted:
 
 ## Legacy directory migration
 
-The opaque SHA-256 project directory introduced during the abandoned three-layer experiment, an older readable directory that preserved whitespace, and any obsolete project `.memory.local/` directory must migrate to the normalized escaped-project-path directory. The migration is one-way and has no permanent compatibility read fallback. Entries from `.memory.local/` are classified private regardless of its old index because project-local storage was intended to be non-shared:
+The opaque SHA-256 project directory introduced during the abandoned naming experiment and an older readable directory that preserved whitespace must migrate to the normalized escaped-project-path directory. The migration is one-way and has no permanent compatibility read fallback:
 
 - If only the old opaque directory exists, move its valid Memory into the readable private directory.
 - Existing files in the readable destination win conflicts.
@@ -125,5 +125,5 @@ The two Memory roots are intentionally asymmetric rather than ordinary override 
 - Project `.memory/` contains only sanitized safe Memory.
 - Safe Memory synchronizes both ways and remains byte-identical after normalization/application.
 - Private Memory never appears in project `.memory/`.
-- The parent owns all mutation, validation, rollback, index rebuilding, and receipts.
+- The parent owns all mutation, validation, rollback, index rebuilding, and receipts. Automatic and manual consolidation may permanently delete Memory only with a stale verdict that permits removal plus a mechanically verifiable preservation target; receipt change counts are bound back to the validated plan. Generated shell commands cannot bulk-delete either project Memory directory or the private Pi Memory root.
 - Harness retains its separate three-layer policy model.

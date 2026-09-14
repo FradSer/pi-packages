@@ -205,7 +205,7 @@ Trajectory.ai 与 `pi-continual-learning` 代表同一范式在两个工程尺�
 11. extensions/inject-memory.ts（内存注入、/memory 与 /consolidate 命令） — file:///Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/inject-memory.ts (accessed 2026-08-26)
 13. extensions/memory-files.ts（安全内存文件加载） — file:///Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/memory-files.ts (accessed 2026-08-26)
 15. extensions/consolidation-run.ts（父拥有式整合协议） — file:///Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/consolidation-run.ts (accessed 2026-08-26)
-16. procedures/consolidate.md（只读子代理整合流程） — file:///Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/procedures/consolidate.md (accessed 2026-08-26)
+16. agents/memory-consolidator.md（只读子代理整合流程） — file:///Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/agents/memory-consolidator.md (accessed 2026-08-26)
 17. features/guardrails.feature（护栏 BDD 契约） — file:///Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/features/guardrails.feature (accessed 2026-08-26)
 18. features/validate-consolidate.feature（整合校验 BDD 契约） — file:///Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/features/validate-consolidate.feature (accessed 2026-08-26)
 19. features/ 目录（BDD 契约集） — file:///Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/features/ (accessed 2026-08-26)
