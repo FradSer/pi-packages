@@ -37,7 +37,8 @@ no skills, and no extensions. Consumer packages declare it as
 
 - `createPackageAgentRun(options)` — loads an agent Markdown resource from an explicit package root file URL (`packageRootUrl`, typically `new URL("../", import.meta.url).href`) and a validated package-relative `resourcePath`, appends the current user request, and returns a stable per-tool-call display name plus the derived package-relative display path. Absolute paths, traversal, and symlink escapes are rejected, so packages can ship private agent logic without using a project `.agents` directory.
 - `subagentDisplayName(prefix, toolCallId)` — creates the stable bounded identity used by package-agent runs.
-- `runPiWorker(options)` — runs a one-shot JSONL worker with pre-cancel checks. Set `minimal: true` to pass `-ne -ns -np -nc --no-themes`, disabling extension, skill, prompt-template, context-file, and theme discovery; combine it with `tools` for an explicit minimal allowlist. It also provides close-observed cancellation and byte limits of 16 MiB for stdout, 8 MiB for
+- `minimalPiWorkerArgs(tools)` — builds the common `--print --mode json --no-session -ne -ns -np -nc --no-themes --tools <allowlist>` arguments for package agents that own their child-process lifecycle.
+- `runPiWorker(options)` — runs a one-shot JSONL worker with pre-cancel checks. Set `minimal: true` to use those shared minimal arguments; combine it with `tools` for an explicit allowlist. It also provides close-observed cancellation and byte limits of 16 MiB for stdout, 8 MiB for
   stderr, and 8 MiB for each JSONL line. The line bound leaves room for normal
   inline image payloads plus their JSON envelope. Limit failures terminate the
   child and return no assistant text.

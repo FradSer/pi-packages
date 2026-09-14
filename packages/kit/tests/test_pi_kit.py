@@ -153,16 +153,19 @@ def test_run_pi_worker_minimal_mode_disables_discovery_and_keeps_tool_allowlist(
         process.env.PI_CAPTURE = capture;
         const originalArgv1 = process.argv[1];
         process.argv[1] = fakePi;
-        const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const {{ minimalPiWorkerArgs, runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const sharedArgs = minimalPiWorkerArgs(["read", "bash"]);
         await runPiWorker({{ prompt: "inspect", cwd: root, tools: ["read", "bash"], minimal: true }});
         process.argv[1] = originalArgv1;
-        console.log(JSON.stringify({{ args: JSON.parse(fs.readFileSync(capture, "utf8")) }}));
+        console.log(JSON.stringify({{ args: JSON.parse(fs.readFileSync(capture, "utf8")), sharedArgs }}));
         """
     )
     args = result["args"]
     for flag in ("-ne", "-ns", "-np", "-nc", "--no-themes"):
         assert flag in args
+        assert flag in result["sharedArgs"]
     assert args[args.index("--tools") + 1] == "read,bash"
+    assert result["sharedArgs"][result["sharedArgs"].index("--tools") + 1] == "read,bash"
 
 
 def test_parse_pi_worker_output_returns_last_text_and_usage() -> None:

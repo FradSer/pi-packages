@@ -968,6 +968,12 @@ function resolveInstalledPiCli(): PiCliResolution | undefined {
   return undefined;
 }
 
+/** Build the shared minimal one-shot Pi arguments for a strict tool allowlist. */
+export function minimalPiWorkerArgs(tools: string[] | string): string[] {
+  const toolList = Array.isArray(tools) ? tools.join(",") : tools;
+  return ["--print", "--mode", "json", "--no-session", "-ne", "-ns", "-np", "-nc", "--no-themes", "--tools", toolList];
+}
+
 /**
  * Run a Pi worker child process and return the result.
  *
@@ -986,10 +992,15 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
   }
   const cli = resolvePiCli();
 
-  const args = [...cli.args, "--print", "--mode", "json", "--no-session"];
-  if (minimal) args.push("-ne", "-ns", "-np", "-nc", "--no-themes");
+  const args = [
+    ...cli.args,
+    ...(minimal && tools
+      ? minimalPiWorkerArgs(tools)
+      : ["--print", "--mode", "json", "--no-session"]),
+  ];
+  if (minimal && !tools) args.push("-ne", "-ns", "-np", "-nc", "--no-themes");
   if (model) args.push("--model", model);
-  if (tools) {
+  if (tools && !minimal) {
     const toolStr = Array.isArray(tools) ? tools.join(",") : tools;
     args.push("--tools", toolStr);
   }
