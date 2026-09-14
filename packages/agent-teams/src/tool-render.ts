@@ -15,8 +15,8 @@ export function textOf(result: ToolResultText): string {
   return result.content.find((part) => part.type === "text")?.text ?? "";
 }
 
-export function emptyToolCall(): Text {
-  return new Text("", 0, 0);
+export function emptyToolCall(): { render: () => string[]; invalidate: () => void } {
+  return { render: () => [], invalidate: () => {} };
 }
 
 export function renderLifecycleResult(

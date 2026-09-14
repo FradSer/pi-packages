@@ -815,6 +815,7 @@ Feature: Agent Teams collaborative organization contract
       And only its `[agent]` prefix is colored while `@name started · task-name` uses the default text color
       And the full result text remains model-facing rather than becoming transcript details
       And a failed spawn keys off the render context isError flag and renders one plain error line
+      And the empty call renderer contributes zero transcript lines so the started result is not duplicated
 
     Scenario: The teammate_spawn started row fits narrow transcript widths
       Given the leader spawns a teammate with a long name and kickoff prompt
@@ -830,6 +831,13 @@ Feature: Agent Teams collaborative organization contract
       And it does not show the granted tools
       And it does not carry an expansion hint
       And it does not reveal the full spawn result in the transcript
+
+    Scenario: Live teammate activity renders inline Markdown
+      Given a working teammate streams Markdown emphasis in its current activity
+      When the passive widget renders the teammate row
+      Then Markdown markers are replaced by the corresponding terminal styling
+      And plain activity text is not styled as emphasis
+      And truncation is applied after Markdown rendering so partial markers are never displayed
 
     Scenario: The roster and detail view expose the effective tool allowlist
       Given the leader spawns a teammate from a role definition with tools

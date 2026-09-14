@@ -15,7 +15,7 @@ import {
   sortModels,
   type SearchPicker,
 } from "@fradser/pi-kit";
-import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import { getMarkdownTheme, type ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import {
   clampConsoleScroll, consoleScrollRange, maxConsoleBody, scrollConsoleDetail, wrapConsoleDetail,
 } from "./console-viewport.ts";
@@ -99,7 +99,8 @@ export function ensureTeamWidget(ctx?: { ui?: ExtensionUIContext; mode?: string 
             style.fg(colorFor(teammate.name), teammate.name),
             runningTeammateActivity(teammate) + stallSuffix(teammate),
             Math.max(1, width - 1),
-            (activity) => theme.bold(style.fg("accent", activity)),
+            (activity) => activity,
+            getMarkdownTheme(),
           ), width, truncateToWidth, 0));
         }
         return lines;

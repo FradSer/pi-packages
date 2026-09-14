@@ -1469,6 +1469,7 @@ def test_teammate_spawn_started_row_fits_narrow_transcript_widths() -> None:
         registerLeaderTools({{ registerTool(tool) {{ tools.push(tool); }}, registerCommand() {{}} }});
         const spawn = tools.find((tool) => tool.name === "teammate_spawn");
         const theme = {{ fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`, bold: (text) => `<bold>${{text}}</bold>`, bg: (_color, text) => text }};
+        const callLines = spawn.renderCall({{}}, theme, {{ args: {{ name: "storm-auditor", agent: "storm-auditor" }} }}).render(200);
         const renderRow = (width) => spawn.renderResult(
           {{ content: [{{ type: "text", text: "started" }}] }},
           {{}},
@@ -1513,6 +1514,7 @@ def test_teammate_spawn_started_row_fits_narrow_transcript_widths() -> None:
           emptyContentHasExpandHint: emptyContentRow.includes("to expand"),
           expandedShowsResult: expandedRows.some((line) => line.includes("is alive as storm-auditor")),
           expandedHidesTools: expandedRows.every((line) => !line.includes("tools:")),
+          callRendererIsEmpty: callLines.length === 0,
         }}));
         '''
     )
@@ -1526,6 +1528,7 @@ def test_teammate_spawn_started_row_fits_narrow_transcript_widths() -> None:
     assert payload["emptyContentHasExpandHint"] is False
     assert payload["expandedShowsResult"] is False
     assert payload["expandedHidesTools"] is True
+    assert payload["callRendererIsEmpty"] is True
 
 
 def test_shutdown_renders_one_collapsible_agent_event_line() -> None:
@@ -2115,18 +2118,39 @@ def test_shutdown_suppression_covers_queued_terminal_reports(tmp_path: Path) -> 
 
 
 def test_live_activity_renders_markdown_without_literal_emphasis_markers() -> None:
+    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
+    assert "Live teammate activity renders inline Markdown" in feature
     payload = run_node(
         f'''\
         import {{ fitTeammateRow, renderActivityMarkdown }} from "{(SRC / "activity.ts").as_uri()}";
         import {{ visibleWidth, truncateToWidth }} from "@earendil-works/pi-tui";
         import {{ renderPiWidgetRow }} from "{(PACKAGE.parent / "kit" / "src" / "index.ts").as_uri()}";
-        const emphasis = renderActivityMarkdown("**Inspecting unused variable in report code**");
-        const row = fitTeammateRow("⠼", "security", "**Inspecting unused variable**", 48);
-        const widgetRow = renderPiWidgetRow(fitTeammateRow("⠼", "security", "**Inspecting unused variable**", 47), 48, truncateToWidth, 0);
+        const markdownTheme = {{
+          heading: (text) => text,
+          link: (text) => text,
+          linkUrl: (text) => text,
+          code: (text) => text,
+          codeBlock: (text) => text,
+          codeBlockBorder: (text) => text,
+          quote: (text) => text,
+          quoteBorder: (text) => text,
+          hr: () => "---",
+          listBullet: (text) => text,
+          bold: (text) => `<bold>${{text}}</bold>`,
+          italic: (text) => `<italic>${{text}}</italic>`,
+          strikethrough: (text) => text,
+        }};
+        const emphasis = renderActivityMarkdown("**Inspecting unused variable in report code**", markdownTheme);
+        const plain = renderActivityMarkdown("Inspecting unused variable in report code", markdownTheme);
+        const row = fitTeammateRow("⠼", "security", "**Inspecting unused variable**", 48, (text) => text, markdownTheme);
+        const narrowRow = fitTeammateRow("⠼", "security", "**Inspecting document memory and commit references**", 34, (text) => text, markdownTheme);
+        const widgetRow = renderPiWidgetRow(row, 48, truncateToWidth, 0);
         console.log(JSON.stringify({{
           emphasis,
+          plain,
           emphasisHasMarkers: emphasis.includes("**"),
           rowHasMarkers: row.includes("**"),
+          narrowHasMarkers: narrowRow.includes("**"),
           rowIsSingleLine: !row.includes("\\n"),
           rowFitsWidth: visibleWidth(row) <= 47,
           rowLeadingSpaces: row.match(/^ */)?.[0].length ?? 0,
@@ -2135,9 +2159,11 @@ def test_live_activity_renders_markdown_without_literal_emphasis_markers() -> No
         }}));
         '''
     )
-    assert payload["emphasis"] == "Inspecting unused variable in report code"
+    assert payload["emphasis"] == "<bold>Inspecting unused variable in report code</bold>"
+    assert payload["plain"] == "Inspecting unused variable in report code"
     assert payload["emphasisHasMarkers"] is False
     assert payload["rowHasMarkers"] is False
+    assert payload["narrowHasMarkers"] is False
     assert payload["rowIsSingleLine"] is True
     assert payload["rowFitsWidth"] is True
     assert payload["rowLeadingSpaces"] == 0
