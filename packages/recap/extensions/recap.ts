@@ -205,6 +205,22 @@ export function cleanRecapText(raw: string): string {
   return text.slice(0, 120).trim();
 }
 
+/** Reject empty labels and generic verb-plus-identifier output with no useful context. */
+export function isInformativeRecap(text: string): boolean {
+  const recap = text.trim();
+  if (!recap) return false;
+
+  const identifier = "[`'\"“”‘’]?[A-Za-z][A-Za-z0-9_.:/-]*[`'\"“”‘’]?";
+  if (new RegExp(`^${identifier}$`).test(recap)) return false;
+
+  const genericAction =
+    "(?:fix(?:ed|ing)?|update(?:d|ing)?|adjust(?:ed|ing)?|improve(?:d|ing)?|refactor(?:ed|ing)?|\\u4fee\\u6b63|\\u4fee\\u590d|\\u4fee\\u6539|\\u66f4\\u65b0|\\u4f18\\u5316|\\u8c03\\u6574|\\u5904\\u7406|\\u6539\\u8fdb|\\u5b8c\\u5584)";
+  return !new RegExp(
+    `^${genericAction}\\s*[:\\uFF1A-]?\\s*${identifier}$`,
+    "i",
+  ).test(recap);
+}
+
 /** Extract text from assistant message response. */
 export function textFromResponse(message: AssistantMessage): string {
   if (!message?.content || !Array.isArray(message.content)) return "";
@@ -243,32 +259,42 @@ export async function generateRecap(
     if (!auth.ok || controller.signal.aborted) return "";
 
     const prompt = buildRecapPrompt(user, assistant, previousRecap, language);
-    const message: UserMessage = {
-      role: "user",
-      content: [{ type: "text", text: prompt }],
-      timestamp: Date.now(),
-    };
     const timeout = setTimeout(abort, RECAP_TIMEOUT_MS);
     try {
-      const response = await registry.complete(
-        model,
-        {
-          systemPrompt: "You generate ultra-concise, single-line session recaps.",
-          messages: [message],
-        },
-        {
-          apiKey: auth.apiKey,
-          headers: auth.headers,
-          signal: controller.signal,
-          maxTokens: 96,
-          temperature: 0,
-          cacheRetention: "none",
-        },
-      );
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const retryRule = attempt === 0
+          ? ""
+          : "\n\nPrevious output was rejected as empty or uninformative. Include the specific target, concrete work or progress, and evidenced outcome; do not return only a generic verb plus a name.";
+        const message: UserMessage = {
+          role: "user",
+          content: [{ type: "text", text: `${prompt}${retryRule}` }],
+          timestamp: Date.now(),
+        };
 
-      if (controller.signal.aborted) return "";
-      return cleanRecapText(textFromResponse(response));
-    } catch {
+        try {
+          const response = await registry.complete(
+            model,
+            {
+              systemPrompt: "You generate ultra-concise, single-line session recaps.",
+              messages: [message],
+            },
+            {
+              apiKey: auth.apiKey,
+              headers: auth.headers,
+              signal: controller.signal,
+              maxTokens: 512,
+              temperature: 0,
+              cacheRetention: "none",
+            },
+          );
+
+          if (controller.signal.aborted) return "";
+          const text = cleanRecapText(textFromResponse(response));
+          if (isInformativeRecap(text)) return text;
+        } catch {
+          return "";
+        }
+      }
       return "";
     } finally {
       clearTimeout(timeout);

@@ -45,6 +45,29 @@ Feature: Session Recap
     Then the recap text is a single line with specific action, target, and outcome
     And quotes, markdown wrappers, and redundant prefixes are stripped
 
+  Scenario: Empty or meaningless recap output is retried
+    Given the recap model returns no text or only a generic action plus a bare identifier
+    When a recap is generated
+    Then the output is rejected as uninformative
+    And the model is asked once more for a specific recap
+    And only an informative retry can be displayed or persisted
+
+  Scenario: Recap models have enough output budget to finish a summary
+    Given a recap model uses part of its completion budget for reasoning
+    When recap generation requests a completion
+    Then the output budget is large enough for the model to also return the recap text
+
+  Scenario: Provider failures are not retried as output-quality failures
+    Given the recap provider rejects the completion request
+    When recap generation handles the failure
+    Then generation stops after the first provider call
+    And no immediate duplicate request is sent
+
+  Scenario: Manual recap reports the actual failure reason
+    Given the user requests a recap manually
+    When no complete exchange exists or the configured model fails
+    Then the warning distinguishes missing conversation history from generation failure
+
   Scenario: Recap reflects only evidenced progress
     Given a user request with a plan and desired outcome but no assistant result
     When the recap prompt is built

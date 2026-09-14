@@ -323,6 +323,13 @@ export default function (pi: ExtensionAPI) {
     return request.promise;
   }
 
+  function recapFailureMessage(ctx: ExtensionContext): string {
+    if (!getLastExchange(ctx.sessionManager.getBranch())) {
+      return "No complete user/assistant exchange is available to recap";
+    }
+    return "Recap generation failed; check the configured model and authentication";
+  }
+
   async function chooseRecapModel(ctx: ExtensionCommandContext): Promise<void> {
     const result = await searchModelFromPicker(
       ctx.ui,
@@ -452,10 +459,7 @@ export default function (pi: ExtensionAPI) {
       if (refreshed) {
         notifyPi(ctx.ui, `✦ Recap: ${refreshed}`, "info");
       } else {
-        notifyPi(ctx.ui,
-          "No recent exchange to recap or generation failed",
-          "warning",
-        );
+        notifyPi(ctx.ui, recapFailureMessage(ctx), "warning");
       }
     } else if (choice.startsWith("Set recap language")) {
       await chooseRecapLanguage(ctx);
@@ -615,10 +619,7 @@ export default function (pi: ExtensionAPI) {
         if (refreshed) {
           notifyPi(ctx.ui, `✦ Recap: ${refreshed}`, "info");
         } else {
-          notifyPi(ctx.ui,
-            "No recent exchange to recap or generation failed",
-            "warning",
-          );
+          notifyPi(ctx.ui, recapFailureMessage(ctx), "warning");
         }
         return;
       }

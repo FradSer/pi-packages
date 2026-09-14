@@ -37,6 +37,10 @@ def test_feature_covers_recap_scenarios() -> None:
     assert "shared widget-row renderer" in feature
     assert "Scenario: Recap widget is displayed above the editor by default" in feature
     assert "Scenario: Recap is informative and scannable" in feature
+    assert "Scenario: Empty or meaningless recap output is retried" in feature
+    assert "Scenario: Recap models have enough output budget to finish a summary" in feature
+    assert "Scenario: Provider failures are not retried as output-quality failures" in feature
+    assert "Scenario: Manual recap reports the actual failure reason" in feature
     assert "Scenario: Recap reflects only evidenced progress" in feature
     assert "Scenario: Recap pairs the latest complete answer with its preceding user request" in feature
     assert "Scenario: Interrupted or failed answers are excluded from recap exchanges" in feature
@@ -909,7 +913,7 @@ def test_extension_uses_model_registry_in_process() -> None:
     assert "ctx.modelRegistry" in extension
     assert "resolveRecapModel" in extension
     assert "registry.complete" in recap
-    assert "maxTokens: 96" in recap
+    assert "maxTokens: 512" in recap
     assert "RECAP_TIMEOUT_MS" in recap
     assert "AbortController" in recap
     # Must NOT use child_process spawn
@@ -1006,6 +1010,102 @@ def test_clean_recap_text_removes_prefixes_and_quotes() -> None:
     assert result["t2"] == "Fixing the redirect bug"
     assert result["t3"] == "Updating the test configuration"
     assert result["t4"] == "修复登录重定向问题"
+
+
+def test_generate_recap_allows_reasoning_models_enough_completion_tokens() -> None:
+    recap = (EXTENSIONS / "recap.ts").read_text(encoding="utf-8")
+    assert "maxTokens: 512" in recap
+
+
+def test_manual_recap_distinguishes_missing_exchange_from_generation_failure() -> None:
+    extension = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
+    assert "No complete user/assistant exchange is available to recap" in extension
+    assert "Recap generation failed; check the configured model and authentication" in extension
+    assert "No recent exchange to recap or generation failed" not in extension
+
+
+def test_generate_recap_retries_empty_or_meaningless_output_once() -> None:
+    result = run_typescript(
+        f"""
+        import {{ generateRecap }} from "{RECAP_URI}";
+
+        const outputs = ["修正Adaptive", "修正 Adaptive 配置，避免窄屏布局错误切换"];
+        let completeCalls = 0;
+        const prompts = [];
+        const recap = await generateRecap(
+          {{
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async (_model, request) => {{
+              prompts.push(request.messages[0].content[0].text);
+              const text = outputs[completeCalls++] ?? "";
+              return {{ role: "assistant", content: [{{ type: "text", text }}] }};
+            }},
+          }},
+          {{ provider: "mock", id: "m1" }},
+          "fix recap",
+          "updated adaptive layout handling",
+        );
+
+        console.log(JSON.stringify({{
+          recap,
+          completeCalls,
+          retryRequestsSpecificity: prompts[1]?.includes("Previous output was rejected") ?? false,
+        }}));
+        """
+    )
+    assert result["recap"] == "修正 Adaptive 配置，避免窄屏布局错误切换"
+    assert result["completeCalls"] == 2
+    assert result["retryRequestsSpecificity"] is True
+
+
+def test_generate_recap_does_not_retry_provider_failure() -> None:
+    result = run_typescript(
+        f"""
+        import {{ generateRecap }} from "{RECAP_URI}";
+
+        let completeCalls = 0;
+        const recap = await generateRecap(
+          {{
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => {{
+              completeCalls++;
+              throw new Error("rate limited");
+            }},
+          }},
+          {{ provider: "mock", id: "m1" }},
+          "fix recap",
+          "updated adaptive layout handling",
+        );
+
+        console.log(JSON.stringify({{ recap, completeCalls }}));
+        """
+    )
+    assert result == {"recap": "", "completeCalls": 1}
+
+
+def test_generate_recap_returns_empty_after_two_uninformative_outputs() -> None:
+    result = run_typescript(
+        f"""
+        import {{ generateRecap }} from "{RECAP_URI}";
+
+        let completeCalls = 0;
+        const recap = await generateRecap(
+          {{
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => {{
+              completeCalls++;
+              return {{ role: "assistant", content: [{{ type: "text", text: completeCalls === 1 ? "" : "Fix Adaptive" }}] }};
+            }},
+          }},
+          {{ provider: "mock", id: "m1" }},
+          "fix recap",
+          "updated adaptive layout handling",
+        );
+
+        console.log(JSON.stringify({{ recap, completeCalls }}));
+        """
+    )
+    assert result == {"recap": "", "completeCalls": 2}
 
 
 def test_clean_recap_text_preserves_inline_code_backticks() -> None:
