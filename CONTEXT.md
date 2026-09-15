@@ -43,7 +43,19 @@ One durable piece of work created by a person, Routine, external event, or Agent
 _Avoid_: Direct assignment, Board Task, prompt-only task
 
 **Assignment Attempt**:
-One authorization for an Agent Work Session to perform or hold a Work Item. It is distinct from Agent identity and the Work Item; replacing, reopening, releasing, or reclaiming work creates a new Assignment Attempt.
+One authorization for an Agent Work Session to perform or hold a Work Item. It is distinct from Agent identity and the Work Item. Each new assignment has a new attempt; reopening or releasing work retires the old authority before another attempt can acquire it.
+
+**Work Board**:
+A view of Work Items and their availability for assignment or autonomous claiming. It is not a separate kind of work with different ownership or completion rules.
+_Avoid_: Second work lifecycle, independent task store
+
+**Submission**:
+One candidate result supplied by the current Assignment Attempt. An ordinary final answer and an explicit submission represent the same kind of evidence. A revised result is a new submission, not acceptance of the previous one.
+_Avoid_: Completed Work Item, message status, process exit
+
+**Work Acceptance**:
+The decision that a current submission satisfies its Work Item's completion requirements, including any verification gate. Acceptance is distinct from execution ending, submitting a result, or integrating changes into another workspace.
+_Avoid_: Final answer, report receipt, successful shutdown
 
 **Handoff**:
 An offered transfer of a Work Item between Agent Work Sessions. The source remains owner and keeps its resource authority until the target accepts and ownership changes atomically.
@@ -70,7 +82,7 @@ An explicit transfer of a Computer Lease from an Agent Work Session to a person.
 _Avoid_: Shared control, automatic access, transcript view
 
 **Work Session**:
-An isolated context in which one Agent performs one Assignment Attempt. An Agent may hold several concurrent Work Sessions, but their prompts, process state, tools, and uncommitted memory remain isolated.
+An isolated execution context of one Agent with at most one current Assignment Attempt. A resident Work Session can be unassigned or serve successive attempts. An Agent's concurrent work uses separate Work Sessions whose prompts, execution state, tools, and uncommitted memory remain isolated.
 _Avoid_: Agent identity, shared chat, task thread
 
 **Fresh Work Session**:
@@ -94,7 +106,7 @@ The leader-visible state of an Agent and its Work Sessions, including whether wo
 _Avoid_: Status polling prompt, raw process telemetry
 
 **Agent Event**:
-A shared communication sent by a Leader or Worker to report information, contact another participant, or request an allowed state transition. Sender identity and work context come from the runtime; the ability to communicate does not grant authority to change work state.
+A shared communication sent by a Leader or Worker to report information, contact another participant, or request a decision. Sender identity and work context come from the runtime. Communication itself does not submit results or change work ownership, acceptance, or lifecycle state.
 _Avoid_: Worker-only report, role-specific messaging, caller-supplied sender identity, free-form inferred completion
 
 **Coordination Event**:

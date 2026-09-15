@@ -26,10 +26,10 @@ const originalSpawn = (await import("node:child_process")).spawn;
 const captured: string[] = [];
 
 // The source tests assert the exact child-launch contract. This harness verifies
-// that the tool rejects an empty child response instead of reporting success.
+// that an empty successful child response is retried before the tool reports failure.
 await assert.rejects(
   research.execute("empty", { query: "research React" }, undefined, undefined, { cwd: process.cwd() }),
-  /returned no answer/,
+  /returned no answer after retry/,
 );
 
 void originalSpawn;

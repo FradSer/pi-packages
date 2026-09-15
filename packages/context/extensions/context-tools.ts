@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { type Component, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import {
@@ -16,14 +15,10 @@ import { Type } from "typebox";
 const RESEARCH_TOOLS = ["read", "bash"];
 const CONTEXT_AGENT_RESOURCE = "agents/context-researcher.md";
 const CONTEXT_AGENT_PATH = "agents/context-researcher.md";
-const CONTEXT_NAME_ADJECTIVES = [
-  "amber", "azure", "calm", "clear", "coral", "crisp", "dawn", "ember",
-  "gentle", "golden", "jade", "lucid", "lunar", "misty", "quiet", "silver",
-] as const;
-const CONTEXT_NAME_NOUNS = [
-  "atlas", "cedar", "comet", "finch", "grove", "heron", "lark", "lotus",
-  "maple", "nova", "otter", "pine", "raven", "sage", "willow", "wren",
-] as const;
+const FINAL_ANSWER_RETRY_INSTRUCTION = `
+
+Your previous run completed without a textual final answer. Retry the research now and finish with a self-contained plain-text answer to the original request. Include the conclusion and concrete evidence in the final assistant message; do not end immediately after a tool call.`;
+const CONTEXT_AGENT_NAME = "conext-research";
 
 interface ToolTextResult {
   content: [{ type: "text"; text: string }];
@@ -37,16 +32,20 @@ interface ChildResult {
   cancelled: boolean;
 }
 
-function textResult(text: string, details: Record<string, unknown> = {}): ToolTextResult {
-  return { content: [{ type: "text", text }], details };
+interface ResearchAttemptResult extends ChildResult {
+  retried: boolean;
 }
 
-function elegantContextAgentName(toolCallId: string): string {
-  const digest = createHash("sha256").update(toolCallId).digest();
-  const adjective = CONTEXT_NAME_ADJECTIVES[digest[0] % CONTEXT_NAME_ADJECTIVES.length];
-  const noun = CONTEXT_NAME_NOUNS[digest[1] % CONTEXT_NAME_NOUNS.length];
-  const suffix = digest.subarray(2, 8).toString("base64url").toLowerCase();
-  return `context-${adjective}-${noun}-${suffix}`;
+type ResearchRunner = (
+  query: string,
+  toolCallId: string,
+  signal: AbortSignal | undefined,
+  onUpdate: ((update: PiWorkerProgressUpdate) => void) | undefined,
+  finalAnswerRetry: boolean,
+) => Promise<ChildResult>;
+
+function textResult(text: string, details: Record<string, unknown> = {}): ToolTextResult {
+  return { content: [{ type: "text", text }], details };
 }
 
 function contextAgentRun(toolCallId: string, query = ""): ReturnType<typeof createPackageAgentRun> {
@@ -58,7 +57,7 @@ function contextAgentRun(toolCallId: string, query = ""): ReturnType<typeof crea
     request: query,
     requestLabel: "User research request",
   });
-  return { ...run, name: elegantContextAgentName(toolCallId) };
+  return { ...run, name: CONTEXT_AGENT_NAME };
 }
 
 function renderContextCall(
@@ -176,12 +175,13 @@ export function runResearchChild(
   toolCallId: string,
   signal?: AbortSignal,
   onUpdate?: (update: PiWorkerProgressUpdate) => void,
+  finalAnswerRetry = false,
 ): Promise<ChildResult> {
   let cancelled = signal?.aborted ?? false;
   const onAbort = () => { cancelled = true; };
   if (!signal?.aborted) signal?.addEventListener("abort", onAbort, { once: true });
   return runPiWorker({
-    prompt: buildResearchPrompt(query, toolCallId),
+    prompt: `${buildResearchPrompt(query, toolCallId)}${finalAnswerRetry ? FINAL_ANSWER_RETRY_INSTRUCTION : ""}`,
     cwd: process.cwd(),
     tools: RESEARCH_TOOLS,
     minimal: true,
@@ -191,6 +191,19 @@ export function runResearchChild(
     signal?.removeEventListener("abort", onAbort);
     return { text: result.text.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode, cancelled };
   });
+}
+
+export async function runResearchWithFinalAnswerRetry(
+  query: string,
+  toolCallId: string,
+  signal?: AbortSignal,
+  onUpdate?: (update: PiWorkerProgressUpdate) => void,
+  runner: ResearchRunner = runResearchChild,
+): Promise<ResearchAttemptResult> {
+  const first = await runner(query, toolCallId, signal, onUpdate, false);
+  if (first.cancelled || first.exitCode !== 0 || first.text) return { ...first, retried: false };
+  const retry = await runner(query, toolCallId, signal, onUpdate, true);
+  return { ...retry, retried: true };
 }
 
 const ResearchParams = Type.Object({
@@ -223,18 +236,22 @@ export function registerContextTools(pi: ExtensionAPI): void {
       const agentName = agent.name;
       const widget = startResearchWidget(ctx as ResearchWidgetContext | undefined, agentName);
       try {
-        const child = await runResearchChild(params.query, toolCallId, signal, (progress) => {
+        const child = await runResearchWithFinalAnswerRetry(params.query, toolCallId, signal, (progress) => {
           updateResearchWidget(widget, progress.activity);
           onUpdate?.(textResult(progress.activity ?? "Working...", { agentName, agentPath: agent.displayPath }));
         });
         if (child.cancelled) throw new Error("Isolated Pi research was cancelled");
         if (child.exitCode !== 0) {
-          throw new Error(`Isolated Pi research failed (exit ${child.exitCode}): ${child.stderr.slice(0, 400)}`);
+          const phase = child.retried ? " retry" : "";
+          throw new Error(`Isolated Pi research${phase} failed (exit ${child.exitCode}): ${child.stderr.slice(0, 400)}`);
         }
-        if (!child.text) {
-          throw new Error("Isolated Pi research returned no answer");
-        }
-        return textResult(child.text, { exitCode: child.exitCode, agentName, agentPath: agent.displayPath });
+        if (!child.text) throw new Error("Isolated Pi research returned no answer after retry");
+        return textResult(child.text, {
+          exitCode: child.exitCode,
+          agentName,
+          agentPath: agent.displayPath,
+          ...(child.retried ? { retried: true } : {}),
+        });
       } finally {
         clearResearchWidget(ctx as ResearchWidgetContext | undefined, widget);
       }

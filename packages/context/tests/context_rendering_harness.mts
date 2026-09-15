@@ -17,9 +17,8 @@ const toolCallId = "call-context-rendering";
 const started = tool.renderCall({}, theme as never, { toolCallId } as never);
 const otherStarted = tool.renderCall({}, theme as never, { toolCallId: "call-context-rendering-2" } as never);
 const wideStarted = stripVTControlCharacters(started.render(200).join("\n")).trimEnd();
-assert.match(wideStarted, /^\[agent\] @context-[a-z]+-[a-z]+-[a-z0-9_-]{8} started · agents\/context-researcher\.md$/);
-assert.ok(!/@context-[a-z]+-[a-z]+-[0-9a-f]{8}/.test(wideStarted));
-assert.notEqual(stripVTControlCharacters(otherStarted.render(200).join("\n")).trimEnd(), wideStarted);
+assert.equal(wideStarted, "[agent] @conext-research started · agents/context-researcher.md");
+assert.equal(stripVTControlCharacters(otherStarted.render(200).join("\n")).trimEnd(), wideStarted);
 assert.ok(started.render(200)[0].startsWith("\x1b[35m\x1b[1m[agent]"));
 for (const width of [40, 80, 160, 200, 40, 200, 0, 1, 10]) {
   assert.ok(started.render(width).every((line) => visibleWidth(line) <= width), `started row exceeds ${width}`);

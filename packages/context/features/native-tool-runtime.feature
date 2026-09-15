@@ -33,13 +33,13 @@ Feature: Isolated Pi research tool
     Then the prompt suggests git clone with depth 1 under /tmp
     And the prompt tells the child to remove its temporary clone after inspection
 
-  Scenario: Research starts as a named sub-agent
+  Scenario: Research starts with one stateless identity
     Given the agent calls context_get with a research query
     When the research child starts
-    Then Pi renders one native Text row in the `[agent] @context-xxx started · agents/context-researcher.md` shape
+    Then Pi renders one native Text row in the `[agent] @conext-research started · agents/context-researcher.md` shape
     And only the `[agent]` prefix uses the custom message label color
-    And the sub-agent uses a short pronounceable codename with a compact non-hex run suffix
-    And the sub-agent name is stable and unique across distinct research tool call ids
+    And every research invocation uses the fixed @conext-research identity
+    And each child uses no Pi session and retains no agent memory between invocations
     And the completed tool contributes no second agent-start row
     And Pi does not render a `[context] researched` lifecycle row
     And the complete answer remains model-facing without transcript details
@@ -61,7 +61,7 @@ Feature: Isolated Pi research tool
   Scenario: Research shows the child agent's latest running status above the editor
     Given the agent calls context_get with a research question
     When the research child is running
-    Then a status widget above the editor identifies the child agent with the same @context-xxx name
+    Then a status widget above the editor identifies the child agent with the same @conext-research name
     And the widget shows the latest tool, thinking, or answer activity
     And newer activity replaces older activity
     And the widget clears when research completes
@@ -72,8 +72,16 @@ Feature: Isolated Pi research tool
     Then the child process is terminated
     And the tool reports a cancellation error rather than a partial answer
 
+  Scenario: Empty successful research retries for a final answer
+    Given a Pi research child exits successfully without a textual final answer
+    When context_get reaches its final response step
+    Then it retries the research once with a prompt requiring a self-contained final answer
+    And the retry preserves the original research request and tool constraints
+    And a successful retry becomes the tool result
+    And only an empty retry reports that research returned no answer
+
   Scenario: A failed child process does not return an answer
     Given a Pi research child exits unsuccessfully
     When context_get completes
-    Then the tool reports the child failure
+    Then the tool reports the child failure without retrying
     And the result renderer shows one error line instead of hiding it with the empty success renderer

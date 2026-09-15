@@ -15,6 +15,16 @@ def read(relative: str) -> str:
 
 
 class TestContextPackage(unittest.TestCase):
+    def test_empty_success_retries_exactly_once(self) -> None:
+        result = subprocess.run(
+            ["node", os.path.join(PACKAGE, "tests/context_retry_harness.mts")],
+            cwd=os.path.dirname(os.path.dirname(PACKAGE)),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_research_widget_shows_running_status(self) -> None:
         result = subprocess.run(
             ["node", os.path.join(PACKAGE, "tests/context_widget_harness.mts")],
@@ -79,6 +89,9 @@ class TestContextPackage(unittest.TestCase):
         self.assertNotIn("readFileSync", source)
         self.assertIn("child.cancelled", source)
         self.assertIn("child.exitCode !== 0", source)
+        self.assertIn("FINAL_ANSWER_RETRY_INSTRUCTION", source)
+        self.assertIn("finalAnswerRetry = false", source)
+        self.assertIn("returned no answer after retry", source)
         self.assertNotIn("sandbox-exec", source)
         self.assertNotIn("sandboxProfile", source)
         self.assertNotIn("mkdtempSync", source)
@@ -123,8 +136,9 @@ class TestContextPackage(unittest.TestCase):
         self.assertEqual(source.count("renderContextCall(context.toolCallId, theme)"), 1)
         self.assertIn("return { render: () => [], invalidate: () => {} };", source)
         self.assertIn('CONTEXT_AGENT_PATH = "agents/context-researcher.md"', source)
-        self.assertIn("elegantContextAgentName", source)
-        self.assertIn("return { ...run, name: elegantContextAgentName(toolCallId) };", source)
+        self.assertIn('CONTEXT_AGENT_NAME = "conext-research"', source)
+        self.assertIn("return { ...run, name: CONTEXT_AGENT_NAME };", source)
+        self.assertNotIn("elegantContextAgentName", source)
 
     def test_documentation_describes_only_the_single_tool(self) -> None:
         for relative in ("README.md", "references/workflow.md", "agents/context-researcher.md"):
@@ -156,9 +170,10 @@ class TestContextPackage(unittest.TestCase):
             "no sandbox",
             "no result truncation",
             "status widget above the editor",
-            "`[agent] @context-xxx started · agents/context-researcher.md` shape",
-            "short pronounceable codename with a compact non-hex run suffix",
-            "identifies the child agent with the same @context-xxx name",
+            "`[agent] @conext-research started · agents/context-researcher.md` shape",
+            "every research invocation uses the fixed @conext-research identity",
+            "retains no agent memory between invocations",
+            "identifies the child agent with the same @conext-research name",
             "latest tool, thinking, or answer activity",
             "newer activity replaces older activity",
             "widget clears when research completes",
@@ -167,6 +182,9 @@ class TestContextPackage(unittest.TestCase):
             "complete answer remains model-facing without transcript details",
             "Pi cancellation terminates the child process",
             "cancellation error rather than a partial answer",
+            "Empty successful research retries for a final answer",
+            "retries the research once with a prompt requiring a self-contained final answer",
+            "only an empty retry reports that research returned no answer",
             "A failed child process does not return an answer",
         ):
             self.assertIn(phrase, feature)
