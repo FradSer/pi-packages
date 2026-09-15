@@ -4,6 +4,8 @@
 
 The compact delegation slice is implemented and specified in @SPEC-work-sessions.md: independent concurrent Work Sessions, explicit fresh/fork context selection, precise work routing, and automatic direct-work results. The broader cross-project identity, learning, and coordination design below remains a target, not an implemented guarantee. [DESIGN-REVIEW.md](./DESIGN-REVIEW.md) records its unresolved contracts.
 
+For the next coordination slice, use @SPEC-unified-work.md and @PLAN-unified-work.md. The user selected three tools (`agent`, `work`, `agent_event`) with advanced Work control and resident claiming retained. Those documents supersede the two-tool interface and board-removal proposals below; broader identity and learning goals remain deferred, not implemented by that slice.
+
 ## Product model
 
 Agent Teams is organized around cross-project persistent Agents, not leader-session child processes.

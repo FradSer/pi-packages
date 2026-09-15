@@ -14,11 +14,34 @@ Feature: Agent Delegation and Work Item Lifecycle
     And the initial result reports the actual starting execution state, open work ID, and precise route
     And another prompt without work starts independent work even while that Agent is running
 
+  Scenario: Successful delegation closes the kickoff coordination loop
+    Given the leader delegates one prompt to a defined or generated Agent
+    When agent or teammate_spawn starts the new Work Session
+    Then the result states that the kickoff was already supplied once to the Work Session
+    And it tells the leader not to echo the kickoff through another message
+    And it tells the leader not to inspect for confirmation
+    And it tells the leader to continue independent work or end the turn for automatic result delivery
+
+  Scenario: Promptless resident start does not promise a completion result
+    Given the leader starts a generated Agent without a direct assignment prompt
+    When teammate_spawn supplies the standard board-check kickoff
+    Then the result says the teammate will idle if it claims no board task
+    And it does not imply that an automatic completion result is pending
+    And it tells the leader to leave the teammate idle until explicit work or a claimable board notice arrives
+
   Scenario: Leader checks presence of an idle Agent without prompt
     Given an Agent named "reviewer" has no pending inbox messages or active work
     When the leader calls agent with name "reviewer" without prompt
     Then the result synchronously reports status "idle"
+    And it does not imply that an active completion is pending
     And no new model turn or child process is spawned
+
+  Scenario: Inspection is not a completion signal
+    Given an Agent has a working Work Session
+    When the leader deliberately inspects that Work Session
+    Then the result labels presence as a point-in-time projection
+    And it says inspection is not a completion signal
+    And it tells the leader to use presence only for deliberate diagnosis rather than progress polling
 
   Scenario: Inspection distinguishes execution from assignment ownership
     Given unknown and defined Agents and residents that are starting, working, idle, or stopped
@@ -46,6 +69,13 @@ Feature: Agent Delegation and Work Item Lifecycle
     When the event tool returns
     Then it reports the routing outcome without claiming delivery
     And missing routes, leader self routes, and report statuses are rejected
+
+  Scenario: Accepted guidance closes the message coordination loop
+    Given the leader sends new evidence to a working Agent
+    When agent, agent_event, or send_message reports that routing was accepted
+    Then the result says routing acknowledgment is not worker consumption
+    And it tells the leader not to inspect for confirmation, repeat the guidance, or ask for progress or the final report
+    And it tells the leader to continue independent work or end the turn for automatic result delivery
 
   Scenario: Worker communication registration includes lifecycle hooks
     Given the worker capability host supports tool registration and lifecycle subscriptions

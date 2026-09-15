@@ -1,39 +1,99 @@
 ---
 name: agent-teams-persistent-agents
-description: Preserve the compact agent and shared agent_event interface; borrow Codex context and lifecycle semantics without inferring a larger tool surface or removal of persistent-Agent goals
+description: Confirmed three-tool unified Work interface (agent/work/agent_event) with explicit actions, shared submission/verification pipeline, and atomic cutover from nine legacy tools
 type: project
 ---
 
-## Current direction
+## Status
 
-The user clarified that the existing overall tool design is deliberately concise after a review proposed expanding it into Codex-style spawn, messaging, follow-up, interrupt, and listing tools. Preserve the compact delegation/work-control interface (`agent`) and shared communication interface (`agent_event`) as the design baseline. A preference for Codex is not authorization to copy its tool inventory, abandon persistent-Agent goals, or move lifecycle bookkeeping onto the caller.
+Planning spec at `packages/agent-teams/SPEC-unified-work.md` and `PLAN-unified-work.md`. Not yet implemented. The user explicitly selected: retain advanced Work management and resident autonomous claim, converge to three tool names, one-call agent delegation, and shared automatic+explicit submission.
 
-Use Codex's actual model-facing subagent implementation to assess fresh-versus-fork context selection and lifecycle correctness, not unrelated Workspace Agents or app-server thread operations. Distinguish runtime gaps and legacy entry-point overlap from flaws in the intended compact interface. Evaluate whether necessary semantics fit the existing contract before proposing more tools or parameters. Persistent identity, capability memory, and collaboration remain existing goals unless explicitly revised.
+## Confirmed interface
 
-The user has now confirmed one implementation slice: prompt without work always creates an independent Work Session (including concurrent work for one Agent); work targets existing execution; optional fork defaults false and true copies the current Leader context into new work; fork is invalid with work or without a prompt; ordinary final answers are delivered automatically on settlement. Keep memory/promotion outside this slice. Record the execution specification locally in the package, without a remote issue or repository-wide workflow setup. See @packages/agent-teams/SPEC-work-sessions.md and @packages/agent-teams/features/work-session-delegation.feature.
+Three coordination tools; old names removed at cutover.
 
-## Why
+### `agent` — Agent definition and resident execution
 
-The earlier design proposed an Agent as the central object. Its prior rationale follows for comparison, not as a current implementation mandate.
+| Action | Required | Optional | Effect |
+|---|---|---|---|
+| delegate | name, prompt | definition, resources, verify, fork, model | Create+assign one Work Item and start independent execution in one call |
+| start | name | definition, model | Start an unassigned resident; no Work Item or promised result |
+| inspect | name | session | Bounded Presence; starts no process |
+| stop | session | — | Confirmed stop of exact execution |
 
-The redesigned Agent Teams object is an Agent, not a session-bound teammate process. An Agent can work across projects. User Agent Definitions establish the durable identity; project definitions specialize the same named Agent without creating a project-owned identity. Unknown names create Temporary Agents, which can be promoted automatically after the leader judges their first result high-quality from evidence, verification, and reuse value.
+- Inline definition retains description/tools/prompt/model/verify/worktree; generated roles are session-local unless user requests persistence.
+- `fork` defaults false; true snapshots Leader's active Pi context (excludes unfinished tool exchanges and extension runtime identity). Valid only for delegate with no existing work.
+- `delegate` has no steer or implicit reopen branch; it always creates independent Work Sessions even for the same Agent.
+
+### `work` — Unified Work lifecycle (role-scoped)
+
+| Action | Authority | Effect |
+|---|---|---|
+| create | Leader | Pending Work Item with deps, resources, verify; notifies eligible residents; never spawns |
+| list | Leader or eligible Worker | State query; bounded filter/cursor; one ID returns result and current holding |
+| assign | Leader | Authorize one Assignment Attempt on an exact idle session or defined Agent for fresh execution |
+| claim | Eligible idle Worker | Queue intent; only the single writer's accepted binding authorizes execution |
+| submit | Current bound owner | Candidate result; shares pipeline with automatic final answer; suppresses automatic duplicate |
+| reopen | Leader | Settled terminal/parked work returns to pending; retains Work ID; retires old acceptance; creates no process |
+| release | Leader or owner | Relinquish unfinished/failed work; live resource locks survive until acknowledgement or confirmed stop |
+| supersede | Leader | Atomic replacement with pending-dependency rewire; live holder keeps resource until safe release |
+
+### `agent_event` — Communication only
+
+```ts
+{ message: string; to?: string; intent?: "inform" | "request" }
+```
+
+- No lifecycle authority: cannot submit, complete, reopen, release, or transfer work.
+- `to` omitted requires one unique bound reply route; ambiguous or absent → rejected.
+- Events bind to the current attempt at send time; if the attempt closes before consumption, the event is historical or rejected, not delivered to a next attempt.
+
+## One lifecycle
+
+States: pending → active → verifying → completed | failed | superseded. Dependency/resource blockers and verification attention are reasons on those states, not parallel machines.
+
+### Submission and verification
+
+- Ordinary final answer and explicit `work submit` produce the same internal submission event. Explicit submission ends the Worker turn and suppresses automatic duplication.
+- Effective gate: Work-specific verify, else Agent Definition default, pinned for the holding. Gate waits for authoring execution to settle.
+- No gate → accept at settlement. Gate → verifying until PASS; resources retained.
+- First FAIL → findings to same owner; may make a new submission without releasing.
+- Second consecutive FAIL or twice-inconclusive → park; one Leader attention event; no autonomous retry.
+- Completion is independent of acquisition path (delegate, assign, or claim).
+
+### Resource and ownership safety
+
+- One owner per Work Item at a time. Resource conflict check uses prefix hierarchy (firmware/sub conflicts with firmware/sub/deep).
+- Resource locks survive supersession until cancellation acknowledgement or confirmed stop.
+- Stale submissions, delayed gates, and old reports cannot accept, close, or unlock newer work.
+- Failed work blocks dependents; explicit reopen/release required for retry.
+
+## Cutover migration
+
+| Removed | Replaced by |
+|---|---|
+| teammate_spawn (with prompt) | agent delegate |
+| teammate_spawn (no prompt) | agent start |
+| teammate_shutdown | agent stop |
+| task_create | work create |
+| task_list | work list |
+| task_claim | work claim |
+| task_submit | work submit or ordinary final answer (automatic) |
+| send_message (leader→worker) | agent_event or agent delegate steering |
+| agent steer/reopen | work assign + agent delegate (no dual-path) |
+| agent inspect | agent inspect |
 
 ## How to apply
 
-- One Agent may hold several Work Items concurrently, but every Assignment Attempt runs in an isolated Work Session with its own Pi session, Process Incarnation, prompt context, tools, and temporary state.
-- All work sources—person, Routine, external event, or Agent handoff—create the same Work Item. Handoff transfers ownership only after the target Work Session accepts.
-- Persisted Agents own Agent Memory in their own dedicated folder. It records reusable capabilities, methods, judgment criteria, preferences, and operating patterns, including lessons abstracted from project work. Ownership follows content and applicability, not where the lesson was learned; Temporary Agents have no Agent Memory.
-- Project facts, concrete decisions, and history remain in the project's existing Project Memory. A reusable lesson may separately become Agent Memory without moving or copying the project record. Preserve the lesson's assumptions and limits; anonymizing a local decision alone does not make it general. Never create per-project subfolders inside Agent Memory or automatically load raw project evidence across projects.
-- Concurrent Work Sessions only submit versioned, evidence-backed Memory Proposals; an Agent-level serial reducer merges capability-focused proposals. Low-risk preferences may auto-merge after evidence, while high-risk rules require human approval.
-- `agent({ name, prompt?, work? })` is the delegation/work-control interface. `agent_event({ message, to?, status? })` is the shared communication interface for Leader ↔ Worker and Agent ↔ Agent, never exclusive to a role or user/project scope. Sender identity comes from runtime binding; a Leader binds to its Pi session without needing a Worker Assignment Attempt. Keep `to` for explicit addressing; omit it only with one unambiguous bound reply route. Shared messaging does not grant state-transition authority. Execution tools and advanced transitions remain separately authorized and progressively available.
-- Agent Definitions request capability intent. Each Work Item starts with the minimum effective tools and may progressively load additional policy-authorized capabilities.
-- Every Work Session receives its own Computer Lease; local worktrees, isolated browsers, and cloud computers are adapters. User access follows Status → Preview → Takeover, with Agent writes paused during takeover.
-- A persistent background broker/daemon is explicitly out of scope. Routines may create Work Items only while the current Agent Teams runtime is available; do not claim cross-session autonomous execution.
-- Notify the user only for an Attention Request or an important final result. This must not suppress required worker results to the leader; Presence, leader delivery, and human notifications are separate concerns.
-- Before implementation, close the cross-runtime storage and message-correlation contracts: a process-local serial reducer is not globally serial, atomic rename is not mutual exclusion, and an Agent name alone does not identify a reply's Work Session. See `packages/agent-teams/DESIGN-REVIEW.md` for the design gaps, not implemented guarantees.
+- Before implementation, each slice begins with its BDD scenario at `packages/agent-teams/features/unified-work-interface.feature` and one failing public-seam test.
+- Keep the existing Python-to-Node test harness, real state reducers, and controlled process boundary.
+- Do not introduce new adapter hierarchies, event-sourcing frameworks, or policy engines.
+- The simplification is complete only when duplicate registrations, kind-dependent logic, and repeated coordination prose are deleted.
+- The current single Leader runtime is the sole writer. Cross-runtime scheduling, global persistent inbox, daemon, cloud computers, automatic promotion, and Agent Memory changes are out of scope for this slice.
 
 ## Related
 
 [[project_teammate_autonomous_and_tui]]
-[[project_continual_learning_autonomous_consolidation]]
-[[project_pi_package_conventions]]
+[[project_agent_leader_priority]]
+[[project_follow-up-queue]]
+[[feedback_no_sleep_waiting_for_teammates]]

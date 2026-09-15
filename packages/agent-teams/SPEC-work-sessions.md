@@ -2,6 +2,8 @@
 
 Status: confirmed for implementation. Tracker: package-local specification, as selected by the user; no remote issue or repository-wide tracker setup. Label: ready-for-agent.
 
+Next-slice pointer: @SPEC-unified-work.md retains this slice's independent/forked execution guarantees while replacing work-ID steering and direct-only submission with the unified Work interface. This document continues to describe the earlier implemented slice.
+
 ## Problem Statement
 
 A concise Agent interface currently chooses between creating work and steering a resident based on process liveness. It cannot run two independent delegations to the same Agent or inherit the Leader's actual context. Workers must explicitly report terminal status even when their ordinary final answer already contains the result.

@@ -1,5 +1,7 @@
 # Agent Teams 设计反思
 
+后续规划：@SPEC-unified-work.md 与 @PLAN-unified-work.md 记录用户最新选择的三工具 interface，保留高级 Work 管理、常驻执行与自主 claim。下文关于两工具、移除 board 控制及未来扩展的建议是早期审查记录，不覆盖该选择。
+
 ## 结论
 
 产品方向成立，但 `DESIGN.md` 还不是可以直接实施的完整协议。它准确记录了用户要什么，却把一些尚未解决的执行问题写成了「内部自动处理」。

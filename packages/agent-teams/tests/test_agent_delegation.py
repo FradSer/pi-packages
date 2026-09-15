@@ -58,6 +58,10 @@ def test_agent_tool_schema():
     assert "prompt" in data["params"]["properties"]
     assert "work" in data["params"]["properties"]
 
+    source = (open(os.path.join(PACKAGE, "src", "tools.ts"), encoding="utf-8").read())
+    assert "Omit prompt only for deliberate presence inspection, never to poll progress or completion" in source
+    assert "After starting or steering, continue independent work or end the turn" in source
+
 def test_registered_agent_control_runtime_contracts():
     res = subprocess.run(
         ["node", "tests/agent-control-fixture.ts"], cwd=PACKAGE,

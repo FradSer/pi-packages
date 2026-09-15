@@ -210,7 +210,7 @@ export interface InboxMessage {
 /** The single minimal delegation and work control tool (leader-only). */
 export const AgentToolParams = Type.Object({
   name: Type.String({ minLength: 1, description: "Persistent or temporary Agent name" }),
-  prompt: Type.Optional(Type.String({ description: "New work without work ID; guidance to selected work with an ID. Omit to inspect without starting execution." })),
+  prompt: Type.Optional(Type.String({ description: "New work without work ID; guidance to selected work with an ID. Omit only for deliberate presence diagnosis, never to poll progress or completion." })),
   work: Type.Optional(Type.String({ description: "Specific Work Item ID to steer or reopen" })),
   model: Type.Optional(Type.String({ description: "Optional model override for new work (e.g. 'provider/model'). Defaults to current session model." })),
   fork: Type.Optional(Type.Boolean({ description: "Copy the current leader conversation into new work. Defaults to false (fresh context); invalid with work or without prompt." })),

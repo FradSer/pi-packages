@@ -1834,6 +1834,9 @@ def test_leader_send_message_ignores_stray_status_instead_of_throwing(tmp_path: 
     assert payload["stray"].startswith("MESSAGING\nQUEUED · to=@audit")
     assert "status ignored" in payload["stray"]
     assert payload["normal"].startswith("MESSAGING\nQUEUED · to=@audit")
+    assert "Routing acknowledgment is not worker consumption" in payload["normal"]
+    assert "Do not inspect for confirmation, repeat this guidance, or ask for progress or the final report" in payload["normal"]
+    assert "Continue independent work or end the turn" in payload["normal"]
 
 
 def test_send_message_renders_recorded_terminal_report_without_resend(tmp_path: Path) -> None:
@@ -2527,12 +2530,15 @@ def test_every_agent_teams_tool_executes_through_real_registrations(tmp_path: Pa
             description: "test worker", tools: [], prompt: "test", worktree: false,
           }}, prompt: "test",
         }}, undefined, undefined, {{ cwd: root }});
+        leaderResults.idleSpawn = await leader.teammate_spawn.execute("idle-spawn", {{
+          name: "idle-worker", agent: "worker",
+        }}, undefined, undefined, {{ cwd: root }});
         const worker = registerTeammate({{ name: "peer", agent: "peer", spawnId: "peer-spawn", pid: 0, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
         writeRoster(path.join(root, "roster.json"), [
           {{ name: "worker", agent: "worker", status: "idle" }},
           {{ name: "peer", agent: "peer", status: "idle" }},
         ]);
-        leaderResults.message = await leader.send_message.execute("message", {{ to: "worker", message: "hello" }});
+        leaderResults.message = await leader.send_message.execute("message", {{ to: "session:worker", message: "hello" }});
         leaderResults.create = await leader.task_create.execute("create", {{ subject: "integration task" }}, undefined, undefined, {{}});
         leaderResults.list = await leader.task_list.execute("list", {{}}, undefined, undefined, {{}});
         const workerTools = [];
@@ -2557,11 +2563,18 @@ def test_every_agent_teams_tool_executes_through_real_registrations(tmp_path: Pa
         workerResults.submit = await workerMap.task_submit.execute("submit", {{ taskId: "integration-task", status: "completed", result: "done" }});
         const submitted = fs.readdirSync(submissionsDir).length;
         leaderResults.shutdown = await leader.teammate_shutdown.execute("shutdown", {{ name: "worker" }}, undefined, undefined, {{}});
+        leaderResults.idleShutdown = await leader.teammate_shutdown.execute("idle-shutdown", {{ name: "idle-worker" }}, undefined, undefined, {{}});
         shutdownTeamMachine();
         console.log(JSON.stringify({{
           leaderNames: Object.keys(leader), workerNames: Object.keys(workerMap),
           leaderSuccess: Object.values(leaderResults).every(Boolean),
           workerSuccess: Object.values(workerResults).every(Boolean),
+          spawnClosesCoordination: leaderResults.spawn.content[0].text.includes("KICKOFF · supplied once to this Work Session")
+            && leaderResults.spawn.content[0].text.includes("Do not echo the kickoff or inspect for confirmation")
+            && leaderResults.spawn.content[0].text.includes("Continue independent work or end the turn"),
+          idleSpawnDoesNotPromiseResult: leaderResults.idleSpawn.content[0].text.includes("No automatic completion result is pending")
+            && leaderResults.idleSpawn.content[0].text.includes("leave it idle until explicit work or a claimable board notice arrives")
+            && !leaderResults.idleSpawn.content[0].text.includes("the final result arrives automatically"),
           messageSteered: leaderResults.message.details?.outcome === "steered",
           workerReportWritten: fs.existsSync(path.join(root, "peer-outbox.jsonl")),
           claimMarkerWritten: claimed === 1,
@@ -2575,6 +2588,8 @@ def test_every_agent_teams_tool_executes_through_real_registrations(tmp_path: Pa
     assert payload["workerNames"] == ["agent_event", "send_message", "task_list", "task_claim", "task_submit"]
     assert payload["leaderSuccess"] is True
     assert payload["workerSuccess"] is True
+    assert payload["spawnClosesCoordination"] is True
+    assert payload["idleSpawnDoesNotPromiseResult"] is True
     assert payload["messageSteered"] is True
     assert payload["workerReportWritten"] is True
     assert payload["claimMarkerWritten"] is True

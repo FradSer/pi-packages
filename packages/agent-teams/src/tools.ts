@@ -54,12 +54,19 @@ function spawnAssignment(params: { name: string; agent: string; prompt?: string 
   return formatAgentTaskName(prompt, "check task board");
 }
 
+function routedCoordinationNext(): string {
+  return [
+    "NOTE · Routing acknowledgment is not worker consumption.",
+    "NEXT · Do not inspect for confirmation, repeat this guidance, or ask for progress or the final report. Continue independent work or end the turn; the final result arrives automatically.",
+  ].join("\n");
+}
+
 export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentControlRuntime = { spawnTeammate, sendLeaderMessage }): void {
   pi.registerTool({
     name: "agent",
-    promptSnippet: "Delegate work or inspect a persistent Agent",
+    promptSnippet: "Delegate work or deliberately inspect Agent Presence",
     label: "Agent Control",
-    description: "Delegate independent work to a defined Agent (see Available agents in guidance). Unknown names are rejected without spawning — create the role first with teammate_spawn and an inline definition. A prompt without work always starts a new Work Session; work selects existing execution. Omit prompt to inspect. Results arrive automatically. fork optionally inherits the leader context; fresh by default.",
+    description: "Delegate independent work to a defined Agent (see Available agents in guidance). Unknown names are rejected without spawning — create the role first with teammate_spawn and an inline definition. A prompt without work always starts a new Work Session; work selects existing execution. Omit prompt only for deliberate presence inspection, never to poll progress or completion. After starting or steering, continue independent work or end the turn; results arrive automatically. fork optionally inherits the leader context; fresh by default.",
     parameters: AgentToolParams,
     renderShell: "self",
     renderCall: emptyToolCall,
@@ -86,7 +93,7 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentControlRunti
     name: "agent_event",
     promptSnippet: "Send an event or message to a participant",
     label: "Agent Event",
-    description: "Shared communication interface across Leader, Worker, and Peers.",
+    description: "Shared communication interface across Leader, Worker, and Peers. Leader-to-Agent messages carry only new evidence, changed constraints, or decisions — never kickoff echoes, progress requests, completion requests, or confirmation probes.",
     parameters: AgentEventParams,
     renderShell: "self",
     renderCall: emptyToolCall,
@@ -109,8 +116,10 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentControlRunti
       const to = resolveRecipient(params.to, livingTeammates());
       const result = runtime.sendLeaderMessage(to, params.message, {});
       if (!result.ok) throw new Error(result.error);
+      const recorded = result.outcome === "not-sent" ? `\nRECORDED TERMINAL REPORT · ${result.terminalReport}` : "";
+      const next = result.outcome === "not-sent" ? "" : `\n${routedCoordinationNext()}`;
       return {
-        content: [{ type: "text", text: `EVENT ROUTING · ${result.outcome} · to=@${to}\nINTENT · ${params.status ?? "inform"}${result.outcome === "not-sent" ? `\nRECORDED TERMINAL REPORT · ${result.terminalReport}` : ""}` }],
+        content: [{ type: "text", text: `EVENT ROUTING · ${result.outcome} · to=@${to}\nINTENT · ${params.status ?? "inform"}${recorded}${next}` }],
         details: { to, outcome: result.outcome, status: params.status ?? "inform" },
       };
     },
@@ -141,11 +150,15 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentControlRunti
       if (!result.ok) throw new Error(result.error);
       refreshTeamUI(ctx);
       refreshLeaderToolDisclosure();
-      const kickoffNote = params.prompt?.trim()
-        ? "It received your kickoff prompt and is working on it."
-        : "It received the standard board-check kickoff and is running its first turn; it idles once that settles.";
+      const hasAssignment = Boolean(params.prompt?.trim());
+      const kickoffNote = hasAssignment
+        ? "KICKOFF · supplied once to this Work Session; it is working on it."
+        : "KICKOFF · standard board-check supplied once; it is running its first turn and idles once that settles.";
+      const next = hasAssignment
+        ? "NEXT · Do not echo the kickoff or inspect for confirmation. Continue independent work or end the turn; the final result arrives automatically."
+        : "NEXT · No automatic completion result is pending. Do not inspect for confirmation; leave it idle until explicit work or a claimable board notice arrives.";
       return {
-        content: [{ type: "text", text: `@${params.name} is alive as ${params.agent}.\n${kickoffNote}\n\n${rosterSummary()}` }],
+        content: [{ type: "text", text: `@${params.name} is alive as ${params.agent}.\n${kickoffNote}\n${next}\n\n${rosterSummary()}` }],
         details: { started: true },
       };
     },
@@ -184,7 +197,7 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentControlRunti
     name: "send_message",
     promptSnippet: "Send a message to a teammate",
     label: "Send Message",
-    description: "The only messaging primitive. Address a living teammate by name; working teammates receive a steer immediately and idle teammates wake with the message.",
+    description: "The only messaging primitive. Address a living teammate only with new evidence, changed constraints, or a distinct assignment; never echo its kickoff or ask for progress, completion, or confirmation. Working teammates receive a steer immediately and idle teammates wake with the message.",
     parameters: SendMessageParams,
     // Canonical lifecycle rows (same as packages/monitor): empty call slot,
     // ONE delivery row owned by renderResult.
@@ -225,7 +238,7 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentControlRunti
       const action = result.outcome === "steered"
         ? "active control stream accepted the steer"
         : "harness will deliver the queued message on the next wake-up";
-      let text = `MESSAGING\n${result.outcome.toUpperCase()} · to=@${params.to}\nNEXT · ${action}`;
+      let text = `MESSAGING\n${result.outcome.toUpperCase()} · to=@${params.to}\nROUTING · ${action}\n${routedCoordinationNext()}`;
       // A stray status field (copied from worker report patterns) must not
       // block delivery — it carries no meaning on leader-sent messages.
       if (params.status) text += `\nNOTE · status ignored for leader-directed steering`;

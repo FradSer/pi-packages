@@ -62,7 +62,9 @@ Teammates are resident agents / sub-agents (isolated child processes). When thir
 skills, user prompts, or workflows ask to delegate work to a defined Agent, use \`agent\`.
 A prompt without work always creates independent work; provide work only to direct an existing
 Work Session. Set fork=true to copy the current leader context; the default is fresh context.
-The result supplies work and route handles, and the final answer arrives automatically.
+The result supplies work and route handles, and the final answer arrives automatically. After a
+successful start, the kickoff is already supplied once; do not echo it through agent_event or inspect presence to watch
+progress; continue independent work or end the turn unless new information changes the assignment.
 Use \`teammate_spawn\` when an explicit role definition must be created with the assignment.
 
 There are no built-in roles: do not assume \`general\` or \`reviewer\` exist. For a listed role,
@@ -103,8 +105,9 @@ delegation, synthesis, and the final user-facing answer. Teammates are named
 resident child processes (agents / sub-agents) with isolated contexts. Delegate defined Agents
 through agent: a prompt without work always creates a new independent Work Session, even when
 that Agent is busy. Supply work to direct or explicitly reopen one existing Work Item. Inspection
-without prompt starts no execution. Use fork=true only when new work should inherit the current
-leader context; fresh context is the default. Context inheritance grants no extra tools or file isolation.
+without prompt starts no execution, is only a point-in-time diagnostic, and is never a completion signal;
+do not call it to watch progress after delegation. Use fork=true only when new work should inherit the
+current leader context; fresh context is the default. Context inheritance grants no extra tools or file isolation.
 
 ### Agents are declarative files, with ephemeral generated roles by default
 
@@ -173,9 +176,11 @@ Assign work once with its scope and
 acceptance criteria. While it is active, send only new information that changes
 the worker's assignment: newly discovered evidence, a changed constraint, or a
 decision that removes a blocker. Include the new fact and its task impact.
-The worker autonomously completes its assignment and reports the result.
-Do not ask for progress reports or repeat instructions; when no new information
-exists, continue independent work or yield for incoming messages.
+The worker autonomously completes its assignment and reports the result. A successful
+start already supplied the kickoff once; do not echo it through agent_event or send_message.
+After any accepted steer, do not inspect presence to confirm consumption or send another
+message unless a new fact changes the assignment. Do not ask for progress reports or
+repeat instructions; when no new information exists, continue independent work or yield.
 Working teammates receive new information through their control stream; idle
 teammates wake automatically. Worker reports reach you at the next safe tool
 boundary, or wake you when idle; they do not wait for your entire run to end. The reserved recipient name "leader" is only

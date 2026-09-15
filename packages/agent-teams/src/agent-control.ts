@@ -74,6 +74,34 @@ export function controlAgent(
   return presenceResult(params.name, cwd, "started", result.teammate);
 }
 
+function coordinationNext(
+  outcome: "inspected" | "started" | "steered" | "queued" | "not-sent",
+  status: string,
+): string[] {
+  if (outcome === "started") {
+    return [
+      "KICKOFF · supplied once to this Work Session",
+      "NEXT · Do not echo the kickoff through another message. Continue independent work or end the turn; the final result arrives automatically.",
+    ];
+  }
+  if (outcome === "steered" || outcome === "queued") {
+    return [
+      "ROUTING · Routing acknowledgment is not worker consumption.",
+      "NEXT · Do not inspect for confirmation, repeat this guidance, or ask for progress or the final report. Continue independent work or end the turn; the final result arrives automatically.",
+    ];
+  }
+  if (outcome === "inspected") {
+    const next = status === "working" || status === "starting"
+      ? "Active work reports completion automatically."
+      : "No active completion is pending for this Agent Presence.";
+    return [
+      "PRESENCE · point-in-time projection, not a completion signal",
+      `NEXT · Use Agent Presence only for deliberate diagnosis, not progress polling. ${next}`,
+    ];
+  }
+  return [];
+}
+
 function presenceResult(
   name: string,
   cwd: string | undefined,
@@ -82,12 +110,14 @@ function presenceResult(
 ) {
   const presence = agentPresence(name, cwd);
   const work = selected ? workSessionPresence(selected) : undefined;
+  const status = work?.status ?? presence.status;
   const rows = presence.sessions.map((session) =>
     `- ${session.workId ?? "unassigned"} · ${session.status} · ${session.assignmentOpen ? "open" : "none open"} · to=${session.route}`);
   return {
     content: [{ type: "text" as const, text: [
-      `AGENT PRESENCE · @${name}`, "SCOPE · current session", `STATUS · ${work?.status ?? presence.status}`,
-      `OUTCOME · ${outcome}`, ...(work ? [`WORK · ${work.workId ?? "none"}`, `ROUTE · ${work.route}`, `CONTEXT · ${work.context}`] : []),
+      `AGENT PRESENCE · @${name}`, "SCOPE · current session", `STATUS · ${status}`,
+      `OUTCOME · ${outcome}`, ...coordinationNext(outcome, status),
+      ...(work ? [`WORK · ${work.workId ?? "none"}`, `ROUTE · ${work.route}`, `CONTEXT · ${work.context}`] : []),
       "WORK SESSIONS", ...rows.length ? rows : ["(none)"],
     ].join("\n") }],
     details: { ...presence, ...work, outcome },

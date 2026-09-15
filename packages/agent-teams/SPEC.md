@@ -1,5 +1,7 @@
 # Specification: Agent Teams Persistent Agents (Slice 1 — Core Delegation & Shared Communication)
 
+Status: prior design target, not a complete implemented contract. For the next coordination interface and its delivery plan, use @SPEC-unified-work.md and @PLAN-unified-work.md; they retain advanced Work control and supersede this document's two-tool and automatic Temporary Agent assumptions for that slice.
+
 ## Problem Statement
 
 Users need to delegate engineering responsibilities to named, persistent AI Agents across projects. Today, `@fradser/pi-agent-teams` models teammates as session-bound child processes started with `--no-session` and terminated on leader session shutdown. When a session ends or switches projects, the agent's identity, context, and standing responsibility vanish. Furthermore, leader and worker coordination currently relies on seven low-level tools with disparate completion and assignment semantics across direct kickoff and task board workflows.
