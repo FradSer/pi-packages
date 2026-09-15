@@ -639,10 +639,50 @@ def test_consolidate_pipeline_gates_harness_phase() -> None:
     assert "applyHarnessConsolidationPlan" in src
     assert 'shouldRunHarnessPhase(state, opts.noContext)' in src
     assert 'gate !== "run"' in src
-    assert "skipped (no-context run)" in src
+    assert 'if (opts.noContext)' in src
+    assert 'await writeCurrentReceipt()' in src
     assert "await startConsolidationPipeline(ctx, dreamState," in src
-    assert src.count("await spawnAsyncConsolidation(frozenContext, state, opts);") == 1
+    assert "selectedScope: incrementalSelection?.selection?.selected" in src
+    assert "dossierPath: incrementalSelection?.dossierPath" in src
     assert "Promise.all([harnessPromise, agentsPromise])" in src
+    assert "exploreLearningContext" not in src
+
+
+def test_incremental_harness_task_uses_authoritative_dossier_without_broad_discovery(tmp_path: Path) -> None:
+    result = run_bun(rf'''
+      import {{ mock }} from 'bun:test';
+      import fs from 'node:fs';
+      import path from 'node:path';
+      import {{ EventEmitter }} from 'node:events';
+      const tasks = [];
+      const kit = await import('./packages/kit/src/index.ts');
+      mock.module('./packages/kit/src/index.ts', () => ({{
+        ...kit,
+        spawnPiChild: (_command, args) => {{
+          const taskFile = args.find(arg => arg.startsWith('@')).slice(1);
+          tasks.push(fs.readFileSync(taskFile, 'utf8'));
+          const manifest = JSON.parse(fs.readFileSync(path.join(path.dirname(taskFile), 'manifest.json'), 'utf8'));
+          const plan = {{ kind: 'harness-consolidation-plan', version: 1, schemaVersion: 1, runId: manifest.runId, scopeDigest: manifest.scopeDigest, artifactHash: manifest.snapshotDigest, operations: [], evidence: [], report: [] }};
+          const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter(); child.exitCode = null; child.signalCode = null;
+          queueMicrotask(() => {{ child.stdout.emit('data', Buffer.from(JSON.stringify({{ type: 'message_end', message: {{ role: 'assistant', content: [{{ type: 'text', text: JSON.stringify(plan) }}] }} }}) + '\n')); child.exitCode = 0; child.emit('close', 0); }});
+          return child;
+        }},
+      }}));
+      const {{ createConsolidationRun, releaseConsolidationRun }} = await import('./packages/continual-learning/extensions/consolidation-run.ts');
+      const {{ planHarnessConsolidationPhase }} = await import('./packages/continual-learning/extensions/harness-consolidation.ts');
+      const cwd = {json.dumps(str(tmp_path))};
+      const entries = [{{ message: {{ role: 'user', content: 'Never write generated files.' }} }}];
+      const ctx = {{ cwd, ui: {{ notify() {{}} }}, sessionManager: {{ getBranch: () => entries, buildContextEntries: () => entries }} }};
+      const run = await createConsolidationRun(ctx, cwd, false);
+      const dossier = path.join(run.manifest.runDir, 'incremental-learning-dossier.json'); fs.writeFileSync(dossier, '{{}}\n');
+      const outcome = await planHarnessConsolidationPhase(ctx, {{ pkgDir: process.cwd(), cwd, reason: 'incremental', run, explorationPath: dossier, explorationDigest: 'dossier-digest', resolveCli: () => ({{ command: process.execPath, args: [] }}) }});
+      await releaseConsolidationRun(run);
+      console.log(JSON.stringify({{ ok: outcome.ok, task: tasks[0] }}));
+    ''')
+    assert result["ok"] is True
+    assert "Authoritative Learning Dossier" in result["task"]
+    assert "Immutable task-slice snapshot" in result["task"]
+    assert "do not perform independent repository-wide exploration" in result["task"]
 
 
 def test_plan_requires_version_and_schema_version_one() -> None:
@@ -734,6 +774,114 @@ def test_receipt_builder_shapes_pre_and_post() -> None:
     for receipt in (out["pre"], out["post"]):
         assert receipt["kind"] == "harness-consolidation-receipt"
         assert receipt["digestBefore"] == "aa" and receipt["planDigest"] == "pd"
+
+
+def test_planner_timeout_output_limit_and_post_spawn_cancel_await_child_close() -> None:
+    result = run_bun(r'''
+      import { mock } from 'bun:test';
+      import fs from 'node:fs';
+      import os from 'node:os';
+      import path from 'node:path';
+      import { EventEmitter } from 'node:events';
+      const kit = await import('./packages/kit/src/index.ts');
+      let mode = '';
+      let lastChild;
+      mock.module('./packages/kit/src/index.ts', () => ({
+        ...kit,
+        spawnPiChild: () => {
+          const child = new EventEmitter();
+          child.stdout = new EventEmitter();
+          child.stderr = new EventEmitter();
+          child.exitCode = null;
+          child.signalCode = null;
+          child.pid = undefined;
+          child.closed = false;
+          child.closeScheduled = false;
+          child.kill = signal => {
+            if (!child.closeScheduled) {
+              child.closeScheduled = true;
+              setTimeout(() => {
+                child.signalCode = signal;
+                child.closed = true;
+                child.emit('close', null, signal);
+              }, 30);
+            }
+            return true;
+          };
+          if (mode === 'output-limit') {
+            setTimeout(() => child.stdout.emit('data', Buffer.alloc(16 * 1024 * 1024 + 1)), 0);
+          }
+          lastChild = child;
+          return child;
+        },
+      }));
+      const { planHarnessConsolidationPhase } = await import('./packages/continual-learning/extensions/harness-consolidation.ts');
+      const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-planner-stop-'));
+
+      const runCase = async name => {
+        mode = name;
+        const runDir = path.join(temp, name);
+        fs.mkdirSync(runDir, { recursive: true });
+        const snapshotPath = path.join(runDir, 'snapshot.json');
+        fs.writeFileSync(snapshotPath, JSON.stringify({ entries: [] }));
+        const run = {
+          manifest: {
+            runId: `run-${name}`,
+            scopeDigest: 'scope-digest',
+            snapshotDigest: 'snapshot-digest',
+            snapshotPath,
+            cwd: temp,
+            runDir,
+          },
+        };
+        let current = true;
+        const started = Date.now();
+        const planning = planHarnessConsolidationPhase(
+          { cwd: temp, ui: { notify() {} } },
+          {
+            pkgDir: process.cwd(), cwd: temp, reason: name, run,
+            resolveCli: () => ({ command: process.execPath, args: [] }),
+            timeoutMs: 5,
+          },
+          {
+            current: () => current,
+            onChild: () => { if (name === 'cancel') current = false; },
+          },
+        );
+        const raced = await Promise.race([
+          planning.then(value => ({ value })),
+          new Promise(resolve => setTimeout(() => resolve({ watchdog: true }), 150)),
+        ]);
+        const child = lastChild;
+        const closedWhenResolved = child.closed;
+        const elapsed = Date.now() - started;
+        if ('watchdog' in raced) {
+          child.exitCode = 1;
+          child.closed = true;
+          child.emit('close', 1, null);
+        } else if (!child.closed) {
+          await new Promise(resolve => child.once('close', resolve));
+        }
+        const value = await planning;
+        return { watchdog: 'watchdog' in raced, closedWhenResolved, elapsed, detail: value.detail };
+      };
+
+      const outputLimit = await runCase('output-limit');
+      const cancel = await runCase('cancel');
+      const timeout = await runCase('timeout');
+      fs.rmSync(temp, { recursive: true, force: true });
+      console.log(JSON.stringify({ outputLimit, cancel, timeout }));
+    ''')
+    assert result["outputLimit"]["watchdog"] is False
+    assert result["outputLimit"]["closedWhenResolved"] is True
+    assert "stdout exceeded" in result["outputLimit"]["detail"]
+    assert result["cancel"]["watchdog"] is False
+    assert result["cancel"]["closedWhenResolved"] is True
+    assert "cancelled" in result["cancel"]["detail"]
+    assert result["timeout"]["watchdog"] is False
+    assert result["timeout"]["closedWhenResolved"] is True
+    assert result["timeout"]["elapsed"] >= 30
+    assert "timed out" in result["timeout"]["detail"]
 
 
 def test_no_cli_dependency_fails_isolated_without_touching_state(tmp_path: Path) -> None:

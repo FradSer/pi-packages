@@ -60,6 +60,7 @@ function stringArray(value: unknown): string[] | undefined {
 
 const POLICY_FIELDS = ["name", "phase", "tools", "paths", "artifactPaths", "pattern", "patterns", "require", "action", "reason"] as const;
 const POLICY_FIELD_LIST = "name, phase, tools, paths, pattern, patterns, artifactPaths, require, action, and reason";
+const SKILL_PROMPT_FIELDS = ["prompt", "target", "userMessagePattern"] as const;
 const POLICY_PHASES = ["tool-call", "output", "artifact"] as const satisfies readonly PolicyPhase[];
 
 /** Validate a skill prompt before authoring or applying harness JSON. When a
@@ -80,8 +81,17 @@ export function validateSkillPromptDeclaration(
     return errors;
   }
   const entry = raw as Record<string, unknown>;
+  const unsupported = Object.keys(entry).filter((key) => !(SKILL_PROMPT_FIELDS as readonly string[]).includes(key));
+  if (unsupported.length) errors.push(`skill prompt has unsupported field(s): ${unsupported.join(", ")}; supported fields are prompt, target, and userMessagePattern`);
   if (typeof entry.prompt !== "string" || !entry.prompt.trim()) errors.push("skill prompt needs a non-empty prompt string");
   if (entry.target !== "system" && entry.target !== "user") errors.push("skill prompt target must be system or user");
+  if (entry.userMessagePattern !== undefined) {
+    if (typeof entry.userMessagePattern !== "string" || !entry.userMessagePattern.trim()) {
+      errors.push("skill prompt userMessagePattern must be a non-empty regular expression string");
+    } else if (!compile(entry.userMessagePattern)) {
+      errors.push("skill prompt userMessagePattern is an invalid regex");
+    }
+  }
   return errors;
 }
 
@@ -205,43 +215,18 @@ export function mergeLayers(layers: PolicyLayer[]): ResolvedConfig {
   for (const layer of layers) {
     for (const name of layer.disabled ?? []) disabled.add(name);
     for (const [name, raw] of Object.entries(layer.skillPrompts ?? {})) {
-      if (
-        name.length === 0 ||
-        name.length > 64 ||
-        !/^[a-z0-9-]+$/.test(name) ||
-        name.startsWith("-") ||
-        name.endsWith("-") ||
-        name.includes("--")
-      ) {
-        errors.push(`${layer.source}: skill prompt name "${name}" violates the Pi skill-name rules and was skipped`);
-        continue;
-      }
-      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-        errors.push(`${layer.source}: skill prompt "${name}" must be an object and was skipped`);
+      const declarationErrors = validateSkillPromptDeclaration(name, raw);
+      if (declarationErrors.length) {
+        errors.push(`${layer.source}: skill prompt "${name}" was skipped: ${declarationErrors.join("; ")}`);
         continue;
       }
       const entry = raw as Record<string, unknown>;
-      if (typeof entry.prompt !== "string" || !entry.prompt.trim()) {
-        errors.push(`${layer.source}: skill prompt "${name}" needs a non-empty string prompt and was skipped`);
-        continue;
-      }
-      if (entry.target !== "system" && entry.target !== "user") {
-        errors.push(`${layer.source}: skill prompt "${name}" target must be system or user and was skipped`);
-        continue;
-      }
-      if (entry.userMessagePattern !== undefined) {
-        if (typeof entry.userMessagePattern !== "string" || !entry.userMessagePattern.trim()) {
-          errors.push(`${layer.source}: skill prompt "${name}" userMessagePattern must be a non-empty regular expression string and was skipped`);
-          continue;
-        }
-        if (!compile(entry.userMessagePattern)) {
-          errors.push(`${layer.source}: skill prompt "${name}" userMessagePattern is an invalid regex and was skipped`);
-          continue;
-        }
-      }
+      const prompt = entry.prompt;
+      const target = entry.target;
+      if (typeof prompt !== "string" || (target !== "system" && target !== "user")) continue;
       skillPrompts.set(name, {
-        prompt: entry.prompt,
-        target: entry.target,
+        prompt,
+        target,
         ...(typeof entry.userMessagePattern === "string" ? { userMessagePattern: entry.userMessagePattern } : {}),
         source: layer.source,
       });

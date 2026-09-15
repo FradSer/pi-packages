@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -9,11 +10,12 @@ REPO = PKG_DIR.parents[1]
 MODULE = "./packages/continual-learning/extensions/agents-md-consolidation.ts"
 
 
-def js(source: str) -> dict[str, object] | list[object]:
+def js(source: str, env: dict[str, str] | None = None) -> dict[str, object] | list[object]:
     """Run a Bun snippet whose final stdout line is one JSON value."""
     result = subprocess.run(
         ["bun", "-e", source],
         cwd=REPO,
+        env={**os.environ, **(env or {})},
         capture_output=True,
         text=True,
         check=False,
@@ -28,8 +30,8 @@ def call_js(body: str, *imports: str) -> dict[str, object] | list[object]:
     return js(f"{import_lines}const out = await ({body});\nconsole.log(JSON.stringify(out));\n")
 
 
-def evidence(quote: str, occurrences: int = 1, kind: str = "gap") -> dict:
-    return {"kind": kind, "quote": quote, "occurrences": occurrences}
+def evidence(quote: str, entry_index: int = 0, occurrences: int = 1, kind: str = "gap") -> dict:
+    return {"kind": kind, "quote": quote, "entryIndex": entry_index, "occurrences": occurrences}
 
 
 def add_op(text: str = "- New rule unit", quote: str | None = None, occurrences: int = 2) -> dict:
@@ -84,6 +86,7 @@ def extract_skill_plan() -> dict:
                     "memoryName": "fixture-regeneration.md",
                     "description": "Fixtures must be regenerated after schema changes",
                     "type": "project",
+                    "classification": "safe",
                 },
                 "rationale": "durable but too detailed for the always-loaded file",
                 "evidence": [evidence("stale fixtures broke the build")],
@@ -125,12 +128,14 @@ def test_operation_without_evidence_is_rejected() -> None:
     assert any("evidence" in str(e) for e in result["errors"])
 
 
-def test_extract_memory_rejects_noncanonical_names_and_types() -> None:
+def test_extract_memory_rejects_noncanonical_names_types_and_classifications() -> None:
     base = extract_skill_plan()["operations"][1]
     for bad in (
         {**base, "extraction": {**base["extraction"], "memoryName": "../escape.md"}},
         {**base, "extraction": {**base["extraction"], "memoryName": "MEMORY.md"}},
         {**base, "extraction": {**base["extraction"], "type": "diary"}},
+        {**base, "extraction": {**base["extraction"], "classification": "secret"}},
+        {**base, "extraction": {key: value for key, value in base["extraction"].items() if key != "classification"}},
     ):
         plan = {**extract_skill_plan(), "operations": [bad]}
         plan_json = json.dumps(plan)
@@ -140,63 +145,85 @@ def test_extract_memory_rejects_noncanonical_names_and_types() -> None:
 
 # ── quote verification ────────────────────────────────────────────────
 
-SNAPSHOT = json.dumps(
-    {
-        "entries": [
-            {"message": {"role": "user", "content": [{"type": "text", "text": "the build failed because\nstale fixtures broke the build again"}]}},
-            {"type": "tool_execution_end", "result": "npm test failed with ERR_PNPM_NO_SCRIPT"},
-        ]
-    }
-)
-
-
-def test_quote_verification_accepts_verbatim_whitespace_and_escaped_forms() -> None:
-    snapshot_json = json.dumps(SNAPSHOT)
-    for quote in (
-        "stale fixtures broke the build again",
-        "failed with ERR_PNPM_NO_SCRIPT",
-        "the build failed because\\nstale fixtures",
-    ):
-        quote_json = json.dumps(quote)
-        result = call_js(f"quoteInSnapshot({quote_json}, {snapshot_json})", "quoteInSnapshot")
-        assert result is True, quote
-
-
-def test_quote_verification_rejects_paraphrase() -> None:
-    snapshot_json = json.dumps(SNAPSHOT)
-    quote_json = json.dumps("fixtures were outdated and broke things")
-    result = call_js(f"quoteInSnapshot({quote_json}, {snapshot_json})", "quoteInSnapshot")
-    assert result is False
-
-
-def test_verify_plan_quotes_drops_unverified_operations() -> None:
-    ops = [
-        {**add_op("- Keep me"), "evidence": [evidence("stale fixtures broke the build again")]},
-        {**add_op("- Drop me"), "evidence": [evidence("this quote appears nowhere at all")]},
+SNAPSHOT_OBJECT = {
+    "entries": [
+        {"message": {"role": "user", "content": [{"type": "text", "text": "the build failed because\nstale fixtures broke the build again"}]}},
+        {"type": "tool_execution_end", "result": "npm test failed with ERR_PNPM_NO_SCRIPT"},
+        {"message": {"role": "assistant", "content": "assistant invented evidence"}},
+        {"type": "tool_execution_end", "toolName": "write", "policyName": "metadata-only", "result": "ordinary result"},
+        {"message": {"role": "toolResult", "content": [{"type": "text", "text": "SDK tool result evidence"}]}},
+        {"message": {"role": "user", "content": "stale fixtures broke the build again"}},
     ]
-    ops_json = json.dumps(ops)
+}
+SNAPSHOT = json.dumps(SNAPSHOT_OBJECT)
+
+
+def test_quote_verification_requires_indexed_user_or_tool_result_content() -> None:
     snapshot_json = json.dumps(SNAPSHOT)
+    cases = [
+        ("stale fixtures broke the build again", 0, True),
+        ("npm test failed with ERR_PNPM_NO_SCRIPT", 1, True),
+        ("SDK tool result evidence", 4, True),
+        ("assistant invented evidence", 2, False),
+        ("metadata-only", 3, False),
+        ("ordinary result", 0, False),
+        ("fixtures were outdated and broke things", 0, False),
+    ]
+    for quote, entry_index, expected in cases:
+        result = call_js(
+            f"quoteInSnapshot({json.dumps(quote)}, {snapshot_json}, {entry_index})",
+            "quoteInSnapshot",
+        )
+        assert result is expected, (quote, entry_index)
+
+
+def test_verify_plan_quotes_drops_unindexed_and_unverified_operations() -> None:
+    ops = [
+        {**add_op("- Keep me"), "evidence": [evidence("stale fixtures broke the build again", 0)]},
+        {**add_op("- Wrong entry"), "evidence": [evidence("ordinary result", 0)]},
+        {**add_op("- Assistant"), "evidence": [evidence("assistant invented evidence", 2)]},
+    ]
     result = call_js(
-        f"(() => {{ const r = verifyPlanQuotes({ops_json}, {snapshot_json}); "
-        f"return {{ kept: r.operations.length, dropped: r.dropped, firstQuote: r.operations[0]?.evidence?.[0]?.quote }}; }})()",
+        f"(() => {{ const r = verifyPlanQuotes({json.dumps(ops)}, {json.dumps(SNAPSHOT)}); "
+        f"return {{ kept: r.operations.length, dropped: r.dropped, first: r.operations[0]?.evidence?.[0] }}; }})()",
         "verifyPlanQuotes",
     )
     assert result["kept"] == 1
-    assert result["dropped"] == [1]
-    assert result["firstQuote"] == "stale fixtures broke the build again"
+    assert result["dropped"] == [1, 2]
+    assert result["first"]["entryIndex"] == 0
 
 
-def test_add_unit_requires_batched_evidence() -> None:
+def test_add_unit_counts_distinct_snapshot_entries_not_planner_occurrences() -> None:
     cases = [
-        (add_op(occurrences=1), False),
-        (add_op(occurrences=2), True),
-        ({"op": "addUnit", "text": "- Rule", "placement": "append", "evidence": [evidence("same quote"), evidence("same quote")]}, False),
-        ({"op": "removeUnit", "oldText": "- x", "evidence": [evidence("q")]}, True),
+        (
+            {**add_op(occurrences=99), "evidence": [evidence("npm test failed with ERR_PNPM_NO_SCRIPT", 1, 99)]},
+            False,
+        ),
+        (
+            {**add_op(), "evidence": [evidence("stale fixtures broke the build again", 0), evidence("stale fixtures broke the build again", 5)]},
+            True,
+        ),
+        (
+            {**add_op(), "evidence": [evidence("stale fixtures broke the build again", 0), evidence("stale fixtures broke the build again", 0)]},
+            False,
+        ),
+        ({"op": "removeUnit", "oldText": "- x", "evidence": [evidence("stale fixtures broke the build again", 0)]}, True),
     ]
     for op, expected in cases:
-        op_json = json.dumps(op)
-        result = call_js(f"addUnitEvidenceSufficient({op_json})", "addUnitEvidenceSufficient")
+        verified = call_js(
+            f"(() => {{ const r = verifyPlanQuotes([{json.dumps(op)}], {json.dumps(SNAPSHOT)}); return r.operations[0] ?? null; }})()",
+            "verifyPlanQuotes",
+        )
+        result = call_js(f"addUnitEvidenceSufficient({json.dumps(verified)})", "addUnitEvidenceSufficient") if verified else False
         assert result is expected, (op, expected, result)
+
+
+def test_evidence_schema_requires_snapshot_entry_index() -> None:
+    plan = rewrite_plan()
+    del plan["operations"][0]["evidence"][0]["entryIndex"]
+    result = call_js(f"validateAgentsMdPlan({json.dumps(plan)})", "validateAgentsMdPlan")
+    assert result["ok"] is False
+    assert any("entryIndex" in str(error) for error in result["errors"])
 
 
 # ── simulation ────────────────────────────────────────────────────────
@@ -302,6 +329,326 @@ def test_target_resolution_and_user_level_guard(tmp_path: Path) -> None:
     assert result["guardOther"] is False
 
 
+# ── transactional application ─────────────────────────────────────────
+
+
+def apply_plan_script(
+    project: Path,
+    agent: Path,
+    run_dir: Path,
+    operations: list[dict],
+    *,
+    cancelled_after: int | None = None,
+    fail_at: str | None = None,
+) -> str:
+    run = {
+        "manifest": {
+            "runId": "run_test",
+            "scopeDigest": "scope",
+            "snapshotDigest": "snapshot",
+            "runDir": str(run_dir),
+            "harnessDir": str(agent / "memory" / "project"),
+            "publicDir": str(project / ".memory"),
+        }
+    }
+    doc = (project / "AGENTS.md").read_text(encoding="utf-8")
+    planning = {
+        "run": run,
+        "targetPath": str(project / "AGENTS.md"),
+        "docBytesBase64": __import__("base64").b64encode(doc.encode()).decode(),
+        "doc": doc,
+        "preBytes": len(doc.encode()),
+        "snapshotText": SNAPSHOT,
+        "rawPlan": {"kind": "agents-md-consolidation-plan", "operations": operations},
+        "operations": operations,
+        "droppedCount": 0,
+        "durationMs": 1,
+    }
+    return f"""
+      import {{ applyAgentsMdConsolidationPlan }} from '{MODULE}';
+      const state = {{ active: true, generation: 1, cancelled: false }};
+      const opts = {{ pkgDir: {json.dumps(str(PKG_DIR))}, cwd: {json.dumps(str(project))}, reason: 'test', budgetBytes: 16384, disabled: false, availableSkills: ['using-open-artifacts'], transactionFault: {json.dumps(fail_at)} }};
+      let checks = 0;
+      const planning = {json.dumps(planning)};
+      planning.docBytes = Buffer.from(planning.docBytesBase64, 'base64');
+      delete planning.docBytesBase64;
+      const result = await applyAgentsMdConsolidationPlan({{ ui: {{ notify() {{}} }} }}, state, opts, planning, 1, {json.dumps(cancelled_after)} === null ? undefined : () => ++checks < {json.dumps(cancelled_after)});
+      const read = async (file) => await Bun.file(file).text().catch(() => null);
+      const exists = async (file) => await Bun.file(file).exists();
+      console.log(JSON.stringify({{
+        result,
+        agents: await read({json.dumps(str(project / 'AGENTS.md'))}),
+        harnessMemory: await read({json.dumps(str(agent / 'memory' / 'project' / 'fixture-regeneration.md'))}),
+        publicMemory: await read({json.dumps(str(project / '.memory' / 'fixture-regeneration.md'))}),
+        harnessIndex: await read({json.dumps(str(agent / 'memory' / 'project' / 'MEMORY.md'))}),
+        publicIndex: await read({json.dumps(str(project / '.memory' / 'MEMORY.md'))}),
+        harnessConfig: await read({json.dumps(str(project / '.pi' / 'harness.local.json'))}),
+        preReceipt: JSON.parse((await read({json.dumps(str(run_dir / 'agents-pre-receipt.json'))})) ?? 'null'),
+        preReceiptExists: await exists({json.dumps(str(run_dir / 'agents-pre-receipt.json'))}),
+        receiptExists: await exists({json.dumps(str(run_dir / 'agents-post-receipt.json'))}),
+      }}));
+    """
+
+
+def extraction_ops(memory_type: str = "project", classification: str = "safe") -> list[dict]:
+    return [
+        {
+            "op": "extractUnit",
+            "oldText": "- Regenerate fixtures after schema changes",
+            "extraction": {
+                "target": "memory",
+                "memoryName": "fixture-regeneration.md",
+                "description": "Regenerate fixtures after schema changes",
+                "type": memory_type,
+                "classification": classification,
+            },
+            "evidence": [evidence("stale fixtures broke the build again", 0)],
+        },
+        {
+            "op": "extractUnit",
+            "oldText": "- Use coda0.com as the default artifacts host",
+            "extraction": {
+                "target": "skillPrompt",
+                "skillName": "using-open-artifacts",
+                "prompt": "Use coda0.com as the default instance.",
+                "promptTarget": "system",
+            },
+            "evidence": [evidence("npm test failed with ERR_PNPM_NO_SCRIPT", 1)],
+        },
+    ]
+
+
+def prepare_extraction_roots(tmp_path: Path) -> tuple[Path, Path, Path]:
+    project = tmp_path / "project"
+    agent = tmp_path / "agent"
+    run_dir = tmp_path / "run"
+    (project / ".memory").mkdir(parents=True)
+    (project / ".pi").mkdir()
+    (agent / "memory" / "project").mkdir(parents=True)
+    run_dir.mkdir()
+    (project / "AGENTS.md").write_text(
+        "# Rules\n\n- Regenerate fixtures after schema changes\n- Use coda0.com as the default artifacts host\n",
+        encoding="utf-8",
+    )
+    harness_index = "# Memory Index\n\n- [existing-private.md](existing-private.md) (harness only)\n"
+    public_index = "# Memory Index\n"
+    (agent / "memory" / "project" / "existing-private.md").write_text("private\n", encoding="utf-8")
+    (agent / "memory" / "project" / "MEMORY.md").write_text(harness_index, encoding="utf-8")
+    (project / ".memory" / "MEMORY.md").write_text(public_index, encoding="utf-8")
+    return project, agent, run_dir
+
+
+def test_safe_extraction_updates_both_roots_and_preserves_private_markers(tmp_path: Path) -> None:
+    project, agent, run_dir = prepare_extraction_roots(tmp_path)
+    result = js(apply_plan_script(project, agent, run_dir, extraction_ops()), {"PI_CODING_AGENT_DIR": str(agent)})
+    assert result["result"]["outcome"] == "applied"
+    assert result["result"]["applied"] == 2
+    assert result["harnessMemory"] == result["publicMemory"]
+    assert "(harness only)" in result["harnessIndex"]
+    assert "fixture-regeneration.md" in result["publicIndex"]
+    assert result["preReceiptExists"] is True
+    assert result["preReceipt"]["phase"] == "pre"
+    assert result["preReceipt"]["planDigest"]
+    assert any(entry["file"].endswith("AGENTS.md") and entry["bytesBase64"] for entry in result["preReceipt"]["predecessors"])
+    assert result["receiptExists"] is True
+    assert "Regenerate fixtures" not in result["agents"]
+    assert "coda0.com" not in result["agents"]
+
+
+def test_private_extraction_stays_private_and_is_indexed(tmp_path: Path) -> None:
+    project, agent, run_dir = prepare_extraction_roots(tmp_path)
+    result = js(apply_plan_script(project, agent, run_dir, extraction_ops("project", "private")[:1]), {"PI_CODING_AGENT_DIR": str(agent)})
+    assert result["result"]["outcome"] == "applied"
+    assert result["harnessMemory"] is not None
+    assert result["publicMemory"] is None
+    assert "fixture-regeneration.md](fixture-regeneration.md) (harness only)" in result["harnessIndex"]
+    assert "existing-private.md](existing-private.md) (harness only)" in result["harnessIndex"]
+
+
+def test_skill_prompt_extraction_rejects_symlinked_project_config_path(tmp_path: Path) -> None:
+    project, agent, run_dir = prepare_extraction_roots(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (project / ".pi").rmdir()
+    (project / ".pi").symlink_to(outside, target_is_directory=True)
+    before_agents = (project / "AGENTS.md").read_text(encoding="utf-8")
+    result = js(apply_plan_script(project, agent, run_dir, extraction_ops()[1:]), {"PI_CODING_AGENT_DIR": str(agent)})
+    assert result["result"]["outcome"] == "failed"
+    assert result["agents"] == before_agents
+    assert not (outside / "harness.local.json").exists()
+    assert result["receiptExists"] is False
+
+
+def test_existing_memory_name_fails_without_overwriting_or_editing_agents(tmp_path: Path) -> None:
+    project, agent, run_dir = prepare_extraction_roots(tmp_path)
+    existing = agent / "memory" / "project" / "FIXTURE-REGENERATION.md"
+    existing.write_text("do not overwrite\n", encoding="utf-8")
+    before_agents = (project / "AGENTS.md").read_text(encoding="utf-8")
+    result = js(apply_plan_script(project, agent, run_dir, extraction_ops()[:1]), {"PI_CODING_AGENT_DIR": str(agent)})
+    assert result["result"]["outcome"] == "failed"
+    assert result["result"]["applied"] == 0
+    assert existing.read_text(encoding="utf-8") == "do not overwrite\n"
+    assert result["agents"] == before_agents
+    assert result["receiptExists"] is False
+
+
+def test_failure_and_cancellation_roll_back_every_surface(tmp_path: Path) -> None:
+    for fail_at, cancelled_after in (("after-artifacts", None), ("after-agents", None), ("before-receipt", None), (None, 3)):
+        case = tmp_path / f"case-{fail_at or 'cancel'}"
+        project, agent, run_dir = prepare_extraction_roots(case)
+        before = {
+            "agents": (project / "AGENTS.md").read_bytes(),
+            "harnessIndex": (agent / "memory" / "project" / "MEMORY.md").read_bytes(),
+            "publicIndex": (project / ".memory" / "MEMORY.md").read_bytes(),
+        }
+        result = js(
+            apply_plan_script(project, agent, run_dir, extraction_ops(), cancelled_after=cancelled_after, fail_at=fail_at),
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        expected = "cancelled" if cancelled_after is not None else "failed"
+        assert result["result"]["outcome"] == expected
+        assert result["result"]["applied"] == 0
+        assert (project / "AGENTS.md").read_bytes() == before["agents"]
+        assert (agent / "memory" / "project" / "MEMORY.md").read_bytes() == before["harnessIndex"]
+        assert (project / ".memory" / "MEMORY.md").read_bytes() == before["publicIndex"]
+        assert result["harnessMemory"] is None
+        assert result["publicMemory"] is None
+        assert result["harnessConfig"] is None
+        assert result["preReceiptExists"] is False
+        assert result["receiptExists"] is False
+
+
+def test_duplicate_case_insensitive_memory_names_fail_before_mutation(tmp_path: Path) -> None:
+    project, agent, run_dir = prepare_extraction_roots(tmp_path)
+    (project / "AGENTS.md").write_text("# Rules\n\n- One\n- Two\n", encoding="utf-8")
+    first = extraction_ops()[0]
+    first["oldText"] = "- One"
+    second = json.loads(json.dumps(first))
+    second["oldText"] = "- Two"
+    second["extraction"]["memoryName"] = "FIXTURE-REGENERATION.md"
+    before = (project / "AGENTS.md").read_text(encoding="utf-8")
+    result = js(apply_plan_script(project, agent, run_dir, [first, second]), {"PI_CODING_AGENT_DIR": str(agent)})
+    assert result["result"]["outcome"] == "failed"
+    assert result["agents"] == before
+    assert result["harnessMemory"] is None
+    assert result["preReceiptExists"] is False
+    assert result["receiptExists"] is False
+
+
+def test_orphan_pre_receipt_recovers_predecessors_before_new_work(tmp_path: Path) -> None:
+    project, agent, run_dir = prepare_extraction_roots(tmp_path)
+    agents_file = project / "AGENTS.md"
+    memory_file = agent / "memory" / "project" / "partial.md"
+    predecessor = agents_file.read_bytes()
+    memory_file.write_text("partial\n", encoding="utf-8")
+    agents_file.write_text("# Partially changed\n", encoding="utf-8")
+    snapshot = run_dir / "snapshot.json"
+    snapshot.write_text('{"entries":[]}\n', encoding="utf-8")
+    digest = __import__("hashlib").sha256(snapshot.read_bytes()).hexdigest()
+    receipt = {
+        "kind": "agents-md-consolidation-receipt", "phase": "pre",
+        "runId": "run_recover", "scopeDigest": "scope", "snapshotDigest": digest,
+        "targetFile": str(agents_file), "budgetBytes": 16384, "planDigest": "a" * 64,
+        "predecessors": [
+            {"file": str(agents_file), "existed": True, "mode": 0o644, "bytesBase64": __import__("base64").b64encode(predecessor).decode()},
+            {"file": str(memory_file), "existed": False, "mode": None, "bytesBase64": None},
+        ],
+        "directories": [],
+    }
+    (run_dir / "agents-pre-receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
+    result = js(f'''
+      import {{ recoverAgentsMdConsolidation }} from '{MODULE}';
+      const run = {{ manifest: {{ runId: 'run_recover', scopeDigest: 'scope', snapshotDigest: {json.dumps(digest)}, harnessDir: {json.dumps(str(agent / 'memory' / 'project'))}, publicDir: {json.dumps(str(project / '.memory'))}, runDir: {json.dumps(str(run_dir))} }} }};
+      console.log(JSON.stringify({{ recovered: await recoverAgentsMdConsolidation(run, {json.dumps(str(project))}) }}));
+    ''', {"PI_CODING_AGENT_DIR": str(agent)})
+    assert result["recovered"] is True
+    assert agents_file.read_bytes() == predecessor
+    assert not memory_file.exists()
+    assert not (run_dir / "agents-pre-receipt.json").exists()
+
+
+def test_pending_recovery_is_discovered_from_the_project_runs_directory(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    agent = tmp_path / "agent"
+    project.mkdir(); agent.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+    import hashlib
+    scope_key = hashlib.sha256(str(project.resolve()).encode()).hexdigest()
+    readable = str(project.resolve()).replace("/", "-").replace(" ", "-")[:174]
+    harness_dir = agent / "memory" / f"{readable}--{scope_key}"
+    public_dir = project / ".memory"
+    run_id = "run_recover_pending"
+    run_dir = agent / "memory" / "runs" / scope_key / run_id
+    run_dir.mkdir(parents=True)
+    (project / "AGENTS.md").write_text("changed\n", encoding="utf-8")
+    snapshot = run_dir / "snapshot.json"; snapshot.write_text('{"entries":[]}\n', encoding="utf-8")
+    snapshot_digest = hashlib.sha256(snapshot.read_bytes()).hexdigest()
+    manifest = {
+        "schemaVersion": 1, "runId": run_id, "cwd": str(project.resolve()), "scopeKey": scope_key,
+        "scopeDigest": "scope", "harnessDir": str(harness_dir), "publicDir": str(public_dir),
+        "runDir": str(run_dir), "contextEnabled": True, "contextMode": "snapshot",
+        "snapshotPath": str(snapshot), "snapshotDigest": snapshot_digest, "createdAt": "2026-01-01T00:00:00.000Z",
+        "sourceHashes": {"harness": {}, "public": {}},
+    }
+    (run_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    predecessor = b"original\n"
+    receipt = {
+        "kind": "agents-md-consolidation-receipt", "phase": "pre", "runId": run_id,
+        "scopeDigest": "scope", "snapshotDigest": snapshot_digest, "targetFile": str(project / "AGENTS.md"),
+        "budgetBytes": 16384, "planDigest": "a" * 64,
+        "predecessors": [{"file": str(project / "AGENTS.md"), "existed": True, "mode": 0o644, "bytesBase64": __import__("base64").b64encode(predecessor).decode()}],
+        "directories": [],
+    }
+    (run_dir / "agents-pre-receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
+    result = js(f'''
+      process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+      const {{ recoverPendingAgentsMdConsolidations }} = await import('{MODULE}');
+      console.log(JSON.stringify({{ recovered: await recoverPendingAgentsMdConsolidations({json.dumps(str(project))}) }}));
+    ''', {"PI_CODING_AGENT_DIR": str(agent)})
+    assert result["recovered"] == 1
+    assert (project / "AGENTS.md").read_bytes() == predecessor
+    assert not (run_dir / "agents-pre-receipt.json").exists()
+
+
+def test_failed_extraction_restores_previously_absent_directories(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    agent = tmp_path / "agent"
+    run_dir = tmp_path / "run"
+    project.mkdir(); agent.mkdir(); run_dir.mkdir()
+    (project / "AGENTS.md").write_text("# Rules\n\n- Regenerate fixtures after schema changes\n", encoding="utf-8")
+    result = js(
+        apply_plan_script(project, agent, run_dir, extraction_ops()[:1], fail_at="after-artifacts"),
+        {"PI_CODING_AGENT_DIR": str(agent)},
+    )
+    assert result["result"]["outcome"] == "failed"
+    assert not (agent / "memory" / "project").exists()
+    assert not (project / ".memory").exists()
+    assert result["preReceiptExists"] is False
+    assert result["receiptExists"] is False
+
+
+def test_swapped_memory_roots_are_rejected_before_redirected_write(tmp_path: Path) -> None:
+    for root_kind in ("private", "public"):
+        case = tmp_path / root_kind
+        project, agent, run_dir = prepare_extraction_roots(case)
+        memory_root = agent / "memory" / "project" if root_kind == "private" else project / ".memory"
+        predecessor = memory_root.with_name(f"{memory_root.name}-predecessor")
+        outside = case / "outside"
+        outside.mkdir()
+        script = apply_plan_script(project, agent, run_dir, extraction_ops()[:1])
+        script = script.replace(
+            "const opts = {",
+            f"const swapRoot = async () => {{ await (await import('node:fs/promises')).rename({json.dumps(str(memory_root))}, {json.dumps(str(predecessor))}); await (await import('node:fs/promises')).symlink({json.dumps(str(outside))}, {json.dumps(str(memory_root))}, 'dir'); }}; const opts = {{ transactionHook: async stage => {{ if (stage === 'before-artifacts') await swapRoot(); }},",
+            1,
+        )
+        result = js(script, {"PI_CODING_AGENT_DIR": str(agent)})
+        assert result["result"]["outcome"] == "failed"
+        assert not (outside / "fixture-regeneration.md").exists()
+        assert not (outside / "MEMORY.md").exists()
+        assert result["preReceiptExists"] is False
+        assert result["receiptExists"] is False
+
+
 # ── wiring and procedure contract ─────────────────────────────────────
 
 
@@ -319,6 +666,36 @@ def test_pipeline_plans_harness_and_agents_in_parallel_then_applies_sequentially
     assert "apply without an interactive prompt" in agents
 
 
+def test_changed_snapshot_bytes_are_rejected_before_agents_planning() -> None:
+    result = js(r'''
+      import { mock } from 'bun:test';
+      import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
+      import { EventEmitter } from 'node:events'; import { createHash } from 'node:crypto';
+      const kit = await import('./packages/kit/src/index.ts');
+      mock.module('./packages/kit/src/index.ts', () => ({
+        ...kit,
+        spawnPiChild: () => { const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter(); return child; },
+      }));
+      const { planAgentsMdConsolidationPhase } = await import('./packages/continual-learning/extensions/agents-md-consolidation.ts');
+      const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-stale-snapshot-'));
+      fs.writeFileSync(path.join(temp, 'AGENTS.md'), '# Rules\n');
+      const snapshotPath = path.join(temp, 'snapshot.json');
+      const original = JSON.stringify({ entries: [{ message: { role: 'user', content: 'original' } }] });
+      fs.writeFileSync(snapshotPath, original);
+      const digest = createHash('sha256').update(original).digest('hex');
+      fs.writeFileSync(snapshotPath, JSON.stringify({ entries: [{ message: { role: 'user', content: 'replacement' } }] }));
+      const run = { manifest: { runId: 'run', scopeDigest: 'scope', snapshotDigest: digest, snapshotPath, cwd: temp, runDir: temp }, paths: { snapshotFile: snapshotPath } };
+      const result = await planAgentsMdConsolidationPhase(
+        { cwd: temp, ui: { notify() {} } }, { active: true, generation: 1, cancelled: false },
+        { pkgDir: process.cwd(), cwd: temp, reason: 'test', budgetBytes: 16384, disabled: false }, run, 1,
+      );
+      fs.rmSync(temp, { recursive: true, force: true });
+      console.log(JSON.stringify(result));
+    ''')
+    assert result["outcome"] == "failed"
+    assert "snapshot changed" in result["detail"]
+
+
 def test_agents_planner_uses_package_agent_and_minimal_readonly_args() -> None:
     source = (PKG_DIR / "extensions" / "agents-md-consolidation.ts").read_text(encoding="utf-8")
     assert 'resourcePath: "agents/agents-md-consolidator.md"' in source
@@ -330,6 +707,80 @@ def test_procedure_declares_readonly_boundary_and_discipline() -> None:
     assert "Read-only boundary" in text
     assert "{{BUDGET_BYTES}}" in text
     assert "verbatim" in text
-    assert "at least two" in text or "batched evidence" in text
+    assert "entryIndex" in text
+    assert "user or tool-result" in text
+    assert "parent" in text and "distinct" in text
     assert "five operations" in text
     assert '"agents-md-consolidation-plan"' in text
+
+
+def test_plan_and_apply_interfaces_are_discriminated() -> None:
+    source = (PKG_DIR / "extensions" / "agents-md-consolidation.ts").read_text(encoding="utf-8")
+    assert 'outcome: "planned"' in source
+    assert 'outcome: "noop" | "rejected" | "failed" | "cancelled" | "skipped"' in source
+    assert 'outcome: "applied" | "noop" | "failed" | "cancelled"' in source
+
+
+def test_planner_timeout_output_limit_and_post_spawn_cancel_await_child_close() -> None:
+    result = js(r'''
+      import { mock } from 'bun:test';
+      import fs from 'node:fs';
+      import os from 'node:os';
+      import path from 'node:path';
+      import { EventEmitter } from 'node:events';
+      import { createHash } from 'node:crypto';
+      const kit = await import('./packages/kit/src/index.ts');
+      let mode = '';
+      let lastChild;
+      mock.module('./packages/kit/src/index.ts', () => ({
+        ...kit,
+        spawnPiChild: () => {
+          const child = new EventEmitter();
+          child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
+          child.exitCode = null; child.signalCode = null; child.pid = undefined;
+          child.closed = false; child.closeScheduled = false;
+          child.kill = signal => {
+            if (!child.closeScheduled) {
+              child.closeScheduled = true;
+              setTimeout(() => { child.signalCode = signal; child.closed = true; child.emit('close', null, signal); }, 30);
+            }
+            return true;
+          };
+          if (mode === 'output-limit') setTimeout(() => child.stdout.emit('data', Buffer.alloc(16 * 1024 * 1024 + 1)), 0);
+          lastChild = child;
+          return child;
+        },
+      }));
+      const { planAgentsMdConsolidationPhase } = await import('./packages/continual-learning/extensions/agents-md-consolidation.ts');
+      const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-planner-stop-'));
+      fs.writeFileSync(path.join(temp, 'AGENTS.md'), '# Rules\n');
+      const runCase = async name => {
+        mode = name;
+        const runDir = path.join(temp, name); fs.mkdirSync(runDir, { recursive: true });
+        const snapshotPath = path.join(runDir, 'snapshot.json');
+        const snapshot = JSON.stringify({ entries: [] }); fs.writeFileSync(snapshotPath, snapshot);
+        const snapshotDigest = createHash('sha256').update(snapshot).digest('hex');
+        const run = { manifest: { runId: `run-${name}`, scopeDigest: 'scope', snapshotDigest, snapshotPath, cwd: temp, runDir }, paths: { snapshotFile: snapshotPath } };
+        const state = { active: true, generation: 1, cancelled: false };
+        const started = Date.now();
+        const planning = planAgentsMdConsolidationPhase(
+          { cwd: temp, ui: { notify() {} } }, state,
+          { pkgDir: process.cwd(), cwd: temp, reason: name, budgetBytes: 16384, disabled: false, timeoutMs: 5 }, run, 1,
+        );
+        if (name === 'cancel') queueMicrotask(() => { state.cancelled = true; });
+        const value = await planning;
+        return { outcome: value.outcome, detail: value.detail, closedWhenResolved: lastChild.closed, elapsed: Date.now() - started };
+      };
+      const outputLimit = await runCase('output-limit');
+      const cancel = await runCase('cancel');
+      const timeout = await runCase('timeout');
+      fs.rmSync(temp, { recursive: true, force: true });
+      console.log(JSON.stringify({ outputLimit, cancel, timeout }));
+    ''')
+    assert result["outputLimit"]["closedWhenResolved"] is True
+    assert "stdout exceeded" in result["outputLimit"]["detail"]
+    assert result["cancel"]["closedWhenResolved"] is True
+    assert result["cancel"]["outcome"] == "cancelled"
+    assert result["timeout"]["closedWhenResolved"] is True
+    assert result["timeout"]["elapsed"] >= 30
+    assert "timed out" in result["timeout"]["detail"]

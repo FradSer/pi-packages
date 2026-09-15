@@ -20,10 +20,13 @@ Feature: Harness consolidation alongside memory consolidation
     And the child receives only read, grep, find, and ls tools
     And the parent remains the only process allowed to apply harness changes
 
-  Scenario: The harness planner mines guardrail evidence from history
-    Given the captured session contains blocked tool calls, confirmation outcomes, or user corrections
-    When the harness planner reads the immutable snapshot
-    Then every proposed operation cites concrete observed evidence from that snapshot
+  Scenario: The harness planner consumes the authoritative task dossier
+    Given the current task contains blocked tool calls, confirmation outcomes, or user corrections
+    And the selector wrote the authoritative Learning Dossier
+    When the Harness planner starts
+    Then its task names that dossier and the immutable task-slice snapshot
+    And it does not run an independent model explorer or broad repository scan
+    And every proposed operation cites concrete observed evidence from that snapshot
     And the parent alone writes any configuration
 
   Scenario: Harness evidence is bound to an observed actor and quote
@@ -78,6 +81,12 @@ Feature: Harness consolidation alongside memory consolidation
     Then changes merge into <project>/.pi/harness.local.json in one atomic write
     And the user shared and project shared layers are never written
     And a pre-apply receipt records the prior file digest and a post-apply receipt records the final digest
+
+  Scenario: Harness planner termination is awaited before the phase finishes
+    Given the harness planner child has been spawned
+    When the planner times out, exceeds its stdout limit, or is cancelled after spawn
+    Then the parent awaits child termination and the child close event
+    And the planning result does not resolve while the child could still hold the consolidation run
 
   Scenario: Harness phase failure isolates from memory results
     Given the memory phase already applied and verified its results

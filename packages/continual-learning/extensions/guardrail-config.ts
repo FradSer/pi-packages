@@ -22,10 +22,8 @@ export interface ResolvedHarnessConfig {
 }
 
 export function configPaths(cwd: string, agentDir?: string): ConfigPaths {
-  // Shared with the absorbed memory surface: honors PI_CODING_AGENT_DIR.
   const base = agentDir ?? getAgentDir();
-  const hasProjectAgent = fs.existsSync(path.join(cwd, ".pi", "agent"));
-  const projectDir = hasProjectAgent ? path.join(cwd, ".pi", "agent") : path.join(cwd, ".pi");
+  const projectDir = path.join(cwd, ".pi");
   return {
     user: path.join(base, "harness.json"),
     project: path.join(projectDir, "harness.json"),
@@ -69,22 +67,13 @@ export function loadLayers(cwd: string, agentDir?: string): PolicyLayer[] {
   const paths = configPaths(cwd, agentDir);
   const layers: PolicyLayer[] = [];
 
-  const altProject = paths.project.includes(path.join(".pi", "agent"))
-    ? path.join(cwd, ".pi", "harness.json")
-    : path.join(cwd, ".pi", "agent", "harness.json");
-  const altProjectLocal = paths.projectLocal.includes(path.join(".pi", "agent"))
-    ? path.join(cwd, ".pi", "harness.local.json")
-    : path.join(cwd, ".pi", "agent", "harness.local.json");
-
   const userLayer = readLayer("user", paths.user);
   if (userLayer) layers.push(userLayer);
 
-  const projFile = fs.existsSync(paths.project) ? paths.project : (fs.existsSync(altProject) ? altProject : paths.project);
-  const projLayer = readLayer("project", projFile);
+  const projLayer = readLayer("project", paths.project);
   if (projLayer) layers.push(projLayer);
 
-  const projLocalFile = fs.existsSync(paths.projectLocal) ? paths.projectLocal : (fs.existsSync(altProjectLocal) ? altProjectLocal : paths.projectLocal);
-  const projLocalLayer = readLayer("project.local", projLocalFile);
+  const projLocalLayer = readLayer("project.local", paths.projectLocal);
   if (projLocalLayer) layers.push(projLocalLayer);
 
   return layers;

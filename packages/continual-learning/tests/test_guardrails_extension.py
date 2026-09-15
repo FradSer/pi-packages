@@ -174,6 +174,8 @@ def test_harness_discovery_uses_exactly_three_layers_and_ignores_user_personal(t
     project_pi = project / ".pi"
     agent_dir.mkdir()
     project_pi.mkdir(parents=True)
+    obsolete_project_agent = project_pi / "agent"
+    obsolete_project_agent.mkdir()
     policy = lambda reason: {
         "policies": [{"name": "layered", "pattern": reason, "action": "block", "reason": reason}]
     }
@@ -181,6 +183,8 @@ def test_harness_discovery_uses_exactly_three_layers_and_ignores_user_personal(t
     (agent_dir / "harness.local.json").write_text(json.dumps(policy("user-personal")), encoding="utf-8")
     (project_pi / "harness.json").write_text(json.dumps(policy("project-shared")), encoding="utf-8")
     (project_pi / "harness.local.json").write_text(json.dumps(policy("project-personal")), encoding="utf-8")
+    (obsolete_project_agent / "harness.json").write_text(json.dumps(policy("obsolete-project-shared")), encoding="utf-8")
+    (obsolete_project_agent / "harness.local.json").write_text(json.dumps(policy("obsolete-project-personal")), encoding="utf-8")
     source = f"""
         import {{ configPaths, loadLayers }} from './packages/continual-learning/extensions/guardrail-config.ts';
         import {{ mergeLayers }} from './packages/continual-learning/extensions/guardrail-engine.ts';
@@ -189,14 +193,56 @@ def test_harness_discovery_uses_exactly_three_layers_and_ignores_user_personal(t
         const merged = mergeLayers(layers);
         console.log(JSON.stringify({{
           pathKeys: Object.keys(paths),
+          pathValues: Object.values(paths),
           sources: layers.map((layer) => layer.source),
           reason: merged.policies.find((policy) => policy.name === 'layered')?.reason,
         }}));
     """
     result = run_bun(source)
     assert result["pathKeys"] == ["user", "project", "projectLocal"]
+    assert result["pathValues"] == [
+        str(agent_dir / "harness.json"),
+        str(project_pi / "harness.json"),
+        str(project_pi / "harness.local.json"),
+    ]
     assert result["sources"] == ["user", "project", "project.local"]
     assert result["reason"] == "project-personal"
+
+
+def test_harness_cache_tracks_the_exact_canonical_project_files(tmp_path: Path) -> None:
+    agent_dir = tmp_path / "agent"
+    project = tmp_path / "project"
+    project_pi = project / ".pi"
+    obsolete_project_agent = project_pi / "agent"
+    agent_dir.mkdir()
+    obsolete_project_agent.mkdir(parents=True)
+    canonical = project_pi / "harness.json"
+    obsolete = obsolete_project_agent / "harness.json"
+    policy = lambda pattern: {
+        "policies": [{"name": "cached", "pattern": pattern, "action": "block", "reason": pattern}]
+    }
+    canonical.write_text(json.dumps(policy("alpha")), encoding="utf-8")
+    obsolete.write_text(json.dumps(policy("obsolete")), encoding="utf-8")
+    source = f"""
+        import fs from 'node:fs';
+        import {{ resolveHarnessConfig }} from './packages/continual-learning/extensions/guardrail-config.ts';
+        const cwd = {json.dumps(str(project))};
+        const agentDir = {json.dumps(str(agent_dir))};
+        const first = resolveHarnessConfig(cwd, agentDir);
+        fs.writeFileSync({json.dumps(str(canonical))}, {json.dumps(json.dumps(policy("beta")))});
+        const future = new Date(Date.now() + 60_000);
+        fs.utimesSync({json.dumps(str(canonical))}, future, future);
+        const second = resolveHarnessConfig(cwd, agentDir);
+        console.log(JSON.stringify({{
+          paths: second.paths,
+          first: first.config.policies.find((policy) => policy.name === 'cached')?.pattern,
+          second: second.config.policies.find((policy) => policy.name === 'cached')?.pattern,
+        }}));
+    """
+    result = run_bun(source)
+    assert result["paths"]["project"] == str(canonical)
+    assert result["first"] == "alpha"
+    assert result["second"] == "beta"
 
 
 def test_harness_prompt_routes_a_direct_rule_request() -> None:
@@ -266,6 +312,27 @@ def test_global_harness_target_rejects_symlinks(tmp_path: Path) -> None:
     """
     result = run_bun(source)
     assert result['rejected'] is True
+
+
+def test_project_harness_target_rejects_a_symlinked_parent_escape(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    outside = tmp_path / "outside"
+    project.mkdir()
+    outside.mkdir()
+    (project / ".pi").symlink_to(outside, target_is_directory=True)
+    target = project / ".pi" / "harness.local.json"
+    source = f"""
+        import {{ ensureHarnessTarget }} from './packages/continual-learning/extensions/guardrails.ts';
+        try {{
+          await ensureHarnessTarget({json.dumps(str(target))}, {json.dumps(str(project))});
+          console.log(JSON.stringify({{ rejected: false }}));
+        }} catch (error) {{
+          console.log(JSON.stringify({{ rejected: /symlink|outside/.test(String(error)) }}));
+        }}
+    """
+    result = run_bun(source)
+    assert result["rejected"] is True
+    assert not (outside / "harness.local.json").exists()
 
 
 def test_invalid_skill_prompt_user_message_pattern_is_skipped_without_hiding_valid_siblings() -> None:

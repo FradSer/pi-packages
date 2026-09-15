@@ -40,8 +40,20 @@ function resolvePublicMemoryDir(cwd: string, agentDir: string): string | undefin
   }
 }
 
+const PRIVATE_DIR_MAX_BYTES = 240;
+
 export function escapedProjectPath(cwd: string): string {
-  return canonicalProjectCwd(cwd).replace(/[\\/\s]+/g, "-");
+  const readable = canonicalProjectCwd(cwd)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\\/\s]+/g, "-")
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-");
+  const name = readable || "project";
+  if (Buffer.byteLength(name, "utf8") > PRIVATE_DIR_MAX_BYTES) {
+    throw new Error(`Escaped project path exceeds the ${PRIVATE_DIR_MAX_BYTES}-byte portable component limit`);
+  }
+  return name;
 }
 
 export function resolveMemoryPaths(cwd: string, agentDir = getAgentDir()): MemoryPaths {

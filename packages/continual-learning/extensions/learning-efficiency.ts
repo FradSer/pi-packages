@@ -2,8 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { PiWorkerUsage } from "@fradser/pi-kit";
 
-export type LearningMode = "automatic" | "manual";
-export type LearningPhase = "explorer" | "memory" | "harness" | "agents";
+export type LearningMode = "automatic" | "manual" | "full";
+export type LearningPhase = "selector" | "memory" | "harness" | "agents";
 export type LearningOutcome = "screened" | "skipped" | "noop" | "applied" | "rejected" | "failed" | "cancelled";
 
 export interface LearningScreen {
@@ -20,10 +20,12 @@ export interface LearningAttempt {
   durationMs: number;
   operations: number;
   usage?: PiWorkerUsage;
+  costAvailable?: boolean;
 }
 
 const DURABLE_USER_PATTERN = /\b(prefer|always|never|must|should|require|decision|remember|durable|future tasks?)\b|偏好|以后|始终|永远|必须|不要|记住|约束|决定|规则|持久/iu;
-const CORRECTION_PATTERN = /\b(wrong|instead|do not|don't|must not|should not|prohibit|blocked|confirmed|retry)\b|不对|改成|而不是|禁止|阻止|确认|重试|纠正/iu;
+const CONSTRAINT_USER_PATTERN = /\b(?:never|do not|don['’]t|must not|should not|prohibit(?:ed|s|ing)?|always\s+block)\b|不要|禁止|不得|严禁|切勿/iu;
+const CORRECTION_PATTERN = /\b(wrong|instead|confirmed|retry)\b|不对|改成|而不是|确认|重试|纠正/iu;
 const AGENTS_PATTERN = /AGENTS\.md|instruction|workflow|process|convention|architecture|指令|流程|规范|架构/iu;
 
 export function snapshotEntries(ctx: { sessionManager?: { buildContextEntries?: () => readonly unknown[]; getBranch?: () => readonly unknown[] } }): readonly unknown[] {
@@ -63,14 +65,16 @@ function collectText(value: unknown): string {
 }
 
 export function screenLearningEntries(entries: readonly unknown[], mode: LearningMode): LearningScreen {
-  if (mode === "manual") return { memory: true, harness: true, agents: true, reasons: ["manual-full"] };
+  if (mode === "full") return { memory: true, harness: true, agents: true, reasons: ["manual-full"] };
+  if (mode === "manual") return { memory: true, harness: true, agents: true, reasons: ["manual-incremental"] };
   const userTexts = entries.filter((entry) => entryRole(entry) === "user").map(collectText).filter(Boolean);
   const toolTexts = entries.filter((entry) => entryRole(entry) === "toolResult" || collectText(entry).includes("tool_execution")).map(collectText);
-  const durable = userTexts.some((text) => DURABLE_USER_PATTERN.test(text));
+  const constraint = userTexts.some((text) => CONSTRAINT_USER_PATTERN.test(text));
+  const durable = constraint || userTexts.some((text) => DURABLE_USER_PATTERN.test(text));
   const correction = userTexts.some((text) => CORRECTION_PATTERN.test(text));
   const harnessEvent = toolTexts.some((text) => /blocked|confirm|violation|policy|harness|isError/iu.test(text));
   const agents = userTexts.some((text) => CORRECTION_PATTERN.test(text) && AGENTS_PATTERN.test(text));
-  const harness = correction || harnessEvent;
+  const harness = constraint || correction || harnessEvent;
   return {
     memory: durable,
     harness,
@@ -80,18 +84,25 @@ export function screenLearningEntries(entries: readonly unknown[], mode: Learnin
 }
 
 export type PlannerFailure = "syntax" | "validation" | "model" | "timeout" | "cancelled" | "output-limit" | "stale" | "other";
+export type PlannerRetry = "none" | "incremental-memory-repair" | "full-planner-retry";
 
-export function shouldRetryPlanner(input: {
+export interface PlannerRetryInput {
   mode: LearningMode;
-  phase: Exclude<LearningPhase, "explorer">;
+  phase: Exclude<LearningPhase, "selector">;
   attempt: number;
   failure: PlannerFailure;
   mutated: boolean;
-}): boolean {
-  if (input.attempt > 0 || input.mutated) return false;
-  if (["model", "timeout", "cancelled", "output-limit", "stale", "other"].includes(input.failure)) return false;
-  if (input.mode === "manual") return input.failure === "syntax" || input.failure === "validation";
-  return input.phase === "memory" && input.failure === "syntax";
+}
+
+export function classifyPlannerRetry(input: PlannerRetryInput): PlannerRetry {
+  if (input.attempt > 0 || input.mutated) return "none";
+  if (input.failure !== "syntax" && input.failure !== "validation") return "none";
+  if (input.mode === "full") return "full-planner-retry";
+  return input.phase === "memory" ? "incremental-memory-repair" : "none";
+}
+
+export function shouldRetryPlanner(input: PlannerRetryInput): boolean {
+  return classifyPlannerRetry(input) !== "none";
 }
 
 export interface LearningPipelineReceipt {
@@ -101,6 +112,7 @@ export interface LearningPipelineReceipt {
   screen: LearningScreen;
   attempts: LearningAttempt[];
   totals: PiWorkerUsage;
+  costAvailable: boolean;
   operations: number;
   retries: number;
 }
@@ -113,6 +125,11 @@ export function buildLearningReceipt(mode: LearningMode, screen: LearningScreen,
     screen,
     attempts,
     totals: totalLearningUsage(attempts),
+    costAvailable: attempts.every((attempt) => {
+      if (!attempt.usage) return true;
+      const hasUsage = attempt.usage.input > 0 || attempt.usage.output > 0 || attempt.usage.cacheRead > 0 || attempt.usage.cacheWrite > 0 || attempt.usage.totalTokens > 0;
+      return attempt.costAvailable ?? !(hasUsage && attempt.usage.cost === 0);
+    }),
     operations: attempts.reduce((total, attempt) => total + attempt.operations, 0),
     retries: attempts.filter((attempt) => attempt.attempt > 0).length,
   };
@@ -127,9 +144,77 @@ export async function writeLearningReceipt(directory: string, receipt: LearningP
   return target;
 }
 
+export function formatLearningUsage(usage: PiWorkerUsage): string {
+  return `input ${usage.input} · output ${usage.output} · cacheRead ${usage.cacheRead} · cacheWrite ${usage.cacheWrite} · total ${usage.totalTokens}`;
+}
+
+export function formatLearningCost(usage: PiWorkerUsage, costAvailable = true): string {
+  const hasUsage = usage.input > 0 || usage.output > 0 || usage.cacheRead > 0 || usage.cacheWrite > 0 || usage.totalTokens > 0;
+  if (!costAvailable || (usage.cost === 0 && hasUsage)) return "cost unavailable";
+  return `$${usage.cost.toFixed(4)}`;
+}
+
+function finiteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function validUsage(value: unknown): value is PiWorkerUsage {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const usage = value as Partial<PiWorkerUsage>;
+  return [usage.input, usage.output, usage.cacheRead, usage.cacheWrite, usage.totalTokens, usage.cost].every(finiteNumber);
+}
+
+export function isLearningPipelineReceipt(value: unknown): value is LearningPipelineReceipt {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const receipt = value as Partial<LearningPipelineReceipt>;
+  const modes: LearningMode[] = ["automatic", "manual", "full"];
+  const phases: LearningPhase[] = ["selector", "memory", "harness", "agents"];
+  const outcomes: LearningOutcome[] = ["screened", "skipped", "noop", "applied", "rejected", "failed", "cancelled"];
+  const screen = receipt.screen as Partial<LearningScreen> | undefined;
+  return receipt.kind === "learning-pipeline-receipt" && receipt.version === 1 &&
+    typeof receipt.mode === "string" && modes.includes(receipt.mode as LearningMode) &&
+    Boolean(screen && typeof screen.memory === "boolean" && typeof screen.harness === "boolean" && typeof screen.agents === "boolean" && Array.isArray(screen.reasons) && screen.reasons.every((reason) => typeof reason === "string")) &&
+    Array.isArray(receipt.attempts) && receipt.attempts.every((attempt) =>
+      Boolean(attempt && phases.includes(attempt.phase) && outcomes.includes(attempt.outcome) && Number.isSafeInteger(attempt.attempt) && attempt.attempt >= 0 && finiteNumber(attempt.durationMs) && finiteNumber(attempt.operations) && (attempt.usage === undefined || validUsage(attempt.usage)))) &&
+    validUsage(receipt.totals) && finiteNumber(receipt.operations) && typeof receipt.retries === "number" && Number.isSafeInteger(receipt.retries) && receipt.retries >= 0 && typeof receipt.costAvailable === "boolean";
+}
+
+function surfaceCount(receipt: LearningPipelineReceipt, phase: "memory" | "harness"): number {
+  return receipt.attempts
+    .filter((attempt) => attempt.phase === phase && attempt.outcome === "applied")
+    .reduce((total, attempt) => total + attempt.operations, 0);
+}
+
+function surfaceLabel(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+export function learningSummarySubject(receipt: LearningPipelineReceipt): string {
+  const memory = surfaceCount(receipt, "memory");
+  const harness = surfaceCount(receipt, "harness");
+  const surfaces = [
+    ...(memory > 0 ? [surfaceLabel(memory, "memory", "memories")] : []),
+    ...(harness > 0 ? [surfaceLabel(harness, "harness change", "harness changes")] : []),
+  ];
+  if (surfaces.length > 0) return `${surfaces.join(" and ")} applied`;
+  if (receipt.attempts.some((attempt) => attempt.outcome === "failed" || attempt.outcome === "rejected")) return "finished with issues";
+  return "no durable changes";
+}
+
+export function learningSummaryDetails(receipt: LearningPipelineReceipt): string[] {
+  const phaseLines = receipt.attempts.map((attempt) => `${attempt.phase}: ${attempt.outcome} · ${attempt.operations} change(s) · ${attempt.durationMs} ms`);
+  return [
+    `mode: ${receipt.mode}`,
+    `operations: ${receipt.operations}`,
+    `calls: ${receipt.attempts.length}`,
+    `usage: ${formatLearningUsage(receipt.totals)}`,
+    `cost: ${formatLearningCost(receipt.totals, receipt.costAvailable)}`,
+    ...phaseLines,
+  ];
+}
+
 export function formatLearningSummary(receipt: LearningPipelineReceipt): string {
-  const phases = receipt.attempts.map((attempt) => `${attempt.phase}:${attempt.outcome}`).join(", ") || "screened:skipped";
-  return `Learning complete: ${receipt.operations} operation(s) · ${receipt.attempts.length} call(s) · ${receipt.totals.totalTokens} token(s) · $${receipt.totals.cost.toFixed(4)} · ${phases}`;
+  return `Learning ${learningSummarySubject(receipt)} · ${formatLearningUsage(receipt.totals)} · ${formatLearningCost(receipt.totals, receipt.costAvailable)}`;
 }
 
 export function totalLearningUsage(attempts: readonly LearningAttempt[]): PiWorkerUsage {

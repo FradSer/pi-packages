@@ -10,6 +10,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -59,6 +60,7 @@ interface RepairState {
   attempts: number;
   artifactBytes: number;
   artifacts: Map<string, Set<string>>;
+  requestedArtifactViolations: Set<string>;
 }
 
 function textFromMessage(message: MessageEndEvent["message"]): string | undefined {
@@ -116,8 +118,11 @@ function requestRepair(
   detail: string,
   paths: ReturnType<typeof resolveHarnessConfig>["paths"],
   pathName?: string,
+  contentFingerprint?: string,
 ): void {
   if (policy.action === "observe") return;
+  const artifactViolation = phase === "artifact" ? `${policy.name}\0${pathName ?? ""}\0${contentFingerprint ?? ""}` : undefined;
+  if (artifactViolation && state.requestedArtifactViolations.has(artifactViolation)) return;
   if (state.attempts >= MAX_REPAIR_ATTEMPTS) {
     appendCheck(pi, policyDetails(
       phase,
@@ -131,6 +136,7 @@ function requestRepair(
   }
   const attempt = state.attempts + 1;
   state.attempts = attempt;
+  if (artifactViolation) state.requestedArtifactViolations.add(artifactViolation);
   appendCheck(pi, policyDetails(
     phase,
     policy,
@@ -160,6 +166,10 @@ function requestRepair(
     },
     { deliverAs: "followUp", triggerTurn: true },
   );
+}
+
+function contentFingerprint(text: string): string {
+  return createHash("sha256").update(text).digest("hex");
 }
 
 function appendNoMatch(
@@ -292,7 +302,7 @@ function isFinalAssistantMessage(message: MessageEndEvent["message"]): boolean {
   if (message.role !== "assistant") return false;
   const stopReason = (message as unknown as { stopReason?: unknown }).stopReason;
   if (stopReason === undefined) return true;
-  return stopReason === "stop" || stopReason === "length" || stopReason === "error" || stopReason === "aborted";
+  return stopReason === "stop" || stopReason === "length";
 }
 
 async function checkFinalArtifacts(
@@ -331,7 +341,7 @@ async function checkFinalArtifacts(
         appendCheck(pi, policyDetails("artifact", policy, "observed", "final regular file matched an observe policy", resolved.paths, { path: file }));
         continue;
       }
-      requestRepair(pi, state, "artifact", policy, decision.cleanReason ?? decision.reason, "final regular file matched a prohibited pattern", resolved.paths, file);
+      requestRepair(pi, state, "artifact", policy, decision.cleanReason ?? decision.reason, "final regular file matched a prohibited pattern", resolved.paths, file, contentFingerprint(read.text));
     }
   }
 }
@@ -378,7 +388,7 @@ async function checkArtifactResult(pi: ExtensionAPI, event: ToolResultEvent, ctx
         appendCheck(pi, policyDetails("artifact", policy, "observed", "regular file matched an observe policy", resolved.paths, { path: file }));
         continue;
       }
-      requestRepair(pi, state, "artifact", policy, decision.cleanReason ?? decision.reason, "regular file matched a prohibited pattern", resolved.paths, file);
+      requestRepair(pi, state, "artifact", policy, decision.cleanReason ?? decision.reason, "regular file matched a prohibited pattern", resolved.paths, file, contentFingerprint(read.text));
     }
   }
 }
@@ -415,11 +425,12 @@ async function checkAssistantOutput(
  * keeping the registration separate prevents context guidance from becoming
  * an enforcement dependency. */
 export default function registerOutputChecks(pi: ExtensionAPI): void {
-  const state: RepairState = { attempts: 0, artifactBytes: 0, artifacts: new Map() };
+  const state: RepairState = { attempts: 0, artifactBytes: 0, artifacts: new Map(), requestedArtifactViolations: new Set() };
   const reset = () => {
     state.attempts = 0;
     state.artifactBytes = 0;
     state.artifacts.clear();
+    state.requestedArtifactViolations.clear();
   };
   pi.on("session_start", reset);
   pi.on("session_shutdown", reset);

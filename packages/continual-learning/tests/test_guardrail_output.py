@@ -72,6 +72,13 @@ def test_policy_phases_and_post_execution_checks_are_explicit() -> None:
       await outputHandler({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "DO_NOT_SAY" }] } }, { ...ctx });
       await outputHandler({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "DO_NOT_SAY" }] } }, { ...ctx });
 
+      hooks.input[0]({ type: "input", source: "interactive", text: "interrupted task" }, { ...ctx });
+      fs.writeFileSync(path.join(cwd, "generated.txt"), "DO_NOT_WRITE");
+      const repairsBeforeInterrupted = repairs.length;
+      await outputHandler({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "DO_NOT_SAY" }], stopReason: "aborted" } }, { ...ctx });
+      await outputHandler({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "DO_NOT_SAY" }], stopReason: "error" } }, { ...ctx });
+      const interruptedDidNotRepair = repairs.length === repairsBeforeInterrupted;
+
       const artifactHandler = hooks.tool_result[0];
       hooks.input[0]({ type: "input", source: "interactive", text: "start a new task" }, { ...ctx });
       const safePath = path.join(cwd, "safe.txt");
@@ -80,9 +87,13 @@ def test_policy_phases_and_post_execution_checks_are_explicit() -> None:
       const matchingPath = path.join(cwd, "matching.txt");
       fs.writeFileSync(matchingPath, "DO_NOT_WRITE");
       await artifactHandler({ type: "tool_result", toolCallId: "2", toolName: "write", input: { path: "matching.txt", content: "safe argument" }, content: [{ type: "text", text: "ok" }], isError: false }, { ...ctx });
+      const repairsAfterMatchingArtifact = repairs.length;
+      await artifactHandler({ type: "tool_result", toolCallId: "2-repeat", toolName: "write", input: { path: "matching.txt", content: "safe argument" }, content: [{ type: "text", text: "ok" }], isError: false }, { ...ctx });
+      const unchangedArtifactDeduped = repairs.length === repairsAfterMatchingArtifact;
       const generatedPath = path.join(cwd, "generated.txt");
       fs.writeFileSync(generatedPath, "DO_NOT_WRITE");
       await artifactHandler({ type: "tool_result", toolCallId: "bash-1", toolName: "bash", input: { command: "generate safe artifact" }, content: [{ type: "text", text: "ok" }], isError: false }, { ...ctx });
+      const repairsBeforeUnsupported = repairs.length;
       await artifactHandler({ type: "tool_result", toolCallId: "3", toolName: "write", input: {}, content: [{ type: "text", text: "ok" }], isError: false }, { ...ctx });
       const outside = path.join(tmp, "outside.txt");
       fs.writeFileSync(outside, "DO_NOT_WRITE");
@@ -94,6 +105,7 @@ def test_policy_phases_and_post_execution_checks_are_explicit() -> None:
       const large = path.join(cwd, "large.txt");
       fs.writeFileSync(large, "x".repeat(1_000_001));
       await artifactHandler({ type: "tool_result", toolCallId: "6", toolName: "write", input: { path: "large.txt" }, content: [{ type: "text", text: "ok" }], isError: false }, { ...ctx });
+      const unsupportedDidNotRepair = repairs.length === repairsBeforeUnsupported;
       await outputHandler({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "done" }], stopReason: "stop" } }, { ...ctx });
 
       console.log(JSON.stringify({
@@ -101,7 +113,9 @@ def test_policy_phases_and_post_execution_checks_are_explicit() -> None:
         defaultMatchesToolCall: defaultDecision?.policyName === "tool-default",
         outputMatches: outputDecision?.policyName === "output-secret",
         artifactMatches: artifactDecision?.policyName === "artifact-secret",
-        outputRepairsBounded: outputRepairsAfterFirst === 1 && repairs.length === 4,
+        outputRepairsBounded: outputRepairsAfterFirst === 1 && entries.filter((entry) => entry.data?.phase === "output" && entry.data?.status === "violated").length === 2,
+        interruptedDidNotRepair,
+        unchangedArtifactDeduped,
         outputViolation: entries.some((entry) => entry.data?.phase === "output" && entry.data?.status === "violated"),
         outputExhausted: entries.some((entry) => entry.data?.phase === "output" && entry.data?.status === "repair-exhausted"),
         argsOnlyDoesNotMatchArtifact: !entries.some((entry) => entry.data?.path === "safe.txt" && entry.data?.status === "violated"),
@@ -111,9 +125,9 @@ def test_policy_phases_and_post_execution_checks_are_explicit() -> None:
         unsupportedOutside: entries.some((entry) => entry.data?.path === "../outside.txt" && entry.data?.status === "unsupported"),
         unsupportedSymlink: entries.some((entry) => entry.data?.path === "link.txt" && entry.data?.status === "unsupported"),
         unsupportedLarge: entries.some((entry) => entry.data?.path === "large.txt" && entry.data?.status === "unsupported"),
-        unsupportedDidNotRepair: repairs.length === 4,
-        finalArtifactRecheck: entries.filter((entry) => entry.data?.path === "matching.txt").length > 1,
-        finalBashRecheck: entries.filter((entry) => entry.data?.path === "generated.txt").length > 1,
+        unsupportedDidNotRepair,
+        finalArtifactRecheckDeduped: entries.filter((entry) => entry.data?.path === "matching.txt" && entry.data?.status === "violated").length === 1,
+        finalBashRecheckDeduped: entries.filter((entry) => entry.data?.path === "generated.txt" && entry.data?.status === "violated").length === 1,
       }));
     '''
     result = run_bun(source)
@@ -121,10 +135,11 @@ def test_policy_phases_and_post_execution_checks_are_explicit() -> None:
     assert result["defaultMatchesToolCall"]
     assert result["outputMatches"] and result["artifactMatches"]
     assert result["outputRepairsBounded"] and result["outputViolation"] and result["outputExhausted"]
+    assert result["interruptedDidNotRepair"] and result["unchangedArtifactDeduped"]
     assert result["argsOnlyDoesNotMatchArtifact"] and result["actualArtifactMatches"] and result["bashArtifactMatches"]
     assert result["unsupportedMissing"] and result["unsupportedOutside"] and result["unsupportedSymlink"] and result["unsupportedLarge"]
     assert result["unsupportedDidNotRepair"]
-    assert result["finalArtifactRecheck"] and result["finalBashRecheck"]
+    assert result["finalArtifactRecheckDeduped"] and result["finalBashRecheckDeduped"]
 
 
 def test_context_guidance_is_registered_separately_from_guardrail_enforcement() -> None:

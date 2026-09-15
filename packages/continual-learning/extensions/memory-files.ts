@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import { resolveMemoryPaths, type MemoryPaths } from "./memory-paths";
 
@@ -50,79 +51,382 @@ export function isMemoryFilename(name: string): boolean {
   return MEMORY_NAME.test(name) && !isIndexName(name);
 }
 
-export async function rebuildMemoryIndex(dir: string, privateNames: Set<string> = new Set()): Promise<void> {
-  const names = (await fs.readdir(dir))
-    .filter((name) => isMemoryFilename(name))
-    .sort((left, right) => left.localeCompare(right));
-  const lines = ["# Memory Index", ""];
-  for (const name of names) {
-    lines.push(`- [${name}](${name})${privateNames.has(name.toLowerCase()) ? " (harness only)" : ""}`);
+async function lstatIfExists(target: string): Promise<Awaited<ReturnType<typeof fs.lstat>> | undefined> {
+  try {
+    return await fs.lstat(target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
   }
-  await fs.writeFile(path.join(dir, "MEMORY.md"), `${lines.join("\n")}\n`, "utf8");
 }
 
-/** Migrate the abandoned opaque SHA-256 scope into the readable private root. */
-export async function migrateLegacyMemoryDirs(
-  memory: MemoryPaths,
-  _cwdVariants: readonly string[] = [],
-): Promise<string[]> {
-  const candidates = new Set<string>([
-    path.join(memory.agentDir, "memory", memory.scopeKey),
-    path.join(memory.agentDir, "memory", memory.cwd.replace(/[\\/]+/g, "-")),
-  ]);
-  candidates.delete(memory.harnessDir);
-  const processedSources: string[] = [];
-  const removableSources: string[] = [];
-  const privateNames = new Set<string>();
+async function readRegularFileNoFollow(file: string): Promise<Buffer> {
+  let handle: fs.FileHandle | undefined;
   try {
-    const destinationIndex = await fs.readFile(path.join(memory.harnessDir, "MEMORY.md"), "utf8");
-    for (const line of destinationIndex.split(/\r?\n/)) {
-      if (!/\(\s*harness[\s_-]+only\s*\)/i.test(line)) continue;
-      const match = /[A-Za-z0-9][A-Za-z0-9_.-]*\.md/i.exec(line);
-      if (match && isMemoryFilename(match[0])) privateNames.add(match[0].toLowerCase());
-    }
-  } catch {
-    // No destination index yet.
+    handle = await fs.open(file, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+    const stat = await handle.stat();
+    if (!stat.isFile()) throw new Error(`Memory migration source is not a regular file: ${file}`);
+    return await handle.readFile();
+  } finally {
+    await handle?.close().catch(() => {});
   }
-  for (const legacyDir of [...candidates].sort()) {
-    let names: string[];
-    try {
-      names = await fs.readdir(legacyDir);
-    } catch {
-      continue;
-    }
-    const entries = await Promise.all(names.map(async (name) => ({
-      name,
-      stat: await fs.lstat(path.join(legacyDir, name)).catch(() => undefined),
-    })));
-    const unsupported = entries.some(({ name, stat }) =>
-      !stat?.isFile() || (!isMemoryFilename(name) && !isIndexName(name))
+}
+
+function collectPrivateNames(indexText: string, privateNames: Set<string>): void {
+  for (const line of indexText.split(/\r?\n/)) {
+    if (!/\(\s*harness[\s_-]+only\s*\)/i.test(line)) continue;
+    const match = /[A-Za-z0-9][A-Za-z0-9_.-]*\.md/i.exec(line);
+    if (match && isMemoryFilename(match[0])) privateNames.add(match[0].toLowerCase());
+  }
+}
+
+type RenamePath = (source: string, target: string) => Promise<void>;
+
+async function writeMemoryIndexSafely(
+  dir: string,
+  safeRoot: SafeRootHandle,
+  content: string,
+  renamePath: RenamePath = fs.rename,
+): Promise<void> {
+  const target = path.join(dir, "MEMORY.md");
+  const targetStat = await lstatIfExists(target);
+  if (targetStat?.isSymbolicLink() || (targetStat && !targetStat.isFile())) {
+    throw new Error(`Memory index is not a regular file: ${target}`);
+  }
+  const temp = path.join(dir, `.MEMORY.md.${process.pid}.${Date.now()}.tmp`);
+  let handle: fs.FileHandle | undefined;
+  try {
+    await assertSameRoot(dir, safeRoot);
+    handle = await fs.open(
+      temp,
+      fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY | (fsConstants.O_NOFOLLOW ?? 0),
+      0o600,
     );
-    await fs.mkdir(memory.harnessDir, { recursive: true });
-    for (const { name, stat } of entries.sort((left, right) => left.name.localeCompare(right.name))) {
-      if (!isMemoryFilename(name) || !stat?.isFile()) continue;
-      const source = path.join(legacyDir, name);
-      const target = path.join(memory.harnessDir, name);
-      const targetStat = await fs.lstat(target).catch(() => undefined);
-      if (targetStat) continue;
-      await fs.copyFile(source, target, fsConstants.COPYFILE_EXCL);
+    await handle.writeFile(content, "utf8");
+    await handle.sync();
+    await handle.close();
+    handle = undefined;
+    await assertSameRoot(dir, safeRoot);
+    await renamePath(temp, target);
+    await assertSameRoot(dir, safeRoot);
+  } finally {
+    await handle?.close().catch(() => {});
+    await fs.rm(temp, { force: true }).catch(() => {});
+  }
+}
+
+async function rebuildMemoryIndexWithRename(
+  dir: string,
+  privateNames: Set<string>,
+  renamePath: RenamePath,
+): Promise<void> {
+  const safeRoot = await openSafeRoot(dir);
+  if (!safeRoot) throw new Error(`Memory root is not a regular directory: ${dir}`);
+  try {
+    await assertSameRoot(dir, safeRoot);
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const symlink = entries.find((entry) => entry.isSymbolicLink());
+    if (symlink) throw new Error(`Memory entry is symlinked: ${path.join(dir, symlink.name)}`);
+    const names = entries
+      .filter((entry) => entry.isFile() && isMemoryFilename(entry.name))
+      .map((entry) => entry.name)
+      .sort((left, right) => left.localeCompare(right));
+    await assertSameRoot(dir, safeRoot);
+    const lines = ["# Memory Index", ""];
+    for (const name of names) {
+      lines.push(`- [${name}](${name})${privateNames.has(name.toLowerCase()) ? " (harness only)" : ""}`);
     }
-    const indexEntry = entries.find(({ name }) => isIndexName(name));
-    if (indexEntry?.stat?.isFile()) {
-      const indexText = await fs.readFile(path.join(legacyDir, indexEntry.name), "utf8");
-      for (const line of indexText.split(/\r?\n/)) {
-        if (!/\(\s*harness[\s_-]+only\s*\)/i.test(line)) continue;
-        const match = /[A-Za-z0-9][A-Za-z0-9_.-]*\.md/i.exec(line);
-        if (match && isMemoryFilename(match[0])) privateNames.add(match[0].toLowerCase());
+    await writeMemoryIndexSafely(dir, safeRoot, `${lines.join("\n")}\n`, renamePath);
+  } finally {
+    await safeRoot.handle.close().catch(() => {});
+  }
+}
+
+export async function rebuildMemoryIndex(dir: string, privateNames: Set<string> = new Set()): Promise<void> {
+  await rebuildMemoryIndexWithRename(dir, privateNames, fs.rename);
+}
+
+function legacyPrivateDirCandidates(memory: MemoryPaths, cwdVariants: readonly string[]): string[] {
+  const memoryRoot = path.join(memory.agentDir, "memory");
+  const names = new Set<string>([memory.scopeKey]);
+  for (const cwd of [memory.cwd, ...cwdVariants]) {
+    const resolved = path.resolve(cwd);
+    names.add(resolved.replace(/[\\/\s]+/g, "-"));
+    names.add(resolved.replace(/[\\/]+/g, "-"));
+  }
+  return [...names]
+    .filter((name) => Buffer.byteLength(name, "utf8") <= 255)
+    .map((name) => path.join(memoryRoot, name))
+    .filter((candidate) => candidate !== memory.harnessDir)
+    .sort();
+}
+
+interface LegacyMigrationSource {
+  dir: string;
+  root: SafeRootHandle;
+  entries: Array<{ name: string; stat: Awaited<ReturnType<typeof fs.lstat>> }>;
+  removable: boolean;
+}
+
+async function discoverLegacyMigrationSources(
+  memory: MemoryPaths,
+  cwdVariants: readonly string[],
+): Promise<LegacyMigrationSource[]> {
+  const sources: LegacyMigrationSource[] = [];
+  try {
+    for (const dir of legacyPrivateDirCandidates(memory, cwdVariants)) {
+      const stat = await lstatIfExists(dir);
+      if (!stat) continue;
+      if (stat.isSymbolicLink() || !stat.isDirectory()) {
+        throw new Error(`Legacy memory migration source is not a regular directory: ${dir}`);
+      }
+      const root = await openSafeRoot(dir);
+      if (!root) throw new Error(`Legacy memory migration source is not a regular directory: ${dir}`);
+      await assertSameRoot(dir, root);
+      const entries = await Promise.all((await fs.readdir(dir)).sort().map(async (name) => ({
+        name,
+        stat: await fs.lstat(path.join(dir, name)),
+      })));
+      await assertSameRoot(dir, root);
+      const symlink = entries.find(({ stat: entryStat }) => entryStat.isSymbolicLink());
+      if (symlink) {
+        await root.handle.close();
+        throw new Error(`Legacy memory migration source entry is symlinked: ${path.join(dir, symlink.name)}`);
+      }
+      sources.push({
+        dir,
+        root,
+        entries,
+        removable: entries.every(({ name, stat: entryStat }) =>
+          entryStat.isFile() && (isMemoryFilename(name) || isIndexName(name))
+        ),
+      });
+    }
+    return sources;
+  } catch (error) {
+    await Promise.all(sources.map((source) => source.root.handle.close().catch(() => {})));
+    throw error;
+  }
+}
+
+async function openMigrationDestination(memory: MemoryPaths): Promise<SafeRootHandle> {
+  const memoryRoot = path.dirname(memory.harnessDir);
+  await fs.mkdir(memory.agentDir, { recursive: true });
+  const agentStat = await fs.lstat(memory.agentDir);
+  if (agentStat.isSymbolicLink() || !agentStat.isDirectory()) {
+    throw new Error(`Memory migration agent root is not a regular directory: ${memory.agentDir}`);
+  }
+  const memoryRootStat = await lstatIfExists(memoryRoot);
+  if (memoryRootStat?.isSymbolicLink() || (memoryRootStat && !memoryRootStat.isDirectory())) {
+    throw new Error(`Memory migration parent is not a regular directory: ${memoryRoot}`);
+  }
+  if (!memoryRootStat) await fs.mkdir(memoryRoot);
+  const destinationStat = await lstatIfExists(memory.harnessDir);
+  if (destinationStat?.isSymbolicLink() || (destinationStat && !destinationStat.isDirectory())) {
+    throw new Error(`Memory migration destination is not a regular directory: ${memory.harnessDir}`);
+  }
+  if (!destinationStat) {
+    try {
+      await fs.mkdir(memory.harnessDir, { mode: 0o700 });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
+  }
+  const destination = await openSafeRoot(memory.harnessDir);
+  if (!destination) throw new Error(`Memory migration destination is not a regular directory: ${memory.harnessDir}`);
+  await assertSameRoot(memory.harnessDir, destination);
+  return destination;
+}
+
+async function applyLegacyMemoryFile(
+  source: LegacyMigrationSource,
+  destination: SafeRootHandle,
+  name: string,
+): Promise<"created" | "identical" | "conflict"> {
+  await assertSameRoot(source.dir, source.root);
+  await assertSameRoot(destination.rootPath, destination);
+  const sourceBytes = await readRegularFileNoFollow(path.join(source.dir, name));
+  await assertSameRoot(source.dir, source.root);
+  const target = path.join(destination.rootPath, name);
+  const targetStat = await lstatIfExists(target);
+  if (targetStat) {
+    if (targetStat.isSymbolicLink() || !targetStat.isFile()) {
+      throw new Error(`Memory migration destination entry is not a regular file: ${target}`);
+    }
+    const targetBytes = await readRegularFileNoFollow(target);
+    return targetBytes.equals(sourceBytes) ? "identical" : "conflict";
+  }
+
+  let handle: fs.FileHandle | undefined;
+  let created = false;
+  try {
+    handle = await fs.open(
+      target,
+      fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY | (fsConstants.O_NOFOLLOW ?? 0),
+      0o600,
+    );
+    created = true;
+    await handle.writeFile(sourceBytes);
+    await handle.sync();
+    await handle.close();
+    handle = undefined;
+    await assertSameRoot(destination.rootPath, destination);
+    return "created";
+  } catch (error) {
+    if (!created && (error as NodeJS.ErrnoException).code === "EEXIST") {
+      const racedStat = await lstatIfExists(target);
+      if (!racedStat?.isFile() || racedStat.isSymbolicLink()) throw error;
+      return (await readRegularFileNoFollow(target)).equals(sourceBytes) ? "identical" : "conflict";
+    }
+    if (created) await fs.rm(target, { force: true }).catch(() => {});
+    throw error;
+  } finally {
+    await handle?.close().catch(() => {});
+  }
+}
+
+function migrationQuarantinePath(sourceDir: string): string {
+  return `${sourceDir}.${crypto.randomBytes(12).toString("hex")}.migration-quarantine`;
+}
+
+async function migrateLegacyMemoryDirsWithRename(
+  memory: MemoryPaths,
+  cwdVariants: readonly string[],
+  renamePath: RenamePath,
+): Promise<string[]> {
+  const sources = await discoverLegacyMigrationSources(memory, cwdVariants);
+  if (!sources.length) return [];
+  let destination: SafeRootHandle | undefined;
+  const createdFiles: string[] = [];
+  let destinationExisted = false;
+  let destinationIndexBefore: Buffer | undefined;
+  let destinationIndexExisted = false;
+  let migrationCommitted = false;
+  const quarantinedSources: Array<{ source: LegacyMigrationSource; quarantine: string }> = [];
+  try {
+    const destinationStatBefore = await lstatIfExists(memory.harnessDir);
+    destinationExisted = destinationStatBefore !== undefined;
+    destination = await openMigrationDestination(memory);
+    const destinationEntries = await fs.readdir(memory.harnessDir, { withFileTypes: true });
+    const unsafeDestinationEntry = destinationEntries.find((entry) => entry.isSymbolicLink());
+    if (unsafeDestinationEntry) {
+      throw new Error(`Memory migration destination entry is symlinked: ${path.join(memory.harnessDir, unsafeDestinationEntry.name)}`);
+    }
+    await assertSameRoot(memory.harnessDir, destination);
+    const privateNames = new Set<string>();
+    const destinationIndex = path.join(memory.harnessDir, "MEMORY.md");
+    const destinationIndexStat = await lstatIfExists(destinationIndex);
+    if (destinationIndexStat) {
+      if (destinationIndexStat.isSymbolicLink() || !destinationIndexStat.isFile()) {
+        throw new Error(`Memory migration destination index is not a regular file: ${destinationIndex}`);
+      }
+      destinationIndexBefore = await readRegularFileNoFollow(destinationIndex);
+      destinationIndexExisted = true;
+      collectPrivateNames(destinationIndexBefore.toString("utf8"), privateNames);
+    }
+
+    for (const source of sources) {
+      const transferredNames = new Set<string>();
+      let sourceIndex: string | undefined;
+      for (const { name, stat } of source.entries) {
+        if (!stat.isFile()) continue;
+        if (isMemoryFilename(name)) {
+          const outcome = await applyLegacyMemoryFile(source, destination, name);
+          if (outcome === "created") createdFiles.push(path.join(memory.harnessDir, name));
+          if (outcome === "conflict") source.removable = false;
+          else transferredNames.add(name.toLowerCase());
+        } else if (isIndexName(name)) {
+          sourceIndex = (await readRegularFileNoFollow(path.join(source.dir, name))).toString("utf8");
+          await assertSameRoot(source.dir, source.root);
+        }
+      }
+      if (sourceIndex) {
+        const sourcePrivateNames = new Set<string>();
+        collectPrivateNames(sourceIndex, sourcePrivateNames);
+        for (const name of sourcePrivateNames) {
+          if (transferredNames.has(name)) privateNames.add(name);
+        }
       }
     }
-    processedSources.push(legacyDir);
-    if (!unsupported) removableSources.push(legacyDir);
+    await rebuildMemoryIndexWithRename(memory.harnessDir, privateNames, renamePath);
+    const removableSources = sources.filter((source) => source.removable);
+    for (const source of removableSources) {
+      await assertSameRoot(source.dir, source.root);
+      await source.root.handle.close();
+      const quarantine = migrationQuarantinePath(source.dir);
+      await renamePath(source.dir, quarantine);
+      quarantinedSources.push({ source, quarantine });
+    }
+    migrationCommitted = true;
+    await Promise.all(quarantinedSources.map(({ quarantine }) =>
+      fs.rm(quarantine, { recursive: true, force: true }).catch(() => {})
+    ));
+    return removableSources.map((source) => source.dir);
+  } catch (error) {
+    const rollbackErrors: unknown[] = [];
+    for (const { source, quarantine } of quarantinedSources.reverse()) {
+      try {
+        await renamePath(quarantine, source.dir);
+      } catch (restoreError) {
+        rollbackErrors.push(restoreError);
+      }
+    }
+    if (destination && !migrationCommitted) {
+      for (const file of createdFiles.reverse()) {
+        try {
+          await fs.rm(file, { force: true });
+        } catch (restoreError) {
+          rollbackErrors.push(restoreError);
+        }
+      }
+      const destinationIndex = path.join(memory.harnessDir, "MEMORY.md");
+      if (destinationIndexExisted && destinationIndexBefore) {
+        try {
+          await writeMemoryIndexSafely(memory.harnessDir, destination, destinationIndexBefore.toString("utf8"), renamePath);
+        } catch (restoreError) {
+          rollbackErrors.push(restoreError);
+        }
+      } else {
+        try {
+          await fs.rm(destinationIndex, { force: true });
+        } catch (restoreError) {
+          rollbackErrors.push(restoreError);
+        }
+      }
+      if (!destinationExisted) {
+        await destination.handle.close().catch(() => {});
+        destination = undefined;
+        try {
+          await fs.rmdir(memory.harnessDir);
+        } catch (restoreError) {
+          rollbackErrors.push(restoreError);
+        }
+      }
+    }
+    if (rollbackErrors.length) {
+      throw new AggregateError([error, ...rollbackErrors], "Legacy memory migration and rollback failed");
+    }
+    throw error;
+  } finally {
+    await destination?.handle.close().catch(() => {});
+    await Promise.all(sources.map((source) => source.root.handle.close().catch(() => {})));
   }
-  if (!processedSources.length) return [];
-  await rebuildMemoryIndex(memory.harnessDir, privateNames);
-  await Promise.all(removableSources.map((legacyDir) => fs.rm(legacyDir, { recursive: true, force: true })));
-  return removableSources;
+}
+
+/** Migrate old opaque and collision-prone readable scopes into the private root. */
+export async function migrateLegacyMemoryDirs(
+  memory: MemoryPaths,
+  cwdVariants: readonly string[] = [],
+): Promise<string[]> {
+  return migrateLegacyMemoryDirsWithRename(memory, cwdVariants, fs.rename);
+}
+
+export async function migrateLegacyMemoryDirsForTest(
+  memory: MemoryPaths,
+  cwdVariants: readonly string[],
+  renamePath: RenamePath,
+): Promise<string[]> {
+  return migrateLegacyMemoryDirsWithRename(memory, cwdVariants, renamePath);
 }
 
 interface SafeRootHandle {

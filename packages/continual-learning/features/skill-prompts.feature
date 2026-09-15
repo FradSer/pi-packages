@@ -43,6 +43,13 @@ Feature: Skill-invocation prompt guidance
 
   Scenario: Invalid command-specific guidance is skipped safely
     Given a skill prompt with an invalid userMessagePattern regular expression
-    When the harness configuration is loaded
-    Then the skill prompt is skipped with a diagnostic
+    When the harness configuration is loaded or a complete harness write is validated
+    Then the skill prompt is skipped or the write is blocked with a diagnostic
     And valid sibling skill prompts remain active
+
+  Scenario: Authored skill prompts have an exact schema
+    Given a complete harness write changes a registered skill prompt
+    When the prompt contains an unknown field or a malformed optional userMessagePattern
+    Then the write is blocked
+    And the accepted fields are exactly prompt, target, and userMessagePattern
+    But an unchanged stale skill prompt remains preservable or removable

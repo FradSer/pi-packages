@@ -12,7 +12,9 @@ Feature: Generic tool-call guardrails from layered config
     Then the user shared file is ~/.pi/agent/harness.json
     And the project shared file is .pi/harness.json
     And the project personal file is .pi/harness.local.json
+    And obsolete .pi/agent harness files are ignored even when that directory exists
     And ~/.pi/agent/harness.local.json is ignored and absent from diagnostics
+    And the configuration cache watches exactly those three canonical files
     And precedence is project personal over project shared over user shared
     And a policy name defined in several layers resolves to the innermost one
     And names listed in any layer's disabled list are removed everywhere
@@ -84,7 +86,18 @@ Feature: Generic tool-call guardrails from layered config
     When the user specifies --shared or --project
     Then the command targets the project shared layer at .pi/harness.json
     And a missing target is initialized there instead of being searched for elsewhere
+    And a project target whose parent is a symlink is rejected before any write can escape the workspace
     And it preserves existing rules and asks the agent to verify the resulting JSON
+
+  Scenario: Complete harness writes are validated without taking ownership of unrelated data
+    Given a write targets one of the three canonical harness files
+    When the complete JSON omits or malforms policies, disabled, or skillPrompts
+    Then the write is blocked with schema diagnostics
+    And policies are checked by the runtime policy declaration validator
+    And disabled is an array of non-empty policy names
+    And new skill prompts use exactly prompt, target, and optional userMessagePattern fields
+    And unchanged pre-existing non-harness root fields and stale skill prompts remain preservable
+    And a write cannot remove or change a pre-existing non-harness root field
 
   Scenario: A matching skill prompt records the applied prompt in the transcript
     Given a project-local skill prompt for an expanded skill
@@ -133,7 +146,14 @@ Feature: Generic tool-call guardrails from layered config
     Given a prohibited output or artifact remains after corrective guidance
     When the harness observes repeated violations
     Then it sends at most the configured repair limit
+    And the same unchanged artifact violation does not request a duplicate repair
     And it records repair-exhausted without creating an infinite self-turn loop
+
+  Scenario: Interrupted assistant messages do not start corrective turns
+    Given an output policy or remembered artifact would require correction
+    When an assistant message ends with an aborted or error stop reason
+    Then the harness does not send an output or artifact repair request
+    And a later settled assistant message remains eligible for bounded checking
 
   Scenario: Context guidance is a separate pre-generation surface
     Given a skill prompt is configured for an expanded skill invocation

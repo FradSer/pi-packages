@@ -78,7 +78,7 @@ async function callBefore(prompt, systemPrompt, ctx, onlyGuardrails = false) {
 // ── temp project + isolated user dir ────────────────────────────────
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "guard-e2e-"));
 const project = path.join(tmp, "project");
-fs.mkdirSync(path.join(project, ".pi"), { recursive: true });
+fs.mkdirSync(path.join(project, ".pi", "agent"), { recursive: true });
 const agentDir = path.join(tmp, "agent");
 fs.mkdirSync(agentDir, { recursive: true });
 
@@ -175,11 +175,11 @@ fs.writeFileSync(
   const expired = await callTool("bash", { command: "wipe--workspace now" }, expiredCtx);
   const lastPolicyEntry = entries.find((e) => e.data?.kind === "policy-matched" && e.data?.outcome === "allowed once");
   const renderer = entryRenderers["harness-event"];
-  const renderedAllowed = renderer?.(lastPolicyEntry, { expanded: true }, {
+  const renderedAllowed = lastPolicyEntry ? renderer?.(lastPolicyEntry, { expanded: true }, {
     fg: (_c, t) => t,
     bg: (_c, t) => t,
     bold: (t) => t,
-  })?.render(200).join("\\n") ?? "";
+  })?.render(200).join("\\n") ?? "" : "";
   record("confirm-action", {
     headlessBlocked: headless[0]?.block === true && /no UI available/.test(headless[0]?.reason ?? ""),
     dialogBounded: typeof askedTimeout === "number" && Number.isFinite(askedTimeout) && askedTimeout > 0,
@@ -304,6 +304,7 @@ fs.writeFileSync(
   JSON.stringify({
     skillPrompts: {
       review: { prompt: "inner guidance", target: "system" },
+      "bad--skill": { prompt: "must be rejected", target: "system" },
     },
     policies: [{
       name: "ui-fixed-width",
@@ -393,7 +394,7 @@ await new Promise((r) => setTimeout(r, 20));
       notified.includes(path.join(project, ".pi", "harness.json")) &&
       notified.includes(path.join(project, ".pi", "harness.local.json")) &&
       !notified.includes(path.join(agentDir, "harness.local.json")),
-    invalidSkillReported: notified.includes("bad--skill") && notified.includes("violates the Pi skill-name rules"),
+    invalidSkillReported: notified.includes("bad--skill") && notified.includes("exact valid skill key"),
     defaultTargetsProjectLocal: messages.length >= 1 && messages[0].options?.deliverAs === "followUp" &&
       messages[0].content.includes("Block edits that add hard-coded colors") &&
       messages[0].content.includes(path.join(project, ".pi", "harness.local.json")) &&

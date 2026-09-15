@@ -11,9 +11,9 @@ model weights are explicitly out of scope:
   execution, and inspect assistant output and configured file artifacts after
   generation. Violations produce concrete feedback with a bounded repair loop.
 
-With auto-memory enabled (the default), a completed user task first passes a deterministic, zero-token evidence screen at `agent_settled`, after automatic retries and queued continuations. Routine tasks with no durable signal launch no learning model. Automatic runs are lightweight and select only evidence-backed phases; explicit `/consolidate` remains the full manual path. New user tasks are coalesced while learning runs; extension-generated continuations do not independently retrigger learning. Interactive sessions remain responsive; print/JSON runs wait for the pipeline and its receipts before exiting.
+With auto-memory enabled (the default), a completed user task first passes a deterministic, zero-token evidence screen at `agent_settled`, after automatic retries and queued continuations. Routine tasks with no durable signal launch no learning model. Automatic runs and default `/consolidate` use only the current completed Task Slice. A lightweight metadata-only selector chooses the minimum sufficient related Memory scope; the selected bodies and task evidence form one authoritative Learning Dossier. `/consolidate full` is the only full-corpus maintenance path. New user tasks are coalesced while learning runs; extension-generated continuations do not independently retrigger learning. Interactive sessions remain responsive; print/JSON runs wait for the pipeline and its receipts before exiting.
 
-Later-phase learning uses one bounded read-only exploration dossier for Harness and AGENTS.md candidates. Their planning can run in parallel, while parent validation and mutation remain sequential. Pipeline receipts account for every explorer/planner attempt, including retries, with outcome, duration, operations, token/cache usage, and reported cost.
+Memory, Harness, and AGENTS.md planners consume the same bounded dossier and return only proposed deltas; they do not independently explore the complete session or repository. Planning may overlap while parent validation and mutation remain sequential. Pipeline receipts account for every selector/planner attempt and display input, output, cacheRead, cacheWrite, total tokens, and provider cost availability separately.
 
 The parent freezes the task context, runs read-only planners, validates their
 bounded proposals, and applies changes. Ordinary task execution no longer asks
@@ -22,6 +22,9 @@ automatic learning while preserving retrieval of existing memory. `/consolidate`
 remains available for an explicit run, including headless execution.
 
 ## Install
+
+Python 3 must be available as `python3` on `PATH`; Memory consolidation runs
+the package's bundled Python validator at runtime.
 
 ```bash
 pi install npm:pi-continual-learning
@@ -32,7 +35,8 @@ pi install npm:pi-continual-learning
 | Command | Purpose |
 | --- | --- |
 | `/memory` | Memory management menu: instructions, model, consolidation, settings |
-| `/consolidate` | Run learning now: memory first, then harness constraints and project AGENTS.md mined from the frozen task context |
+| `/consolidate` | Incrementally learn from the current completed Task Slice |
+| `/consolidate full` | Explicitly run expensive full-corpus Memory, Harness, and AGENTS.md maintenance |
 | `/harness` | Show active constraints, or create a rule from a prompt (default: project personal `.pi/harness.local.json`, `--shared` for project repo, `--global` for user) |
 
 ## Guardrails configuration
@@ -48,9 +52,7 @@ Built-in defaults are the outermost package-owned baseline. User-owned configura
 2. Project shared: `<project>/.pi/harness.json`.
 3. Project personal: `<project>/.pi/harness.local.json`.
 
-The obsolete user-personal `~/.pi/agent/harness.local.json` is not discovered
-or shown by `/harness`. Runtime precedence is project personal over project
-shared over user shared (with built-in defaults outermost).
+The obsolete user-personal `~/.pi/agent/harness.local.json` and project `.pi/agent/harness*.json` files are not discovered or shown by `/harness`. Runtime precedence is project personal over project shared over user shared (with built-in defaults outermost).
 
 Policy shape:
 
@@ -133,8 +135,7 @@ blocked with guidance to hand those steps to the user's own terminal.
 
 ### Harness consolidation
 
-After verified memory consolidation, learning runs a second read-only
-planner against the same frozen task context: it mines blocked tool
+In incremental mode, Harness consumes the selector-built Learning Dossier and current Task Slice; it does not run an independent model explorer or repository-wide scan. After verified Memory learning, or a verified no-mutation Memory gate, one read-only planner runs against that same frozen task context: it mines blocked tool
 calls, confirmation outcomes, and user corrections, then proposes bounded
 policy/context-guidance changes citing that evidence. The parent alone applies
 them — atomically, and only to the personal project-local layer
@@ -150,14 +151,15 @@ manually authored constraints; explicit rule changes remain available through
 
 ### AGENTS.md consolidation
 
-The third pipeline phase treats the repository-root `AGENTS.md` like trained
+In incremental mode, AGENTS.md planning reuses the same Learning Dossier and Task Slice as Harness and returns only proposed edits. The third pipeline phase treats the repository-root `AGENTS.md` like trained
 weights. Against the same snapshot, a read-only planner proposes at most five
 evidence-cited edits — rewrite, remove, add, or extract addressable units.
 The parent enforces the discipline in code before anything is applied:
 
-- Every cited quote must appear verbatim in the snapshot text; unverifiable
-  quotes are discarded mechanically, and an operation left without evidence
-  never reaches the automatic application step.
+- Every cited quote must come from an indexed user or tool-result message and
+  appear verbatim in the snapshot text; unverifiable quotes are discarded
+  mechanically, and an operation left without evidence never reaches the
+  automatic application step.
 - A brand-new unit needs batched evidence (at least two cited occurrences in
   the current session).
 - The post-edit document must fit the byte budget (default 16 KB ≈ 4k English
@@ -169,11 +171,13 @@ The parent enforces the discipline in code before anything is applied:
 - Narrow instructions are extracted instead of kept: trigger-scoped guidance
   becomes a harness skill prompt; durable detail becomes a memory file.
 
-After the mechanical gates pass, every surviving operation is applied
-autonomously in one atomic write (with a pre-apply digest for mid-apply
-shutdown recovery). User-level instruction files are never touched, and the
-child planner remains read-only.
-Configure via the per-project settings file:
+After the mechanical gates pass, surviving operations are applied
+autonomously within one parent-owned transaction and rollback boundary. Before mutation, an `agents-pre-receipt.json` records the plan digest plus exact predecessor files and directory existence; if the process stops before the post receipt, the next session validates and consumes that record before new learning starts. The pre receipt is retained beside a verified post receipt. User-level instruction files are never touched, and the child planner remains read-only.
+Configure via the agent-global settings file at
+`<agent-dir>/memory/settings.json` (normally
+`~/.pi/agent/memory/settings.json`; `<agent-dir>` honors
+`PI_CODING_AGENT_DIR`). These settings apply to every project using that agent
+directory:
 
 ```json
 { "autoMemory": true, "agentsMd": { "budgetBytes": 16384 } }
@@ -225,14 +229,32 @@ when a hook is evaluated more than once.
 
 Memory has exactly two synchronized roots:
 
-1. Harness/private (canonical and complete): `~/.pi/agent/memory/<escaped-canonical-project-path>/`
-2. Project shared (safe Git mirror): `<git-root>/.memory/`
+1. Agent-private (canonical and complete): `<agent-dir>/memory/<escaped-readable-prefix>--<full-sha256-scope-key>/`
+2. Project-shared Git mirror: `<canonical Git project root>/.memory/` (safe to commit)
 
-Private memory is never persisted anywhere inside the project. The package recognizes only the agent-owned private root and the project-shared `.memory/` mirror.
+`<agent-dir>` is normally `~/.pi/agent` and honors `PI_CODING_AGENT_DIR`.
+The project-shared mirror is enabled only when Pi runs at that canonical Git
+root. Private Memory is never persisted anywhere inside
+the project; no project-local private root is recognized.
 
-The private directory replaces each path separator in the canonical project path with `-`, including the leading POSIX separator (for example `-Users-FradSer-Developer-FradSer-cerberus`). Safe entries are byte-identical in both roots; entries marked `(harness only)` in the private `MEMORY.md` never appear in the project mirror. Before consolidation, newer-mtime-wins drift normalization runs bidirectionally, with ties preferring the private copy. The private root remains the runtime source of truth, while project `.memory/` participates in first adoption and committed-update synchronization.
+The private directory name has a readable prefix and a collision-resistant
+identity separated by `--`. The prefix is derived from the canonical project
+path by NFKD normalization, removing combining marks, collapsing path
+separators and whitespace to `-`, replacing other non-ASCII filename
+characters with `-`, collapsing repeated dashes, falling back to `project`, and
+truncating to 174 ASCII bytes. The suffix is the full 64-character lowercase
+hex SHA-256 scope key of the canonical working directory; the complete
+component is at most 240 ASCII bytes. For example:
+`-Users-FradSer-Documents-Home-Lab--<64hex>`.
 
-See `AGENTS.md` and `agents/memory-consolidator.md` for loading rules and the parent-owned transactional consolidation protocol.
+Safe entries are byte-identical in both roots; entries marked `(harness only)`
+in the private `MEMORY.md` never appear in the project mirror. Before
+consolidation, newer-mtime-wins drift normalization runs bidirectionally, with
+ties preferring the private copy. The private root remains the runtime source
+of truth, while project `.memory/` participates in first adoption and
+committed-update synchronization.
+
+See `agents/memory-consolidator.md` for the parent-owned transactional consolidation protocol.
 
 New memories are proposed separately from the parent-selected existing-file
 scope, so a project with no memory files can learn from its first task. Each

@@ -1,5 +1,5 @@
 /**
- * pi-memory-fradser — native pi /memory command.
+ * pi-continual-learning — native Pi /memory command.
  *
  * Replaces the /skill:consolidate skill surface with a pi-native command menu:
  *
@@ -24,11 +24,14 @@ import { execFile } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import * as nodeFs from "node:fs";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth } from "@earendil-works/pi-tui";
+import { keyHint, ToolExecutionComponent, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
   createPiThemeStyle,
+  createStaticToolLifecycleMessageRenderer,
+  eventToolLifecycle,
   renderPiWidgetRow,
   enterModelFromInput,
   notifyPi,
@@ -39,6 +42,7 @@ import {
   PI_SPINNER_FRAMES,
   PI_SPINNER_INTERVAL_MS,
   resolvePiCli,
+  runPiWorker,
   searchModelFromPicker,
   sortModels,
   spawnPiChild,
@@ -53,14 +57,16 @@ import {
 import { formatMemoriesBlock, loadAndDeduplicateMemories } from "./memory-files";
 import { resolveMemoryPaths } from "./memory-paths";
 import { registerAutomaticLearning } from "./automatic-learning";
-import { buildLearningReceipt, formatLearningSummary, screenLearningEntries, shouldRetryPlanner, snapshotEntries, writeLearningReceipt, type LearningAttempt, type LearningMode, type LearningScreen } from "./learning-efficiency";
-import { exploreLearningContext } from "./learning-explorer";
+import { buildLearningReceipt, formatLearningSummary, isLearningPipelineReceipt, learningSummaryDetails, learningSummarySubject, screenLearningEntries, shouldRetryPlanner, snapshotEntries, writeLearningReceipt, type LearningAttempt, type LearningMode, type LearningPipelineReceipt, type LearningScreen } from "./learning-efficiency";
+import { currentTaskSlice, selectIncrementalLearning } from "./incremental-learning";
+import { expandIncrementalMemoryPlan } from "./incremental-memory-plan";
 import {
   DEFAULT_AGENTS_MD_BUDGET_BYTES,
   MAX_AGENTS_MD_FILE_BYTES,
   MIN_BUDGET_BYTES,
   applyAgentsMdConsolidationPlan,
   planAgentsMdConsolidationPhase,
+  recoverPendingAgentsMdConsolidations,
 } from "./agents-md-consolidation";
 import { applyHarnessConsolidationPlan, planHarnessConsolidationPhase, shouldRunHarnessPhase } from "./harness-consolidation";
 import {
@@ -82,6 +88,7 @@ import {
   writeFileAtomic,
   snapshotSessionContext,
   summarizeMemoryChanges,
+  hashMemoryRoot,
   type ConsolidationRun,
 } from "./consolidation-run";
 
@@ -226,6 +233,12 @@ function resolvePackageDir(): string {
 
 // ── background consolidation ("dreaming") ─────────────────────────
 
+interface LaterPlannerState {
+  cancelled: boolean;
+  generation: number;
+  child?: ChildProcess;
+}
+
 interface DreamState {
   active: boolean;
   generation: number;
@@ -241,7 +254,17 @@ interface DreamState {
   attempts?: LearningAttempt[];
   mode?: LearningMode;
   controller?: AbortController;
-  laterStates?: Array<{ cancelled: boolean; generation: number }>;
+  laterStates?: LaterPlannerState[];
+}
+
+export async function cancelLaterPlannerChildren(states: readonly LaterPlannerState[]): Promise<void> {
+  const children = new Set<ChildProcess>();
+  for (const state of states) {
+    state.cancelled = true;
+    state.generation += 1;
+    if (state.child) children.add(state.child);
+  }
+  await Promise.all([...children].map((child) => terminateConsolidationChild(child, 5_000)));
 }
 
 interface ChildJsonEvent {
@@ -344,8 +367,9 @@ export function collapseDuplicatePlanRecords<T>(plan: T): T {
   return collapsed ? (next as T) : plan;
 }
 
-function parentSelectedScope(run: ConsolidationRun, noContext: boolean): string[] {
+function parentSelectedScope(run: ConsolidationRun, noContext: boolean, selected?: readonly string[]): string[] {
   if (noContext) return [];
+  if (selected) return [...selected].sort((left, right) => left.localeCompare(right));
   const names = new Map<string, string>();
   const sourceHashes = run.manifest.sourceHashes;
   for (const name of [...Object.keys(sourceHashes.harness), ...Object.keys(sourceHashes.public)].sort()) {
@@ -353,6 +377,30 @@ function parentSelectedScope(run: ConsolidationRun, noContext: boolean): string[
     names.set(name.toLowerCase(), names.get(name.toLowerCase()) ?? name);
   }
   return [...names.values()].sort();
+}
+
+async function ensureEmptyIncrementalIndexes(cwd: string, selected: readonly string[]): Promise<void> {
+  if (selected.length > 0) return;
+  const memory = resolveMemoryPaths(cwd);
+  for (const root of [memory.harnessDir, ...(memory.publicDir ? [memory.publicDir] : [])]) {
+    await fs.mkdir(root, { recursive: true, mode: 0o700 });
+    const rootStat = await fs.lstat(root);
+    if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) throw new Error(`Memory root is not a regular directory: ${root}`);
+    const entries = await fs.readdir(root, { withFileTypes: true });
+    const memoryEntries = entries.filter((entry) => entry.name.toLowerCase().endsWith(".md"));
+    if (memoryEntries.length > 0) continue;
+    const index = path.join(root, "MEMORY.md");
+    let handle: fs.FileHandle | undefined;
+    try {
+      handle = await fs.open(index, nodeFs.constants.O_CREAT | nodeFs.constants.O_EXCL | nodeFs.constants.O_WRONLY | (nodeFs.constants.O_NOFOLLOW ?? 0), 0o600);
+      await handle.writeFile("# Memory Index\n\n", "utf8");
+      await handle.sync();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    } finally {
+      await handle?.close().catch(() => {});
+    }
+  }
 }
 
 /**
@@ -378,9 +426,23 @@ function appendBoundedUtf8Text(current: string, text: string, maxBytes: number):
   return bytes.subarray(bytes.byteLength - maxBytes).toString("utf8");
 }
 
-function tailBoundedUtf8Text(text: string, maxBytes = 256 * 1024): string {
+function tailBoundedUtf8Text(text: string, maxBytes = MAX_STDOUT_BYTES): string {
   const bytes = Buffer.from(text, "utf8");
   return bytes.byteLength <= maxBytes ? text : bytes.subarray(bytes.byteLength - maxBytes).toString("utf8");
+}
+
+export function completeJsonlSuffix(text: string): string {
+  if (!text) return text;
+  const lines = text.split("\n");
+  while (lines.length > 0 && lines[0].trim()) {
+    try {
+      JSON.parse(lines[0]);
+      break;
+    } catch {
+      lines.shift();
+    }
+  }
+  return lines.join("\n");
 }
 
 export interface ConsolidationEvidence {
@@ -419,7 +481,22 @@ function parseFinalPlan(event: ChildJsonEvent): unknown {
     maxLineBytes: MAX_JSONL_LINE_BYTES,
     maxPlanBytes: MAX_PLAN_BYTES,
   });
-  return result.ok ? result.plan : undefined;
+  if (result.ok) return result.plan;
+  if (event.type !== "message_end" || event.message?.role !== "assistant") return undefined;
+  const content = event.message.content;
+  const text = typeof content === "string"
+    ? content
+    : Array.isArray(content)
+      ? content.map((part) => part && typeof part === "object" && !Array.isArray(part) && typeof (part as { text?: unknown }).text === "string" ? (part as { text: string }).text : "").join("")
+      : "";
+  try {
+    const plan = JSON.parse(text) as unknown;
+    return plan && typeof plan === "object" && !Array.isArray(plan) && (plan as { kind?: unknown }).kind === "incremental-memory-plan"
+      ? plan
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function recordConsolidationEvent(evidence: ConsolidationEvidence, event: ChildJsonEvent): void {
@@ -496,6 +573,86 @@ export function buildTaskFeedbackLines(rejectionFeedback?: string): string[] {
   return [`- Previous planning attempt was rejected: ${rejectionFeedback.slice(0, 800)} — produce a corrected plan that resolves every cited issue.`];
 }
 
+function finalAssistantText(stdout: string): string {
+  let latest = "";
+  for (const line of stdout.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    try {
+      const event = JSON.parse(line) as ChildJsonEvent;
+      if (event.type !== "message_end" || event.message?.role !== "assistant") continue;
+      const content = event.message.content;
+      latest = typeof content === "string"
+        ? content
+        : Array.isArray(content)
+          ? content.map((part) => part && typeof part === "object" && !Array.isArray(part) && typeof (part as { text?: unknown }).text === "string" ? (part as { text: string }).text : "").join("")
+          : "";
+    } catch {
+      // Only complete assistant message records are eligible repair input.
+    }
+  }
+  return latest;
+}
+
+function parseIncrementalPlanText(text: string): unknown | undefined {
+  const trimmed = text.trim();
+  const candidates = [trimmed, /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed)?.[1]].filter((value): value is string => Boolean(value));
+  for (const candidate of candidates) {
+    try {
+      const plan = JSON.parse(candidate) as unknown;
+      if (plan && typeof plan === "object" && !Array.isArray(plan) && (plan as { kind?: unknown }).kind === "incremental-memory-plan") return plan;
+    } catch {
+      // The repair contract requires one exact JSON object.
+    }
+  }
+  return undefined;
+}
+
+export interface IncrementalMemoryRepairInput {
+  rejectedPlan: unknown;
+  errors: readonly string[];
+  selectedNames: readonly string[];
+  identity: { runId: string; scopeKey: string; scopeDigest: string; artifactHash: string; snapshotDigest: string };
+  model?: string;
+  signal?: AbortSignal;
+}
+
+export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepairInput): Promise<{
+  outcome: "repaired" | "failed" | "cancelled";
+  durationMs: number;
+  plan?: unknown;
+  usage?: Awaited<ReturnType<typeof runPiWorker>>["usage"];
+  error?: string;
+}> {
+  const startedAt = Date.now();
+  const prompt = [
+    "Task: repair one rejected incremental Memory delta plan.",
+    "Return exactly one JSON object and no prose. Preserve the supplied identity and selected scope.",
+    "Change only fields needed to resolve every bounded validation error.",
+    "Use only the supplied JSON; do not request additional context or rerun planning.",
+    JSON.stringify({
+      identity: input.identity,
+      selectedNames: [...input.selectedNames],
+      errors: input.errors.map((error) => error.slice(0, 800)).slice(0, 16),
+      rejectedPlan: input.rejectedPlan,
+    }),
+  ].join("\n");
+  const result = await runPiWorker({
+    prompt,
+    cwd: os.tmpdir(),
+    tools: [],
+    model: input.model,
+    signal: input.signal,
+    minimal: true,
+  });
+  const durationMs = Date.now() - startedAt;
+  if (result.cancelled) return { outcome: "cancelled", durationMs, usage: result.usage, error: result.stderr };
+  if (result.exitCode !== 0) return { outcome: "failed", durationMs, usage: result.usage, error: result.stderr };
+  const plan = parseIncrementalPlanText(result.text);
+  return plan
+    ? { outcome: "repaired", durationMs, plan, usage: result.usage }
+    : { outcome: "failed", durationMs, usage: result.usage, error: "repair returned no exact incremental-memory-plan object" };
+}
+
 export function missingConsolidationEvidence(evidence: ConsolidationEvidence): string[] {
   const missing: string[] = [];
   if (!evidence.completedToolWork) missing.push("completed tool work");
@@ -512,8 +669,13 @@ const runModeById = new Map<string, LearningMode>();
 let dreamingTimer: NodeJS.Timeout | undefined;
 let dreamingActivity = "";
 
-function setDreamingWidget(ctx: ExtensionContext): void {
+function setDreamingActivity(activity: string): void {
+  dreamingActivity = activity;
+}
+
+function setDreamingWidget(ctx: ExtensionContext, activity = "starting"): void {
   if (ctx.mode !== "tui") return;
+  setDreamingActivity(activity);
 
   if (dreamingTimer) {
     clearInterval(dreamingTimer);
@@ -703,9 +865,22 @@ async function runConsolidationValidator(
 async function spawnAsyncConsolidation(
   ctx: ExtensionContext,
   state: DreamState,
-  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; attempt?: number; rejectionFeedback?: string; mode?: LearningMode },
+  opts: {
+    pkgDir: string;
+    cwd: string;
+    noContext?: boolean;
+    reason: string;
+    attempt?: number;
+    rejectionFeedback?: string;
+    mode?: LearningMode;
+    selectedScope?: readonly string[];
+    dossierPath?: string;
+    dossierDigest?: string;
+    selectedSourceDigest?: string;
+  },
 ): Promise<boolean> {
   const attempt = opts.attempt ?? 0;
+  const incremental = opts.mode !== "full" && !opts.noContext;
   const attemptStartedAt = Date.now();
   if (state.active && attempt === 0) {
     notifyPi(ctx.ui, "Memory consolidation is already running in background.", "info");
@@ -726,8 +901,8 @@ async function spawnAsyncConsolidation(
   try {
     procedure = createPackageAgentRun({
       packageRootUrl: new URL("../", import.meta.url).href,
-      resourcePath: "agents/memory-consolidator.md",
-      namePrefix: "memory-consolidator",
+      resourcePath: incremental ? "agents/incremental-memory-consolidator.md" : "agents/memory-consolidator.md",
+      namePrefix: incremental ? "incremental-memory-consolidator" : "memory-consolidator",
       toolCallId: `memory:${generation}`,
       request: "Follow the parent-provided task below.",
     }).prompt.replaceAll("{{PKG_DIR}}", opts.pkgDir);
@@ -756,9 +931,28 @@ async function spawnAsyncConsolidation(
     await releaseConsolidationRun(run);
     return false;
   }
+  if (incremental) {
+    if (!opts.dossierPath || !opts.dossierDigest || !opts.selectedSourceDigest) {
+      await releaseConsolidationRun(run);
+      throw new Error("incremental Memory run is missing its bound dossier state");
+    }
+    const dossierBytes = await fs.readFile(opts.dossierPath);
+    if (sha256Digest(dossierBytes) !== opts.dossierDigest) {
+      await releaseConsolidationRun(run);
+      throw new Error("incremental dossier changed after selection");
+    }
+    const currentSourceHashes = {
+      harness: await hashMemoryRoot(run.manifest.harnessDir),
+      public: run.manifest.publicDir ? await hashMemoryRoot(run.manifest.publicDir) : {},
+    };
+    if (sha256Digest(JSON.stringify(currentSourceHashes)) !== opts.selectedSourceDigest) {
+      await releaseConsolidationRun(run);
+      throw new Error("selected Memory changed after incremental selection");
+    }
+  }
   state.run = run;
   runModeById.set(run.manifest.runId, opts.mode ?? "manual");
-  const selectedScope = parentSelectedScope(run, Boolean(opts.noContext));
+  const selectedScope = parentSelectedScope(run, Boolean(opts.noContext), opts.selectedScope);
   if (run.normalization.repaired.length > 0 || run.normalization.removed.length > 0) {
     notifyPi(ctx.ui,
       `Memory consolidation normalized mirrors before planning: ${run.normalization.repaired.length} repaired, ${run.normalization.removed.length} removed`,
@@ -776,7 +970,8 @@ async function spawnAsyncConsolidation(
     .replaceAll("{{SNAPSHOT_PATH}}", run.manifest.snapshotPath)
     .replaceAll("{{HARNESS_DIR}}", run.manifest.harnessDir)
     .replaceAll("{{PUBLIC_DIR}}", run.manifest.publicDir ?? "(disabled for this non-project directory)")
-    .replaceAll("{{REPO_ROOT}}", run.manifest.cwd);
+    .replaceAll("{{REPO_ROOT}}", run.manifest.cwd)
+    .replaceAll("{{DOSSIER_PATH}}", opts.dossierPath ?? "");
 
   const taskText = [
     `Task: produce a read-only structured consolidation plan for the project at ${opts.cwd}.`,
@@ -788,14 +983,24 @@ async function spawnAsyncConsolidation(
     `- Artifact/snapshot digest: ${run.manifest.snapshotDigest}`,
     `- Run directory: ${run.manifest.runDir}`,
     `- Context mode: ${opts.noContext ? "no-context (do not capture session context)" : "parent-provided immutable snapshot"}`,
-    `- Pre-run mirror normalization: ${JSON.stringify({ repaired: run.normalization.repaired, removed: run.normalization.removed })}`,
-    ...formatSelectedScopeTaskLines(selectedScope, Boolean(opts.noContext)),
-    `- Immutable manifest: ${path.join(run.manifest.runDir, "manifest.json")}`,
-    `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
-    `- Harness memory dir: ${harnessDir}`,
-    `- Public memory dir: ${run.manifest.publicDir ?? "disabled for this non-project directory"}`,
-    "- Do not write to either memory directory.",
-    "- Your final assistant message must be one JSON object containing schemaVersion, runId, scopeKey, snapshotDigest, selected, and operations.",
+    ...(incremental
+      ? [
+          `- Incremental Learning Dossier: ${opts.dossierPath}`,
+          `- Dossier digest: ${opts.dossierDigest}`,
+          `- Authoritative selected Memory names: ${JSON.stringify(selectedScope)}`,
+          "- Read only the dossier by default; it already contains the selected Memory bodies.",
+          "- Return one delta-only incremental-memory-plan; do not emit exhaustive unchanged sections.",
+        ]
+      : [
+          `- Pre-run mirror normalization: ${JSON.stringify({ repaired: run.normalization.repaired, removed: run.normalization.removed })}`,
+          ...formatSelectedScopeTaskLines(selectedScope, Boolean(opts.noContext)),
+          `- Immutable manifest: ${path.join(run.manifest.runDir, "manifest.json")}`,
+          `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
+          `- Harness memory dir: ${harnessDir}`,
+          `- Public memory dir: ${run.manifest.publicDir ?? "disabled for this non-project directory"}`,
+          "- Do not write to either memory directory.",
+          "- Your final assistant message must be one exhaustive Memory consolidation plan.",
+        ]),
     "",
     procedure,
   ].join("\n");
@@ -831,7 +1036,7 @@ async function spawnAsyncConsolidation(
       cli.command,
       [
         ...cli.args,
-        ...minimalPiWorkerArgs(["read", "grep", "find", "ls"]),
+        ...minimalPiWorkerArgs(incremental ? ["read"] : ["read", "grep", "find", "ls"]),
         ...modelArgs,
         `@${taskFile}`,
       ],
@@ -846,8 +1051,7 @@ async function spawnAsyncConsolidation(
   }
 
   state.child = child;
-  setDreamingWidget(ctx);
-  state.cleanup = () => clearDreamingWidget(ctx);
+  setDreamingActivity(incremental ? "memory delta" : "full memory");
 
   let stdoutBuffer = "";
   let stdoutCapture = "";
@@ -963,14 +1167,13 @@ async function spawnAsyncConsolidation(
   let finished = false;
   let failureRecorded = false;
   let mutatedMemory = false;
+  let appliedOperationCount = 0;
   let timedOut = false;
-  /**
-   * One parent-owned retry for failures before any memory mutation: a fresh
-   * child re-plans from the same immutable run inputs. Every retry attempt is
-   * validated identically, so this never weakens the fail-closed gates.
-   */
+  let repairAttempt: LearningAttempt | undefined;
+  /** Full maintenance retains the existing fresh-planner retry. Incremental
+   * runs never replay the dossier or selected Memory bodies. */
   const retryPlanPhase = async (reason: string, failure: "syntax" | "validation" | "model" | "timeout" | "cancelled" | "output-limit" | "stale" | "other" = "validation"): Promise<void> => {
-    if (!shouldRetryPlanner({ mode: opts.mode ?? "manual", phase: "memory", attempt, failure, mutated: mutatedMemory })) {
+    if (opts.mode !== "full" || !shouldRetryPlanner({ mode: "full", phase: "memory", attempt, failure, mutated: mutatedMemory })) {
       notifyPi(ctx.ui, `Memory dreaming failed: ${clipRejectionReason(reason)}`, "error");
       return;
     }
@@ -989,7 +1192,8 @@ async function spawnAsyncConsolidation(
     failureRecorded = true;
     try {
       const marker = outputLimitReason ? `\n[truncated: ${outputLimitReason}]\n` : "";
-      await writeFileAtomic(run.paths.stdoutFile, tailBoundedUtf8Text(`${stdoutCapture}${marker}`));
+      const boundedStdout = tailBoundedUtf8Text(`${stdoutCapture}${marker}`);
+      await writeFileAtomic(run.paths.stdoutFile, completeJsonlSuffix(boundedStdout));
       await writeFileAtomic(run.paths.stderrFile, tailBoundedUtf8Text(stderr));
       await writeFileAtomic(run.paths.activitySummaryFile, `${JSON.stringify(activitySummary, null, 1)}\n`);
     } catch {
@@ -1013,12 +1217,9 @@ async function spawnAsyncConsolidation(
       }
     }
     stderr = appendBoundedUtf8Text(stderr, stderrDecoder.decode(), MAX_STDERR_BYTES);
-    const cleanup = state.cleanup;
     if (ownsCurrentRun()) {
       if (state.child === child) state.child = undefined;
       state.active = false;
-      state.cleanup = undefined;
-      cleanup?.();
     }
     try {
       if (!ownsCurrentRun()) return;
@@ -1050,8 +1251,59 @@ async function spawnAsyncConsolidation(
           evidence.planCount = 1;
         }
         if (!ownsCurrentRun()) return;
-        const plan = evidence.finalPlan ? collapseDuplicatePlanRecords(evidence.finalPlan) : undefined;
-        if (!plan || evidence.planCount !== 1) {
+        const assistantText = finalAssistantText(stdoutCapture);
+        let rawPlan: unknown = evidence.finalPlan ? collapseDuplicatePlanRecords(evidence.finalPlan) : undefined;
+        if (!rawPlan && incremental) rawPlan = parseIncrementalPlanText(assistantText);
+        let rejectedPlan: unknown = rawPlan;
+        let plan: unknown;
+        let incrementalError: string | undefined;
+        if (rawPlan && incremental) {
+          try {
+            plan = await expandIncrementalMemoryPlan(run, selectedScope, rawPlan);
+          } catch (error) {
+            incrementalError = (error as Error).message;
+          }
+        } else {
+          plan = rawPlan;
+        }
+        if (incremental && rejectedPlan && !plan && incrementalError) {
+          const repair = await repairIncrementalMemoryPlan({
+            rejectedPlan,
+            errors: [incrementalError],
+            selectedNames: selectedScope,
+            identity: {
+              runId: run.manifest.runId,
+              scopeKey: run.manifest.scopeKey,
+              scopeDigest: run.manifest.scopeDigest,
+              artifactHash: run.manifest.snapshotDigest,
+              snapshotDigest: run.manifest.snapshotDigest,
+            },
+            model: memoryConfig.provider && memoryConfig.model ? `${memoryConfig.provider}/${memoryConfig.model}` : undefined,
+            signal: state.controller?.signal,
+          });
+          repairAttempt = {
+            phase: "memory",
+            attempt: 1,
+            outcome: repair.outcome === "repaired" ? "noop" : repair.outcome,
+            durationMs: repair.durationMs,
+            operations: 0,
+            usage: repair.usage,
+          };
+          if (repair.outcome === "repaired" && repair.plan) {
+            try {
+              rawPlan = repair.plan;
+              plan = await expandIncrementalMemoryPlan(run, selectedScope, repair.plan);
+              evidence.finalPlan = repair.plan;
+              evidence.planCount = 1;
+            } catch (error) {
+              incrementalError = (error as Error).message;
+              repairAttempt.outcome = "rejected";
+            }
+          } else {
+            incrementalError = repair.error || incrementalError;
+          }
+        }
+        if (!plan || (evidence.planCount !== 1 && !incremental)) {
           await persistRunDiagnostics();
           if (!ownsCurrentRun()) return;
           const failure = classifyPlanPhaseFailure(evidence, stderr);
@@ -1059,8 +1311,8 @@ async function spawnAsyncConsolidation(
             failWithPlannerModelError(failure.detail);
             return;
           }
-          const detail = failure.detail || evidence.lastJsonError;
-          if (attempt === 0) {
+          const detail = incrementalError || failure.detail || evidence.lastJsonError;
+          if (attempt === 0 && opts.mode === "full") {
             await retryPlanPhase(`missing exactly one schema-valid consolidation plan${detail ? ` (${clipRejectionReason(detail, 300)})` : ""}`, "syntax");
             return;
           }
@@ -1074,7 +1326,7 @@ async function spawnAsyncConsolidation(
           const planText = `${JSON.stringify(plan, null, 2)}\n`;
           const planDigest = sha256Digest(planText);
           const preSelected = normalizeSelectedScope(plan);
-          const expectedSelected = parentSelectedScope(run, Boolean(opts.noContext));
+          const expectedSelected = parentSelectedScope(run, Boolean(opts.noContext), opts.selectedScope);
           if (JSON.stringify(preSelected) !== JSON.stringify(expectedSelected)) {
             throw new Error("Consolidation plan selected scope does not match the parent snapshot scope");
           }
@@ -1096,6 +1348,10 @@ async function spawnAsyncConsolidation(
           const mutationStartedAt = Date.now();
           const applied = await applyConsolidationPlan(run, plan, ownsCurrentRun);
           mutatedMemory = true;
+          const existingOperations = Array.isArray((plan as { operations?: unknown }).operations)
+            ? (plan as { operations: unknown[] }).operations.length
+            : 0;
+          appliedOperationCount = existingOperations + applied.created.length;
           if (!ownsCurrentRun()) return;
           const receipt = createConsolidationReceipt(run.manifest, applied.selected, applied.finalState, planDigest, applied.created, summarizeMemoryChanges(plan));
           const receiptPath = await writeConsolidationReceipt(run, receipt);
@@ -1107,7 +1363,6 @@ async function spawnAsyncConsolidation(
           const missing = missingConsolidationEvidence(evidence);
           if (missing.length === 0) {
             state.outcome = "completed";
-            notifyPi(ctx.ui, "Memory dreaming complete — memory consolidated.", "info");
           } else {
             state.outcome = "unverified";
             notifyPi(ctx.ui, `Memory dreaming finished without verified consolidation: missing ${missing.join(", ")}`, "warning");
@@ -1127,7 +1382,7 @@ async function spawnAsyncConsolidation(
           lastJsonError: evidence.lastJsonError,
           exitCode: code,
         });
-        if (attempt === 0) {
+        if (attempt === 0 && opts.mode === "full") {
           await retryPlanPhase(errReason, timedOut ? "timeout" : outputLimitReason ? "output-limit" : "other");
           return;
         }
@@ -1139,7 +1394,7 @@ async function spawnAsyncConsolidation(
         await persistRunDiagnostics();
         if (!ownsCurrentRun()) return;
         const message = (finishError as Error).message;
-        if (!mutatedMemory && attempt === 0) {
+        if (!mutatedMemory && attempt === 0 && opts.mode === "full") {
           await retryPlanPhase(message, /sources changed|snapshot/i.test(message) ? "stale" : "validation");
           return;
         }
@@ -1158,11 +1413,22 @@ async function spawnAsyncConsolidation(
         state.attempts?.push({
           phase: "memory",
           attempt,
-          outcome: state.outcome === "completed" ? "applied" : state.cancelled ? "cancelled" : state.outcome === "unverified" ? "rejected" : "failed",
+          outcome: repairAttempt
+            ? state.cancelled ? "cancelled" : "rejected"
+            : state.cancelled ? "cancelled" : state.outcome === "completed" ? appliedOperationCount > 0 ? "applied" : "noop" : state.outcome === "unverified" ? "rejected" : "failed",
           durationMs: Date.now() - attemptStartedAt,
-          operations: 0,
+          operations: repairAttempt ? 0 : appliedOperationCount,
           usage: evidence.attemptUsage,
         });
+        if (repairAttempt) {
+          repairAttempt.outcome = state.cancelled
+            ? "cancelled"
+            : state.outcome === "completed"
+              ? appliedOperationCount > 0 ? "applied" : "noop"
+              : state.outcome === "unverified" ? "rejected" : "failed";
+          repairAttempt.operations = state.outcome === "completed" ? appliedOperationCount : 0;
+          state.attempts?.push(repairAttempt);
+        }
         resolveCompletion();
         if (state.completion === completion) state.completion = undefined;
       }
@@ -1186,67 +1452,178 @@ async function spawnAsyncConsolidation(
 async function startConsolidationPipeline(
   ctx: ExtensionContext,
   state: DreamState,
-  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; availableSkills: readonly string[]; mode: LearningMode },
+  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; availableSkills: readonly string[]; mode: LearningMode; reportResult?: boolean; reportReceipt?: (receipt: LearningPipelineReceipt) => void },
 ): Promise<void> {
   if (state.pipeline) return state.pipeline;
+  let pipelineScreen: LearningScreen | undefined;
+  setDreamingWidget(ctx, opts.mode === "full" || opts.noContext ? "preparing full maintenance" : "selecting current task");
+  state.cleanup = () => clearDreamingWidget(ctx);
   const pipeline = (async () => {
-    const frozenContext = opts.noContext ? ctx : snapshotSessionContext(ctx);
+    const fullMode = opts.mode === "full" || Boolean(opts.noContext);
+    const completeEntries = snapshotEntries(ctx);
+    const taskSlice = currentTaskSlice(completeEntries);
+    const taskContext = snapshotSessionContext(ctx, fullMode ? undefined : taskSlice.entries);
+    const frozenContext = opts.noContext ? ctx : taskContext;
     const screen: LearningScreen = opts.noContext
       ? { memory: true, harness: false, agents: false, reasons: ["no-context"] }
-      : screenLearningEntries(snapshotEntries(frozenContext), opts.mode);
+      : screenLearningEntries(taskSlice.entries, opts.mode === "full" ? "full" : "automatic");
+    pipelineScreen = screen;
     if (!screen.memory && !screen.harness && !screen.agents) {
       const receipt = buildLearningReceipt(opts.mode, screen, []);
       await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt);
-      notifyPi(ctx.ui, formatLearningSummary(receipt), "info");
-      return;
-    }
-    if (!screen.memory && opts.mode === "automatic") {
-      const receipt = buildLearningReceipt(opts.mode, screen, []);
-      await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt);
-      notifyPi(ctx.ui, formatLearningSummary(receipt), "info");
+      if (opts.reportResult) opts.reportReceipt?.(receipt);
       return;
     }
     state.attempts = [];
     state.mode = opts.mode;
+    state.cancelled = false;
     state.controller = new AbortController();
-    const started = await spawnAsyncConsolidation(frozenContext, state, opts);
-    if (!started) return;
-    // A retry replaces completion; wait for each attempt and its lock release.
-    while (state.completion) await state.completion;
-    if (state.cancelled) return;
+    const reportReceipt = (receipt: LearningPipelineReceipt): void => {
+      if (opts.reportResult) opts.reportReceipt?.(receipt);
+    };
+    const writeCurrentReceipt = async (directory = resolveMemoryPaths(opts.cwd).runsDir): Promise<void> => {
+      const receipt = buildLearningReceipt(opts.mode, screen, state.attempts ?? []);
+      await writeLearningReceipt(directory, receipt);
+      reportReceipt(receipt);
+    };
+    let incrementalSelection: Awaited<ReturnType<typeof selectIncrementalLearning>> | undefined;
+    let selectorRun: ConsolidationRun | undefined;
+    let selectedSourceDigest: string | undefined;
+    let appliedMemoryChanges = 0;
+    if (!fullMode) {
+      setDreamingActivity("selecting related memory");
+      selectorRun = await createConsolidationRun(frozenContext, opts.cwd, false);
+      selectedSourceDigest = sha256Digest(JSON.stringify(selectorRun.manifest.sourceHashes));
+      const selectorReceiptDirectory = resolveMemoryPaths(opts.cwd).runsDir;
+      try {
+        incrementalSelection = await selectIncrementalLearning({
+          cwd: opts.cwd,
+          taskSlice,
+          contextDigest: selectorRun.manifest.snapshotDigest,
+          outputDir: selectorRun.manifest.runDir,
+          model: memoryConfig.provider && memoryConfig.model ? `${memoryConfig.provider}/${memoryConfig.model}` : undefined,
+          signal: state.controller.signal,
+          registeredSkills: opts.availableSkills,
+        });
+        state.attempts.push({
+          phase: "selector",
+          attempt: 0,
+          outcome: incrementalSelection.outcome === "selected" ? "applied" : incrementalSelection.outcome,
+          durationMs: incrementalSelection.durationMs,
+          operations: 0,
+          usage: incrementalSelection.usage,
+        });
+        if (incrementalSelection.outcome !== "selected" || !incrementalSelection.selection) {
+          if (!state.cancelled) notifyPi(ctx.ui, `Learning selector failed: ${incrementalSelection.error ?? "invalid selection"}`, "warning");
+          await writeCurrentReceipt(selectorReceiptDirectory);
+          return;
+        }
+        // The deterministic parent screen is authoritative for durable task
+        // evidence; the selector may add phases but cannot suppress one the
+        // parent already found.
+        screen.memory = screen.memory || incrementalSelection.selection.memory;
+        screen.harness = screen.harness || incrementalSelection.selection.harness;
+        screen.agents = screen.agents || incrementalSelection.selection.agents;
+        if (screen.memory) {
+          await ensureEmptyIncrementalIndexes(opts.cwd, incrementalSelection.selection.selected);
+          const memoryPaths = resolveMemoryPaths(opts.cwd);
+          const currentSourceHashes = {
+            harness: await hashMemoryRoot(memoryPaths.harnessDir),
+            public: memoryPaths.publicDir ? await hashMemoryRoot(memoryPaths.publicDir) : {},
+          };
+          selectedSourceDigest = sha256Digest(JSON.stringify(currentSourceHashes));
+        }
+      } catch (error) {
+        await releaseConsolidationRun(selectorRun, { keepArtifacts: Boolean(incrementalSelection?.dossierPath) });
+        selectorRun = undefined;
+        throw error;
+      }
+    }
+    if (screen.memory) {
+      setDreamingActivity(fullMode ? "full memory" : "memory delta");
+      const memoryStartedAt = Date.now();
+      if (selectorRun) {
+        await releaseConsolidationRun(selectorRun, { keepArtifacts: true });
+        selectorRun = undefined;
+      }
+      const started = await spawnAsyncConsolidation(frozenContext, state, {
+        ...opts,
+        selectedScope: incrementalSelection?.selection?.selected,
+        dossierPath: incrementalSelection?.dossierPath,
+        dossierDigest: incrementalSelection?.dossierDigest,
+        selectedSourceDigest,
+      });
+      if (!started) {
+        if (!state.cancelled) {
+          state.attempts.push({ phase: "memory", attempt: 0, outcome: "failed", durationMs: Date.now() - memoryStartedAt, operations: 0 });
+          await writeCurrentReceipt();
+        }
+        return;
+      }
+      // A retry replaces completion; wait for each attempt and its lock release.
+      while (state.completion) await state.completion;
+      if (state.cancelled) return;
+      appliedMemoryChanges = (state.attempts ?? [])
+        .filter((attempt) => attempt.phase === "memory")
+        .reduce((total, attempt) => total + attempt.operations, 0);
+    } else {
+      // Later phases may have grounded evidence even when no Memory candidate
+      // exists. Satisfy the ordering gate without spawning or mutating Memory.
+      state.active = false;
+      state.outcome = "completed";
+    }
     const gate = shouldRunHarnessPhase(state, opts.noContext);
-    if (gate !== "run" && gate !== "skip-no-context") return;
+    if (gate !== "run" && gate !== "skip-no-context") {
+      await writeCurrentReceipt();
+      return;
+    }
     if (opts.noContext) {
-      notifyPi(ctx.ui, "Harness and AGENTS.md consolidation need captured context; skipped (no-context run).", "info");
+      await writeCurrentReceipt();
       return;
     }
     if (opts.mode === "automatic" && !screen.harness && !screen.agents) {
-      const receipt = buildLearningReceipt(opts.mode, screen, state.attempts ?? []);
-      await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt);
-      notifyPi(ctx.ui, formatLearningSummary(receipt), "info");
+      await writeCurrentReceipt();
       return;
     }
+    if (selectorRun) {
+      if (!incrementalSelection?.dossierPath || !incrementalSelection.dossierDigest) throw new Error("incremental dossier is missing before later planning");
+      const dossierBytes = await fs.readFile(incrementalSelection.dossierPath);
+      if (sha256Digest(dossierBytes) !== incrementalSelection.dossierDigest) throw new Error("incremental dossier changed after selection");
+      await releaseConsolidationRun(selectorRun, { keepArtifacts: true });
+      selectorRun = undefined;
+    }
     const laterRun = await createConsolidationRun(frozenContext, opts.cwd, false);
+    if (incrementalSelection?.dossierPath && incrementalSelection.dossierDigest) {
+      const dossierBytes = await fs.readFile(incrementalSelection.dossierPath);
+      if (sha256Digest(dossierBytes) !== incrementalSelection.dossierDigest) throw new Error("incremental dossier changed before later planning");
+      if (selectedSourceDigest && appliedMemoryChanges === 0) {
+        const currentSourceHashes = {
+          harness: await hashMemoryRoot(laterRun.manifest.harnessDir),
+          public: laterRun.manifest.publicDir ? await hashMemoryRoot(laterRun.manifest.publicDir) : {},
+        };
+        if (sha256Digest(JSON.stringify(currentSourceHashes)) !== selectedSourceDigest) {
+          throw new Error("selected Memory changed before later planning");
+        }
+      }
+    }
     const attempts = state.attempts ?? [];
     const laterGeneration = state.generation + 1;
-    const agentsState = { active: true, generation: laterGeneration, cancelled: false, child: undefined as ChildProcess | undefined };
-    state.laterStates = [agentsState];
+    const harnessState = { cancelled: false, generation: laterGeneration, child: undefined as ChildProcess | undefined };
+    const agentsState = { active: true, cancelled: false, generation: laterGeneration, child: undefined as ChildProcess | undefined };
+    state.laterStates = [harnessState, agentsState];
     try {
-      const contextDigest = laterRun.manifest.snapshotDigest;
-      const explorer = await exploreLearningContext({
-        pkgDir: opts.pkgDir,
-        cwd: opts.cwd,
-        snapshotPath: laterRun.manifest.snapshotPath,
-        contextDigest,
-        outputDir: laterRun.manifest.runDir,
-        model: memoryConfig.provider && memoryConfig.model ? `${memoryConfig.provider}/${memoryConfig.model}` : undefined,
-        signal: state.controller?.signal,
-      });
-      attempts.push({ phase: "explorer", attempt: 0, outcome: explorer.outcome, durationMs: explorer.durationMs, operations: 0, usage: explorer.usage });
-      const exploration = explorer.outcome === "applied" ? { explorationPath: explorer.path, explorationDigest: explorer.digest } : {};
+      const exploration = incrementalSelection?.dossierPath
+        ? { explorationPath: incrementalSelection.dossierPath, explorationDigest: incrementalSelection.dossierDigest }
+        : {};
       const settings = await readSettings(opts.cwd);
+      if (screen.harness && screen.agents) setDreamingActivity("harness and AGENTS.md");
+      else if (screen.harness) setDreamingActivity("harness delta");
+      else if (screen.agents) setDreamingActivity("AGENTS.md delta");
       const harnessPromise = screen.harness
-        ? planHarnessConsolidationPhase(frozenContext, { pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills, run: laterRun, ...exploration }, { current: () => !state.cancelled, onChild: (child) => { state.child = child; } })
+        ? planHarnessConsolidationPhase(frozenContext, { pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills, run: laterRun, ...exploration }, {
+            current: () => !state.cancelled && !harnessState.cancelled,
+            onChild: (child) => { harnessState.child = child; },
+          })
         : Promise.resolve(undefined);
       const agentsPromise = screen.agents && settings.agentsMd?.disabled !== true
         ? planAgentsMdConsolidationPhase(frozenContext, agentsState, {
@@ -1257,32 +1634,51 @@ async function startConsolidationPipeline(
       const [harnessPlan, agentsPlan] = await Promise.all([harnessPromise, agentsPromise]);
       if (harnessPlan) {
         attempts.push({ phase: "harness", attempt: 0, outcome: harnessPlan.ok ? "noop" : "failed", durationMs: harnessPlan.ok ? harnessPlan.value.durationMs : harnessPlan.durationMs, operations: harnessPlan.ok && Array.isArray(harnessPlan.value.plan.operations) ? harnessPlan.value.plan.operations.length : 0, usage: harnessPlan.ok ? harnessPlan.value.usage : harnessPlan.usage });
+        if (!harnessPlan.ok && !state.cancelled) notifyPi(ctx.ui, `Harness learning failed: ${harnessPlan.detail.slice(-300)}`, "warning");
         if (harnessPlan.ok) {
           const applied = await applyHarnessConsolidationPlan(harnessPlan.value, () => !state.cancelled);
           attempts[attempts.length - 1].outcome = applied.outcome;
-          attempts[attempts.length - 1].operations = applied.operations;
+          attempts[attempts.length - 1].operations = applied.outcome === "applied" ? applied.applied.length : 0;
         }
       }
       if (agentsPlan) {
-        attempts.push({ phase: "agents", attempt: 0, outcome: agentsPlan.operations.length ? "noop" : "noop", durationMs: agentsPlan.durationMs, operations: agentsPlan.operations.length, usage: agentsPlan.usage });
-        const applied = await applyAgentsMdConsolidationPlan(frozenContext, agentsState, {
-          pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills,
-          budgetBytes: settings.agentsMd?.budgetBytes ?? DEFAULT_AGENTS_MD_BUDGET_BYTES, disabled: false, ...exploration,
-        }, agentsPlan, laterGeneration);
-        attempts[attempts.length - 1].outcome = applied && applied.applied > 0 ? "applied" : "noop";
-        attempts[attempts.length - 1].operations = applied?.applied ?? 0;
+        const attempt: LearningAttempt = {
+          phase: "agents",
+          attempt: 0,
+          outcome: agentsPlan.outcome === "planned" ? "noop" : agentsPlan.outcome,
+          durationMs: agentsPlan.durationMs,
+          operations: 0,
+          usage: agentsPlan.usage,
+        };
+        attempts.push(attempt);
+        if ((agentsPlan.outcome === "failed" || agentsPlan.outcome === "rejected") && !state.cancelled) {
+          notifyPi(ctx.ui, `AGENTS.md learning ${agentsPlan.outcome}: ${agentsPlan.detail ?? "no validated plan"}`, "warning");
+        }
+        if (agentsPlan.outcome === "planned") {
+          const applied = await applyAgentsMdConsolidationPlan(frozenContext, agentsState, {
+            pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills,
+            budgetBytes: settings.agentsMd?.budgetBytes ?? DEFAULT_AGENTS_MD_BUDGET_BYTES, disabled: false, ...exploration,
+          }, agentsPlan.planning, laterGeneration, () => !state.cancelled);
+          attempt.outcome = applied.outcome;
+          attempt.operations = applied.applied;
+        }
       }
-      const receipt = buildLearningReceipt(opts.mode, screen, attempts);
-      await writeLearningReceipt(laterRun.manifest.runDir, receipt);
-      notifyPi(ctx.ui, formatLearningSummary(receipt), "info");
+      await writeCurrentReceipt(laterRun.manifest.runDir);
     } finally {
       state.laterStates = undefined;
       await releaseConsolidationRun(laterRun, { keepArtifacts: true });
     }
-  })().catch((error: unknown) => {
+  })().catch(async (error: unknown) => {
     state.outcome = "failed";
+    if (!state.cancelled && pipelineScreen && (state.attempts?.length ?? 0) > 0) {
+      const receipt = buildLearningReceipt(opts.mode, pipelineScreen, state.attempts ?? []);
+      await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt).catch(() => undefined);
+    }
     if (!state.cancelled) notifyPi(ctx.ui, `Learning pipeline failed: ${error instanceof Error ? error.message : String(error)}`, "error");
   }).finally(() => {
+    const cleanup = state.cleanup;
+    state.cleanup = undefined;
+    cleanup?.();
     if (state.pipeline === pipeline) state.pipeline = undefined;
   });
   state.pipeline = pipeline;
@@ -1312,8 +1708,32 @@ async function editInstructions(ctx: ExtensionCommandContext, filePath: string):
 
 // ── extension ──────────────────────────────────────────────────────
 
+const LEARNING_RESULT_MESSAGE = "continual-learning-result";
+
 export default function (pi: ExtensionAPI) {
   const dreamState: DreamState = { active: false, generation: 0, cancelled: false };
+  const reportLearningReceipt = (receipt: LearningPipelineReceipt): void => {
+    pi.sendMessage(
+      { customType: LEARNING_RESULT_MESSAGE, content: formatLearningSummary(receipt), display: true, details: receipt },
+      { deliverAs: "followUp", triggerTurn: false },
+    );
+  };
+  if (typeof pi.registerMessageRenderer === "function") {
+    pi.registerMessageRenderer(LEARNING_RESULT_MESSAGE, (message, { expanded }, theme) => {
+      const receipt = isLearningPipelineReceipt(message.details) ? message.details : undefined;
+      const subject = receipt ? learningSummarySubject(receipt) : "learning result";
+      return createStaticToolLifecycleMessageRenderer({
+        createSpec: () => eventToolLifecycle("learning", subject, {
+          label: "event",
+          details: receipt ? learningSummaryDetails(receipt) : undefined,
+        }),
+        expandHint: keyHint("app.tools.expand", "to expand"),
+        fit: truncateToWidth,
+        visibleWidth,
+        hostComponent: ToolExecutionComponent,
+      })(message, { expanded }, theme);
+    });
+  }
   let sessionGeneration = 0;
 
   registerAutomaticLearning(pi, {
@@ -1329,6 +1749,8 @@ export default function (pi: ExtensionAPI) {
         availableSkills: pi.getCommands().filter(command => command.source === "skill").map(command => command.name.replace(/^skill:/, "")),
         reason: "Learn durable memory and verifiable constraints from the completed user task.",
         mode: "automatic",
+        reportResult: false,
+        reportReceipt: reportLearningReceipt,
       });
     },
     reportError: (error, ctx) => notifyPi(ctx.ui, `Automatic learning failed: ${error instanceof Error ? error.message : String(error)}`, "error"),
@@ -1338,17 +1760,17 @@ export default function (pi: ExtensionAPI) {
     sessionGeneration += 1;
     dreamState.cancelled = true;
     dreamState.controller?.abort();
-    for (const phase of dreamState.laterStates ?? []) {
-      phase.cancelled = true;
-      phase.generation += 1;
-    }
+    const laterStates = dreamState.laterStates ?? [];
     dreamState.generation += 1;
     dreamState.active = false;
     const cleanup = dreamState.cleanup;
     dreamState.cleanup = undefined;
     cleanup?.();
     const child = dreamState.child;
-    if (child) await terminateConsolidationChild(child, 5_000);
+    await Promise.all([
+      ...(child ? [terminateConsolidationChild(child, 5_000)] : []),
+      cancelLaterPlannerChildren(laterStates),
+    ]);
     const completion = dreamState.completion;
     if (completion) await completion;
     if (dreamState.pipeline) await dreamState.pipeline;
@@ -1360,8 +1782,13 @@ export default function (pi: ExtensionAPI) {
     dreamState.laterStates = undefined;
   };
 
-  pi.on("session_start", async () => {
+  pi.on("session_start", async (_event, ctx) => {
     await stopPipeline();
+    try {
+      await recoverPendingAgentsMdConsolidations(ctx.cwd || process.cwd());
+    } catch (error) {
+      notifyPi(ctx.ui, `AGENTS.md recovery failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+    }
     memoryConfigState = safelyReadMemoryConfigState();
     memoryConfig = memoryConfigState.config;
   });
@@ -1410,7 +1837,7 @@ export default function (pi: ExtensionAPI) {
       const memoryPaths = resolveMemoryPaths(cwd);
       const harnessDir = memoryPaths.harnessDir;
       const home = getAgentDir();
-      const pkgDir = await resolvePackageDir();
+      const pkgDir = resolvePackageDir();
       const procedureFile = path.join(pkgDir, "agents", "memory-consolidator.md");
       const projectInstructions = await resolveProjectInstructionsFile(cwd, ctx);
 
@@ -1450,7 +1877,6 @@ export default function (pi: ExtensionAPI) {
           notifyPi(ctx.ui, "Memory consolidation is already running in background.", "info");
           return;
         }
-        notifyPi(ctx.ui, "Starting memory consolidation in the background…", "info");
         void startConsolidationPipeline(ctx, dreamState, {
           pkgDir,
           cwd,
@@ -1458,6 +1884,8 @@ export default function (pi: ExtensionAPI) {
           availableSkills: pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')),
           reason: "Consolidate the project memory now (user-invoked via /memory menu).",
           mode: "manual",
+          reportResult: true,
+          reportReceipt: reportLearningReceipt,
         });
       } else if (choice.startsWith("Edit user instructions")) {
         await editInstructions(ctx, path.join(home, "AGENTS.md"));
@@ -1491,26 +1919,29 @@ export default function (pi: ExtensionAPI) {
     description: "Consolidate project memory and harness now",
     handler: async (rawArgs, ctx) => {
       const args = rawArgs.trim();
-      if (args !== "" && args !== "no-context") {
-        notifyPi(ctx.ui, "Usage: /consolidate [no-context]", "error");
+      if (args !== "" && args !== "full" && args !== "no-context") {
+        notifyPi(ctx.ui, "Usage: /consolidate [full|no-context]", "error");
         return;
       }
       const cwd = ctx.cwd || process.cwd();
-      const pkgDir = await resolvePackageDir();
+      const pkgDir = resolvePackageDir();
 
       if (dreamState.pipeline || dreamState.active) {
         notifyPi(ctx.ui, "Memory consolidation is already running.", "info");
         return;
       }
 
-      notifyPi(ctx.ui, "Starting memory consolidation in the background…", "info");
       const completion = startConsolidationPipeline(ctx, dreamState, {
         pkgDir,
         cwd,
         noContext: args === "no-context",
         availableSkills: pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')),
-        reason: "Consolidate the project memory and harness now (user-invoked via /consolidate command).",
-        mode: "manual",
+        reason: args === "full"
+          ? "Run explicit full-corpus Memory, Harness, and AGENTS.md maintenance."
+          : "Consolidate the current task context incrementally (user-invoked via /consolidate command).",
+        mode: args === "full" || args === "no-context" ? "full" : "manual",
+        reportResult: true,
+        reportReceipt: reportLearningReceipt,
       });
       if (!ctx.hasUI) await completion;
     },

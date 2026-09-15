@@ -8,15 +8,11 @@
 2. **Harness** evaluates declarative policies on tool calls, assistant output, and actual file artifacts. Skill-specific prompts are a separate pre-generation context-guidance module.
 3. **AGENTS.md consolidation** maintains the small, always-loaded project instruction document and extracts narrower material into Memory or Harness.
 
-Automatic learning after settled user tasks and explicit `/consolidate` runs use these phases in order:
+Automatic learning and default `/consolidate` operate on one completed **Task Slice**. A metadata-only **Memory Selector** chooses the minimum sufficient related existing Memory, and the parent builds one authoritative **Learning Dossier** containing that Task Slice plus selected bodies. Memory, Harness, and AGENTS.md planners consume the dossier and return only deltas. `/consolidate full` is the explicit exhaustive maintenance path.
 
-1. Memory consolidation
-2. Harness consolidation
-3. Project `AGENTS.md` consolidation
+Every phase follows the same trust boundary: the parent freezes the task context before asynchronous work, a package-owned child agent runs with discovery disabled and the minimum tools for its mode (none for selection, `read` for incremental Memory, and bounded read-only discovery only for explicit full maintenance), and only the parent validates and applies a bounded structured plan. Memory attempts capture their bound inputs; Harness and AGENTS.md planners share one later-phase immutable capture of the same frozen context. Completion requires parent-owned validation and pre/post receipts; planner prose is never proof of success. Locks, path containment, symlink checks, atomic writes, rollback, output bounds, and shutdown generation checks remain mandatory.
 
-Every phase follows the same trust boundary: the parent freezes the task context before asynchronous work, a package-owned child agent runs with extension, skill, prompt-template, context-file, and theme discovery disabled plus only `read,grep,find,ls`, and only the parent validates and applies a bounded structured plan. Each phase snapshots that same frozen context, including retries. Completion requires parent-owned validation and pre/post receipts; planner prose is never proof of success. Locks, path containment, symlink checks, atomic writes, rollback, output bounds, and shutdown generation checks remain mandatory.
-
-Later-phase failure does not roll back an earlier verified phase. Memory must complete and verify before Harness starts. Harness failure leaves Memory intact; AGENTS.md failure leaves both earlier phases intact.
+Later-phase failure does not roll back an earlier verified phase. When Memory is selected, it must complete and verify before Harness starts; grounded Harness/AGENTS-only automatic evidence may instead use a verified no-mutation Memory gate. Harness failure leaves Memory intact; AGENTS.md failure leaves both earlier phases intact.
 
 ## Harness ownership
 
@@ -26,7 +22,7 @@ Harness configuration has exactly three user-owned layers, plus package defaults
 2. Project shared: `<project>/.pi/harness.json`
 3. Project personal: `<project>/.pi/harness.local.json`
 
-Precedence is project personal over project shared over user shared over built-in defaults. Policy names and skill-prompt names are the addressable override keys. The obsolete user-personal `~/.pi/agent/harness.local.json` is not loaded, displayed, or targeted.
+Precedence is project personal over project shared over user shared over built-in defaults. Policy names and skill-prompt names are the addressable override keys. The obsolete user-personal `~/.pi/agent/harness.local.json` and project `.pi/agent/harness*.json` paths are not loaded, displayed, or targeted.
 
 Automatic Harness consolidation writes only `<project>/.pi/harness.local.json`. The shared Harness layers are read-only inputs.
 
@@ -34,16 +30,16 @@ Automatic Harness consolidation writes only `<project>/.pi/harness.local.json`. 
 
 Memory deliberately uses two physical roots rather than copying the three Harness configuration layers:
 
-1. **Harness/private Memory**: `~/.pi/agent/memory/<escaped-project-path>/`
+1. **Harness/private Memory**: `~/.pi/agent/memory/<escaped-readable-prefix>--<full-sha256-scope-key>/`
 2. **Project shared Memory**: `<project>/.memory/`
 
-For `/Users/FradSer/Developer/FradSer/cerberus`, the private directory is readable and path-derived:
+For `/Users/FradSer/Developer/FradSer/cerberus`, the private directory remains readable while carrying a collision-resistant identity:
 
 ```text
-~/.pi/agent/memory/-Users-FradSer-Developer-FradSer-cerberus/
+~/.pi/agent/memory/-Users-FradSer-Developer-FradSer-cerberus--<64hex>/
 ```
 
-The escaped project path is derived from the canonical project working directory by replacing path separators and whitespace runs with `-`. For example, `/Users/FradSer/Documents/Home Lab` becomes `-Users-FradSer-Documents-Home-Lab`. It replaces the temporary SHA-256 directory naming: the on-disk scope must be recognizable to a human, contain no whitespace, and not be an opaque digest.
+The prefix is derived from the canonical project working directory, normalized to bounded ASCII, and capped at 174 bytes. The `--` suffix is the full 64-character lowercase SHA-256 scope key, keeping the complete component within 240 bytes and preventing different paths with the same readable prefix from sharing Memory.
 
 The two roots have different privacy roles. No project-local private memory directory is recognized: private memory exists only in the agent-owned root.
 
@@ -88,26 +84,25 @@ Only strict Memory basenames are accepted:
 
 ## Legacy directory migration
 
-The opaque SHA-256 project directory introduced during the abandoned naming experiment and an older readable directory that preserved whitespace must migrate to the normalized escaped-project-path directory. The migration is one-way and has no permanent compatibility read fallback:
+The opaque SHA-256 project directory, the collision-prone readable directory, and the older readable directory that preserved whitespace must migrate to the readable-prefix-plus-scope-key directory. Migration is one-way and has no permanent compatibility read fallback:
 
-- If only the old opaque directory exists, move its valid Memory into the readable private directory.
-- Existing files in the readable destination win conflicts.
-- Preserve private markers from the old index.
-- Rebuild the readable private index after migration.
-- Remove a migrated source only after successful application and only when every source entry was recognized; preserve the source intact if it contains unsupported data.
-
-Older dash-encoded directories already matching the readable escaped project path are the desired destination, not legacy input.
+- Valid Memory merges into the collision-resistant destination without overwriting conflicts.
+- Private markers from legacy indexes transfer only for files whose bytes were created in or match the destination; a retained conflicting source cannot reclassify different canonical bytes.
+- Source and destination roots, entries, and indexes reject symlinks.
+- A failed application restores the destination predecessor and leaves every source intact.
+- A migrated source is removed only after successful application and only when every source entry was recognized; unsupported or conflicting sources remain intact.
 
 ## Commands and settings
 
 - `/memory` manages the consolidation model, auto-memory toggle, instructions, and opens the Harness/private Memory directory.
-- `/consolidate` manually runs Memory, Harness, and AGENTS.md consolidation in sequence.
-- `/consolidate no-context` performs the context-disabled Memory path and skips Harness and AGENTS.md, which require session evidence.
+- `/consolidate` incrementally learns from the current completed Task Slice.
+- `/consolidate full` explicitly runs exhaustive Memory, Harness, and AGENTS.md maintenance.
+- `/consolidate no-context` performs the context-disabled full Memory path and skips Harness and AGENTS.md, which require task evidence.
 - `/harness` displays active policies and creates rules in the selected Harness configuration layer.
 
 Auto-memory enables learning after `agent_settled` for real user input. It coalesces pending completed tasks, ignores extension-generated continuations as independent triggers, and waits for the full pipeline in headless mode. Existing Memory remains available regardless of the toggle. The main model is not asked to write memories directly; the parent validates new-memory proposals even when the existing corpus is empty.
 
-New memories live in a separate `newMemories` proposal array while `selected` remains the exact parent-owned existing-file list. Snapshot message indices and quotes ground the proposals; preferences stay private and credentials are rejected. Harness learning verifies user/tool evidence and executes positive and negative evaluator cases. Shared, built-in, and manually authored policies remain protected from automatic replacement or disabling.
+New memories live in a separate `newMemories` proposal array while `selected` remains the exact parent-owned existing-file list. Snapshot message indices and quotes ground the proposals; preferences stay private and credentials are rejected. AGENTS.md extraction uses the same explicit safe/private classification, persists exact predecessor state in a pre-apply recovery receipt, and applies Memory, Harness, instruction, and post-receipt changes in one rollback boundary. On the next session start, an orphan pre receipt without a matching post receipt is validated against the canonical project scope and restored before new learning starts. Harness learning verifies user/tool evidence and executes positive and negative evaluator cases. Shared, built-in, and manually authored policies remain protected from automatic replacement or disabling.
 
 Post-generation policies explicitly choose `output` or `artifact`. Artifact checks read actual bounded workspace file contents, including explicit paths for command-produced files. Unreadable or unsafe artifacts are unsupported, not verified. Output checks run after streaming and can request bounded corrections but cannot hide the original response.
 
@@ -120,8 +115,8 @@ The two Memory roots are intentionally asymmetric rather than ordinary override 
 ## Locked acceptance decisions
 
 - Memory has exactly two roots: readable Harness/private agent Memory and project-shared `.memory/`.
-- The private directory name is derived from the canonical project path and remains human-readable.
-- Opaque hash directory names are not the steady-state format.
+- The private directory name combines a bounded human-readable canonical-path prefix with the full scope hash, so recognizable prefixes cannot collide.
+- A hash-only directory is not the steady-state format.
 - Project `.memory/` contains only sanitized safe Memory.
 - Safe Memory synchronizes both ways and remains byte-identical after normalization/application.
 - Private Memory never appears in project `.memory/`.

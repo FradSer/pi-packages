@@ -42,6 +42,22 @@ def test_extension_registers_memory_and_consolidate_commands() -> None:
     assert "loadAndDeduplicateMemories" in content
 
 
+def test_dreaming_widget_starts_before_selector_and_survives_memory_phase_completion() -> None:
+    content = source()
+    pipeline = content[content.index('async function startConsolidationPipeline'):content.index('async function editInstructions')]
+    command = content[content.index('pi.registerCommand("consolidate"'):content.index('pi.registerCommand("memory"')]
+    assert 'await resolvePackageDir()' not in command
+    assert pipeline.index('setDreamingWidget(ctx') < pipeline.index('selectIncrementalLearning({')
+    assert 'setDreamingActivity("selecting related memory")' in pipeline
+    assert 'setDreamingActivity(fullMode ? "full memory" : "memory delta")' in pipeline
+    assert 'setDreamingActivity("harness delta")' in pipeline
+    assert 'setDreamingActivity("AGENTS.md delta")' in pipeline
+    finish = content[content.index('const finish = async'):content.index('child.on("error"')]
+    assert 'cleanup?.()' not in finish
+    assert 'state.cleanup = undefined' not in finish
+    assert 'cleanup?.();' in pipeline[pipeline.index('}).finally(() => {'):]
+
+
 def test_dreaming_widget_and_notifications_use_shared_pi_kit_tui_primitives() -> None:
     content = source()
     assert "PI_SPINNER_FRAMES" in content
@@ -69,17 +85,16 @@ def test_consolidation_contract_is_parent_owned() -> None:
     assert "G8" not in content
 
 
-def test_procedure_is_read_only_and_structured() -> None:
-    content = (MEMORY_PKG_DIR / "agents" / "memory-consolidator.md").read_text(encoding="utf-8")
-    assert "{{PKG_DIR}}" in content
-    assert "{{RUN_ID}}" in content
-    assert "{{SNAPSHOT_PATH}}" in content
-    assert "read-only" in content.lower()
-    assert "exactly one JSON object" in content
-    assert "validate-consolidate.py" in content
-    assert "G1–G8" not in content
-    assert "existing file" in content
-    assert "SKILL.md" in content
+def test_memory_planner_agents_are_mode_specific_and_read_only() -> None:
+    full = (MEMORY_PKG_DIR / "agents" / "memory-consolidator.md").read_text(encoding="utf-8")
+    incremental = (MEMORY_PKG_DIR / "agents" / "incremental-memory-consolidator.md").read_text(encoding="utf-8")
+    assert "{{PKG_DIR}}" in full and "{{SNAPSHOT_PATH}}" in full
+    assert "validate-consolidate.py" in full and "SKILL.md" in full
+    assert "{{DOSSIER_PATH}}" in incremental
+    assert "incremental-memory-plan" in incremental
+    assert "Do not emit `selected`, `inventory`," in incremental
+    assert "read-only" in full.lower() and "read-only" in incremental.lower()
+    assert "broad repository exploration" in incremental
 
 
 def test_forged_validator_text_does_not_prove_a_plan() -> None:
@@ -305,6 +320,30 @@ def test_oversized_non_plan_telemetry_is_ignored_before_final_plan() -> None:
     assert result["plan"]["runId"] == "r1"
 
 
+def test_failed_run_diagnostics_keep_more_than_the_legacy_256k_tail() -> None:
+    source_text = source()
+    assert "function tailBoundedUtf8Text(text: string, maxBytes = MAX_STDOUT_BYTES)" in source_text
+    assert "256 * 1024" not in source_text[source_text.index("function tailBoundedUtf8Text"):source_text.index("export interface ConsolidationEvidence")]
+
+
+def test_truncated_diagnostic_suffix_starts_at_a_complete_jsonl_record() -> None:
+    result = run_bun(
+        """
+        import { completeJsonlSuffix } from './packages/continual-learning/extensions/inject-memory.ts';
+        const valid = JSON.stringify({ type: 'message_end', message: { role: 'assistant', content: 'plan' } }) + '\\n' + JSON.stringify({ type: 'agent_settled' }) + '\\n';
+        const partial = 'middle-of-json\\n' + valid;
+        const bracePartial = '{"type":"thinking_delta","delta":"x"}}\\n' + valid;
+        const complete = JSON.stringify({ type: 'message_end' }) + '\\n';
+        console.log(JSON.stringify({ repaired: completeJsonlSuffix(partial), braceRepaired: completeJsonlSuffix(bracePartial), unchanged: completeJsonlSuffix(complete) }));
+        """
+    )
+    for field in ("repaired", "braceRepaired"):
+        repaired_lines = result[field].splitlines()
+        assert json.loads(repaired_lines[0])["type"] == "message_end"
+        assert json.loads(repaired_lines[1])["type"] == "agent_settled"
+    assert result["unchanged"] == '{"type":"message_end"}\n'
+
+
 def test_child_plan_extraction_handles_output_exceeding_legacy_256k_bound() -> None:
     result = run_bun(
         """
@@ -337,6 +376,25 @@ def test_child_plan_extraction_handles_output_exceeding_legacy_256k_bound() -> N
     assert result["totalBytes"] > 300_000
     assert result["extracted"]["ok"] is True
     assert result["extracted"]["plan"]["runId"] == "r1"
+
+
+def test_child_plan_extraction_accepts_one_schema_plan_after_verbose_preamble() -> None:
+    result = run_bun(
+        """
+        import { extractChildPlan } from './packages/continual-learning/extensions/consolidation-run.ts';
+        const plan = { kind: 'memory-consolidation-plan', version: 1, runId: 'r1', scopeDigest: 'd1', artifactHash: 'h1' };
+        const verbose = { type: 'message_end', message: { role: 'assistant', content: 'I reviewed the corpus. Summary: {"files":44}. Final plan follows:\\n' + JSON.stringify(plan) } };
+        const ambiguous = { type: 'message_end', message: { role: 'assistant', content: 'First ' + JSON.stringify(plan) + ' second ' + JSON.stringify(plan) } };
+        const options = { expectedIdentity: { runId: 'r1', scopeDigest: 'd1', artifactHash: 'h1' } };
+        console.log(JSON.stringify({
+          verbose: extractChildPlan(JSON.stringify(verbose) + '\\n', options),
+          ambiguous: extractChildPlan(JSON.stringify(ambiguous) + '\\n', options),
+        }));
+        """
+    )
+    assert result["verbose"]["ok"] is True
+    assert result["verbose"]["plan"]["kind"] == "memory-consolidation-plan"
+    assert result["ambiguous"]["ok"] is False
 
 
 def test_child_plan_extraction_handles_markdown_code_fenced_json() -> None:
@@ -634,13 +692,14 @@ def test_project_instruction_resolution_uses_pi_context_resource_objects() -> No
         assert result == {"path": str(override_file), "display": "AGENTS.override.md"}
 
 
-def test_no_context_command_contract_is_present() -> None:
+def test_consolidate_command_distinguishes_incremental_full_and_no_context() -> None:
     content = source()
-    assert 'args !== "" && args !== "no-context"' in content
+    assert 'args !== "" && args !== "full" && args !== "no-context"' in content
+    assert 'Usage: /consolidate [full|no-context]' in content
     assert 'noContext: args === "no-context"' in content
-    assert "minimalPiWorkerArgs" in content
-    assert '["read", "grep", "find", "ls"]' in content
-    assert 'resourcePath: "agents/memory-consolidator.md"' in content
+    assert 'mode: args === "full" || args === "no-context" ? "full" : "manual"' in content
+    assert 'incremental ? "agents/incremental-memory-consolidator.md" : "agents/memory-consolidator.md"' in content
+    assert 'minimalPiWorkerArgs(incremental ? ["read"] : ["read", "grep", "find", "ls"])' in content
 
 
 def test_child_output_uses_streaming_utf8_and_byte_bounded_diagnostics() -> None:
@@ -705,14 +764,14 @@ def test_worker_environment_is_an_explicit_non_credential_allowlist() -> None:
     assert "env: { ...process.env" not in content
 
 
-def test_child_task_embeds_parent_selected_scope() -> None:
+def test_child_task_uses_selector_scope_for_incremental_and_full_scope_for_full_mode() -> None:
     content = source()
-    assert "const selectedScope = parentSelectedScope(run, Boolean(opts.noContext));" in content
+    assert "const selectedScope = parentSelectedScope(run, Boolean(opts.noContext), opts.selectedScope);" in content
+    assert "Authoritative selected Memory names" in content
+    assert "Read only the dossier by default" in content
     assert "...formatSelectedScopeTaskLines(selectedScope, Boolean(opts.noContext))," in content
     procedure = (MEMORY_PKG_DIR / "agents" / "memory-consolidator.md").read_text(encoding="utf-8")
-    assert "authoritative selected memory scope" in procedure
-    assert "supplied by the parent snapshot" not in procedure
-    assert "newMemories" in procedure
+    assert "authoritative selected memory scope" in procedure and "newMemories" in procedure
 
 
 def test_selected_scope_task_lines_render_exact_contract() -> None:
@@ -740,7 +799,8 @@ def test_failed_runs_persist_bounded_diagnostics_and_retain_artifacts() -> None:
     content = source()
     assert "const persistRunDiagnostics = async (): Promise<void>" in content
     assert "failureRecorded = true;" in content
-    assert "writeFileAtomic(run.paths.stdoutFile, tailBoundedUtf8Text(`" in content
+    assert "const boundedStdout = tailBoundedUtf8Text(`" in content
+    assert "writeFileAtomic(run.paths.stdoutFile, completeJsonlSuffix(boundedStdout))" in content
     assert "writeFileAtomic(run.paths.stderrFile, tailBoundedUtf8Text(stderr))" in content
     assert "await persistRunDiagnostics();" in content
     # Late events must not notify or retain: recheck ownership after every await.

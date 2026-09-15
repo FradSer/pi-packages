@@ -48,8 +48,7 @@ path-qualified names.
 
 ## Required plan object
 
-Return exactly one JSON object as the final assistant message. Do not wrap it in
-Markdown fences and do not add a second object. Its shape is:
+Return exactly one JSON object as the final assistant message. Do not add an introduction, analysis summary, Markdown fence, or second object. Start the response with `{` and end it with `}`. Its shape is:
 
 ```json
 {

@@ -11,14 +11,17 @@ Parent-provided values:
 - `scopeDigest`: `{{SCOPE_DIGEST}}`
 - `artifactHash`: `{{ARTIFACT_HASH}}`
 - `snapshotPath`: `{{SNAPSHOT_PATH}}`
+- `dossierPath`: `{{DOSSIER_PATH}}`
 - `repoRoot`: `{{REPO_ROOT}}`
 
 ## Read-only boundary
 
-Read `snapshotPath` first. It is the immutable session-context input selected
-by the parent. Read the repository only to verify claims about files the
-session touched. Do not write, edit, delete, rename, or copy any file. Do not
-run a command that mutates state. The parent alone validates your plan,
+Read `dossierPath` and `snapshotPath` first. They are the authoritative
+current-task inputs selected by the parent. Do not rediscover the complete
+session or independently explore the repository. Read one specific repository
+file only when a dossier claim names it and verification is necessary. Do not write, edit, delete, rename, or copy any file.
+Do not run a command that mutates
+state. The parent alone validates your plan,
 merges it into `<project>/.pi/harness.local.json`, and writes receipts.
 
 ## What to mine from history

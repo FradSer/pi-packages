@@ -4,7 +4,7 @@ Feature: Memory management with automatic learning and manual consolidation
   Read-only planners propose changes; the parent validates and applies them.
 
   Background:
-    Given the pi-memory-fradser package is installed
+    Given the pi-continual-learning package is installed
 
   Scenario: Injects auto-memory guidance when auto-memory is on
     Given auto-memory setting is on
@@ -24,10 +24,11 @@ Feature: Memory management with automatic learning and manual consolidation
     Then it offers options to consolidate memory, edit user instructions, edit project instructions, open memory folder, and toggle auto-memory
     And selecting toggle auto-memory flips the setting and persists it
 
-  Scenario: Automatic consolidation follows a settled user task
+  Scenario: Automatic consolidation follows deterministic evidence screening
     Given auto-memory is enabled and a user task has completed
     When the agent settles after all automatic continuations
-    Then one automatic consolidation pipeline starts regardless of context usage
+    Then a deterministic zero-token screen selects only learning phases backed by durable evidence
+    And a routine task with no durable signal launches no learning model
     And repeated settled events do not start duplicate pipelines
 
   Scenario: Dedicated /consolidate command is a sibling of /memory
@@ -46,15 +47,21 @@ Feature: Memory management with automatic learning and manual consolidation
     Then the private copy wins for the same filename
     And non-conflicting entries from both roots remain active
 
-  Scenario: Manual consolidation scopes consolidation to the current session's related memories
-    Given the current session contains durable memory candidates
-    When manual consolidation starts
-    Then it first extracts those candidates from the current session context
-    And it reads the indexes and only related existing memory files
-    And it does not scan unrelated memory files for consolidation
-    And it clusters, checks staleness, merges, prunes, and privacy-checks that related set
-    And it synchronizes safe results to project .memory
-    And it keeps private results only in the Harness private root
+  Scenario: Default manual consolidation is incremental
+    Given the current task contains durable memory candidates
+    And the memory roots contain existing memory files
+    When the user invokes /consolidate
+    Then the parent selects related existing Memory from bounded metadata
+    And the Memory planner receives only the task dossier and selected bodies
+    And it returns a delta-only plan that the parent expands before validation
+    And unselected Memory bodies are not read by the planner
+
+  Scenario: Explicit full consolidation evaluates the full bounded corpus
+    Given the memory roots contain existing memory files
+    When the user invokes /consolidate full
+    Then the parent selects the full bounded existing Memory corpus
+    And the exhaustive planner clusters, checks staleness, merges, prunes, and privacy-checks that corpus
+    And automatic learning never selects full mode
 
   Scenario: Manual consolidation runs in the background without exposing an implementation requirement
     Given memory consolidation is manually started
@@ -75,12 +82,14 @@ Feature: Memory management with automatic learning and manual consolidation
     And extension, skill, prompt-template, context-file, and theme discovery are disabled
     And only read, grep, find, and ls are available in the disposable child session
 
-  Scenario: Shows a dreaming widget above the input editor while consolidating
-    Given a consolidation run was just started
-    Then ctx.ui.setWidget renders a "dreaming" indicator above the editor
+  Scenario: Shows a dreaming widget immediately for the complete pipeline
+    Given the user invokes /consolidate in the TUI
+    When incremental selection starts before any planner child is spawned
+    Then ctx.ui.setWidget immediately renders a "dreaming" indicator above the editor
+    And its activity identifies selection, Memory, Harness, or AGENTS.md as the pipeline advances
     And the widget uses shared Pi-kit spinner cadence, theme style callbacks, and native-row geometry
-    And consolidation status notifications use the shared Pi-kit notification helper
-    And the widget is cleared when the run exits
+    And it remains visible across phase transitions
+    And the pipeline clears it exactly once when the complete run exits
 
   Scenario: Only one dreaming consolidation runs at a time
     Given a consolidation run is still running
@@ -102,11 +111,12 @@ Feature: Memory management with automatic learning and manual consolidation
     And the child does not read a session file or live branch
     And the advertised snapshot digest matches the exact disabled snapshot bytes
 
-  Scenario: Empty durable scope is a no-op
-    Given the captured context contains no durable memory candidate
-    When manual consolidation starts
-    Then it does not scan or rewrite unrelated memory files
-    And it reports a verified no-op result
+  Scenario: Incremental consolidation can create Memory without a selected existing file
+    Given the current task contains durable evidence
+    And the selector chooses no existing Memory
+    When default manual consolidation starts
+    Then the incremental planner receives an empty selected scope and the task dossier
+    And it may propose bounded new Memory without reading the full corpus
 
   Scenario: Empty first-run scope initializes a verifiable no-op
     Given no Harness private root or project .memory root exists yet
@@ -138,6 +148,12 @@ Feature: Memory management with automatic learning and manual consolidation
     When the child finishes
     Then its completion is accepted only when one bounded schema-valid plan matches the run id and scope digest
     And child prose, tool output, G1 through G8 text, and arbitrary PASSED text cannot prove success
+
+  Scenario: A verbose planner preamble does not hide an otherwise valid plan
+    Given the final assistant text contains explanatory prose followed by one balanced schema-shaped Memory plan object
+    When that plan carries the expected run identity
+    Then the parent extracts the object instead of reporting that no structured plan exists
+    But multiple balanced schema-shaped Memory plan objects remain ambiguous and fail closed
 
   Scenario: Bounded JSONL parsing tolerates the final newline
     Given a child emits exactly the configured maximum number of JSONL records followed by a newline
@@ -208,10 +224,12 @@ Feature: Memory management with automatic learning and manual consolidation
     Then reads through the snapshot session context return the original bounded values
     And other session manager methods remain callable with their original receiver
 
-  Scenario: Failed consolidation runs keep bounded diagnostics
-    Given a consolidation child exits without a verified consolidation
+  Scenario: Failed consolidation runs keep parseable bounded diagnostics
+    Given a consolidation child emits more than the former 256 KB diagnostic tail before its final response
+    And it exits without a verified consolidation
     When the parent finishes handling the failure
-    Then it writes bounded stdout and stderr captures plus a compact activity summary into the run directory
+    Then the retained stdout capture stays within the runtime output bound without cutting away the final JSONL records
+    And it writes bounded stderr plus a compact activity summary into the run directory
     And it retains the run directory artifacts while releasing the lock
 
   Scenario: Identical duplicate plan records collapse before validation
@@ -266,20 +284,52 @@ Feature: Memory management with automatic learning and manual consolidation
     Then the cited path must resolve to an existing file under the repository root
     And the procedure states skill directories must be cited through a concrete file such as the skill's SKILL.md
 
-  Scenario: Readable private root normalizes path whitespace
+  Scenario: Private root uses only the readable project path
+    Given a canonical project path
+    When memory paths are resolved
+    Then its private root is its escaped readable project path with no hash suffix
+
+  Scenario: Private root normalizes path whitespace
     Given the canonical project path contains a directory named Home Lab
     When memory paths are resolved
-    Then the private root uses Home-Lab with no whitespace
+    Then the private root uses Home-Lab with no whitespace and no hash suffix
 
-  Scenario: Legacy private memory migrates into the agent-owned private root
+  Scenario: An overlong readable private root fails closed
+    Given a canonical project path whose escaped readable path exceeds the portable component bound
+    When memory paths are resolved
+    Then resolution fails instead of truncating the private root
+    And it does not substitute a hash suffix
+
+  Scenario: Legacy private memory migrates one way into the readable private root
     Given a project has private memory under an old SHA-256 agent directory or an older readable directory containing whitespace
     And the readable destination already contains harness-only index markers
     When memories are loaded or a consolidation run starts
-    Then legacy files merge into the escaped-project-path private root without overwriting existing files
-    And private index markers from both roots survive the migration even when the same filename conflicts
-    And a migrated legacy source is removed only when every entry is a recognized regular memory file or index
+    Then legacy files merge into the readable private root without overwriting existing files
+    And private index markers transfer only for files whose bytes were created or matched identically
+    And a conflicting retained legacy file cannot reclassify different canonical bytes
+    And a migrated legacy source is removed only after every recognized file is safely applied and its index is rebuilt
     But a source containing any unsupported entry remains intact so migration cannot discard unrecognized data
+    And a failed safe application leaves the legacy source intact and restores the destination predecessor bytes
     And private memory belongs only below the Pi agent directory
+
+  Scenario: Legacy private memory cleanup is part of the migration transaction
+    Given destination files and its index were safely applied from a removable legacy source
+    When quarantining that source directory fails
+    Then the legacy source keeps its original name and contents
+    And the destination is restored to its exact predecessor
+
+  Scenario: Legacy private memory cleanup rolls back earlier quarantines
+    Given multiple removable legacy sources were safely applied to the destination
+    And an earlier source was quarantined successfully
+    When quarantining a later source fails
+    Then every source is restored to its original name and contents
+    And the destination is restored to its exact predecessor
+
+  Scenario: Legacy private memory migration rejects symlinked roots
+    Given a legacy migration source or its collision-resistant destination is a symlinked directory
+    When migration is attempted
+    Then migration fails closed without reading or writing through the symlink
+    And the legacy source data is not deleted
 
   Scenario: Project-local private memory storage is absent
     Given the package supports an agent-owned private root and a project-shared mirror

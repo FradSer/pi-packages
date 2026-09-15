@@ -12,16 +12,19 @@ Parent-provided values:
 - `scopeDigest`: `{{SCOPE_DIGEST}}`
 - `artifactHash`: `{{ARTIFACT_HASH}}`
 - `snapshotPath`: `{{SNAPSHOT_PATH}}`
+- `dossierPath`: `{{DOSSIER_PATH}}`
 - `repoRoot`: `{{REPO_ROOT}}`
 - `budgetBytes`: `{{BUDGET_BYTES}}`
 
 ## Read-only boundary
 
-Read `snapshotPath` first. It is the immutable session-context input selected
-by the parent; the current AGENTS.md text is embedded in the task message and
-is authoritative for anchoring operations. Read the repository only to verify
-claims about files the session touched. Do not write, edit, delete, rename,
-or copy any file. The parent alone validates the plan, applies all surviving
+Read `dossierPath` and `snapshotPath` first. They are the authoritative
+current-task inputs selected by the parent; the current AGENTS.md text is
+embedded in the task message and is authoritative for anchoring operations.
+Do not rediscover the complete session or independently explore the repository.
+Read one specific repository file only when a dossier claim names it and
+verification is necessary. Do not write, edit, delete, rename, or copy any
+file. The parent alone validates the plan, applies all surviving
 edits atomically, records receipts, and never asks the user to approve an
 individual operation.
 
@@ -42,14 +45,17 @@ unit of a neural net; this run is one small gradient step:
 ## Evidence discipline
 
 Every operation MUST carry an `evidence` array citing at least one verbatim
-quote from the snapshot — copy the exact characters, including whitespace.
-Paraphrase belongs in `reason`, never in `quote`. The parent discards in code
-every quote that does not appear verbatim in the snapshot text; an operation
-whose quotes all fail verification is dropped before the automatic application step.
+quote from a specific snapshot entry. Set `entryIndex` to the zero-based index
+in the snapshot's `entries` array. Evidence must be user or tool-result content;
+assistant/system text and snapshot metadata never qualify. Copy exact characters
+from the cited content leaf. Paraphrase belongs in `reason`, never in `quote`.
+The parent discards every quote that is not grounded in that cited user or
+tool-result entry, and drops an operation whose quotes all fail verification.
 
-A `gap`-backed `addUnit` additionally needs batched evidence: cited verified
-occurrences totaling at least two within this session. Never propose a
-brand-new rule from one anecdote.
+A `gap`-backed `addUnit` additionally needs batched evidence in at least two
+distinct snapshot entries. The parent computes that distinct-entry count
+itself: repeated text within one event and planner-supplied `occurrences` do
+not increase confidence. Never propose a brand-new rule from one anecdote.
 
 Modifying or removing an existing unit needs one clear contradicting
 observation — but if the evidence is ambiguous, keep the unit.
@@ -72,7 +78,9 @@ For `extractUnit` choose exactly one target:
   invoked; give the skill name and corrective prompt text.
 - `"memory"` — the knowledge is durable and always-relevant but too detailed
   for the always-loaded file; give a canonical memory filename, a one-line
-  description, and a type of `project`, `feedback`, or `reference`.
+  description, a type of `project`, `feedback`, or `reference`, and an explicit
+  classification of `safe` or `private`. Type and classification are independent:
+  use `private` whenever the extracted text is unsuitable for the project mirror.
 
 State the routing rationale in `rationale`. Extraction removes the unit from
 the document; the parent writes the extracted artifact.
@@ -97,7 +105,7 @@ in Markdown fences and do not add a second object. Its shape is:
       "newText": "- Run tests with pnpm test",
       "reason": "repo migrated to pnpm",
       "evidence": [
-        {"kind": "wrong", "quote": "npm test failed with ERR_PNPM_NO_SCRIPT", "occurrences": 2}
+        {"kind": "wrong", "quote": "npm test failed with ERR_PNPM_NO_SCRIPT", "entryIndex": 7}
       ]
     },
     {
@@ -105,7 +113,23 @@ in Markdown fences and do not add a second object. Its shape is:
       "placement": "append",
       "text": "- Regenerate fixtures after changing the schema",
       "evidence": [
-        {"kind": "gap", "quote": "stale fixtures broke the build again", "occurrences": 2}
+        {"kind": "gap", "quote": "stale fixtures broke the build again", "entryIndex": 4},
+        {"kind": "gap", "quote": "stale fixtures broke the build again", "entryIndex": 9}
+      ]
+    },
+    {
+      "op": "extractUnit",
+      "oldText": "- Regenerate fixtures after schema changes",
+      "extraction": {
+        "target": "memory",
+        "memoryName": "fixture-regeneration.md",
+        "description": "Fixtures must be regenerated after schema changes",
+        "type": "project",
+        "classification": "safe"
+      },
+      "rationale": "durable detail that does not need to stay always loaded",
+      "evidence": [
+        {"kind": "unused", "quote": "stale fixtures broke the build again", "entryIndex": 4}
       ]
     },
     {
@@ -119,7 +143,7 @@ in Markdown fences and do not add a second object. Its shape is:
       },
       "rationale": "only matters when that skill is invoked",
       "evidence": [
-        {"kind": "unused", "quote": "published to the wrong host before the skill expanded", "occurrences": 1}
+        {"kind": "unused", "quote": "published to the wrong host before the skill expanded", "entryIndex": 12}
       ]
     }
   ],
@@ -137,8 +161,10 @@ Operation shapes:
   `anchor` (exact existing text) with `"position": "before" | "after"`.
 - `extractUnit`: `oldText` + `extraction` object + `rationale`.
 
+Memory extraction objects also require `classification: "safe" | "private"`.
 Evidence kinds are exactly `violation`, `wrong`, `unused`, and `gap`;
-`occurrences` is a positive integer. Echo the supplied identity fields
+`entryIndex` is a required non-negative snapshot entry index. The optional
+`occurrences` hint is ignored by the parent for confidence counting. Echo the supplied identity fields
 exactly. An empty `operations` array (or an object without `operations`) is a
 valid verified no-op — propose nothing rather than manufacturing work. The
 plan describes intended work only; it is never proof that anything changed.

@@ -28,8 +28,9 @@ Feature: Learn from settled user tasks without a memory command
 
   Scenario: Shutdown discards queued learning
     Given a learning pipeline is running and another is queued
+    And selector, Memory, Harness, and AGENTS.md planner children may be running
     When the session shuts down
-    Then the running child is cancelled and awaited
+    Then every running child is cancelled and awaited
     And the queued context never starts
 
   Scenario: Learning failures are reported without an unhandled rejection
@@ -44,18 +45,20 @@ Feature: Learn from settled user tasks without a memory command
     Then the settled handler waits for the complete learning pipeline
     And the process does not exit before validation and receipts finish
 
-  Scenario: Memory planning uses a package-owned minimal read-only agent
-    Given automatic or manual memory consolidation starts its planner
+  Scenario: Memory planning uses mode-specific package-owned read-only agents
+    Given automatic or default manual Memory consolidation starts incrementally
     When the package launches the child Pi process
-    Then the planner instructions come from the package-owned agents/memory-consolidator.md resource
-    And the child disables extension, skill, prompt-template, context-file, and theme discovery
-    And the child receives only read, grep, find, and ls tools
-    And the parent remains the only process allowed to apply memory changes
+    Then the planner instructions come from the package-owned agents/incremental-memory-consolidator.md resource
+    And its final plan contains only incremental identity fields, operations, and new Memory proposals
+    But explicit full consolidation uses agents/memory-consolidator.md
+    And every child disables extension, skill, prompt-template, context-file, and theme discovery
+    And the parent remains the only process allowed to expand, validate, and apply Memory changes
 
   Scenario: Worker output closes before its exit event
     Given a headless learning worker has emitted its plan
     When both output pipes close before the worker exits
-    Then the parent stays alive until the worker exit and receipt validation complete
+    Then the parent stays alive until an observable worker-exit marker exists
+    And receipt validation completes after that exit
 
   Scenario: New input while settings load belongs to the next task
     Given a task has settled and its settings read is pending
@@ -69,3 +72,44 @@ Feature: Learn from settled user tasks without a memory command
     Then the harness planner still receives the original task context
     And the memory phase releases its lock before harness planning starts
     And the headless settled handler returns after both phases finish
+
+  Scenario: Durable prohibition wording reaches Harness learning
+    Given a settled user task states a durable prohibition using never, prohibit or prohibited, always block, don't or don’t
+    Or it states an existing Chinese prohibition form
+    When automatic learning screens the frozen context
+    Then both durable Memory evidence and Harness constraint evidence are selected
+    And unrelated uses of words such as blocked progress or a prohibition history remain screened out
+
+  Scenario: Harness-only and AGENTS-only evidence bypasses Memory mutation
+    Given an automatic task contains grounded Harness or AGENTS.md evidence but no durable Memory candidate
+    When automatic learning runs
+    Then no Memory planner or Memory mutation is required
+    And the selector and each relevant later planner still run
+    And the learning receipt records every attempted phase outcome
+
+  Scenario: Later phases reuse the selector dossier without exploration
+    Given the selector produced an authoritative dossier for the current task slice
+    When Harness and AGENTS.md planning starts
+    Then both planners receive that dossier path and the same task-slice snapshot
+    And no model-backed explorer is called
+    And neither planner performs repository-wide discovery
+
+  Scenario: Shutdown awaits every concurrent later planner
+    Given Harness and AGENTS.md planners are both running for one automatic task
+    When session shutdown starts
+    Then both child process groups are terminated
+    And shutdown does not resolve until both close events are observed
+
+  Scenario: Invalid incremental Memory output receives one small repair
+    Given the incremental Memory planner returns parseable output rejected before mutation
+    When the parent requests repair
+    Then exactly one tool-free repair call receives only the rejected plan, bounded errors, selected names, and run identity
+    And it receives no dossier body, snapshot path, Memory body, or repository path
+    And the repaired delta is expanded before the existing validation and apply gates
+    But a second rejection ends the phase without a full planner rerun
+
+  Scenario: Receipts count applied Memory operations
+    Given Memory planning creates or changes durable Memory
+    When the parent validates and applies the plan
+    Then the Memory attempt records the number of operations actually applied
+    And failed or verified-noop later planner attempts remain present with zero applied operations

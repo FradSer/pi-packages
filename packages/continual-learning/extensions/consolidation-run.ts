@@ -436,7 +436,7 @@ function freezeJson(value: unknown): unknown {
  * readers return bounded frozen clones and all other manager methods retain
  * their original receiver.
  */
-export function snapshotSessionContext(ctx: ExtensionContext): ExtensionContext {
+export function snapshotSessionContext(ctx: ExtensionContext, taskEntries?: readonly unknown[]): ExtensionContext {
   const manager = ctx.sessionManager;
   const cwd = ctx.cwd;
   const hasGetCwd = typeof manager.getCwd === "function";
@@ -447,12 +447,16 @@ export function snapshotSessionContext(ctx: ExtensionContext): ExtensionContext 
   const sessionId = hasGetSessionId ? manager.getSessionId() : undefined;
   const sessionFile = hasGetSessionFile ? manager.getSessionFile() : undefined;
   const header = hasGetHeader ? freezeJson(cloneJson(manager.getHeader(), MAX_SNAPSHOT_BYTES)) : undefined;
-  const frozenBranch = manager.getBranch
-    ? freezeJson(cloneJson(manager.getBranch(), MAX_SNAPSHOT_BYTES))
-    : undefined;
-  const frozenContext = manager.buildContextEntries
-    ? freezeJson(cloneJson(manager.buildContextEntries(), MAX_SNAPSHOT_BYTES))
-    : undefined;
+  const frozenBranch = taskEntries !== undefined
+    ? freezeJson(cloneJson(taskEntries, MAX_SNAPSHOT_BYTES))
+    : manager.getBranch
+      ? freezeJson(cloneJson(manager.getBranch(), MAX_SNAPSHOT_BYTES))
+      : undefined;
+  const frozenContext = taskEntries !== undefined
+    ? freezeJson(cloneJson(taskEntries, MAX_SNAPSHOT_BYTES))
+    : manager.buildContextEntries
+      ? freezeJson(cloneJson(manager.buildContextEntries(), MAX_SNAPSHOT_BYTES))
+      : undefined;
   const frozenManager = new Proxy(manager, {
     get(target, property, receiver) {
       if (property === "getBranch" && frozenBranch !== undefined) return () => frozenBranch;
@@ -885,24 +889,60 @@ function messageText(value: unknown): string {
     return typeof record.text === "string" && (record.type === undefined || record.type === "text") ? record.text : "";
   }).join("");
 }
+function parsedObject(text: string): unknown | undefined {
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function balancedJsonObjects(text: string): string[] {
+  const objects: string[] = [];
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      if (depth === 0) start = index;
+      depth += 1;
+      continue;
+    }
+    if (char !== "}" || depth === 0) continue;
+    depth -= 1;
+    if (depth === 0 && start >= 0) {
+      objects.push(text.slice(start, index + 1));
+      start = -1;
+    }
+  }
+  return objects;
+}
+
 function parseJsonCandidate(text: string): unknown | undefined {
   const trimmed = text.trim();
   if (!trimmed) return undefined;
-  try {
-    const parsed = JSON.parse(trimmed) as unknown;
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
-  } catch {
-    const match = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
-    if (match) {
-      try {
-        const parsed = JSON.parse(match[1].trim()) as unknown;
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
-      } catch {
-        return undefined;
-      }
-    }
-  }
-  return undefined;
+  const direct = parsedObject(trimmed);
+  if (direct) return direct;
+  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
+  if (fenced) return parsedObject(fenced[1].trim());
+  const candidates = balancedJsonObjects(trimmed)
+    .map(parsedObject)
+    .filter((value): value is Record<string, unknown> => Boolean(value))
+    .filter((value) => value.kind === "memory-consolidation-plan" || value.type === "memory-consolidation-plan" || value.kind === "incremental-memory-plan");
+  return candidates.length === 1 ? candidates[0] : undefined;
 }
 
 function candidateFromEvent(event: unknown): unknown | undefined {
@@ -911,7 +951,7 @@ function candidateFromEvent(event: unknown): unknown | undefined {
   if (value.type === "consolidation_plan") {
     return value.plan && typeof value.plan === "object" && !Array.isArray(value.plan) ? value.plan : undefined;
   }
-  if (value.type === "memory-consolidation-plan" || value.kind === "memory-consolidation-plan") return value;
+  if (value.type === "memory-consolidation-plan" || value.kind === "memory-consolidation-plan" || value.kind === "incremental-memory-plan") return value;
   if (value.type !== "message_end" || !value.message || typeof value.message !== "object") return undefined;
   const message = value.message as Record<string, unknown>;
   if (message.role !== "assistant") return undefined;
@@ -1131,7 +1171,7 @@ async function ensureMemoryRoot(root: string): Promise<void> {
   await assertMemoryRootStable(root);
 }
 
-async function hashMemoryRoot(root: string): Promise<MemoryHashes> {
+export async function hashMemoryRoot(root: string): Promise<MemoryHashes> {
   const result: MemoryHashes = {};
   const opened = await openMemoryRoot(root);
   if (!opened) return result;

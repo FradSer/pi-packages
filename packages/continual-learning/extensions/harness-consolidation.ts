@@ -894,6 +894,8 @@ export interface HarnessConsolidationPhaseOptions {
   run?: ConsolidationRun;
   explorationPath?: string;
   explorationDigest?: string;
+  /** Test seam for the bounded planner deadline; production defaults to 15 minutes. */
+  timeoutMs?: number;
 }
 
 export interface HarnessConsolidationPlanningResult {
@@ -953,6 +955,7 @@ export async function planHarnessConsolidationPhase(
       .replaceAll("{{SCOPE_DIGEST}}", run.manifest.scopeDigest)
       .replaceAll("{{ARTIFACT_HASH}}", run.manifest.snapshotDigest)
       .replaceAll("{{SNAPSHOT_PATH}}", run.manifest.snapshotPath)
+      .replaceAll("{{DOSSIER_PATH}}", opts.explorationPath ?? "")
       .replaceAll("{{REPO_ROOT}}", run.manifest.cwd);
     const surface = await harnessSurfaceSummary(opts.cwd);
     if (!current()) return fail("harness planner cancelled");
@@ -962,8 +965,12 @@ export async function planHarnessConsolidationPhase(
       `- Run ID: ${run.manifest.runId}`,
       `- Scope digest: ${run.manifest.scopeDigest}`,
       `- Artifact/snapshot digest: ${run.manifest.snapshotDigest}`,
-      `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
-      ...(opts.explorationPath ? [`- Shared exploration dossier: ${opts.explorationPath}`, `- Exploration digest: ${opts.explorationDigest}`] : []),
+      `- Immutable task-slice snapshot: ${run.manifest.snapshotPath}`,
+      ...(opts.explorationPath ? [
+        `- Authoritative Learning Dossier: ${opts.explorationPath}`,
+        `- Dossier digest: ${opts.explorationDigest}`,
+        "- Use the dossier and task-slice snapshot; do not perform independent repository-wide exploration.",
+      ] : []),
       "- Current harness surface summary:",
       surface,
       "- Target layer for every change: <project>/.pi/harness.local.json only.",
@@ -980,10 +987,14 @@ export async function planHarnessConsolidationPhase(
     ], { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] });
     hooks.onChild?.(child);
     if (!current()) {
-      void terminateConsolidationChild(child, 5_000).catch(() => {});
+      await terminateConsolidationChild(child, 5_000);
       return fail("harness planner cancelled");
     }
 
+    const configuredTimeout = opts.timeoutMs ?? HARNESS_PHASE_TIMEOUT_MS;
+    const timeoutMs = Number.isFinite(configuredTimeout)
+      ? Math.min(HARNESS_PHASE_TIMEOUT_MS, Math.max(1, configuredTimeout))
+      : HARNESS_PHASE_TIMEOUT_MS;
     const childResult = await new Promise<{ ok: true; stdout: string } | { ok: false; detail: string }>((resolve) => {
       let stdout = "";
       let stderr = "";
@@ -994,21 +1005,30 @@ export async function planHarnessConsolidationPhase(
         clearTimeout(timer);
         resolve(value);
       };
+      const terminateAndFinish = async (detail: string): Promise<void> => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        await terminateConsolidationChild(child, 5_000).catch(() => false);
+        resolve({ ok: false, detail });
+      };
       const timer = setTimeout(() => {
-        void terminateConsolidationChild(child, 5_000).catch(() => {});
-        finish({ ok: false, detail: "harness planner timed out" });
-      }, HARNESS_PHASE_TIMEOUT_MS);
+        void terminateAndFinish("harness planner timed out");
+      }, timeoutMs);
       timer.unref?.();
       child.stdout?.on("data", (chunk: Buffer) => {
+        if (done) return;
         stdout += chunk.toString("utf8");
         if (Buffer.byteLength(stdout, "utf8") > MAX_STDOUT_BYTES) {
-          void terminateConsolidationChild(child, 5_000).catch(() => {});
-          finish({ ok: false, detail: `child stdout exceeded ${MAX_STDOUT_BYTES} bytes` });
+          void terminateAndFinish(`child stdout exceeded ${MAX_STDOUT_BYTES} bytes`);
         }
       });
-      child.stderr?.on("data", (chunk: Buffer) => { stderr = (stderr + chunk.toString("utf8")).slice(-64_000); });
+      child.stderr?.on("data", (chunk: Buffer) => {
+        if (!done) stderr = (stderr + chunk.toString("utf8")).slice(-64_000);
+      });
       child.on("error", (error) => finish({ ok: false, detail: error.message }));
       child.on("close", (code) => {
+        if (done) return;
         usage = parsePiWorkerOutput(stdout).usage;
         if (stdout.split("\n").filter((line) => line.trim()).length > MAX_JSONL_LINES) {
           finish({ ok: false, detail: `child JSONL exceeded ${MAX_JSONL_LINES} records` });

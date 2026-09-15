@@ -12,10 +12,11 @@
 import fs from "node:fs";
 import type { Stats } from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { ToolExecutionComponent, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { createStaticToolLifecycleMessageRenderer, eventToolLifecycle, notifyPi, safeDisplayText } from "@fradser/pi-kit";
-import { evaluate, validateSkillPromptDeclaration } from "./guardrail-engine.ts";
+import { evaluate, validatePolicyDeclaration, validateSkillPromptDeclaration } from "./guardrail-engine.ts";
 import { configPaths, resolveHarnessConfig } from "./guardrail-config.ts";
 
 interface HarnessPolicyEvent {
@@ -44,6 +45,57 @@ function harnessSourcePath(source: string | undefined, paths: ReturnType<typeof 
   }
 }
 
+function withinRoot(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+}
+
+async function deepestExistingDirectory(candidate: string): Promise<string> {
+  let current = candidate;
+  while (true) {
+    try {
+      const stat = await fs.promises.lstat(current);
+      if (stat.isSymbolicLink()) throw new Error(`Harness target parent is a symlink: ${current}`);
+      if (!stat.isDirectory()) throw new Error(`Harness target parent is not a directory: ${current}`);
+      return current;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      const parent = path.dirname(current);
+      if (parent === current) throw error;
+      current = parent;
+    }
+  }
+}
+
+export async function assertHarnessTargetContained(targetFile: string, workspace?: string): Promise<void> {
+  const target = path.resolve(targetFile);
+  const root = path.resolve(workspace ?? path.dirname(target));
+  if (!withinRoot(root, target)) throw new Error(`Harness target is outside the workspace: ${targetFile}`);
+
+  const existingRoot = await deepestExistingDirectory(root);
+  const existingRootReal = await fs.promises.realpath(existingRoot);
+  const prospectiveRootReal = path.join(existingRootReal, path.relative(existingRoot, root));
+  let current = existingRoot;
+  const parent = path.dirname(target);
+  const segments = path.relative(existingRoot, parent).split(path.sep).filter(Boolean);
+  for (const segment of segments) {
+    current = path.join(current, segment);
+    let stat: Stats;
+    try {
+      stat = await fs.promises.lstat(current);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    if (stat.isSymbolicLink()) throw new Error(`Harness target parent is a symlink: ${current}`);
+    if (!stat.isDirectory()) throw new Error(`Harness target parent is not a directory: ${current}`);
+    if (withinRoot(root, current)) {
+      const currentReal = await fs.promises.realpath(current);
+      if (!withinRoot(prospectiveRootReal, currentReal)) throw new Error(`Harness target parent resolves outside the workspace: ${current}`);
+    }
+  }
+}
+
 async function readHarnessTarget(targetFile: string): Promise<Buffer | null> {
   let stat: Stats;
   try {
@@ -58,11 +110,13 @@ async function readHarnessTarget(targetFile: string): Promise<Buffer | null> {
   return fs.promises.readFile(targetFile);
 }
 
-export async function ensureHarnessTarget(targetFile: string): Promise<{ path: string; created: boolean }> {
+export async function ensureHarnessTarget(targetFile: string, workspace?: string): Promise<{ path: string; created: boolean }> {
+  await assertHarnessTargetContained(targetFile, workspace);
   const existing = await readHarnessTarget(targetFile);
   if (existing) return { path: targetFile, created: false };
 
   await fs.promises.mkdir(path.dirname(targetFile), { recursive: true });
+  await assertHarnessTargetContained(targetFile, workspace);
   const initial = `${JSON.stringify({ policies: [], disabled: [], skillPrompts: {} }, null, 2)}\n`;
   let handle: fs.promises.FileHandle | undefined;
   let created = false;
@@ -190,16 +244,52 @@ export function validateHarnessWrite(input: unknown, availableSkills: ReadonlySe
   try { json = JSON.parse(parsed); } catch { return ["harness write content must be valid JSON"]; }
   if (!json || typeof json !== "object" || Array.isArray(json)) return ["harness config must be an object"];
   const config = json as Record<string, unknown>;
-  if (config.skillPrompts === undefined) return [];
-  if (!config.skillPrompts || typeof config.skillPrompts !== "object" || Array.isArray(config.skillPrompts)) return ["skillPrompts must be an object"];
+  const prior = previous && typeof previous === "object" && !Array.isArray(previous)
+    ? previous as Record<string, unknown>
+    : {};
   const errors: string[] = [];
-  const priorPrompts = previous && typeof previous === "object" && !Array.isArray(previous)
-    ? (previous as Record<string, unknown>).skillPrompts
-    : undefined;
-  const prior = priorPrompts && typeof priorPrompts === "object" && !Array.isArray(priorPrompts) ? priorPrompts as Record<string, unknown> : {};
-  for (const [name, entry] of Object.entries(config.skillPrompts)) {
-    if (Object.prototype.hasOwnProperty.call(prior, name) && JSON.stringify(prior[name]) === JSON.stringify(entry)) continue;
-    errors.push(...validateSkillPromptDeclaration(name, entry, availableSkills));
+
+  if (!Array.isArray(config.policies)) {
+    errors.push("policies must be an array");
+  } else {
+    config.policies.forEach((policy, index) => {
+      errors.push(...validatePolicyDeclaration(policy).map((error) => `policies[${index}] ${error}`));
+    });
+  }
+
+  if (!Array.isArray(config.disabled)) {
+    errors.push("disabled must be an array");
+  } else {
+    config.disabled.forEach((name, index) => {
+      if (typeof name !== "string" || !name.trim()) errors.push(`disabled[${index}] must be a non-empty policy name string`);
+    });
+  }
+
+  if (!config.skillPrompts || typeof config.skillPrompts !== "object" || Array.isArray(config.skillPrompts)) {
+    errors.push("skillPrompts must be an object");
+  } else {
+    const priorPrompts = prior.skillPrompts && typeof prior.skillPrompts === "object" && !Array.isArray(prior.skillPrompts)
+      ? prior.skillPrompts as Record<string, unknown>
+      : {};
+    for (const [name, entry] of Object.entries(config.skillPrompts)) {
+      if (Object.prototype.hasOwnProperty.call(priorPrompts, name) && isDeepStrictEqual(priorPrompts[name], entry)) continue;
+      errors.push(...validateSkillPromptDeclaration(name, entry, availableSkills));
+    }
+  }
+
+  const supported = new Set(["policies", "disabled", "skillPrompts"]);
+  for (const [name, entry] of Object.entries(config)) {
+    if (supported.has(name)) continue;
+    if (!Object.prototype.hasOwnProperty.call(prior, name)) {
+      errors.push(`unsupported top-level field "${name}" cannot be added by a harness write`);
+    } else if (!isDeepStrictEqual(prior[name], entry)) {
+      errors.push(`pre-existing top-level field "${name}" must be preserved unchanged`);
+    }
+  }
+  for (const name of Object.keys(prior)) {
+    if (!supported.has(name) && !Object.prototype.hasOwnProperty.call(config, name)) {
+      errors.push(`pre-existing top-level field "${name}" must be preserved unchanged`);
+    }
   }
   return errors;
 }
@@ -262,6 +352,11 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       const harnessPaths = new Set(Object.values(paths).map((file) => path.resolve(file)));
       if (harnessPaths.has(targetPath)) {
         if (event.toolName === "edit") return { block: true, reason: "Harness configuration requires a complete validated JSON write. Read the target, preserve its entries, and use write instead of edit." };
+        try {
+          await assertHarnessTargetContained(targetPath, targetPath === path.resolve(paths.user) ? undefined : cwd);
+        } catch (error) {
+          return { block: true, reason: `Unsafe harness target: ${(error as Error).message}` };
+        }
         const availableSkills = new Set(pi.getCommands().filter((command) => command.source === "skill").map((command) => command.name.replace(/^skill:/, "")));
         let previous: unknown;
         try { previous = JSON.parse(fs.readFileSync(targetPath, "utf8")); } catch { /* new target or malformed predecessor */ }
@@ -362,10 +457,10 @@ export default function registerGuardrails(pi: ExtensionAPI) {
     description: "Show active guardrails or create a rule from a prompt (default: project-local, --global for user, --shared for repo)",
     handler: async (rawArgs, ctx) => {
       const cwd = ctx.cwd || process.cwd();
-      const { request, targetFile, scopeLabel } = resolveHarnessTarget(rawArgs, cwd);
+      const { request, targetFile, scope, scopeLabel } = resolveHarnessTarget(rawArgs, cwd);
       if (request) {
         try {
-          await ensureHarnessTarget(targetFile);
+          await ensureHarnessTarget(targetFile, scope === "user" ? undefined : cwd);
         } catch (error) {
           notifyPi(ctx.ui, `Cannot prepare harness target: ${(error as Error).message}`, "error");
           return;
