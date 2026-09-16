@@ -29,6 +29,8 @@ const otherStarted = tool.renderCall({ query: "Inspect cancellation behavior" },
 const wideStarted = stripVTControlCharacters(started.render(200).join("\n")).trimEnd();
 assert.equal(wideStarted, "[context] research started · Verify runtime behavior");
 assert.ok(!wideStarted.includes(".md"));
+assert.equal(started.render(200).length, 2);
+assert.equal(started.render(200)[1], "");
 assert.equal(
   stripVTControlCharacters(otherStarted.render(200).join("\n")).trimEnd(),
   "[context] research started · Inspect cancellation behavior",
@@ -43,6 +45,22 @@ assert.ok(started.render(200)[0].includes("\x1b[36m"));
 color = 35;
 
 assert.ok(tool.renderResult);
+
+// Single progress row: while the async child is still running, the transcript
+// keeps only the `research started` call row. Live progress already shows in
+// the `researcher` widget above the editor, so a partial result must render
+// no second row repeating the query.
+for (const args of [{}, { query: "Verify runtime behavior" }, { query: " \n " }]) {
+  const partial = tool.renderResult(
+    { content: [{ type: "text", text: "Working..." }], details: {} },
+    { expanded: false, isPartial: true }, theme as never,
+    { args, toolCallId } as never,
+  );
+  assert.deepEqual(partial.render(200), []);
+  assert.deepEqual(partial.render(80), []);
+  partial.invalidate();
+}
+
 const completed = tool.renderResult(
   { content: [{ type: "text", text: "Complete research answer that remains model-facing." }], details: {} },
   { expanded: false, isPartial: false }, theme as never,
@@ -63,20 +81,6 @@ const expandedCompleted = tool.renderResult(
 const expandedText = stripVTControlCharacters(expandedCompleted.render(200).join("\n"));
 assert.ok(expandedText.includes("Complete research answer that remains model-facing."), `expanded row missing detail text: ${expandedText}`);
 assert.ok(collapsedText.includes("to expand"), `collapsed row missing expand hint: ${collapsedText}`);
-
-// D1 regression: a partial (still-running) result must render as pending, never
-// as a green "researched" success band.
-bgCalls.length = 0;
-const partial = tool.renderResult(
-  { content: [{ type: "text", text: "Working..." }], details: {} },
-  { expanded: false, isPartial: true }, theme as never,
-  { args: { query: "Verify runtime behavior" }, toolCallId } as never,
-);
-const partialText = stripVTControlCharacters(partial.render(200).join("\n"));
-assert.ok(!partialText.includes("researched"), `partial row must not claim researched: ${partialText}`);
-assert.ok(partialText.includes("[context] researching"), `partial row missing researching title: ${partialText}`);
-assert.ok(bgCalls.includes("toolPendingBg"), `partial row must paint toolPendingBg, saw: ${bgCalls.join(",")}`);
-assert.ok(!bgCalls.includes("toolSuccessBg"), `partial row must not paint toolSuccessBg, saw: ${bgCalls.join(",")}`);
 
 // D2 regression: expanded details must wrap, not truncate — the complete
 // answer stays visible at narrow widths.
@@ -108,4 +112,4 @@ bgCalls.length = 0;
 failed.render(200);
 assert.ok(bgCalls.includes("toolErrorBg"), `failed row must paint toolErrorBg, saw: ${bgCalls.join(",")}`);
 
-console.log("Context rendering passed: pending/researched/failed lifecycle bands with wrapped full-detail expansion.");
+console.log("Context rendering passed: single started call row, empty partial progress, researched/failed lifecycle bands.");

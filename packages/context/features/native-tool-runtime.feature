@@ -38,12 +38,14 @@ Feature: Isolated Pi research tool
     Given the main session calls context_get with a research query
     When the research child starts
     Then Pi renders one native text row in the `[context] research started · <research query>` shape
+    And exactly one blank line follows the started row
     And the concrete query is normalized and width-bounded for display
     And a different query produces a different started row
     And the row does not expose a Markdown prompt resource path
     And only the `[context]` prefix uses the custom message label color
     And each child uses no Pi session and retains no memory between invocations
     And the completed tool contributes no second worker-start row
+    And the running tool renders no duplicate progress row in the transcript
     And Pi renders one compact expandable `[context] researched` lifecycle row when finished
     And expanding the researched row reveals the complete answer without line truncation
 
@@ -70,7 +72,7 @@ Feature: Isolated Pi research tool
   Scenario: Research shows the one-shot worker's latest running status through pi-kit's live activity widget
     Given the main session calls context_get with a research question
     When the research child is running
-    Then pi-kit's live activity widget above the editor identifies the research worker
+    Then pi-kit's live activity widget above the editor identifies the worker as researcher
     And the widget shows the latest tool, thinking, or answer activity
     And newer activity replaces older activity
     And the widget clears when research completes
@@ -107,7 +109,7 @@ Feature: Isolated Pi research tool
   Scenario: Transcript result blocks use pi lifecycle backgrounds
     Given a research query with unsafe escape sequences and long answer lines
     When the registered tool renders partial progress and its final result
-    Then partial progress renders a `[context] researching` row on toolPendingBg
+    Then partial progress renders no transcript row while running
     And successful blocks use toolSuccessBg across every visible line
     And failed and cancelled blocks use toolErrorBg across the request and error
     And the expand hint comes from the app.tools.expand keybinding

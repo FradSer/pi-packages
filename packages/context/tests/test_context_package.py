@@ -43,7 +43,7 @@ class TestContextPackage(unittest.TestCase):
         self.assertIn("startResearchWidget", source)
         self.assertIn("updateResearchWidget", source)
         self.assertIn("clearResearchWidget", source)
-        self.assertIn('identity: "research"', source)
+        self.assertIn('identity: "researcher"', source)
         self.assertNotIn("current.agentName", source)
 
     def test_context_rows_fit_runtime_width(self) -> None:
@@ -146,7 +146,7 @@ class TestContextPackage(unittest.TestCase):
         self.assertIn("createStaticToolLifecycleResultRenderer", source)
         self.assertIn('eventToolLifecycle("context"', source)
         self.assertIn('label: "researched"', source)
-        self.assertIn('label: "researching"', source)
+        self.assertNotIn('label: "researching"', source)
         self.assertIn("options.isPartial", source)
         self.assertIn("wrapTextWithAnsi", source)
         self.assertIn('keyHint("app.tools.expand"', source)
@@ -197,14 +197,16 @@ class TestContextPackage(unittest.TestCase):
             "different query produces a different started row",
             "row does not expose a Markdown prompt resource path",
             "retains no memory between invocations",
-            "identifies the research worker",
+            "identifies the worker as researcher",
+            "exactly one blank line follows the started row",
             "latest tool, thinking, or answer activity",
             "newer activity replaces older activity",
             "widget clears when research completes",
             "completed tool contributes no second worker-start row",
+            "running tool renders no duplicate progress row",
             "compact expandable `[context] researched` lifecycle row when finished",
             "expanding the researched row reveals the complete answer without line truncation",
-            "partial progress renders a `[context] researching` row on toolPendingBg",
+            "partial progress renders no transcript row while running",
             "successful blocks use toolSuccessBg",
             "failed and cancelled blocks use toolErrorBg",
             "expand hint comes from the app.tools.expand keybinding",

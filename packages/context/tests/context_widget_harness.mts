@@ -38,7 +38,7 @@ const widget = (calls[0].factory as (tui: unknown, theme: unknown) => {
 const lines = widget.render(80);
 assert.equal(lines.length, 1);
 const plain = stripVTControlCharacters(lines[0]);
-assert.ok(plain.includes("research"), plain);
+assert.match(plain, /^ . researcher · /);
 assert.ok(!plain.includes("@"), plain);
 assert.ok(plain.includes("Working..."), plain);
 assert.ok(!plain.includes("inspect auth flow"), plain);
@@ -64,7 +64,7 @@ for (const [markdown, expected] of [
   const plain = stripVTControlCharacters(rendered[0]);
   assert.ok(plain.includes(expected), plain);
   assert.ok(!plain.includes("**") && !plain.includes("`") && !plain.includes("##") && !plain.includes("[reference]"), plain);
-  assert.match(plain, /^ . research · /);
+  assert.match(plain, /^ . researcher · /);
 }
 updateResearchWidget(token, "**Inspecting** 中文 auth flow ".repeat(20) + "\u001b[2J");
 for (const width of [0, 1, 2, 10, 40, 80, 160, 40]) {

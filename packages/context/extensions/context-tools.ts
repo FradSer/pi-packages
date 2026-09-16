@@ -58,7 +58,7 @@ function renderContextCall(
       const prefix = theme.fg("customMessageLabel", theme.bold("[context]"));
       const title = `research started · ${formatResearchSubject(query)}`;
       return new Text(`${prefix} ${title}`, 0, 0).render(width)
-        .map((line) => truncateToWidth(line, width, ""));
+        .map((line) => truncateToWidth(line, width, "")).concat("");
     },
     invalidate: () => {},
   };
@@ -101,7 +101,7 @@ const researchWidget = createLiveActivityWidget({
 export function startResearchWidget(ctx: ResearchWidgetContext | undefined): number {
   const token = ++researchToken;
   activeResearch = { token, ctx };
-  researchWidget.update(ctx, [{ id: String(token), identity: "research" }]);
+  researchWidget.update(ctx, [{ id: String(token), identity: "researcher" }]);
   return token;
 }
 
@@ -111,7 +111,7 @@ export function updateResearchWidget(token: number, activity: string | undefined
   if (activity) activeResearch.activity = activity;
   researchWidget.update(activeResearch.ctx, [{
     id: String(token),
-    identity: "research",
+    identity: "researcher",
     activity: activeResearch.activity,
   }]);
 }
@@ -177,20 +177,22 @@ export function registerContextTools(pi: ExtensionAPI): void {
       return renderContextCall(args.query, theme);
     },
     renderResult(result, options, theme, context) {
+      // While the async child is still running, live progress already shows
+      // in the `researcher` widget above the editor, so a partial result
+      // renders no transcript row: the `research started` call row stays the
+      // single visible row until the settled `[context] researched` result.
+      if (options.isPartial) {
+        return { render: () => [] as string[], invalidate: () => {} };
+      }
       const query = (context.args as { query?: string })?.query;
       const subject = formatResearchSubject(query);
       const text = resultText(result as ToolTextResult);
       const details = text.split("\n").map((line) => line.trim()).filter(Boolean);
-      // A still-running partial update is live progress, never a finished
-      // research result: it renders as `[context] researching` on the pending
-      // band and only the settled result becomes `[context] researched`.
-      const spec = options.isPartial
-        ? eventToolLifecycle("context", subject, { label: "researching" })
-        : eventToolLifecycle("context", subject, {
-            label: "researched",
-            details,
-            detailLimit: "all",
-          });
+      const spec = eventToolLifecycle("context", subject, {
+        label: "researched",
+        details,
+        detailLimit: "all",
+      });
       return createStaticToolLifecycleResultRenderer({
         createSpec: () => spec,
         expandHint: keyHint("app.tools.expand", "to expand"),

@@ -32,7 +32,8 @@ Use `features/native-tool-runtime.feature` and `tests/test_context_package.py`
 for tool-count, no-command, and shared-worker contracts.
 `tests/context_tools_harness.mts` provides runtime coverage. Startup renders the
 `[context] research started · <research query>` row, using the normalized concrete
-request that produced the prompt; completion renders the compact, expandable
+request that produced the prompt; while the async child runs, the transcript keeps
+only that started row with no duplicate progress row; completion renders the compact, expandable
 `[context] researched · <research query>` lifecycle row. The typed builder treats
 Markdown as a reference protocol, constructs the task-specific review prompt, and
 fails closed on missing, unknown, or unresolved placeholders.
