@@ -34,59 +34,6 @@ export function formatAgentTaskName(prompt: string, fallback: string): string {
   return prompt.replace(/\s+/g, " ").trim() || fallback;
 }
 
-/** Stable, bounded sub-agent identity derived from one tool execution id. */
-export function subagentDisplayName(prefix: string, toolCallId: string): string {
-  const normalized = prefix.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "agent";
-  const suffix = createHash("sha256").update(toolCallId).digest("hex").slice(0, 12);
-  return `${normalized.slice(0, 51)}-${suffix}`;
-}
-
-export interface PackageAgentRunOptions {
-  /** File URL for the package root directory, usually new URL("../", import.meta.url).href. */
-  packageRootUrl: string;
-  /** Package-relative resource path, for example agents/researcher.md. */
-  resourcePath: string;
-  namePrefix: string;
-  toolCallId: string;
-  request: string;
-  requestLabel?: string;
-}
-
-export interface PackageAgentRun {
-  name: string;
-  displayPath: string;
-  prompt: string;
-}
-
-/** Load a package-owned agent prompt and bind it to one stable tool execution. */
-export function createPackageAgentRun(options: PackageAgentRunOptions): PackageAgentRun {
-  if (/^[a-z][a-z0-9+.-]*:/i.test(options.resourcePath) || path.isAbsolute(options.resourcePath)) {
-    throw new Error("Package agent resource path must be package-relative.");
-  }
-  const rootUrl = new URL(options.packageRootUrl);
-  if (rootUrl.protocol !== "file:") throw new Error("Package agent roots must use file URLs.");
-  const root = fs.realpathSync(fileURLToPath(rootUrl));
-  const candidate = path.resolve(root, options.resourcePath);
-  const relative = path.relative(root, candidate);
-  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error("Package agent resource must stay inside its package root.");
-  }
-  const resource = fs.realpathSync(candidate);
-  const canonicalRelative = path.relative(root, resource);
-  if (canonicalRelative.startsWith("..") || path.isAbsolute(canonicalRelative)) {
-    throw new Error("Package agent resource symlink escapes its package root.");
-  }
-  const agentPrompt = fs.readFileSync(resource, "utf8").trim();
-  const displayPath = canonicalRelative.split(path.sep).join("/");
-  if (!agentPrompt) throw new Error(`Package agent resource is empty: ${displayPath}`);
-  const requestLabel = options.requestLabel?.trim() || "User request";
-  return {
-    name: subagentDisplayName(options.namePrefix, options.toolCallId),
-    displayPath,
-    prompt: `${agentPrompt}\n\n${requestLabel}:\n${options.request}`,
-  };
-}
-
 /** Lifecycle row kind shared by background and coordination tools. */
 export type ToolLifecycleKind = "started" | "event";
 
@@ -164,7 +111,7 @@ export interface ToolLifecycleTheme {
 }
 
 /** Stable per-teammate accent palette for @name segments (report-row language). */
-const AGENT_COLORS = ["success", "warning", "error", "mdLink"] as const;
+const AGENT_COLORS = ["accent", "borderAccent", "mdHeading", "mdLink"] as const;
 
 /** Deterministic accent color key for a teammate name. */
 export function agentColor(name: string): (typeof AGENT_COLORS)[number] {
@@ -188,6 +135,12 @@ export interface ToolLifecycleRenderOptions {
   visibleWidth: (text: string) => number;
   /** Optional ANSI-aware detail wrapper, e.g. pi-tui's wrapTextWithAnsi. */
   wrapDetail?: (text: string, width: number) => string[];
+  /** Custom background token override (defaults to toolPendingBg, toolSuccessBg, or toolErrorBg). */
+  bgToken?: string;
+  /** Whether this lifecycle row represents an error state (renders on toolErrorBg with error accents). */
+  isError?: boolean;
+  /** Whether this lifecycle row is a still-running partial result (renders on toolPendingBg with warning accents). */
+  isPending?: boolean;
 }
 
 /** Shared band geometry: every lifecycle row block renders in this style. */
@@ -195,18 +148,20 @@ const BAND_PAD_X = 1;
 const BAND_PAD_Y = 1;
 
 /** pi's theme.bg emits `<bg-ansi><text>\x1b[49m`; recover the leading bg-ansi alone. */
-function bandBgPrefix(theme: ToolLifecycleTheme): string {
-  const painted = theme.bg("customMessageBg", "");
+function bandBgPrefix(theme: ToolLifecycleTheme, bgToken: string): string {
+  const painted = theme.bg(bgToken, "");
   return painted.slice(0, -"\x1b[49m".length);
 }
 
 function paintBand(
   rows: string[],
-  options: Pick<ToolLifecycleRenderOptions, "width" | "theme" | "fit">,
+  options: Pick<ToolLifecycleRenderOptions, "width" | "theme" | "fit" | "bgToken" | "isError" | "isPending">,
 ): string[] {
-  const bg = (line: string) => options.theme.bg("customMessageBg", line);
+  const bgToken = options.bgToken
+    ?? (options.isError ? "toolErrorBg" : options.isPending ? "toolPendingBg" : "toolSuccessBg");
+  const bg = (line: string) => options.theme.bg(bgToken, line);
   const padRow = () => bg(options.fit("", options.width, "", true));
-  const prefix = bandBgPrefix(options.theme);
+  const prefix = bandBgPrefix(options.theme, bgToken);
   return [
     ...Array.from({ length: BAND_PAD_Y }, padRow),
     // Truncating styled rows can inject a full SGR reset (\x1b[0m) before the
@@ -228,9 +183,9 @@ function styleSubject(subject: string, options: ToolLifecycleRenderOptions): str
 
 /**
  * Render one lifecycle row block: the started/event row and, when expanded,
- * its bounded detail lines, painted as a full-width customMessageBg band with
- * a blank band row above and below — the shared report-row visual language:
- * label-colored `[tool] label ·` prefix, per-teammate colored @names, plain
+ * its bounded detail lines, painted as a full-width toolPendingBg / toolSuccessBg /
+ * toolErrorBg band with a blank band row above and below — the shared report-row visual language:
+ * status-colored `[tool] label ·` prefix, per-teammate colored @names, plain
  * subject text, dim expand hint. pi-kit owns the styling so extensions cannot
  * drift.
  */
@@ -243,7 +198,8 @@ export function renderToolLifecycle(
   const contentWidth = Math.max(1, options.width - 2 * BAND_PAD_X);
   const tag = `[${safeDisplayText(spec.tool)}]`;
   const label = spec.label === undefined ? "" : ` ${safeDisplayText(spec.label)} ·`;
-  const head = theme.fg("customMessageLabel", theme.bold(`${tag}${label}`));
+  const headColor = options.isError ? "error" : options.isPending ? "warning" : "success";
+  const head = theme.fg(headColor, theme.bold(`${tag}${label}`));
   const subjectText = safeDisplayText(spec.subject);
   const summary = (spec.summary ?? []).map((line) => safeDisplayText(line));
   const details = formatToolLifecycleDetails(spec);
@@ -256,7 +212,8 @@ export function renderToolLifecycle(
     ? theme.fg("dim", ` · ${options.expandHint ?? "to expand"}`)
     : "";
   const title = `${head} ${styleSubject(subjectText, options)}`;
-  const summaryRows = summary.map((line) => fit(theme.fg("customMessageText", line), contentWidth));
+  const textToken = options.isError ? "error" : "customMessageText";
+  const summaryRows = summary.map((line) => fit(theme.fg(textToken, line), contentWidth));
   const rows = options.expanded
     ? [
         fit(title, contentWidth),
@@ -265,7 +222,7 @@ export function renderToolLifecycle(
           const wrapped = options.wrapDetail
             ? options.wrapDetail(detail, contentWidth)
             : [detail];
-          return wrapped.map((line) => fit(theme.fg("customMessageText", line), contentWidth));
+          return wrapped.map((line) => fit(theme.fg(textToken, line), contentWidth));
         }),
       ]
     : [
@@ -316,7 +273,7 @@ export function renderAgentMessageBand(
         const name = theme.fg(agentColor(teammate), `@${teammate}`);
         return fit(`${prefix}${name}${hint}`, contentWidth);
       });
-      return paintBand(content, { ...options, width });
+      return paintBand(content, { ...options, width, bgToken: "customMessageBg" });
     },
     invalidate: () => {},
   };
@@ -526,19 +483,19 @@ export function createStaticToolLifecycleMessageRenderer<T extends PiCustomMessa
   };
 }
 
-export function createToolLifecycleResultRenderer<T extends PiCustomMessageLike, E>(
-  options: ToolLifecycleRendererOptions<T> & {
-    renderError: (line: string, theme: ToolLifecycleTheme) => E;
-  },
+export function createToolLifecycleResultRenderer<T extends PiCustomMessageLike>(
+  options: ToolLifecycleRendererOptions<T>,
 ): (
   result: T,
-  state: { expanded?: boolean },
+  state: { expanded?: boolean; isPartial?: boolean },
   theme: ToolLifecycleTheme,
   context: { isError?: boolean },
-) => PiMessageComponent | E {
+) => PiMessageComponent {
   return (result, state, theme, context) => {
     const text = extractTextContent(result.content);
-    if (context.isError) return options.renderError(formatToolErrorLine(text), theme);
+    if (context.isError) {
+      return errorBandComponent(options.createSpec(result, text, textLines(text)).tool, text, state, { ...options, theme });
+    }
     const details = textLines(text);
     const spec = options.createSpec(result, text, details);
     return lifecycleComponent(spec, {
@@ -549,24 +506,25 @@ export function createToolLifecycleResultRenderer<T extends PiCustomMessageLike,
       fit: options.fit,
       visibleWidth: options.visibleWidth,
       wrapDetail: options.wrapDetail,
+      isPending: state.isPartial === true,
     });
   };
 }
 
-export function createStaticToolLifecycleResultRenderer<T extends PiCustomMessageLike, E>(
+export function createStaticToolLifecycleResultRenderer<T extends PiCustomMessageLike>(
   options: Omit<ToolLifecycleRendererOptions<T>, "createSpec"> & {
     createSpec: (result: T) => ToolLifecycleSpec;
-    renderError: (line: string, theme: ToolLifecycleTheme) => E;
   },
 ): (
   result: T,
-  state: { expanded?: boolean },
+  state: { expanded?: boolean; isPartial?: boolean },
   theme: ToolLifecycleTheme,
   context: { isError?: boolean },
-) => PiMessageComponent | E {
+) => PiMessageComponent {
   return (result, state, theme, context) => {
-    const text = extractTextContent(result.content);
-    if (context.isError) return options.renderError(formatToolErrorLine(text), theme);
+    if (context.isError) {
+      return errorBandComponent(options.createSpec(result).tool, extractTextContent(result.content), state, { ...options, theme });
+    }
     return lifecycleComponent(options.createSpec(result), {
       expanded: state.expanded,
       expandHint: options.expandHint,
@@ -574,6 +532,7 @@ export function createStaticToolLifecycleResultRenderer<T extends PiCustomMessag
       fit: options.fit,
       visibleWidth: options.visibleWidth,
       wrapDetail: options.wrapDetail,
+      isPending: state.isPartial === true,
     });
   };
 }
@@ -586,6 +545,41 @@ function lifecycleComponent(
     render: (width) => renderToolLifecycle(spec, { width, ...options }),
     invalidate: () => {},
   };
+}
+
+/** One shared failure band: toolErrorBg with error accents, the first non-empty
+ * line as subject, and the remaining lines as expandable details (the subject
+ * is never repeated as a detail). pi-kit owns this so consumers cannot drift. */
+function errorBandComponent(
+  tool: string,
+  text: string,
+  state: { expanded?: boolean },
+  options: {
+    expandHint?: string;
+    theme: ToolLifecycleTheme;
+    fit: ToolLifecycleRenderOptions["fit"];
+    visibleWidth: ToolLifecycleRenderOptions["visibleWidth"];
+    wrapDetail?: ToolLifecycleRenderOptions["wrapDetail"];
+  },
+): PiMessageComponent {
+  const lines = textLines(text);
+  const details = lines.slice(1);
+  return lifecycleComponent({
+    kind: "event",
+    tool,
+    subject: formatToolErrorLine(text),
+    label: "failed",
+    details,
+  }, {
+    expanded: state.expanded,
+    expandable: details.length > 0,
+    expandHint: options.expandHint,
+    theme: options.theme,
+    fit: options.fit,
+    visibleWidth: options.visibleWidth,
+    wrapDetail: options.wrapDetail,
+    isError: true,
+  });
 }
 
 function textLines(value: unknown): string[] {
@@ -734,6 +728,175 @@ export function renderPiWidgetRow(
   leadingSpaces = 1,
 ): string {
   return width <= 0 ? "" : fit(`${" ".repeat(Math.max(0, leadingSpaces))}${content}`, width, "", true);
+}
+
+/** One active background activity rendered by a package-owned live status widget. */
+export interface PiLiveActivity {
+  /** Stable identity used to replace this activity on later updates. */
+  id: string;
+  /** Human-readable worker or package name. */
+  identity: string;
+  /** Most recent useful progress detail. */
+  activity?: string;
+  /** Optional terminal state retained until the owning package clears the widget. */
+  status?: "working" | "running" | "completed" | "failed" | "pending";
+}
+
+/** Structural TUI component shape returned from Pi's passive widget factory. */
+export interface PiLiveWidgetComponent {
+  render(width: number): string[];
+  invalidate(): void;
+  dispose?(): void;
+}
+
+/** Minimal passive-widget UI surface shared without importing Pi runtime types. */
+export interface PiLiveWidgetUi {
+  setWidget(
+    key: string,
+    factory: undefined | ((
+      tui: { requestRender(): void },
+      theme: PiThemeLike & { bold(text: string): string },
+    ) => PiLiveWidgetComponent),
+    options?: { placement?: "aboveEditor" | "belowEditor" },
+  ): void;
+}
+
+/** Extension context subset needed to mount a passive live activity widget. */
+export interface PiLiveWidgetContext {
+  mode?: string;
+  ui?: PiLiveWidgetUi;
+}
+
+/** Options for a package-owned live activity widget. */
+export interface PiLiveActivityWidgetOptions {
+  key: string;
+  placement?: "aboveEditor" | "belowEditor";
+  fit: (text: string, width: number, ellipsis?: string, pad?: boolean) => string;
+  /** Retain package-specific identity formatting without duplicating lifecycle mechanics. */
+  formatIdentity?: (identity: string, theme: PiThemeLike & { bold(text: string): string }) => string;
+  /** Retain package-specific activity formatting without duplicating lifecycle mechanics. */
+  formatActivity?: (activity: string, theme: PiThemeLike & { bold(text: string): string }) => string;
+  fallbackActivity?: string;
+  leadingSpaces?: number;
+}
+
+/** Stateful controller for one passive live activity widget. */
+export interface PiLiveActivityWidget {
+  update(ctx: PiLiveWidgetContext | undefined, activities: readonly PiLiveActivity[]): void;
+  clear(ctx: PiLiveWidgetContext | undefined): void;
+}
+
+/**
+ * Mount and refresh a compact live activity widget using Pi's native spinner
+ * cadence. Packages own their activity state and semantics; pi-kit owns the
+ * passive-widget lifecycle and the shared `<spinner> <identity> · <activity>`
+ * row language.
+ */
+export function createLiveActivityWidget(options: PiLiveActivityWidgetOptions): PiLiveActivityWidget {
+  let activities: readonly PiLiveActivity[] = [];
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let spinnerFrame = 0;
+  let tui: { requestRender(): void } | undefined;
+  let mounted = false;
+  let mountedUi: PiLiveWidgetUi | undefined;
+  let mountGeneration = 0;
+
+  const stopTimer = (): void => {
+    if (!timer) return;
+    clearInterval(timer);
+    timer = undefined;
+  };
+
+  const startTimer = (): void => {
+    if (timer) return;
+    timer = setInterval(() => {
+      spinnerFrame = (spinnerFrame + 1) % PI_SPINNER_FRAMES.length;
+      tui?.requestRender();
+    }, PI_SPINNER_INTERVAL_MS);
+    timer.unref?.();
+  };
+
+  const unmount = (): void => {
+    stopTimer();
+    tui = undefined;
+    activities = [];
+    if (mounted) mountedUi?.setWidget(options.key, undefined);
+    mounted = false;
+    mountedUi = undefined;
+  };
+
+  const mount = (ctx: PiLiveWidgetContext): void => {
+    if (!ctx.ui || mounted) return;
+    const generation = ++mountGeneration;
+    ctx.ui.setWidget(options.key, (nextTui, theme) => {
+      tui = nextTui;
+      startTimer();
+      return {
+        render: (width) => activities.map((entry) => renderLiveActivityRow(entry, spinnerFrame, width, theme, options)),
+        invalidate: () => {},
+        dispose: () => {
+          if (tui === nextTui) tui = undefined;
+          stopTimer();
+          // The host disposed our component (for example clearExtensionWidgets
+          // on session reload) while ctx.ui identity stays the same: release
+          // the mount latch so the next update() re-registers the factory.
+          // A stale dispose from a replaced mount must not clear the new one.
+          if (generation === mountGeneration) {
+            mounted = false;
+            mountedUi = undefined;
+          }
+        },
+      };
+    }, { placement: options.placement ?? "aboveEditor" });
+    mounted = true;
+    mountedUi = ctx.ui;
+  };
+
+  return {
+    update(ctx, nextActivities) {
+      if (ctx?.mode !== "tui" || !ctx.ui) return;
+      if (mounted && mountedUi !== ctx.ui) unmount();
+      activities = nextActivities;
+      if (activities.length === 0) {
+        unmount();
+        return;
+      }
+      mount(ctx);
+      tui?.requestRender();
+    },
+    clear() {
+      unmount();
+    },
+  };
+}
+
+function renderLiveActivityRow(
+  entry: PiLiveActivity,
+  frame: number,
+  width: number,
+  theme: PiThemeLike & { bold(text: string): string },
+  options: PiLiveActivityWidgetOptions,
+): string {
+  const identity = options.formatIdentity
+    ? options.formatIdentity(safeDisplayText(entry.identity), theme)
+    : theme.fg("accent", theme.bold(safeDisplayText(entry.identity)));
+  const activityText = safeDisplayText(entry.activity?.trim() || options.fallbackActivity || "Working...");
+  const activity = options.formatActivity
+    ? options.formatActivity(activityText, theme)
+    : theme.fg("muted", activityText);
+  const marker = liveActivityMarker(entry.status, frame, theme);
+  return renderPiWidgetRow(`${marker} ${identity} · ${activity}`, width, options.fit, options.leadingSpaces);
+}
+
+function liveActivityMarker(
+  status: PiLiveActivity["status"],
+  frame: number,
+  theme: PiThemeLike,
+): string {
+  if (status === "completed") return theme.fg("success", "✓");
+  if (status === "failed") return theme.fg("error", "✗");
+  if (status === "pending") return theme.fg("muted", "○");
+  return theme.fg("warning", PI_SPINNER_FRAMES[frame % PI_SPINNER_FRAMES.length]);
 }
 
 // ── Overlay layout helpers ──────────────────────────────────────────
@@ -1496,7 +1659,8 @@ export async function searchModelFromPicker(
       const query = picker.query();
       const inputPrefix = theme.fg("muted", " Search: ");
       const inputCursor = theme.fg("accent", "▏");
-      lines.push(`${inputPrefix}${query}${inputCursor}`);
+      const styledQuery = theme.fg("border", query);
+      lines.push(`${inputPrefix}${styledQuery}${inputCursor}`);
       lines.push("");
 
       // Windowing slice

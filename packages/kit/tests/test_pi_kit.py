@@ -74,6 +74,7 @@ def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
     assert "Scenario: Directory session identity uses canonical paths" in feature
     assert "Scenario: Overlay panels use the shared frame layout" in feature
     assert "Scenario: Passive console widgets use the shared row layout" in feature
+    assert "Scenario: Live activity widgets share a lifecycle and row language" in feature
     assert "Scenario: Custom transcript messages use the standard lifecycle renderer" in feature
     assert "Scenario: Custom native tools use the standard lifecycle result renderer" in feature
     assert "Scenario: Notifications use the shared portable UI abstraction" in feature
@@ -82,6 +83,98 @@ def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
 def test_worker_command_does_not_pass_unsupported_cwd_flag() -> None:
     source = (SRC / "index.ts").read_text(encoding="utf-8")
     assert '"--cwd", cwd' not in source
+
+
+def test_live_activity_widget_mounts_updates_and_clears() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createLiveActivityWidget }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const calls = [];
+        let requestRenders = 0;
+        const ui = {{
+          setWidget(key, factory, options) {{
+            calls.push({{ key, mounted: Boolean(factory), placement: options?.placement }});
+            if (!factory) return;
+            const component = factory({{ requestRender: () => requestRenders++ }}, {{
+              fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
+              bold: (text) => `<b>${{text}}</b>`,
+            }});
+            globalThis.component = component;
+          }},
+        }};
+        const live = createLiveActivityWidget({{
+          key: "example",
+          placement: "aboveEditor",
+          fit: (text, width) => text.slice(0, width),
+        }});
+        live.update({{ mode: "tui", ui }}, [{{ id: "one", identity: "Dreaming...", activity: "read planner-prompts.ts" }}]);
+        const first = globalThis.component.render(120);
+        live.update({{ mode: "tui", ui }}, [{{ id: "one", identity: "Dreaming...", activity: "settling memory" }}]);
+        const second = globalThis.component.render(120);
+        live.update({{ mode: "tui", ui }}, [{{ id: "one", identity: "Dreaming...", activity: "done", status: "completed" }}]);
+        const completed = globalThis.component.render(120);
+        const replacementCalls = [];
+        const replacementUi = {{
+          setWidget(key, factory, options) {{
+            replacementCalls.push({{ key, mounted: Boolean(factory), placement: options?.placement }});
+            if (factory) globalThis.replacementComponent = factory({{ requestRender() {{}} }}, {{
+              fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
+              bold: (text) => `<b>${{text}}</b>`,
+            }});
+          }},
+        }};
+        live.update({{ mode: "tui", ui: replacementUi }}, [{{ id: "one", identity: "Dreaming...", activity: "replacement context" }}]);
+        live.update({{ mode: "json", ui }}, [{{ id: "one", identity: "Ignored", activity: "headless" }}]);
+        live.clear({{ mode: "tui", ui: replacementUi }});
+        console.log(JSON.stringify({{ calls, first, second, completed, replacementCalls, requestRenders }}));
+        """
+    )
+    assert result["calls"] == [
+        {"key": "example", "mounted": True, "placement": "aboveEditor"},
+        {"key": "example", "mounted": False},
+    ]
+    assert result["replacementCalls"] == [
+        {"key": "example", "mounted": True, "placement": "aboveEditor"},
+        {"key": "example", "mounted": False},
+    ]
+    assert "Dreaming..." in result["first"][0]
+    assert "read planner-prompts.ts" in result["first"][0]
+    assert "settling memory" in result["second"][0]
+    assert "read planner-prompts.ts" not in result["second"][0]
+    assert "✓" in result["completed"][0]
+
+
+def test_live_activity_widget_remounts_after_host_disposal() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createLiveActivityWidget }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const calls = [];
+        let component;
+        const ui = {{
+          setWidget(key, factory, options) {{
+            calls.push({{ key, mounted: Boolean(factory) }});
+            if (!factory) return;
+            component = factory({{ requestRender() {{}} }}, {{
+              fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
+              bold: (text) => `<b>${{text}}</b>`,
+            }});
+          }},
+        }};
+        const live = createLiveActivityWidget({{ key: "example", fit: (text) => text }});
+        live.update({{ mode: "tui", ui }}, [{{ id: "one", identity: "worker" }}]);
+        // Host clears extension widgets (session reload): component disposed,
+        // ctx.ui identity unchanged.
+        component.dispose();
+        live.update({{ mode: "tui", ui }}, [{{ id: "one", identity: "worker", activity: "after reload" }}]);
+        const remounted = component !== undefined;
+        const row = remounted ? component.render(80)[0] : "";
+        console.log(JSON.stringify({{ calls, row }}));
+        """
+    )
+    # dispose + update must re-register the factory (second mounted:true call)
+    mounted_calls = [call for call in result["calls"] if call["mounted"]]
+    assert len(mounted_calls) >= 2, result["calls"]
+    assert "after reload" in result["row"]
 
 
 def test_spinner_constants_match_pi_native_loader() -> None:
@@ -582,7 +675,6 @@ def test_reusable_message_tool_and_notification_renderers_share_tui_contract() -
           expandHint: "ctrl+o to expand",
           fit,
           visibleWidth: (text) => text.length,
-          renderError: (line) => `ERROR:${{line}}`,
         }});
         const success = toolRenderer(
           {{ content: [{{ type: "text", text: "summary\\nline" }}], details: {{ id: "x" }} }},
@@ -590,14 +682,14 @@ def test_reusable_message_tool_and_notification_renderers_share_tui_contract() -
         );
         const error = toolRenderer(
           {{ content: [{{ type: "text", text: "\\u001b[31mfailed\\u001b[0m\\nmore" }}] }},
-          {{}}, theme, {{ isError: true }},
+          {{ expanded: true }}, theme, {{ isError: true }},
         );
         const notices = [];
         notifyPi({{ notify: (message, level) => notices.push({{ message, level }}) }}, "\\u001b[31mDone\\u001b[0m", "info");
         console.log(JSON.stringify({{
           messageRows: message.render(70),
           successRows: success.render(70),
-          error,
+          errorRows: error.render(70),
           notices,
         }}));
         """
@@ -605,8 +697,137 @@ def test_reusable_message_tool_and_notification_renderers_share_tui_contract() -
     assert "[context] gathered · two sources · ctrl+o to expand" in result["messageRows"][1]
     assert "[context] gathered · summary" in result["successRows"][1]
     assert "line" in result["successRows"][3]
-    assert result["error"] == "ERROR:failed"
+    assert "[context] failed · failed" in result["errorRows"][1]
+    assert "more" in result["errorRows"][2]
     assert result["notices"] == [{"message": "Done", "level": "info"}]
+
+
+def test_tool_lifecycle_error_band_renders_symmetrical_error_styling() -> None:
+    result = run_typescript(
+        f"""
+        import {{ eventToolLifecycle, renderToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ visibleWidth }} from "@earendil-works/pi-tui";
+        const theme = {{
+          fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
+          bg: (color, text) => `[${{color}}]${{text}}[/${{color}}]`,
+          bold: (text) => text,
+        }};
+        const successRows = renderToolLifecycle(
+          eventToolLifecycle("work", "create task", {{ label: "created" }}),
+          {{ width: 80, theme, fit: (text) => text, visibleWidth, isError: false }},
+        );
+        const errorRows = renderToolLifecycle(
+          eventToolLifecycle("work", "work failed", {{ label: "failed", details: ["syntax error at line 10"] }}),
+          {{ width: 80, expanded: true, theme, fit: (text) => text, visibleWidth, isError: true }},
+        );
+        console.log(JSON.stringify({{
+          successBg: successRows[1].includes("[toolSuccessBg]"),
+          successHead: successRows[1].includes("<success>[work] created ·</success>"),
+          errorBg: errorRows[1].includes("[toolErrorBg]"),
+          errorHead: errorRows[1].includes("<error>[work] failed ·</error>"),
+          errorDetail: errorRows.some((r) => r.includes("syntax error at line 10")),
+        }}));
+        """
+    )
+    assert result["successBg"] is True
+    assert result["successHead"] is True
+    assert result["errorBg"] is True
+    assert result["errorHead"] is True
+    assert result["errorDetail"] is True
+
+
+def test_tool_lifecycle_pending_band_uses_tool_pending_bg() -> None:
+    result = run_typescript(
+        f"""
+        import {{ eventToolLifecycle, renderToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ visibleWidth }} from "@earendil-works/pi-tui";
+        const theme = {{
+          fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
+          bg: (color, text) => `[${{color}}]${{text}}[/${{color}}]`,
+          bold: (text) => text,
+        }};
+        const pendingRows = renderToolLifecycle(
+          eventToolLifecycle("context", "deep research", {{ label: "researching" }}),
+          {{ width: 80, theme, fit: (text) => text, visibleWidth, isPending: true }},
+        );
+        console.log(JSON.stringify({{
+          pendingBg: pendingRows[1].includes("[toolPendingBg]"),
+          pendingHead: pendingRows[1].includes("<warning>[context] researching ·</warning>"),
+          noSuccess: !pendingRows[1].includes("toolSuccessBg") && !pendingRows[1].includes("<success>"),
+        }}));
+        """
+    )
+    assert result["pendingBg"] is True
+    assert result["pendingHead"] is True
+    assert result["noSuccess"] is True
+
+
+def test_result_renderers_forward_is_partial_to_pending_band() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createStaticToolLifecycleResultRenderer, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const theme = {{
+          fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
+          bg: (color, text) => `[${{color}}]${{text}}[/${{color}}]`,
+          bold: (text) => text,
+        }};
+        const renderer = createStaticToolLifecycleResultRenderer({{
+          createSpec: () => startedToolLifecycle("monitor", "long build", {{ label: "running" }}),
+          fit: (text) => text,
+          visibleWidth: (text) => text.length,
+        }});
+        const partial = renderer(
+          {{ content: [{{ type: "text", text: "Working..." }}] }},
+          {{ expanded: false, isPartial: true }}, theme, {{ isError: false }},
+        ).render(80);
+        const settled = renderer(
+          {{ content: [{{ type: "text", text: "Done" }}] }},
+          {{ expanded: false, isPartial: false }}, theme, {{ isError: false }},
+        ).render(80);
+        console.log(JSON.stringify({{
+          partialPendingBg: partial[1].includes("[toolPendingBg]"),
+          partialNoSuccess: !partial[1].includes("toolSuccessBg"),
+          settledSuccessBg: settled[1].includes("[toolSuccessBg]"),
+        }}));
+        """
+    )
+    assert result["partialPendingBg"] is True
+    assert result["partialNoSuccess"] is True
+    assert result["settledSuccessBg"] is True
+
+
+def test_error_band_details_do_not_repeat_the_subject_line() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createStaticToolLifecycleResultRenderer, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const theme = {{
+          fg: (_color, text) => text,
+          bg: (_color, text) => text,
+          bold: (text) => text,
+        }};
+        const renderer = createStaticToolLifecycleResultRenderer({{
+          createSpec: () => startedToolLifecycle("context", "deep research", {{ label: "researched" }}),
+          fit: (text) => text,
+          visibleWidth: (text) => text.length,
+        }});
+        const rows = renderer(
+          {{ content: [{{ type: "text", text: "Isolated Pi research failed (exit 2)\\nstderr tail line" }}] }},
+          {{ expanded: true, isPartial: false }}, theme, {{ isError: true }},
+        ).render(120);
+        const occurrences = rows.filter((row) => row.includes("Isolated Pi research failed (exit 2)")).length;
+        console.log(JSON.stringify({{
+          occurrences,
+          hasStderrDetail: rows.some((row) => row.includes("stderr tail line")),
+        }}));
+        """
+    )
+    assert result["occurrences"] == 1
+    assert result["hasStderrDetail"] is True
+
+
+def test_result_renderers_own_error_bands_without_render_escape_hatch() -> None:
+    source = (SRC / "index.ts").read_text(encoding="utf-8")
+    assert "renderError" not in source
 
 
 def test_lifecycle_details_default_to_fifty_lines_unless_explicitly_unbounded() -> None:
@@ -631,7 +852,7 @@ def test_tool_lifecycle_band_preserves_class_theme_receiver() -> None:
         import {{ renderToolLifecycle, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
         import {{ truncateToWidth, visibleWidth }} from "@earendil-works/pi-tui";
         class ClassTheme {{
-          constructor() {{ this.bgColors = new Map([["customMessageBg", "\\u001B[44m"]]); }}
+          constructor() {{ this.bgColors = new Map([["toolSuccessBg", "\\u001B[44m"]]); }}
           fg(_color, text) {{ return text; }}
           bold(text) {{ return text; }}
           bg(color, text) {{ return this.bgColors.get(color) + text + "\\u001B[49m"; }}
@@ -673,8 +894,8 @@ def test_expand_hint_uses_the_shared_lifecycle_row_style() -> None:
         """
     )
     assert result == {
-        "collapsed": " <customMessageLabel>[sessions] listed ·</customMessageLabel> 1 other session<dim> · ctrl+o to expand</dim>",
-        "expanded": " <customMessageLabel>[sessions] listed ·</customMessageLabel> 1 other session",
+        "collapsed": " <success>[sessions] listed ·</success> 1 other session<dim> · ctrl+o to expand</dim>",
+        "expanded": " <success>[sessions] listed ·</success> 1 other session",
     }
 
 
@@ -770,7 +991,8 @@ def test_agent_message_band_shares_the_report_row_language() -> None:
         """
     )
     r = result
-    assert r["color"] in ["success", "warning", "error", "mdLink"]
+    assert r["color"] in ["accent", "borderAccent", "mdHeading", "mdLink"]
+    assert r["color"] not in ["success", "error"]
     assert r["deterministic"] is True
     assert r["zeroWidth"] == []
     single = r["single"]
@@ -912,19 +1134,16 @@ def test_safe_display_text_sanitizes_terminal_output() -> None:
     assert result == {"ansi": "red", "osc": "EvilName", "control": "abc"}
 
 
-def test_agent_display_helpers_share_labels_names_and_message_counts() -> None:
+def test_agent_display_helpers_share_labels_and_message_counts() -> None:
     result = run_typescript(
         f"""
-        import {{ formatAgentMessagePrefix, formatAgentTaskName, subagentDisplayName }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ formatAgentMessagePrefix, formatAgentTaskName }} from {json.dumps((SRC / "index.ts").as_uri())};
         console.log(JSON.stringify({{
           prefix: formatAgentMessagePrefix("from"),
           multiPrefix: formatAgentMessagePrefix("from", 2),
           outgoingPrefix: formatAgentMessagePrefix("to"),
           taskName: formatAgentTaskName("  inspect   authentication  ", "fallback"),
           longTaskName: formatAgentTaskName("x".repeat(140), "fallback"),
-          stableName: subagentDisplayName("context", "tool-call-123"),
-          repeatedName: subagentDisplayName("context", "tool-call-123"),
-          distinctName: subagentDisplayName("context", "tool-call-456"),
         }}));
         """
     )
@@ -933,90 +1152,22 @@ def test_agent_display_helpers_share_labels_names_and_message_counts() -> None:
     assert result["outgoingPrefix"] == "[message] to "
     assert result["taskName"] == "inspect authentication"
     assert result["longTaskName"] == "x" * 140
-    assert result["stableName"] == result["repeatedName"]
-    assert result["stableName"] != result["distinctName"]
-    assert result["stableName"].startswith("context-")
-    assert len(result["stableName"]) <= 64
 
 
-def test_package_agent_run_loads_package_owned_resource(tmp_path: Path) -> None:
+def test_package_prompt_agent_helpers_are_not_exported() -> None:
     result = run_typescript(
         f"""
-        import * as fs from "node:fs";
-        import * as path from "node:path";
-        import {{ pathToFileURL }} from "node:url";
-        import {{ createPackageAgentRun }} from {json.dumps((SRC / "index.ts").as_uri())};
-        const root = {json.dumps(str(tmp_path))};
-        const extensionDir = path.join(root, "extensions");
-        const agentDir = path.join(root, "agents");
-        fs.mkdirSync(extensionDir, {{ recursive: true }});
-        fs.mkdirSync(agentDir, {{ recursive: true }});
-        fs.writeFileSync(path.join(agentDir, "researcher.md"), "Package-owned instructions.\\n");
-        const packageRootUrl = pathToFileURL(`${{root}}/`).href;
-        const first = createPackageAgentRun({{
-          packageRootUrl,
-          resourcePath: "agents/researcher.md",
-          namePrefix: "context",
-          toolCallId: "call-one",
-          request: "Inspect authentication",
-        }});
-        const repeated = createPackageAgentRun({{
-          packageRootUrl,
-          resourcePath: "agents/researcher.md",
-          namePrefix: "context",
-          toolCallId: "call-one",
-          request: "Inspect authentication",
-        }});
-        const distinct = createPackageAgentRun({{
-          packageRootUrl,
-          resourcePath: "agents/researcher.md",
-          namePrefix: "context",
-          toolCallId: "call-two",
-          request: "Inspect authentication",
-        }});
-        console.log(JSON.stringify({{ first, repeatedName: repeated.name, distinctName: distinct.name }}));
-        """
-    )
-    assert result["first"]["prompt"] == "Package-owned instructions.\n\nUser request:\nInspect authentication"
-    assert result["first"]["displayPath"] == "agents/researcher.md"
-    assert result["first"]["name"] == result["repeatedName"]
-    assert result["first"]["name"] != result["distinctName"]
-
-
-def test_package_agent_run_rejects_paths_outside_package(tmp_path: Path) -> None:
-    result = run_typescript(
-        f"""
-        import * as fs from "node:fs";
-        import * as path from "node:path";
-        import {{ pathToFileURL }} from "node:url";
-        import {{ createPackageAgentRun }} from {json.dumps((SRC / "index.ts").as_uri())};
-        const base = {json.dumps(str(tmp_path))};
-        const root = path.join(base, "package");
-        const agents = path.join(root, "agents");
-        fs.mkdirSync(agents, {{ recursive: true }});
-        fs.writeFileSync(path.join(agents, "safe.md"), "safe");
-        const outside = path.join(base, "outside.md");
-        fs.writeFileSync(outside, "outside");
-        fs.symlinkSync(outside, path.join(agents, "escape.md"));
-        const packageRootUrl = pathToFileURL(`${{root}}/`).href;
-        const attempt = (resourcePath) => {{
-          try {{
-            createPackageAgentRun({{ packageRootUrl, resourcePath, namePrefix: "context", toolCallId: "call", request: "q" }});
-            return "accepted";
-          }} catch (error) {{
-            return String(error.message);
-          }}
-        }};
+        const kit = await import({json.dumps((SRC / "index.ts").as_uri())});
         console.log(JSON.stringify({{
-          traversal: attempt("../outside.md"),
-          absolute: attempt(pathToFileURL(outside).href),
-          symlink: attempt("agents/escape.md"),
+          createPackageAgentRun: "createPackageAgentRun" in kit,
+          subagentDisplayName: "subagentDisplayName" in kit,
         }}));
         """
     )
-    for value in result.values():
-        assert value != "accepted"
-        assert "package" in value.lower()
+    assert result == {"createPackageAgentRun": False, "subagentDisplayName": False}
+    source = (SRC / "index.ts").read_text(encoding="utf-8")
+    for obsolete in ("PackageAgentRunOptions", "PackageAgentRun", "createPackageAgentRun", "subagentDisplayName"):
+        assert obsolete not in source
 
 
 def test_pi_worker_progress_resets_text_at_message_boundaries(tmp_path: Path) -> None:
@@ -1330,6 +1481,37 @@ def test_search_model_from_picker_filtering_navigation_and_selection() -> None:
     assert result["cancelled"] is None
     assert result["emptyResult"] is None
     assert result["emptyNotified"] == {"msg": "No models are available in the model registry.", "type": "warning"}
+
+
+def test_search_model_from_picker_renders_query_in_blue_border() -> None:
+    result = run_typescript(
+        f"""
+        import {{ searchModelFromPicker }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const models = [{{ provider: "openai", id: "gpt-4o", name: "GPT-4o" }}];
+        const fakeTheme = {{
+          fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
+          bold: (text) => text,
+        }};
+        let capturedQueryLine = "";
+        const mockUi = {{
+          async custom(factory) {{
+            return new Promise((resolve) => {{
+              const component = factory({{}}, fakeTheme, {{}}, resolve);
+              component.handleInput("g");
+              component.handleInput("p");
+              component.handleInput("t");
+              const lines = component.render(80);
+              capturedQueryLine = lines[2];
+              resolve(undefined);
+            }});
+          }},
+          notify() {{}},
+        }};
+        await searchModelFromPicker(mockUi, models, undefined);
+        console.log(JSON.stringify({{ queryLine: capturedQueryLine }}));
+        """
+    )
+    assert "<border>gpt</border>" in result["queryLine"]
 
 
 def test_enter_model_from_input_parses_and_validates() -> None:

@@ -14,7 +14,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { keyHint, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Container, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Container, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   createStaticToolLifecycleResultRenderer,
   detailField,
@@ -431,20 +431,15 @@ export default function (pi: ExtensionAPI) {
     renderResult(result, options, theme, context) {
       const sessions = detailField<SessionInfo[]>(result.details, "sessions") ?? [];
       const summary = sessionListSummary(sessions, path.basename(safeDisplayText(detailField<string>(result.details, "cwd") ?? "")));
-      const shown = sessions.slice(0, MAX_DISPLAY_SESSIONS);
-      const hidden = sessions.length - shown.length;
-      // One detail row per line so the shared band fits and truncates each
-      // line at the actual width.
-      const rows = [
-        ...shown.flatMap((session) => buildSessionLines(session)),
-        ...(hidden > 0 ? [`... +${hidden} more not shown`] : []),
-      ];
+      // Detail lines are wrapped by pi-kit at the current terminal width, so
+      // expanding exposes every session and every available field.
+      const rows = sessions.flatMap((session) => buildSessionLines(session));
       return createStaticToolLifecycleResultRenderer({
-        createSpec: () => eventToolLifecycle("sessions", summary, { label: "listed", details: rows }),
+        createSpec: () => eventToolLifecycle("sessions", summary, { label: "listed", details: rows, detailLimit: "all" }),
         expandHint: keyHint("app.tools.expand", "to expand"),
         fit: truncateToWidth,
         visibleWidth,
-        renderError: (line, currentTheme) => new Text(currentTheme.fg("error", line), 0, 0),
+        wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
       })(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -470,46 +465,30 @@ export default function (pi: ExtensionAPI) {
 
 }
 
-const MAX_DISPLAY_SESSIONS = 10;
-const MAX_RECAP_LENGTH = 120;
-const MAX_FILES_SHOWN = 4;
-
-function firstLine(text: string): string {
-  return text.split("\n", 1)[0]?.trim() ?? "";
-}
-
-function truncatePlain(text: string, maxLength: number): string {
-  return text.length <= maxLength ? text : `${text.slice(0, maxLength - 3)}...`;
-}
-
 function sessionListSummary(sessions: SessionInfo[], dirName: string): string {
-  const dir = truncatePlain(safeDisplayText(dirName), 40);
+  const dir = safeDisplayText(dirName);
   if (sessions.length === 0) return `no other sessions in ${dir}`;
   const noun = sessions.length === 1 ? "other session" : "other sessions";
   return `${sessions.length} ${noun} in ${dir}`;
 }
 
 /**
- * Builds the bounded detail block shown for one session in the expanded view:
- * identity header plus Goal / Recap / Files lines when the data exists.
- * All fields are sanitized and truncated — registry values are untrusted.
+ * Builds the complete detail block shown for one session in the expanded view.
+ * All fields are sanitized, while the shared lifecycle renderer wraps them at
+ * the available terminal width.
  */
 function buildSessionLines(session: SessionInfo): string[] {
   const rawName = session.sessionName ? `"${session.sessionName}"` : `Session [${session.sessionId.slice(0, 8)}]`;
-  const name = truncatePlain(safeDisplayText(rawName), 60);
+  const name = safeDisplayText(rawName);
   const lines = [`  ${name} · ${session.status.toUpperCase()} · pid ${session.pid} · ${formatSessionAge(session.updatedAt)}`];
   if (session.latestGoal) {
-    lines.push(`    Goal  ${truncateToWidth(formatAgentTaskName(safeDisplayText(firstLine(session.latestGoal)), ""), 80)}`);
+    lines.push(`    Goal  ${formatAgentTaskName(safeDisplayText(session.latestGoal), "")}`);
   }
   if (session.recap) {
-    lines.push(`    Recap ${truncatePlain(safeDisplayText(firstLine(session.recap)), MAX_RECAP_LENGTH)}`);
+    lines.push(`    Recap ${safeDisplayText(session.recap)}`);
   }
-  if (session.modifiedFiles?.length) {
-    const shown = session.modifiedFiles
-      .slice(0, MAX_FILES_SHOWN)
-      .map((file) => truncatePlain(safeDisplayText(file), 80));
-    const rest = session.modifiedFiles.length - shown.length;
-    lines.push(`    Files ${shown.join(", ")}${rest > 0 ? ` (+${rest} more)` : ""}`);
+  for (const file of session.modifiedFiles ?? []) {
+    lines.push(`    File  ${safeDisplayText(file)}`);
   }
   return lines;
 }

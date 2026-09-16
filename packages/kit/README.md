@@ -19,6 +19,7 @@ no skills, and no extensions. Consumer packages declare it as
 - `renderPiPanel({ width, style, fit, title, body, footer })` — standard bordered panel geometry for overlays and full-screen consoles. Consumers keep interaction, scrolling, and Markdown rendering; pi-kit supplies the shared frame.
 - `computeScrollWindow(lines, scroll, maxBody)` — compute scroll window slice indices and clamped scroll offset for scrollable panels.
 - `renderPiWidgetRow(content, width, fit)` — one leading-space, width-bounded passive status-widget row aligned with Pi's native rows.
+- `createLiveActivityWidget(options)` — package-owned passive widget controller that renders one or more active rows as `<spinner> <identity> · <latest activity>` using Pi's native cadence. It owns TUI-only mounting, refresh, and disposal; callers retain worker state, activity extraction, and domain labels.
 - `setPiStatus` / `clearPiStatus` — sanitized set/clear adapters for package-owned transient status entries.
 - `startPiWorkingIndicator` / `clearPiWorkingIndicator` — start the shared native-cadence spinner or restore Pi's default indicator.
 
@@ -29,15 +30,13 @@ no skills, and no extensions. Consumer packages declare it as
   contribute nothing; callers own trim/empty semantics.
 - `createToolLifecycleMessageRenderer(options)` — structural custom-message renderer factory using the lifecycle band.
 - `createStaticToolLifecycleMessageRenderer(options)` — compact custom-message factory that keeps model-only text out of the TUI row.
-- `createToolLifecycleResultRenderer(options)` — structural native-tool result renderer factory; callers provide the host-native error component.
+- `createToolLifecycleResultRenderer(options)` — structural native-tool result renderer factory. Partial results render on the toolPendingBg band, settled results on toolSuccessBg, and errors on the shared toolErrorBg band (first error line as subject, remaining lines expandable); pi-kit owns every state so consumers cannot drift.
 - `createStaticToolLifecycleResultRenderer(options)` — compact native-tool factory that keeps model-only text out of the TUI row.
 - `notifyPi(ui, message, level)` — sanitized forwarding to Pi's native notification surface.
 
-### Workers and package agents
+### One-shot workers
 
-- `createPackageAgentRun(options)` — loads an agent Markdown resource from an explicit package root file URL (`packageRootUrl`, typically `new URL("../", import.meta.url).href`) and a validated package-relative `resourcePath`, appends the current user request, and returns a stable per-tool-call display name plus the derived package-relative display path. Absolute paths, traversal, and symlink escapes are rejected, so packages can ship private agent logic without using a project `.agents` directory.
-- `subagentDisplayName(prefix, toolCallId)` — creates the stable bounded identity used by package-agent runs.
-- `minimalPiWorkerArgs(tools)` — builds the common `--print --mode json --no-session -ne -ns -np -nc --no-themes --tools <allowlist>` arguments for package agents that own their child-process lifecycle.
+- `minimalPiWorkerArgs(tools)` — builds the common `--print --mode json --no-session -ne -ns -np -nc --no-themes --tools <allowlist>` arguments for packages that own a one-shot child-process lifecycle.
 - `runPiWorker(options)` — runs a one-shot JSONL worker with pre-cancel checks. Set `minimal: true` to use those shared minimal arguments; combine it with `tools` for an explicit allowlist. It also provides close-observed cancellation and byte limits of 16 MiB for stdout, 8 MiB for
   stderr, and 8 MiB for each JSONL line. The line bound leaves room for normal
   inline image payloads plus their JSON envelope. Limit failures terminate the
@@ -50,6 +49,9 @@ no skills, and no extensions. Consumer packages declare it as
 
 - Zero runtime dependencies beyond Node built-ins; no imports of pi core or
   consumer packages (the dependency graph stays one-way).
+- Package-owned prompt resources and typed binding rules stay in their consumer
+  packages; pi-kit owns the one-shot process runtime, not prompt semantics or
+  generated Agent identities.
 - The package root `index.ts` re-exports the shared runtime from `src/index.ts`.
   The implementation remains a zero-internal-import module that resolves
   identically under Node's native type stripping, tsx, and tsc.

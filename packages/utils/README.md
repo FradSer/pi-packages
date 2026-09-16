@@ -34,9 +34,12 @@ pi install npm:@fradser/pi-utils
 ### `init` — repository contributor guides
 
 `/init` asks the active agent to inspect the repository and create or update
-scoped `AGENTS.md` files. It checks existing guides before writing, preserves
-useful instructions, and keeps root and nested guides aligned without
-needless duplication. The prompt is repository-agnostic: it derives the toolchain,
+scoped `AGENTS.md` files. It audits existing instructions, removes stale or
+overprescriptive rules, and preserves useful guidance in independent directory
+scopes. There is no word quota or required section template: documentation is
+referenced by task, and safe local autonomy and completion boundaries must be
+supported by repository evidence. Relevant skill recommendations favor precise
+triggers and progressive disclosure; skill files are not edited unless requested. The prompt is repository-agnostic: it derives the toolchain,
 shared-module conventions, and contribution workflows from the target project's
 files rather than prescribing this package's development policies. Outside a Git
 checkout, it uses the starting directory as the project root and omits unavailable

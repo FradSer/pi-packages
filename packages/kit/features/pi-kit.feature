@@ -10,21 +10,6 @@ Feature: Shared pi-kit runtime helpers
     Then the frames equal pi's native "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" braille sequence
     And the shared interval is 120 ms
 
-  Scenario: Packages load their own bundled agents
-    Given a package ships an agent Markdown file inside its published resources
-    When it creates a package agent run from its package root URL, resource path, tool call id, and user request
-    Then pi-kit loads the agent instructions from that package resource
-    And appends the user request without requiring a project .agents directory
-    And applies only the caller's explicit template replacements
-    And derives the logical display path from the validated package resource
-    And returns a stable bounded display identity
-    And the same tool call id produces the same name while a different id produces a different name
-
-  Scenario: Package agent resources cannot escape their owning package
-    Given a package creates a bundled agent run
-    When its resource path is absolute, traverses outside the package root, or resolves through a symlink outside the package
-    Then pi-kit rejects the resource before loading it
-
   Scenario: Theme style language is adapted from any pi theme
     Given a pi theme object with an fg(color, text) function
     When the shared theme style is created
@@ -43,15 +28,16 @@ Feature: Shared pi-kit runtime helpers
     When the renderer handles a started result
     Then it owns an empty call slot and one width-bounded `[tool] started · <subject>` row
     And any collapsed lifecycle row with details reserves width for and preserves the configured expand hint
-    And pi-kit paints every successful row block as a full-width customMessageBg band with one blank band row above and below
+    And pi-kit paints every successful row block as a full-width toolSuccessBg band with one blank band row above and below
+    And a still-running partial result renders on toolPendingBg with warning accents instead of the success band
     And a truncated row's ellipsis and padding keep the same band background, because pi-kit re-applies the background after any full SGR reset
-    And the title prefix is label-colored and bold while @teammate names get a stable per-agent accent color from pi-kit's palette
+    And the title prefix is green success-colored and bold while @teammate names get a stable per-agent accent color from pi-kit's non-status palette
     And collapsed teammate-message rows use the same band via renderAgentMessageBand as `[message] from @name · <key> to expand`
     And class-based theme methods retain their receiver when pi-kit applies the background band
     And a long title truncates before the expand hint instead of truncating the hint
     And when it handles an expanded result it reveals at most 50 detail lines by default
     And a lifecycle spec with detailLimit="all" preserves every expanded detail line
-    And an error result is rendered as one plain error row without a lifecycle label
+    And an error result is rendered as a symmetrical toolErrorBg lifecycle band with error accents and expandable details
     And a static result renderer keeps model-only result text out of the expandable user-facing row
     And a lifecycle row can show a compact multi-line summary while remaining expandable
 
@@ -62,7 +48,7 @@ Feature: Shared pi-kit runtime helpers
     And every emitted line is width-bounded by the supplied ANSI-aware fit helper
 
   Scenario: Minimal Pi workers disable unrelated discovery
-    Given a package agent needs only an explicit tool allowlist
+    Given a one-shot package worker needs only an explicit tool allowlist
     When a package builds shared minimal worker arguments or runPiWorker starts in minimal mode
     Then Pi receives -ne, -ns, -np, -nc, and --no-themes
     And only the explicitly supplied tools remain available
@@ -86,6 +72,19 @@ Feature: Shared pi-kit runtime helpers
     Then the row has the native one-space leading alignment by default and is width-bounded
     And a caller-supplied leading width overrides the default, including zero for flush-left rows
 
+  Scenario: Live activity widgets share a lifecycle and row language
+    Given a package has one or more background activities to display
+    When it updates a pi-kit live activity widget in TUI mode
+    Then the widget is mounted at its declared editor placement
+    And each active row uses the shared 120 ms braille spinner as "<spinner> <identity> · <latest activity>"
+    And the identity is bold and accented while activity is muted and width-bounded
+    And completed, failed, and pending entries use stable terminal markers until their owner clears the widget
+    And a later update replaces the visible activity instead of appending old activity
+    And an update from a replacement TUI context remounts the widget and clears the previous context
+    And a host-side disposal of the widget component allows the next update to remount it
+    And a non-TUI update does not mount a widget
+    And clearing the last activity removes the widget and disposes its spinner lifecycle
+
   Scenario: Custom transcript messages use the standard lifecycle renderer
     Given a package sends a custom transcript message with a lifecycle spec
     When it creates the reusable pi-kit message renderer
@@ -97,7 +96,8 @@ Feature: Shared pi-kit runtime helpers
     Given a native tool result with text content and optional structured details
     When it creates a reusable pi-kit tool lifecycle renderer
     Then a successful result renders the shared lifecycle band
-    And an error delegates its plain sanitized error row to the host renderer
+    And an error renders the shared toolErrorBg band with the first error line as subject and the rest as expandable details
+    And the lifecycle renderers expose no host error escape hatch
 
   Scenario: Notifications use the shared portable UI abstraction
     Given a package needs to notify through ctx.ui
@@ -126,6 +126,7 @@ Feature: Shared pi-kit runtime helpers
     And multiple messages from one teammate are "[2 messages] from "
     And outgoing messages use "[message] to "
     And the task name carries no width cap; fixed panels apply their own explicit width bound
+    And pi-kit exports no package prompt loader or generated subagent display identity
 
   Scenario: Scroll window bounds clamp within available content
     Given a list of lines and a viewport height
@@ -222,7 +223,8 @@ Feature: Shared pi-kit runtime helpers
   Scenario: Model search picker renders interactive TUI with search input and model list
     Given a list of models and an interactive custom UI context
     When searchModelFromPicker is displayed
-    Then typing filters models dynamically
+    Then the search query is rendered in native blue border style
+    And typing filters models dynamically
     And confirm selects the highlighted model
     And cancel dismisses the picker without a selection
 

@@ -20,7 +20,6 @@ import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
 	createStaticToolLifecycleResultRenderer,
 	eventToolLifecycle,
-	formatToolErrorLine,
 	notifyPi,
 	safeDisplayText,
 } from "@fradser/pi-kit";
@@ -42,10 +41,7 @@ function renderWorktreeToolResult(
 	theme: Pick<Theme, "bold" | "fg" | "bg">,
 	context: { isError?: boolean },
 	subject: string,
-): { invalidate: () => void; render: (width: number) => string[] } | Text {
-	if (context.isError) {
-		return new Text(theme.fg("error", formatToolErrorLine(worktreeToolText(result))), 0, 0);
-	}
+): { invalidate: () => void; render: (width: number) => string[] } {
 	const separator = subject.indexOf(" ");
 	const action = separator === -1 ? subject : subject.slice(0, separator);
 	const target = separator === -1 ? "" : subject.slice(separator + 1);
@@ -57,7 +53,6 @@ function renderWorktreeToolResult(
 		expandHint: keyHint("app.tools.expand", "to expand"),
 		fit: truncateToWidth,
 		visibleWidth,
-		renderError: (line, currentTheme) => new Text(currentTheme.fg("error", line), 0, 0),
 	})(result, options, theme, context);
 }
 
