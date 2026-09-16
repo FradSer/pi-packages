@@ -1,91 +1,85 @@
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
-import { detailField, eventToolLifecycle, formatAgentTaskName, formatToolErrorLine, formatToolLifecycleTitle, notifyPi } from "@fradser/pi-kit";
+import { detailField, eventToolLifecycle, notifyPi } from "@fradser/pi-kit";
 import {
+  assignExistingWork,
+  releaseExistingWork,
+  reopenExistingWork,
   createBoardTask,
-  formatBoardTaskCreation,
-  hasAnnouncedFinish,
-  hasTerminalReport,
   publishStateSnapshot,
   sendLeaderMessage,
-  shutdownTeammate,
+  shutdownTeammateExact,
   spawnTeammate,
 } from "./team-machine.ts";
 import { listTasks, livingTeammates } from "./state.ts";
 
-const DYNAMIC_LEADER_TOOLS = ["teammate_shutdown", "send_message", "task_list"] as const;
-let leaderToolApi: Pick<ExtensionAPI, "getActiveTools" | "setActiveTools"> | undefined;
-
-/** Keep spawn as the entry point; reveal follow-on controls only when relevant. */
-export function refreshLeaderToolDisclosure(): void {
-  if (!leaderToolApi || typeof leaderToolApi.getActiveTools !== "function" || typeof leaderToolApi.setActiveTools !== "function") return;
-  const active = leaderToolApi.getActiveTools();
-  const withoutDynamic = active.filter((tool) => !DYNAMIC_LEADER_TOOLS.includes(tool as typeof DYNAMIC_LEADER_TOOLS[number]));
-  const revealed = [
-    ...(livingTeammates().length > 0 ? ["teammate_shutdown", "send_message"] : []),
-    ...(listTasks().length > 0 ? ["task_list"] : []),
-  ];
-  leaderToolApi.setActiveTools([...withoutDynamic, ...revealed]);
-}
-
-import { LEADER_RECIPIENT, SendMessageParams, TeammateShutdownParams, TeammateSpawnParams, TaskCreateParams, AgentToolParams, AgentEventParams } from "./types.ts";
-import { registerTaskListTool } from "./worker.ts";
+import { AgentActionParams, LEADER_RECIPIENT, AgentEventParams, WorkToolParams } from "./types.ts";
 import { openTeamConsole, refreshTeamUI } from "./ui.ts";
 import { discoverAgents } from "./agents.ts";
-import { emptyToolCall, renderLifecycleResult, textOf } from "./tool-render.ts";
-import { controlAgent, type AgentControlRuntime } from "./agent-control.ts";
+import { emptyToolCall, renderLifecycleResult } from "./tool-render.ts";
+import { runAgentAction, type AgentActionRuntime } from "./agent-actions.ts";
 import { resolveRecipient } from "./recipient.ts";
 
-function rosterSummary(): string {
-  const alive = livingTeammates();
-  if (alive.length === 0) return "No living teammates.";
-  return alive.map((t) => `@${t.name} (${t.agent}, ${t.status}${t.currentTaskId ? `, task ${t.currentTaskId}` : ""})`).join("\n");
-}
-
-function spawnAssignment(params: { name: string; agent: string; prompt?: string }): string {
-  const prompt = params.prompt?.trim();
-  if (!prompt) return "check task board";
-  const normalizedPrompt = prompt.replace(/^@/, "").trim().toLowerCase();
-  const name = params.name.replace(/^@/, "").toLowerCase();
-  const agent = params.agent.replace(/^@/, "").toLowerCase();
-  if (normalizedPrompt === name || normalizedPrompt === agent) {
-    return "check task board";
-  }
-  return formatAgentTaskName(prompt, "check task board");
-}
-
-function routedCoordinationNext(): string {
+function formatWorkList(tasks: ReturnType<typeof listTasks>): string {
+  const works = tasks.map((task) => {
+    const dependencies = task.dependsOn.length > 0 ? ` · depends=${task.dependsOn.join(",")}` : "";
+    const holder = task.claimedBy ? ` · owner=@${task.claimedBy}` : "";
+    return `- ${task.id} · ${task.status} · ${task.subject}${holder}${dependencies}`;
+  });
   return [
-    "NOTE · Routing acknowledgment is not worker consumption.",
-    "NEXT · Do not inspect for confirmation, repeat this guidance, or ask for progress or the final report. Continue independent work or end the turn; the final result arrives automatically.",
+    "WORK · current session",
+    `SUMMARY · ${tasks.length} work item${tasks.length === 1 ? "" : "s"}`,
+    "WORK ITEMS",
+    ...(works.length > 0 ? works : ["(none)"]),
   ].join("\n");
 }
 
-export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentControlRuntime = { spawnTeammate, sendLeaderMessage }): void {
+function formatWorkCreation(subject: string, created: {
+  id: string;
+  claimable: boolean;
+  resourceBlocked: boolean;
+  notifiedTeammates: string[];
+}): string {
+  const availability = created.claimable ? "pending/claimable" : "pending/blocked";
+  const routing = created.notifiedTeammates.length > 0
+    ? `eligible residents notified: ${created.notifiedTeammates.map((name) => `@${name}`).join(", ")}`
+    : created.resourceBlocked
+      ? "resource conflict blocks assignment"
+      : "no eligible resident notified";
+  return [
+    "WORK · current session",
+    `CREATED · ${created.id} · ${availability} · ${subject}`,
+    `ROUTING · ${routing}`,
+  ].join("\n");
+}
+
+/** Final surface uses stable registrations; retained for extension lifecycle callers. */
+export function refreshLeaderToolDisclosure(): void {}
+
+export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntime & { sendLeaderMessage: typeof sendLeaderMessage } = { spawnTeammate, shutdownTeammateExact, sendLeaderMessage }): void {
   pi.registerTool({
     name: "agent",
-    promptSnippet: "Delegate work or deliberately inspect Agent Presence",
-    label: "Agent Control",
-    description: "Delegate independent work to a defined Agent (see Available agents in guidance). Unknown names are rejected without spawning — create the role first with teammate_spawn and an inline definition. A prompt without work always starts a new Work Session; work selects existing execution. Omit prompt only for deliberate presence inspection, never to poll progress or completion. After starting or steering, continue independent work or end the turn; results arrive automatically. fork optionally inherits the leader context; fresh by default.",
-    parameters: AgentToolParams,
+    promptSnippet: "Delegate, start, inspect, or stop an Agent session",
+    label: "Agent",
+    description: "Strict Agent lifecycle interface. Delegate creates independent Work; start creates an unassigned resident; inspect and stop use incarnation-bound session handles.",
+    parameters: AgentActionParams,
     renderShell: "self",
     renderCall: emptyToolCall,
-    renderResult(result, _options, theme, context) {
-      const text = result.content.find((part) => part.type === "text")?.text ?? "";
-      if (context.isError) return new Text(theme.fg("error", text.split("\n")[0] || "Agent delegation failed."), 0, 0);
-      const params = context.args as { name: string; prompt?: string; work?: string };
-      const prefix = theme.fg("customMessageLabel", theme.bold("[agent]"));
+    renderResult(result, options, theme, context) {
+      const action = String((context.args as { action?: string }).action ?? "agent");
+      const agent = String((context.args as { name?: string }).name ?? "session");
       const outcome = detailField<string>(result.details, "outcome") ?? "pending";
-      const action = params.prompt ? `${outcome} · ${formatAgentTaskName(params.prompt, "task")}` : "inspected";
-      return new Text(`${prefix} @${params.name} ${action}`, 0, 0);
+      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+        "agent",
+        `@${agent} ${action} · ${outcome}`,
+      ));
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = controlAgent(params, ctx.cwd, runtime, ctx.sessionManager);
-      if (params.prompt) {
+      const result = await runAgentAction(params, ctx.cwd, runtime, ctx.sessionManager);
+      if (params.action !== "inspect") {
         refreshTeamUI(ctx);
         refreshLeaderToolDisclosure();
       }
-      return result;
+      return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
     },
   });
 
@@ -110,191 +104,150 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentControlRunti
         throw new Error("No bound reply route exists. Please specify 'to' explicitly.");
       }
       if (params.to === LEADER_RECIPIENT) throw new Error("The leader cannot send an event to itself.");
-      if (params.status && !["inform", "request", "handoff"].includes(params.status)) {
-        throw new Error("Report statuses are valid only for worker reports to the leader.");
-      }
       const to = resolveRecipient(params.to, livingTeammates());
       const result = runtime.sendLeaderMessage(to, params.message, {});
       if (!result.ok) throw new Error(result.error);
       const recorded = result.outcome === "not-sent" ? `\nRECORDED TERMINAL REPORT · ${result.terminalReport}` : "";
-      const next = result.outcome === "not-sent" ? "" : `\n${routedCoordinationNext()}`;
+      const next = "";
       return {
-        content: [{ type: "text", text: `EVENT ROUTING · ${result.outcome} · to=@${to}\nINTENT · ${params.status ?? "inform"}${recorded}${next}` }],
-        details: { to, outcome: result.outcome, status: params.status ?? "inform" },
+        content: [{ type: "text", text: `EVENT ROUTING · ${result.outcome} · to=@${to}\nINTENT · ${params.intent ?? "inform"}${recorded}${next}` }],
+        details: { to, outcome: result.outcome, intent: params.intent ?? "inform" },
       };
     },
   });
 
   pi.registerTool({
-    name: "teammate_spawn",
-    promptSnippet: "Spawn a named resident teammate or sub-agent",
-    label: "Spawn Teammate",
-    description: "Spawn one named resident teammate / sub-agent. Use whenever instructions, third-party skills, or workflows ask to launch or delegate work to an agent, sub-agent (subagent), worker, or teammate. Generated role definitions stay in memory by default; persist one only when the user explicitly asks to keep it for future sessions.",
-    parameters: TeammateSpawnParams,
-    renderShell: "self",
-    renderCall: emptyToolCall,
-    renderResult(result, _options, theme, context) {
-      const text = result.content.find((part) => part.type === "text")?.text ?? "";
-      if (context.isError) return new Text(theme.fg("error", text.split("\n")[0] || "Failed to spawn teammate."), 0, 0);
-      const params = context.args as { name: string; agent: string; prompt?: string };
-      const title = formatToolLifecycleTitle({
-        kind: "started",
-        tool: "agent",
-        subject: `@${params.name} started · ${spawnAssignment(params)}`,
-      }).replace(/^\[agent\]\s*/, "");
-      const prefix = theme.fg("customMessageLabel", theme.bold("[agent]"));
-      return new Text(`${prefix} ${title}`, 0, 0);
-    },
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = spawnTeammate(params);
-      if (!result.ok) throw new Error(result.error);
-      refreshTeamUI(ctx);
-      refreshLeaderToolDisclosure();
-      const hasAssignment = Boolean(params.prompt?.trim());
-      const kickoffNote = hasAssignment
-        ? "KICKOFF · supplied once to this Work Session; it is working on it."
-        : "KICKOFF · standard board-check supplied once; it is running its first turn and idles once that settles.";
-      const next = hasAssignment
-        ? "NEXT · Do not echo the kickoff or inspect for confirmation. Continue independent work or end the turn; the final result arrives automatically."
-        : "NEXT · No automatic completion result is pending. Do not inspect for confirmation; leave it idle until explicit work or a claimable board notice arrives.";
-      return {
-        content: [{ type: "text", text: `@${params.name} is alive as ${params.agent}.\n${kickoffNote}\n${next}\n\n${rosterSummary()}` }],
-        details: { started: true },
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: "teammate_shutdown",
-    promptSnippet: "Shut down a resident teammate",
-    label: "Shutdown Teammate",
-    description: "Gracefully stop one named teammate. Its claimed task returns to the board; its worktree diff is captured before teardown.",
-    parameters: TeammateShutdownParams,
-    renderShell: "self",
-    renderCall: emptyToolCall,
-    renderResult(result, _options, theme, context) {
-      const name = String((context.args as { name?: string }).name ?? "");
-      if (context.isError) {
-        return new Text(theme.fg("error", formatToolErrorLine(textOf(result))), 0, 0);
-      }
-      // Keep cleanup quiet when an assignment-finish report already covers it.
-      if (hasAnnouncedFinish(name) || hasTerminalReport(name)) return { render: () => [], invalidate: () => {} };
-      // Confirmed process exit is a static event row, not an expandable result.
-      const title = formatToolLifecycleTitle({ kind: "event", tool: "agent", subject: `@${name} stopped` }).replace(/^\[agent\]\s*/, "");
-      const prefix = theme.fg("customMessageLabel", theme.bold("[agent]"));
-      return new Text(`${prefix} ${title}`, 0, 0);
-    },
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = await shutdownTeammate(params.name);
-      if (!result.ok) throw new Error(result.error);
-      refreshTeamUI(ctx);
-      refreshLeaderToolDisclosure();
-      return { content: [{ type: "text", text: result.body }], details: {} };
-    },
-  });
-
-  pi.registerTool({
-    name: "send_message",
-    promptSnippet: "Send a message to a teammate",
-    label: "Send Message",
-    description: "The only messaging primitive. Address a living teammate only with new evidence, changed constraints, or a distinct assignment; never echo its kickoff or ask for progress, completion, or confirmation. Working teammates receive a steer immediately and idle teammates wake with the message.",
-    parameters: SendMessageParams,
-    // Canonical lifecycle rows (same as packages/monitor): empty call slot,
-    // ONE delivery row owned by renderResult.
+    name: "work",
+    promptSnippet: "Create or list advanced Work Items",
+    label: "Work",
+    description: "Create one pending Work Item or list current Work Items. Creation uses the session's single-writer Work state and never starts a resident.",
+    parameters: WorkToolParams,
     renderShell: "self",
     renderCall: emptyToolCall,
     renderResult(result, options, theme, context) {
-      const to = String((context.args as { to?: string }).to ?? "");
-      const outcome = detailField<"steered" | "queued" | "not-sent">(result.details, "outcome") ?? "queued";
-      const subject = outcome === "not-sent" ? "terminal report available" : outcome;
+      const action = String((context.args as { action?: string }).action ?? "work");
+      const subject = action === "create"
+        ? String((context.args as { subject?: string }).subject ?? "Work")
+        : action === "assign" || action === "release" || action === "reopen" || action === "supersede"
+          ? String((context.args as { id?: string }).id ?? "Work")
+          : `${detailField<number>(result.details, "count") ?? 0} work item(s)`;
       return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
-        "message",
+        "work",
         subject,
-        { label: `to @${to}`, detailLimit: outcome === "not-sent" ? "all" : undefined },
+        { label: action === "create" ? "created" : action === "assign" ? "assigned" : action === "release" ? "released" : action === "reopen" ? "reopened" : action === "supersede" ? "superseded" : "listed" },
       ));
     },
-    async execute(_toolCallId, params) {
-      if (params.to === LEADER_RECIPIENT) throw new Error('The leader cannot send a message to itself.');
-      const to = resolveRecipient(params.to, livingTeammates());
-      const result = sendLeaderMessage(to, params.message, {
-        reopen: params.reopen,
-        resources: params.resources,
-      });
-      if (!result.ok) throw new Error(result.error);
-      if (result.outcome === "not-sent") {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      if (params.action === "supersede") {
+        const tasks = listTasks();
+        const referenced = [...(params.dependsOn ?? []), ...params.supersedes];
+        if (referenced.some((id) => !tasks.some((task) => task.id === id))) {
+          throw new Error(`Unknown work id in [${referenced.join(", ")}].`);
+        }
+        const created = createBoardTask(params);
+        if (!created.ok) throw new Error(created.error);
+        const work = listTasks().find((task) => task.id === created.id);
+        if (!work) throw new Error(`Replacement Work Item "${created.id}" is unavailable.`);
+        refreshTeamUI(ctx);
+        refreshLeaderToolDisclosure();
         return {
-          content: [{
-            type: "text",
-            text: [
-              "ROUTING · not sent",
-              "NEXT · No new message was delivered. Read the recorded report below; use reopen=true only for a distinct new assignment.",
-              `NOTE · @${params.to} already sent a terminal report. Delivery to your context is automatic; asking it to resend produces a duplicate leader turn.`,
-              `RECORDED TERMINAL REPORT · ${result.terminalReport}`,
-            ].join("\n"),
-          }],
-          details: { outcome: "not-sent", terminalReportAvailable: true },
+          content: [{ type: "text", text: `WORK · current session\nSUPERSEDED · ${work.id} · ${work.status}\nREPLACED · ${created.supersededTaskIds.join(", ")}\nROUTING · ${created.notifiedTeammates.length > 0 ? `eligible residents notified: ${created.notifiedTeammates.map((name) => `@${name}`).join(", ")}` : "no eligible resident notified"}` }],
+          details: {
+            action: "supersede", outcome: "superseded", state: work.status,
+            work: { id: work.id, subject: work.subject, ...(work.description ? { description: work.description } : {}), dependsOn: work.dependsOn, resources: work.resources, ...(work.verify ? { verify: work.verify } : {}), state: work.status },
+            supersededWorkIds: created.supersededTaskIds, notifiedTeammates: created.notifiedTeammates, claimable: created.claimable,
+          },
         };
       }
-      const action = result.outcome === "steered"
-        ? "active control stream accepted the steer"
-        : "harness will deliver the queued message on the next wake-up";
-      let text = `MESSAGING\n${result.outcome.toUpperCase()} · to=@${params.to}\nROUTING · ${action}\n${routedCoordinationNext()}`;
-      // A stray status field (copied from worker report patterns) must not
-      // block delivery — it carries no meaning on leader-sent messages.
-      if (params.status) text += `\nNOTE · status ignored for leader-directed steering`;
-      if (result.priorTerminalReport) {
-        text += `\nNOTE · @${params.to} already sent a terminal report (below); it reaches your context automatically. A steer asking it to repeat that report produces a duplicate delivery — use reopen only for a distinct new assignment.`;
-        text += `\nPRIOR TERMINAL REPORT · ${result.priorTerminalReport}`;
+      if (params.action === "reopen") {
+        const reopened = reopenExistingWork(params.id);
+        if (!reopened.ok) throw new Error(reopened.error);
+        refreshTeamUI(ctx);
+        refreshLeaderToolDisclosure();
+        return {
+          content: [{ type: "text", text: `WORK · current session\nREOPENED · ${reopened.workId} · pending\nREASON · ${params.reason}` }],
+          details: { action: "reopen", outcome: "reopened", state: "pending", work: { id: reopened.workId, subject: reopened.subject, resources: reopened.resources, state: "pending" }, reason: params.reason },
+        };
       }
-      return {
-        content: [{ type: "text", text }],
-        details: { outcome: result.outcome },
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: "task_create",
-    promptSnippet: "Create a shared board task",
-    label: "Create Task",
-    description: "Create one pending task on the current session board. Existing idle teammates are notified immediately and may self-claim it; this tool never spawns teammates. An optional verify prompt gates completion through a fresh reviewer.",
-    parameters: TaskCreateParams,
-    // Canonical lifecycle rows (same as packages/monitor): empty call slot,
-    // ONE created row owned by renderResult.
-    renderShell: "self",
-    renderCall: emptyToolCall,
-    renderResult(result, options, theme, context) {
-      const subject = String((context.args as { subject?: string }).subject ?? "");
-      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
-        "board",
-        subject,
-        { label: "created" },
-      ));
-    },
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      if (params.action === "release") {
+        const released = releaseExistingWork(params.id, params.reason);
+        if (!released.ok) throw new Error(released.error);
+        refreshTeamUI(ctx);
+        refreshLeaderToolDisclosure();
+        return {
+          content: [{ type: "text", text: `WORK · current session\nRELEASED · ${released.workId} · pending\nREASON · ${params.reason}` }],
+          details: { action: "release", outcome: "released", state: "pending", work: { id: released.workId, subject: released.subject, resources: released.resources, state: "pending" }, reason: params.reason },
+        };
+      }
+      if (params.action === "assign") {
+        const assigned = assignExistingWork(params.id, params.target.session);
+        if (!assigned.ok) throw new Error(assigned.error);
+        const task = listTasks().find((entry) => entry.id === assigned.workId);
+        if (!task) throw new Error(`Assigned Work Item "${assigned.workId}" is unavailable.`);
+        refreshTeamUI(ctx);
+        refreshLeaderToolDisclosure();
+        return {
+          content: [{ type: "text", text: `WORK · current session\nASSIGNED · ${task.id} · claimed · owner=@${assigned.owner}\nATTEMPT · ${assigned.assignmentId} · fresh-session-pending` }],
+          details: {
+            action: "assign", outcome: "assigned", state: task.status,
+            work: { id: task.id, subject: task.subject, resources: task.resources, state: task.status, claimedBy: task.claimedBy },
+            assignment: { id: assigned.assignmentId, owner: assigned.owner, kind: "direct" },
+            target: params.target, delivery: "fresh-session-pending",
+          },
+        };
+      }
+      if (params.action === "list") {
+        const works = listTasks().map((task) => ({
+          id: task.id,
+          subject: task.subject,
+          ...(task.description ? { description: task.description } : {}),
+          dependsOn: task.dependsOn,
+          resources: task.resources,
+          ...(task.verify ? { verify: task.verify } : {}),
+          state: task.status,
+          ...(task.claimedBy ? { claimedBy: task.claimedBy } : {}),
+          ...(task.result ? { result: task.result } : {}),
+        }));
+        return {
+          content: [{ type: "text", text: formatWorkList(listTasks()) }],
+          details: { action: "list", outcome: "listed", works, count: works.length },
+        };
+      }
       const tasks = listTasks();
-      const referenced = [...(params.dependsOn ?? []), ...(params.supersedes ?? [])];
+      const referenced = params.dependsOn ?? [];
       if (referenced.some((id) => !tasks.some((task) => task.id === id))) {
-        throw new Error(`Unknown task id in [${referenced.join(", ")}].`);
+        throw new Error(`Unknown work id in [${referenced.join(", ")}].`);
       }
       const created = createBoardTask(params);
       if (!created.ok) throw new Error(created.error);
+      const work = listTasks().find((task) => task.id === created.id);
+      if (!work) throw new Error(`Created Work Item "${created.id}" is unavailable.`);
       refreshTeamUI(ctx);
       refreshLeaderToolDisclosure();
       return {
-        content: [{ type: "text", text: formatBoardTaskCreation(params.subject, created) }],
+        content: [{ type: "text", text: formatWorkCreation(params.subject, created) }],
         details: {
+          action: "create",
+          outcome: "created",
+          state: work.status,
+          work: {
+            id: work.id,
+            subject: work.subject,
+            ...(work.description ? { description: work.description } : {}),
+            dependsOn: work.dependsOn,
+            resources: work.resources,
+            ...(work.verify ? { verify: work.verify } : {}),
+            state: work.status,
+          },
           notifiedTeammates: created.notifiedTeammates,
-          livingTeammates: created.livingTeammates,
           claimable: created.claimable,
-          supersededTaskIds: created.supersededTaskIds,
+          supersededWorkIds: created.supersededTaskIds,
         },
       };
     },
   });
 
-  registerTaskListTool(pi);
-  leaderToolApi = pi;
+
 }
 
 function teamStatusSummary(): string {
@@ -302,7 +255,8 @@ function teamStatusSummary(): string {
   const rolesLine = roles.length > 0
     ? `${roles.length} persistent agent role${roles.length === 1 ? "" : "s"}: ${roles.join(", ")}`
     : "No agent roles discovered.";
-  return `${rosterSummary()}\n${rolesLine}`;
+  const roster = livingTeammates().map((t) => `@${t.name} (${t.agent}, ${t.status})`).join("\n") || "No living sessions.";
+  return `${roster}\n${rolesLine}`;
 }
 
 export function registerTeamCommand(pi: ExtensionAPI): void {

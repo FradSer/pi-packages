@@ -16,9 +16,7 @@ let activeBlinkTimer: NodeJS.Timeout | null = null;
 let commandQueue: Promise<HardwareApplyResult> | undefined;
 
 export function resolveCliPath(customPath?: string): string {
-  if (customPath && existsSync(customPath)) {
-    return customPath;
-  }
+  if (customPath) return customPath;
 
   const standardPaths = [
     join(homedir(), ".local", "bin", "via-rgb"),

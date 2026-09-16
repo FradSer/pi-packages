@@ -14,10 +14,11 @@ Feature: Session Recap
     When it displays information, warnings, or errors
     Then it uses pi-kit's portable notification helper with the requested level
 
-  Scenario: Recap widget uses pi-kit's shared row renderer
+  Scenario: Recap widget uses pi-kit's shared live activity and row renderers
     Given an active session in TUI mode displays a recap
     When its status or recap content is rendered
-    Then every passive recap row uses pi-kit's shared widget-row renderer
+    Then in-progress recap activity uses pi-kit's live activity widget
+    And every completed recap row uses pi-kit's shared widget-row renderer
 
   Scenario: Recap widget is displayed above the editor by default
     Given an active session in TUI mode
@@ -167,7 +168,7 @@ Feature: Session Recap
   Scenario: Recap marker aligns with the native working spinner
     Given the recap widget is displayed above the editor
     When the recap content is rendered
-    Then the recap marker starts at column zero with no leading spaces
+    Then the recap marker starts with one leading space like native working rows
     And continuation lines align with the first recap character rather than the marker
 
   Scenario: Existing recap prevents redundant startup generation

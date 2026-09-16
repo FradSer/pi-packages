@@ -74,13 +74,16 @@ Feature: Generic tool-call guardrails from layered config
   Scenario: The /harness command reports the active surface
     Given guardrails loaded from one or more layers
     When the user runs /harness
-    Then the command reports sources, policy names, and the config paths
+    Then the command reports each rule's id, selector, action, enabled state, and source
+    And it reports invalid rules, incomplete bash coverage, and stale-layer read state
+    And it reports legacy skill prompts as registered or unavailable rather than silently active
+    And it lists the config paths
     And it works headlessly without interactive UI
 
   Scenario: A /harness prompt creates a rule in the specified or default target
     Given the user provides a natural-language harness rule request
     When the user runs /harness with that request without scope flags
-    Then the command targets the project personal layer at .pi/harness.local.json by default
+    Then the command targets the project shared layer at .pi/harness.json by default
     When the user specifies --global or --user
     Then the command targets the user shared layer at ~/.pi/agent/harness.json
     When the user specifies --shared or --project
@@ -88,6 +91,7 @@ Feature: Generic tool-call guardrails from layered config
     And a missing target is initialized there instead of being searched for elsewhere
     And a project target whose parent is a symlink is rejected before any write can escape the workspace
     And it preserves existing rules and asks the agent to verify the resulting JSON
+    And authoring steps positively describe direct target access, supported fields, and completion reporting
 
   Scenario: Complete harness writes are validated without taking ownership of unrelated data
     Given a write targets one of the three canonical harness files

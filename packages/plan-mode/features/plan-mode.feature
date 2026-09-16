@@ -126,14 +126,13 @@ Feature: Plan worker diagnostics and CLI compatibility
     Then its panel frame uses pi-kit's shared panel renderer
     And its passive rows use pi-kit's shared widget-row renderer
 
-  Scenario: Plan workers render a live above-editor status widget
+  Scenario: Plan workers render through pi-kit's live activity widget
     Given /plan starts explore and plan-writer workers
     When worker progress changes during plan generation
-    Then the plan widget shows each worker phase and running status
+    Then pi-kit's live activity widget shows each worker phase and running status above the input editor
     And each row is formatted as worker id, label in parentheses, and current activity
     And the spinner and task name appear before the separator
     And a worker without live activity shows "Working..." after the separator
-    And the widget is rendered above the input editor
     And the widget uses the shared pi-kit spinner cadence
     And the widget is cleared after plan generation finishes
 

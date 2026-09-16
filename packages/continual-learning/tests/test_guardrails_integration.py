@@ -66,7 +66,7 @@ async function callBefore(prompt, systemPrompt, ctx, onlyGuardrails = false) {
       prompt,
       images: undefined,
       systemPrompt: currentSystemPrompt,
-      systemPromptOptions: {},
+      systemPromptOptions: { skills: [{ name: "review" }, { name: "usernote" }] },
     };
     const result = await fn(event, ctx);
     results.push(result);
@@ -333,7 +333,7 @@ await new Promise((r) => setTimeout(r, 20));
     prompt: userExpanded,
     images: undefined,
     systemPrompt: "user system",
-    systemPromptOptions: {},
+    systemPromptOptions: { skills: [{ name: "review" }, { name: "usernote" }] },
   });
   const firstUser = await userHandler(userEvent(), sharedTurnCtx);
   const duplicateUser = await userHandler(userEvent(), sharedTurnCtx);
@@ -395,9 +395,9 @@ await new Promise((r) => setTimeout(r, 20));
       notified.includes(path.join(project, ".pi", "harness.local.json")) &&
       !notified.includes(path.join(agentDir, "harness.local.json")),
     invalidSkillReported: notified.includes("bad--skill") && notified.includes("exact valid skill key"),
-    defaultTargetsProjectLocal: messages.length >= 1 && messages[0].options?.deliverAs === "followUp" &&
+    defaultTargetsProjectShared: messages.length >= 1 && messages[0].options?.deliverAs === "followUp" &&
       messages[0].content.includes("Block edits that add hard-coded colors") &&
-      messages[0].content.includes(path.join(project, ".pi", "harness.local.json")) &&
+      messages[0].content.includes(path.join(project, ".pi", "harness.json")) &&
       !messages[0].content.includes(path.join(agentDir, "harness.local.json")),
     globalFlagTargetsUserShared: messages.length >= 2 && messages[1].options?.deliverAs === "followUp" &&
       messages[1].content.includes("Block edits globally") &&
@@ -478,6 +478,6 @@ def test_s7_skill_prompts_are_layered_and_idempotent() -> None:
 def test_s8_command_reports_surface_and_routes_prompt() -> None:
     s = ALL["command-surface"]
     assert s["listsPolicies"] and s["showsPaths"] and s["invalidSkillReported"]
-    assert s["defaultTargetsProjectLocal"]
+    assert s["defaultTargetsProjectShared"]
     assert s["globalFlagTargetsUserShared"]
     assert s["sharedFlagTargetsProject"]

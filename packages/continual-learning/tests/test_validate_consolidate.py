@@ -51,7 +51,7 @@ class ValidatorContractTests(unittest.TestCase):
         self.public.mkdir(parents=True)
         write(self.repo / "src" / "example.ts", "export const example = true;\n")
         self.run_id = "memory-run-1"
-        self.scope_key = "c" * 64
+        self.scope_key = "tmp-project"
         self.scope = "b" * 64
         self.artifact = "a" * 64
 

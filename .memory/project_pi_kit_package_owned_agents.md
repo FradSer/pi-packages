@@ -1,6 +1,6 @@
 ---
 name: pi-kit-package-owned-agents
-description: Pi packages own their sub-agent prompts inside the published package and run child Pi workers through pi-kit's shared package-agent runtime with minimal discovery
+description: Pi packages own typed prompt builders and neutral prompt resources while pi-kit owns only the one-shot worker runtime
 type: project
 ---
 
@@ -10,29 +10,26 @@ A package's research/planning child is part of that package's published surface,
 
 ## Status
 
-The user has stated that the markdown-resource-as-prompt pattern (`createPackageAgentRun` loading `agents/*.md`) should not be used in pi-kit; instead callers should construct optimized prompts inline. Migration away from this API is pending due to cross-package dependencies (`context`, `continual-learning`). Until migrated, the API remains in the codebase and callers still use it.
+The misleading package-Agent helper has been removed from pi-kit with no compatibility wrapper. Package prompt semantics now stay with their owning packages; pi-kit exposes only the one-shot process adapter.
 
-**Rationale for full removal (not rename):** `createPackageAgentRun` uses "Agent" in its name but provides none of the features that `agent-teams`' Agent Definition system provides (session, memory, agent definition, scope, lifecycle, inbox, work item, persistent identity, worktree). It is conceptually just "load a package-relative Markdown file as a prompt string plus display metadata." The naming and directory structure (`agents/*.md`, `@<name>` display) implies it belongs to the same mechanism as `agent-teams`, causing confusion. The correct action is to remove it entirely after migrating all callers, rather than renaming.
-
-**Intended replacement pattern:**
-- Inline prompt constants or builder functions within the caller package (e.g. `const RESEARCH_PROMPT = "..."; function buildPrompt(query) { return RESEARCH_PROMPT + "\n\n" + query; }`).
-- Separate display constants for name and path (e.g. `CONTEXT_AGENT_NAME`, `CONTEXT_AGENT_PATH`).
-- Direct call to `runPiWorker({ prompt, tools, minimal: true })` with no intermediate `createPackageAgentRun` wrapper.
+- Context uses `extensions/context-prompt.ts` to treat internal `prompts/context-research.md` as a reference protocol and build a task-specific review prompt from the actual query and working directory. The Markdown path is not an execution identity; the UI renders `[context] research started · <research query>`, a `[context] researching` row on toolPendingBg while the child streams progress, and a compact expandable `[context] researched` row on toolSuccessBg when settled.
+- Continual Learning keeps its substantial planner protocols under `prompts/` and binds them through typed builders in `extensions/planner-prompts.ts`.
+- Builders perform literal nonrecursive replacement and reject missing, unknown, or unresolved placeholders.
 
 ## How to apply
 
-- Ship the child's prompt inside the package and list it in `package.json` `files` (for example `@fradser/pi-context` publishes `agents/context-researcher.md`).
-- Load it through pi-kit's `createPackageAgentRun({ packageRootUrl, resourcePath, toolCallId, request, requestLabel })`: the resource path must stay package-relative and inside the package root (realpath + symlink escape checks), and the returned `prompt` is the bundled agent text plus the caller's request.
-- Give the child one fixed package-level identity (e.g., `CONTEXT_AGENT_NAME = "conext-research"` for the context package) rather than a per-tool-call dynamic name; every invocation of the same package's child uses the same `@<name>` in both the started row and the status widget. The dynamic `elegantContextAgentName` function with adjective/noun lists has been removed.
-- Start the child through `runPiWorker({ ..., minimal: true })`, which adds `-ne -ns -np -nc --no-themes` so the child loads no extensions, skills, prompt templates, context files, or themes. The child runs with `--no-session` and retains no agent memory or agent-teams state between invocations. `runPiWorker` still has no wall-clock timeout; abort and process shutdown are the only cancellation.
-- **Retry on empty answer**: when the child exits 0 but its JSONL output contains no textual final `message_end` assistant message, append `FINAL_ANSWER_RETRY_INSTRUCTION` to the prompt and call `runResearchChild` once more (recursive, `finalAnswerRetry = true`). Update the status widget to "Retrying final answer..." before launching the retry. Only if the retry also returns empty text does the tool throw `"returned no answer after retry"`. A failed or cancelled child does NOT trigger retry.
-- Contract coverage: `packages/context/features/native-tool-runtime.feature` (bundled agent, minimal child, fixed-name stateless started row, live status widget, empty-success retry scenario, failed-child no-retry).
+- Keep prompt resources and typed binding rules in the consumer package.
+- Use neutral `prompts/` or `procedures/` paths for one-shot worker protocols; reserve `agents/` for real Agent Definitions.
+- Pass the complete prompt directly to `runPiWorker({ prompt, tools, minimal: true })`, or to a package-owned low-level child adapter when it needs additional lifecycle controls.
+- `runPiWorker` adds `--no-session`; minimal mode also disables extension, skill, prompt-template, context-file, and theme discovery. It provides no Agent identity or memory.
+- Context retries once only when a successful child returns no textual final answer. The retry receives the complete original request and explicit completion requirements without depending on hidden reasoning or the prior child state. Failed or cancelled children do not retry.
+- Contract coverage lives in `packages/context/features/native-tool-runtime.feature`, `packages/continual-learning/features/`, and their package tests.
 
 ## Architectural boundary
 
 - **agent-teams**: real Agents with definitions, lifecycle, scope hierarchy, worktree isolation, and persistent identity.
 - **pi-kit `runPiWorker`**: one-shot stateless Pi workers (no session, no memory, no agent-teams state).
-- **Package callers (context, continual-learning)**: use inline prompts + `runPiWorker` directly; no `PackageAgentRun` intermediary.
+- **Package callers (context, continual-learning)**: own typed prompt builders and pass complete prompt strings to their worker adapters.
 
 ## Related
 

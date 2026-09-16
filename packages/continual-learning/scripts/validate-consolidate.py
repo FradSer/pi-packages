@@ -446,7 +446,9 @@ def validate_identity(plan: dict[str, Any], expected: dict[str, str | None]) -> 
     }
     for name, alias in identities.items():
         value = identity_value(plan, name, alias, "plan")
-        if name != "runId" and not HASH_RE.fullmatch(value):
+        if (name == "scopeKey" and not re.fullmatch(r"[A-Za-z0-9._\s-]{1,240}", value)):
+            raise ValidationError("binding", "plan: invalid scopeKey format")
+        if name not in {"runId", "scopeKey"} and not HASH_RE.fullmatch(value):
             raise ValidationError("binding", f"plan: invalid {name} format")
         wanted = expected.get(name)
         if wanted is not None and value != wanted:

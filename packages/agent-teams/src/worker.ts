@@ -1,5 +1,5 @@
 /**
- * Teammate capabilities. A single addressed send_message primitive covers
+ * Teammate capabilities. A single addressed agent_event primitive covers
  * leader reports and peer mail. Task-list registration is shared by leader
  * and worker processes; claiming and submitting remain worker-only.
  */
@@ -10,21 +10,17 @@ import * as path from "node:path";
 import { truncateTail, type ExtensionAPI, type MessageEndEvent } from "@earendil-works/pi-coding-agent";
 import { detailField, eventToolLifecycle } from "@fradser/pi-kit";
 import { emptyToolCall, renderLifecycleResult } from "./tool-render.ts";
-import { livingTeammates, listTasks } from "./state.ts";
 import { resolveRecipient } from "./recipient.ts";
 import { appendInboxMessage, appendWorkerEvent, createTaskIntent, readBoardFile, readRoster } from "./statefile.ts";
 import {
   AgentEventParams,
   LEADER_RECIPIENT,
   messageTitle,
-  SendMessageParams,
-  TaskClaimParams,
-  TaskListParams,
-  TaskSubmitParams,
+  WorkerWorkToolParams,
   type BoardTask,
 } from "./types.ts";
 
-const BOARD_DISCLOSURE_TOOLS = ["task_list", "task_claim", "task_submit"] as const;
+const BOARD_DISCLOSURE_TOOLS = ["work"] as const;
 type BoardDisclosure = "none" | "notice" | "claimed";
 
 export interface WorkerToolDisclosure {
@@ -38,11 +34,7 @@ function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
     if (typeof pi.getActiveTools !== "function" || typeof pi.setActiveTools !== "function") return;
     const active = pi.getActiveTools();
     const withoutBoardControls = active.filter((tool) => !BOARD_DISCLOSURE_TOOLS.includes(tool as typeof BOARD_DISCLOSURE_TOOLS[number]));
-    const revealed = state === "notice"
-      ? ["task_list", "task_claim"]
-      : state === "claimed"
-        ? ["task_submit"]
-        : [];
+    const revealed = state === "notice" || state === "claimed" ? ["work"] : [];
     pi.setActiveTools([...withoutBoardControls, ...revealed]);
   };
   return {
@@ -52,7 +44,7 @@ function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
         ? readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker)
         : undefined;
       const assignment = rosterEntry?.assignment;
-      if (assignment?.kind === "board" && !assignment.closed) state = "claimed";
+      if (assignment && !assignment.closed) state = "claimed";
       else if (!assignment && prompt.includes("=== BOARD NOTICE ===")) state = "notice";
       else state = "none";
       apply();
@@ -146,51 +138,6 @@ export function renderTaskBoard(tasks: BoardTask[]): string {
     lines.push(`- ${task.id} · ${taskStatusLabel(task, byId)} · ${task.subject}${holder}${deps}`);
   }
   return lines.join("\n");
-}
-
-function renderRoster(roster: string): string {
-  return `ROSTER\n${roster || "(none)"}`;
-}
-
-/** One registration shared by leader and worker; binding chooses the data source. */
-export function registerTaskListTool(pi: ExtensionAPI): void {
-  pi.registerTool({
-    name: "task_list",
-    promptSnippet: "Read the shared task board",
-    label: "Task Board",
-    description: "Read the current session board as grouped task state plus a compact roster. Pending tasks with met dependencies are claimable.",
-    parameters: TaskListParams,
-    renderShell: "self",
-    renderCall: emptyToolCall,
-    renderResult(result, options, theme, context) {
-      const count = detailField<number>(result.details, "count") ?? 0;
-      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
-        "board",
-        `${count} task${count === 1 ? "" : "s"}`,
-        { label: "listed" },
-      ));
-    },
-    async execute() {
-      const binding = workerBinding();
-      const tasks = binding ? loadBoardTasks(binding) : listTasks();
-      // Both sides get a roster tail: peer discovery is zero-cost for workers.
-      const roster = binding
-        ? readRoster(binding.rosterFile)
-            .filter((entry) => entry.status !== "stopped")
-            .map((entry) => `@${entry.name} (${entry.agent}, ${entry.status}${entry.assignment ? `, ${entry.assignment.kind} ${entry.assignment.id}` : ""})`)
-            .join("\n")
-        : livingTeammates().map((t) => `@${t.name} (${t.agent}, ${t.status}${t.currentTaskId ? `, task ${t.currentTaskId}` : ""})`).join("\n");
-      const leaderHint = !binding && !roster && tasks.some((task) => task.status === "pending")
-        ? "NEXT · leader: teammate_spawn; workers then use task_claim"
-        : tasks.some((task) => task.status === "pending")
-          ? "NEXT · workers use task_claim for pending/claimable tasks"
-          : "NEXT · no claimable work";
-      return {
-        content: [{ type: "text", text: `${renderTaskBoard(tasks)}\n${leaderHint}\n\n${renderRoster(roster)}` }],
-        details: { count: tasks.length },
-      };
-    },
-  });
 }
 
 type AssistantResponse = Extract<MessageEndEvent["message"], { role: "assistant" }>;
@@ -325,7 +272,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
     name: "agent_event",
     promptSnippet: "Send an event or message to a participant",
     label: "Agent Event",
-    description: "Shared communication interface across Leader, Worker, and Peers. A direct assignment's final answer is reported automatically after Pi settles; no finalization call is needed. Explicit terminal reports remain available. Board tasks still require task_submit.",
+    description: "Communication-only interface across Leader, Worker, and Peers. Work completion is reported automatically after settlement or uses work action=submit.",
     parameters: AgentEventParams,
     renderShell: "self",
     renderCall: emptyToolCall,
@@ -342,181 +289,127 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
       const binding = workerBinding();
       if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
       if (!params.to || params.to === LEADER_RECIPIENT) {
-        const isTerminal = reports.send(binding, params.message, params.status);
-        return {
-          content: [{ type: "text", text: isTerminal
-            ? `MESSAGING\nREPORT · to=leader · status=${params.status}\nNEXT · harness will deliver this report`
-            : `MESSAGING\nREPORT · to=leader · status=${params.status ?? "inform"}\nNEXT · continue the assignment; the direct final answer is reported automatically after Pi settles; board work still requires task_submit` }],
-          details: { to: LEADER_RECIPIENT, status: params.status ?? "inform", outcome: "queued" },
-          terminate: isTerminal,
-        };
-      }
-      if (params.status === "completed" || params.status === "failed") throw new Error('terminal status is valid only when to="leader".');
-      const to = resolveRecipient(params.to, readRoster(binding.rosterFile));
-      if (to === binding.worker) throw new Error("You are already the recipient — no need to message yourself.");
-      const recipientInbox = path.join(path.dirname(binding.inbox), `inbox-${encodeURIComponent(to)}.jsonl`);
-      appendInboxMessage(recipientInbox, {
-        id: randomUUID(),
-        from: binding.worker,
-        subject: messageTitle(params.message),
-        body: params.message,
-      });
-      return {
-        content: [{ type: "text", text: `MESSAGING\nQUEUED · to=@${to}\nNEXT · harness will route the inbox message into a recipient turn` }],
-        details: { to, outcome: "queued", status: params.status ?? "inform" },
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: "send_message",
-    promptSnippet: "Send a message to the leader or a teammate",
-    label: "Send Message",
-    description: "Use to=\"leader\" for reports; use a teammate name for direct peer mail. status is valid only for leader reports. A direct assignment's final answer is reported automatically after Pi settles; no finalization call is needed. Board tasks still require task_submit.",
-    parameters: SendMessageParams,
-    renderShell: "self",
-    renderCall: emptyToolCall,
-    renderResult(result, options, theme, context) {
-      const to = String((context.args as { to?: string }).to ?? "");
-
-      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
-        "message",
-        detailField<"steered" | "queued">(result.details, "outcome") ?? "queued",
-        { label: `to @${to}` },
-      ));
-    },
-    async execute(_toolCallId, params) {
-      const binding = workerBinding();
-      if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
-      if (params.to === LEADER_RECIPIENT) {
-        const isTerminal = reports.send(binding, params.message, params.status);
-        return {
-          content: [{ type: "text", text: isTerminal
-            ? `MESSAGING\nREPORT · to=leader · status=${params.status}\nNEXT · harness will deliver this report`
-            : `MESSAGING\nREPORT · to=leader · status=${params.status ?? "in_progress"}\nNEXT · continue the assignment; the direct final answer is reported automatically after Pi settles; board work still requires task_submit` }],
-          details: { to: LEADER_RECIPIENT, status: params.status ?? "in_progress", outcome: "queued" },
-          terminate: isTerminal,
-        };
-      }
-      if (params.status) throw new Error('status is valid only when to="leader".');
-      const to = resolveRecipient(params.to, readRoster(binding.rosterFile));
-      if (to === binding.worker) throw new Error("You are already the recipient — no need to message yourself.");
-      const recipientInbox = path.join(path.dirname(binding.inbox), `inbox-${encodeURIComponent(to)}.jsonl`);
-      appendInboxMessage(recipientInbox, {
-        id: randomUUID(),
-        from: binding.worker,
-        subject: messageTitle(params.message),
-        body: params.message,
-      });
-      return {
-        content: [{ type: "text", text: `MESSAGING\nQUEUED · to=@${to}\nNEXT · harness will route the inbox message into a recipient turn` }],
-        details: { to, outcome: "queued" },
-      };
-    },
-  });
-
-  registerTaskListTool(pi);
-
-  pi.registerTool({
-    name: "task_claim",
-    renderShell: "self",
-    renderCall: emptyToolCall,
-    renderResult(result, options, theme, context) {
-      const taskId = String((context.args as { taskId?: string }).taskId ?? "first claimable");
-      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
-        "board",
-        taskId,
-        { label: "claim queued" },
-      ));
-    },
-    promptSnippet: "Self-claim a pending board task",
-    label: "Claim Task",
-    description: "Atomically claim a pending task whose dependencies are met. Omit taskId to claim the first claimable task.",
-    parameters: TaskClaimParams,
-    async execute(_toolCallId, params) {
-      const binding = workerBinding();
-      if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
-      const tasks = loadBoardTasks(binding);
-      const byId = new Map(tasks.map((task) => [task.id, task]));
-      const candidates = params.taskId
-        ? tasks.filter((task) => task.id === params.taskId)
-        : tasks.filter((task) => task.status === "pending" && dependenciesMet(task, byId));
-      if (candidates.length === 0) {
-        throw new Error(params.taskId ? `Task "${params.taskId}" was not found on the board.` : "No claimable task right now.");
-      }
-      for (const task of candidates) {
-        if (task.status !== "pending" || !dependenciesMet(task, byId)) continue;
-        const rejected = claimRejection(binding, task);
-        if (rejected) {
-          if (params.taskId) throw new Error(rejected);
-          continue;
-        }
-        const won = createTaskIntent(binding.claimsDir, task.id, {
-          taskId: task.id,
-          worker: binding.worker,
-          spawnId: binding.spawnId,
-          timestamp: Date.now(),
+        appendWorkerEvent(binding.outbox, {
+          assignmentId: readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker)?.assignment?.id, id: randomUUID(), type: "message", worker: binding.worker, spawnId: binding.spawnId,
+          body: params.message, status: params.intent ?? "inform", timestamp: Date.now(),
         });
-        if (won) {
-          return {
-            content: [{ type: "text", text: `BOARD · current session\nCLAIM INTENT QUEUED · ${task.id} · ${task.subject}\nREQUESTER · @${binding.worker}\nNEXT · wait for harness Claim accepted feedback; do not start work until it arrives` }],
-            details: { taskId: task.id, subject: task.subject, worker: binding.worker },
-          };
-        }
-        if (params.taskId) throw new Error(`Task "${task.id}" was claimed by someone else first.`);
+        return {
+          content: [{ type: "text", text: `MESSAGING\nREPORT · to=leader · intent=${params.intent ?? "inform"}\nNEXT · harness will deliver this message; Work completion is automatic or uses work submit` }],
+          details: { to: LEADER_RECIPIENT, intent: params.intent ?? "inform", outcome: "queued" },
+        };
       }
-      throw new Error("All candidate tasks were claimed in the race. Check the board again.");
-    },
-  });
-
-  pi.registerTool({
-    name: "task_submit",
-    renderShell: "self",
-    renderCall: emptyToolCall,
-    renderResult(result, options, theme, context) {
-      const taskId = String((context.args as { taskId?: string }).taskId ?? "task");
-      const status = String((context.args as { status?: string }).status ?? "submitted");
-      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
-        "board",
-        taskId,
-        { label: status },
-      ));
-    },
-    promptSnippet: "Submit a claimed task outcome",
-    label: "Submit Task",
-    description: "Submit a task you claimed. completed runs its verify gate; failed releases the task back to the board.",
-    parameters: TaskSubmitParams,
-    async execute(_toolCallId, params) {
-      const binding = workerBinding();
-      if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
-      const won = createTaskIntent(binding.submissionsDir, params.taskId, {
-        taskId: params.taskId,
-        worker: binding.worker,
-        spawnId: binding.spawnId,
-        status: params.status,
-        result: params.result,
-        timestamp: Date.now(),
+      const to = resolveRecipient(params.to, readRoster(binding.rosterFile));
+      if (to === binding.worker) throw new Error("You are already the recipient — no need to message yourself.");
+      const recipientInbox = path.join(path.dirname(binding.inbox), `inbox-${encodeURIComponent(to)}.jsonl`);
+      appendInboxMessage(recipientInbox, {
+        id: randomUUID(),
+        from: binding.worker,
+        subject: messageTitle(params.message),
+        body: params.message,
       });
-      if (!won) throw new Error(`A submission for "${params.taskId}" is already pending.`);
-      disclosure.reset();
-      const task = loadBoardTasks(binding).find((candidate) => candidate.id === params.taskId);
-      const roleVerify = process.env.PI_TEAMMATE_VERIFY_DEFAULT?.trim();
-      const verify = params.status === "completed"
-        ? task?.verify
-          ? "VERIFY · queued (task gate)"
-          : roleVerify
-            ? "VERIFY · queued (role gate)"
-            : "VERIFY · none configured"
-        : "VERIFY · skipped (failed submission)";
-      const next = params.status === "completed"
-        ? "NEXT · wait for the harness result"
-        : "NEXT · task returns to pending";
       return {
-        content: [{ type: "text", text: `BOARD · current session\nSUBMITTED · ${params.taskId} · ${params.status}\n${verify}\n${next}` }],
-        details: { taskId: params.taskId, status: params.status, verify: Boolean(task?.verify || roleVerify) },
+        content: [{ type: "text", text: `MESSAGING\nQUEUED · to=@${to}\nNEXT · harness will route the inbox message into a recipient turn` }],
+        details: { to, outcome: "queued", intent: params.intent ?? "inform" },
       };
     },
   });
+
+  async function queueWorkClaim(id: string | undefined, presentation: "board" | "work") {
+    const binding = workerBinding();
+    if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
+    const label = presentation === "work" ? "Work Item" : "Task";
+    const empty = presentation === "work" ? "No claimable Work Item right now." : "No claimable task right now.";
+    const race = presentation === "work" ? "All candidate Work Items were claimed in the race. Check Work again." : "All candidate tasks were claimed in the race. Check the board again.";
+    const tasks = loadBoardTasks(binding);
+    const byId = new Map(tasks.map((task) => [task.id, task]));
+    const candidates = id
+      ? tasks.filter((task) => task.id === id)
+      : tasks.filter((task) => task.status === "pending" && dependenciesMet(task, byId));
+    if (candidates.length === 0) {
+      throw new Error(id ? `${label} "${id}" was not found${presentation === "board" ? " on the board" : ""}.` : empty);
+    }
+    for (const task of candidates) {
+      if (task.status !== "pending" || !dependenciesMet(task, byId)) continue;
+      const rejected = claimRejection(binding, task);
+      if (rejected) {
+        if (id) throw new Error(rejected);
+        continue;
+      }
+      const won = createTaskIntent(binding.claimsDir, task.id, {
+        taskId: task.id, worker: binding.worker, spawnId: binding.spawnId, timestamp: Date.now(),
+      });
+      if (won) {
+        const content = presentation === "work"
+          ? `WORK · current session\nCLAIM INTENT QUEUED · ${task.id} · ${task.subject}\nREQUESTER · @${binding.worker}\nNEXT · wait for harness claim acceptance before starting Work`
+          : `BOARD · current session\nCLAIM INTENT QUEUED · ${task.id} · ${task.subject}\nREQUESTER · @${binding.worker}\nNEXT · wait for harness Claim accepted feedback; do not start work until it arrives`;
+        const details = presentation === "work"
+          ? { action: "claim", outcome: "queued", id: task.id, subject: task.subject, worker: binding.worker }
+          : { taskId: task.id, subject: task.subject, worker: binding.worker };
+        return { content: [{ type: "text" as const, text: content }], details };
+      }
+      if (id) throw new Error(`${label} "${task.id}" was claimed by someone else first.`);
+    }
+    throw new Error(race);
+  }
+
+  pi.registerTool({
+    name: "work",
+    renderShell: "self",
+    renderCall: emptyToolCall,
+    renderResult(result, options, theme, context) {
+      const params = context.args as { action?: string; id?: string };
+      const subject = params.action === "submit" || params.action === "release" ? "current Work" : params.action === "list" ? "current Work" : String(params.id ?? "first claimable");
+      const label = params.action === "submit" ? "submission queued" : params.action === "release" ? "released" : params.action === "list" ? "listed" : "claim queued";
+      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle("work", subject, { label }));
+    },
+    promptSnippet: "Claim pending Work or submit owned Work",
+    label: "Work",
+    description: "Queue a claim for pending Work or submit the current owned Work Item. The harness remains the authority for claim acceptance and completion.",
+    parameters: WorkerWorkToolParams,
+    execute(_toolCallId, params) {
+      const binding = workerBinding();
+      if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
+      if (params.action === "list") {
+        const tasks = loadBoardTasks(binding);
+        const lines = tasks.map((task) => `- ${task.id} · ${task.status} · ${task.subject}`);
+        return Promise.resolve({ content: [{ type: "text", text: `WORK · current session\nWORK ITEMS\n${lines.join("\n") || "(none)"}` }], details: { action: "list", outcome: "listed", count: tasks.length } });
+      }
+      if (params.action === "claim") return queueWorkClaim(params.id, "work");
+      const self = readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker);
+      if (!self?.assignment || !self.currentTaskId) throw new Error("You do not own a claimed Work Item.");
+      if (params.action === "release") {
+        return queueWorkSubmission({ taskId: self.currentTaskId, status: "failed", result: params.result, presentation: "work" });
+      }
+      return queueWorkSubmission({ taskId: self.currentTaskId, status: params.outcome === "success" ? "completed" : "failed", result: params.result, presentation: "work" });
+    },
+  });
+
+  async function queueWorkSubmission(input: { taskId: string; status: "completed" | "failed"; result?: string; presentation: "board" | "work" }) {
+    const binding = workerBinding();
+    if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
+    const won = createTaskIntent(binding.submissionsDir, input.taskId, {
+      taskId: input.taskId, worker: binding.worker, spawnId: binding.spawnId, status: input.status, result: input.result, timestamp: Date.now(),
+    });
+    if (!won) throw new Error(`A submission for "${input.taskId}" is already pending.`);
+    disclosure.reset();
+    const task = loadBoardTasks(binding).find((candidate) => candidate.id === input.taskId);
+    const roleVerify = process.env.PI_TEAMMATE_VERIFY_DEFAULT?.trim();
+    const verify = input.status === "completed"
+      ? task?.verify
+        ? "VERIFY · queued (task gate)"
+        : roleVerify
+          ? "VERIFY · queued (role gate)"
+          : "VERIFY · none configured"
+      : "VERIFY · skipped (failed submission)";
+    const next = input.status === "completed" ? "NEXT · wait for the harness result" : input.presentation === "work" ? "NEXT · Work returns to pending" : "NEXT · task returns to pending";
+    const content = input.presentation === "work"
+      ? `WORK · current session\nSUBMISSION INTENT QUEUED · ${input.taskId} · ${input.status === "completed" ? "success" : "failed"}\n${verify}\n${next}`
+      : `BOARD · current session\nSUBMITTED · ${input.taskId} · ${input.status}\n${verify}\n${next}`;
+    const details = input.presentation === "work"
+      ? { action: "submit", outcome: "queued", id: input.taskId, status: input.status === "completed" ? "success" : "failed", verify: Boolean(task?.verify || roleVerify) }
+      : { taskId: input.taskId, status: input.status, verify: Boolean(task?.verify || roleVerify) };
+    return { content: [{ type: "text" as const, text: content }], details };
+  }
 
   return {
     update: disclosure.update,

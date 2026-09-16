@@ -22,7 +22,7 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import type { TaskIntent, TeamState, WorkerEvent } from "./types.ts";
+import { TEAM_RUNTIME_VERSION, type TaskIntent, type TeamState, type WorkerEvent } from "./types.ts";
 
 const MAX_WORKER_EVENT_BYTES = 64 * 1024;
 const MAX_INBOX_MESSAGE_BYTES = 64 * 1024;
@@ -187,16 +187,20 @@ export function submissionsDir(boardDirectory: string): string {
 
 export function readBoardFile(file: string): { tasks: Record<string, import("./types").BoardTask> } | undefined {
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as { tasks?: Record<string, import("./types").BoardTask> };
+    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as { runtimeVersion?: number; tasks?: Record<string, import("./types").BoardTask> };
+    if (parsed.tasks && parsed.runtimeVersion !== TEAM_RUNTIME_VERSION) {
+      throw new Error(`Incompatible Agent Teams runtime snapshot version ${String(parsed.runtimeVersion)}; expected ${TEAM_RUNTIME_VERSION}.`);
+    }
     return parsed.tasks ? { tasks: parsed.tasks } : undefined;
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Incompatible Agent Teams runtime snapshot")) throw error;
     return undefined;
   }
 }
 
 export function writeBoardFile(file: string, tasks: Record<string, import("./types").BoardTask>): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  writeJsonAtomic(file, { tasks });
+  writeJsonAtomic(file, { runtimeVersion: TEAM_RUNTIME_VERSION, tasks });
 }
 
 /**

@@ -27,7 +27,7 @@ def initialize_git_repo(repo: Path) -> None:
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
 
 
-def test_private_directory_uses_only_the_readable_project_path() -> None:
+def test_private_directory_lock_and_runs_use_flat_readable_scope() -> None:
     result = run_bun(
         """
         import { escapedProjectPath, resolveMemoryPaths } from './packages/continual-learning/extensions/memory-paths.ts';
@@ -35,8 +35,91 @@ def test_private_directory_uses_only_the_readable_project_path() -> None:
         console.log(JSON.stringify({ readable: escapedProjectPath('/tmp/a-b/c'), memory }));
         """
     )
-    assert result["memory"]["harnessDir"].endswith(result["readable"])
-    assert "--" not in result["memory"]["harnessDir"].split("/")[-1]
+    name = result["memory"]["harnessDir"].split("/")[-1]
+    assert name == result["readable"] == result["memory"]["scopeKey"]
+    assert Path(result["memory"]["lockFile"]) == Path(result["memory"]["agentDir"]) / "memory" / "locks" / (name + ".lock")
+    assert Path(result["memory"]["runsDir"]).name == name
+    assert name == "--tmp-a-b-c--"
+    assert len(name.encode("utf8")) <= 240
+
+
+def test_private_directories_and_locks_coexist_for_lock_suffix_projects() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        result = run_bun(
+            f"""
+            import {{ acquireConsolidationLock, resolveConsolidationRunPaths }} from './packages/continual-learning/extensions/consolidation-run.ts';
+            import {{ mkdirSync, existsSync, statSync }} from 'node:fs';
+            import {{ join, dirname }} from 'node:path';
+            const root = {json.dumps(tmp)};
+            const projects = ['foo', 'foo.lock'].map(name => {{
+              const cwd = join(root, name);
+              mkdirSync(cwd);
+              const paths = resolveConsolidationRunPaths(cwd, 'run_namespace', join(root, 'agent'));
+              mkdirSync(paths.memory.harnessDir, {{ recursive: true }});
+              return paths;
+            }});
+            const locks = [];
+            let error = '';
+            let simultaneous = false;
+            try {{
+              for (const paths of projects) locks.push(await acquireConsolidationLock(paths));
+              simultaneous = projects.every(paths => existsSync(paths.lockFile));
+            }} catch (cause) {{ error = String(cause); }}
+            finally {{ for (const lock of locks) await lock.release(); }}
+            console.log(JSON.stringify({{
+              error, simultaneous,
+              isolated: projects.every(paths => dirname(paths.lockFile) === join(paths.memory.agentDir, 'memory', 'locks')),
+              preserved: projects.every(paths => statSync(paths.memory.harnessDir).isDirectory()),
+              released: projects.every(paths => !existsSync(paths.lockFile)),
+            }}));
+            """
+        )
+        assert result == {"error": "", "simultaneous": True, "isolated": True, "preserved": True, "released": True}
+
+
+def test_symlinked_locks_directory_denies_actual_lock_acquisition() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        result = run_bun(
+            f"""
+            import {{ acquireConsolidationLock, resolveConsolidationRunPaths }} from './packages/continual-learning/extensions/consolidation-run.ts';
+            import {{ mkdirSync, symlinkSync, readdirSync, existsSync }} from 'node:fs';
+            import {{ join }} from 'node:path';
+            const root = {json.dumps(tmp)};
+            const agent = join(root, 'agent');
+            const outside = join(root, 'outside');
+            mkdirSync(join(agent, 'memory'), {{ recursive: true }});
+            mkdirSync(outside);
+            symlinkSync(outside, join(agent, 'memory', 'locks'));
+            const paths = resolveConsolidationRunPaths(join(root, 'foo'), 'run_symlink', agent);
+            let error = '';
+            let lock;
+            try {{ lock = await acquireConsolidationLock(paths); }} catch (cause) {{ error = String(cause); }}
+            finally {{ await lock?.release(); }}
+            console.log(JSON.stringify({{ error, outside: readdirSync(outside), lockExists: existsSync(paths.lockFile) }}));
+            """
+        )
+        assert result["error"]
+        assert result["outside"] == []
+        assert result["lockExists"] is False
+
+
+def test_colliding_readable_names_intentionally_share_private_scope() -> None:
+    result = run_bun(
+        """
+        import { escapedProjectPath, resolveMemoryPaths } from './packages/continual-learning/extensions/memory-paths.ts';
+        const first = resolveMemoryPaths('/tmp/a:b/c');
+        const second = resolveMemoryPaths('/tmp/a/b/c');
+        console.log(JSON.stringify({
+          first,
+          second,
+          firstPrefix: escapedProjectPath('/tmp/a:b/c'),
+          secondPrefix: escapedProjectPath('/tmp/a/b/c'),
+        }));
+        """
+    )
+    assert result["firstPrefix"] == result["secondPrefix"] == "--tmp-a-b-c--"
+    for key in ("scopeKey", "harnessDir", "lockFile", "runsDir"):
+        assert result["first"][key] == result["second"][key]
 
 
 def test_readable_private_path_uses_canonical_project_path_and_shared_scope_lock() -> None:
@@ -57,7 +140,8 @@ def test_readable_private_path_uses_canonical_project_path_and_shared_scope_lock
         assert result["physical"]["cwd"] == result["alias"]["cwd"]
         assert result["physical"]["scopeKey"] == result["alias"]["scopeKey"]
         assert result["physical"]["lockFile"] == result["alias"]["lockFile"]
-        expected_name = str(physical.resolve()).replace("/", "-").replace(" ", "-")
+        raw = str(physical.resolve()).lstrip("/").replace("/", "-").replace(":", "-")
+        expected_name = f"--{raw}--"
         assert result["physical"]["harnessDir"] == str(Path(result["physical"]["agentDir"]) / "memory" / expected_name)
         assert result["alias"]["harnessDir"] == result["physical"]["harnessDir"]
 
@@ -74,21 +158,23 @@ def test_readable_private_root_replaces_whitespace_with_dashes() -> None:
         }));
         """
     )
-    assert result["prefix"] == "-Users-FradSer-Documents-Home-Lab"
-    assert result["name"] == result["prefix"]
+    assert result["prefix"] == "--Users-FradSer-Documents-Home Lab--"
+    assert result["name"] == result["prefix"] == result["scopeKey"]
 
 
-def test_overlong_private_directory_name_fails_closed() -> None:
+def test_overlong_flat_scope_is_rejected_without_truncation() -> None:
     result = run_bun(
         """
         import { resolveMemoryPaths } from './packages/continual-learning/extensions/memory-paths.ts';
-        const cwd = '/tmp/' + '项目 home/'.repeat(80) + 'alpha';
+        const accepted = resolveMemoryPaths('/' + 'a'.repeat(235));
         let error = '';
-        try { resolveMemoryPaths(cwd); } catch (cause) { error = String(cause); }
-        console.log(JSON.stringify({ error }));
+        try { resolveMemoryPaths('/' + 'a'.repeat(237)); }
+        catch (cause) { error = cause.message; }
+        console.log(JSON.stringify({ name: accepted.scopeKey, error }));
         """
     )
-    assert "portable component limit" in result["error"]
+    assert len(result["name"].encode("utf8")) == 239
+    assert "exceeds 240 bytes" in result["error"]
 
 
 def test_non_project_without_existing_mirror_disables_public_memory() -> None:
@@ -468,9 +554,9 @@ def test_stale_dead_owner_lock_is_reclaimed_but_live_owner_is_contention() -> No
             import {{ readFileSync, writeFileSync, mkdirSync }} from 'node:fs';
             import {{ hostname }} from 'node:os';
             import {{ spawnSync }} from 'node:child_process';
-            import {{ join }} from 'node:path';
+            import {{ join, dirname }} from 'node:path';
             const paths = resolveConsolidationRunPaths({json.dumps(str(repo))}, 'run_stale', {json.dumps(str(agent))});
-            mkdirSync(paths.memory.runsDir, {{ recursive: true }});
+            mkdirSync(dirname(paths.lockFile), {{ recursive: true }});
             const exited = spawnSync('true');
             const deadPid = exited.pid ?? 999999;
             const owner = {{
@@ -605,464 +691,81 @@ def test_missing_harness_root_imports_public_instead_of_deleting() -> None:
         }
 
 
-def test_legacy_migration_keeps_conflicting_source_when_destination_bytes_differ() -> None:
+def test_obsolete_private_roots_are_ignored_without_mutation() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        repo = root / "repo"
+        repo = root / "Cafe\u0301!!-- Lab"
         agent = root / "agent"
         repo.mkdir()
         result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ migrateLegacyMemoryDirs }} from './packages/continual-learning/extensions/memory-files.ts';
-            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+            import {{ escapedProjectPath, resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+            import {{ loadAndDeduplicateMemories }} from './packages/continual-learning/extensions/memory-files.ts';
             import {{ existsSync, mkdirSync, readFileSync, writeFileSync }} from 'node:fs';
             const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            const legacyDir = memory.agentDir + '/memory/' + memory.scopeKey;
+            const obsolete = [
+              memory.agentDir + '/memory/' + 'a'.repeat(64),
+              memory.agentDir + '/memory/' + escapedProjectPath(memory.cwd) + '--' + 'a'.repeat(64),
+              memory.agentDir + '/memory/' + memory.cwd.replace(/[\\/]+/g, '-'),
+            ];
+            for (const [index, dir] of obsolete.entries()) {{
+              mkdirSync(dir, {{ recursive: true }});
+              writeFileSync(dir + `/obsolete${{index}}.md`, `obsolete ${{index}}\\n`);
+            }}
             mkdirSync(memory.harnessDir, {{ recursive: true }});
-            mkdirSync(legacyDir, {{ recursive: true }});
-            writeFileSync(memory.harnessDir + '/conflict.md', 'destination\\n');
-            writeFileSync(legacyDir + '/conflict.md', 'legacy\\n');
-            const removed = await migrateLegacyMemoryDirs(memory);
-            console.log(JSON.stringify({{
-              removed,
-              legacyKept: existsSync(legacyDir + '/conflict.md'),
-              destination: readFileSync(memory.harnessDir + '/conflict.md', 'utf8'),
-            }}));
-            """,
-            {"PI_CODING_AGENT_DIR": str(agent)},
-        )
-        assert result["removed"] == []
-        assert result["legacyKept"] is True
-        assert result["destination"] == "destination\n"
-
-
-def test_legacy_migration_rejects_symlinked_source_files_and_keeps_all_sources() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "repo"
-        agent = root / "agent"
-        outside = root / "outside.md"
-        repo.mkdir()
-        outside.write_text("outside\n", encoding="utf-8")
-        result = run_bun(
-            f"""
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ migrateLegacyMemoryDirs }} from './packages/continual-learning/extensions/memory-files.ts';
-            import {{ escapedProjectPath, resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-            import {{ existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync }} from 'node:fs';
-            const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            const hashedDir = memory.agentDir + '/memory/' + memory.scopeKey;
-            const readableDir = memory.agentDir + '/memory/' + escapedProjectPath(memory.cwd);
-            mkdirSync(hashedDir, {{ recursive: true }});
-            mkdirSync(readableDir, {{ recursive: true }});
-            writeFileSync(hashedDir + '/valid.md', 'valid\\n');
-            symlinkSync({json.dumps(str(outside))}, readableDir + '/linked.md');
-            let error = '';
-            try {{ await migrateLegacyMemoryDirs(memory); }} catch (cause) {{ error = String(cause); }}
-            console.log(JSON.stringify({{
-              error,
-              hashedKept: existsSync(hashedDir + '/valid.md'),
-              readableKept: existsSync(readableDir + '/linked.md'),
-              destinationCreated: existsSync(memory.harnessDir),
-              outside: readFileSync({json.dumps(str(outside))}, 'utf8'),
-            }}));
-            """,
-            {"PI_CODING_AGENT_DIR": str(agent)},
-        )
-        assert result["error"]
-        assert result["hashedKept"] is True
-        assert result["readableKept"] is True
-        assert result["destinationCreated"] is True
-        assert result["outside"] == "outside\n"
-
-
-def test_legacy_migration_rejects_any_symlinked_destination_file() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "repo"
-        agent = root / "agent"
-        outside = root / "outside.md"
-        repo.mkdir()
-        outside.write_text("outside\n", encoding="utf-8")
-        result = run_bun(
-            f"""
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ migrateLegacyMemoryDirs }} from './packages/continual-learning/extensions/memory-files.ts';
-            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-            import {{ existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync }} from 'node:fs';
-            const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            const legacyDir = memory.agentDir + '/memory/' + memory.scopeKey;
-            mkdirSync(legacyDir, {{ recursive: true }});
-            mkdirSync(memory.harnessDir, {{ recursive: true }});
-            writeFileSync(legacyDir + '/keep.md', 'legacy\\n');
-            symlinkSync({json.dumps(str(outside))}, memory.harnessDir + '/unrelated.md');
-            let error = '';
-            try {{ await migrateLegacyMemoryDirs(memory); }} catch (cause) {{ error = String(cause); }}
-            console.log(JSON.stringify({{
-              error,
-              legacyKept: existsSync(legacyDir + '/keep.md'),
-              outside: readFileSync({json.dumps(str(outside))}, 'utf8'),
-            }}));
-            """,
-            {"PI_CODING_AGENT_DIR": str(agent)},
-        )
-        assert result["error"]
-        assert result["legacyKept"] is True
-        assert result["outside"] == "outside\n"
-
-
-def test_legacy_hashed_scope_migration_unions_destination_private_markers_on_conflict() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "repo"
-        agent = root / "agent"
-        repo.mkdir()
-        result = run_bun(
-            f"""
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ migrateLegacyMemoryDirs }} from './packages/continual-learning/extensions/memory-files.ts';
-            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-            import {{ mkdirSync, writeFileSync, readFileSync }} from 'node:fs';
-            const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            const legacyDir = memory.agentDir + '/memory/' + memory.scopeKey;
-            mkdirSync(memory.harnessDir, {{ recursive: true }});
-            mkdirSync(legacyDir, {{ recursive: true }});
-            writeFileSync(memory.harnessDir + '/conflict.md', 'destination private\\n');
-            writeFileSync(memory.harnessDir + '/MEMORY.md', '# Memory Index\\n\\n- [conflict.md](conflict.md) (harness only)\\n');
-            writeFileSync(legacyDir + '/conflict.md', 'legacy safe\\n');
-            writeFileSync(legacyDir + '/source-secret.md', 'legacy private\\n');
-            writeFileSync(legacyDir + '/MEMORY.md', '# Memory Index\\n\\n- [conflict.md](conflict.md)\\n- [source-secret.md](source-secret.md) (harness only)\\n');
-            await migrateLegacyMemoryDirs(memory);
-            console.log(JSON.stringify({{
-              conflict: readFileSync(memory.harnessDir + '/conflict.md', 'utf8'),
-              index: readFileSync(memory.harnessDir + '/MEMORY.md', 'utf8'),
-            }}));
-            """,
-            {"PI_CODING_AGENT_DIR": str(agent)},
-        )
-        assert result["conflict"] == "destination private\n"
-        assert "- [conflict.md](conflict.md) (harness only)" in result["index"]
-        assert "- [source-secret.md](source-secret.md) (harness only)" in result["index"]
-
-
-def test_old_hashed_and_whitespace_scopes_migrate_into_readable_root() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "Home Lab"
-        agent = root / "agent"
-        repo.mkdir()
-        result = run_bun(
-            f"""
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ loadAndDeduplicateMemories }} from './packages/continual-learning/extensions/memory-files.ts';
-            import {{ migrateLegacyMemoryDirs }} from './packages/continual-learning/extensions/memory-files.ts';
-            import {{ escapedProjectPath, resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-            import {{ mkdirSync, writeFileSync, readFileSync, existsSync }} from 'node:fs';
-            const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            const hashedDir = memory.agentDir + '/memory/' + memory.scopeKey;
-            const readableDir = memory.agentDir + '/memory/' + escapedProjectPath(memory.cwd);
-            const whitespaceDir = memory.agentDir + '/memory/' + memory.cwd.replace(/[\\\\/]+/g, '-');
-            mkdirSync(hashedDir, {{ recursive: true }});
-            mkdirSync(readableDir, {{ recursive: true }});
-            mkdirSync(whitespaceDir, {{ recursive: true }});
-            writeFileSync(hashedDir + '/hashed.md', 'hashed legacy\\n');
-            writeFileSync(hashedDir + '/MEMORY.md', '# Memory Index\\n\\n- [hashed.md](hashed.md)\\n');
-            writeFileSync(readableDir + '/readable.md', 'readable legacy\\n');
-            writeFileSync(readableDir + '/MEMORY.md', '# Memory Index\\n\\n- [readable.md](readable.md)\\n');
-            writeFileSync(whitespaceDir + '/secret.md', 'private legacy\\n');
-            writeFileSync(whitespaceDir + '/MEMORY.md', '# Memory Index\\n\\n- [secret.md](secret.md) (harness only)\\n');
-
+            writeFileSync(memory.harnessDir + '/canonical.md', 'canonical\\n');
+            const before = obsolete.map((dir, index) => readFileSync(dir + `/obsolete${{index}}.md`, 'utf8'));
             const entries = await loadAndDeduplicateMemories({json.dumps(str(repo))});
             console.log(JSON.stringify({{
-              destinationName: memory.harnessDir.split('/').at(-1),
-              expectedDestinationName: escapedProjectPath(memory.cwd),
-              hashedGone: !existsSync(hashedDir),
-              readableGone: !existsSync(readableDir),
-              whitespaceGone: !existsSync(whitespaceDir),
-              index: readFileSync(memory.harnessDir + '/MEMORY.md', 'utf8'),
-              injected: entries.map((entry) => entry.filename),
-              secondRunStable: (await migrateLegacyMemoryDirs(memory)).length === 0,
+              entries: entries.map((entry) => [entry.filename, entry.content]),
+              obsoleteStillExist: obsolete.map((dir, index) => existsSync(dir + `/obsolete${{index}}.md`)),
+              obsoleteUnchanged: obsolete.map((dir, index) => readFileSync(dir + `/obsolete${{index}}.md`, 'utf8') === before[index]),
             }}));
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
-        assert result["destinationName"] == result["expectedDestinationName"]
-        assert result["hashedGone"] is True
-        assert result["readableGone"] is False
-        assert result["whitespaceGone"] is True
-        assert "- [hashed.md](hashed.md)" in result["index"]
-        assert "- [readable.md](readable.md)" in result["index"]
-        assert "- [secret.md](secret.md) (harness only)" in result["index"]
-        assert result["injected"] == ["hashed.md", "readable.md", "secret.md"]
-        assert result["secondRunStable"] is True
+        assert result["entries"] == [["canonical.md", "canonical\n"]]
+        assert result["obsoleteStillExist"] == [True, True, True]
+        assert result["obsoleteUnchanged"] == [True, True, True]
 
 
-def test_legacy_migration_rejects_a_symlinked_destination() -> None:
+def test_colliding_readable_roots_load_the_same_private_memory() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "repo"
-        agent = root / "agent"
-        outside = root / "outside"
-        repo.mkdir()
-        outside.mkdir()
+        agent = Path(tmp) / "agent"
         result = run_bun(
             f"""
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ migrateLegacyMemoryDirs }} from './packages/continual-learning/extensions/memory-files.ts';
-            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-            import {{ existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync }} from 'node:fs';
-            const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            const legacyDir = memory.agentDir + '/memory/' + memory.scopeKey;
-            mkdirSync(legacyDir, {{ recursive: true }});
-            writeFileSync(legacyDir + '/keep.md', 'legacy\\n');
-            writeFileSync({json.dumps(str(outside / 'sentinel.md'))}, 'outside\\n');
-            symlinkSync({json.dumps(str(outside))}, memory.harnessDir, 'dir');
-            let error = '';
-            try {{ await migrateLegacyMemoryDirs(memory); }} catch (cause) {{ error = String(cause); }}
-            console.log(JSON.stringify({{
-              error,
-              legacyKept: existsSync(legacyDir + '/keep.md'),
-              outside: readFileSync({json.dumps(str(outside / 'sentinel.md'))}, 'utf8'),
-              outsideMigrated: existsSync({json.dumps(str(outside / 'keep.md'))}),
-            }}));
-            """,
-            {"PI_CODING_AGENT_DIR": str(agent)},
-        )
-        assert result["error"]
-        assert result["legacyKept"] is True
-        assert result["outside"] == "outside\n"
-        assert result["outsideMigrated"] is False
-
-
-def test_legacy_migration_rejects_a_symlinked_source() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "repo"
-        agent = root / "agent"
-        outside = root / "outside"
-        repo.mkdir()
-        outside.mkdir()
-        result = run_bun(
-            f"""
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ migrateLegacyMemoryDirs }} from './packages/continual-learning/extensions/memory-files.ts';
-            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-            import {{ existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync }} from 'node:fs';
-            const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            const legacyDir = memory.agentDir + '/memory/' + memory.scopeKey;
-            mkdirSync(memory.agentDir + '/memory', {{ recursive: true }});
-            writeFileSync({json.dumps(str(outside / 'keep.md'))}, 'outside\\n');
-            symlinkSync({json.dumps(str(outside))}, legacyDir, 'dir');
-            let error = '';
-            try {{ await migrateLegacyMemoryDirs(memory); }} catch (cause) {{ error = String(cause); }}
-            console.log(JSON.stringify({{
-              error,
-              sourceKept: existsSync(legacyDir),
-              destinationCreated: existsSync(memory.harnessDir),
-              outside: readFileSync({json.dumps(str(outside / 'keep.md'))}, 'utf8'),
-            }}));
-            """,
-            {"PI_CODING_AGENT_DIR": str(agent)},
-        )
-        assert result["error"]
-        assert result["sourceKept"] is True
-        assert result["destinationCreated"] is False
-        assert result["outside"] == "outside\n"
-
-
-def test_failed_legacy_application_restores_the_destination_predecessor() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "repo"
-        agent = root / "agent"
-        repo.mkdir()
-        result = run_bun(
-            f"""
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ rename }} from 'node:fs/promises';
-            const {{ migrateLegacyMemoryDirsForTest }} = await import('./packages/continual-learning/extensions/memory-files.ts');
-            const {{ resolveMemoryPaths }} = await import('./packages/continual-learning/extensions/memory-paths.ts');
-            const {{ existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync }} = await import('node:fs');
-            const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            const legacyDir = memory.agentDir + '/memory/' + memory.scopeKey;
-            mkdirSync(legacyDir, {{ recursive: true }});
-            mkdirSync(memory.harnessDir, {{ recursive: true }});
-            writeFileSync(legacyDir + '/a.md', 'legacy a\\n');
-            writeFileSync(legacyDir + '/b.md', 'legacy b\\n');
-            writeFileSync(memory.harnessDir + '/existing.md', 'existing\\n');
-            writeFileSync(memory.harnessDir + '/MEMORY.md', '# predecessor\\n');
-            let error = '';
-            try {{
-              await migrateLegacyMemoryDirsForTest(memory, [], async (source, target) => {{
-                if (String(target).endsWith('/MEMORY.md')) throw new Error('injected index failure');
-                await rename(source, target);
-              }});
-            }} catch (cause) {{ error = String(cause); }}
-            console.log(JSON.stringify({{
-              error,
-              legacyFiles: readdirSync(legacyDir).sort(),
-              destinationFiles: readdirSync(memory.harnessDir).sort(),
-              destinationIndex: readFileSync(memory.harnessDir + '/MEMORY.md', 'utf8'),
-              existing: readFileSync(memory.harnessDir + '/existing.md', 'utf8'),
-              aCreated: existsSync(memory.harnessDir + '/a.md'),
-              bCreated: existsSync(memory.harnessDir + '/b.md'),
-            }}));
-            """,
-            {"PI_CODING_AGENT_DIR": str(agent)},
-        )
-        assert result["error"]
-        assert result["legacyFiles"] == ["a.md", "b.md"]
-        assert result["destinationFiles"] == ["MEMORY.md", "existing.md"]
-        assert result["destinationIndex"] == "# predecessor\n"
-        assert result["existing"] == "existing\n"
-        assert result["aCreated"] is False
-        assert result["bCreated"] is False
-
-
-def test_conflicting_legacy_private_marker_does_not_reclassify_canonical_bytes() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "repo"
-        agent = root / "agent"
-        repo.mkdir()
-        result = run_bun(
-            f'''
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ migrateLegacyMemoryDirs }} from './packages/continual-learning/extensions/memory-files.ts';
-            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-            import {{ existsSync, mkdirSync, readFileSync, writeFileSync }} from 'node:fs';
-            const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            const legacyDir = memory.agentDir + '/memory/' + memory.scopeKey;
-            mkdirSync(legacyDir, {{ recursive: true }}); mkdirSync(memory.harnessDir, {{ recursive: true }});
-            writeFileSync(legacyDir + '/same.md', 'LEGACY PRIVATE\\n');
-            writeFileSync(legacyDir + '/MEMORY.md', '# Memory Index\\n\\n- [same.md](same.md) (harness only)\\n');
-            writeFileSync(memory.harnessDir + '/same.md', 'CURRENT SAFE\\n');
-            writeFileSync(memory.harnessDir + '/MEMORY.md', '# Memory Index\\n\\n- [same.md](same.md)\\n');
-            console.log(JSON.stringify({{
-              removed: await migrateLegacyMemoryDirs(memory),
-              destination: readFileSync(memory.harnessDir + '/same.md', 'utf8'),
-              index: readFileSync(memory.harnessDir + '/MEMORY.md', 'utf8'),
-              legacyStillExists: existsSync(legacyDir),
-            }}));
-            ''',
-            {"PI_CODING_AGENT_DIR": str(agent)},
-        )
-        assert result["removed"] == []
-        assert result["destination"] == "CURRENT SAFE\n"
-        assert "(harness only)" not in result["index"]
-        assert result["legacyStillExists"] is True
-
-
-def test_failed_legacy_source_quarantine_restores_source_and_destination() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "repo"
-        agent = root / "agent"
-        repo.mkdir()
-        result = run_bun(
-            f"""
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ rename }} from 'node:fs/promises';
-            import {{ migrateLegacyMemoryDirsForTest }} from './packages/continual-learning/extensions/memory-files.ts';
-            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-            import {{ existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync }} from 'node:fs';
-            const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            const legacyDir = memory.agentDir + '/memory/' + memory.scopeKey;
-            mkdirSync(legacyDir, {{ recursive: true }});
-            mkdirSync(memory.harnessDir, {{ recursive: true }});
-            writeFileSync(legacyDir + '/legacy.md', 'legacy\\n');
-            writeFileSync(legacyDir + '/MEMORY.md', '# legacy index\\n');
-            writeFileSync(memory.harnessDir + '/existing.md', 'existing\\n');
-            writeFileSync(memory.harnessDir + '/MEMORY.md', '# predecessor\\n');
-            let error = '';
-            try {{
-              await migrateLegacyMemoryDirsForTest(memory, [], async (source, target) => {{
-                if (String(source) === legacyDir) throw new Error('injected quarantine failure');
-                await rename(source, target);
-              }});
-            }} catch (cause) {{ error = String(cause); }}
-            console.log(JSON.stringify({{
-              error,
-              sourceFiles: readdirSync(legacyDir).sort(),
-              sourceMemory: readFileSync(legacyDir + '/legacy.md', 'utf8'),
-              destinationFiles: readdirSync(memory.harnessDir).sort(),
-              destinationIndex: readFileSync(memory.harnessDir + '/MEMORY.md', 'utf8'),
-              destinationExisting: readFileSync(memory.harnessDir + '/existing.md', 'utf8'),
-              destinationLegacyExists: existsSync(memory.harnessDir + '/legacy.md'),
-              memoryRootEntries: readdirSync(memory.agentDir + '/memory').sort(),
-              expectedMemoryRootEntries: [legacyDir.split('/').at(-1), memory.harnessDir.split('/').at(-1)].sort(),
-            }}));
-            """,
-            {"PI_CODING_AGENT_DIR": str(agent)},
-        )
-        assert "injected quarantine failure" in result["error"]
-        assert result["sourceFiles"] == ["MEMORY.md", "legacy.md"]
-        assert result["sourceMemory"] == "legacy\n"
-        assert result["destinationFiles"] == ["MEMORY.md", "existing.md"]
-        assert result["destinationIndex"] == "# predecessor\n"
-        assert result["destinationExisting"] == "existing\n"
-        assert result["destinationLegacyExists"] is False
-        assert result["memoryRootEntries"] == result["expectedMemoryRootEntries"]
-
-
-def test_later_legacy_source_quarantine_failure_restores_earlier_source_and_destination() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "Home Lab"
-        agent = root / "agent"
-        repo.mkdir()
-        result = run_bun(
-            f"""
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            import {{ rename }} from 'node:fs/promises';
-            import {{ migrateLegacyMemoryDirsForTest }} from './packages/continual-learning/extensions/memory-files.ts';
             import {{ escapedProjectPath, resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-            import {{ existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync }} from 'node:fs';
-            const memory = resolveMemoryPaths({json.dumps(str(repo))});
-            const sources = [
-              memory.agentDir + '/memory/' + memory.scopeKey,
-              memory.agentDir + '/memory/' + memory.cwd.replace(/[\\/]+/g, '-'),
-            ].sort();
-            mkdirSync(sources[0], {{ recursive: true }});
-            mkdirSync(sources[1], {{ recursive: true }});
-            mkdirSync(memory.harnessDir, {{ recursive: true }});
-            writeFileSync(sources[0] + '/first.md', 'first\\n');
-            writeFileSync(sources[1] + '/second.md', 'second\\n');
-            writeFileSync(memory.harnessDir + '/existing.md', 'existing\\n');
-            writeFileSync(memory.harnessDir + '/MEMORY.md', '# predecessor\\n');
-            let error = '';
-            try {{
-              await migrateLegacyMemoryDirsForTest(memory, [], async (source, target) => {{
-                if (String(source) === sources[1]) throw new Error('injected second quarantine failure');
-                await rename(source, target);
-              }});
-            }} catch (cause) {{ error = String(cause); }}
+            import {{ loadAndDeduplicateMemories }} from './packages/continual-learning/extensions/memory-files.ts';
+            import {{ existsSync, mkdirSync, readFileSync, writeFileSync }} from 'node:fs';
+            const leftCwd = '/tmp/a:b/c';
+            const rightCwd = '/tmp/a/b/c';
+            const left = resolveMemoryPaths(leftCwd, {json.dumps(str(agent))});
+            const right = resolveMemoryPaths(rightCwd, {json.dumps(str(agent))});
+            const sharedRoot = left.agentDir + '/memory/' + escapedProjectPath(left.cwd);
+            if (sharedRoot !== right.agentDir + '/memory/' + escapedProjectPath(right.cwd)) throw new Error('expected collision');
+            mkdirSync(sharedRoot, {{ recursive: true }});
+            writeFileSync(sharedRoot + '/ambiguous.md', 'ambiguous\\n');
+            mkdirSync(left.harnessDir, {{ recursive: true }});
+            mkdirSync(right.harnessDir, {{ recursive: true }});
+            writeFileSync(left.harnessDir + '/left.md', 'left\\n');
+            writeFileSync(right.harnessDir + '/right.md', 'right\\n');
+            const leftEntries = await loadAndDeduplicateMemories(leftCwd);
+            const rightEntries = await loadAndDeduplicateMemories(rightCwd);
             console.log(JSON.stringify({{
-              error,
-              firstSourceFiles: readdirSync(sources[0]).sort(),
-              secondSourceFiles: readdirSync(sources[1]).sort(),
-              firstSourceBytes: readFileSync(sources[0] + '/first.md', 'utf8'),
-              secondSourceBytes: readFileSync(sources[1] + '/second.md', 'utf8'),
-              destinationFiles: readdirSync(memory.harnessDir).sort(),
-              destinationIndex: readFileSync(memory.harnessDir + '/MEMORY.md', 'utf8'),
-              destinationExisting: readFileSync(memory.harnessDir + '/existing.md', 'utf8'),
-              destinationFirstExists: existsSync(memory.harnessDir + '/first.md'),
-              destinationSecondExists: existsSync(memory.harnessDir + '/second.md'),
-              memoryRootEntries: readdirSync(memory.agentDir + '/memory').sort(),
-              expectedMemoryRootEntries: [...sources.map((source) => source.split('/').at(-1)), memory.harnessDir.split('/').at(-1)].sort(),
+              sharedCanonicalRoot: left.harnessDir === right.harnessDir,
+              left: leftEntries.map((entry) => entry.filename),
+              right: rightEntries.map((entry) => entry.filename),
+              sharedKept: existsSync(sharedRoot + '/ambiguous.md'),
+              sharedBytes: readFileSync(sharedRoot + '/ambiguous.md', 'utf8'),
             }}));
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
-        assert "injected second quarantine failure" in result["error"]
-        assert result["firstSourceFiles"] == ["first.md"]
-        assert result["secondSourceFiles"] == ["second.md"]
-        assert result["firstSourceBytes"] == "first\n"
-        assert result["secondSourceBytes"] == "second\n"
-        assert result["destinationFiles"] == ["MEMORY.md", "existing.md"]
-        assert result["destinationIndex"] == "# predecessor\n"
-        assert result["destinationExisting"] == "existing\n"
-        assert result["destinationFirstExists"] is False
-        assert result["destinationSecondExists"] is False
-        assert result["memoryRootEntries"] == result["expectedMemoryRootEntries"]
+        assert result == {
+            "sharedCanonicalRoot": True,
+            "left": ["ambiguous.md", "left.md", "right.md"],
+            "right": ["ambiguous.md", "left.md", "right.md"],
+            "sharedKept": True,
+            "sharedBytes": "ambiguous\n",
+        }

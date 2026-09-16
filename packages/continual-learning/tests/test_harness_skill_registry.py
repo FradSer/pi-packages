@@ -37,8 +37,8 @@ def test_changed_skill_entries_require_real_names_and_exact_object_schema() -> N
     assert result['blankPattern']
     assert result['badPattern']
     assert result['good'] == []
-    assert result['preserved'] == []
-    assert result['reordered'] == []
+    assert result['preserved']
+    assert result['reordered']
     assert result['removed'] == []
 
 

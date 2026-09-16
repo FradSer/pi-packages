@@ -22,6 +22,38 @@ def run_bun(source: str, env: dict[str, str] | None = None) -> dict:
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
+def test_manifest_ships_prompts_instead_of_agent_resources() -> None:
+    manifest = json.loads((REPO / "packages/continual-learning/package.json").read_text(encoding="utf-8"))
+    assert "prompts" in manifest["files"]
+    assert "agents" not in manifest["files"]
+
+
+def test_planner_prompt_builder_is_literal_typed_and_fail_closed() -> None:
+    result = run_bun(r"""
+      import {
+        buildMemorySelectorPrompt,
+        renderPlannerPromptTemplate,
+        validatePlannerPromptTemplate,
+        validateRenderedPlannerPrompt,
+      } from './packages/continual-learning/extensions/planner-prompts.ts';
+      const prompt = buildMemorySelectorPrompt({ task: '{{RUN_ID}} remains literal' });
+      const literal = renderPlannerPromptTemplate('Value: {{TASK}}', ['TASK'], { TASK: '{{TASK}} remains literal' });
+      const errors = [];
+      for (const template of ['{{UNKNOWN}}', 'no placeholder']) {
+        try { validatePlannerPromptTemplate(template, ['TASK']); }
+        catch (error) { errors.push(String(error.message)); }
+      }
+      try { validateRenderedPlannerPrompt('leftover {{TASK}}', []); }
+      catch (error) { errors.push(String(error.message)); }
+      console.log(JSON.stringify({ prompt, literal, errors }));
+    """)
+    assert "{{RUN_ID}} remains literal" in result["prompt"]
+    assert result["literal"] == "Value: {{TASK}} remains literal"
+    assert any("unknown placeholder" in error.lower() for error in result["errors"])
+    assert any("missing placeholder" in error.lower() for error in result["errors"])
+    assert any("unresolved placeholder" in error.lower() for error in result["errors"])
+
+
 def test_current_task_slice_keeps_completed_task_evidence_only() -> None:
     result = run_bun(r"""
       import { currentTaskSlice } from './packages/continual-learning/extensions/incremental-learning.ts';

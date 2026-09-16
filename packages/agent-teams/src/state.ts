@@ -7,6 +7,7 @@
 import { randomUUID } from "node:crypto";
 import {
   messageTitle,
+  TEAM_RUNTIME_VERSION,
   type BoardTask,
   type WorkerAssignment,
   type MailboxMessage,
@@ -27,6 +28,7 @@ export const MAX_TASK_DEPENDENCIES = 32;
 
 function emptyState(): TeamState {
   return {
+    runtimeVersion: TEAM_RUNTIME_VERSION,
     teammates: {},
     tasks: emptyTaskMap(),
     leaderMailbox: [],
@@ -357,11 +359,16 @@ export function activeAssignmentConflict(
   return livingTeammates().find((teammate) => {
     if (teammate.name === exceptWorker) return false;
     const assignment = teammate.assignment;
-    return assignment !== undefined && !assignment.closed && resourcesConflict(resources, assignment.resources);
+    const retainsWorkAuthority = teammate.currentTaskId !== undefined
+      && ["claimed", "superseded"].includes(state.tasks[teammate.currentTaskId]?.status ?? "");
+    return assignment !== undefined
+      && (!assignment.closed || retainsWorkAuthority)
+      && resourcesConflict(resources, assignment.resources);
   });
 }
 
 export function createTask(input: {
+  id?: string;
   subject: string;
   description?: string;
   dependsOn?: string[];
@@ -395,7 +402,8 @@ export function createTask(input: {
     return { ok: false, error: `Task cannot both depend on and supersede "${selfReplacement}".` };
   }
 
-  const id = taskIdFromSubject(subject, new Set(Object.keys(state.tasks)));
+  const id = input.id ?? taskIdFromSubject(subject, new Set(Object.keys(state.tasks)));
+  if (state.tasks[id]) return { ok: false, error: `Task id "${id}" already exists.` };
   const migrations = new Map<string, string[]>();
   for (const dependent of Object.values(state.tasks)) {
     if (dependent.status === "completed" || dependent.status === "superseded") continue;
@@ -472,6 +480,66 @@ export function firstClaimableTask(): BoardTask | undefined {
   return claimableTasks()[0];
 }
 
+export function createDirectWork(input: {
+  id: string;
+  subject: string;
+  resources: string[];
+  verify?: string;
+  workerName: string;
+  assignment: WorkerAssignment;
+}): { ok: true; task: BoardTask } | { ok: false; error: string } {
+  const created = createTask({ id: input.id, subject: input.subject, resources: input.resources, verify: input.verify });
+  if (!created.ok) return created;
+  const task = created.task;
+  const worker = getTeammate(input.workerName);
+  if (!worker || worker.assignment || activeAssignmentConflict(task.resources, input.workerName)) {
+    delete state.tasks[task.id];
+    markStateDirty();
+    return { ok: false, error: `Unable to bind direct Work Item "${task.id}".` };
+  }
+  task.status = "claimed";
+  task.claimedBy = input.workerName;
+  task.updatedAt = Date.now();
+  assignTeammate(input.workerName, input.assignment, task.id);
+  markStateDirty();
+  return { ok: true, task };
+}
+
+export function discardDirectWork(taskId: string, workerName: string): boolean {
+  const task = state.tasks[taskId];
+  if (!task || task.status !== "claimed" || task.claimedBy !== workerName) return false;
+  delete state.tasks[taskId];
+  markStateDirty();
+  return true;
+}
+
+export function reclaimDirectWork(
+  taskId: string,
+  workerName: string,
+  assignment: WorkerAssignment,
+  expectedState: "pending" | "completed" | "claimed",
+  allowActiveAssignment = false,
+): { ok: true } | { ok: false; error: string } {
+  const task = state.tasks[taskId];
+  const worker = getTeammate(workerName);
+  const retainsSupersededWork = worker?.currentTaskId !== undefined
+    && state.tasks[worker.currentTaskId]?.status === "superseded";
+  if (!task || task.status !== expectedState || !worker || retainsSupersededWork || (!allowActiveAssignment && worker.assignment && !worker.assignment.closed)) {
+    return { ok: false, error: `Unable to reclaim direct Work Item "${taskId}".` };
+  }
+  const conflict = activeAssignmentConflict(task.resources, workerName);
+  if (conflict) return { ok: false, error: `Resource conflict with @${conflict.name}'s active assignment.` };
+  task.status = "claimed";
+  task.claimedBy = workerName;
+  task.result = undefined;
+  task.errorMessage = undefined;
+  task.completedAt = undefined;
+  task.updatedAt = Date.now();
+  assignTeammate(workerName, assignment, task.id);
+  markStateDirty();
+  return { ok: true };
+}
+
 export function setTaskClaimed(taskId: string, workerName: string): BoardTask | undefined {
   const task = state.tasks[taskId];
   const teammate = getTeammate(workerName);
@@ -488,6 +556,46 @@ export function setTaskClaimed(taskId: string, workerName: string): BoardTask | 
 
 /** Release a claimed task back to pending. A superseded holder instead
  * acknowledges cancellation: the task stays superseded but frees resources. */
+export function claimedDependents(workId: string): BoardTask[] {
+  const reverse = new Map<string, string[]>();
+  for (const task of Object.values(state.tasks)) {
+    for (const dependency of task.dependsOn) {
+      const dependents = reverse.get(dependency) ?? [];
+      dependents.push(task.id);
+      reverse.set(dependency, dependents);
+    }
+  }
+  const visited = new Set<string>();
+  const pending = [...(reverse.get(workId) ?? [])];
+  const claimed: BoardTask[] = [];
+  while (pending.length > 0) {
+    const id = pending.shift()!;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const task = state.tasks[id];
+    if (!task) continue;
+    if (task.status === "claimed" || (task.status === "superseded" && task.claimedBy !== undefined)) claimed.push(task);
+    pending.push(...(reverse.get(id) ?? []));
+  }
+  return claimed.sort((left, right) => left.id.localeCompare(right.id));
+}
+
+export function reopenCompletedWork(workId: string): { ok: true; task: BoardTask } | { ok: false; error: string } {
+  const task = state.tasks[workId];
+  if (!task || task.status !== "completed") return { ok: false, error: `Work Item "${workId}" is not completed.` };
+  const blockers = claimedDependents(workId);
+  if (blockers.length > 0) return { ok: false, error: `Work Item "${workId}" has active dependent Work: ${blockers.map((blocker) => blocker.id).join(", ")}.` };
+  task.status = "pending";
+  task.claimedBy = undefined;
+  task.result = undefined;
+  task.deferredMessages = undefined;
+  task.errorMessage = undefined;
+  task.completedAt = undefined;
+  task.updatedAt = Date.now();
+  markStateDirty();
+  return { ok: true, task };
+}
+
 export function releaseTask(taskId: string, errorMessage?: string): BoardTask | undefined {
   const task = state.tasks[taskId];
   if (!task || (task.status !== "claimed" && task.status !== "superseded")) return undefined;
@@ -506,6 +614,7 @@ export function completeTask(taskId: string, result?: string): BoardTask | undef
   if (!task || task.status !== "claimed") return undefined;
   const holder = task.claimedBy;
   task.status = "completed";
+  task.claimedBy = undefined;
   task.result = result;
   task.errorMessage = undefined;
   task.completedAt = Date.now();

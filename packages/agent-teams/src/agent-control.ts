@@ -5,7 +5,7 @@ import { isValidTeammateName, listTeammates } from "./state.ts";
 import { sendLeaderMessage, spawnTeammate, unknownAgentError } from "./team-machine.ts";
 import type { Teammate } from "./types.ts";
 import { snapshotWorkContext } from "./work-context.ts";
-import { sessionRoute } from "./recipient.ts";
+import { exactSessionRoute } from "./recipient.ts";
 
 export interface AgentControlRuntime {
   spawnTeammate: typeof spawnTeammate;
@@ -15,7 +15,7 @@ export interface AgentControlRuntime {
 function workSessionPresence(teammate: Teammate) {
   return {
     workId: teammate.workId ?? teammate.assignment?.id,
-    route: sessionRoute(teammate.name),
+    route: exactSessionRoute(teammate.name, teammate.spawnId),
     context: teammate.context ?? "fresh",
     status: teammate.status,
     assignmentOpen: teammate.assignment !== undefined && !teammate.assignment.closed,
@@ -32,7 +32,7 @@ export function agentPresence(name: string, cwd?: string) {
 }
 
 export function controlAgent(
-  params: { name: string; prompt?: string; work?: string; model?: string; fork?: boolean },
+  params: { name: string; prompt?: string; work?: string; resources?: string[]; verify?: string; model?: string; fork?: boolean },
   cwd: string | undefined,
   runtime: AgentControlRuntime,
   sessionManager?: ExtensionContext["sessionManager"],
@@ -50,7 +50,7 @@ export function controlAgent(
   if (selected) {
     if (selected.status === "stopped") throw new Error("Cannot steer stopped work; start a new assignment without a work ID.");
     if (params.model) throw new Error("Model overrides apply only when starting an Agent, not steering existing work.");
-    const result = runtime.sendLeaderMessage(selected.name, prompt, { reopen: "if-closed" });
+    const result = runtime.sendLeaderMessage(selected.name, prompt, { reopen: "if-closed", workId: selected.workId ?? selected.assignment?.id });
     if (!result.ok) throw new Error(result.error);
     const response = presenceResult(params.name, cwd, result.outcome, selected);
     if (result.outcome === "not-sent") {
@@ -69,6 +69,8 @@ export function controlAgent(
     context,
     prompt,
     model: params.model,
+    resources: params.resources,
+    verify: params.verify,
   });
   if (!result.ok) throw new Error(result.error);
   return presenceResult(params.name, cwd, "started", result.teammate);

@@ -3,6 +3,7 @@
 
 import { truncateToWidth, Key, matchesKey, fuzzyFilter } from "@earendil-works/pi-tui";
 import {
+  createLiveActivityWidget,
   createPiThemeStyle,
   createSearchPicker,
   modelLabel,
@@ -11,15 +12,14 @@ import {
   PI_SPINNER_INTERVAL_MS,
   notifyPi,
   renderPiPanel,
-  renderPiWidgetRow,
   sortModels,
   type SearchPicker,
 } from "@fradser/pi-kit";
-import { getMarkdownTheme, type ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import { type ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import {
   clampConsoleScroll, consoleScrollRange, maxConsoleBody, scrollConsoleDetail, wrapConsoleDetail,
 } from "./console-viewport.ts";
-import { fitTeammateRow, formatTeammateLabel, runningTeammateActivity } from "./activity.ts";
+import { formatTeammateLabel, renderActivityMarkdown, runningTeammateActivity } from "./activity.ts";
 import { MODEL_INHERIT_ALIAS, discoverAgents, resolveAgent, type AgentDefinition } from "./agents.ts";
 import { getPeerDeliveryState, getState, getTeammate, getTeamDefaultModel, listTasks, listTeammates, livingTeammates, setTeamDefaultModel } from "./state.ts";
 import {
@@ -41,6 +41,14 @@ import * as path from "node:path";
 const TEAM_COLORS = ["success", "warning", "error", "mdLink"] as const;
 let spinnerTimer: ReturnType<typeof setInterval> | undefined;
 let spinnerFrame = 0;
+
+const teamActivityWidget = createLiveActivityWidget({
+  key: "teammate",
+  placement: "aboveEditor",
+  fit: truncateToWidth,
+  formatIdentity: (identity, theme) => theme.bold(theme.fg(colorFor(identity), identity)),
+  formatActivity: (activity) => renderActivityMarkdown(activity),
+});
 
 function hashName(name: string): number {
   let h = 0;
@@ -73,42 +81,12 @@ export function stopUiTimers(): void {
 }
 
 export function ensureTeamWidget(ctx?: { ui?: ExtensionUIContext; mode?: string }): void {
-  if (!ctx?.ui?.setWidget) return;
-  if (ctx.mode && ctx.mode !== "tui") return;
-
-  if (livingTeammates().filter(isWorking).length === 0) {
-    ctx.ui.setWidget("teammate", undefined);
-    return;
-  }
-
-  ctx.ui.setWidget("teammate", (tui, theme) => {
-    const timer = setInterval(() => tui.requestRender(), PI_SPINNER_INTERVAL_MS);
-    timer.unref?.();
-    const style = createPiThemeStyle(theme);
-    return {
-      placement: "belowEditor",
-      render: (width: number) => {
-        // Only WORKING teammates appear above the input box; idle and
-        // stopped teammates stay in the /agent-teams console instead.
-        const working = livingTeammates().filter(isWorking);
-        if (working.length === 0) return [];
-        const lines: string[] = [];
-        for (const teammate of working) {
-          lines.push(renderPiWidgetRow(fitTeammateRow(
-            PI_SPINNER_FRAMES[spinnerFrame],
-            style.fg(colorFor(teammate.name), teammate.name),
-            runningTeammateActivity(teammate) + stallSuffix(teammate),
-            Math.max(1, width - 1),
-            (activity) => activity,
-            getMarkdownTheme(),
-          ), width, truncateToWidth, 0));
-        }
-        return lines;
-      },
-      invalidate: () => {},
-      dispose: () => clearInterval(timer),
-    };
-  });
+  const working = livingTeammates().filter(isWorking);
+  teamActivityWidget.update(ctx, working.map((teammate) => ({
+    id: teammate.name,
+    identity: teammate.name,
+    activity: runningTeammateActivity(teammate) + stallSuffix(teammate),
+  })));
 }
 
 function isWorking(teammate: { status: string }): boolean {
@@ -569,7 +547,7 @@ export function openTeamConsole(ctx: {
       const lines: ContentLine[] = [];
       if (page === "board") {
         if (rows.length === 0) {
-          lines.push({ text: style.dim("The task board is empty. Create tasks with task_create."), select: -1 });
+          lines.push({ text: style.dim("The Work list is empty. Create Work with work action=create."), select: -1 });
         }
         rows.forEach((row, index) => lines.push({ text: taskRowText(row.key, index === currentPageSelection(rows.length)), select: index }));
         return lines;

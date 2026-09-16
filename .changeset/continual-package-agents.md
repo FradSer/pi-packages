@@ -3,4 +3,4 @@
 "@fradser/pi-kit": patch
 ---
 
-Move continual-learning planners into package-owned agent resources and launch every planning child with the shared minimal read-only Pi environment.
+Move continual-learning planner protocols into package-owned prompt resources, add typed local builders with fail-closed placeholder validation, migrate every one-shot planner caller, and launch children with the shared minimal read-only Pi environment.

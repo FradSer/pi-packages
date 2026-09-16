@@ -30,7 +30,7 @@ def test_plan_mode_feature_covers_live_worker_widget_and_diagnostics():
     assert "Scenario: Plan overlays and widgets use pi-kit's shared TUI renderers" in feature
     assert "shared panel renderer" in feature
     assert "shared widget-row renderer" in feature
-    assert "Scenario: Plan workers render a live above-editor status widget" in feature
+    assert "Scenario: Plan workers render through pi-kit's live activity widget" in feature
     assert "Scenario: The main-session plan is shown before optional research" in feature
     assert "Scenario: Plan worker failures remain visible until cleanup" in feature
     assert "Scenario: Explore workers avoid unsupported CLI options" in feature
@@ -141,27 +141,25 @@ def test_plan_review_timeout_uses_fresh_session_context():
     assert "setTimeout(() => finish(\"implement-fresh\")" in source
 
 
-def test_plan_mode_uses_a_live_worker_widget_with_shared_spinner():
+def test_plan_mode_uses_the_shared_live_worker_widget():
     source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
     worker = (PACKAGE / "src" / "plan-worker.ts").read_text(encoding="utf-8")
-    assert 'setWidget("plan-workers"' in source
+    assert "createLiveActivityWidget" in source
+    assert 'key: "plan-workers"' in source
     assert 'placement: "aboveEditor"' in source
-    assert "PI_SPINNER_FRAMES" in source
-    assert "PI_SPINNER_INTERVAL_MS" in source
+    assert "activePlanWorkerActivities" in source
+    assert "planWorkerWidget.update(planWidgetContext" in source
     assert "onUpdate" in worker
     assert "status: \"running\"" in worker
     assert "status: \"completed\"" in worker
     assert 'status,' in worker
 
 
-def test_plan_mode_worker_rows_use_shared_task_activity_format():
+def test_plan_mode_worker_rows_preserve_worker_identity_activity_and_status():
     source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    assert 'const name = theme.bold(worker.id);' in source
-    assert 'const phase = theme.fg("muted", `(${worker.label})`);' in source
-    assert 'const detail = ` · ${activity}`;' in source
-    assert 'renderPiWidgetRow(`${marker} ${name} ${phase}${detail}`, width, truncateToWidth)' in source
-    assert 'const activity = worker.detail ?? "Working...";' in source
-    assert 'const detail = ` · ${activity}`;' in source
+    assert 'identity: `${worker.id} (${worker.label})`' in source
+    assert 'activity: worker.detail ?? "Working..."' in source
+    assert "status: worker.status" in source
 
 
 def bash_decisions(commands: list[str]) -> dict[str, object]:
@@ -244,10 +242,10 @@ def test_plan_workers_are_restricted_to_read_only_host_capabilities():
     assert "Use the write tool" not in worker
 
 
-def test_pi_kit_clears_finished_tool_activity():
+def test_pi_kit_retains_finished_tool_activity_until_newer_worker_progress_arrives():
     kit = (REPO / "packages" / "kit" / "src" / "index.ts").read_text(encoding="utf-8")
     tool_end = kit[kit.index('case "toolcall_end":'):kit.index("default:", kit.index('case "toolcall_end":'))]
-    assert "state.activeTool = undefined;" in tool_end
+    assert "state.activity = state.activeTool ?? state.activity;" in tool_end
 
 
 def test_plan_overlay_uses_shared_panel_and_widget_renderers():

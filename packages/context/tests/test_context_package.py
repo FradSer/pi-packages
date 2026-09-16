@@ -37,15 +37,14 @@ class TestContextPackage(unittest.TestCase):
 
     def test_research_registers_running_widget_above_editor(self) -> None:
         source = read("extensions/context-tools.ts")
-        self.assertIn('setWidget("context-research"', source)
-        self.assertIn("aboveEditor", source)
-        self.assertIn("PI_SPINNER_FRAMES", source)
-        self.assertIn("PI_SPINNER_INTERVAL_MS", source)
+        self.assertIn("createLiveActivityWidget", source)
+        self.assertIn('key: "context-research"', source)
+        self.assertIn('placement: "aboveEditor"', source)
         self.assertIn("startResearchWidget", source)
         self.assertIn("updateResearchWidget", source)
         self.assertIn("clearResearchWidget", source)
-        self.assertIn("renderPiWidgetRow", source)
-        self.assertIn("current.agentName", source)
+        self.assertIn('identity: "research"', source)
+        self.assertNotIn("current.agentName", source)
 
     def test_context_rows_fit_runtime_width(self) -> None:
         result = subprocess.run(
@@ -65,6 +64,8 @@ class TestContextPackage(unittest.TestCase):
         self.assertIn("references", manifest["files"])
         self.assertIn("@earendil-works/pi-coding-agent", manifest["peerDependencies"])
         self.assertEqual(manifest["dependencies"]["@fradser/pi-kit"], "workspace:*")
+        self.assertIn("prompts", manifest["files"])
+        self.assertNotIn("agents", manifest["files"])
 
     def test_context_registers_exactly_one_tool(self) -> None:
         source = read("extensions/context-tools.ts")
@@ -85,8 +86,8 @@ class TestContextPackage(unittest.TestCase):
         self.assertNotIn("EXCLUDED_TOOLS", source)
         self.assertIn("minimal: true", source)
         self.assertIn("runPiWorker", source)
-        self.assertIn("createPackageAgentRun", source)
-        self.assertNotIn("readFileSync", source)
+        self.assertIn("buildContextResearchPrompt", source)
+        self.assertNotIn("createPackageAgentRun", source)
         self.assertIn("child.cancelled", source)
         self.assertIn("child.exitCode !== 0", source)
         self.assertIn("FINAL_ANSWER_RETRY_INSTRUCTION", source)
@@ -113,35 +114,55 @@ class TestContextPackage(unittest.TestCase):
         self.assertNotIn("process.env.TMPDIR =", source)
 
     def test_research_prompt_limits_temp_clone_to_tmp(self) -> None:
-        agent = read("agents/context-researcher.md")
+        prompt = read("prompts/context-research.md")
         source = read("extensions/context-tools.ts")
-        self.assertIn("git clone --depth=1", agent)
-        self.assertIn("/tmp", agent)
-        self.assertIn("remove it before answering", agent)
-        self.assertIn("Never modify the caller's working directory", agent)
-        self.assertIn("createPackageAgentRun({", source)
-        self.assertIn('packageRootUrl: new URL("../", import.meta.url).href', source)
+        self.assertIn("git clone --depth=1", prompt)
+        self.assertIn("/tmp", prompt)
+        self.assertIn("remove it before answering", prompt)
+        self.assertIn("Never modify the caller's working directory", prompt)
+        self.assertIn("buildContextResearchPrompt({", source)
+        self.assertIn("validateContextPromptTemplate", read("extensions/context-prompt.ts"))
 
-    def test_result_is_empty_without_completion_event(self) -> None:
+    def test_context_prompt_builder_is_typed_and_fails_closed(self) -> None:
+        source = read("extensions/context-prompt.ts")
+        self.assertIn("export interface ContextResearchPromptBindings", source)
+        self.assertIn("USER_RESEARCH_REQUEST", source)
+        self.assertIn("unknown placeholder", source)
+        self.assertIn("missing placeholder", source)
+        self.assertIn("unresolved placeholder", source)
+        result = subprocess.run(
+            ["node", "--import", "tsx", os.path.join(PACKAGE, "tests/context_prompt_harness.mts")],
+            cwd=os.path.dirname(os.path.dirname(PACKAGE)),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_result_uses_lifecycle_renderer_without_truncation(self) -> None:
         source = read("extensions/context-tools.ts")
         self.assertNotIn("MAX_CHARS", source)
         self.assertNotIn("truncateHead", source)
-        self.assertNotIn("createToolLifecycleResultRenderer", source)
-        self.assertNotIn('eventToolLifecycle("context"', source)
-        self.assertNotIn('label: "researched"', source)
+        self.assertIn("createStaticToolLifecycleResultRenderer", source)
+        self.assertIn('eventToolLifecycle("context"', source)
+        self.assertIn('label: "researched"', source)
+        self.assertIn('label: "researching"', source)
+        self.assertIn("options.isPartial", source)
+        self.assertIn("wrapTextWithAnsi", source)
+        self.assertIn('keyHint("app.tools.expand"', source)
         self.assertIn('renderShell: "self"', source)
-        self.assertIn("renderCall(_args, theme, context)", source)
-        self.assertIn("renderResult(result, _options, theme, context)", source)
-        self.assertIn('theme.bold("[agent]")', source)
-        self.assertEqual(source.count("renderContextCall(context.toolCallId, theme)"), 1)
-        self.assertIn("return { render: () => [], invalidate: () => {} };", source)
-        self.assertIn('CONTEXT_AGENT_PATH = "agents/context-researcher.md"', source)
-        self.assertIn('CONTEXT_AGENT_NAME = "conext-research"', source)
-        self.assertIn("return { ...run, name: CONTEXT_AGENT_NAME };", source)
-        self.assertNotIn("elegantContextAgentName", source)
+        self.assertIn("renderCall(args, theme, _context)", source)
+        self.assertIn("renderResult(result, options, theme, context)", source)
+        self.assertIn('theme.bold("[context]")', source)
+        self.assertEqual(source.count("renderContextCall(args.query, theme)"), 1)
+        self.assertNotIn("CONTEXT_PROMPT_PATH", source)
+        self.assertIn("formatResearchSubject", source)
+        self.assertNotIn("CONTEXT_AGENT_NAME", source)
+        self.assertNotIn("agentName", source)
+        self.assertNotIn("agentPath", source)
 
     def test_documentation_describes_only_the_single_tool(self) -> None:
-        for relative in ("README.md", "references/workflow.md", "agents/context-researcher.md"):
+        for relative in ("README.md", "references/workflow.md", "prompts/context-research.md"):
             content = read(relative)
             self.assertIn("context_get", content, relative)
             self.assertNotIn("context_deepwiki", content, relative)
@@ -163,27 +184,35 @@ class TestContextPackage(unittest.TestCase):
             "available tools are limited to read and bash",
             "edit and write are unavailable because only read and bash are allowlisted",
             "extension, skill, prompt-template, context-file, and theme discovery are disabled",
-            "context package's bundled agents/context-researcher.md",
-            "user research question is appended to that bundled agent prompt",
+            "typed prompt builder reads its bundled Markdown as a reference protocol rather than using the file as the prompt",
+            "current research request, caller working directory, reference protocol, and completion contract",
+            "complete user research question remains model-facing without becoming a prompt resource identity",
             "git clone with depth 1 under /tmp",
             "remove its temporary clone after inspection",
             "no sandbox",
             "no result truncation",
-            "status widget above the editor",
-            "`[agent] @conext-research started · agents/context-researcher.md` shape",
-            "every research invocation uses the fixed @conext-research identity",
-            "retains no agent memory between invocations",
-            "identifies the child agent with the same @conext-research name",
+            "live activity widget above the editor",
+            "`[context] research started · <research query>` shape",
+            "concrete query is normalized and width-bounded for display",
+            "different query produces a different started row",
+            "row does not expose a Markdown prompt resource path",
+            "retains no memory between invocations",
+            "identifies the research worker",
             "latest tool, thinking, or answer activity",
             "newer activity replaces older activity",
             "widget clears when research completes",
-            "completed tool contributes no second agent-start row",
-            "does not render a `[context] researched` lifecycle row",
-            "complete answer remains model-facing without transcript details",
+            "completed tool contributes no second worker-start row",
+            "compact expandable `[context] researched` lifecycle row when finished",
+            "expanding the researched row reveals the complete answer without line truncation",
+            "partial progress renders a `[context] researching` row on toolPendingBg",
+            "successful blocks use toolSuccessBg",
+            "failed and cancelled blocks use toolErrorBg",
+            "expand hint comes from the app.tools.expand keybinding",
             "Pi cancellation terminates the child process",
             "cancellation error rather than a partial answer",
             "Empty successful research retries for a final answer",
-            "retries the research once with a prompt requiring a self-contained final answer",
+            "retries the research exactly once with a prompt requiring a self-contained final answer",
+            "without relying on hidden reasoning or prior tool output",
             "only an empty retry reports that research returned no answer",
             "A failed child process does not return an answer",
         ):

@@ -22,7 +22,7 @@ session or independently explore the repository. Read one specific repository
 file only when a dossier claim names it and verification is necessary. Do not write, edit, delete, rename, or copy any file.
 Do not run a command that mutates
 state. The parent alone validates your plan,
-merges it into `<project>/.pi/harness.local.json`, and writes receipts.
+merges it into `<project>/.pi/harness.json`, and writes receipts.
 
 ## What to mine from history
 
@@ -31,7 +31,7 @@ evidence:
 
 - Repeatedly blocked tool calls: the same tool, same failing pattern, blocked
   more than once — a candidate `addPolicy`, or a conservative `updatePolicy`
-  for a rule already marked as learned in the project-local layer. Automatic
+  for a rule already marked as learned in the project layer. Automatic
   consolidation never disables a rule or removes skill guidance.
 - Confirmation outcomes: calls the user explicitly allowed once through a
   `confirm` gate on a recurring pattern — a candidate `addPolicy` with
@@ -71,6 +71,11 @@ regex gate or semantic instruction. Incident document tokens, row numbers, or ve
 belong in evidence, not rule boundaries. Retain resource identifiers only for an
 explicit resource-specific user requirement, not merely because the snapshot
 happens to mention one resource.
+
+Preserve the user's semantic boundary: fullscreen popup means an overlay
+relationship, not invented opacity, input, or scroll restrictions. Do not add
+requirements that the cited evidence does not authorize. Report ambiguity
+instead. Configuration readback proves persistence, not trigger verification.
 
 Transfer-test each candidate against another same-kind document and a rephrasing
 of the same mistake; also verify unrelated actions remain allowed. For every
@@ -138,13 +143,13 @@ must name its `phase`; omitted phases are accepted only by legacy direct
 application callers. The parent runs these cases with `evaluate` or
 `evaluatePhase` against the proposed declaration.
 
-Automatic learning may add a new project-local policy after these gates pass.
-It may update only a project-local policy named in the parent-owned
+Automatic learning may add a new project policy after these gates pass.
+It may update only a project policy named in the parent-owned
 `learnedPolicies` provenance metadata, and only when the parent can establish
 that the revision is non-weakening (same phase, tools, paths, artifact paths,
 require gate, and pattern expressions; only a stronger action or reason update
-is allowed). Built-in, user/shared,
-and unmarked manual project-local policies are protected. Automatic plans may
+is allowed). Built-in, user, project-personal,
+and unmarked manual project policies are protected. Automatic plans may
 not disable any policy or remove skill guidance, even when a quote appears to
 authorize it; use the explicit `/harness` command for those user-directed
 edits. The child never writes provenance metadata.

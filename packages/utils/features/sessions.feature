@@ -93,13 +93,15 @@ Feature: Cross-session awareness and directory recap
     When Pi renders the completed tool call in the TUI
     Then the call slot renders no content of its own
     And the result delegates to the shared pi-kit lifecycle band instead of hand-built styling
-    And one "[sessions] listed" row paints a full-width custom-message band with a blank band row above and below
-    And expanding the result reveals a bounded block per session with status, pid, relative age, goal, recap, and recent files inside the same band
-    And every displayed field is stripped of terminal escape sequences and truncated to bounded lengths
+    And one "[sessions] listed" row paints a full-width toolSuccessBg band with a blank band row above and below
+    And expanding the result reveals every listed session with status, pid, relative age, complete goal, recap, and recent files inside the same band
+    And long display fields wrap across rows rather than being truncated with an ellipsis
+    And every displayed field is stripped of terminal escape sequences
 
-  Scenario: Failed list_directory_sessions renders one plain error line
+  Scenario: Failed list_directory_sessions renders the shared error band
     Given list_directory_sessions fails
     When Pi renders the failed tool result
     Then the shared pi-kit lifecycle renderer keys off the render context isError flag
-    And the transcript shows one plain error line instead of a session listing
+    And the transcript shows a toolErrorBg lifecycle band with the first error line as its subject
+    And remaining error lines stay expandable instead of a session listing
     And the model still receives the full cross-session recap as text content

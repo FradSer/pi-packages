@@ -49,6 +49,8 @@ def test_feature_covers_the_catalog_gateway_contract() -> None:
         "Matt Pocock tool rows use operation-specific prefixes",
         "Packed package resolves workspace dependency protocols",
         "Upstream synchronization metadata is verifiable",
+        "Exploration procedures allow bidirectional lateral transitions",
+        "Bug diagnostics allow returning to root cause analysis",
     ):
         assert scenario in feature
 
@@ -192,7 +194,7 @@ def test_gateway_starts_workflow_with_versioned_work_item_state() -> None:
     text = result["execution"]["content"][0]["text"]
     assert 'source="procedure/improve-codebase-architecture"' in text
     assert 'source="procedure/codebase-design"' in text
-    assert "Allowed next: implement, code-review" in text
+    assert "Allowed next: codebase-design, implement, code-review" in text
     assert "matt_pocock_active" in result["activeTools"]
     assert "matt_pocock_ask" in result["activeTools"]
     assert state["workItemId"] in result["prompt"]["systemPrompt"]
@@ -264,7 +266,7 @@ def test_active_gateway_allows_catalog_transition_and_rejects_illegal_transition
         const legal = await tools.get("matt_pocock_active").execute("good", { action: "transition", target: "implement" }, undefined, undefined, ctx);
         console.log(JSON.stringify({ illegal, legal, entries }));
     """)
-    assert "Allowed next procedures: implement, code-review" in result["illegal"]
+    assert "Allowed next procedures: codebase-design, implement, code-review" in result["illegal"]
     assert len(result["entries"]) == 2
     transitioned = result["entries"][-1]["data"]
     assert transitioned["procedure"] == "implement"
@@ -503,8 +505,10 @@ def test_inactive_guidance_advertises_workflows_and_model_capabilities() -> None
     assert "## Available Matt Pocock Workflows and Capabilities" in guidance
     assert "matt_pocock_workflow" in guidance
     assert "writing-for-agents" in guidance
-    assert "matt_pocock_active" in guidance
     assert "Do not activate a workflow for routine work" in guidance
+    assert "start a workflow first with matt_pocock_workflow" in guidance
+    assert "matt_pocock_active" not in guidance
+    assert "matt_pocock_ask" not in guidance
 
 
 def test_matt_pocock_ask_selection_custom_input_pending_cases() -> None:
@@ -588,11 +592,13 @@ def test_tool_and_message_rendering_preserves_compact_lifecycle_rows() -> None:
     assert any("Answer: A" in row for row in result["askRows"])
     assert any("B" in row for row in result["askRows"])
     assert all("\n" not in row for row in result["askRows"])
-    assert len(result["workflowRows"]) == 1
-    assert "[matt pocock] started · Idea to Ship · Shaping & Requirements" in result["workflowRows"][0]
-    assert "Procedure body" not in result["workflowRows"][0]
-    assert "[matt pocock] started · Idea to Ship · Shaping & Requirements" in result["messageRows"][0]
-    assert "Restored body" not in result["messageRows"][0]
+    workflow_content = next(row for row in result["workflowRows"] if "[matt pocock] started ·" in row)
+    message_content = next(row for row in result["messageRows"] if "[matt pocock] started ·" in row)
+    assert len(result["workflowRows"]) == 3
+    assert "[matt pocock] started · Idea to Ship · Shaping & Requirements" in workflow_content
+    assert "Procedure body" not in workflow_content
+    assert "[matt pocock] started · Idea to Ship · Shaping & Requirements" in message_content
+    assert "Restored body" not in message_content
 
 
 def test_native_macos_dialog_environment_guards() -> None:

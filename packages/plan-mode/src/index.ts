@@ -24,14 +24,13 @@ import type {
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import {
+  createLiveActivityWidget,
   createPiThemeStyle,
   enterModelFromInput,
   modelLabel,
   modelRef,
   notifyPi,
   parseModelRef,
-  PI_SPINNER_FRAMES,
-  PI_SPINNER_INTERVAL_MS,
   renderPiWidgetRow,
   searchModelFromPicker,
   sortModels,
@@ -145,62 +144,37 @@ function cancelPlanJob(ctx: ExtensionContext): void {
 }
 
 const planWorkerUpdates = new Map<string, PlanWorkerUpdate>();
-let planWidgetTui: { requestRender(): void } | undefined;
-let planSpinnerTimer: ReturnType<typeof setInterval> | undefined;
-let planSpinnerFrame = 0;
+let planWidgetContext: ExtensionContext | undefined;
+const planWorkerWidget = createLiveActivityWidget({
+  key: "plan-workers",
+  placement: "aboveEditor",
+  fit: truncateToWidth,
+  formatIdentity: (identity, theme) => theme.bold(identity),
+});
 
-function renderPlanWorkerLines(width: number, theme: { fg(color: string, text: string): string; bold(text: string): string }): string[] {
-  return [...planWorkerUpdates.values()].map((worker) => {
-    const marker = worker.status === "running"
-      ? theme.fg("warning", `${PI_SPINNER_FRAMES[planSpinnerFrame]}`)
-      : worker.status === "completed"
-        ? theme.fg("success", "✓")
-        : worker.status === "failed"
-          ? theme.fg("error", "✗")
-          : theme.fg("muted", "○");
-    const name = theme.bold(worker.id);
-    const phase = theme.fg("muted", `(${worker.label})`);
-    const activity = worker.detail ?? "Working...";
-    const detail = ` · ${activity}`;
-    return renderPiWidgetRow(`${marker} ${name} ${phase}${detail}`, width, truncateToWidth);
-  });
+function activePlanWorkerActivities() {
+  return [...planWorkerUpdates.values()].map((worker) => ({
+    id: worker.id,
+    identity: `${worker.id} (${worker.label})`,
+    activity: worker.detail ?? "Working...",
+    status: worker.status,
+  }));
 }
 
 function startPlanWorkerWidget(ctx: ExtensionContext): void {
-  if (ctx.mode !== "tui") return;
   planWorkerUpdates.clear();
-  planSpinnerFrame = 0;
-  if (planSpinnerTimer) clearInterval(planSpinnerTimer);
-  planSpinnerTimer = setInterval(() => {
-    planSpinnerFrame = (planSpinnerFrame + 1) % PI_SPINNER_FRAMES.length;
-    planWidgetTui?.requestRender();
-  }, PI_SPINNER_INTERVAL_MS);
-  planSpinnerTimer.unref?.();
-  ctx.ui.setWidget("plan-workers", (tui, theme) => {
-    planWidgetTui = tui;
-    return {
-      render: (width: number) => renderPlanWorkerLines(width, theme),
-      invalidate: () => {},
-      dispose: () => {
-        if (planWidgetTui === tui) planWidgetTui = undefined;
-      },
-    };
-  }, { placement: "aboveEditor" });
+  planWidgetContext = ctx;
 }
 
 function updatePlanWorkerWidget(update: PlanWorkerUpdate): void {
   planWorkerUpdates.set(update.id, update);
-  planWidgetTui?.requestRender();
+  planWorkerWidget.update(planWidgetContext, activePlanWorkerActivities());
 }
 
 function clearPlanWorkerWidget(ctx: ExtensionContext): void {
-  if (planSpinnerTimer) {
-    clearInterval(planSpinnerTimer);
-    planSpinnerTimer = undefined;
-  }
-  planWidgetTui = undefined;
   planWorkerUpdates.clear();
-  if (ctx.mode === "tui") ctx.ui.setWidget("plan-workers", undefined);
+  planWidgetContext = undefined;
+  planWorkerWidget.clear(ctx);
 }
 
 function setPlanModeIndicator(ctx: ExtensionContext, active: boolean): void {

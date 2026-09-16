@@ -13,7 +13,7 @@ REPO = PKG_DIR.parents[1]
 @pytest.fixture(params=["direct", "consolidation"])
 def guidance(request: pytest.FixtureRequest) -> str:
     if request.param == "consolidation":
-        return (PKG_DIR / "agents" / "harness-consolidator.md").read_text(encoding="utf-8")
+        return (PKG_DIR / "prompts" / "harness-consolidator.md").read_text(encoding="utf-8")
     result = subprocess.run(
         ["bun", "-e", """
         import { buildHarnessRulePrompt } from './packages/continual-learning/extensions/guardrails.ts';
@@ -34,15 +34,16 @@ def test_guidance_generalizes_evidence_before_selecting_mechanism(guidance: str)
     assert "another same-kind document" in guidance
     assert "rephrasing" in guidance
     assert "unrelated actions remain allowed" in guidance
-    assert "blanket confirmation of all writes" in guidance
+    assert any(text in guidance for text in ("keeping confirmation scoped to the requested action surface", "blanket confirmation of all writes"))
 
 
 def test_semantic_guidance_does_not_claim_universal_enforcement(guidance: str) -> None:
-    assert "skillPrompts" in guidance
-    assert "actual available skill" in guidance
-    assert "Do not invent a skill" in guidance
+    # A skill-scoped entry is named: new flat "skill rule" or legacy "skillPrompts".
+    assert any(text in guidance for text in ("skillPrompts", "skill rule"))
+    # Registered/available-skill discipline (wording differs across the two surfaces).
+    assert any(text in guidance for text in ("registered skill", "available skill", "invent a skill"))
     assert "expanded skill invocation" in guidance
     assert "plain read of SKILL.md" in guidance
     assert "not global interception" in guidance
     assert "report the limitation" in guidance
-    assert "do not add a rule" in guidance
+    assert any(text in guidance for text in ("preserve existing rules unchanged", "do not add a rule"))

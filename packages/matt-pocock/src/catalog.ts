@@ -139,6 +139,27 @@ export function validateProcedureCatalog(): string[] {
     if (entry && (!entry.title || !entry.label || !entry.description)) {
       errors.push(`${route}: workflow entry requires title, label, and description`);
     }
+
+    const entryDefinition = workflowEntry(route);
+    if (entryDefinition) {
+      const reachable = new Set<string>([entryDefinition.id]);
+      const queue = [entryDefinition.id];
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        const currentPlacement = workflowPlacement(route, current);
+        for (const next of currentPlacement?.allowedNext ?? []) {
+          if (!reachable.has(next)) {
+            reachable.add(next);
+            queue.push(next);
+          }
+        }
+      }
+      for (const definition of workflowDefinitions(route)) {
+        if (!reachable.has(definition.id)) {
+          errors.push(`${route}: unreachable workflow procedure: ${definition.id}`);
+        }
+      }
+    }
   }
 
   const inbound = new Set(procedureCatalog.flatMap((definition) => [

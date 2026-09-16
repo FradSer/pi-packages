@@ -10,9 +10,25 @@
 
 Automatic learning and default `/consolidate` operate on one completed **Task Slice**. A metadata-only **Memory Selector** chooses the minimum sufficient related existing Memory, and the parent builds one authoritative **Learning Dossier** containing that Task Slice plus selected bodies. Memory, Harness, and AGENTS.md planners consume the dossier and return only deltas. `/consolidate full` is the explicit exhaustive maintenance path.
 
-Every phase follows the same trust boundary: the parent freezes the task context before asynchronous work, a package-owned child agent runs with discovery disabled and the minimum tools for its mode (none for selection, `read` for incremental Memory, and bounded read-only discovery only for explicit full maintenance), and only the parent validates and applies a bounded structured plan. Memory attempts capture their bound inputs; Harness and AGENTS.md planners share one later-phase immutable capture of the same frozen context. Completion requires parent-owned validation and pre/post receipts; planner prose is never proof of success. Locks, path containment, symlink checks, atomic writes, rollback, output bounds, and shutdown generation checks remain mandatory.
+Every phase follows the same trust boundary: the parent freezes the task context before asynchronous work, a stateless one-shot planner runs from a package-owned Markdown prompt with discovery disabled and the minimum tools for its mode (none for selection, `read` for incremental Memory, and bounded read-only discovery only for explicit full maintenance), and only the parent validates and applies a bounded structured plan. Typed package-local builders perform literal nonrecursive binding and reject missing, unknown, or unresolved prompt placeholders before launch. Memory attempts capture their bound inputs; Harness and AGENTS.md planners share one later-phase immutable capture of the same frozen context. Completion requires parent-owned validation and pre/post receipts; planner prose is never proof of success. Locks, path containment, symlink checks, atomic writes, rollback, output bounds, and shutdown generation checks remain mandatory.
 
 Later-phase failure does not roll back an earlier verified phase. When Memory is selected, it must complete and verify before Harness starts; grounded Harness/AGENTS-only automatic evidence may instead use a verified no-mutation Memory gate. Harness failure leaves Memory intact; AGENTS.md failure leaves both earlier phases intact.
+
+## Planned Harness vocabulary
+
+The next Harness model is specified in
+@packages/continual-learning/HARNESS-DESIGN.md. These terms describe the design;
+the current runtime architecture below remains unchanged until implementation.
+
+- **Rule identity** names one agreement independently of the content it matches.
+- **Match entry** identifies a skill invocation, command invocation, or retained
+  conversation text in which an agreement is relevant.
+- **Effective rule** is the definition selected for an identity in the current
+  configuration, together with its source and state.
+- **Delivery record** is evidence that a particular revision of guidance reached
+  an identifiable position in the current conversation branch.
+- **Retained context** is the conversation currently available to the model after
+  branch selection and compaction.
 
 ## Harness ownership
 
@@ -24,22 +40,22 @@ Harness configuration has exactly three user-owned layers, plus package defaults
 
 Precedence is project personal over project shared over user shared over built-in defaults. Policy names and skill-prompt names are the addressable override keys. The obsolete user-personal `~/.pi/agent/harness.local.json` and project `.pi/agent/harness*.json` paths are not loaded, displayed, or targeted.
 
-Automatic Harness consolidation writes only `<project>/.pi/harness.local.json`. The shared Harness layers are read-only inputs.
+Direct authoring and automatic Harness consolidation default to `<project>/.pi/harness.json`. Other layers are read-only inputs to consolidation. Project personal `.pi/harness.local.json` is selected only by an explicit personal-configuration request; a global local variant is unsupported.
 
 ## Memory ownership: two synchronized roots
 
 Memory deliberately uses two physical roots rather than copying the three Harness configuration layers:
 
-1. **Harness/private Memory**: `~/.pi/agent/memory/<escaped-readable-prefix>--<full-sha256-scope-key>/`
+1. **Harness/private Memory**: `~/.pi/agent/memory/<escaped-canonical-cwd>/`
 2. **Project shared Memory**: `<project>/.memory/`
 
-For `/Users/FradSer/Developer/FradSer/cerberus`, the private directory remains readable while carrying a collision-resistant identity:
+For `/Users/FradSer/Developer/FradSer/cerberus`, the private directory uses the official Pi flat escaped identity:
 
 ```text
-~/.pi/agent/memory/-Users-FradSer-Developer-FradSer-cerberus--<64hex>/
+~/.pi/agent/memory/--Users-FradSer-Developer-FradSer-cerberus--/
 ```
 
-The prefix is derived from the canonical project working directory, normalized to bounded ASCII, and capped at 174 bytes. The `--` suffix is the full 64-character lowercase SHA-256 scope key, keeping the complete component within 240 bytes and preventing different paths with the same readable prefix from sharing Memory.
+The name matches Pi's official session directory escaping: the canonical project path with leading slash stripped, slashes and colons replaced with single dashes, wrapped in double dashes (`--<escaped-path>--`). Names longer than 240 bytes are rejected, never truncated. The same name is the `scopeKey` for private Memory, `memory/locks/<scopeKey>.lock`, and `memory/runs/<scopeKey>/`; there are no hash-based project paths. Content-integrity digests remain unchanged.
 
 The two roots have different privacy roles. No project-local private memory directory is recognized: private memory exists only in the agent-owned root.
 
@@ -82,15 +98,9 @@ Only strict Memory basenames are accepted:
 
 `MEMORY.md` is metadata and is never injected as an entry. Reads must reject symlinks, path escapes, non-regular files, oversized content, and root replacement during traversal. Injected Memory remains explicitly labelled untrusted reference data, not instructions.
 
-## Legacy directory migration
+## Obsolete private roots
 
-The opaque SHA-256 project directory, the collision-prone readable directory, and the older readable directory that preserved whitespace must migrate to the readable-prefix-plus-scope-key directory. Migration is one-way and has no permanent compatibility read fallback:
-
-- Valid Memory merges into the collision-resistant destination without overwriting conflicts.
-- Private markers from legacy indexes transfer only for files whose bytes were created in or match the destination; a retained conflicting source cannot reclassify different canonical bytes.
-- Source and destination roots, entries, and indexes reject symlinks.
-- A failed application restores the destination predecessor and leaves every source intact.
-- A migrated source is removed only after successful application and only when every source entry was recognized; unsupported or conflicting sources remain intact.
+The flat escaped canonical-path directory is the sole agent-private runtime root. Other layouts, including hash-only and hash-suffixed roots, remain untouched. Memory loading and consolidation do not discover, read, import, rename, or delete them, and there is no compatibility fallback or migration interface. Existing flat roots matching the current sanitizer are used directly.
 
 ## Commands and settings
 
@@ -115,8 +125,8 @@ The two Memory roots are intentionally asymmetric rather than ordinary override 
 ## Locked acceptance decisions
 
 - Memory has exactly two roots: readable Harness/private agent Memory and project-shared `.memory/`.
-- The private directory name combines a bounded human-readable canonical-path prefix with the full scope hash, so recognizable prefixes cannot collide.
-- A hash-only directory is not the steady-state format.
+- The private directory, lock, and runs scope use the same flat sanitized canonical path without hashes; sanitizer collisions intentionally share scope.
+- Overlong names fail explicitly instead of truncating or falling back to hashes.
 - Project `.memory/` contains only sanitized safe Memory.
 - Safe Memory synchronizes both ways and remains byte-identical after normalization/application.
 - Private Memory never appears in project `.memory/`.

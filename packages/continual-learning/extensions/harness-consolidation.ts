@@ -5,8 +5,8 @@
  * session snapshot: a read-only planner child mines tool-call guardrail
  * evidence (blocked calls and reasons, confirmation outcomes, user
  * corrections) and returns one bounded `harness-consolidation-plan`. The
- * parent alone applies it, merging atomically into the personal project-local
- * layer (<cwd>/.pi/harness.local.json). Shared layers are never written, and
+ * parent alone applies it, merging atomically into the project
+ * layer (<cwd>/.pi/harness.json). Other layers are never written, and
  * any failure here never touches already-applied memory results.
  */
 
@@ -15,7 +15,6 @@ import path from "node:path";
 import type { ChildProcess } from "node:child_process";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
-  createPackageAgentRun,
   minimalPiWorkerArgs,
   notifyPi,
   parsePiWorkerOutput,
@@ -37,9 +36,10 @@ import {
   type ConsolidationRun,
 } from "./consolidation-run";
 import { DEFAULT_POLICIES, evaluate, evaluatePhase, mergeLayers, validatePolicyDeclaration, validateSkillPromptDeclaration } from "./guardrail-engine";
-import { configPaths, loadLayers } from "./guardrail-config";
+import { assertHarnessConfigContainers, configPaths, loadLayers } from "./guardrail-config";
 import type { PolicyLayer, PolicyPhase } from "./guardrail-types";
 import type { ToolCallInput } from "./guardrail-engine";
+import { buildHarnessConsolidatorPrompt } from "./planner-prompts";
 
 export const HARNESS_PLAN_KIND = "harness-consolidation-plan";
 export const MAX_HARNESS_OPS = 12;
@@ -106,6 +106,7 @@ export interface HarnessPolicyCases {
  * quote checks use the exact immutable bytes the child was given. */
 export interface HarnessPlanValidationOptions {
   availableSkills?: ReadonlySet<string> | readonly string[];
+  targetSource?: "project" | "project.local";
   snapshot?: unknown;
   snapshotText?: string;
   layers?: readonly PolicyLayer[];
@@ -566,7 +567,7 @@ function validateAutomaticOwnership(
     if (op.op === "updatePolicy") {
       const owner = ownership.get(op.name ?? "");
       if (!owner) return;
-      if (owner.source !== "project.local") {
+      if (owner.source !== (options.targetSource ?? "project")) {
         errors.push(`${label}: policy "${op.name}" is protected because it belongs to ${owner.source}`);
         return;
       }
@@ -775,17 +776,22 @@ export async function applyHarnessOps(
   const prior = await readLayerFileBytes(projectLocalPath);
   if (prior) {
     try {
-      const parsed = JSON.parse(prior.toString("utf8")) as Record<string, unknown>;
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) base = parsed;
-    } catch {
-      return { ok: false, error: `existing ${projectLocalPath} is not valid JSON` };
+      const parsed: unknown = JSON.parse(prior.toString("utf8"));
+      assertHarnessConfigContainers(parsed);
+      base = parsed;
+    } catch (error) {
+      return { ok: false, error: `existing ${projectLocalPath} ${error instanceof SyntaxError ? "is not valid JSON" : "is invalid"}: ${(error as Error).message}` };
     }
   }
   const requestedOptions = applyValidationOptions(argument);
-  const localLayer: PolicyLayer = { source: "project.local", policies: Array.isArray(base.policies) ? base.policies as Array<Record<string, unknown>> : [] };
+  const targetSource = path.basename(projectLocalPath) === "harness.local.json" ? "project.local" : "project";
+  const localLayer: PolicyLayer = { source: targetSource, policies: Array.isArray(base.policies) ? base.policies as Array<Record<string, unknown>> : [], skillPrompts: isRecord(base.skillPrompts) ? base.skillPrompts : undefined };
   const effectiveOptions: HarnessPlanValidationOptions = {
     ...requestedOptions,
-    layers: [...(requestedOptions.layers ?? []).filter((layer) => layer.source !== "project.local"), localLayer],
+    targetSource,
+    layers: (requestedOptions.layers ?? []).some((layer) => layer.source === targetSource)
+      ? (requestedOptions.layers ?? []).map((layer) => layer.source === targetSource ? localLayer : layer)
+      : [...(requestedOptions.layers ?? []), localLayer],
     learnedPolicyNames: new Set([
       ...learnedPolicyNamesFromConfig(base),
       ...(asStringSet(requestedOptions.learnedPolicyNames) ?? []),
@@ -863,11 +869,11 @@ function builtInDefaultsLayer(): { source: string; policies: Array<Record<string
 }
 
 /** Current resolved harness surface handed to the planner as context. */
-export async function harnessSurfaceSummary(cwd: string, agentDir?: string): Promise<string> {
+export async function harnessSurfaceSummary(cwd: string, agentDir?: string, availableSkills: ReadonlySet<string> = new Set()): Promise<string> {
   const paths = configPaths(cwd, agentDir);
-  const config = mergeLayers([builtInDefaultsLayer(), ...loadLayers(cwd, agentDir)]);
+  const config = mergeLayers([builtInDefaultsLayer(), ...loadLayers(cwd, agentDir)], availableSkills);
   let localConfig: unknown;
-  const localBytes = await readLayerFileBytes(paths.projectLocal);
+  const localBytes = await readLayerFileBytes(paths.project);
   if (localBytes) {
     try { localConfig = JSON.parse(localBytes.toString("utf8")) as unknown; } catch { localConfig = undefined; }
   }
@@ -877,7 +883,7 @@ export async function harnessSurfaceSummary(cwd: string, agentDir?: string): Pro
     learnedPolicies: [...learnedPolicyNamesFromConfig(localConfig)].sort(),
     skillPrompts: Object.keys(config.skillPrompts),
     errors: config.errors,
-    note: "the planner targets ONLY the project.local layer file",
+    note: "the planner targets ONLY the project harness.json layer file",
   };
   return JSON.stringify(summary, null, 1);
 }
@@ -943,21 +949,15 @@ export async function planHarnessConsolidationPhase(
 
     const cli = (opts.resolveCli ?? resolvePiCli)();
     if (!cli) return fail("could not resolve the Pi CLI");
-    const procedure = createPackageAgentRun({
-      packageRootUrl: new URL("../", import.meta.url).href,
-      resourcePath: "agents/harness-consolidator.md",
-      namePrefix: "harness-consolidator",
-      toolCallId: `harness:${run.manifest.runId}`,
-      request: "Follow the parent-provided task below.",
-    }).prompt
-      .replaceAll("{{PKG_DIR}}", opts.pkgDir)
-      .replaceAll("{{RUN_ID}}", run.manifest.runId)
-      .replaceAll("{{SCOPE_DIGEST}}", run.manifest.scopeDigest)
-      .replaceAll("{{ARTIFACT_HASH}}", run.manifest.snapshotDigest)
-      .replaceAll("{{SNAPSHOT_PATH}}", run.manifest.snapshotPath)
-      .replaceAll("{{DOSSIER_PATH}}", opts.explorationPath ?? "")
-      .replaceAll("{{REPO_ROOT}}", run.manifest.cwd);
-    const surface = await harnessSurfaceSummary(opts.cwd);
+    const procedure = buildHarnessConsolidatorPrompt({
+      runId: run.manifest.runId,
+      scopeDigest: run.manifest.scopeDigest,
+      artifactHash: run.manifest.snapshotDigest,
+      snapshotPath: run.manifest.snapshotPath,
+      dossierPath: opts.explorationPath ?? "",
+      repoRoot: run.manifest.cwd,
+    });
+    const surface = await harnessSurfaceSummary(opts.cwd, undefined, new Set(opts.availableSkills ?? []));
     if (!current()) return fail("harness planner cancelled");
     const taskText = [
       `Task: produce a read-only structured harness consolidation plan for the project at ${opts.cwd}.`,
@@ -973,7 +973,7 @@ export async function planHarnessConsolidationPhase(
       ] : []),
       "- Current harness surface summary:",
       surface,
-      "- Target layer for every change: <project>/.pi/harness.local.json only.",
+      "- Target layer for every change: <project>/.pi/harness.json only.",
       "- Your final assistant message must be exactly one JSON object with kind \"harness-consolidation-plan\".",
       "",
       procedure,
@@ -1063,7 +1063,7 @@ export async function planHarnessConsolidationPhase(
     if (isRecord(snapshot) && snapshot.runId !== undefined && snapshot.runId !== run.manifest.runId) {
       return fail("immutable harness evidence snapshot run id mismatch");
     }
-    const target = opts.targetPath ?? configPaths(opts.cwd).projectLocal;
+    const target = opts.targetPath ?? configPaths(opts.cwd).project;
     let localConfig: unknown;
     const localBytes = await readLayerFileBytes(target);
     if (localBytes) {
@@ -1071,6 +1071,7 @@ export async function planHarnessConsolidationPhase(
     }
     const validationOptions: HarnessPlanValidationOptions = {
       availableSkills: opts.availableSkills,
+      targetSource: path.basename(target) === "harness.local.json" ? "project.local" : "project",
       snapshot,
       snapshotText: snapshotBytes.toString("utf8"),
       layers: [builtInDefaultsLayer(), ...loadLayers(opts.cwd)],
@@ -1111,6 +1112,13 @@ export async function applyHarnessConsolidationPlan(
   if (errors.length) return { outcome: "rejected", operations: ops.length, error: errors.join("; ") };
   const planDigest = sha256Digest(JSON.stringify(plan));
   const beforeBytes = await readLayerFileBytes(target);
+  if (beforeBytes) {
+    try {
+      assertHarnessConfigContainers(JSON.parse(beforeBytes.toString("utf8")));
+    } catch (error) {
+      return { outcome: "rejected", operations: ops.length, error: `existing ${target} is invalid: ${(error as Error).message}` };
+    }
+  }
   const digestBefore = beforeBytes ? sha256Digest(beforeBytes) : null;
   const preReceipt = buildHarnessReceipt({
     phase: "pre",

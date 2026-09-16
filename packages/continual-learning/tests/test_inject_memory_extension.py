@@ -60,15 +60,13 @@ def test_dreaming_widget_starts_before_selector_and_survives_memory_phase_comple
 
 def test_dreaming_widget_and_notifications_use_shared_pi_kit_tui_primitives() -> None:
     content = source()
-    assert "PI_SPINNER_FRAMES" in content
-    assert "PI_SPINNER_INTERVAL_MS" in content
-    assert "createPiThemeStyle" in content
-    assert "const style = createPiThemeStyle(theme);" in content
-    assert "style.accent(frame)" in content
-    assert "style.muted(` · ${dreamingActivity}`)" in content
-    assert "renderPiWidgetRow" in content
-    assert "renderPiWidgetRow(`${icon} ${text}${detail}`, width, truncateToWidth, 0)" in content
-    assert '{ placement: "aboveEditor" }' in content
+    assert "createLiveActivityWidget" in content
+    assert 'key: "memory-dreaming"' in content
+    assert 'identity: "Dreaming..."' in content
+    assert 'placement: "aboveEditor"' in content
+    assert "leadingSpaces: 0" in content
+    assert "dreamingWidget.update(ctx" in content
+    assert "dreamingWidget.clear(ctx)" in content
     assert "notifyPi(ctx.ui" in content
     assert "ctx.ui.notify" not in content
 
@@ -85,9 +83,9 @@ def test_consolidation_contract_is_parent_owned() -> None:
     assert "G8" not in content
 
 
-def test_memory_planner_agents_are_mode_specific_and_read_only() -> None:
-    full = (MEMORY_PKG_DIR / "agents" / "memory-consolidator.md").read_text(encoding="utf-8")
-    incremental = (MEMORY_PKG_DIR / "agents" / "incremental-memory-consolidator.md").read_text(encoding="utf-8")
+def test_memory_planner_prompts_are_mode_specific_and_read_only() -> None:
+    full = (MEMORY_PKG_DIR / "prompts" / "memory-consolidator.md").read_text(encoding="utf-8")
+    incremental = (MEMORY_PKG_DIR / "prompts" / "incremental-memory-consolidator.md").read_text(encoding="utf-8")
     assert "{{PKG_DIR}}" in full and "{{SNAPSHOT_PATH}}" in full
     assert "validate-consolidate.py" in full and "SKILL.md" in full
     assert "{{DOSSIER_PATH}}" in incremental
@@ -698,7 +696,8 @@ def test_consolidate_command_distinguishes_incremental_full_and_no_context() -> 
     assert 'Usage: /consolidate [full|no-context]' in content
     assert 'noContext: args === "no-context"' in content
     assert 'mode: args === "full" || args === "no-context" ? "full" : "manual"' in content
-    assert 'incremental ? "agents/incremental-memory-consolidator.md" : "agents/memory-consolidator.md"' in content
+    assert "buildIncrementalMemoryConsolidatorPrompt" in content
+    assert "buildMemoryConsolidatorPrompt" in content
     assert 'minimalPiWorkerArgs(incremental ? ["read"] : ["read", "grep", "find", "ls"])' in content
 
 
@@ -770,7 +769,7 @@ def test_child_task_uses_selector_scope_for_incremental_and_full_scope_for_full_
     assert "Authoritative selected Memory names" in content
     assert "Read only the dossier by default" in content
     assert "...formatSelectedScopeTaskLines(selectedScope, Boolean(opts.noContext))," in content
-    procedure = (MEMORY_PKG_DIR / "agents" / "memory-consolidator.md").read_text(encoding="utf-8")
+    procedure = (MEMORY_PKG_DIR / "prompts" / "memory-consolidator.md").read_text(encoding="utf-8")
     assert "authoritative selected memory scope" in procedure and "newMemories" in procedure
 
 

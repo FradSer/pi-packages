@@ -7,11 +7,32 @@ Feature: /init repository guidelines command
 
   Scenario: /init asks the agent to inspect the repository before writing
     When the user runs /init
-    Then the command sends an instruction to inspect the repository structure,
-      commands, tests, style, history, and existing instruction files
+    Then the command sends an instruction to read repository evidence as needed
+      for the guidance being audited rather than requiring a full repository tour
     And the instruction asks for a concise "Repository Guidelines" document
     And the instruction derives tooling and shared-library conventions from the
       target repository's own files and documentation
+
+  Scenario: /init prunes instructions instead of filling a template
+    Given existing guidance contains generic advice and mandatory reading lists
+    When the user runs /init
+    Then the instruction asks for removal of stale, redundant, and overprescriptive rules
+    And replaces mandatory reading lists with task-specific documentation pointers
+    And imposes no word quota or mandatory section checklist
+
+  Scenario: /init defines evidence-based autonomy and completion
+    Given the repository documents local workflow safety and approval boundaries
+    When the user runs /init
+    Then the instruction preserves genuine safety boundaries
+    And permits verified safe local work without repeated approval
+    And defines completion and stopping conditions without prescribing needless tests
+    And keeps guidance useful across models without model-specific claims
+
+  Scenario: /init uses progressive disclosure without expanding its editing scope
+    Given repository skills are relevant to contributor guidance
+    When the user runs /init
+    Then the instruction recommends short precise triggers and task-specific references
+    And skill files are not edited unless explicitly requested
 
   Scenario: /init stays neutral about the target repository's technology stack
     Given the target repository uses its own languages, tools, and shared modules

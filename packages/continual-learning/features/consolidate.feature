@@ -75,6 +75,13 @@ Feature: Memory management with automatic learning and manual consolidation
     Then the background consolidation run uses that provider and model
     And no follow-up message blocks the current session
 
+  Scenario: Package-owned planner prompts bind required inputs safely
+    Given a selector, Memory, Harness, or AGENTS.md planner prompt is loaded
+    When its package-local typed builder renders the Markdown resource
+    Then replacement is literal and nonrecursive
+    And missing, unknown, or unresolved placeholders are rejected before a child starts
+    And the builder returns only the final prompt string
+
   Scenario: Background consolidation disables unrelated discovery
     Given memory consolidation is manually started
     When the child Pi process is launched in JSON print mode
@@ -259,10 +266,12 @@ Feature: Memory management with automatic learning and manual consolidation
     But a plan-phase failure with child stderr output stays classified as missing-plan and keeps the retry
     And a successful model retry attempt clears the earlier execution error so a later structured plan still passes
 
-  Scenario: Dreaming status is flush-left
+  Scenario: Dreaming status uses the shared live activity widget
     Given the consolidation pipeline is active in the TUI
     When the Dreaming status row is rendered
-    Then the spinner starts in the first column without a leading space
+    Then pi-kit's live activity widget appears above the editor
+    And it displays the shared spinner followed by "Dreaming... ·" and the latest consolidation activity
+    And the spinner starts in the first column without a leading space
 
   Scenario: Dreaming timeout is labeled as the budget it exceeded
     Given the consolidation child outlives the dreaming budget and is terminated by the parent timer
@@ -284,52 +293,50 @@ Feature: Memory management with automatic learning and manual consolidation
     Then the cited path must resolve to an existing file under the repository root
     And the procedure states skill directories must be cited through a concrete file such as the skill's SKILL.md
 
-  Scenario: Private root uses only the readable project path
-    Given a canonical project path
+  Scenario: All project paths use Pi official flat escaped directory names
+    Given a canonical project path or a symlink alias of it
     When memory paths are resolved
-    Then its private root is its escaped readable project path with no hash suffix
+    Then its private root basename is the official escaped project path enclosed in double dashes
+    And the scope key, lock basename before .lock, and runs basename use that same identity
+    And no filesystem path includes a project hash
+    And the validator receives a leading-dash scope key as one equals-bound option value
 
-  Scenario: Private root normalizes path whitespace
-    Given the canonical project path contains a directory named Home Lab
+  Scenario: Lock storage does not collide with private directory names
+    Given projects named foo and foo.lock with existing private Memory directories
+    When both project consolidation locks are acquired
+    Then both locks coexist under memory/locks/<scopeKey>.lock
+    And releasing both locks preserves both private Memory directories
+
+  Scenario: A symlinked lock directory is rejected
+    Given memory/locks is a symlink to an outside directory
+    When a project consolidation lock is acquired
+    Then acquisition fails without writing any lock outside Memory
+
+  Scenario: Official Pi escaping preserves whitespace and replaces slashes
+    Given a canonical project path containing whitespace or special characters
     When memory paths are resolved
-    Then the private root uses Home-Lab with no whitespace and no hash suffix
+    Then leading slashes are stripped and slashes and colons become single dashes
+    And the safe path is wrapped in leading and trailing double dashes matching Pi sessions
+    And paths with the same sanitized name share their private root and lock
 
-  Scenario: An overlong readable private root fails closed
-    Given a canonical project path whose escaped readable path exceeds the portable component bound
+  Scenario: An overlong flat identity is rejected rather than truncated
+    Given an escaped canonical project path longer than 240 ASCII bytes
     When memory paths are resolved
-    Then resolution fails instead of truncating the private root
-    And it does not substitute a hash suffix
+    Then resolution fails with an explicit length diagnostic before creating files
+    And a 240-byte identity remains supported
 
-  Scenario: Legacy private memory migrates one way into the readable private root
-    Given a project has private memory under an old SHA-256 agent directory or an older readable directory containing whitespace
-    And the readable destination already contains harness-only index markers
+  Scenario: Obsolete private roots are ignored
+    Given obsolete hash-only, hash-suffixed, or former-sanitizer private Memory roots exist
     When memories are loaded or a consolidation run starts
-    Then legacy files merge into the readable private root without overwriting existing files
-    And private index markers transfer only for files whose bytes were created or matched identically
-    And a conflicting retained legacy file cannot reclassify different canonical bytes
-    And a migrated legacy source is removed only after every recognized file is safely applied and its index is rebuilt
-    But a source containing any unsupported entry remains intact so migration cannot discard unrecognized data
-    And a failed safe application leaves the legacy source intact and restores the destination predecessor bytes
-    And private memory belongs only below the Pi agent directory
+    Then none of those obsolete roots is read, imported, renamed, or deleted
+    And only the flat escaped canonical-path private root participates at runtime
 
-  Scenario: Legacy private memory cleanup is part of the migration transaction
-    Given destination files and its index were safely applied from a removable legacy source
-    When quarantining that source directory fails
-    Then the legacy source keeps its original name and contents
-    And the destination is restored to its exact predecessor
-
-  Scenario: Legacy private memory cleanup rolls back earlier quarantines
-    Given multiple removable legacy sources were safely applied to the destination
-    And an earlier source was quarantined successfully
-    When quarantining a later source fails
-    Then every source is restored to its original name and contents
-    And the destination is restored to its exact predecessor
-
-  Scenario: Legacy private memory migration rejects symlinked roots
-    Given a legacy migration source or its collision-resistant destination is a symlinked directory
-    When migration is attempted
-    Then migration fails closed without reading or writing through the symlink
-    And the legacy source data is not deleted
+  Scenario: Colliding readable names share one scope
+    Given two projects normalize to the same flat readable root
+    And that root contains Memory
+    When either project loads memories
+    Then both projects read the same private Memory
+    And they share one lock and runs scope
 
   Scenario: Project-local private memory storage is absent
     Given the package supports an agent-owned private root and a project-shared mirror

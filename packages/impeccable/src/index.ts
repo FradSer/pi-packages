@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Container, type Component, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Container, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { createStaticToolLifecycleMessageRenderer, createStaticToolLifecycleResultRenderer, eventToolLifecycle, safeDisplayText, startedToolLifecycle } from "@fradser/pi-kit";
 import { Type } from "typebox";
 import { resolver, type Bundle, type Resolver } from "./resolver.ts";
@@ -170,7 +170,7 @@ export function registerImpeccable(pi: ExtensionAPI, loader: Resolver, triggers:
     },
     renderShell: "self",
     renderCall: () => new Container(),
-    renderResult: createStaticToolLifecycleResultRenderer<{ content: unknown; details?: Bundle }, Component>({
+    renderResult: createStaticToolLifecycleResultRenderer<{ content: unknown; details?: Bundle }>({
       createSpec: result => eventToolLifecycle("impeccable", result.details?.root ?? "loading", {
         label: "loaded",
         details: [
@@ -182,10 +182,6 @@ export function registerImpeccable(pi: ExtensionAPI, loader: Resolver, triggers:
       }),
       fit: truncateToWidth,
       visibleWidth,
-      renderError: (line, theme) => ({
-        render: width => [truncateToWidth(theme.fg("error", safeDisplayText(line)), width)],
-        invalidate() {},
-      }),
     }),
   });
 }

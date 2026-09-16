@@ -11,7 +11,7 @@ Feature: Generalize harness lessons without broadening action surfaces
   Scenario: Semantic lessons use an actual skill or report a limitation
     Given a semantic correction that cannot be safely recognized by regex tool-call gates
     When either harness generation surface chooses a mechanism
-    Then it uses skillPrompts only for an actual available skill and its supported invocation
+    Then it uses a skill-scoped entry (a flat skill rule, or legacy skillPrompts) only for an actual registered skill and its supported invocation
     And it does not invent a skill or claim global interception
     And if no safe supported mechanism exists it reports the limitation without adding a rule
 
@@ -30,3 +30,4 @@ Feature: Generalize harness lessons without broadening action surfaces
     Given a direct harness request with an authoritative target path
     When the generation prompt adds generalization guidance
     Then the existing exact read create verify sequence remains unchanged
+    And direct authoring positively describes scoped confirmation, exact registered skills, and preservation when reporting limitations

@@ -1,10 +1,17 @@
 Feature: Harness consolidation alongside memory consolidation
+
   One /consolidate invocation runs a parent-owned pipeline: the established
   read-only memory planning phase, followed by a harness phase that mines the
   same immutable session snapshot for tool-call guardrail evidence (blocked
   calls, confirm outcomes, user corrections) and applies bounded changes only
-  to the personal project-local harness layer. The harness phase never mutates
+  to the project harness.json layer. The harness phase never mutates
   memory results and never writes shared config layers.
+
+  Scenario: Harness planner tests isolate runtime artifacts
+    Given an incremental Harness planner test uses a temporary project
+    When it creates its consolidation run
+    Then its run directory is below a temporary agent directory
+    And it leaves the real user agent directory untouched
 
   Scenario: /consolidate consolidates both surfaces
     Given manual consolidation completes successfully with context captured
@@ -12,10 +19,11 @@ Feature: Harness consolidation alongside memory consolidation
     Then a harness planning phase starts against the same session history
     And its plan is validated against the same run identity fields
 
-  Scenario: Harness planning uses a package-owned minimal read-only agent
+  Scenario: Harness planning uses a package-owned minimal read-only prompt
     Given the pipeline starts harness consolidation
     When the package launches the harness planner
-    Then its instructions come from the package-owned agents/harness-consolidator.md resource
+    Then its instructions come from the package-owned prompts/harness-consolidator.md resource
+    And its typed builder binds every required identity value
     And the child disables extension, skill, prompt-template, context-file, and theme discovery
     And the child receives only read, grep, find, and ls tools
     And the parent remains the only process allowed to apply harness changes
@@ -51,11 +59,11 @@ Feature: Harness consolidation alongside memory consolidation
     And missing or failing cases reject the operation before any write
 
   Scenario: Automatic learning protects explicit and manually authored rules
-    Given an existing rule comes from built-in defaults, a shared layer, or an unmarked project-local entry
+    Given an existing rule comes from built-in defaults, another layer, or an unmarked project entry
     When consolidation proposes to disable it or weaken its action or match scope
     Then the operation is rejected because automatic learning cannot disable or weaken existing rules
     And a user-looking quote or model authorization field cannot change that result
-    And a project-local rule marked as learned may be revised only with grounded evidence and passing cases
+    And a project rule marked as learned may be revised only with grounded evidence and passing cases
 
   Scenario: Oversized non-plan telemetry does not abort harness consolidation
     Given child output contains an oversized non-plan message_update event followed by a valid final plan
@@ -75,11 +83,11 @@ Feature: Harness consolidation alongside memory consolidation
     When the parent extracts the plan
     Then the plan is rejected before any validation of its operations
 
-  Scenario: Application targets only the project-local layer atomically
+  Scenario: Application targets only the project layer atomically
     Given a schema-valid harness plan
     When the parent applies it
-    Then changes merge into <project>/.pi/harness.local.json in one atomic write
-    And the user shared and project shared layers are never written
+    Then changes merge into <project>/.pi/harness.json in one atomic write
+    And the user shared and project personal layers are never written
     And a pre-apply receipt records the prior file digest and a post-apply receipt records the final digest
 
   Scenario: Harness planner termination is awaited before the phase finishes

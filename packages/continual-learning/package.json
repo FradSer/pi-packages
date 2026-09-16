@@ -23,7 +23,7 @@
   "files": [
     "index.ts",
     "extensions",
-    "agents",
+    "prompts",
     "scripts",
     "examples",
     "README.md"

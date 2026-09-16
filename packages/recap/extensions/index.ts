@@ -26,6 +26,7 @@ import {
 } from "@earendil-works/pi-tui";
 import {
   buildMarkdownThemeCallbacks,
+  createLiveActivityWidget,
   createPiThemeStyle,
   enterModelFromInput,
   getDirectorySessionKey,
@@ -33,7 +34,6 @@ import {
   modelRef,
   notifyPi,
   parseModelRef,
-  PI_SPINNER_FRAMES,
   renderPiWidgetRow,
   searchModelFromPicker,
   sortModels,
@@ -145,8 +145,12 @@ function syncDirectorySessionRecap(
 
 export default function (pi: ExtensionAPI) {
   let currentRecap = "";
-  let recapSpinnerFrame = 0;
-  let recapSpinnerTimer: NodeJS.Timeout | undefined;
+  const recapActivityWidget = createLiveActivityWidget({
+    key: "recap-activity",
+    placement: "aboveEditor",
+    fit: truncateToWidth,
+    leadingSpaces: 1,
+  });
   let shouldRecap = false;
   let initialPromptRecapStarted = false;
   let firstPromptRecap: Promise<string | undefined> | undefined;
@@ -171,33 +175,20 @@ export default function (pi: ExtensionAPI) {
     try {
       if (ctx.mode !== "tui") return;
 
-      if (!config.enabled || (!currentRecap && !generatingRecap)) {
+      if (!config.enabled || !generatingRecap) recapActivityWidget.clear(ctx);
+      else recapActivityWidget.update(ctx, [{ id: "recap", identity: "Recapping..." }]);
+
+      if (!config.enabled || !currentRecap) {
         ctx.ui.setWidget("recap", undefined);
         return;
       }
 
-      if (!generatingRecap && recapSpinnerTimer) {
-        clearInterval(recapSpinnerTimer);
-        recapSpinnerTimer = undefined;
-      }
-
       ctx.ui.setWidget(
         "recap",
-        (tui, theme) => {
-          if (generatingRecap) {
-            recapSpinnerFrame = 0;
-            recapSpinnerTimer = setInterval(() => {
-              recapSpinnerFrame =
-                (recapSpinnerFrame + 1) % PI_SPINNER_FRAMES.length;
-              tui.requestRender();
-            }, 80);
-            recapSpinnerTimer.unref?.();
-          }
-
+        (_tui, theme) => {
           return {
             render: (width: number) => {
-              if (!config.enabled || (!currentRecap && !generatingRecap))
-                return [];
+              if (!config.enabled || !currentRecap) return [];
               const icon = theme.fg("accent", "✦");
               const label = theme.fg("dim", "Recap:");
               const firstPrefix = `${icon} ${label} `;
@@ -205,11 +196,6 @@ export default function (pi: ExtensionAPI) {
               const contentWidth = Math.max(15, width - prefixWidth);
               const indent = " ".repeat(prefixWidth);
               const lines: string[] = [];
-
-              if (generatingRecap) {
-                const spinner = PI_SPINNER_FRAMES[recapSpinnerFrame];
-                lines.push(renderPiWidgetRow(theme.fg("accent", `${spinner} Recapping...`), width, truncateToWidth, 0));
-              }
 
               if (currentRecap) {
                 const style = createPiThemeStyle(theme);
@@ -223,19 +209,14 @@ export default function (pi: ExtensionAPI) {
                     ? style.dim("─".repeat(Math.max(1, contentWidth)))
                     : raw;
                   const prefix = i === 0 ? firstPrefix : indent;
-                  lines.push(renderPiWidgetRow(`${prefix}${content}`, width, truncateToWidth, 0));
+                  lines.push(renderPiWidgetRow(`${prefix}${content}`, width, truncateToWidth, 1));
                 }
               }
 
               return lines;
             },
             invalidate: () => {},
-            dispose: () => {
-              if (recapSpinnerTimer) {
-                clearInterval(recapSpinnerTimer);
-                recapSpinnerTimer = undefined;
-              }
-            },
+            dispose: () => {},
           };
         },
         { placement: "aboveEditor" },

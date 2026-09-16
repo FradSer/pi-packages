@@ -1,65 +1,128 @@
-/** Declarative guardrail policy shapes shared by config loading and the
- * evaluation engine. */
+/**
+ * Declarative harness rule shapes and resolved configuration.
+ * Domain layer: zero external imports — pure interfaces and value objects only.
+ */
 
-/** Point in the agent lifecycle where a policy is evaluated. Existing rules
- * default to tool-call so older configuration remains a pre-execution gate. */
+export interface SkillRule {
+  id: string;
+  enabled?: boolean;
+  skill: string;
+  instructions: string;
+  source?: string;
+}
+
+export interface BashRule {
+  id: string;
+  enabled?: boolean;
+  bash: string;
+  action?: "confirm" | "block";
+  message: string;
+  source?: string;
+  regexp?: RegExp;
+}
+
+export interface TextRule {
+  id: string;
+  enabled?: boolean;
+  text: string;
+  instructions: string;
+  source?: string;
+  regexp?: RegExp;
+}
+
+export interface DisabledRule {
+  id: string;
+  enabled: false;
+  skill?: string;
+  bash?: string;
+  text?: string;
+  instructions?: string;
+  message?: string;
+  action?: "confirm" | "block";
+  source?: string;
+}
+
+export type Rule = SkillRule | BashRule | TextRule | DisabledRule;
+
+/** A declaration that won an id but failed validation. Its selector scope
+ * decides whether Bash evaluation is incomplete: a bash-scoped or ambiguous
+ * (no single valid selector) invalid rule blocks Bash; a clearly skill- or
+ * text-scoped one does not. */
+export interface InvalidRuleInfo {
+  id: string;
+  source: string;
+  errors: string[];
+  hasBash: boolean;
+  hasSkill: boolean;
+  hasText: boolean;
+  /** No single valid selector could be determined (e.g. duplicate id, missing
+   * selector, or multiple selectors). Treated conservatively as bash-affecting. */
+  ambiguous: boolean;
+}
+
+export interface RuleLayer {
+  /** Human-readable origin, e.g. "~/.pi/agent/harness.json". */
+  source: string;
+  rules?: Array<Record<string, unknown>>;
+  /** Obsolete format containers retained for diagnostic detection */
+  policies?: Array<Record<string, unknown>>;
+  skillPrompts?: Record<string, unknown>;
+  disabled?: string[];
+  errors?: string[];
+  /** True when this layer's bytes could not be read/parsed and a stale
+   * snapshot (or nothing) is standing in. Consumers must not treat a rule that
+   * vanished under a stale layer as a deliberate removal. */
+  stale?: boolean;
+}
+
+export type PolicyLayer = RuleLayer;
+
+export interface BashEvaluationResult {
+  decision: "execute" | "confirm" | "block" | "incomplete";
+  messages: string[];
+  matchedRules: BashRule[];
+  reason?: string;
+  /** Rule ids whose invalid declarations made Bash evaluation incomplete. */
+  incompleteRuleIds?: string[];
+}
+
+export interface ResolvedHarnessConfig {
+  rules: Rule[];
+  errors: string[];
+  /** Structured invalid-declaration records, keyed by winning id. */
+  invalidRules: InvalidRuleInfo[];
+  /** False when any invalid winning rule is bash-scoped or ambiguous, meaning
+   * Bash coverage is incomplete and Bash calls must not be silently executed. */
+  bashEvaluationComplete: boolean;
+  /** True when any layer fell back to a stale snapshot or failed to read, so a
+   * missing rule is indeterminate rather than a confirmed removal. */
+  configReadIncomplete: boolean;
+  /** Legacy views for transitional callers and existing user files. */
+  policies: Array<Policy & { regexps: RegExp[] }>;
+  skillPrompts: Record<string, SkillPrompt>;
+}
+
+export type ResolvedConfig = ResolvedHarnessConfig;
+
 export type PolicyPhase = "tool-call" | "output" | "artifact";
 
 export interface Policy {
-  /** Unique name; innermost layer wins on conflicts, disable lists target it. */
   name: string;
-  /** Evaluation phase. Omitted declarations normalize to tool-call. */
   phase?: PolicyPhase;
-  /** Restrict to these tool names; undefined matches every tool. */
   tools?: string[];
-  /** Dot paths into the tool arguments whose string values are tested
-   * against the pattern(s). Segments traverse arrays ("edits.newText" scans
-   * every edit). Prefer explicit content paths — the default scans the whole
-   * argument JSON, which also matches replaced source quoted in edit inputs. */
   paths?: string[];
-  /** Workspace-relative files to inspect after any matching tool result.
-   * This is required when an artifact is produced by a command tool such as
-   * bash, whose result does not carry a canonical file path. */
   artifactPaths?: string[];
-  /** Single regex source. */
   pattern?: string;
-  /** Multiple regex sources; any match triggers the action. */
   patterns?: string[];
-  /** AND-gate: must also match somewhere in the args before pattern(s) are
-   * considered. Scopes a policy to a class of calls (e.g. only UI files). */
   require?: { path?: string; pattern: string };
-  /** block (default) refuses the call; confirm asks the user; observe reports and proceeds. */
   action?: "block" | "confirm" | "observe";
-  /** The corrective guidance fed back to the model when the call is blocked. */
   reason: string;
-  /** Layer that supplied this policy; set during merge, not authored. */
   source?: string;
 }
 
 export interface SkillPrompt {
-  /** Literal guidance to add when the named skill is expanded by Pi. */
   prompt: string;
-  /** Where Pi should receive the guidance. */
   target: "system" | "user";
-  /** Optional regex that must match the expanded skill's user message. */
   userMessagePattern?: string;
-  /** Configuration layer that supplied this prompt; assigned during merge. */
   source?: string;
-}
-
-export interface PolicyLayer {
-  /** Human-readable origin, e.g. "~/.pi/agent/harness.json". */
-  source: string;
-  policies?: Array<Record<string, unknown>>;
-  /** Per-skill guidance, resolved by skill name with innermost precedence. */
-  skillPrompts?: Record<string, unknown>;
-  disabled?: string[];
-  /** Non-fatal load problems (bad JSON shape) reported once. */
-  errors?: string[];
-}
-
-export interface ResolvedConfig {
-  policies: Array<Policy & { regexps: RegExp[] }>;
-  skillPrompts: Record<string, SkillPrompt>;
-  errors: string[];
 }

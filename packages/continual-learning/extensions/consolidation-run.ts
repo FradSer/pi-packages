@@ -7,7 +7,7 @@ import type { ChildProcess } from "node:child_process";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { terminateChildProcess } from "@fradser/pi-kit";
 import { resolveMemoryPaths, type MemoryPaths } from "./memory-paths";
-import { isMemoryFilename, migrateLegacyMemoryDirs } from "./memory-files";
+import { isMemoryFilename } from "./memory-files";
 
 export const CONSOLIDATION_SCHEMA_VERSION = 1;
 export const MAX_PLAN_BYTES = 512_000;
@@ -661,10 +661,9 @@ async function listMemoryRootFiles(root: string): Promise<Map<string, string>> {
  * be the fresh one. Without this, any pre-existing drift fails post-apply validation and every
  * full-scope consolidation becomes unrunnable until manual repair.
  */
-export async function normalizeMirrorDrift(memory: MemoryPaths, cwdVariants: readonly string[] = []): Promise<MirrorNormalization> {
+export async function normalizeMirrorDrift(memory: MemoryPaths): Promise<MirrorNormalization> {
   const publicDir = memory.publicDir;
   if (!publicDir) return { repaired: [], removed: [] };
-  await migrateLegacyMemoryDirs(memory, cwdVariants).catch(() => {});
   const harnessStat = await fsp.lstat(memory.harnessDir).then(
     () => true,
     (error: unknown) => {
@@ -740,7 +739,7 @@ export async function createConsolidationRun(ctx: ExtensionContext, cwd: string,
   const lock = await acquireConsolidationLock(paths, { runId: paths.runId, cwd });
   try {
     await ensureConsolidationRunDir(paths);
-    const normalization = await normalizeMirrorDrift(paths.memory, [cwd]);
+    const normalization = await normalizeMirrorDrift(paths.memory);
     const captured = noContext ? undefined : await captureConsolidationSnapshot(ctx, paths);
     const contextManifest = captured?.manifest ?? await writeNoContextManifest(paths);
     const snapshot = captured?.snapshot ?? {

@@ -66,7 +66,7 @@ def test_impeccable_live_guidance_is_injected_only_for_matching_expanded_user_me
                   prompt: expanded(userMessage),
                   images: undefined,
                   systemPrompt,
-                  systemPromptOptions: {{}},
+                  systemPromptOptions: {{skills:[{{name:"impeccable"}}]}},
                 }}, {{ cwd: {json.dumps(str(project))}, hasUI: false }});
                 if (result?.systemPrompt !== undefined) systemPrompt = result.systemPrompt;
               }}

@@ -12,7 +12,7 @@ Native Pi packages for reusable skills, extensions, and workflow commands.
 
 Compact `agent` delegation and shared `agent_event` communication for Pi. New work starts an independent session, fresh by default or forked from the Leader's context with `fork: true`; final answers return automatically. Work IDs target existing execution. Resident teams, board work, and peer messaging remain available.
 
-**Tools:** `agent`, `agent_event`, `teammate_spawn`, `teammate_shutdown`, `task_create`, `send_message`, `task_list`
+**Tools:** `agent`, `work`, `agent_event`
 
 **Command:** `/agent-teams`
 
@@ -51,6 +51,8 @@ pi install npm:@fradser/pi-context
 Learns durable memory and verifiable constraints from completed user tasks. Memory supplies relevant context before generation; Harness checks tool calls, assistant output, and configured file artifacts, with bounded corrective feedback. `/consolidate` also runs learning explicitly.
 
 **Commands:** `/memory`, `/consolidate`, `/harness`
+
+Harness authoring and automatic learning default to project `.pi/harness.json`; `.pi/harness.local.json` is only for explicitly requested non-Git-tracked personal configuration (`/harness --local`). Global configuration uses only `~/.pi/agent/harness.json`. Skill guidance requires a registered skill and its expanded invocation; persistence is not trigger verification or global semantic enforcement.
 
 **Install:**
 

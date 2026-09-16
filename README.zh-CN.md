@@ -12,7 +12,7 @@
 
 通过简洁的 `agent` 委派和共享 `agent_event` 通信进行协作。每次新工作启动独立会话，默认使用全新上下文，也可用 `fork: true` 继承 Leader 上下文；最终回答自动回传，`work` 定向已有执行。仍支持常驻团队、任务看板和点对点消息。
 
-**工具：** `agent`、`agent_event`、`teammate_spawn`、`teammate_shutdown`、`task_create`、`send_message`、`task_list`
+**工具：** `agent`、`work`、`agent_event`
 
 **命令：** `/agent-teams`
 
@@ -51,6 +51,8 @@ pi install npm:@fradser/pi-context
 从完成的用户任务中自动学习持久记忆与可验证约束。Memory 在生成前提供相关上下文；Harness 检查工具调用、模型输出和指定文件产物，并提供次数受限的纠错反馈。也可通过 `/consolidate` 显式整理。
 
 **命令：** `/memory`、`/consolidate`、`/harness`
+
+Harness 编写与自动学习默认写入项目 `.pi/harness.json`；只有明确请求不纳入 Git 的个人配置时，才使用 `.pi/harness.local.json`（`/harness --local`）。全局配置仅支持 `~/.pi/agent/harness.json`。Skill 指导需要已注册的 skill 及其展开后的调用；文件保存成功不等于触发验证通过，更不代表全局语义强制执行。
 
 **安装：**
 

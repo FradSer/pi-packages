@@ -101,7 +101,59 @@ def test_transition_graph_rejects_invalid_edges_instead_of_restarting() -> None:
     """)
     assert result["valid"]["procedure"] == "implement"
     assert result["valid"]["phase"] == "implement"
-    assert "Allowed next procedures: implement, code-review" in result["invalid"]
+    assert "Allowed next procedures: codebase-design, implement, code-review" in result["invalid"]
+
+
+def test_readable_phase_title_maps_triage_to_task_triage() -> None:
+    result = run_typescript("""
+        import { readablePhaseTitle } from "./packages/matt-pocock/src/workflow.ts";
+        console.log(JSON.stringify({ triage: readablePhaseTitle("triage") }));
+    """)
+    assert result["triage"] == "Task Triage"
+
+
+def test_exploration_lateral_transitions_and_bug_diagnostic_returns() -> None:
+    result = run_typescript("""
+        import { transitionState } from "./packages/matt-pocock/src/workflow.ts";
+        const ideaResearch = {
+          version: 1, workItemId: "w-1", route: "idea-to-ship",
+          procedure: "research", phase: "research",
+          status: "active", loadedReferences: [],
+        };
+        const ideaProto = transitionState(ideaResearch, "prototype");
+
+        const protoState = {
+          version: 1, workItemId: "w-1", route: "idea-to-ship",
+          procedure: "prototype", phase: "prototype",
+          status: "active", loadedReferences: [],
+        };
+        const ideaBackToResearch = transitionState(protoState, "research");
+
+        const bugImplement = {
+          version: 1, workItemId: "w-2", route: "hard-bug",
+          procedure: "implement", phase: "implement",
+          status: "active", loadedReferences: [],
+        };
+        const bugBackToDiagnosis = transitionState(bugImplement, "diagnosing-bugs");
+
+        const archSurvey = {
+          version: 1, workItemId: "w-3", route: "architecture",
+          procedure: "improve-codebase-architecture", phase: "survey",
+          status: "active", loadedReferences: [],
+        };
+        const archDesign = transitionState(archSurvey, "codebase-design");
+
+        console.log(JSON.stringify({
+          ideaProto: ideaProto.procedure,
+          ideaBackToResearch: ideaBackToResearch.procedure,
+          bugBackToDiagnosis: bugBackToDiagnosis.procedure,
+          archDesign: archDesign.procedure,
+        }));
+    """)
+    assert result["ideaProto"] == "prototype"
+    assert result["ideaBackToResearch"] == "research"
+    assert result["bugBackToDiagnosis"] == "diagnosing-bugs"
+    assert result["archDesign"] == "codebase-design"
 
 
 def test_standalone_capability_inventory_preserves_invocation_modes() -> None:

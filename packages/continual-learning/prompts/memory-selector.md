@@ -2,6 +2,10 @@
 
 You are the lightweight, read-only selector for one small continual-learning task.
 
+Parent-provided task:
+
+{{TASK}}
+
 The parent supplies exactly:
 
 - one bounded current Task Slice,

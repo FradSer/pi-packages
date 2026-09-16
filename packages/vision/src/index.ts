@@ -8,18 +8,16 @@ import type {
   ToolResultEvent,
 } from "@earendil-works/pi-coding-agent";
 import {
+  createLiveActivityWidget,
   enterModelFromInput,
-  clearPiStatus,
-  clearPiWorkingIndicator,
   modelLabel,
   modelRef,
   notifyPi,
   parseModelRef,
   searchModelFromPicker,
-  setPiStatus,
-  startPiWorkingIndicator,
   sortModels,
 } from "@fradser/pi-kit";
+import { truncateToWidth } from "@earendil-works/pi-tui";
 import { buildImageAnalysisContext, describeImages } from "./bridge";
 import { extractInputImages, mayContainInputImage } from "./input-images";
 import {
@@ -80,14 +78,22 @@ function imageReadingStatus(images: ImageContent[], config: VisionConfig): strin
   return `reading ${images.length} image${images.length === 1 ? "" : "s"} · ${config.provider}/${config.model}`;
 }
 
+const imageReadingWidget = createLiveActivityWidget({
+  key: "vision-reading",
+  placement: "aboveEditor",
+  fit: truncateToWidth,
+});
+
 function showImageReadingProgress(ctx: ExtensionContext, images: ImageContent[]): void {
-  setPiStatus(ctx.ui, "vision", imageReadingStatus(images, config));
-  startPiWorkingIndicator(ctx.ui);
+  imageReadingWidget.update(ctx, [{
+    id: "vision-reading",
+    identity: "Vision...",
+    activity: imageReadingStatus(images, config),
+  }]);
 }
 
 function clearImageReadingProgress(ctx: ExtensionContext): void {
-  clearPiWorkingIndicator(ctx.ui);
-  clearPiStatus(ctx.ui, "vision");
+  imageReadingWidget.clear(ctx);
 }
 
 function updateStatus(ctx: ExtensionContext): void {

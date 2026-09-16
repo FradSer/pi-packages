@@ -228,7 +228,7 @@ def test_headless_pipeline_freezes_context_and_finishes_all_phases() -> None:
       await emit('session_start', {});
       await emit('input', { source: 'interactive' });
       await emit('agent_settled', {});
-      const lockFiles = fs.existsSync(path.join(agent, 'memory')) ? fs.readdirSync(path.join(agent, 'memory')).filter(name => name.endsWith('.lock')) : [];
+      const lockFiles = fs.existsSync(path.join(agent, 'memory', 'locks')) ? fs.readdirSync(path.join(agent, 'memory', 'locks')).filter(name => name.endsWith('.lock')) : [];
       const { resolveMemoryPaths } = await import('./packages/continual-learning/extensions/memory-paths.ts');
       const memoryPaths = resolveMemoryPaths(cwd);
       const created = fs.existsSync(path.join(memoryPaths.harnessDir, 'preference.md'));

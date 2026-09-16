@@ -55,6 +55,7 @@ Feature: Matt Pocock workflow harness
     Given no workflow is active in the session
     When an agent turn starts
     Then the harness adds guidance on available engineering workflows and how to activate them
+    And the guidance leads with starting a workflow via matt_pocock_workflow while naming no unavailable tool
 
   Scenario: Agent-document work uses a standalone capability without workflow state
     Given no workflow is active in the session
@@ -97,6 +98,18 @@ Feature: Matt Pocock workflow harness
     And every declared file, dependency, disclosure, alias, and transition resolves
     And every workflow route has exactly one entry with its title, menu label, and routing description
     And every internal reference has an inbound catalog edge
+    And all workflow procedures in a route are reachable from the route entry
+
+  Scenario: Exploration procedures allow bidirectional lateral transitions
+    Given an active idea-to-ship workflow is at the research or prototype procedure
+    When the agent needs to alternate between research and prototyping
+    Then the catalog permits lateral transitions between research and prototype
+    And it does not require backtracking to shaping
+
+  Scenario: Bug diagnostics allow returning to root cause analysis
+    Given an active hard-bug workflow is at the implementation or review phase
+    When a hypothesis is disproven or requires renewed diagnosis
+    Then the catalog permits transitioning back to diagnosing-bugs
 
   Scenario: Starting a workflow loads its mandatory dependency closure
     Given improve-codebase-architecture requires the shared codebase-design vocabulary

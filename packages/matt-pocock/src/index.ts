@@ -8,11 +8,12 @@ import {
 import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
   clearPiStatus,
+  createStaticToolLifecycleMessageRenderer,
   createStaticToolLifecycleResultRenderer,
   eventToolLifecycle,
-  formatToolErrorLine,
   notifyPi,
   safeDisplayText,
+  startedToolLifecycle,
 } from "@fradser/pi-kit";
 import {
   isNativeDialogSupported,
@@ -329,11 +330,15 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
   });
 
   if (typeof pi.registerMessageRenderer === "function") {
-    pi.registerMessageRenderer("matt-pocock-procedure", (message, _options, theme) => {
+    pi.registerMessageRenderer("matt-pocock-procedure", (message, options, theme) => {
       const details = (message.details ?? {}) as Partial<WorkflowState>;
       const subject = formatReadableWorkflowSubject(details.route ?? "workflow", details.phase ?? "active");
-      const prefix = theme.fg("customMessageLabel", theme.bold("[matt pocock] started ·"));
-      return new Text(`${prefix} ${safeDisplayText(subject)}`, 0, 0);
+      return createStaticToolLifecycleMessageRenderer({
+        createSpec: () => startedToolLifecycle("matt pocock", subject, { label: "started" }),
+        expandHint: "to expand",
+        fit: truncateToWidth,
+        visibleWidth,
+      })(message, options, theme);
     });
   }
 
@@ -349,24 +354,26 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     description: "Start a Matt Pocock engineering workflow, run a curated standalone capability, or load a reference disclosed by that capability. Workflows for structured multi-step engineering; capabilities for focused methods (research, prototypes, TDD, code review, grilling, domain modeling, codebase design, writing-for-agents, merge conflicts, de-slop).",
     promptSnippet: "Start a Matt Pocock workflow or run a standalone capability",
     promptGuidelines: [
-      "mode workflow: structured multi-step engineering task.",
+      "mode workflow: structured multi-step engineering task (idea-to-ship for features, hard-bug for non-trivial bugs, architecture for deepening/refactoring, wayfinding for ambiguous maps, triage for issues).",
       "mode capability: a curated capability directly matches the request.",
       "mode reference: a reference named in a capability result.",
+      "Start with matt_pocock_workflow; the started workflow carries its procedure and next-step guidance.",
     ],
     parameters: workflowGatewayParameters(),
     renderShell: "self",
     renderCall: () => new Text("", 0, 0),
-    renderResult(result, _options, theme, context) {
-      const text = result.content.find((part) => part.type === "text")?.text ?? "";
-      if (context.isError) return new Text(theme.fg("error", formatToolErrorLine(text)), 0, 0);
+    renderResult(result, options, theme, context) {
       const details = (result.details ?? {}) as { mode?: string; route?: string; phase?: string; capability?: string; reference?: string };
       const subject = details.mode === "workflow"
         ? formatReadableWorkflowSubject(details.route ?? "workflow", details.phase ?? "active")
         : details.mode === "reference"
           ? `${details.capability ?? "capability"} · ${details.reference ?? "reference"}`
           : details.capability ?? "standalone capability";
-      const prefix = theme.fg("customMessageLabel", theme.bold("[matt pocock] started ·"));
-      return new Text(`${prefix} ${safeDisplayText(subject)}`, 0, 0);
+      return createStaticToolLifecycleResultRenderer({
+        createSpec: () => startedToolLifecycle("matt pocock", subject, { label: "started" }),
+        fit: truncateToWidth,
+        visibleWidth,
+      })(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       clearPiStatus(ctx.ui, "matt-pocock");
@@ -406,12 +413,13 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     parameters: activeWorkflowParameters(),
     renderShell: "self",
     renderCall: () => new Text("", 0, 0),
-    renderResult(result, _options, theme, context) {
-      const text = result.content.find((part) => part.type === "text")?.text ?? "";
-      if (context.isError) return new Text(theme.fg("error", formatToolErrorLine(text)), 0, 0);
+    renderResult(result, options, theme, context) {
       const details = (result.details ?? {}) as { action?: string; subject?: string };
-      const prefix = theme.fg("customMessageLabel", theme.bold("[matt pocock] event ·"));
-      return new Text(`${prefix} ${safeDisplayText(details.subject ?? details.action ?? "workflow updated")}`, 0, 0);
+      return createStaticToolLifecycleResultRenderer({
+        createSpec: () => eventToolLifecycle("matt pocock", details.subject ?? details.action ?? "workflow updated", { label: "event" }),
+        fit: truncateToWidth,
+        visibleWidth,
+      })(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (!activeWorkflow) throw new Error("No active Matt Pocock workflow.");
@@ -485,7 +493,6 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     renderCall: () => new Text("", 0, 0),
     renderResult(result, options, theme, context) {
       const text = result.content.find((part) => part.type === "text")?.text ?? "";
-      if (context.isError) return new Text(theme.fg("error", formatToolErrorLine(text)), 0, 0);
       const params = (context.args ?? {}) as { question?: string };
       const details = (result.details ?? {}) as { answer?: string; is_custom?: boolean; pending?: boolean; timed_out?: boolean; source?: string };
       const cleanAnswer = safeDisplayText(details.answer ?? text ?? "(none)").replace(/\t/g, "  ").trim();
@@ -508,7 +515,6 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         expandHint: safeExpandHint(),
         fit: truncateToWidth,
         visibleWidth,
-        renderError: (line, currentTheme) => new Text(currentTheme.fg("error", line), 0, 0),
       })(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {

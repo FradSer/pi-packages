@@ -29,7 +29,7 @@ class TestInitExtension(unittest.TestCase):
             "nested",
             "independent scope",
             "do not overwrite",
-            "200-400 words",
+            "No word quota",
             "git history",
         ):
             self.assertIn(phrase, content)
@@ -118,7 +118,7 @@ console.log(JSON.stringify(buildInitPrompt("/tmp/example-repo")));
         self.assertNotIn("\n\n\n", prompt)
         self.assertNotIn("\r", prompt)
         self.assertIn(
-            "Treat the current working directory as the active scope for ./AGENTS.md, and inspect all existing instruction files across the repository before editing anything.",
+            "Treat the current working directory as the active scope for ./AGENTS.md.",
             prompt,
         )
 
@@ -139,6 +139,30 @@ console.log(JSON.stringify(buildInitPrompt("/tmp/example-repo", "focus on\\nrele
         multiline_prompt = json.loads(multiline_result.stdout)
         self.assertIn("focus on release commands", multiline_prompt)
         self.assertNotIn("\r", multiline_prompt)
+
+    def test_prompt_audits_instruction_cost_and_decision_boundaries(self) -> None:
+        content = self.ext_source()
+        for phrase in (
+            "Read repository evidence as needed",
+            "stale, redundant, or overprescriptive",
+            "task-specific documentation pointers",
+            "No word quota or mandatory section checklist",
+            "verified safe local workflows",
+            "genuine safety and approval boundaries",
+            "completion and stopping conditions",
+            "needless test runs",
+            "across models",
+            "short, precise triggers",
+            "Do not edit skill files unless explicitly requested",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, content)
+        for obsolete in (
+            "200-400 words",
+            "inspect all existing instruction files across the repository before editing anything",
+            "Determine the project structure, source and test locations",
+        ):
+            self.assertNotIn(obsolete, content)
 
     def test_package_manifest_loads_extensions_directory(self) -> None:
         manifest = json.loads((UTILS_PKG_DIR / "package.json").read_text(encoding="utf-8"))

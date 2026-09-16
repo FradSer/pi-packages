@@ -39,7 +39,7 @@ def validate_against_snapshot(plan: dict, snapshot: dict, **context: object) -> 
 
 
 def apply_ops(tmp_path: Path, ops: list[dict]) -> tuple[dict, Path]:
-    target = tmp_path / "harness.local.json"
+    target = tmp_path / "harness.json"
     src = f"""
         import {{ applyHarnessOps }} from './packages/continual-learning/extensions/harness-consolidation.ts';
         const result = await applyHarnessOps({json.dumps(str(target))}, {json.dumps(ops)}, new Set(['sk', 'impeccable']));
@@ -419,7 +419,7 @@ def test_automatic_learning_rejects_shared_and_manual_rule_changes() -> None:
     layers = [
         {"source": "built-in defaults", "policies": [executable_policy("built-in")]},
         {"source": "user", "policies": [executable_policy("shared")]},
-        {"source": "project.local", "policies": [executable_policy("manual"), executable_policy("learned")]},
+        {"source": "project", "policies": [executable_policy("manual"), executable_policy("learned")]},
     ]
     update_manual = grounded_plan(
         {"op": "updatePolicy", "name": "manual", "policy": executable_policy("manual", "confirm"), "cases": executable_cases("confirm")}
@@ -439,7 +439,7 @@ def test_automatic_learning_rejects_shared_and_manual_rule_changes() -> None:
     )
     assert any("shared" in error or "protected" in error for error in errors)
 
-    prompt_layers = layers + [{"source": "project.local", "skillPrompts": {"impeccable": {"prompt": "manual guidance", "target": "system"}}}]
+    prompt_layers = layers + [{"source": "project", "skillPrompts": {"impeccable": {"prompt": "manual guidance", "target": "system"}}}]
     overwrite_prompt = grounded_plan(
         {"op": "addSkillPrompt", "name": "impeccable", "prompt": "replacement", "target": "system"}
     )
@@ -450,7 +450,7 @@ def test_automatic_learning_rejects_shared_and_manual_rule_changes() -> None:
 
 
 def test_automatic_learning_cannot_weaken_even_with_user_looking_evidence() -> None:
-    layers = [{"source": "project.local", "policies": [executable_policy("learned")]}]
+    layers = [{"source": "project", "policies": [executable_policy("learned")]}]
     weaken = grounded_plan(
         {"op": "updatePolicy", "name": "learned", "policy": executable_policy("learned", "confirm"), "cases": executable_cases("confirm")}
     )
@@ -480,7 +480,7 @@ def test_automatic_learning_cannot_weaken_even_with_user_looking_evidence() -> N
 
 
 def test_learned_rule_can_receive_a_reason_only_revision() -> None:
-    layers = [{"source": "project.local", "policies": [executable_policy("learned")]}]
+    layers = [{"source": "project", "policies": [executable_policy("learned")]}]
     revision = grounded_plan(
         {
             "op": "updatePolicy",
@@ -497,7 +497,7 @@ def test_learned_rule_can_receive_a_reason_only_revision() -> None:
 
 
 def test_learned_rule_scope_changes_are_rejected_as_unproven_weakening() -> None:
-    layers = [{"source": "project.local", "policies": [executable_policy("learned")]}]
+    layers = [{"source": "project", "policies": [executable_policy("learned")]}]
     remove_tool = grounded_plan(
         {
             "op": "updatePolicy",
@@ -528,7 +528,7 @@ def test_learned_rule_scope_changes_are_rejected_as_unproven_weakening() -> None
 def test_automatic_apply_records_parent_owned_learned_provenance(tmp_path: Path) -> None:
     op = {"op": "addPolicy", "name": "learned-on-apply", "policy": executable_policy("learned-on-apply"), "cases": executable_cases()}
     evidence = grounded_plan(op)["evidence"]
-    target = tmp_path / "harness.local.json"
+    target = tmp_path / "harness.json"
     src = f"""
         import {{ applyHarnessOps }} from './packages/continual-learning/extensions/harness-consolidation.ts';
         const result = await applyHarnessOps(
@@ -557,7 +557,7 @@ def test_apply_creates_layer_file_when_missing(tmp_path: Path) -> None:
 
 
 def test_add_policy_conflict_rejects_whole_plan_without_writing(tmp_path: Path) -> None:
-    target = tmp_path / "harness.local.json"
+    target = tmp_path / "harness.json"
     target.write_text(json.dumps({"policies": [policy("dup")]}), encoding="utf-8")
     before = target.read_bytes()
     ops = [
@@ -610,7 +610,7 @@ def test_skill_prompt_pattern_is_persisted_and_invalid_pattern_is_rejected(tmp_p
 
 
 def test_invalid_existing_json_is_reported_not_overwritten(tmp_path: Path) -> None:
-    target = tmp_path / "harness.local.json"
+    target = tmp_path / "harness.json"
     target.write_text("{not json", encoding="utf-8")
     before = target.read_bytes()
     src = f"""
@@ -650,6 +650,7 @@ def test_consolidate_pipeline_gates_harness_phase() -> None:
 
 def test_incremental_harness_task_uses_authoritative_dossier_without_broad_discovery(tmp_path: Path) -> None:
     result = run_bun(rf'''
+      process.env.PI_CODING_AGENT_DIR = {json.dumps(str(tmp_path / 'agent'))};
       import {{ mock }} from 'bun:test';
       import fs from 'node:fs';
       import path from 'node:path';
@@ -677,8 +678,9 @@ def test_incremental_harness_task_uses_authoritative_dossier_without_broad_disco
       const dossier = path.join(run.manifest.runDir, 'incremental-learning-dossier.json'); fs.writeFileSync(dossier, '{{}}\n');
       const outcome = await planHarnessConsolidationPhase(ctx, {{ pkgDir: process.cwd(), cwd, reason: 'incremental', run, explorationPath: dossier, explorationDigest: 'dossier-digest', resolveCli: () => ({{ command: process.execPath, args: [] }}) }});
       await releaseConsolidationRun(run);
-      console.log(JSON.stringify({{ ok: outcome.ok, task: tasks[0] }}));
+      console.log(JSON.stringify({{ ok: outcome.ok, task: tasks[0], runDir: run.manifest.runDir }}));
     ''')
+    assert Path(result["runDir"]).is_relative_to(tmp_path / "agent")
     assert result["ok"] is True
     assert "Authoritative Learning Dossier" in result["task"]
     assert "Immutable task-slice snapshot" in result["task"]
@@ -885,7 +887,7 @@ def test_planner_timeout_output_limit_and_post_spawn_cancel_await_child_close() 
 
 
 def test_no_cli_dependency_fails_isolated_without_touching_state(tmp_path: Path) -> None:
-    target = tmp_path / "harness.local.json"
+    target = tmp_path / "harness.json"
     target.write_text(json.dumps({"policies": [policy("keep")]}), encoding="utf-8")
     before = target.read_bytes()
     script = f"""
@@ -917,14 +919,14 @@ def test_phase_writes_pre_receipt_before_apply_and_post_after(tmp_path: Path) ->
     assert 'postBytes.equals(nowBytes)' in src
 
 
-def test_harness_planner_uses_package_agent_and_minimal_readonly_args() -> None:
+def test_harness_planner_uses_package_prompt_and_minimal_readonly_args() -> None:
     src = (PKG_DIR / "extensions" / "harness-consolidation.ts").read_text(encoding="utf-8")
-    assert 'resourcePath: "agents/harness-consolidator.md"' in src
+    assert "buildHarnessConsolidatorPrompt" in src
     assert 'minimalPiWorkerArgs(["read", "grep", "find", "ls"])' in src
 
 
 def test_procedure_declares_readonly_boundary_and_bounds() -> None:
-    proc = (PKG_DIR / "agents" / "harness-consolidator.md").read_text(encoding="utf-8")
+    proc = (PKG_DIR / "prompts" / "harness-consolidator.md").read_text(encoding="utf-8")
     assert "Do not write, edit, delete, rename, or copy any file." in proc
     assert "At most 12 operations total." in proc
     assert '"harness-consolidation-plan"' in proc

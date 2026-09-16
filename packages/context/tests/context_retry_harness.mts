@@ -8,25 +8,26 @@ type Result = { text: string; stderr: string; exitCode: number; cancelled: boole
 
 const empty: Result = { text: "", stderr: "", exitCode: 0, cancelled: false };
 const answer: Result = { text: "Retry answer", stderr: "", exitCode: 0, cancelled: false };
-const calls: Array<{ query: string; toolCallId: string; finalAnswerRetry: boolean }> = [];
+const calls: Array<{ query: string; finalAnswerRetry: boolean }> = [];
 const retried = await runResearchWithFinalAnswerRetry(
   "research React",
-  "call-1",
   undefined,
   undefined,
-  async (query, toolCallId, _signal, _onUpdate, finalAnswerRetry) => {
-    calls.push({ query, toolCallId, finalAnswerRetry });
+  async (query, _signal, _onUpdate, finalAnswerRetry) => {
+    calls.push({ query, finalAnswerRetry });
     return calls.length === 1 ? empty : answer;
   },
 );
 assert.equal(retried.text, "Retry answer");
 assert.equal(retried.retried, true);
 assert.deepEqual(calls, [
-  { query: "research React", toolCallId: "call-1", finalAnswerRetry: false },
-  { query: "research React", toolCallId: "call-1", finalAnswerRetry: true },
+  { query: "research React", finalAnswerRetry: false },
+  { query: "research React", finalAnswerRetry: true },
 ]);
-const retryPrompt = buildResearchPrompt("research React", "call-1");
+const retryPrompt = buildResearchPrompt("research React", true);
 assert.ok(retryPrompt.includes("research React"));
+assert.ok(retryPrompt.includes("without relying on hidden reasoning"));
+assert.ok(retryPrompt.includes("repeat any inspection needed"));
 
 for (const terminal of [
   { text: "", stderr: "failed", exitCode: 2, cancelled: false },
@@ -35,7 +36,6 @@ for (const terminal of [
   let count = 0;
   const result = await runResearchWithFinalAnswerRetry(
     "research React",
-    "call-terminal",
     undefined,
     undefined,
     async () => {
@@ -50,7 +50,6 @@ for (const terminal of [
 let emptyCount = 0;
 const twiceEmpty = await runResearchWithFinalAnswerRetry(
   "research React",
-  "call-empty",
   undefined,
   undefined,
   async () => {

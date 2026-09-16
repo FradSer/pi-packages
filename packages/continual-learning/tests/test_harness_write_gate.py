@@ -48,4 +48,6 @@ def test_real_tool_hook_blocks_invalid_harness_writes_and_reports_inactive_skill
     assert out['preserved'] is None
     assert out['removedCustom']['block'] is True
     assert out['unrelated'] is None
-    assert any('inactive' in message and 'invented' in message for message in out['notices'])
+    # Unknown legacy skill prompt is reported as skipped/not a registered skill,
+    # never surfaced as silently active.
+    assert any('invented' in message and 'registered skill' in message for message in out['notices'])

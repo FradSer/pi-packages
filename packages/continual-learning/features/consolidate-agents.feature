@@ -16,7 +16,8 @@ Feature: AGENTS.md consolidation as the third pipeline phase
     Then it receives the same dossier path and immutable task-slice snapshot as Harness planning
     And it performs no independent model exploration or repository-wide discovery
     And its plan is bound to that run's runId, scopeDigest, and snapshotDigest identity fields
-    And the planner instructions come from the package-owned agents/agents-md-consolidator.md resource
+    And the planner instructions come from the package-owned prompts/agents-md-consolidator.md resource
+    And its typed builder binds every required identity value
     And the child disables extension, skill, prompt-template, context-file, and theme discovery
 
   Scenario: Every surviving operation cites an indexed user or tool-result quote
@@ -55,14 +56,14 @@ Feature: AGENTS.md consolidation as the third pipeline phase
     And pre-existing private index classifications remain unchanged
     And an existing memory name is never overwritten, including case-insensitive matches
     And duplicate case-insensitive memory extraction names within the same plan are rejected before mutation
-    And a skill-prompt extraction merges into the project-local harness layer without overwriting existing guidance
+    And a skill-prompt extraction merges into the project harness.json layer without overwriting existing guidance
     And a symlinked project .pi path cannot redirect skill guidance outside the project
     And swapping either captured Memory root to a symlink during apply fails before redirected writes
 
   Scenario: Extraction failure or cancellation rolls back every surface
     Given a validated plan that extracts memory or skill guidance
     When artifact creation, cancellation, the AGENTS.md write, or receipt persistence fails
-    Then the memory roots, indexes, project-local harness layer, AGENTS.md, and receipt are restored to their exact pre-apply state
+    Then the memory roots, indexes, project harness.json layer, AGENTS.md, and receipt are restored to their exact pre-apply state
     And Memory roots and the project .pi directory that were absent before apply are absent again when rollback leaves them empty
     And the successful post receipt retains the secure pre-apply recovery receipt, while normal failure or cancellation deletes it
     And the application result reports failed or cancelled with zero applied operations

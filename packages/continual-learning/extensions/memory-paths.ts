@@ -1,4 +1,3 @@
-import * as crypto from "node:crypto";
 import { realpathSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import * as path from "node:path";
@@ -25,9 +24,9 @@ export function canonicalProjectCwd(cwd: string): string {
   }
 }
 
-/** Stable opaque key for operational locks and run directories only. */
+/** Readable flat identity shared by private Memory, locks, and run directories. */
 export function projectScopeKey(cwd: string): string {
-  return crypto.createHash("sha256").update(canonicalProjectCwd(cwd)).digest("hex");
+  return escapedProjectPath(cwd);
 }
 
 function resolvePublicMemoryDir(cwd: string, agentDir: string): string | undefined {
@@ -43,24 +42,20 @@ function resolvePublicMemoryDir(cwd: string, agentDir: string): string | undefin
 const PRIVATE_DIR_MAX_BYTES = 240;
 
 export function escapedProjectPath(cwd: string): string {
-  const readable = canonicalProjectCwd(cwd)
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[\\/\s]+/g, "-")
-    .replace(/[^A-Za-z0-9._-]+/g, "-")
-    .replace(/-+/g, "-");
-  const name = readable || "project";
-  if (Buffer.byteLength(name, "utf8") > PRIVATE_DIR_MAX_BYTES) {
-    throw new Error(`Escaped project path exceeds the ${PRIVATE_DIR_MAX_BYTES}-byte portable component limit`);
+  const canonical = canonicalProjectCwd(cwd);
+  const raw = canonical.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-");
+  const safePath = `--${raw}--`;
+  if (Buffer.byteLength(safePath, "utf8") > PRIVATE_DIR_MAX_BYTES) {
+    throw new Error(`Readable project scope exceeds ${PRIVATE_DIR_MAX_BYTES} bytes; use a shorter canonical project path`);
   }
-  return name;
+  return safePath;
 }
 
 export function resolveMemoryPaths(cwd: string, agentDir = getAgentDir()): MemoryPaths {
   const canonicalCwd = canonicalProjectCwd(cwd);
   const scopeKey = projectScopeKey(canonicalCwd);
   const root = canonicalProjectCwd(agentDir);
-  const harnessDir = path.join(root, "memory", escapedProjectPath(canonicalCwd));
+  const harnessDir = path.join(root, "memory", scopeKey);
   return {
     cwd: canonicalCwd,
     agentDir: root,
@@ -68,7 +63,7 @@ export function resolveMemoryPaths(cwd: string, agentDir = getAgentDir()): Memor
     harnessDir,
     publicDir: resolvePublicMemoryDir(canonicalCwd, root),
     settingsFile: path.join(root, "memory", "settings.json"),
-    lockFile: path.join(root, "memory", `${scopeKey}.lock`),
+    lockFile: path.join(root, "memory", "locks", `${scopeKey}.lock`),
     runsDir: path.join(root, "memory", "runs", scopeKey),
     userInstructionsFile: path.join(root, "AGENTS.md"),
   };

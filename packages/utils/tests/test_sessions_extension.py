@@ -82,11 +82,11 @@ fs.rmSync(cwd, {{ recursive: true, force: true }});
         # pi-kit lifecycle band.
         self.assertIn('renderShell: "self"', content)
         self.assertIn("renderCall: () => new Container()", content)
-        self.assertIn('eventToolLifecycle("sessions", summary, { label: "listed", details: rows })', content)
+        self.assertIn('eventToolLifecycle("sessions", summary, { label: "listed", details: rows, detailLimit: "all" })', content)
         # Style-free consumer: pi-kit owns the band geometry and styling; no
         # hand-built Box or theme calls remain in the sessions renderer.
         self.assertIn("createStaticToolLifecycleResultRenderer(", content)
-        self.assertIn('renderError: (line, currentTheme) => new Text(currentTheme.fg("error", line), 0, 0)', content)
+        self.assertNotIn("renderError", content)
         self.assertNotIn('if (context.isError) {', content)
         self.assertIn('expandHint: keyHint("app.tools.expand", "to expand")', content)
         self.assertIn("fit: truncateToWidth", content)
@@ -94,6 +94,11 @@ fs.rmSync(cwd, {{ recursive: true, force: true }});
         self.assertNotIn('theme.bg("customMessageBg"', content)
         # Expanded view reuses the shared task-name truncation for goals.
         self.assertIn("formatAgentTaskName", content)
+        self.assertIn("wrapTextWithAnsi", content)
+        self.assertIn("wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width))", content)
+        self.assertNotIn("MAX_DISPLAY_SESSIONS", content)
+        self.assertNotIn("MAX_RECAP_LENGTH", content)
+        self.assertNotIn("MAX_FILES_SHOWN", content)
 
     def test_ts_module_logic_via_bun(self) -> None:
         script = f"""
@@ -335,6 +340,9 @@ const tmpCwd = path.join(os.tmpdir(), "sd-" + Date.now());
 fs.mkdirSync(tmpCwd, {{ recursive: true }});
 const now = Date.now();
 const sleeper = Bun.spawn(["sleep", "30"], {{ stdout: "ignore", stderr: "ignore" }});
+const completeGoal = "Goal-" + "g".repeat(180);
+const completeRecap = "Recap-" + "r".repeat(180);
+const completeFile = "packages/" + "f".repeat(180) + ".ts";
 writeSessionInfo({{
   sessionId: "alive-1",
   sessionName: "Display \u001b]0;pwned\u0007Test",
@@ -343,9 +351,9 @@ writeSessionInfo({{
   startedAt: now - 300_000,
   updatedAt: now - 60_000,
   status: "running",
-  latestGoal: "Verify event-style listed row",
-  recap: "Recap first line for display",
-  modifiedFiles: ["packages/utils/extensions/sessions.ts", "packages/utils/features/sessions.feature"],
+  latestGoal: completeGoal,
+  recap: completeRecap,
+  modifiedFiles: [completeFile, "packages/utils/features/sessions.feature"],
 }});
 
 let toolDef;
@@ -419,18 +427,22 @@ fs.rmSync(tmpCwd, {{ recursive: true, force: true }});
         self.assertIn("[sessions] listed · 1 other session in sd-", data["collapsed"])
         self.assertIn("to expand", collapsed_lines[1])
         self.assertEqual(data["collapsedBgCalls"], len(collapsed_lines) + 1)
-        self.assertIn("customMessageLabel", data["fgCalls"])
+        self.assertIn("success", data["fgCalls"])
         # Expanded: same band, one bounded block per session; all display
         # fields sanitized (no escape sequences survive).
         expanded_lines = data["expanded"].split("\n")
+        expanded_unwrapped = "".join(expanded_lines)
+        expanded_content = "".join(line.strip() for line in expanded_lines)
         self.assertEqual(expanded_lines[0].strip(), "")
         self.assertEqual(expanded_lines[-1].strip(), "")
         self.assertEqual(data["expandedBgCalls"], len(expanded_lines) + 1)
         self.assertIn("· RUNNING · pid ", data["expanded"])
         self.assertIn("Display Test", data["expanded"])
-        self.assertIn("Goal  Verify event-style listed row", data["expanded"])
-        self.assertIn("Recap Recap first line for display", data["expanded"])
-        self.assertIn("Files packages/utils/extensions/sessions.ts, packages/utils/features/sessions.feature", data["expanded"])
+        self.assertIn("Goal-" + "g" * 180, expanded_content)
+        self.assertIn("Recap-" + "r" * 180, expanded_content)
+        self.assertIn("packages/" + "f" * 180 + ".ts", expanded_content)
+        self.assertNotIn("...", expanded_unwrapped)
+        self.assertIn("File  packages/utils/features/sessions.feature", data["expanded"])
         self.assertIn("customMessageText", data["fgCalls"])
         self.assertNotIn("to expand", data["expanded"])
         self.assertNotIn("\x1b", data["expanded"])

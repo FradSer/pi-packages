@@ -7,6 +7,12 @@ Feature: Transparent image reading for text-only models
     When it displays information, warnings, or errors
     Then it uses pi-kit's portable notification helper with the requested level
 
+  Scenario: Image reading uses pi-kit's live activity widget
+    Given the vision bridge is reading one or more images for a text-only model
+    When visible running progress is shown in a TUI session
+    Then pi-kit's live activity widget identifies the vision reader and latest model activity
+    And the widget clears when image reading finishes
+
   Scenario: Read attached images before a text-only model runs
     Given the active model does not support image input
     And a vision provider and model are configured
@@ -83,7 +89,7 @@ Feature: Transparent image reading for text-only models
     Then the indicator cycles through the standard ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏ frames
     And it does not use circular glyphs
 
-  Scenario: Show active image-reading progress with shared TUI primitives
+  Scenario: Show active image-reading progress through pi-kit's live activity widget
     Given image analysis is in progress
     When the extension updates its transient status display
     Then it identifies the image count and configured reader through pi-kit's status adapter

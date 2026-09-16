@@ -45,12 +45,13 @@ Feature: Learn from settled user tasks without a memory command
     Then the settled handler waits for the complete learning pipeline
     And the process does not exit before validation and receipts finish
 
-  Scenario: Memory planning uses mode-specific package-owned read-only agents
+  Scenario: Memory planning uses mode-specific package-owned read-only prompts
     Given automatic or default manual Memory consolidation starts incrementally
     When the package launches the child Pi process
-    Then the planner instructions come from the package-owned agents/incremental-memory-consolidator.md resource
+    Then the planner instructions come from the package-owned prompts/incremental-memory-consolidator.md resource
+    And its typed builder binds every required identity value
     And its final plan contains only incremental identity fields, operations, and new Memory proposals
-    But explicit full consolidation uses agents/memory-consolidator.md
+    But explicit full consolidation uses prompts/memory-consolidator.md
     And every child disables extension, skill, prompt-template, context-file, and theme discovery
     And the parent remains the only process allowed to expand, validate, and apply Memory changes
 

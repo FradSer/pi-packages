@@ -70,10 +70,7 @@ export function isCleanExit(result: Pick<WorkerProcessResult, "exitCode" | "sign
 /** Tools every teammate receives regardless of its role definition. */
 export const WORKER_CAPABILITY_TOOLS: readonly string[] = [
   "agent_event",
-  "send_message",
-  "task_list",
-  "task_claim",
-  "task_submit",
+  "work",
 ];
 
 /** Effective tool allowlist for one teammate: the role's requested tools plus
@@ -152,6 +149,30 @@ export async function terminateAllTeammates(graceMs = DEFAULT_TERMINATION_GRACE_
 
 // ── Control stream ────────────────────────────────────────────────
 
+interface PendingControlResponse {
+  child: ChildProcess;
+  command: string;
+  timeout: ReturnType<typeof setTimeout>;
+  resolve: (success: boolean) => void;
+}
+
+type PendingFreshDelivery = {
+  message: string;
+  streamingBehavior: "steer" | "followUp";
+};
+
+interface PendingFreshAssignment {
+  child: ChildProcess;
+  message: string;
+  resetId?: string;
+  queued: PendingFreshDelivery[];
+  resolve: (success: boolean) => void;
+}
+
+const CONTROL_RESPONSE_TIMEOUT_MS = 5_000;
+const pendingControlResponses = new Map<string, PendingControlResponse>();
+const pendingFreshAssignments = new Map<string, PendingFreshAssignment>();
+
 function writeToControlStream(child: ChildProcess, line: unknown): boolean {
   if (!child.stdin || child.stdin.destroyed || !child.stdin.writable) return false;
   child.stdin.write(`${JSON.stringify(line)}\n`);
@@ -186,25 +207,112 @@ function beginSequence(name: string): void {
   baselines.set(name, streamTurns.get(name) ?? 0);
 }
 
+function sendOrQueueDuringFreshReset(
+  name: string,
+  message: string,
+  streamingBehavior: PendingFreshDelivery["streamingBehavior"],
+): boolean {
+  const child = workers.get(name);
+  if (!child) return false;
+  const pending = pendingFreshAssignments.get(name);
+  if (pending?.child === child) {
+    pending.queued.push({ message, streamingBehavior });
+    return true;
+  }
+  return writeToControlStream(child, { type: "prompt", id: randomUUID(), message, streamingBehavior });
+}
+
 /** Send a mid-turn steer to a working teammate; no peer mailbox is involved. */
 export function sendWorkerSteer(name: string, message: string): boolean {
-  const child = workers.get(name);
-  return child ? writeToControlStream(child, { type: "prompt", id: randomUUID(), message, streamingBehavior: "steer" }) : false;
+  return sendOrQueueDuringFreshReset(name, message, "steer");
 }
 
 /** Peer traffic yields to leader steering without depending on roster freshness. */
 export function sendWorkerFollowUp(name: string, message: string): boolean {
+  return sendOrQueueDuringFreshReset(name, message, "followUp");
+}
+
+function settleFreshAssignment(name: string, success: boolean): void {
+  const pending = pendingFreshAssignments.get(name);
+  if (!pending) return;
+  pendingFreshAssignments.delete(name);
+  if (pending.resetId) {
+    const control = pendingControlResponses.get(pending.resetId);
+    if (control) clearTimeout(control.timeout);
+    pendingControlResponses.delete(pending.resetId);
+  }
+  pending.resolve(success);
+}
+
+function deliverFreshPrompts(name: string, pending: PendingFreshAssignment): boolean {
+  if (!writeToControlStream(pending.child, {
+    type: "prompt",
+    id: randomUUID(),
+    message: pending.message,
+    streamingBehavior: "followUp",
+  })) return false;
+  beginSequence(name);
+  for (const delivery of pending.queued) {
+    if (!writeToControlStream(pending.child, {
+      type: "prompt",
+      id: randomUUID(),
+      message: delivery.message,
+      streamingBehavior: delivery.streamingBehavior,
+    })) break;
+  }
+  return true;
+}
+
+function startFreshAssignmentReset(name: string): void {
+  const pending = pendingFreshAssignments.get(name);
+  const state = streamStates.get(name);
+  if (!pending || pending.resetId || state?.finalResponse !== true || workers.get(name) !== pending.child) return;
+  const id = randomUUID();
+  pending.resetId = id;
+  const timeout = setTimeout(() => settleFreshAssignment(name, false), CONTROL_RESPONSE_TIMEOUT_MS);
+  timeout.unref?.();
+  pendingControlResponses.set(id, {
+    child: pending.child,
+    command: "new_session",
+    timeout,
+    resolve: (reset) => {
+      const current = pendingFreshAssignments.get(name);
+      if (current !== pending || !reset || workers.get(name) !== pending.child) {
+        settleFreshAssignment(name, false);
+        return;
+      }
+      settleFreshAssignment(name, deliverFreshPrompts(name, pending));
+    },
+  });
+  if (!writeToControlStream(pending.child, { type: "new_session", id })) {
+    settleFreshAssignment(name, false);
+  }
+}
+
+/** True while a new Assignment Attempt is waiting for reset or prompt delivery. */
+export function isFreshAssignmentPending(name: string): boolean {
+  return pendingFreshAssignments.has(name);
+}
+
+/** Queue a fresh Pi session and deliver a new Assignment Attempt after settlement. */
+export function deliverFreshAssignment(name: string, message: string): Promise<boolean> {
   const child = workers.get(name);
-  return child ? writeToControlStream(child, { type: "prompt", id: randomUUID(), message, streamingBehavior: "followUp" }) : false;
+  if (!child || pendingFreshAssignments.has(name)) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    pendingFreshAssignments.set(name, { child, message, queued: [], resolve });
+    startFreshAssignmentReset(name);
+  });
 }
 
 // ── Stream parsing ────────────────────────────────────────────────
 
 type JsonEvent = {
+  id?: string;
   type?: string;
   command?: string;
   success?: boolean;
   error?: string;
+  data?: { cancelled?: boolean };
   toolCallId?: string;
   toolName?: string;
   args?: unknown;
@@ -297,13 +405,21 @@ function appendTurnText(state: StreamState, field: "text" | "thinking" | "toolca
   return true;
 }
 
-function applyStreamLine(state: StreamState, line: string): boolean {
+function applyStreamLine(state: StreamState, line: string, child?: ChildProcess): boolean {
   if (!line.trim()) return false;
   let event: JsonEvent;
   try {
     event = JSON.parse(line) as JsonEvent;
   } catch {
     return false;
+  }
+  if (event.type === "response" && event.id) {
+    const pending = pendingControlResponses.get(event.id);
+    if (pending && child === pending.child && pending.command === event.command) {
+      clearTimeout(pending.timeout);
+      pendingControlResponses.delete(event.id);
+      pending.resolve(event.success === true && event.data?.cancelled !== true);
+    }
   }
   if (event.type === "response" && event.success === false) {
     state.controlError = truncate(`RPC ${event.command ?? "command"} rejected: ${event.error ?? "unknown error"}`, 1000);
@@ -535,7 +651,8 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
         failWorker(`Resident worker JSONL line exceeded ${MAX_JSONL_LINE_BYTES} bytes.`);
         return;
       }
-      changed = applyStreamLine(streamState, line) || changed;
+      changed = applyStreamLine(streamState, line, child) || changed;
+      if (streamState.finalResponse) startFreshAssignmentReset(options.workerName);
       if (streamState.outputLimitError) {
         failWorker(streamState.outputLimitError);
         return;
@@ -567,6 +684,14 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
     cleanupTempDir();
     if (workers.get(options.workerName) === child) workers.delete(options.workerName);
     streamStates.delete(options.workerName);
+    const fresh = pendingFreshAssignments.get(options.workerName);
+    if (fresh?.child === child) settleFreshAssignment(options.workerName, false);
+    for (const [id, pending] of pendingControlResponses) {
+      if (pending.child !== child) continue;
+      clearTimeout(pending.timeout);
+      pendingControlResponses.delete(id);
+      pending.resolve(false);
+    }
     baselines.delete(options.workerName);
     streamTurns.delete(options.workerName);
     // A spawn failure was already reported via onError (Node fires error then

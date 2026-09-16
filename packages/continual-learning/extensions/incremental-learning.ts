@@ -1,10 +1,11 @@
 import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createPackageAgentRun, runPiWorker, type PiWorkerUsage } from "@fradser/pi-kit";
+import { runPiWorker, type PiWorkerUsage } from "@fradser/pi-kit";
 import { isMemoryFilename, type MemoryEntry } from "./memory-files";
 import { MAX_MEMORY_BYTES, MAX_MEMORY_FILES, sha256Digest, writeFileAtomic } from "./consolidation-run";
 import { resolveMemoryPaths } from "./memory-paths";
+import { buildMemorySelectorPrompt } from "./planner-prompts";
 
 const MAX_TASK_SLICE_ENTRIES = 96;
 const MAX_TASK_SLICE_BYTES = 512_000;
@@ -404,14 +405,7 @@ export async function selectIncrementalLearning(input: {
   const indexed = await indexMemoryCorpus(input.cwd);
   const metadata = indexed.map((entry) => entry.metadata);
   const available = new Map(metadata.map((entry) => [entry.name.toLowerCase(), entry.name]));
-  const procedure = createPackageAgentRun({
-    packageRootUrl: new URL("../", import.meta.url).href,
-    resourcePath: "agents/memory-selector.md",
-    namePrefix: "memory-selector",
-    toolCallId: `memory-selector:${input.contextDigest.slice(0, 12)}`,
-    request: "Follow the parent-provided task below.",
-  }).prompt;
-  const prompt = [
+  const task = [
     "Task: select the minimum sufficient scope for one small incremental learning run.",
     `- Context digest: ${input.contextDigest}`,
     "- Current task slice:",
@@ -420,9 +414,8 @@ export async function selectIncrementalLearning(input: {
     JSON.stringify(metadata),
     "- Do not use tools, read Memory bodies, inspect read paths, or perform repository discovery.",
     "- Return delta-routing selection only; never propose or request full-corpus exploration.",
-    "",
-    procedure,
   ].join("\n");
+  const prompt = buildMemorySelectorPrompt({ task });
   const result = await runPiWorker({
     prompt,
     cwd: input.cwd,

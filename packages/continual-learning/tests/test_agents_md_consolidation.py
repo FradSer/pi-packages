@@ -382,7 +382,7 @@ def apply_plan_script(
         publicMemory: await read({json.dumps(str(project / '.memory' / 'fixture-regeneration.md'))}),
         harnessIndex: await read({json.dumps(str(agent / 'memory' / 'project' / 'MEMORY.md'))}),
         publicIndex: await read({json.dumps(str(project / '.memory' / 'MEMORY.md'))}),
-        harnessConfig: await read({json.dumps(str(project / '.pi' / 'harness.local.json'))}),
+        harnessConfig: await read({json.dumps(str(project / '.pi' / 'harness.json'))}),
         preReceipt: JSON.parse((await read({json.dumps(str(run_dir / 'agents-pre-receipt.json'))})) ?? 'null'),
         preReceiptExists: await exists({json.dumps(str(run_dir / 'agents-pre-receipt.json'))}),
         receiptExists: await exists({json.dumps(str(run_dir / 'agents-post-receipt.json'))}),
@@ -443,6 +443,8 @@ def test_safe_extraction_updates_both_roots_and_preserves_private_markers(tmp_pa
     result = js(apply_plan_script(project, agent, run_dir, extraction_ops()), {"PI_CODING_AGENT_DIR": str(agent)})
     assert result["result"]["outcome"] == "applied"
     assert result["result"]["applied"] == 2
+    assert result["harnessConfig"] is not None
+    assert not (project / ".pi" / "harness.local.json").exists()
     assert result["harnessMemory"] == result["publicMemory"]
     assert "(harness only)" in result["harnessIndex"]
     assert "fixture-regeneration.md" in result["publicIndex"]
@@ -475,7 +477,7 @@ def test_skill_prompt_extraction_rejects_symlinked_project_config_path(tmp_path:
     result = js(apply_plan_script(project, agent, run_dir, extraction_ops()[1:]), {"PI_CODING_AGENT_DIR": str(agent)})
     assert result["result"]["outcome"] == "failed"
     assert result["agents"] == before_agents
-    assert not (outside / "harness.local.json").exists()
+    assert not (outside / "harness.json").exists()
     assert result["receiptExists"] is False
 
 
@@ -573,9 +575,12 @@ def test_pending_recovery_is_discovered_from_the_project_runs_directory(tmp_path
     project.mkdir(); agent.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=project, check=True)
     import hashlib
-    scope_key = hashlib.sha256(str(project.resolve()).encode()).hexdigest()
-    readable = str(project.resolve()).replace("/", "-").replace(" ", "-")[:174]
-    harness_dir = agent / "memory" / f"{readable}--{scope_key}"
+    paths = js(f'''
+      import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+      console.log(JSON.stringify(resolveMemoryPaths({json.dumps(str(project))}, {json.dumps(str(agent))})));
+    ''')
+    scope_key = paths["scopeKey"]
+    harness_dir = Path(paths["harnessDir"])
     public_dir = project / ".memory"
     run_id = "run_recover_pending"
     run_dir = agent / "memory" / "runs" / scope_key / run_id
@@ -696,14 +701,14 @@ def test_changed_snapshot_bytes_are_rejected_before_agents_planning() -> None:
     assert "snapshot changed" in result["detail"]
 
 
-def test_agents_planner_uses_package_agent_and_minimal_readonly_args() -> None:
+def test_agents_planner_uses_package_prompt_and_minimal_readonly_args() -> None:
     source = (PKG_DIR / "extensions" / "agents-md-consolidation.ts").read_text(encoding="utf-8")
-    assert 'resourcePath: "agents/agents-md-consolidator.md"' in source
+    assert "buildAgentsMdConsolidatorPrompt" in source
     assert 'minimalPiWorkerArgs(["read", "grep", "find", "ls"])' in source
 
 
 def test_procedure_declares_readonly_boundary_and_discipline() -> None:
-    text = (PKG_DIR / "agents" / "agents-md-consolidator.md").read_text(encoding="utf-8")
+    text = (PKG_DIR / "prompts" / "agents-md-consolidator.md").read_text(encoding="utf-8")
     assert "Read-only boundary" in text
     assert "{{BUDGET_BYTES}}" in text
     assert "verbatim" in text

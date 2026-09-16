@@ -282,7 +282,7 @@ initTheme("dark");
 let toolDef;
 ext({{ registerTool: (def) => {{ if (def.name === "enter_worktree") toolDef = def; }}, registerCommand() {{}} }});
 class ClassTheme {{
-  constructor() {{ this.bgColors = new Map([["customMessageBg", "\\u001B[44m"]]); }}
+  constructor() {{ this.bgColors = new Map([["toolSuccessBg", "\\u001B[44m"]]); }}
   fg(_color, text) {{ return text; }}
   bold(text) {{ return text; }}
   bg(color, text) {{ return this.bgColors.get(color) + text + "\\u001B[49m"; }}

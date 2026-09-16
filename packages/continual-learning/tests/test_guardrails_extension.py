@@ -126,7 +126,7 @@ def test_innermost_policy_definition_wins() -> None:
     assert "inner reason" in str(hit_inner["reason"])
 
 
-def test_harness_target_resolution_defaults_to_project_local_and_supports_flags() -> None:
+def test_harness_target_resolution_defaults_to_project_shared_and_supports_flags() -> None:
     source = """
         import { resolveHarnessTarget } from './packages/continual-learning/extensions/guardrails.ts';
         const cwd = '/tmp/my-project';
@@ -143,8 +143,8 @@ def test_harness_target_resolution_defaults_to_project_local_and_supports_flags(
         }));
     """
     result = run_bun(source)
-    assert result["defaultTarget"]["scope"] == "project.local"
-    assert result["defaultTarget"]["targetFile"] == "/tmp/my-project/.pi/harness.local.json"
+    assert result["defaultTarget"]["scope"] == "project"
+    assert result["defaultTarget"]["targetFile"] == "/tmp/my-project/.pi/harness.json"
     assert result["defaultTarget"]["request"] == "Block edits that add hard-coded colors"
 
     assert result["globalFlag"]["scope"] == "user"
@@ -255,13 +255,13 @@ def test_harness_prompt_routes_a_direct_rule_request() -> None:
     assert 'Block edits that add hard-coded colors' in str(prompt)
     assert '/tmp/project/.pi/harness.local.json' in str(prompt)
     assert 'project personal harness.local.json' in str(prompt)
-    assert 'Preserve every existing policy' in str(prompt)
-    assert 'Do not use find, fffind, grep, rg, read-directory, or any other discovery step' in str(prompt)
+    assert 'Preserve every existing rule' in str(prompt)
+    assert 'keep all target access on this supplied path' in str(prompt)
     assert 'Execute this exact sequence' in str(prompt)
     assert 'returns ENOENT' in str(prompt)
-    assert 'Do not merely explain' in str(prompt)
-    assert 'Do not write scope or rule' in str(prompt)
-    assert 'tool-call gates only' in str(prompt)
+    assert 'Perform the supported change and report the exact rule id' in str(prompt)
+    assert 'flat "rules" array' in str(prompt)
+    assert 'Omit "action" to execute the command and deliver the message' in str(prompt)
 
 
 def test_global_harness_target_initializes_exact_path_and_preserves_existing(tmp_path: Path) -> None:
@@ -294,7 +294,7 @@ def test_global_harness_target_initializes_exact_path_and_preserves_existing(tmp
     result = run_bun(source)
     assert result['created'] is True
     assert result['missingPath'] == str(missing)
-    assert result['initialized'] == {'policies': [], 'disabled': [], 'skillPrompts': {}}
+    assert result['initialized'] == {'rules': []}
     assert result['reused'] is False
     assert result['preservedBytes'] is True
     assert result['preserved'] == original

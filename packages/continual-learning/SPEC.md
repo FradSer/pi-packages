@@ -10,10 +10,10 @@ Harness configuration has a separate concern: it needs exactly three precedence 
 
 Memory uses exactly two synchronized physical roots:
 
-1. Complete Harness/private Memory at `~/.pi/agent/memory/<escaped-readable-prefix>--<full-sha256-scope-key>/`
+1. Complete Harness/private Memory at `~/.pi/agent/memory/<escaped-canonical-cwd>/`
 2. Sanitized project-shared Memory at `<project>/.memory/`
 
-The private directory keeps a recognizable ASCII prefix derived from the canonical project path and appends `--` plus the full 64-character lowercase SHA-256 scope identity. The prefix is deterministically bounded to 174 bytes, so the complete component remains at most 240 bytes while distinct scopes remain injective. Safe files are byte-identical in both roots; private files exist only in the Harness root and are marked `(harness only)` in its index. No project-local private Memory directory is recognized. Pre-run normalization, consolidation transactions, rollback, validation, and receipts preserve this privacy split. Automatic and manual deletion require mechanically verified preservation, and generated shell bulk-deletion of Memory roots is blocked.
+The private directory, lock basename, and runs scope use the same flat ASCII identity derived from the canonical project path: NFKD normalization removes combining marks; separators, whitespace, and unsupported characters become dashes; repeated dashes collapse. Names longer than 240 bytes are rejected without truncation or hash fallback. This sanitizer is intentionally lossy: colliding canonical paths share Memory and operational scope. Content-integrity SHA-256 digests are unchanged. Safe files are byte-identical in both roots; private files exist only in the Harness root and are marked `(harness only)` in its index. No project-local private Memory directory is recognized. Pre-run normalization, consolidation transactions, rollback, validation, and receipts preserve this privacy split. Automatic and manual deletion require mechanically verified preservation, and generated shell bulk-deletion of Memory roots is blocked.
 
 Harness retains exactly three configuration layers: user shared, project shared, and project personal.
 
@@ -25,7 +25,7 @@ Harness retains exactly three configuration layers: user shared, project shared,
 4. As a user, I want project-shared edits imported when they are newer, so that Git-delivered knowledge reaches runtime Memory.
 5. As a user, I want private edits mirrored outward only when safe, so that collaboration does not expose private information.
 6. As a user, I want failed multi-root writes rolled back, so that the two roots never remain partially updated.
-7. As a user with an opaque hash directory, I want a one-way migration into the readable root without overwriting existing files.
+7. As a user, I want obsolete private-root layouts ignored, so only the flat canonical root can affect runtime Memory.
 8. As a user, I want Memory indexes to match exact root contents and privacy markers.
 9. As a user, I want Harness policy precedence to remain project personal over project shared over user shared.
 10. As a user, I want obsolete global-personal and project `.pi/agent` Harness files ignored.
@@ -35,12 +35,23 @@ Harness retains exactly three configuration layers: user shared, project shared,
 ```gherkin
 Feature: Readable private Memory and sanitized project mirror
 
-  Scenario: Private root uses a readable prefix and full scope identity
+  Scenario: Private root and operational paths use one flat scope identity
     Given the canonical project path is /Users/FradSer/Developer/FradSer/cerberus
     When Memory paths are resolved
-    Then the private root name starts with -Users-FradSer-Developer-FradSer-cerberus--
-    And it ends with the full SHA-256 project scope key
-    And the complete ASCII component is at most 240 bytes
+    Then the private root name is -Users-FradSer-Developer-FradSer-cerberus
+    And the scope key, lock basename before .lock, and runs basename use that identity
+    And locks live at memory/locks/<scopeKey>.lock separately from private directories
+    And identities longer than 240 ASCII bytes are rejected
+
+  Scenario: Private directory names cannot collide with lock storage
+    Given projects foo and foo.lock with existing private Memory directories
+    When both consolidation locks are acquired
+    Then both locks coexist and releasing them preserves both private directories
+
+  Scenario: Symlinked lock storage is rejected
+    Given memory/locks is a symlink to an outside directory
+    When a consolidation lock is acquired
+    Then acquisition fails without writing outside Memory
 
   Scenario: Safe Memory is synchronized
     Given a Memory file is classified safe
@@ -70,14 +81,11 @@ Feature: Readable private Memory and sanitized project mirror
     When a later operation fails
     Then both roots and indexes return to their predecessor bytes
 
-  Scenario: Legacy scopes migrate once without unsafe deletion
-    Given an old SHA-256 or collision-prone readable Memory directory exists
+  Scenario: Obsolete private roots are ignored
+    Given old hash-only, hash-suffixed, or former-sanitizer Memory directories exist
     When Memory is loaded
-    Then valid files merge into the collision-resistant readable private root without overwrites
-    And private markers survive
-    And a fully applied regular source is removed
-    But a symlinked source, destination, file, or index is rejected
-    And a failed application restores the destination predecessor and keeps every source
+    Then none of those obsolete roots is read, imported, renamed, or deleted
+    And only the flat escaped canonical-path root participates at runtime
 
   Scenario: Harness resolves exactly three layers
     Given Harness declarations exist at user shared, project shared, and project personal
@@ -88,20 +96,20 @@ Feature: Readable private Memory and sanitized project mirror
 
 ## Implementation Decisions
 
-- `scopeKey` remains an opaque operational identity for locks, run directories, and plan binding only.
-- The Memory data directory uses a bounded escaped canonical-path prefix plus the full `scopeKey` identity.
+- `scopeKey` is the flat escaped canonical project path used for private Memory, locks, run directories, and plan binding.
+- Validator CLI arguments bind leading-dash scope values with `--expected-scope-key=<scopeKey>`.
 - Project `.memory/` is enabled only at the canonical Git worktree root.
 - Strict valid Markdown basenames and `MEMORY.md` index exclusion apply to both roots.
 - The pre-run parent normalizes drift, removes project-shared private leaks and orphans, and rebuilds both indexes.
 - The child remains read-only. The parent owns validation, atomic writes, rollback, and receipts. AGENTS.md extraction persists an exact pre-apply recovery receipt before mutating Memory, Harness, or instructions. A later session validates and consumes an orphan pre receipt before new learning; a successful transaction retains it beside the verified post receipt.
 - Safe create/rewrite writes both roots; private create/rewrite writes private and removes shared; delete removes both.
-- Old SHA-256 and collision-prone readable data roots are migration inputs only; no compatibility read fallback remains. Private markers transfer only when the legacy bytes were created in or match the canonical destination, so a retained conflicting source cannot reclassify different canonical content.
+- Obsolete hash-only, hash-suffixed, whitespace-preserving, and former-sanitizer private roots are ignored. There is no discovery, import, approval, or compatibility read fallback; only the canonical flat `scopeKey` directory participates at runtime.
 - Harness configuration remains a three-layer override system independent of Memory mirroring.
 
 ## Testing Decisions
 
 - Path tests assert exact readable escaping and canonical/symlink convergence.
-- Migration tests cover conflicts, private markers, index rebuilding, and source removal.
+- Obsolete-root tests verify old layouts are neither read nor mutated, while current sanitizer collisions intentionally share the same private root and operational scope.
 - Privacy tests verify mirror equality, private absence, exact indexes, limits, and symlink rejection.
 - Transaction tests verify rollback of both roots and shared-write failures.
 - Harness tests verify three-layer precedence, command targets, and ignored obsolete global-personal/project `.pi/agent` configuration.

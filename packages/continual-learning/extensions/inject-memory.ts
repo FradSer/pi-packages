@@ -7,7 +7,7 @@
  *     Auto-memory: on
  *     1. Select memory model
  *     2. Enter provider/model manually
- *     3. Consolidate memory now        (inline procedure from agents/memory-consolidator.md)
+ *     3. Consolidate memory now        (package prompt from prompts/memory-consolidator.md)
  *     4. Edit user instructions        (getAgentDir()/AGENTS.md)
  *     5. Edit project instructions     (./AGENTS.md or ./CLAUDE.md — whichever exists)
  *     6. Open memory folder
@@ -29,18 +29,14 @@ import { fileURLToPath } from "node:url";
 import { keyHint, ToolExecutionComponent, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
-  createPiThemeStyle,
   createStaticToolLifecycleMessageRenderer,
+  createLiveActivityWidget,
   eventToolLifecycle,
-  renderPiWidgetRow,
   enterModelFromInput,
   notifyPi,
   modelRef,
-  createPackageAgentRun,
   minimalPiWorkerArgs,
   parseModelRef,
-  PI_SPINNER_FRAMES,
-  PI_SPINNER_INTERVAL_MS,
   resolvePiCli,
   runPiWorker,
   searchModelFromPicker,
@@ -56,6 +52,10 @@ import {
 } from "./config";
 import { formatMemoriesBlock, loadAndDeduplicateMemories } from "./memory-files";
 import { resolveMemoryPaths } from "./memory-paths";
+import {
+  buildIncrementalMemoryConsolidatorPrompt,
+  buildMemoryConsolidatorPrompt,
+} from "./planner-prompts";
 import { registerAutomaticLearning } from "./automatic-learning";
 import { buildLearningReceipt, formatLearningSummary, isLearningPipelineReceipt, learningSummaryDetails, learningSummarySubject, screenLearningEntries, shouldRetryPlanner, snapshotEntries, writeLearningReceipt, type LearningAttempt, type LearningMode, type LearningPipelineReceipt, type LearningScreen } from "./learning-efficiency";
 import { currentTaskSlice, selectIncrementalLearning } from "./incremental-learning";
@@ -666,7 +666,12 @@ export function missingConsolidationEvidence(evidence: ConsolidationEvidence): s
 const DREAM_TIMEOUT_MS = 30 * 60 * 1000;
 const runModeById = new Map<string, LearningMode>();
 
-let dreamingTimer: NodeJS.Timeout | undefined;
+const dreamingWidget = createLiveActivityWidget({
+  key: "memory-dreaming",
+  placement: "aboveEditor",
+  fit: truncateToWidth,
+  leadingSpaces: 0,
+});
 let dreamingActivity = "";
 
 function setDreamingActivity(activity: string): void {
@@ -674,40 +679,8 @@ function setDreamingActivity(activity: string): void {
 }
 
 function setDreamingWidget(ctx: ExtensionContext, activity = "starting"): void {
-  if (ctx.mode !== "tui") return;
   setDreamingActivity(activity);
-
-  if (dreamingTimer) {
-    clearInterval(dreamingTimer);
-    dreamingTimer = undefined;
-  }
-
-  ctx.ui.setWidget("memory-dreaming", (tui, theme) => {
-    const style = createPiThemeStyle(theme);
-    let frameIndex = 0;
-    dreamingTimer = setInterval(() => {
-      frameIndex++;
-      tui.requestRender();
-    }, PI_SPINNER_INTERVAL_MS);
-    dreamingTimer.unref?.();
-
-    return {
-      render: (width: number) => {
-        const frame = PI_SPINNER_FRAMES[frameIndex % PI_SPINNER_FRAMES.length];
-        const icon = style.accent(frame);
-        const text = style.accent("Dreaming...");
-        const detail = dreamingActivity ? style.muted(` · ${dreamingActivity}`) : "";
-        return [renderPiWidgetRow(`${icon} ${text}${detail}`, width, truncateToWidth, 0)];
-      },
-      invalidate: () => {},
-      dispose: () => {
-        if (dreamingTimer) {
-          clearInterval(dreamingTimer);
-          dreamingTimer = undefined;
-        }
-      },
-    };
-  }, { placement: "aboveEditor" });
+  dreamingWidget.update(ctx, [{ id: "dreaming", identity: "Dreaming...", activity: dreamingActivity }]);
 }
 
 function availableMemoryModels(ctx: ExtensionContext) {
@@ -773,7 +746,7 @@ async function setMemoryModel(value: string, ctx: ExtensionContext): Promise<voi
 
 function clearDreamingWidget(ctx: ExtensionContext): void {
   dreamingActivity = "";
-  if (ctx.mode === "tui") ctx.ui.setWidget("memory-dreaming", undefined);
+  dreamingWidget.clear(ctx);
 }
 
 const execFileAsync = promisify(execFile);
@@ -800,7 +773,7 @@ async function runConsolidationValidator(
     "--snapshot", run.manifest.snapshotPath,
     "--repo-root", run.manifest.cwd,
     "--expected-run-id", run.manifest.runId,
-    "--expected-scope-key", run.manifest.scopeKey,
+    `--expected-scope-key=${run.manifest.scopeKey}`,
     "--expected-scope-digest", run.manifest.scopeDigest,
     "--expected-artifact-hash", run.manifest.snapshotDigest,
     "--mode", runModeById.get(run.manifest.runId) ?? "manual",
@@ -897,23 +870,6 @@ async function spawnAsyncConsolidation(
   state.cancelled = false;
   const isGenerationCurrent = (): boolean => !state.cancelled && generation === state.generation;
 
-  let procedure: string;
-  try {
-    procedure = createPackageAgentRun({
-      packageRootUrl: new URL("../", import.meta.url).href,
-      resourcePath: incremental ? "agents/incremental-memory-consolidator.md" : "agents/memory-consolidator.md",
-      namePrefix: incremental ? "incremental-memory-consolidator" : "memory-consolidator",
-      toolCallId: `memory:${generation}`,
-      request: "Follow the parent-provided task below.",
-    }).prompt.replaceAll("{{PKG_DIR}}", opts.pkgDir);
-  } catch (err: unknown) {
-    if (isGenerationCurrent()) {
-      state.active = false;
-      state.outcome = "failed";
-      notifyPi(ctx.ui, `Memory consolidation setup failed: ${(err as Error).message}`, "error");
-    }
-    return false;
-  }
   const memoryPaths = resolveMemoryPaths(opts.cwd);
   const harnessDir = memoryPaths.harnessDir;
   let run: ConsolidationRun;
@@ -960,18 +916,39 @@ async function spawnAsyncConsolidation(
     );
   }
 
-  procedure = procedure
-    .replaceAll("{{RUN_ID}}", run.manifest.runId)
-    .replaceAll("{{SCOPE_DIGEST}}", run.manifest.scopeDigest)
-    .replaceAll("{{SCOPE_KEY}}", run.manifest.scopeKey)
-    .replaceAll("{{ARTIFACT_HASH}}", run.manifest.snapshotDigest)
-    .replaceAll("{{SNAPSHOT_DIGEST}}", run.manifest.snapshotDigest)
-    .replaceAll("{{RUN_DIR}}", run.manifest.runDir)
-    .replaceAll("{{SNAPSHOT_PATH}}", run.manifest.snapshotPath)
-    .replaceAll("{{HARNESS_DIR}}", run.manifest.harnessDir)
-    .replaceAll("{{PUBLIC_DIR}}", run.manifest.publicDir ?? "(disabled for this non-project directory)")
-    .replaceAll("{{REPO_ROOT}}", run.manifest.cwd)
-    .replaceAll("{{DOSSIER_PATH}}", opts.dossierPath ?? "");
+  let procedure: string;
+  try {
+    procedure = incremental
+      ? buildIncrementalMemoryConsolidatorPrompt({
+          runId: run.manifest.runId,
+          scopeKey: run.manifest.scopeKey,
+          scopeDigest: run.manifest.scopeDigest,
+          artifactHash: run.manifest.snapshotDigest,
+          snapshotDigest: run.manifest.snapshotDigest,
+          dossierPath: opts.dossierPath ?? "",
+        })
+      : buildMemoryConsolidatorPrompt({
+          pkgDir: opts.pkgDir,
+          runId: run.manifest.runId,
+          scopeDigest: run.manifest.scopeDigest,
+          scopeKey: run.manifest.scopeKey,
+          artifactHash: run.manifest.snapshotDigest,
+          snapshotDigest: run.manifest.snapshotDigest,
+          runDir: run.manifest.runDir,
+          snapshotPath: run.manifest.snapshotPath,
+          harnessDir: run.manifest.harnessDir,
+          publicDir: run.manifest.publicDir ?? "(disabled for this non-project directory)",
+          repoRoot: run.manifest.cwd,
+        });
+  } catch (err: unknown) {
+    if (isGenerationCurrent()) {
+      state.active = false;
+      state.outcome = "failed";
+      notifyPi(ctx.ui, `Memory consolidation setup failed: ${(err as Error).message}`, "error");
+    }
+    await releaseConsolidationRun(run);
+    return false;
+  }
 
   const taskText = [
     `Task: produce a read-only structured consolidation plan for the project at ${opts.cwd}.`,

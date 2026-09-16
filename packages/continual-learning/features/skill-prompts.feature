@@ -52,4 +52,5 @@ Feature: Skill-invocation prompt guidance
     When the prompt contains an unknown field or a malformed optional userMessagePattern
     Then the write is blocked
     And the accepted fields are exactly prompt, target, and userMessagePattern
-    But an unchanged stale skill prompt remains preservable or removable
+    And unchanged stale skill prompts also fail validation without modifying the file
+    But explicitly authorized removal of stale skill prompts is valid

@@ -18,7 +18,6 @@ import path from "node:path";
 import type { ChildProcess } from "node:child_process";
 import { getAgentDir, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
-  createPackageAgentRun,
   minimalPiWorkerArgs,
   notifyPi,
   parsePiWorkerOutput,
@@ -43,7 +42,8 @@ import {
 import { isMemoryFilename } from "./memory-files";
 import { resolveMemoryPaths } from "./memory-paths";
 import type { HarnessOp } from "./harness-consolidation";
-import { configPaths, loadLayers } from "./guardrail-config";
+import { buildAgentsMdConsolidatorPrompt } from "./planner-prompts";
+import { assertHarnessConfigContainers, configPaths, loadLayers } from "./guardrail-config";
 
 export const AGENTS_PLAN_KIND = "agents-md-consolidation-plan";
 /** Learning rate: at most five small edits per consolidation run. */
@@ -714,7 +714,7 @@ function parseRecoveryReceipt(raw: unknown, run: ConsolidationRun, cwd: string):
   const receipt = raw as unknown as AgentsRecoveryReceipt;
   const privateRoot = path.resolve(run.manifest.harnessDir);
   const publicRoot = run.manifest.publicDir ? path.resolve(run.manifest.publicDir) : undefined;
-  const projectConfig = path.resolve(configPaths(cwd).projectLocal);
+  const projectConfig = path.resolve(configPaths(cwd).project);
   const allowedRoots = [privateRoot, ...(publicRoot ? [publicRoot] : [])];
   const allowedFiles = new Set([path.resolve(cwd, "AGENTS.md"), projectConfig]);
   for (const predecessor of receipt.predecessors) {
@@ -866,7 +866,7 @@ async function assertMemoryNameAvailable(roots: readonly string[], name: string)
 async function readHarnessConfig(file: string): Promise<Record<string, unknown>> {
   try {
     const parsed = JSON.parse(await fs.readFile(file, "utf8")) as unknown;
-    if (!isRecord(parsed)) throw new Error(`Existing ${file} is not a JSON object`);
+    assertHarnessConfigContainers(parsed);
     return parsed;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
@@ -954,21 +954,15 @@ async function planAgentsMdConsolidationPhaseInternal(
   const snapshotText = await readSnapshotText(run);
   const cli = resolvePiCli();
   if (!cli) return { outcome: "failed", durationMs: durationMs(), detail: "could not resolve the Pi CLI" };
-  const procedure = createPackageAgentRun({
-    packageRootUrl: new URL("../", import.meta.url).href,
-    resourcePath: "agents/agents-md-consolidator.md",
-    namePrefix: "agents-md-consolidator",
-    toolCallId: `agents-md:${generation}`,
-    request: "Follow the parent-provided task below.",
-  }).prompt
-    .replaceAll("{{PKG_DIR}}", opts.pkgDir)
-    .replaceAll("{{RUN_ID}}", run.manifest.runId)
-    .replaceAll("{{SCOPE_DIGEST}}", run.manifest.scopeDigest)
-    .replaceAll("{{ARTIFACT_HASH}}", run.manifest.snapshotDigest)
-    .replaceAll("{{SNAPSHOT_PATH}}", run.manifest.snapshotPath)
-    .replaceAll("{{DOSSIER_PATH}}", opts.explorationPath ?? "")
-    .replaceAll("{{REPO_ROOT}}", run.manifest.cwd)
-    .replaceAll("{{BUDGET_BYTES}}", String(opts.budgetBytes));
+  const procedure = buildAgentsMdConsolidatorPrompt({
+    runId: run.manifest.runId,
+    scopeDigest: run.manifest.scopeDigest,
+    artifactHash: run.manifest.snapshotDigest,
+    snapshotPath: run.manifest.snapshotPath,
+    dossierPath: opts.explorationPath ?? "",
+    repoRoot: run.manifest.cwd,
+    budgetBytes: opts.budgetBytes,
+  });
   if (!current()) return { outcome: "cancelled", durationMs: durationMs(), detail: "cancelled before planner start" };
   const taskText = [
     `Task: produce a read-only structured AGENTS.md consolidation plan for the project at ${opts.cwd}.`,
@@ -1149,7 +1143,7 @@ export async function applyAgentsMdConsolidationPlan(
   );
   const privateRoot = run.manifest.harnessDir;
   const publicRoot = run.manifest.publicDir;
-  const harnessConfig = configPaths(opts.cwd).projectLocal;
+  const harnessConfig = configPaths(opts.cwd).project;
   const preReceiptPath = path.join(run.manifest.runDir, "agents-pre-receipt.json");
   const postReceiptPath = path.join(run.manifest.runDir, "agents-post-receipt.json");
   const files = new Set([targetPath, preReceiptPath, postReceiptPath]);
@@ -1208,6 +1202,10 @@ export async function applyAgentsMdConsolidationPlan(
     await opts.transactionHook?.("before-artifacts");
     for (const root of stableRoots) await assertStableMemoryRoot(root);
 
+    if (skillOps.length > 0) {
+      await assertProjectLocalTarget(opts.cwd, harnessConfig);
+      mergeSkillPrompts(await readHarnessConfig(harnessConfig), skillOps);
+    }
     const planDigest = sha256Digest(JSON.stringify(rawPlan));
     const preReceipt = {
       kind: "agents-md-consolidation-receipt",

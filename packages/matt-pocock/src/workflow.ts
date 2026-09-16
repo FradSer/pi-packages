@@ -88,6 +88,7 @@ const phaseTitles: Record<string, string> = {
   mapping: "Initiative Mapping",
   survey: "Architecture Survey",
   "design-review": "Architecture Design",
+  triage: "Task Triage",
 };
 
 export function readableRouteTitle(route: string): string {
@@ -143,7 +144,7 @@ export function latestWorkflowState(entries: unknown[]): WorkflowState | undefin
 export function workflowGuidance(state: WorkflowState, availableReferences: string[]): string {
   const next = allowedTransitions(state.route, state.procedure);
   return `Matt Pocock workflow active: ${state.route} · ${state.phase}.
-Work item: ${state.workItemId}. Follow the loaded ${state.procedure} procedure. Use matt_pocock_active to transition only to: ${next.join(", ") || "none"}; load an available reference; complete the work; or cancel it with a reason. Available references: ${availableReferences.join(", ") || "none"}. Proceed autonomously through non-user-owned work. Ask only for a genuinely user-owned decision, unavailable fact, or required external action. Use matt_pocock_ask for structured workflow decisions. When the workflow's work is done, call matt_pocock_active with action complete instead of leaving stale active state.`;
+Work item: ${state.workItemId}. Follow the loaded ${state.procedure} procedure. Use matt_pocock_active to transition only to: ${next.join(", ") || "none"}; load an available reference; complete the work; or cancel it with a reason. Available references: ${availableReferences.join(", ") || "none"}. Proceed autonomously through non-user-owned work: once the current procedure's deliverables or decisions are ready, transition to the next applicable procedure via matt_pocock_active immediately without stopping to ask permission. Ask only for a genuinely user-owned decision, unavailable fact, or required external action. Use matt_pocock_ask for structured workflow decisions. When the workflow's work is done, call matt_pocock_active with action complete instead of leaving stale active state.`;
 }
 
 export function availableWorkflowsGuidance(): string {
@@ -157,11 +158,18 @@ export function availableWorkflowsGuidance(): string {
 
 Use matt_pocock_workflow for structured engineering workflows or a listed standalone capability. Do not activate a workflow for routine work that another loaded skill already owns.
 
+When a user request matches a multi-step engineering task, proactively activate the structured workflow:
+- New feature, requirement, or end-to-end initiative: start idea-to-ship.
+- Reproducing, diagnosing, or fixing a hard or non-trivial bug: start hard-bug.
+- Exploring and restructuring codebase architecture or deepening shallow modules: start architecture.
+- Charting ambiguous initiatives with decision tickets: start wayfinding.
+- Categorizing and triaging issue tracker tickets: start triage.
+
 Workflows:
 ${workflows}
 
 Model-reachable standalone capabilities:
 ${capabilities}
 
-Workflow state is deliberate and task-scoped. Start only when relevant; once active, use matt_pocock_active to transition, load references, complete, or cancel.`;
+Workflow state is deliberate and task-scoped. When relevant, start a workflow first with matt_pocock_workflow (mode: "workflow"); the started workflow carries its procedure and next-step guidance.`;
 }

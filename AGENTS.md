@@ -31,15 +31,13 @@ Use strict ESM TypeScript (ES2022; Node ≥20), kebab-case modules, snake_case
 tools. No formatter/linter is configured; match local style. Edit dependencies
 through pnpm. Extensions declare
 `"pi": { "extensions": ["./index.ts"] }`; Pi-core/TypeBox imports are peers.
-For resource authoring, consult @.memory/project_pi_package_conventions.md.
+List bundled non-TypeScript files (Markdown, templates, scripts) in manifest `files`.
 
 ## Shared Runtime: pi-kit
 
 Prefer internal `@fradser/pi-kit` for shared helpers/infrastructure:
 `"@fradser/pi-kit": "workspace:*"` under `dependencies`, never `peerDependencies`.
 If absent, record the gap; invent no replacement or unverified registry dependency.
-For shared-runtime changes, consult
-@.memory/project_pi_kit_internal_dependency.md.
 
 ## Testing Guidelines
 
@@ -59,10 +57,10 @@ update installed paths in `~/.pi/agent/settings.json`.
   headless/missing-auth handling. Shared worker JSON uses atomic tmp+rename.
 - UI reference: @packages/btw/src/overlay.ts. `ctx.ui.custom` owns input;
   widgets stay passive, width-bounded, spinner-aligned. Never intercept global
-  terminal input. For raw keys, consult
-  @.memory/reference_pi_kitty_csi_u_keys.md.
-- Workflow menus are commands; routing uses `before_agent_start`. For user
-  interaction/gates, consult @.memory/feedback_no_custom_interaction_tools.md.
+  terminal input.
+- Workflow menus are commands; routing uses `before_agent_start`. Do not
+  register custom user-interaction tools (`gh_confirm`, `git_ask_name`); use
+  TUI menus, slash commands, or native prompts instead.
 - Flow/procedure starts are abstract lifecycle lines, never full-text dumps:
   send the procedure via `pi.sendMessage({ customType: "<pkg>-procedure",
   content, display: true, details }, { deliverAs: "followUp", triggerTurn:
@@ -71,8 +69,21 @@ update installed paths in `~/.pi/agent/settings.json`.
   `safeDisplayText` subject). Tool starts render the same shape through
   pi-kit lifecycle renderers in `renderResult`. Full content stays in LLM
   context; the transcript shows only the line. Reference:
-  @packages/impeccable/src/index.ts, @packages/matt-pocock/src/index.ts,
-  @.memory/project_monitor_display_pattern.md.
+  @packages/impeccable/src/index.ts, @packages/matt-pocock/src/index.ts.
+
+## Decision Boundaries & Completion
+
+- **Autonomous local work**: Contributors and agents are authorized to modify
+  package code, add or adjust tests/features, and fix failures caused by
+  requested changes without intermediate sign-off.
+- **Explicit approval required**: Publishing packages to npm, modifying remote
+  git branches, and destructive operations (force push, worktree deletion)
+  require explicit user confirmation.
+- **Verification & Stopping Conditions**: Local work is complete when the
+  target package's tests pass (`python3 -m pytest packages/<name>/tests/ -q`),
+  type check passes (`pnpm typecheck`), and `pnpm --dir packages/<name> pack --dry-run`
+  confirms manifest packaging. Do not halt for review before completing
+  verification.
 
 ## Commit & Pull Request Guidelines
 

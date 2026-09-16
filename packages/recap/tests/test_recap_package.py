@@ -33,7 +33,8 @@ def test_feature_covers_recap_scenarios() -> None:
     assert "Feature: Session Recap" in feature
     assert "Scenario: Recap feedback uses the shared TUI notification abstraction" in feature
     assert "portable notification helper" in feature
-    assert "Scenario: Recap widget uses pi-kit's shared row renderer" in feature
+    assert "Scenario: Recap widget uses pi-kit's shared live activity and row renderers" in feature
+    assert "live activity widget" in feature
     assert "shared widget-row renderer" in feature
     assert "Scenario: Recap widget is displayed above the editor by default" in feature
     assert "Scenario: Recap is informative and scannable" in feature
@@ -160,7 +161,7 @@ def test_first_prompt_starts_recap_before_agent_settled_and_refreshes_after_comp
         let resolveInitial;
         const initialCompletion = new Promise((resolve) => {{ resolveInitial = resolve; }});
         let branch = [];
-        let setWidgetCall;
+        const widgetCalls = [];
         const fakePi = {{
           on(event, handler) {{ registeredEvents[event] = handler; }},
           registerCommand() {{}},
@@ -175,7 +176,7 @@ def test_first_prompt_starts_recap_before_agent_settled_and_refreshes_after_comp
             getSessionFile: () => undefined,
           }},
           ui: {{
-            setWidget: (name, factory) => {{ setWidgetCall = {{ name, factory }}; }},
+            setWidget: (name, factory, options) => {{ widgetCalls.push({{ name, factory, options }}); }},
             notify: () => {{}},
           }},
           modelRegistry: {{
@@ -195,9 +196,9 @@ def test_first_prompt_starts_recap_before_agent_settled_and_refreshes_after_comp
         registeredEvents["input"]({{ source: "interactive", text: "Implement feature X" }}, fakeCtx);
         await new Promise((resolve) => setTimeout(resolve, 25));
         const callsBeforeSettled = completeCalls;
-        const pendingWidget = setWidgetCall?.factory(
+        const pendingWidget = widgetCalls.find((call) => call.name === "recap-activity" && call.factory)?.factory(
           {{ requestRender: () => {{}} }},
-          {{ fg: (_name, text) => text }},
+          {{ fg: (_name, text) => text, bold: (text) => text }},
         );
         const progressLines = pendingWidget?.render(80) ?? [];
         branch = [
@@ -234,7 +235,7 @@ def test_first_prompt_starts_recap_before_agent_settled_and_refreshes_after_comp
     assert result["finalPromptHasAssistantOutcome"] is True
     assert result["finalRecapPersisted"] is True
     assert result["showsProgress"] is True
-    assert result["progressLeadingSpaces"] == 0
+    assert result["progressLeadingSpaces"] == 1
 
 
 def test_session_replacement_aborts_pending_first_prompt_recap() -> None:
@@ -833,7 +834,7 @@ def test_extension_restores_recap_from_session_branch_on_startup() -> None:
     assert result["widgetSet"] is True
     assert result["widgetName"] == "recap"
     assert any("Persisted: Fixed auth bug in auth.ts" in line for line in result["lines"])
-    assert result["recapLeadingSpaces"] == 0
+    assert result["recapLeadingSpaces"] == 1
 
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert "pi-package" in manifest["keywords"]
@@ -877,11 +878,11 @@ def test_extension_registers_recap_command_with_menu() -> None:
     assert "chooseRecapLanguage" in extension
     assert "Recapping..." in extension
     assert 'from "@fradser/pi-kit"' in extension
-    assert "PI_SPINNER_FRAMES" in extension
-    assert "PI_SPINNER_FRAMES[recapSpinnerFrame]" in extension
-    assert "requestRender" in extension
+    assert "createLiveActivityWidget" in extension
+    assert 'key: "recap-activity"' in extension
+    assert 'identity: "Recapping..."' in extension
     assert "generatingRecap" in extension
-    assert "starts at column zero with no leading spaces" in (PACKAGE / "features" / "recap.feature").read_text(encoding="utf-8")
+    assert "starts with one leading space like native working rows" in (PACKAGE / "features" / "recap.feature").read_text(encoding="utf-8")
 
 
 def test_extension_listens_to_agent_settled_and_session_start() -> None:
@@ -1154,9 +1155,10 @@ def test_widget_refresh_ignores_disposed_context() -> None:
     assert 'error.message.includes("stale")' in extension
 
 
-def test_recap_marker_matches_native_working_spinner_indent() -> None:
+def test_recap_marker_matches_shared_live_activity_widget_and_native_recap_indent() -> None:
     extension = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
-    assert 'renderPiWidgetRow(theme.fg("accent", `${spinner} Recapping...`), width, truncateToWidth, 0)' in extension
+    assert "createLiveActivityWidget" in extension
+    assert "leadingSpaces: 1" in extension
     assert "const prefix = i === 0 ? firstPrefix : indent;" in extension
     assert 'const icon = theme.fg("accent", "✦");' in extension
     assert 'const firstPrefix = `${icon} ${label} `;' in extension
