@@ -143,7 +143,7 @@ class TestContextPackage(unittest.TestCase):
         source = read("extensions/context-tools.ts")
         self.assertNotIn("MAX_CHARS", source)
         self.assertNotIn("truncateHead", source)
-        self.assertIn("createStaticToolLifecycleResultRenderer", source)
+        self.assertIn("contextRows.result(", source)
         self.assertIn('eventToolLifecycle("context"', source)
         self.assertIn('label: "researched"', source)
         self.assertNotIn('label: "researching"', source)

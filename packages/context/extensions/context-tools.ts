@@ -1,8 +1,9 @@
 import { getMarkdownTheme, keyHint, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { type Component, Markdown, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
+  bindLifecycleRenderers,
+  contentDetailLines,
   createLiveActivityWidget,
-  createStaticToolLifecycleResultRenderer,
   eventToolLifecycle,
   runPiWorker,
   type PiLiveWidgetContext,
@@ -12,6 +13,14 @@ import { Type } from "typebox";
 import { buildContextResearchPrompt } from "./context-prompt.ts";
 
 const RESEARCH_TOOLS = ["read", "bash"];
+
+/** Geometry bound once: the research row shares hint and wrapping. */
+const contextRows = bindLifecycleRenderers({
+  fit: truncateToWidth,
+  visibleWidth,
+  wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+  expandHint: () => keyHint("app.tools.expand", "to expand"),
+});
 const FINAL_ANSWER_RETRY_INSTRUCTION = `
 
 Completion requirement: the previous attempt produced no textual final answer. Complete the original research request now without relying on hidden reasoning, transient tool output, or state from the prior attempt; repeat any inspection needed to support the answer. Your final assistant message must be a self-contained plain-text answer with the conclusion and concrete evidence. Do not finish immediately after a tool call.`;
@@ -62,10 +71,6 @@ function renderContextCall(
     },
     invalidate: () => {},
   };
-}
-
-function resultText(result: ToolTextResult): string {
-  return result.content.find((part) => part.type === "text")?.text ?? "";
 }
 
 export function buildResearchPrompt(query: string, finalAnswerRetry = false): string {
@@ -186,20 +191,12 @@ export function registerContextTools(pi: ExtensionAPI): void {
       }
       const query = (context.args as { query?: string })?.query;
       const subject = formatResearchSubject(query);
-      const text = resultText(result as ToolTextResult);
-      const details = text.split("\n").map((line) => line.trim()).filter(Boolean);
       const spec = eventToolLifecycle("context", subject, {
         label: "researched",
-        details,
+        details: contentDetailLines(result),
         detailLimit: "all",
       });
-      return createStaticToolLifecycleResultRenderer({
-        createSpec: () => spec,
-        expandHint: keyHint("app.tools.expand", "to expand"),
-        fit: truncateToWidth,
-        visibleWidth,
-        wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
-      })(result as ToolTextResult, options, theme, context);
+      return contextRows.result(() => spec)(result as ToolTextResult, options, theme, context);
     },
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const widget = startResearchWidget(ctx as ResearchWidgetContext | undefined);
