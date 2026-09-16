@@ -1714,3 +1714,63 @@ def test_pending_changesets_reference_workspace_package_names() -> None:
         declared_names = [line.split('"', 2)[1] for line in frontmatter.splitlines() if line.startswith('"')]
         unknown_names = set(declared_names) - workspace_names
         assert not unknown_names, f"{changeset_file.name} references unknown packages: {sorted(unknown_names)}"
+
+
+def test_lifecycle_binding_unifies_rows_across_call_sites() -> None:
+    result = run_typescript(
+        f"""
+        import {{ bindLifecycleRenderers, eventToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const theme = {{ fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text }};
+        const rows = bindLifecycleRenderers({{
+          fit: (text, width) => text,
+          visibleWidth: (text) => text.length,
+          wrapDetail: (line) => [line],
+          expandHint: "ctrl+o to expand",
+        }});
+        const first = rows.result(() => eventToolLifecycle("monitor", "nightly", {{ label: "started", details: ["command · make check"] }}));
+        const second = rows.result(() => eventToolLifecycle("sessions", "two items", {{ label: "listed", details: ["a", "b"] }}));
+        const message = rows.message(() => eventToolLifecycle("learning", "done", {{ label: "event", details: ["policy · allow"] }}), {{ cwd: "/repo" }});
+        const collapsed = first({{ content: [] }}, {{ expanded: false }}, theme, {{}}).render(200).join("\\n");
+        const empty = rows.emptyCall();
+        console.log(JSON.stringify({{
+          first: first({{ content: [] }}, {{ expanded: true }}, theme, {{}}).render(200).join("\\n"),
+          second: second({{ content: [] }}, {{ expanded: true }}, theme, {{}}).render(200).join("\\n"),
+          message: message({{ content: "done", details: {{}} }}, {{ expanded: true }}, theme).render(200).join("\\n"),
+          collapsed: collapsed,
+          empty: empty.render(200),
+        }}));
+        """
+    )
+    assert "[monitor] started · nightly · ctrl+o to expand" in result["collapsed"]
+    assert "command · make check" in result["first"]
+    assert "[sessions] listed · two items" in result["second"]
+    assert "\n a\n b" in result["second"]
+    assert "[learning] event · done" in result["message"]
+    assert "policy · allow" in result["message"]
+    assert result["empty"] == []
+
+
+def test_human_copy_helpers_share_one_vocabulary() -> None:
+    result = run_typescript(
+        f"""
+        import {{ contentDetailLines, displayText, fieldBlock, fieldLine, scrubHandles }} from {json.dumps((SRC / "index.ts").as_uri())};
+        console.log(JSON.stringify({{
+          lines: contentDetailLines({{ content: [{{ type: "text", text: "  one\\n\\n two " }}] }}),
+          field: fieldLine("model", "qwen3-max"),
+          block: fieldBlock("task", "first\\nsecond"),
+          dropped: fieldLine("note", {{ nested: true }}),
+          session: scrubHandles("see session:reviewer:6d102f1b-cc16-4059-8d86-d5c1192f3776 now"),
+          known: scrubHandles("over work:e0cfae81-57dd-4b68-8b67-2103ed825cfd", (h) => h === "work:e0cfae81-57dd-4b68-8b67-2103ed825cfd" ? "Fix spacing" : undefined),
+          generic: scrubHandles("over direct:6d102f1b-cc16-4059-8d86-d5c1192f3776."),
+          literal: scrubHandles("compare 6d102f1b-cc16-4059-8d86-d5c1192f3776 in the log"),
+        }}));
+        """
+    )
+    assert result["lines"] == ["one", "two"]
+    assert result["field"] == "model · qwen3-max"
+    assert result["block"] == ["task · first", "second"]
+    assert result["dropped"] == "note · "
+    assert result["session"] == "see @reviewer now"
+    assert result["known"] == "over Fix spacing"
+    assert result["generic"] == "over its assignment."
+    assert result["literal"] == "compare 6d102f1b-cc16-4059-8d86-d5c1192f3776 in the log"

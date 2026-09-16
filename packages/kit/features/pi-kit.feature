@@ -301,3 +301,29 @@ Feature: Shared pi-kit runtime helpers
     Given two missing directory paths are resolved absolutely
     When pi-kit compares their directory identity
     Then their session keys do not use the legacy encoded path fallback
+
+  Scenario: Lifecycle renderer bindings are bound once per extension
+    Given an extension binds its lifecycle renderer with injected geometry and hint
+    When any of its tool or message rows renders
+    Then every row shares the same expand hint, wrapping, and empty call
+    And no call site repeats the geometry options
+    And a message row may override the host component per call for runtime-bound hosts
+
+  Scenario: Human detail lines derive from model content through one rule
+    Given a tool result with multi-line model text
+    When pi-kit derives its detail lines
+    Then blank lines are dropped and the rest stay in order
+
+  Scenario: Body fields share one label vocabulary
+    Given a label and any model-supplied value
+    When pi-kit formats the field line
+    Then the line reads `label · value` on one line
+    And a multi-line value keeps the label on its first line only
+    And objects and nullish values never stringify into the transcript
+
+  Scenario: Runtime handles are scrubbed from human text
+    Given human text containing a prefixed handle or session route
+    When pi-kit scrubs the text with a resolver
+    Then a known handle becomes the resolved words
+    And an unknown handle becomes a plain noun without its identifier
+    And a bare identifier a person wrote themselves survives verbatim

@@ -586,6 +586,142 @@ function textLines(value: unknown): string[] {
   return extractTextContent(value).split("\n").filter((line) => line.trim());
 }
 
+// ── Shared human-copy layer ───────────────────────────────────────────
+// One mechanism for every package: geometry is bound once per extension
+// (kit stays dependency-free, so hosts inject their own fit/width/wrap/hint),
+// and body lines share one `label · value` vocabulary with one handle rule.
+
+/** Geometry and host affordances, supplied once per extension module.
+ * Every row rendered through the returned closures shares the same expand
+ * hint and wrapping, so no call site can silently drop them. */
+export interface LifecycleRendererBindings {
+  fit: ToolLifecycleRenderOptions["fit"];
+  visibleWidth: ToolLifecycleRenderOptions["visibleWidth"];
+  wrapDetail?: ToolLifecycleRenderOptions["wrapDetail"];
+  /** A string, or a thunk so module-level bindings never run before the host theme is ready. */
+  expandHint?: string | (() => string);
+  hostComponent?: ToolExecutionWrapperOptions["hostComponent"];
+  ui?: ToolExecutionWrapperOptions["ui"];
+  cwd?: string;
+}
+
+export interface BoundLifecycleRenderers {
+  /** Shared tool-result band for one `registerTool` renderResult. */
+  result<T extends PiCustomMessageLike>(
+    createSpec: (result: T) => ToolLifecycleSpec,
+  ): (
+    result: T,
+    state: { expanded?: boolean; isPartial?: boolean },
+    theme: ToolLifecycleTheme,
+    context: { isError?: boolean },
+  ) => PiMessageComponent;
+  /** Shared custom-message band for one `registerMessageRenderer`.
+   * Per-call overrides cover hosts bound at runtime (leader ui/cwd). */
+  message<T extends PiCustomMessageLike>(
+    createSpec: (message: T) => ToolLifecycleSpec,
+    overrides?: Pick<LifecycleRendererBindings, "hostComponent" | "ui" | "cwd">,
+  ): (
+    message: T,
+    state: { expanded?: boolean },
+    theme: ToolLifecycleTheme,
+  ) => PiMessageComponent;
+  /** The single empty tool-call component. */
+  emptyCall(): { render: () => string[]; invalidate: () => void };
+}
+
+/** Bind the shared band once per extension: every later row inherits the same
+ * hint, wrapping, and (for messages) host click-to-expand. */
+export function bindLifecycleRenderers(bindings: LifecycleRendererBindings): BoundLifecycleRenderers {
+  // A hint thunk may throw before the host theme is ready (harnesses render
+  // without initTheme); fall back to the shared default instead of crashing.
+  const hintOf = () => {
+    try {
+      return typeof bindings.expandHint === "function" ? bindings.expandHint() : bindings.expandHint;
+    } catch {
+      return undefined;
+    }
+  };
+  const geometry = {
+    fit: bindings.fit,
+    visibleWidth: bindings.visibleWidth,
+    wrapDetail: bindings.wrapDetail,
+  };
+  return {
+    // The hint resolves per render: module-level bindings must never run
+    // before the host theme is ready (harnesses import before initTheme).
+    result: (createSpec) => createStaticToolLifecycleResultRenderer({
+      createSpec,
+      ...geometry,
+      get expandHint() { return hintOf(); },
+    }),
+    message: (createSpec, overrides) => createStaticToolLifecycleMessageRenderer({
+      createSpec,
+      ...geometry,
+      get expandHint() { return hintOf(); },
+      hostComponent: overrides?.hostComponent ?? bindings.hostComponent,
+      ui: overrides?.ui ?? bindings.ui,
+      cwd: overrides?.cwd ?? bindings.cwd,
+    }),
+    emptyCall: () => emptyToolCall(),
+  };
+}
+
+/** The single empty tool-call component. */
+export function emptyToolCall(): { render: () => string[]; invalidate: () => void } {
+  return { render: () => [], invalidate: () => {} };
+}
+
+/** Shared "model content → human detail lines" derivation: trim, drop empties. */
+export function contentDetailLines(result: PiCustomMessageLike): string[] {
+  return extractTextContent(result.content).split("\n").map((line) => line.trim()).filter(Boolean);
+}
+
+/** Scalar model text only: objects never stringify into the transcript. */
+export function displayText(value: unknown): string {
+  if (typeof value === "string") return value;
+  return typeof value === "number" || typeof value === "boolean" ? String(value) : "";
+}
+
+/** One body line in the shared vocabulary: `label · value`, collapsed to a line. */
+export function fieldLine(label: string, value: unknown): string {
+  return `${safeDisplayText(label)} · ${displayText(value).replace(/\s+/g, " ").trim()}`;
+}
+
+/** A clipped multi-line field: the label heads the first line, the rest follow. */
+export function fieldBlock(label: string, value: unknown, limit = 2000): string[] {
+  const text = displayText(value).split("\n").map((line) => line.trim()).join("\n");
+  const clipped = text.length <= limit ? text : `${text.slice(0, limit).trimEnd()} …`;
+  const [head, ...rest] = clipped.split("\n").filter((line) => line.trim());
+  if (!head) return [];
+  return [fieldLine(label, head), ...rest.map((line) => safeDisplayText(line))].filter(Boolean);
+}
+
+/** Resolve a `prefix:<uuid>` handle to the words a person expects. */
+export type HandleResolver = (handle: string) => string | undefined;
+
+const HANDLE_TOKEN = /\b[a-z][a-z0-9-]*:[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\b/gi;
+const SESSION_ROUTE = /\bsession:[a-z][a-z0-9._-]*:[0-9a-zA-Z._-]+/gi;
+
+function defaultHandleWords(token: string): string {
+  const bare = token.replace(/:$/, "");
+  if (bare.startsWith("work:")) return "Work";
+  return "its assignment";
+}
+
+/** Scrub runtime handles from human text. `session:<name>:<id>` becomes `@name`;
+ * other `prefix:<uuid>` handles use the resolver, falling back to a plain noun.
+ * A bare identifier a person wrote themselves is not a handle and survives. */
+export function scrubHandles(text: unknown, resolve?: HandleResolver): string {
+  return displayText(text)
+    .replace(SESSION_ROUTE, (route) => {
+      const name = route.split(":")[1];
+      return name ? `@${name}` : route;
+    })
+    .replace(HANDLE_TOKEN, (token) => resolve?.(token.replace(/:$/, "")) ?? defaultHandleWords(token))
+    .replace(/"\s*"/g, "")
+    .replace(/[ \t]+([.,;:!?])/g, "$1");
+}
+
 /** Minimal structural `ctx.ui` surface for notifications. */
 export interface PiNotificationUi {
   notify(message: string, level?: "info" | "warning" | "error"): void;
