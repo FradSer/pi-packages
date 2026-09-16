@@ -1,11 +1,20 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Container, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { createStaticToolLifecycleMessageRenderer, createStaticToolLifecycleResultRenderer, eventToolLifecycle, safeDisplayText, startedToolLifecycle } from "@fradser/pi-kit";
+import { keyHint } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { bindLifecycleRenderers, eventToolLifecycle, fieldLine, safeDisplayText, startedToolLifecycle } from "@fradser/pi-kit";
 import { Type } from "typebox";
 import { resolver, type Bundle, type Resolver } from "./resolver.ts";
 import { loadTriggers, routeFreeform, type TriggerEntry } from "./routing.ts";
 
 const PROCEDURE_ENTRY = "impeccable-procedure";
+
+/** Geometry bound once: every impeccable row shares hint and wrapping. */
+const impeccableRows = bindLifecycleRenderers({
+  fit: truncateToWidth,
+  visibleWidth,
+  wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+  expandHint: () => keyHint("app.tools.expand", "to expand"),
+});
 
 function capabilityLabel(loader: Resolver, id: string): string {
   return loader.capabilities.find(entry => entry.id === id)?.label ?? id;
@@ -143,11 +152,7 @@ export function registerImpeccable(pi: ExtensionAPI, loader: Resolver, triggers:
       const details = (message.details ?? {}) as Partial<ProcedureDetails>;
       const loaded = details.loaded ?? [];
       const subject = safeDisplayText(details.request?.trim() || loaded.map(entry => entry.label).join(" + ") || "procedure");
-      return createStaticToolLifecycleMessageRenderer({
-        createSpec: () => startedToolLifecycle("impeccable", subject, { label: "started" }),
-        fit: truncateToWidth,
-        visibleWidth,
-      })(message, { expanded }, theme);
+      return impeccableRows.message(() => startedToolLifecycle("impeccable", subject, { label: "started" }))(message, { expanded }, theme);
     });
   }
   pi.registerCommand("impeccable", {
@@ -169,20 +174,17 @@ export function registerImpeccable(pi: ExtensionAPI, loader: Resolver, triggers:
       return { content: [{ type: "text", text: bundle.content }], details: bundle };
     },
     renderShell: "self",
-    renderCall: () => new Container(),
-    renderResult: createStaticToolLifecycleResultRenderer<{ content: unknown; details?: Bundle }>({
-      createSpec: result => eventToolLifecycle("impeccable", result.details?.root ?? "loading", {
-        label: "loaded",
-        details: [
-          `Loaded: ${result.details?.loaded.join(", ") ?? "none"}`,
-          `References: ${result.details?.availableReferences.map(edge => `${edge.id}: ${edge.when}`).join("; ") || "none"}`,
-          `Bytes: ${result.details?.byteLength ?? 0}; no scripts executed; pending: none`,
-        ],
-        detailLimit: 3,
-      }),
-      fit: truncateToWidth,
-      visibleWidth,
-    }),
+    renderCall: () => impeccableRows.emptyCall(),
+    renderResult: impeccableRows.result<{ content: unknown; details?: Bundle }>((result) => eventToolLifecycle("impeccable", result.details?.root ?? "loading", {
+      label: "loaded",
+      details: [
+        fieldLine("loaded", result.details?.loaded.join(", ") || "none"),
+        fieldLine("references", result.details?.availableReferences.map(edge => `${edge.id} — ${edge.when}`).join("; ") || "none"),
+        fieldLine("bytes", result.details?.byteLength ?? 0),
+        fieldLine("scripts", "none executed"),
+      ],
+      detailLimit: 4,
+    })),
   });
 }
 

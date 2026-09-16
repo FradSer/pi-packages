@@ -212,6 +212,7 @@ Feature: A unified design capability in Pi
     And the full guidance is not printed into that row
     When the user expands the result
     Then displayed details remain bounded
+    And the fields share the kit `label · value` vocabulary with wrapping
     And model-facing guidance is not truncated by display limits
 
   Scenario: Oversized guidance is rejected rather than truncated

@@ -190,9 +190,10 @@ test('registered renderer bounds details and leaves complete model guidance unto
     const component = h.tool.renderResult(result, { expanded, isPartial: false }, theme, { isError: false });
     for (const width of [1, 20, 80]) {
       const lines = component.render(width);
-      assert.ok(lines.length <= (expanded ? 6 : 3));
       assert.ok(lines.every(line => visibleWidth(line) <= width));
       assert.ok(!lines.join(' ').includes('long guidance'));
     }
+    // Four bounded `label · value` fields; at a wide width nothing wraps.
+    assert.ok(component.render(80).length <= (expanded ? 7 : 3));
   }
 }));
