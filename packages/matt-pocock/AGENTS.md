@@ -11,7 +11,7 @@ Run from the repository root:
 ```bash
 node packages/matt-pocock/scripts/check-upstream-sync.mjs
 python3 -m pytest packages/matt-pocock/tests/ -q
-npx tsc --noEmit -p tsconfig.extensions.json
+pnpm typecheck
 pnpm --dir packages/matt-pocock pack --dry-run
 ```
 

@@ -2,6 +2,20 @@ Reference for writing any document an agent consumes — a skill, an `AGENTS.md`
 
 When the document you're writing is a skill, read [`SKILL-MECHANICS.md`](SKILL-MECHANICS.md) for frontmatter, invocation choice, and router skills.
 
+## Model-aware instruction audit
+
+Apply these core principles from the supplied article, **Rethinking skills and prompts for GPT-6 Astra**, when authoring or auditing skills, `AGENTS.md`, and task prompts. Treat its model comparisons as context for revisiting instructions, not a guarantee of any model's judgment or safety.
+
+- **Narrow triggers.** Keep skill descriptions as short as possible while naming the actual workflow. Prefer “Create and validate Postgres schema migrations. Use when adding or changing a migration, or reviewing its rollout” over a trigger for all database work. Many long descriptions compete for context and may be shortened by the host; overlapping or contradictory triggers load irrelevant guidance.
+- **Minimal routing.** For a multi-workflow skill, make the root a minimal router to supporting docs and scripts, with clear conditions for loading each. Load only the branch needed for the task; unnecessary guidance spends context and brings compaction closer.
+- **Outcomes over itineraries.** Specify constraints and completion criteria, leaving implementation choices to the agent unless a particular sequence is essential. Evaluate instructions against the models used by contributors, rather than assuming scaffolding that helped one model helps all of them.
+- **Contextual repository guidance.** Revisit always-loaded `AGENTS.md` instructions regularly and after model upgrades. Replace blanket pre-reading with pointers such as “Use architecture.md for service boundaries, database.md for schema changes, and deployment.md when preparing a deployment.” Keep targets current and reading proportional to the task; a typo fix needs no full repository tour.
+- **Evidence-based pruning.** Remove stale workarounds, conflicting guidance, and reminders already satisfied by the target model's default behavior. Generic demands to keep testing can cause redundant work; retain task-specific verification requirements and explicit repository contracts rather than assuming testing is unnecessary.
+- **Safe autonomy and decision boundaries.** State what may proceed without repeated approval and where approval is required. For example, only when verified true: “The local tests use disposable fixtures and have no production access. Run them, fix failures caused by the requested change, and rerun affected tests without asking for approval at each step.” Review inherited ask-first language that blocks safe work, while retaining explicit approval boundaries for production writes, destructive operations, and external publication. Perceived model capability does not grant permission.
+- **Persistence with a finish line.** Define completion before work begins. If delivery includes running it, inspecting the result, fixing failures, and rerunning affected checks, say so; a first implementation is not that finish line. Keep a stop-for-review gate only when a human decision is genuinely needed. For work beyond the first pass, name the exploration scope and stopping condition so persistence stays bounded.
+
+Use the sections below to apply this audit; preserve instructions that encode real project constraints rather than deleting them solely because a newer model is available.
+
 ## Context pointers
 
 A **context pointer** is a reference held in the agent's context that names some out-of-context material and encodes the condition for reaching it. A skill's description is one; a line in `AGENTS.md` naming a doc is the same object. The pointer's _wording_, not its target, decides when the agent reaches the material — and how reliably. A must-have target behind a weakly worded pointer is a variance bug: sharpen the wording first, and inline the material only if sharpening fails.
