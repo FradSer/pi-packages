@@ -14,11 +14,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { keyHint, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Container, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
-  createStaticToolLifecycleResultRenderer,
+  bindLifecycleRenderers,
   detailField,
   eventToolLifecycle,
+  fieldLine,
   formatAgentTaskName,
   getDirectorySessionKey,
   isSameDirectory,
@@ -26,6 +27,14 @@ import {
   safeDisplayText,
 } from "@fradser/pi-kit";
 import { Type } from "typebox";
+
+/** Geometry bound once: every sessions row shares hint and wrapping. */
+const sessionRows = bindLifecycleRenderers({
+  fit: truncateToWidth,
+  visibleWidth,
+  wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+  expandHint: () => keyHint("app.tools.expand", "to expand"),
+});
 
 export interface SessionInfo {
   sessionId: string;
@@ -426,7 +435,7 @@ export default function (pi: ExtensionAPI) {
       ),
     }),
     renderShell: "self",
-    renderCall: () => new Container(),
+    renderCall: () => sessionRows.emptyCall(),
     // Pi passes only { content, details } here; liveness comes from context.isError.
     renderResult(result, options, theme, context) {
       const sessions = detailField<SessionInfo[]>(result.details, "sessions") ?? [];
@@ -434,13 +443,7 @@ export default function (pi: ExtensionAPI) {
       // Detail lines are wrapped by pi-kit at the current terminal width, so
       // expanding exposes every session and every available field.
       const rows = sessions.flatMap((session) => buildSessionLines(session));
-      return createStaticToolLifecycleResultRenderer({
-        createSpec: () => eventToolLifecycle("sessions", summary, { label: "listed", details: rows, detailLimit: "all" }),
-        expandHint: keyHint("app.tools.expand", "to expand"),
-        fit: truncateToWidth,
-        visibleWidth,
-        wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
-      })(result, options, theme, context);
+      return sessionRows.result(() => eventToolLifecycle("sessions", summary, { label: "listed", details: rows, detailLimit: "all" }))(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const targetCwd = params.cwd ? path.resolve(params.cwd) : ctx.cwd;
@@ -482,13 +485,13 @@ function buildSessionLines(session: SessionInfo): string[] {
   const name = safeDisplayText(rawName);
   const lines = [`  ${name} · ${session.status.toUpperCase()} · pid ${session.pid} · ${formatSessionAge(session.updatedAt)}`];
   if (session.latestGoal) {
-    lines.push(`    Goal  ${formatAgentTaskName(safeDisplayText(session.latestGoal), "")}`);
+    lines.push(fieldLine("Goal", formatAgentTaskName(safeDisplayText(session.latestGoal), "")));
   }
   if (session.recap) {
-    lines.push(`    Recap ${safeDisplayText(session.recap)}`);
+    lines.push(fieldLine("Recap", safeDisplayText(session.recap)));
   }
   for (const file of session.modifiedFiles ?? []) {
-    lines.push(`    File  ${safeDisplayText(file)}`);
+    lines.push(fieldLine("File", safeDisplayText(file)));
   }
   return lines;
 }

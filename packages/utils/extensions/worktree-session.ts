@@ -16,9 +16,10 @@ import {
 	type Theme,
 } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
-	createStaticToolLifecycleResultRenderer,
+	bindLifecycleRenderers,
+	contentDetailLines,
 	eventToolLifecycle,
 	notifyPi,
 	safeDisplayText,
@@ -31,9 +32,13 @@ interface WorktreeToolResult {
 	content: Array<{ text?: string; type: string }>;
 }
 
-function worktreeToolText(result: WorktreeToolResult): string {
-	return result.content.find((part) => part.type === "text")?.text ?? "";
-}
+/** Geometry bound once: every worktree row shares hint and wrapping. */
+const rows = bindLifecycleRenderers({
+	fit: truncateToWidth,
+	visibleWidth,
+	wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+	expandHint: () => keyHint("app.tools.expand", "to expand"),
+});
 
 function renderWorktreeToolResult(
 	result: WorktreeToolResult,
@@ -45,15 +50,10 @@ function renderWorktreeToolResult(
 	const separator = subject.indexOf(" ");
 	const action = separator === -1 ? subject : subject.slice(0, separator);
 	const target = separator === -1 ? "" : subject.slice(separator + 1);
-	return createStaticToolLifecycleResultRenderer({
-		createSpec: () => eventToolLifecycle("worktree", target, {
-			label: action,
-			details: worktreeToolText(result).split("\n").map((line) => line.trim()).filter(Boolean),
-		}),
-		expandHint: keyHint("app.tools.expand", "to expand"),
-		fit: truncateToWidth,
-		visibleWidth,
-	})(result, options, theme, context);
+	return rows.result(() => eventToolLifecycle("worktree", target, {
+		label: action,
+		details: contentDetailLines(result),
+	}))(result, options, theme, context);
 }
 
 export interface WorktreeRecord {
@@ -456,7 +456,7 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 		promptSnippet: "Switch the current Pi session into an isolated git worktree.",
 		description: "Queue a Pi session transition into a new or existing git worktree. The transition is applied by the enter-worktree command.",
 		renderShell: "self",
-		renderCall: () => new Text("", 0, 0),
+		renderCall: () => rows.emptyCall(),
 		renderResult(result, options, theme, context) {
 			const params = context.args as EnterWorktreeToolInput;
 			const target = params.name ?? params.path ?? "new worktree";
@@ -481,7 +481,7 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 		promptSnippet: "Return the current Pi session to its parent session and handle worktree cleanup.",
 		description: "Queue a Pi session transition back to the parent session. Cleanup is selected by the user when the command runs.",
 		renderShell: "self",
-		renderCall: () => new Text("", 0, 0),
+		renderCall: () => rows.emptyCall(),
 		renderResult(result, options, theme, context) {
 			return renderWorktreeToolResult(result, options, theme, context, "exit current worktree");
 		},

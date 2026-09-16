@@ -8,7 +8,7 @@
  * strings (errors, harness events) whose identifiers cannot be re-derived.
  */
 
-import { detailField } from "@fradser/pi-kit";
+import { contentDetailLines, detailField, displayText, fieldBlock, fieldLine, scrubHandles } from "@fradser/pi-kit";
 import { resolveAgent } from "./agents.ts";
 import { runningTeammateActivity } from "./activity.ts";
 import { parseExactSessionRoute } from "./recipient.ts";
@@ -22,48 +22,35 @@ export interface CoordinationRow {
   body: string[];
 }
 
-/** Only prefixed handles are machine identifiers; a bare UUID can be a person's
- * own text (a commit, an id under review) and must survive verbatim. */
-const HANDLE_TOKEN = /\b[a-z][a-z0-9-]*:[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\b/gi;
-const SESSION_ROUTE = /\bsession:[a-z][a-z0-9._-]*:[0-9a-zA-Z._-]+/gi;
 const COLLAPSED_TASK_LIMIT = 90;
 /** A kickoff prompt is shown in full up to this size, then clipped. */
 const FIELD_LIMIT = 2000;
 
+/** Package resolver: a known Work handle becomes its subject. Only prefixed
+ * handles are machine identifiers; a bare UUID can be a person's own text
+ * (a commit, an id under review) and survives verbatim inside kit. */
+function workHandle(handle: string): string | undefined {
+  return getTask(handle)?.subject;
+}
+
 /** Scalar model text only: a renderer must not stringify an object argument
  * into the transcript, and identifiers become the words a person expects. */
 export function plainText(value: unknown): string {
-  return scalar(value).replace(SESSION_ROUTE, (route) => {
-      const parsed = parseExactSessionRoute(route);
-      return parsed ? `@${parsed.name}` : route;
-    })
-    .replace(HANDLE_TOKEN, (token) => identifierWords(token))
+  return scrubHandles(value, workHandle)
     .replace(/"\s*"/g, "")
     .replace(/[ \t]+([.,;:!?])/g, "$1");
 }
 
-/** Model arguments arrive untyped at render time; only scalars are displayable. */
-function scalar(value: unknown): string {
-  if (typeof value === "string") return value;
-  return typeof value === "number" || typeof value === "boolean" ? String(value) : "";
-}
-
-function identifierWords(token: string): string {
-  const bare = token.replace(/:$/, "");
-  return getTask(bare)?.subject ?? (bare.startsWith("work:") ? "Work" : "its assignment");
+function collapse(value: unknown): string {
+  return displayText(value).replace(/\s+/g, " ").trim();
 }
 
 function oneLine(value: unknown): string {
-  return plainText(value).replace(/\s+/g, " ").trim();
+  return collapse(plainText(value));
 }
 
 function clipLines(value: unknown): string {
-  return scalar(value).split("\n").map((line) => plainText(line)).join("\n");
-}
-
-function clip(value: unknown, limit: number): string {
-  const text = clipLines(value);
-  return text.length <= limit ? text : `${text.slice(0, limit).trimEnd()} …`;
+  return displayText(value).split("\n").map((line) => plainText(line)).join("\n");
 }
 
 function shortTask(value: unknown): string {
@@ -77,21 +64,17 @@ function strings(value: unknown): string[] {
 }
 
 function labeled(label: string, value: unknown): string {
-  return `${label} · ${oneLine(value)}`;
+  return fieldLine(label, oneLine(value));
 }
 
 /** Multi-line field: the label heads the first line, the rest follow verbatim. */
 function labeledBlock(label: string, value: unknown, limit = FIELD_LIMIT): string[] {
-  const text = clip(value, limit);
-  const [head, ...rest] = text.split("\n").filter((line) => line.trim());
-  if (!head) return [];
-  return [labeled(label, head.trim()), ...rest.map((line) => line.trim())].filter(Boolean);
+  return fieldBlock(label, clipLines(value), limit);
 }
 
 function bodyLines(value: unknown): string[] {
-  return clipLines(value)
-    .split("\n")
-    .map((line) => oneLine(dedupeSegments(line)))
+  return contentDetailLines({ content: [{ type: "text", text: clipLines(value) }] })
+    .map((line) => dedupeSegments(collapse(line)))
     .filter(Boolean);
 }
 

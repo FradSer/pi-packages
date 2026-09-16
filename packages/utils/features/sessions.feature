@@ -95,6 +95,7 @@ Feature: Cross-session awareness and directory recap
     And the result delegates to the shared pi-kit lifecycle band instead of hand-built styling
     And one "[sessions] listed" row paints a full-width toolSuccessBg band with a blank band row above and below
     And expanding the result reveals every listed session with status, pid, relative age, complete goal, recap, and recent files inside the same band
+    And goal, recap, and file lines share the kit `label · value` vocabulary
     And long display fields wrap across rows rather than being truncated with an ellipsis
     And every displayed field is stripped of terminal escape sequences
 

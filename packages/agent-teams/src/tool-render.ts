@@ -1,7 +1,9 @@
 import { keyHint, type Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
-  createStaticToolLifecycleResultRenderer,
+  bindLifecycleRenderers,
+  contentDetailLines,
+  emptyToolCall as kitEmptyToolCall,
   eventToolLifecycle,
   type ToolLifecycleSpec,
 } from "@fradser/pi-kit";
@@ -12,12 +14,20 @@ export interface ToolResultText {
   details?: unknown;
 }
 
+/** Geometry bound once: every row below shares hint and wrapping. */
+const rows = bindLifecycleRenderers({
+  fit: truncateToWidth,
+  visibleWidth,
+  wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+  expandHint: () => keyHint("app.tools.expand", "to expand"),
+});
+
 export function textOf(result: ToolResultText): string {
   return result.content.find((part) => part.type === "text")?.text ?? "";
 }
 
 export function emptyToolCall(): { render: () => string[]; invalidate: () => void } {
-  return { render: () => [], invalidate: () => {} };
+  return kitEmptyToolCall();
 }
 
 export function renderLifecycleResult(
@@ -32,14 +42,9 @@ export function renderLifecycleResult(
   // One expansion-body rule: detail lines derive from the model-facing content,
   // scrubbed of the identifiers a person should not read, unless a caller
   // passes explicit lines for a body that must differ from what the model sees.
-  const effectiveDetails = details ?? text.split("\n").map((line) => plainText(line)).filter((line) => line.trim());
-  return createStaticToolLifecycleResultRenderer({
-    createSpec: () => ({ ...spec, details: effectiveDetails }),
-    expandHint: keyHint("app.tools.expand", "to expand"),
-    fit: truncateToWidth,
-    visibleWidth,
-    wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
-  })(result, options, theme, context);
+  const derived = contentDetailLines({ content: [{ type: "text", text }] });
+  const effectiveDetails = details ?? derived.map((line) => plainText(line)).filter((line) => line.trim());
+  return rows.result(() => ({ ...spec, details: effectiveDetails }))(result, options, theme, context);
 }
 
 /**

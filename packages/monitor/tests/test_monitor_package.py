@@ -192,8 +192,7 @@ def test_terminal_report_uses_native_custom_message_content() -> None:
 def test_monitor_tui_surfaces_use_pi_kit_renderers() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     for helper in (
-        "createStaticToolLifecycleMessageRenderer",
-        "createStaticToolLifecycleResultRenderer",
+        "bindLifecycleRenderers",
         "renderPiPanel",
         "notifyPi",
     ):
@@ -203,13 +202,18 @@ def test_monitor_tui_surfaces_use_pi_kit_renderers() -> None:
 def test_monitor_report_renderer_uses_compact_event_style_and_configured_hint() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     assert 'registerMessageRenderer("monitor-result"' in extension
-    assert 'createStaticToolLifecycleMessageRenderer(' in extension
+    assert 'monitorRows.message(' in extension
     assert 'eventToolLifecycle("monitor", subject, {' in extension
+    assert 'fieldLine("status"' in extension
     assert 'extractTerminalDescription(' in extension
     assert 'extractTerminalStatus(' in extension
     assert 'label: "event"' in extension
-    assert 'startedToolLifecycle("monitor", context.args.description, { label: "started" })' in extension
-    assert 'fit: truncateToWidth' in extension
+    assert 'monitorRows.result(' in extension
+    assert 'eventToolLifecycle("monitor"' in extension
+    assert 'label: "started"' in extension
+    assert 'fieldLine("command"' in extension
+    assert 'expandHint: () => keyHint("app.tools.expand", "to expand")' in extension
+    assert 'wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width))' in extension
     assert "formatExpandHint(keyHint(\"app.tools.expand\", \"to expand\"), theme)" not in extension
     assert '(keyHint("app.tools.expand", "to expand"))' not in extension
     assert '⏺ [monitor]' not in extension
@@ -278,7 +282,7 @@ def test_monitor_report_renderer_includes_status_in_event_title() -> None:
         if (!titleLine || !titleLine.includes("Archive old eMMC system and models onto SSD · failure")) {
           throw new Error("Expanded title missing description and status: " + titleLine);
         }
-        const statusDetailLine = expandedRows.find((r) => r.includes("status=failure"));
+        const statusDetailLine = expandedRows.find((r) => r.includes("status · failure"));
         if (!statusDetailLine) {
           throw new Error("Expanded missing status detail: " + JSON.stringify(expandedRows));
         }
@@ -306,12 +310,12 @@ def test_monitor_docs_use_configured_expansion_key() -> None:
 def test_monitor_start_uses_shared_lifecycle_style() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     start_tool = extension.split('name: "monitor_start"', 1)[1].split('name: "monitor_stop"', 1)[0]
-    assert 'startedToolLifecycle("monitor", context.args.description, { label: "started" })' in start_tool
+    assert 'monitorRows.result(' in start_tool
     assert '[monitor] event · ${safeDisplayText(monitor.description)}' not in start_tool
     assert 'content: [{ type: "text", text: formatStartMessage(monitor) }]' in start_tool
     assert 'monitorId: monitor.id' in start_tool
-    assert 'renderCall: () => new Container()' in start_tool
-    assert 'createStaticToolLifecycleResultRenderer' in start_tool
+    assert 'renderCall: () => monitorRows.emptyCall()' in start_tool
+    assert 'monitorRows.result(' in start_tool
     assert 'renderShell: "self"' in start_tool
     assert "formatStartMessage(monitor)" in start_tool
     assert "Success contract:" not in start_tool
@@ -339,14 +343,23 @@ def test_monitor_start_renderer_uses_the_shared_lifecycle_band() -> None:
           bold: (text) => `<bold>${text}</bold>`,
         };
         const row = start.renderResult(
-          { content: [{ type: "text", text: "model-only acknowledgement" }] },
+          { content: [{ type: "text", text: "model-only acknowledgement" }], details: { monitorId: "monitor_7" } },
           { expanded: false },
           theme,
-          { args: { description: "Google availability" }, isError: false },
+          { args: { description: "Google availability", command: "curl example.com" }, isError: false },
         ).render(120);
         const content = row.find((line) => line.includes("[monitor] started ·"));
-        if (row.length !== 3 || content?.trim() !== "<success><bold>[monitor] started ·</bold></success> Google availability") {
+        if (row.length !== 3 || content?.trim() !== "<success><bold>[monitor] started ·</bold></success> Google availability<dim> · to expand</dim>") {
           throw new Error(JSON.stringify(row));
+        }
+        const expanded = start.renderResult(
+          { content: [{ type: "text", text: "model-only acknowledgement" }], details: { monitorId: "monitor_7" } },
+          { expanded: true },
+          theme,
+          { args: { description: "Google availability", command: "curl example.com" }, isError: false },
+        ).render(120);
+        if (!expanded.some((line) => line.includes("command · curl example.com")) || !expanded.some((line) => line.includes("id · monitor_7"))) {
+          throw new Error(JSON.stringify(expanded));
         }
         ''',
     )
@@ -379,7 +392,8 @@ def test_monitor_status_uses_the_native_footer_and_console_owns_input() -> None:
     assert "updateFooterStatus" in extension
     assert "requestRender = () => tui.requestRender()" in extension
     assert "isKeyRelease(data)" in extension
-    assert 'startedToolLifecycle("monitor", context.args.description, { label: "started" })' in extension
+    assert 'monitorRows.result(' in extension
+    assert 'fieldLine(' in extension
     # The sanitizer implementation lives in pi-kit; the local copy is gone.
     assert '\u0080-\u009f' not in extension
     assert "C1" not in extension

@@ -80,15 +80,15 @@ Feature: Result-contract background monitoring
     And the console uses Pi-kit's shared panel renderer
     And command feedback uses Pi-kit's notification adapter
 
-  Scenario: Starting a monitor renders one compact static startup row
+  Scenario: Starting a monitor renders one shared lifecycle row
     Given monitor_start accepts a monitor description
     When a monitor is started
     Then the tool call renderer is empty
-    And the tool result renderer uses Pi's native Text component for `[monitor] started · <description>`
-    And the startup row is one text line without a lifecycle background band or expansion hint
-    And only the `[monitor] started ·` prefix uses the custom message label color while the description uses the default foreground color
+    And the tool result renders `[monitor] started · <description>` through the bound pi-kit lifecycle renderer
+    And the startup row paints the shared background band with the configured expansion hint
+    And expanding the row shows the command and monitor id as `label · value` fields
+    And the monitor id stays visible because monitor_stop needs it
     And the tool result does not render a duplicate monitor start
-    And the tool result does not contain an internal monitor id
     And the tool result still terminates the current agent turn
 
   Scenario: A success pattern exposes one compact text result
@@ -169,6 +169,7 @@ Feature: Result-contract background monitoring
     And the collapsed content line does not hard-code `Ctrl+O`
     And the collapsed content line does not start with `⏺`
     And the collapsed content line is the only semantic monitor event
+    And the expanded body lists status, elapsed, result, and output as `label · value` fields
 
   Scenario: Captured output is bounded
     Given a monitor is running

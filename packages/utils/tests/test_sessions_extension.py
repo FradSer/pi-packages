@@ -77,25 +77,31 @@ fs.rmSync(cwd, {{ recursive: true, force: true }});
 
     def test_list_directory_sessions_follows_compact_display_pattern(self) -> None:
         content = self.ext_source()
-        # Monitor display pattern: tool renders its own shell, an empty call
-        # slot, and exactly one compact result row delegated to the shared
-        # pi-kit lifecycle band.
+        # Unified display pattern: tool renders its own shell, the shared empty
+        # call slot, and exactly one compact result row through the bound
+        # pi-kit lifecycle renderer (one geometry binding per extension).
         self.assertIn('renderShell: "self"', content)
-        self.assertIn("renderCall: () => new Container()", content)
+        self.assertIn("bindLifecycleRenderers({", content)
+        self.assertIn("sessionRows.emptyCall()", content)
         self.assertIn('eventToolLifecycle("sessions", summary, { label: "listed", details: rows, detailLimit: "all" })', content)
         # Style-free consumer: pi-kit owns the band geometry and styling; no
         # hand-built Box or theme calls remain in the sessions renderer.
-        self.assertIn("createStaticToolLifecycleResultRenderer(", content)
+        self.assertIn("sessionRows.result(", content)
+        self.assertNotIn("createStaticToolLifecycleResultRenderer(", content)
         self.assertNotIn("renderError", content)
         self.assertNotIn('if (context.isError) {', content)
-        self.assertIn('expandHint: keyHint("app.tools.expand", "to expand")', content)
+        self.assertIn('expandHint: () => keyHint("app.tools.expand", "to expand")', content)
         self.assertIn("fit: truncateToWidth", content)
         self.assertNotIn("new Box(", content)
+        self.assertNotIn("new Container()", content)
         self.assertNotIn('theme.bg("customMessageBg"', content)
         # Expanded view reuses the shared task-name truncation for goals.
         self.assertIn("formatAgentTaskName", content)
         self.assertIn("wrapTextWithAnsi", content)
         self.assertIn("wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width))", content)
+        # Body lines share the kit `label · value` vocabulary.
+        self.assertIn('fieldLine("Goal"', content)
+        self.assertIn('fieldLine("File"', content)
         self.assertNotIn("MAX_DISPLAY_SESSIONS", content)
         self.assertNotIn("MAX_RECAP_LENGTH", content)
         self.assertNotIn("MAX_FILES_SHOWN", content)
@@ -442,7 +448,7 @@ fs.rmSync(tmpCwd, {{ recursive: true, force: true }});
         self.assertIn("Recap-" + "r" * 180, expanded_content)
         self.assertIn("packages/" + "f" * 180 + ".ts", expanded_content)
         self.assertNotIn("...", expanded_unwrapped)
-        self.assertIn("File  packages/utils/features/sessions.feature", data["expanded"])
+        self.assertIn("File · packages/utils/features/sessions.feature", data["expanded"])
         self.assertIn("customMessageText", data["fgCalls"])
         self.assertNotIn("to expand", data["expanded"])
         self.assertNotIn("\x1b", data["expanded"])

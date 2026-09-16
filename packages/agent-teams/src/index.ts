@@ -16,9 +16,17 @@ import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
 import { refreshLeaderToolDisclosure, registerLeaderTools, registerTeamCommand } from "./tools.ts";
 import { registerWorkerCapabilities, workerBinding } from "./worker.ts";
 import { plainText } from "./tool-copy.ts";
-import { agentColor, clearPiStatus, createStaticToolLifecycleMessageRenderer, createToolExecutionWrapper, eventToolLifecycle, formatAgentMessagePrefix, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
+import { agentColor, bindLifecycleRenderers, clearPiStatus, createToolExecutionWrapper, eventToolLifecycle, formatAgentMessagePrefix, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
 import { annotateReportDelivery, formatReports, groupReportsByTeammate, TEAMMATE_HARNESS_MESSAGE_TYPE, TEAMMATE_REPORT_MESSAGE_TYPE, type LeaderReport } from "./leader-reports.ts";
-import { Box, Markdown, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Box, Markdown, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+
+/** Geometry bound once: harness event rows share hint and wrapping. */
+const harnessRows = bindLifecycleRenderers({
+  fit: truncateToWidth,
+  visibleWidth,
+  wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+  expandHint: () => keyHint("app.tools.expand", "to expand"),
+});
 
 const STATE_DIR_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -81,15 +89,10 @@ export default function (pi: ExtensionAPI) {
     const report = extractHarnessReport(message.details);
     if (!report) return new Text(String(message.content), 0, 0);
     const event = report.harnessEvent;
-    return createStaticToolLifecycleMessageRenderer({
-      createSpec: () => eventToolLifecycle("agent", plainText(event?.subject ?? "Agent Teams event")),
-      expandHint: keyHint("app.tools.expand", "to expand"),
-      fit: truncateToWidth,
-      visibleWidth,
-      hostComponent: ToolExecutionComponent,
-      ui: leaderCtx?.ui,
-      cwd: leaderCtx?.cwd,
-    })(message, { expanded }, theme);
+    return harnessRows.message(
+      () => eventToolLifecycle("agent", plainText(event?.subject ?? "Agent Teams event")),
+      { hostComponent: ToolExecutionComponent, ui: leaderCtx?.ui, cwd: leaderCtx?.cwd },
+    )(message, { expanded }, theme);
   });
   pi.registerMessageRenderer(TEAMMATE_REPORT_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) => {
     const reports = deliveries.get(message) ?? extractReports(message.details);

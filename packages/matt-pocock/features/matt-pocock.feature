@@ -229,11 +229,11 @@ Feature: Matt Pocock workflow harness
     And a structured interview row label is [matt pocock] ask ·
     And the operation appears outside the bracketed prefix
 
-  Scenario: Workflow activation uses the monitor-style started row
+  Scenario: Workflow activation uses the shared lifecycle row
     Given a Matt Pocock workflow tool result contains a loaded procedure for the model
     When Pi renders the user-facing workflow row
-    Then it shows [matt pocock] started · followed by the route and phase as one native Text row
-    And it has no lifecycle background band or expansion hint
+    Then it shows [matt pocock] started · followed by the route and phase on the shared band
+    And expanding the row shows the route and phase as `label · value` fields
     And it does not render the procedure text as user-facing details
 
   Scenario: A structured answer keeps question and answer visible in the collapsed row

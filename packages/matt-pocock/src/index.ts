@@ -5,12 +5,12 @@ import {
   type ExtensionCommandContext,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
+  bindLifecycleRenderers,
   clearPiStatus,
-  createStaticToolLifecycleMessageRenderer,
-  createStaticToolLifecycleResultRenderer,
   eventToolLifecycle,
+  fieldLine,
   notifyPi,
   safeDisplayText,
   startedToolLifecycle,
@@ -30,6 +30,14 @@ import {
   workflowPlacement,
 } from "./catalog.ts";
 import { resolveAccessibleReference, resolveProcedureBundle, resolveWorkflowContext } from "./resolver.ts";
+/** Geometry bound once: every Matt Pocock row shares hint and wrapping. */
+const mattPocockRows = bindLifecycleRenderers({
+  fit: truncateToWidth,
+  visibleWidth,
+  wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+  expandHint: () => keyHint("app.tools.expand", "to expand"),
+});
+
 import {
   availableWorkflowsGuidance,
   findWorkflowRoute,
@@ -88,14 +96,6 @@ function activeWorkflowParameters() {
       reason: Type.String({ description: "Why this workflow is being cancelled." }),
     }, { additionalProperties: false }),
   ]);
-}
-
-function safeExpandHint(): string {
-  try {
-    return String(keyHint("app.tools.expand", "to expand"));
-  } catch {
-    return "to expand";
-  }
 }
 
 let pi: ExtensionAPI;
@@ -333,12 +333,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     pi.registerMessageRenderer("matt-pocock-procedure", (message, options, theme) => {
       const details = (message.details ?? {}) as Partial<WorkflowState>;
       const subject = formatReadableWorkflowSubject(details.route ?? "workflow", details.phase ?? "active");
-      return createStaticToolLifecycleMessageRenderer({
-        createSpec: () => startedToolLifecycle("matt pocock", subject, { label: "started" }),
-        expandHint: "to expand",
-        fit: truncateToWidth,
-        visibleWidth,
-      })(message, options, theme);
+      return mattPocockRows.message(() => startedToolLifecycle("matt pocock", subject, { label: "started" }))(message, options, theme);
     });
   }
 
@@ -361,7 +356,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     ],
     parameters: workflowGatewayParameters(),
     renderShell: "self",
-    renderCall: () => new Text("", 0, 0),
+    renderCall: () => mattPocockRows.emptyCall(),
     renderResult(result, options, theme, context) {
       const details = (result.details ?? {}) as { mode?: string; route?: string; phase?: string; capability?: string; reference?: string };
       const subject = details.mode === "workflow"
@@ -369,11 +364,12 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         : details.mode === "reference"
           ? `${details.capability ?? "capability"} · ${details.reference ?? "reference"}`
           : details.capability ?? "standalone capability";
-      return createStaticToolLifecycleResultRenderer({
-        createSpec: () => startedToolLifecycle("matt pocock", subject, { label: "started" }),
-        fit: truncateToWidth,
-        visibleWidth,
-      })(result, options, theme, context);
+      const fields = details.mode === "workflow"
+        ? [fieldLine("route", details.route ?? "workflow"), fieldLine("phase", details.phase ?? "active")]
+        : details.mode === "reference"
+          ? [fieldLine("capability", details.capability ?? "capability"), fieldLine("reference", details.reference ?? "reference")]
+          : [fieldLine("capability", details.capability ?? "standalone capability")];
+      return mattPocockRows.result(() => eventToolLifecycle("matt pocock", subject, { label: "started", details: fields }))(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       clearPiStatus(ctx.ui, "matt-pocock");
@@ -418,14 +414,13 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     ],
     parameters: activeWorkflowParameters(),
     renderShell: "self",
-    renderCall: () => new Text("", 0, 0),
+    renderCall: () => mattPocockRows.emptyCall(),
     renderResult(result, options, theme, context) {
       const details = (result.details ?? {}) as { action?: string; subject?: string };
-      return createStaticToolLifecycleResultRenderer({
-        createSpec: () => eventToolLifecycle("matt pocock", details.subject ?? details.action ?? "workflow updated", { label: "event" }),
-        fit: truncateToWidth,
-        visibleWidth,
-      })(result, options, theme, context);
+      return mattPocockRows.result(() => eventToolLifecycle("matt pocock", details.subject ?? details.action ?? "workflow updated", {
+        label: "event",
+        details: details.action ? [fieldLine("action", details.action)] : [],
+      }))(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (!activeWorkflow) throw new Error("No active Matt Pocock workflow.");
@@ -496,7 +491,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       allow_custom: Type.Optional(Type.Boolean({ description: "Allow a custom typed answer; default true." })),
     }),
     renderShell: "self",
-    renderCall: () => new Text("", 0, 0),
+    renderCall: () => mattPocockRows.emptyCall(),
     renderResult(result, options, theme, context) {
       const text = result.content.find((part) => part.type === "text")?.text ?? "";
       const params = (context.args ?? {}) as { question?: string };
@@ -507,21 +502,16 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         ? ["Status: pending user decision"]
         : answerLines.map((line, index) => index === 0 ? `Answer: ${line}` : `  ${line}`);
       const metadata = [
-        details.timed_out && details.source === "timeout_recommended" ? "Reason: selection timed out (used recommendation)" : undefined,
-        details.timed_out && details.pending ? "Reason: selection timed out" : undefined,
-        details.source === "no_ui" ? "Reason: no UI available" : undefined,
-        details.is_custom ? "Source: custom input" : undefined,
+        details.timed_out && details.source === "timeout_recommended" ? fieldLine("reason", "selection timed out (used recommendation)") : undefined,
+        details.timed_out && details.pending ? fieldLine("reason", "selection timed out") : undefined,
+        details.source === "no_ui" ? fieldLine("reason", "no UI available") : undefined,
+        details.is_custom ? fieldLine("source", "custom input") : undefined,
       ].filter((line): line is string => Boolean(line));
-      return createStaticToolLifecycleResultRenderer({
-        createSpec: () => eventToolLifecycle("matt pocock", safeDisplayText(params.question ?? "question"), {
-          label: "ask",
-          summary: summary.length > 0 ? summary : ["Answer: (none)"],
-          details: metadata,
-        }),
-        expandHint: safeExpandHint(),
-        fit: truncateToWidth,
-        visibleWidth,
-      })(result, options, theme, context);
+      return mattPocockRows.result(() => eventToolLifecycle("matt pocock", safeDisplayText(params.question ?? "question"), {
+        label: "ask",
+        summary: summary.length > 0 ? summary : ["Answer: (none)"],
+        details: metadata,
+      }))(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (!activeWorkflow) throw new Error("No active Matt Pocock workflow.");
