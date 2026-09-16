@@ -1,5 +1,13 @@
 # @fradser/pi-context
 
+## 0.6.1
+
+### Patch Changes
+
+- Keep context research as a stateless one-shot worker with a package-local typed builder that builds a concrete prompt from the current request and working directory, and retries an empty successful answer exactly once. The transcript renders `[context] research started · <research query>` on start with live progress only in the researcher widget above the editor (no duplicate progress row), and a compact expandable `[context] researched` band on completion.
+- Render live research activity with Pi's native Markdown styling while preserving the compact, sanitized, width-bounded widget and its spinner lifecycle.
+- Prevent the research call renderer from crashing Pi when streamed arguments do not yet contain a string query.
+
 ## 0.6.0
 
 ### Minor Changes
