@@ -463,3 +463,17 @@ Feature: Advanced Work management behind three coordination tools
       And detailed transport states remain available for diagnostics
       And the shared Leader policy directs independent work or yielding until automatic results arrive
       And runtime behavior does not depend on interpreting the wording of a status request
+
+  Rule: Prompts teach only the caller's authorized operations
+
+    Scenario: Leader guidance names only leader Work actions
+      Given the Leader uses the Work interface
+      When its guidance is rendered for idle and active team state
+      Then it names create, list, assign, release, reopen, and supersede with their required arguments
+      And it does not present worker-only claim or submit as leader work actions
+      And it states that claim and submit belong to the worker Work interface
+
+    Scenario: Leader Work tool disclosure names every authorized action
+      Given the Leader uses the Work interface
+      When its work tool is registered
+      Then its description and prompt snippet name create, list, assign, release, reopen, and supersede

@@ -1,5 +1,5 @@
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { detailField, eventToolLifecycle, notifyPi } from "@fradser/pi-kit";
+import { notifyPi } from "@fradser/pi-kit";
 import {
   assignExistingWork,
   releaseExistingWork,
@@ -15,7 +15,8 @@ import { listTasks, livingTeammates } from "./state.ts";
 import { AgentActionParams, LEADER_RECIPIENT, AgentEventParams, WorkToolParams } from "./types.ts";
 import { openTeamConsole, refreshTeamUI } from "./ui.ts";
 import { discoverAgents } from "./agents.ts";
-import { emptyToolCall, renderLifecycleResult } from "./tool-render.ts";
+import { agentRow, leaderWorkRow, messageRow, type AgentRowArgs } from "./tool-copy.ts";
+import { emptyToolCall, renderCoordinationRow } from "./tool-render.ts";
 import { runAgentAction, type AgentActionRuntime } from "./agent-actions.ts";
 import { resolveRecipient } from "./recipient.ts";
 
@@ -65,13 +66,11 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
     renderShell: "self",
     renderCall: emptyToolCall,
     renderResult(result, options, theme, context) {
-      const action = String((context.args as { action?: string }).action ?? "agent");
-      const agent = String((context.args as { name?: string }).name ?? "session");
-      const outcome = detailField<string>(result.details, "outcome") ?? "pending";
-      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+      return renderCoordinationRow(
+        result, options, theme, context,
         "agent",
-        `@${agent} ${action} · ${outcome}`,
-      ));
+        agentRow(context.args as AgentRowArgs, result.details, { isError: context.isError, isPartial: options.isPartial }),
+      );
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await runAgentAction(params, ctx.cwd, runtime, ctx.sessionManager);
@@ -92,12 +91,11 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
     renderShell: "self",
     renderCall: emptyToolCall,
     renderResult(result, options, theme, context) {
-      const to = String((context.args as { to?: string }).to ?? "bound-route");
-      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+      return renderCoordinationRow(
+        result, options, theme, context,
         "message",
-        detailField<string>(result.details, "outcome") ?? "pending",
-        { label: `to @${to}` },
-      ));
+        messageRow(context.args as { to?: string; message?: string }, result.details, { isError: context.isError }),
+      );
     },
     async execute(_toolCallId, params) {
       if (!params.to) {
@@ -118,24 +116,18 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
 
   pi.registerTool({
     name: "work",
-    promptSnippet: "Create or list advanced Work Items",
+    promptSnippet: "Create, list, assign, release, reopen, or supersede Work Items",
     label: "Work",
-    description: "Create one pending Work Item or list current Work Items. Creation uses the session's single-writer Work state and never starts a resident.",
+    description: "Manage Work Items: create (subject), list, assign (id, target.session), release (id, reason), reopen (id, reason), or supersede (subject, supersedes). Creation uses the session's single-writer Work state and never starts a resident.",
     parameters: WorkToolParams,
     renderShell: "self",
     renderCall: emptyToolCall,
     renderResult(result, options, theme, context) {
-      const action = String((context.args as { action?: string }).action ?? "work");
-      const subject = action === "create"
-        ? String((context.args as { subject?: string }).subject ?? "Work")
-        : action === "assign" || action === "release" || action === "reopen" || action === "supersede"
-          ? String((context.args as { id?: string }).id ?? "Work")
-          : `${detailField<number>(result.details, "count") ?? 0} work item(s)`;
-      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+      return renderCoordinationRow(
+        result, options, theme, context,
         "work",
-        subject,
-        { label: action === "create" ? "created" : action === "assign" ? "assigned" : action === "release" ? "released" : action === "reopen" ? "reopened" : action === "supersede" ? "superseded" : "listed" },
-      ));
+        leaderWorkRow(context.args as Record<string, unknown>, result.details, { isError: context.isError }),
+      );
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (params.action === "supersede") {

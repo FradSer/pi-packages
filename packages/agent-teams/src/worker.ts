@@ -8,8 +8,8 @@ import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { truncateTail, type ExtensionAPI, type MessageEndEvent } from "@earendil-works/pi-coding-agent";
-import { detailField, eventToolLifecycle } from "@fradser/pi-kit";
-import { emptyToolCall, renderLifecycleResult } from "./tool-render.ts";
+import { messageRow, workerWorkRow } from "./tool-copy.ts";
+import { emptyToolCall, renderCoordinationRow, textOf } from "./tool-render.ts";
 import { resolveRecipient } from "./recipient.ts";
 import { appendInboxMessage, appendWorkerEvent, createTaskIntent, readBoardFile, readRoster } from "./statefile.ts";
 import {
@@ -277,13 +277,11 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
     renderShell: "self",
     renderCall: emptyToolCall,
     renderResult(result, options, theme, context) {
-      const to = String((context.args as { to?: string }).to ?? "leader");
-
-      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(
+      return renderCoordinationRow(
+        result, options, theme, context,
         "message",
-        detailField<"steered" | "queued">(result.details, "outcome") ?? "queued",
-        { label: `to @${to}` },
-      ));
+        messageRow(context.args as { to?: string; message?: string }, result.details, { isError: context.isError }),
+      );
     },
     async execute(_toolCallId, params) {
       const binding = workerBinding();
@@ -358,9 +356,11 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
     renderCall: emptyToolCall,
     renderResult(result, options, theme, context) {
       const params = context.args as { action?: string; id?: string };
-      const subject = params.action === "submit" || params.action === "release" ? "current Work" : params.action === "list" ? "current Work" : String(params.id ?? "first claimable");
-      const label = params.action === "submit" ? "submission queued" : params.action === "release" ? "released" : params.action === "list" ? "listed" : "claim queued";
-      return renderLifecycleResult(result, options, theme, context, eventToolLifecycle("work", subject, { label }));
+      return renderCoordinationRow(
+        result, options, theme, context,
+        "work",
+        workerWorkRow(params, result.details, textOf(result), { isError: context.isError }),
+      );
     },
     promptSnippet: "Claim pending Work or submit owned Work",
     label: "Work",
@@ -405,9 +405,11 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
     const content = input.presentation === "work"
       ? `WORK · current session\nSUBMISSION INTENT QUEUED · ${input.taskId} · ${input.status === "completed" ? "success" : "failed"}\n${verify}\n${next}`
       : `BOARD · current session\nSUBMITTED · ${input.taskId} · ${input.status}\n${verify}\n${next}`;
+    // The subject rides along in details: a worker process never hydrates the
+    // leader's in-memory board, so its row cannot look the task up by itself.
     const details = input.presentation === "work"
-      ? { action: "submit", outcome: "queued", id: input.taskId, status: input.status === "completed" ? "success" : "failed", verify: Boolean(task?.verify || roleVerify) }
-      : { taskId: input.taskId, status: input.status, verify: Boolean(task?.verify || roleVerify) };
+      ? { action: "submit", outcome: "queued", id: input.taskId, subject: task?.subject, status: input.status === "completed" ? "success" : "failed", verify: Boolean(task?.verify || roleVerify) }
+      : { taskId: input.taskId, subject: task?.subject, status: input.status, verify: Boolean(task?.verify || roleVerify) };
     return { content: [{ type: "text" as const, text: content }], details };
   }
 

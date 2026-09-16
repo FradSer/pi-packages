@@ -14,7 +14,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 /** pi thinking levels, mirrored from @earendil-works/pi-agent-core. */
 type LeaderThinkingLevel = NonNullable<ExtensionContext["thinkingLevel"]>;
 const THINKING_LEVELS: readonly LeaderThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-import { modelLabel, runPiWorker } from "@fradser/pi-kit";
+import { modelLabel, runPiWorker, type RunPiWorkerOptions } from "@fradser/pi-kit";
 import { MODEL_INHERIT_ALIAS, discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "./agents.ts";
 import {
   activeAssignmentConflict,
@@ -41,6 +41,7 @@ import {
   loadBoard,
   markPeerDelivered,
   markStateDirty,
+  getTask,
   normalizeResources,
   registerTeammate,
   releaseTask,
@@ -759,8 +760,8 @@ export function applyProgress(name: string, spawnId: string, progress: {
       teammate: name,
       spawnId,
       origin: "harness",
-      harnessEvent: { type: "review-invalidated", subject: `Verification invalidated · ${teammate.currentTaskId}` },
-      body: `Observed new execution for @${name} while verification was in flight. The review was invalidated; Work remains held until explicit leader direction authorizes a revision.`,
+      harnessEvent: { type: "review-invalidated", subject: `Verification invalidated · ${getTask(teammate.currentTaskId)?.subject ?? "Work"}` },
+      body: `Observed new execution for @${name} while verification was in flight. The review was invalidated; Work "${teammate.currentTaskId}" remains held until explicit leader direction authorizes a revision.`,
       finished: false,
     });
   }
@@ -1973,15 +1974,30 @@ function truncated(text: string, cap = 4000): string {
   return text.length <= cap ? text : text.slice(0, Math.max(0, cap - suffix.length)) + suffix;
 }
 
-/** Run the gate as a one-shot Pi worker: a brand-new context that inspects
- *  the working tree itself before answering. Uses the team's model resolution
- *  chain (team default, else Pi default) rather than any role pin. */
-export async function runVerifyReview(input: VerifyReviewInput): Promise<VerifyReviewOutcome> {
-  const outcome = await runPiWorker({
+/** Read-only inspection grant for the gate reviewer: it may run the project's
+ *  own checks but cannot edit or write the tree it is judging. */
+export const VERIFY_REVIEW_TOOLS: readonly string[] = ["read", "bash", "grep", "find", "ls"];
+
+/** Complete worker options for one gate review. The reviewer runs as a bare Pi
+ *  child: no extension, skill, prompt-template, context-file, or theme discovery
+ *  and no persisted session, so judging a gate cannot load the leader's extension
+ *  surface, run automatic memory learning, write memory files, or leave a session
+ *  record behind. Uses the team's model resolution chain (team default, else the
+ *  leader model) rather than any role pin. */
+export function buildVerifyReviewWorkerOptions(input: VerifyReviewInput): RunPiWorkerOptions {
+  return {
     prompt: buildVerifyReviewPrompt(input),
     cwd: input.cwd || leaderCwd,
+    tools: [...VERIFY_REVIEW_TOOLS],
+    minimal: true,
     model: resolveSpawnModel(undefined, getTeamDefaultModel(), currentLeaderModelRef()).model,
-  });
+  };
+}
+
+/** Run the gate as a one-shot bare Pi worker: a brand-new context that inspects
+ *  the working tree itself before answering. */
+export async function runVerifyReview(input: VerifyReviewInput): Promise<VerifyReviewOutcome> {
+  const outcome = await runPiWorker(buildVerifyReviewWorkerOptions(input));
   // A reviewer that did not exit cleanly produced no trustworthy verdict,
   // even if partial output happens to contain a PASS line.
   if (outcome.exitCode !== 0) {

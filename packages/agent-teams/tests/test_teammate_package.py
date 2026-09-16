@@ -519,6 +519,34 @@ def test_stale_verify_result_cannot_complete_a_new_holding(tmp_path: Path) -> No
     assert payload["finalStatus"] == "completed"
 
 
+def test_verify_reviewer_runs_as_a_bare_pi_child() -> None:
+    payload = run_node(
+        f'''\
+        import {{ buildVerifyReviewWorkerOptions }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ minimalPiWorkerArgs }} from "@fradser/pi-kit";
+        const options = buildVerifyReviewWorkerOptions({{
+          verify: "Every scenario holds.", taskSubject: "Gallery refactor", workerResult: "Done.", cwd: "/repo",
+        }});
+        const args = minimalPiWorkerArgs(options.tools ?? []);
+        console.log(JSON.stringify({{
+          minimal: options.minimal,
+          tools: options.tools,
+          cwd: options.cwd,
+          promptHasGate: options.prompt.includes("Every scenario holds."),
+          noExtensions: args.includes("-ne"),
+          noSession: args.includes("--no-session"),
+        }}));
+        '''
+    )
+    assert payload["minimal"] is True
+    assert payload["tools"] == ["read", "bash", "grep", "find", "ls"]
+    assert payload["cwd"] == "/repo"
+    assert payload["promptHasGate"] is True
+    assert payload["noExtensions"] is True
+    assert payload["noSession"] is True
+    assert "runPiWorker(buildVerifyReviewWorkerOptions(input))" in source("team-machine.ts")
+
+
 def test_verify_review_verdict_protocol() -> None:
     payload = run_node(
         f'''\

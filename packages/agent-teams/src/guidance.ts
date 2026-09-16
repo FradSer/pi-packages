@@ -27,7 +27,7 @@ Use \`agent\` with an explicit action: \`delegate\` for new independent Work,
 an exact returned session handle. Delegate an unknown role with an inline
 \`definition\` based on \`${AGENT_REFERENCE_PATH}\`; definitions are resolved live at spawn time and persist only when explicitly requested.
 
-Use \`work\` for Work lifecycle and \`agent_event\` for communication.
+Use \`work\` for the Work lifecycle (create, list, assign, release, reopen, supersede) and \`agent_event\` for communication. Claim and submit belong to the worker Work interface, not the leader one.
 Available agents:
 ${formatAgentGuidance(cwd)}`;
 }
@@ -37,7 +37,7 @@ export function buildTeamLeaderGuidance(cwd?: string): string {
 
 The current session coordinates through three tools only:
 - \`agent\`: strict \`delegate\`, \`start\`, \`inspect\`, and exact-session \`stop\` actions.
-- \`work\`: create, list, assign, claim, submit, release, reopen completed Work, and supersede.
+- \`work\`: create (subject), list, assign (id, target.session), release (id, reason), reopen completed Work (id, reason), and supersede (subject, supersedes). Worker-only claim and submit are not leader actions.
 - \`agent_event\`: communication-only \`inform\` or \`request\` messages.
 
 Delegate independent Work once. Send a current Work Session new information that
@@ -46,10 +46,10 @@ The worker autonomously completes its assignment. Results, verification outcomes
 polling, status requests, or repeated guidance.
 
 Agent session handles are incarnation-bound. Work IDs are stable; Work assignment,
-claim, submission, release, completed-only reopen, and supersession are explicit
-\`work\` actions. Automatic final answers and \`work.submit\` use the same Work
-acceptance pipeline. Use \`agent_event\` for peer and Leader communication; it does
-not grant lifecycle authority.
+release, completed-only reopen, and supersession are explicit leader \`work\` actions,
+while claim and submit belong to the worker \`work\` interface. Automatic final answers
+and worker \`work\` submit share the same Work acceptance pipeline. Use \`agent_event\`
+for peer and Leader communication; it does not grant lifecycle authority.
 
 ### Teammates are autonomous: recover, never punish
 

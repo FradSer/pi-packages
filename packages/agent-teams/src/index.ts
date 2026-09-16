@@ -15,6 +15,7 @@ import { livingTeammates, listTasks, resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
 import { refreshLeaderToolDisclosure, registerLeaderTools, registerTeamCommand } from "./tools.ts";
 import { registerWorkerCapabilities, workerBinding } from "./worker.ts";
+import { plainText } from "./tool-copy.ts";
 import { agentColor, clearPiStatus, createStaticToolLifecycleMessageRenderer, createToolExecutionWrapper, eventToolLifecycle, formatAgentMessagePrefix, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
 import { annotateReportDelivery, formatReports, groupReportsByTeammate, TEAMMATE_HARNESS_MESSAGE_TYPE, TEAMMATE_REPORT_MESSAGE_TYPE, type LeaderReport } from "./leader-reports.ts";
 import { Box, Markdown, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
@@ -81,7 +82,7 @@ export default function (pi: ExtensionAPI) {
     if (!report) return new Text(String(message.content), 0, 0);
     const event = report.harnessEvent;
     return createStaticToolLifecycleMessageRenderer({
-      createSpec: () => eventToolLifecycle("agent", event?.subject ?? "Agent Teams event"),
+      createSpec: () => eventToolLifecycle("agent", plainText(event?.subject ?? "Agent Teams event")),
       expandHint: keyHint("app.tools.expand", "to expand"),
       fit: truncateToWidth,
       visibleWidth,
