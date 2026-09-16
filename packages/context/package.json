@@ -21,7 +21,7 @@
     "index.ts",
     "extensions",
     "references",
-    "agents",
+    "prompts",
     "README.md"
   ],
   "pi": {

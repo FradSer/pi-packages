@@ -30,9 +30,9 @@ The child runs as:
 pi --print --mode json --no-session -ne -ns -np -nc --no-themes --tools read,bash
 ```
 
-The child runs in the caller's working directory through pi-kit's minimal `runPiWorker` mode: `-ne -ns -np -nc --no-themes` disables extension, skill, prompt-template, context-file, and theme discovery, while `--tools read,bash` exposes only the two required tools. It has no sandbox, timeout, or display truncation; `bash` remains technically able to write because there is no OS sandbox, so the bundled agent prompt requires no modifications. If line-level evidence from a public repository is necessary, it may use `git clone --depth=1` under `/tmp` with removal after inspection. It must not run package-management, deployment, or interactive commands. The shared worker fails closed if its bounded stdout, stderr, or JSONL line limits are exceeded.
+The child runs in the caller's working directory through pi-kit's minimal `runPiWorker` mode: `-ne -ns -np -nc --no-themes` disables extension, skill, prompt-template, context-file, and theme discovery, while `--tools read,bash` exposes only the two required tools. It has no sandbox, timeout, or display truncation; `bash` remains technically able to write because there is no OS sandbox, so the bundled worker prompt requires no modifications. If line-level evidence from a public repository is necessary, it may use `git clone --depth=1` under `/tmp` with removal after inspection. It must not run package-management, deployment, or interactive commands. The shared worker fails closed if its bounded stdout, stderr, or JSONL line limits are exceeded.
 
-Every run is presented as the fixed `@conext-research` worker. Pi-kit's package-agent helper loads the prompt bundled by this package at `agents/context-researcher.md`; no project `.agents` directory is used. Startup renders `[agent] @conext-research started · agents/context-researcher.md`, while the widget above the editor shows that same identity and its latest tool, thinking, or answer activity. The child always runs with `--no-session`, so separate invocations retain no agent memory or agent-teams state. Results enter the main session untruncated without adding a completion row.
+A package-local typed builder reads the bundled Markdown as a reference protocol and builds a task-specific context-review prompt containing the caller working directory, complete research request, reference protocol, and completion contract. The Markdown file itself is never used as an execution identity. Startup renders `[context] research started · <research query>`, using the normalized concrete query that produced the prompt; the row remains width-bounded and does not expose the resource path. The widget shows neutral live research activity. The child always runs with `--no-session`, so separate invocations retain no memory or agent-teams state. A successful empty answer is retried exactly once with a stronger completion requirement that does not rely on hidden reasoning or prior tool output. Results enter the main session untruncated and render as a compact, expandable `[context] researched` lifecycle row.
 
 ## Structure
 
@@ -42,7 +42,8 @@ context/
 ├── extensions/context-tools.ts
 ├── extensions/context-command.ts
 ├── references/workflow.md
-└── agents/context-researcher.md
+├── extensions/context-prompt.ts
+└── prompts/context-research.md
 ```
 
 ## License
