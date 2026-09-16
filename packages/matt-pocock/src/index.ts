@@ -77,16 +77,16 @@ function activeWorkflowParameters() {
     Type.Object({
       action: Type.Literal("transition"),
       target: Type.String({ description: "One procedure id from the current state's allowedNext list." }),
-    }),
+    }, { additionalProperties: false }),
     Type.Object({
       action: Type.Literal("load"),
       reference: Type.String({ description: "One reference id from the current state's availableReferences list." }),
-    }),
-    Type.Object({ action: Type.Literal("complete") }),
+    }, { additionalProperties: false }),
+    Type.Object({ action: Type.Literal("complete") }, { additionalProperties: false }),
     Type.Object({
       action: Type.Literal("cancel"),
       reason: Type.String({ description: "Why this workflow is being cancelled." }),
-    }),
+    }, { additionalProperties: false }),
   ]);
 }
 
@@ -408,8 +408,14 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
   pi.registerTool({
     name: "matt_pocock_active",
     label: "Matt Pocock Active Workflow",
-    description: "Operate on the active Matt Pocock workflow: transition, load a reference, complete, or cancel.",
+    description: "Operate on the active Matt Pocock workflow: transition (target), load a reference (reference), complete, or cancel (reason).",
     promptSnippet: "Transition, load a reference, complete, or cancel the active Matt Pocock workflow",
+    promptGuidelines: [
+      'action transition: {"action": "transition", "target": "<one allowedNext id>"} — target is required.',
+      'action load: {"action": "load", "reference": "<one availableReferences id>"} — reference is required.',
+      'action complete: {"action": "complete"}.',
+      'action cancel: {"action": "cancel", "reason": "<why>"} — reason is required.',
+    ],
     parameters: activeWorkflowParameters(),
     renderShell: "self",
     renderCall: () => new Text("", 0, 0),

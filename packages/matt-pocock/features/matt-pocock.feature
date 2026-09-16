@@ -326,3 +326,13 @@ Feature: Matt Pocock workflow harness
     When the user selects Start a task from the harness menu
     Then the harness records that the current workflow was cancelled as superseded
     And it forwards the conversation context for autonomous workflow or capability routing
+
+  Scenario: Active workflow guidance states the exact tool contract
+    Given a workflow is active
+    When an agent turn starts
+    Then the guidance shows the exact matt_pocock_active JSON shapes for transition, load, complete, and cancel
+
+  Scenario: Active gateway schemas reject undeclared fields
+    Given a workflow is active
+    When the agent calls matt_pocock_active with an undeclared field
+    Then request validation rejects it before changing workflow state
