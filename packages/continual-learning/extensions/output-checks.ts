@@ -17,9 +17,18 @@ import type {
   MessageEndEvent,
   ToolResultEvent,
 } from "@earendil-works/pi-coding-agent";
-import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
+import { keyHint, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { createStaticToolLifecycleMessageRenderer, eventToolLifecycle, safeDisplayText } from "@fradser/pi-kit";
+import { bindLifecycleRenderers, eventToolLifecycle, fieldLine, safeDisplayText } from "@fradser/pi-kit";
+
+/** Geometry bound once: every check row shares hint and wrapping. */
+const checkRows = bindLifecycleRenderers({
+  fit: truncateToWidth,
+  visibleWidth,
+  wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+  expandHint: () => keyHint("app.tools.expand", "to expand"),
+  hostComponent: ToolExecutionComponent,
+});
 import { evaluatePhase } from "./guardrail-engine.ts";
 import { resolveHarnessConfig } from "./guardrail-config.ts";
 import type { Policy, PolicyPhase } from "./guardrail-types.ts";
@@ -440,23 +449,16 @@ export default function registerOutputChecks(pi: ExtensionAPI): void {
   pi.registerEntryRenderer("harness-check", (entry, { expanded }, theme) => {
     const details = entry.data as HarnessCheckEvent | undefined;
     const reason = safeDisplayText(details?.detail ?? "harness check");
-    return createStaticToolLifecycleMessageRenderer({
-      createSpec: () => eventToolLifecycle("harness", reason, {
-        label: details?.status === "unsupported" ? "check unsupported" : `check ${details?.status ?? "recorded"}`,
-        details: details ? [
-          `phase=${details.phase}`,
-          `status=${details.status}`,
-          ...(details.policy ? [`policy=${details.policy}`] : []),
-          ...(details.path ? [`path=${details.path}`] : []),
-          reason,
-        ] : undefined,
-      }),
-      expandHint: "ctrl+o to expand",
-      fit: truncateToWidth,
-      visibleWidth,
-      wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
-      hostComponent: ToolExecutionComponent,
-    })({ content: "", details }, { expanded }, theme);
+    return checkRows.message(() => eventToolLifecycle("harness", reason, {
+      label: details?.status === "unsupported" ? "check unsupported" : `check ${details?.status ?? "recorded"}`,
+      details: details ? [
+        fieldLine("phase", details.phase),
+        fieldLine("status", details.status),
+        ...(details.policy ? [fieldLine("policy", details.policy)] : []),
+        ...(details.path ? [fieldLine("path", details.path)] : []),
+        fieldLine("detail", reason),
+      ] : undefined,
+    }))({ content: "", details }, { expanded }, theme);
   });
   pi.on("message_end", (event, ctx) => checkAssistantOutput(pi, event, ctx, state));
   pi.on("tool_result", (event, ctx) => checkArtifactResult(pi, event, ctx, state));

@@ -27,9 +27,18 @@ import * as nodeFs from "node:fs";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { keyHint, ToolExecutionComponent, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+
+/** Geometry bound once: every learning row shares hint and wrapping. */
+const learningRows = bindLifecycleRenderers({
+  fit: truncateToWidth,
+  visibleWidth,
+  wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+  expandHint: () => keyHint("app.tools.expand", "to expand"),
+  hostComponent: ToolExecutionComponent,
+});
 import {
-  createStaticToolLifecycleMessageRenderer,
+  bindLifecycleRenderers,
   createLiveActivityWidget,
   eventToolLifecycle,
   enterModelFromInput,
@@ -1699,16 +1708,10 @@ export default function (pi: ExtensionAPI) {
     pi.registerMessageRenderer(LEARNING_RESULT_MESSAGE, (message, { expanded }, theme) => {
       const receipt = isLearningPipelineReceipt(message.details) ? message.details : undefined;
       const subject = receipt ? learningSummarySubject(receipt) : "learning result";
-      return createStaticToolLifecycleMessageRenderer({
-        createSpec: () => eventToolLifecycle("learning", subject, {
-          label: "event",
-          details: receipt ? learningSummaryDetails(receipt) : undefined,
-        }),
-        expandHint: keyHint("app.tools.expand", "to expand"),
-        fit: truncateToWidth,
-        visibleWidth,
-        hostComponent: ToolExecutionComponent,
-      })(message, { expanded }, theme);
+      return learningRows.message(() => eventToolLifecycle("learning", subject, {
+        label: "event",
+        details: receipt ? learningSummaryDetails(receipt) : undefined,
+      }))(message, { expanded }, theme);
     });
   }
   let sessionGeneration = 0;

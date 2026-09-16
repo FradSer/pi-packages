@@ -188,7 +188,7 @@ fs.writeFileSync(
     timeoutFailsClosed: expired[0]?.block === true && /timed out/.test(expired[0]?.reason ?? ""),
     singleEventForAllowed: entries.filter((e) => e.data?.kind === "policy-matched" && e.data?.policy === "danger-wipe" && e.data?.outcome === "allowed once").length === 1,
     entryRecorded: lastPolicyEntry?.data?.policy === "danger-wipe" && lastPolicyEntry?.data?.action === "confirm",
-    entryRenderUsesReason: renderedAllowed.includes("[harness] policy allowed · Destructive workspace wipe needs confirmation") && renderedAllowed.includes("outcome=allowed once"),
+    entryRenderUsesReason: renderedAllowed.includes("[harness] policy allowed · Destructive workspace wipe needs confirmation") && renderedAllowed.includes("outcome · allowed once"),
   });
 }
 
@@ -371,8 +371,8 @@ await new Promise((r) => setTimeout(r, 20));
     systemEventIsVisible: systemEvent?.customType === "context-guidance-event",
     systemEventUsesPrompt: systemEvent?.data?.kind === "skill-prompt" && systemEvent?.data?.prompt === "inner guidance",
     systemEventIdentifiesSource: systemEvent?.data?.source === "project" && systemEvent?.data?.file === path.join(project, ".pi", "harness.json"),
-    systemEventRenderUsesPrompt: rendered.includes("[context] skill prompt · review") && rendered.includes("prompt:") && rendered.includes("inner guidance") && rendered.includes("source=project"),
-    expandHintUsesKeybinding: collapsedRows.some((row) => row.toLowerCase().includes("ctrl+o to expand")), 
+    systemEventRenderUsesPrompt: rendered.includes("[context] skill prompt · review") && rendered.includes("prompt ·") && rendered.includes("inner guidance") && rendered.includes("source · project"),
+    expandHintUsesKeybinding: collapsedRows.some((row) => row.toLowerCase().includes("to expand")) && !collapsedRows.join("\\n").toLowerCase().includes("ctrl+o"), 
     collapsedGuidanceIsBounded: !collapsedRows.join("\\n").includes(longPrompt),
     expandedPromptIsComplete: longPrompt.split(" ").every((word) => expandedRows.join("\\n").includes(word)),
   });

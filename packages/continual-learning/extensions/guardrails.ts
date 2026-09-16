@@ -13,9 +13,18 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
-import { ToolExecutionComponent, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { keyHint, ToolExecutionComponent, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { createStaticToolLifecycleMessageRenderer, eventToolLifecycle, notifyPi, safeDisplayText } from "@fradser/pi-kit";
+import { bindLifecycleRenderers, eventToolLifecycle, fieldBlock, fieldLine, notifyPi, safeDisplayText } from "@fradser/pi-kit";
+
+/** Geometry bound once: every guardrail row shares hint and wrapping. */
+const guardrailRows = bindLifecycleRenderers({
+  fit: truncateToWidth,
+  visibleWidth,
+  wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+  expandHint: () => keyHint("app.tools.expand", "to expand"),
+  hostComponent: ToolExecutionComponent,
+});
 import {
   evaluate,
   evaluateBash,
@@ -367,37 +376,21 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         : details.action === "confirm" && details.outcome === "allowed once"
           ? "policy allowed"
           : "policy blocked";
-      return createStaticToolLifecycleMessageRenderer({
-        createSpec: () => eventToolLifecycle("harness", reason, {
-          label,
-          details: [
-            `policy=${details.policy}`,
-            `action=${details.action}`,
-            `outcome=${details.outcome}`,
-            `tool=${details.tool}`,
-            `source=${details.source}`,
-            `file=${details.file}`,
-            "",
-            "reason:",
-            reason,
-          ],
-        }),
-        expandHint: "ctrl+o to expand",
-        fit: truncateToWidth,
-        visibleWidth,
-        wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
-        hostComponent: ToolExecutionComponent,
-      })({ content: "", details }, { expanded }, theme);
+      return guardrailRows.message(() => eventToolLifecycle("harness", reason, {
+        label,
+        details: [
+          fieldLine("policy", details.policy),
+          fieldLine("action", details.action),
+          fieldLine("outcome", details.outcome),
+          fieldLine("tool", details.tool),
+          fieldLine("source", details.source),
+          fieldLine("file", details.file),
+          ...fieldBlock("reason", reason),
+        ],
+      }))({ content: "", details }, { expanded }, theme);
     }
     const message = "harness policy event";
-    return createStaticToolLifecycleMessageRenderer({
-      createSpec: () => eventToolLifecycle("harness", message, { label: "event" }),
-      expandHint: "ctrl+o to expand",
-      fit: truncateToWidth,
-      visibleWidth,
-      wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
-      hostComponent: ToolExecutionComponent,
-    })({ content: "", details }, { expanded }, theme);
+    return guardrailRows.message(() => eventToolLifecycle("harness", message, { label: "event" }))({ content: "", details }, { expanded }, theme);
   });
 
   pi.on("tool_call", async (event, ctx) => {

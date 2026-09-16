@@ -21,8 +21,18 @@ import {
   type BeforeAgentStartEvent,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
+import { keyHint } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { createStaticToolLifecycleMessageRenderer, eventToolLifecycle, safeDisplayText } from "@fradser/pi-kit";
+import { bindLifecycleRenderers, eventToolLifecycle, fieldBlock, fieldLine, safeDisplayText } from "@fradser/pi-kit";
+
+/** Geometry bound once: every guidance row shares hint and wrapping. */
+const guidanceRows = bindLifecycleRenderers({
+  fit: truncateToWidth,
+  visibleWidth,
+  wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+  expandHint: () => keyHint("app.tools.expand", "to expand"),
+  hostComponent: ToolExecutionComponent,
+});
 import { resolveHarnessConfig } from "./guardrail-config.ts";
 import { evaluateSkill } from "./guardrail-engine.ts";
 import {
@@ -92,28 +102,20 @@ export default function registerContextGuidance(pi: ExtensionAPI): void {
           : details?.kind === "skill-rule"
             ? "skill rule"
             : "skill prompt";
-    return createStaticToolLifecycleMessageRenderer({
-      createSpec: () =>
-        eventToolLifecycle("context", subject, {
-          label,
-          details: details
-            ? [
-                details.skill ? `skill=${details.skill}` : `ruleId=${details.ruleId ?? ""}`,
-                details.target ? `target=${details.target}` : "",
-                `source=${details.source}`,
-                `file=${details.file}`,
-                "",
-                "prompt:",
-                prompt,
-              ].filter(Boolean)
-            : undefined,
-        }),
-      expandHint: "ctrl+o to expand",
-      fit: truncateToWidth,
-      visibleWidth,
-      wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
-      hostComponent: ToolExecutionComponent,
-    })({ content: "", details }, { expanded }, theme);
+    // The full prompt stays visible when expanded: it is the deliverable.
+    const promptFields = fieldBlock("prompt", prompt, Number.POSITIVE_INFINITY);
+    return guidanceRows.message(() => eventToolLifecycle("context", subject, {
+      label,
+      details: details
+        ? [
+          details.skill ? fieldLine("skill", details.skill) : fieldLine("rule", details.ruleId ?? ""),
+          ...(details.target ? [fieldLine("target", details.target)] : []),
+          fieldLine("source", details.source),
+          fieldLine("file", details.file),
+          ...promptFields,
+        ].filter(Boolean)
+        : undefined,
+    }))({ content: "", details }, { expanded }, theme);
   });
 
   pi.on("before_agent_start", (event, ctx) => {

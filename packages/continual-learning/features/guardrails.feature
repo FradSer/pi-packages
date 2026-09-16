@@ -25,6 +25,7 @@ Feature: Generic tool-call guardrails from layered config
     Then the call is blocked
     And the block reason names the policy and states the correct procedure
     And the transcript records a display-only harness policy-blocked event with the policy reason
+    And the event body lists policy, action, outcome, tool, source, and file as `label · value` fields
 
   Scenario: Observe actions report a matching call without blocking it
     Given a policy with the observe action

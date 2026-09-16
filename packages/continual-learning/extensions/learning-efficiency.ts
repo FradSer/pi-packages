@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { PiWorkerUsage } from "@fradser/pi-kit";
+import { fieldLine, type PiWorkerUsage } from "@fradser/pi-kit";
 
 export type LearningMode = "automatic" | "manual" | "full";
 export type LearningPhase = "selector" | "memory" | "harness" | "agents";
@@ -204,11 +204,11 @@ export function learningSummarySubject(receipt: LearningPipelineReceipt): string
 export function learningSummaryDetails(receipt: LearningPipelineReceipt): string[] {
   const phaseLines = receipt.attempts.map((attempt) => `${attempt.phase}: ${attempt.outcome} · ${attempt.operations} change(s) · ${attempt.durationMs} ms`);
   return [
-    `mode: ${receipt.mode}`,
-    `operations: ${receipt.operations}`,
-    `calls: ${receipt.attempts.length}`,
-    `usage: ${formatLearningUsage(receipt.totals)}`,
-    `cost: ${formatLearningCost(receipt.totals, receipt.costAvailable)}`,
+    fieldLine("mode", receipt.mode),
+    fieldLine("operations", receipt.operations),
+    fieldLine("calls", receipt.attempts.length),
+    fieldLine("usage", formatLearningUsage(receipt.totals)),
+    fieldLine("cost", formatLearningCost(receipt.totals, receipt.costAvailable)),
     ...phaseLines,
   ];
 }

@@ -49,6 +49,6 @@ def test_learning_renderer_and_explicit_delivery_are_compact_and_single() -> Non
     output = json.loads(result.stdout.strip().splitlines()[-1])
     assert "[learning] event · 2 memories and 1 harness change applied" in output["collapsed"]
     assert "input 10" not in output["collapsed"]
-    assert "usage: input 10" in output["expanded"]
+    assert "usage · input 10" in output["expanded"]
     assert output["malformedSafe"] is True
     assert output["messages"] == []
