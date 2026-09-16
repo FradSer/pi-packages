@@ -40,14 +40,14 @@ agent({ action: "stop", session: "<returned session>" });
 |---|---|---|
 | create | subject; description?, dependsOn?, resources?, verify? | Leader; create pending work, notify eligible residents, never spawn |
 | list | id? or bounded state/claimable filter and cursor | Leader view or eligible Worker view; include result and current holding when selecting one ID |
-| assign | id, target | Leader; target is exactly one of Agent name for fresh execution or exact idle session |
+| assign | id, target: session | Leader; exact idle session target in the current slice; named-Agent fresh execution follows after its existing-Work spawn binding is independently verified |
 | claim | id? | Eligible idle Worker; queue a claim intent and await authoritative acceptance |
 | submit | result, outcome: success/failed | Current bound owner; candidate result, not acceptance; no caller-supplied owner or attempt |
-| reopen | id, reason | Leader; atomically retire safely settled terminal/parked authority to pending; reject live dependent authority |
+| reopen | id, reason | Leader; current slice reopens completed Work to pending after rejecting live dependent authority; parked retirement remains a later machine-owned action |
 | release | reason; id for Leader, bound work for Worker | Relinquish unfinished/failed work to pending; superseded acknowledgement stays superseded; retain live locks until settlement/stop |
 | supersede | ids, replacement work requirements | Leader; atomically create replacement and rewire pending dependencies |
 
-A fresh-execution assign target may select fork/model; an existing-session target cannot change its context or model. Resource and verification requirements are owned by the Work Item, not copied into messaging calls. Reusing a resident is always explicit through assign or an accepted claim, never a side effect of delegate.
+Current `work.assign` accepts only exact session targets and cannot change context or model. Named-Agent fresh execution, including its fork/model policy, is deferred to the following assignment slice. Resource and verification requirements are owned by the Work Item, not copied into messaging calls. Reusing a resident is always explicit through assign or an accepted claim, never a side effect of delegate.
 
 ```ts
 work({
@@ -55,8 +55,9 @@ work({
   dependsOn: ["<review work>"], resources: ["src/auth"], verify: "All auth acceptance scenarios hold",
 });
 
-work({ action: "assign", id: "<fix work>", target: { agent: "backend" } });
-work({ action: "assign", id: "<other pending work>", target: { session: "<idle session>" } });
+work({ action: "assign", id: "<fix work>", target: { session: "<idle session>" } });
+// A named-Agent fresh-execution target is intentionally deferred until its
+// existing-Work spawn binding and failure release are independently verified.
 
 // Worker after an eligible board notice:
 work({ action: "claim", id: "<offered work>" });
@@ -64,8 +65,8 @@ work({ action: "claim", id: "<offered work>" });
 work({ action: "submit", outcome: "success", result: "Implementation and verification evidence" });
 // Ordinary final answers use this same submission path automatically.
 
-work({ action: "reopen", id: "<failed work>", reason: "Dependency issue is resolved" });
-work({ action: "assign", id: "<same work>", target: { agent: "backend" } });
+work({ action: "reopen", id: "<completed work>", reason: "The accepted evidence needs a new pass" });
+work({ action: "assign", id: "<same work>", target: { session: "<idle session>" } });
 ```
 
 ### Shared communication
@@ -88,7 +89,7 @@ The ordinary path is pending -> active -> verifying -> completed; ungated accept
 Three race-sensitive rules are now confirmed:
 
 1. **Freeze the owner during review and park.** Hold all execution-producing mail, including previously queued input, until a runtime-authorized revision. PASS accepts the unchanged submission and archives deferred mail with a result reference. Observed unexpected owner execution invalidates review authorization and requests attention; it cannot authorize its own revision.
-2. **Resolve recovery atomically.** Superseded-owner release retires only old resources and preserves superseded state. Reopen retires a settled parked holding itself, without a preliminary release call. Requested stop blocks acceptance immediately and, once confirmed, preserves prior release/supersession/completion outcomes or fails other unfinished work.
+2. **Resolve recovery atomically.** Superseded-owner release retires only old resources and preserves superseded state. The current public reopen action supports completed Work only; parked-holding retirement remains a later machine-owned transition. Requested stop blocks acceptance immediately and, once confirmed, preserves prior release/supersession/completion outcomes or fails other unfinished work.
 3. **Guard prerequisite reopening against live dependents.** Direct and indirect active/verifying/parked dependents and revoked holders block reopen. The dependent check and invalidation share the assign/claim transaction, avoiding a check-then-start race. Unstarted work checks current prerequisite acceptance; completed downstream results remain historical.
 
 These are runtime-controlled execution guarantees. Authoring settlement plus an ordinary state flag does not prove that queued Pi turns or arbitrary detached commands have stopped. The execution adapter must gate queued input before verification can start; inability to establish quiescence leaves acceptance pending.
@@ -119,7 +120,7 @@ Implement in this order. Every slice begins with its feature scenario and one RE
 - Start with one delegated Work Item appearing alongside created/claimed work in the same query projection.
 - Centralize resource/dependency/one-owner checks and stable Work/attempt identity. Preserve exact-session routing and current runtime scoping.
 - Migrate all current acquisition handlers onto that single implementation in the same slice. Do not introduce dual stores or a second reducer kept in sync.
-- Implement the recovery table for all existing ownership paths now: safe release, superseded-owner acknowledgement, parked reopen retirement, and requested-stop outcome precedence. Invalidate pending acceptance as soon as revocation is accepted.
+- Implement the current ownership paths now: safe release, superseded-owner acknowledgement, completed-only reopen, and requested-stop outcome precedence. Parked-owner retirement remains a later machine-owned transition. Invalidate pending acceptance as soon as revocation is accepted.
 - Make prerequisite reopening and dependent acquisition one atomic decision, including indirect dependencies and retained revoked holdings.
 - Test direct-versus-claimed resource conflicts, concurrent same-Agent delegation, claim races, stopped owners, atomic startup failures, supersession acknowledgement, and reopen/claim races.
 
@@ -177,7 +178,7 @@ Tests stay under tests; primary seam is registered tools with real reducers. Exi
 - Claims, resources, supersession, verification: relevant registered-tool and state-machine cases in @tests/test_teammate_package.py.
 - Reporting and cleanup: @tests/test_immediate_reports.py, @tests/test_late_report_delivery.py, @tests/test_shutdown_confirmation.py.
 
-Add focused scenarios for authorization by action, queued claim versus accepted ownership, final answer with a board claim, empty resident final, failed acquisition without partial state, and old messages following reopen. Cover same-attempt steer/PASS, previously queued owner turns, parked mail, revision/PASS invalidation, superseded release acknowledgement, atomic parked reopen, stop/PASS ordering, confirmed-stop precedence, and prerequisite-reopen/dependent-acquisition races. Delete obsolete assertions for removed tool names and repeated advisory English as their replacement tests land. Keep stable behavioral guarantees, not the old file structure.
+Add focused scenarios for authorization by action, queued claim versus accepted ownership, final answer with a board claim, empty resident final, failed acquisition without partial state, and old messages following reopen. Cover same-attempt steer/PASS, previously queued owner turns, parked mail, revision/PASS invalidation, superseded release acknowledgement, completed-only reopen with retained dependent guards, stop/PASS ordering, confirmed-stop precedence, and prerequisite-reopen/dependent-acquisition races. Delete obsolete assertions for removed tool names and repeated advisory English as their replacement tests land. Keep stable behavioral guarantees, not the old file structure.
 
 ## Verification and scope hygiene
 
@@ -186,6 +187,18 @@ Expected implementation commands: package pytest, pnpm typecheck, pnpm pack:chec
 Known prior verification limits are evidence, not accepted exceptions: the previous task's package suite passed 212 tests; root checks exposed keyboard/plan-mode/utils failures and one intermittent report test; live attempts failed at provider/model access or networking. Recheck rather than calling the new implementation complete on those old results.
 
 This planning task changes only specifications and design scenarios. It leaves the current anti-polling implementation, its Changeset, other package edits, manifests, installed settings, and memory files untouched. Before implementation, inventory the working tree and keep this slice separate from other sessions' work.
+
+## Final-cutover blocking checklist
+
+Legacy tools are removed only in one atomic breaking change after every item below has a public-seam test and the final active leader/Worker maps contain only `agent`, `work`, and `agent_event`.
+
+1. **Final Agent actions:** Replace the overloaded legacy `agent` parameters with strict `delegate`, `start`, `inspect`, and exact-session `stop` actions. Delegate must accept an inline ephemeral definition (and explicit persistence only when user-authorized); start must create an unassigned resident; inspect and stop must use an incarnation-bound session handle, not a reusable resident name. Delegate always creates independent Work; it never steers or reopens. Stop and the Team Console must resolve the exact `(resident, spawn)` incarnation so name reuse cannot stop a replacement. No recovery or guidance may direct callers to `teammate_spawn` or `teammate_shutdown`.
+2. **Complete Work operations:** Add Worker Work list and voluntary release. Implement a machine-owned parked-Work retirement transition. Retire `WorkerAssignment.kind` as a public authority distinction: direct and claimed Work must share the same Work/attempt transitions, with any internal acquisition detail hidden behind `work`.
+3. **One submission pipeline:** Make ordinary final answers and `work.submit` enter one Work/attempt submission path for every acquisition route. The same gate, settlement/quiescence barrier, deferred-mail history, stale-result rejection, release/stop/supersede precedence, and duplicate suppression must apply without legacy `task_submit` compatibility behavior.
+4. **Communication-only Agent Event:** Reduce `agent_event` to message intent (`inform`/`request`) and runtime-bound routing. Move terminal report, completion, failure, handoff, reopen, and resource authority out of its public schema. Replace Worker reports and peer/Leader mail currently duplicated by `send_message` with this one transport.
+5. **Surface, grants, and documentation:** Remove legacy names from runtime registrations, child capability grant/universe, dynamic disclosure, worker prompts, Team Console instructions, guidance, package/root READMEs, features, fixtures, and active memory entries. Decide and implement explicit incompatible-runtime-snapshot rejection before breaking installation state.
+
+Final verification must prove: exact active leader/Worker tool maps contain no legacy names; child `--tools` contains only final capabilities plus requested built-ins; real registered-tool seams cover every final action and authorization rejection; package and root checks, packed/install checks, `pi --print`, interactive `/agent-teams`, and a fresh final audit pass.
 
 ## Non-goals and deletion budget
 

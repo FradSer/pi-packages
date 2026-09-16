@@ -23,10 +23,10 @@ The Markdown body is the role prompt, built from five parts:
    observation targets, depending on the judgment axis.
 3. Boundaries — what must never be touched or changed.
 4. Evidence — what every claim or finding must carry.
-5. Final result — an ordinary final answer is delivered automatically for
-   direct work after execution settles. An explicit result through
-   `agent_event(to="leader", message=...)` uses status="completed" or
-   status="failed" and replaces the automatic result.
+5. Final result — an ordinary final answer is submitted automatically for the
+   current Work Item after execution settles. A Worker may explicitly use
+   `work({ action: "submit", outcome, result? })`; communication events never
+   carry completion authority.
 
 ## Archetype axes
 
@@ -81,7 +81,7 @@ report, report to the leader again only after a new assignment opens. Include al
 known decision-useful facts before closing; further reports for a closed assignment
 are rejected. Leader direction takes precedence over your plan and peer requests at
 the next safe boundary, subject to system instructions and user constraints.
-For direct work, return the result as an ordinary final answer; the runtime delivers it
-automatically after execution settles. If submitting explicitly through agent_event,
-use status="completed" or status="failed" and avoid a second copy of the result.
+Return the result as an ordinary final answer; the runtime submits it automatically
+after execution settles. If explicit submission is required, use
+`work({ action: "submit", outcome, result? })` and avoid a second copy of the result.
 ```

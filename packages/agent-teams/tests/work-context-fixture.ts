@@ -189,7 +189,7 @@ async function spawnFixture() {
 function assertSpawnSelection(capture: CapturedSpawn, fixture: SpawnFixture): void {
   const { parent, before, context } = fixture;
   assert.equal(capture.args.includes("--no-extensions"), true);
-  assert.equal(capture.args[capture.args.indexOf("--tools") + 1], "read,agent_event,send_message,task_list,task_claim,task_submit");
+  assert.equal(capture.args[capture.args.indexOf("--tools") + 1], "read,agent_event,work");
   assert.equal(capture.args[capture.args.indexOf("--model") + 1], "child-provider/child-model");
   assert.equal(capture.args[capture.args.indexOf("--thinking") + 1], "low");
   assert.equal(capture.options.env?.PI_TEAMMATE_WORKER_NAME, "child");

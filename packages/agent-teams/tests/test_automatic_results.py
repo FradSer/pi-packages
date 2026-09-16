@@ -32,7 +32,7 @@ def test_final_answer_is_reported_once_only_after_settlement(tmp_path: Path) -> 
         assert.deepEqual(fixture.records(), []);
         await fixture.emit({ type: "agent_settled" });
         await fixture.emit({ type: "agent_settled" });
-        await assert.rejects(fixture.call("agent_event", { message: "Duplicate", status: "completed" }), /terminal report/);
+        assert.equal(fixture.records().length, 1);
         console.log(JSON.stringify({ records: fixture.records(), roster: JSON.parse(fs.readFileSync(fixture.binding.rosterFile, "utf8")) }));
     ''')
     records = payload["records"]
@@ -115,25 +115,8 @@ def test_tools_retries_and_nonidle_settlement_do_not_close_assignment(tmp_path: 
     assert [(record["body"], record["status"]) for record in payload["records"]] == [("Recovered final answer", "completed")]
 
 
-@pytest.mark.parametrize("tool", ["agent_event", "send_message"])
-@pytest.mark.parametrize("status", ["completed", "failed"])
-def test_explicit_terminal_tool_suppresses_automatic_result(tmp_path: Path, tool: str, status: str) -> None:
-    payload = run_worker(tmp_path, f'''
-        await fixture.start();
-        const result = await fixture.call({tool!r}, {{ to: "leader", message: "Explicit result", status: {status!r} }});
-        assert.equal(result.terminate, true);
-        await fixture.answer(assistant("Duplicate final answer"));
-        await fixture.emit({{ type: "agent_settled" }});
-        await fixture.start();
-        await fixture.answer(assistant("Repeated assignment marker cannot reopen it", "stop", 40));
-        await fixture.emit({{ type: "agent_settled" }});
-        console.log(JSON.stringify({{ records: fixture.records() }}));
-    ''')
-    assert [(record["body"], record["status"]) for record in payload["records"]] == [("Explicit result", status)]
-
-
-@pytest.mark.parametrize("tool", ["agent_event", "send_message"])
-def test_progress_tool_does_not_require_completion_bookkeeping(tmp_path: Path, tool: str) -> None:
+def test_communication_event_does_not_require_completion_bookkeeping(tmp_path: Path) -> None:
+    tool = "agent_event"
     payload = run_worker(tmp_path, f'''
         await fixture.start();
         const result = await fixture.call({tool!r}, {{ to: "leader", message: "New evidence" }});
@@ -146,8 +129,8 @@ def test_progress_tool_does_not_require_completion_bookkeeping(tmp_path: Path, t
     assert len(payload["records"]) == 2
     assert payload["records"][-1]["body"] == "Final answer"
     assert "automatically" in payload["description"]
-    assert "automatically" in payload["response"]
-    assert 'send status="completed"' not in payload["response"]
+    assert "REPORT" in payload["response"]
+    assert "status=" not in payload["response"]
 
 
 @pytest.mark.parametrize("kind", ["board", "none"])
@@ -290,8 +273,8 @@ def test_retry_start_clears_stale_success_before_any_new_response(tmp_path: Path
     assert "Previous low-level success" not in payload["records"][0]["body"]
 
 
-@pytest.mark.parametrize("tool", ["agent_event", "send_message"])
-def test_message_tools_require_precise_route_for_concurrent_peer_sessions(tmp_path: Path, tool: str) -> None:
+def test_agent_event_requires_precise_route_for_concurrent_peer_sessions(tmp_path: Path) -> None:
+    tool = "agent_event"
     payload = run_worker(tmp_path, f'const messageTool = {json.dumps(tool)};' + '''
         const peers = [
           { name: "reviewer-one", agent: "peer-reviewer", status: "working" },

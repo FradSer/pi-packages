@@ -1,21 +1,25 @@
 ---
-name: teammate-resident-teams
-description: Agent Teams (packages/agent-teams) — team-centric: named resident RPC teammates, shared task board with atomic self-claim, unified addressed messaging, verify-gated completion, harness-driven wake-ups
+name: agent-teams-final-surface
+description: Final Agent Teams public surface and lifecycle rules
 type: project
 ---
 
-`packages/agent-teams` is a Claude-Code-style collaborative organization layer for Pi: the Pi session is the team leader; teammates are named resident child Pi processes in RPC mode; coordination runs through a shared local task board plus direct peer inbox messaging. It replaces the former run-centric DAG design (`teammate_run`/fanout/retry are deleted).
-
-**Why:**
-Exploratory / competitive-hypothesis work (multi-hypothesis debugging, three-way review with cross-challenge) cannot be represented cleanly by a static DAG because workers must exchange findings mid-task. One-step delegation avoids the old registry ceremony: `teammate_spawn(name, agent, prompt?)` carries the kickoff task and the board is optional. A later grilling decision identified tool count, conceptual overlap, and parameter breadth as separate problems: the surface was reduced from ten names to seven by making `send_message` the one addressed message primitive, registering `task_list` once for both sides, and moving model/worktree from spawn overrides into agent frontmatter.
+**Why:** Agent Teams uses one explicit coordination surface so Work authority,
+communication, and resident lifecycle cannot be confused.
 
 **How to apply:**
-1. **Seven tool names**: leader gets `teammate_spawn(name, agent, prompt?)`, `teammate_shutdown(name)`, `send_message(to, message, status?)`, `task_create`, and shared `task_list`; workers get the same `send_message`, shared `task_list`, `task_claim`, and `task_submit`. There is no `teammate_message`, cancel/retry/run/fanout, or polling tool.
-2. **Unified messaging**: `send_message(to="leader", message, status?)` is a worker report written to the validated outbox; `send_message(to="<peer>", message)` writes the recipient inbox directly; leader-addressed teammate messages route through a running control stream or idle wake queue. Synchronous routing outcomes are deliberately narrow: `steered` means the active control stream accepted the write, while `queued` means the harness still owns delivery into a recipient turn. Peer inbox and leader outbox writes are therefore queued, not delivered; no routing label claims the recipient read or processed the message. `status` is invalid except for `to="leader"`. The first non-empty message line is the console title.
-3. **Declarative role attributes**: agent frontmatter carries `model`, optional `verify`, and boolean `worktree`.Definitions live in one project directory with filename-based scopes: `<name>.local.md` is project-local (personal, never committed) and dedupes against its `<name>.md` counterpart (project scope, git-managed, team-shared); user-level sits in `~/.pi/agent/agents`; precedence is project-local > project > user > bundled and `resolveAgent` exposes scope + gitManaged for provenance. Spawn has no cwd/model/worktree override; create a role variant instead. `worktree: true` gives every instance of that role a dedicated Git worktree and diff capture at shutdown.
-4. **Residents/wake-ups (constitution: detect and notify, never terminate)**: long-lived RPC children, 8-process session cap; wake-up sequences have NO turn-count or duration caps — no configuration may automatically terminate a working teammate. Turn counts and silence durations are telemetry only. The 500ms harness poll drains outboxes, applies intents, routes inboxes, wakes only for queued deliveries or a paced claimable-task notice, and runs the stall heartbeat: 30 minutes without any RPC output (`PI_TEAMMATE_STALL_NOTICE_MS`, 0 disables) sends the leader one actionable notice per silence episode — that notice is the LAST automatic action; continuing, steering, shutting down, or respawning a context-carrying successor (original kickoff + mailbox reports + board claims + liveText tail) belongs to the leader model alone. Any stream event or prompt delivery resets `lastOutputAt` and clears `stallNoticeSentAt`. Stall diagnostics render independently as `[agent] event` health notices and never decorate a `[message]` routing row.
-5. **Board**: only leader writes `~/.pi/agent/tasks/<sessionKey>/board.json`; workers use exclusive-create claim/submission marker files. Task completion uses effective task verify or agent verify; failed verification returns the reviewer's findings to the claimer. The board persists across restarts; runtime state does not. `task_create` never spawns a teammate: it immediately offers newly claimable work to existing idle teammates and reports whether anyone was notified; with no living teammates it tells the leader to call `teammate_spawn`. Boards are keyed by the Pi session file (or cwd without one), so fresh sessions do not import another session's tasks unless they resume the same board directory.
-6. **Reliability/UI**: per-spawn identity validation, event/message dedup, crash releases claimed tasks, role worktree diff at shutdown. Widget above the input box shows ONLY working/starting teammates as spinner rows with live activity and hides when nobody is working; idle/stopped teammates live only in the /teammate console roster; spawn prints a legacy-style `[agent] started · @name · task` transcript line; `/teammate` offers roster/board pages and message/task detail.
-7. **Node-native TS**: relative imports use explicit `.ts` extensions (root tsconfig permits them), allowing node to strip-types modules in package tests.
 
-**Related:** [[pi-cli-print-json-usage]] [[no-global-input-interception]] [[pi-package-conventions]]
+1. Public model tools are `agent`, `work`, and `agent_event`; `/agent-teams`
+is the human management surface.
+2. `agent` uses strict `delegate`, `start`, `inspect`, and exact-session `stop`
+actions. Session handles include the resident and spawn incarnation.
+3. `work` owns create/list/assign/claim/submit/release/completed-only reopen/
+supersede. Claim and submit are marker intents; the single-writer harness owns
+acceptance and verification.
+4. `agent_event` is communication-only with `inform` or `request`. It never
+completes, releases, reopens, or reassigns Work.
+5. Worker capability grants contain only `agent_event` and `work` plus requested
+Pi built-ins. Verification freezes execution and archives deferred mail as Work
+history.
+6. Incompatible persisted runtime snapshots fail explicitly; no silent migration
+or legacy-tool fallback is allowed.

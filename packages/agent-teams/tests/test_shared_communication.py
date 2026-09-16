@@ -1,5 +1,5 @@
 """
-Tests for Slice 02 — Shared Bidirectional Communication (agent_event({ message, to?, status? })).
+Tests for communication-only shared Agent Event (agent_event({ message, to?, intent? })).
 Verifies that:
 1. agent_event tool is registered and available for both leader and worker.
 2. Leader can send messages to a specific worker without an Assignment Attempt.
@@ -23,7 +23,7 @@ def run_node(script: str) -> subprocess.CompletedProcess[str]:
     )
 
 def test_agent_event_registered_on_leader_and_worker():
-    """Verify agent_event tool exists with (message, to?, status?) schema on leader tools."""
+    """Verify agent_event tool exists with (message, to?, intent?) schema on leader tools."""
     script = """
     import { registerLeaderTools } from "./src/tools.ts";
     
@@ -55,7 +55,8 @@ def test_agent_event_registered_on_leader_and_worker():
     assert data["name"] == "agent_event"
     assert "message" in data["params"]["properties"]
     assert "to" in data["params"]["properties"]
-    assert "status" in data["params"]["properties"]
+    assert "intent" in data["params"]["properties"]
+    assert "status" not in data["params"]["properties"]
 
 
 def test_agent_event_registered_on_worker_and_allowed_in_universe():

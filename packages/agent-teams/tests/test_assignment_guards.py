@@ -25,19 +25,6 @@ def run_node(script: str) -> dict[str, object]:
     return json.loads(result.stdout)
 
 
-def test_bdd_contract_covers_assignment_guards() -> None:
-    feature = (PACKAGE / "features" / "agent-teams.feature").read_text(encoding="utf-8")
-    for scenario in (
-        "A terminal direct assignment cannot drift into board work",
-        "A board claim remains open until task_submit completes it",
-        "Resource-scoped assignments cannot overlap",
-        "A successor receives structured handoff context",
-        "A missing verifier verdict is inconclusive, not a failed task",
-        "A replacement task supersedes obsolete board work",
-    ):
-        assert scenario in feature
-
-
 def test_handoff_requires_stopped_predecessor(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
@@ -518,3 +505,299 @@ def test_successor_handoff_uses_archived_assignment_and_reports() -> None:
         "kind": "direct",
         "resources": ["firmware/sub-node"],
     }
+
+
+def test_fresh_reset_requires_the_emitting_child_and_is_single_flight() -> None:
+    payload = run_node(
+        f'''\
+        import childProcess from "node:child_process";
+        import {{ EventEmitter }} from "node:events";
+        import {{ syncBuiltinESMExports }} from "node:module";
+        import {{ PassThrough, Writable }} from "node:stream";
+        import {{ mock }} from "node:test";
+        const commands = new Map();
+        const children = [];
+        mock.method(childProcess, "spawn", () => {{
+          const child = Object.assign(new EventEmitter(), {{
+            pid: children.length + 1,
+            stdout: new PassThrough(),
+            stderr: new PassThrough(),
+          }});
+          const writes = [];
+          child.stdin = new Writable({{ write(chunk, _encoding, done) {{ writes.push(JSON.parse(String(chunk))); done(); }} }});
+          commands.set(child, writes);
+          children.push(child);
+          return child;
+        }});
+        syncBuiltinESMExports();
+        const {{ deliverFreshAssignment, spawnResident }} = await import("{(SRC / "spawner.ts").as_uri()}");
+        spawnResident({{ workerName: "pending", onUpdate: () => {{}}, onExit: () => {{}} }});
+        spawnResident({{ workerName: "other", onUpdate: () => {{}}, onExit: () => {{}} }});
+        const promise = deliverFreshAssignment("pending", "new assignment");
+        children[0].stdout.write(`${{JSON.stringify({{ type: "agent_settled" }})}}\\n${{JSON.stringify({{ type: "agent_settled" }})}}\\n`);
+        const reset = commands.get(children[0]).find((command) => command.type === "new_session");
+        children[1].stdout.write(JSON.stringify({{ id: reset.id, type: "response", command: "new_session", success: true, data: {{ cancelled: false }} }}) + "\\n");
+        await new Promise((resolve) => setImmediate(resolve));
+        const promptsAfterWrongChild = commands.get(children[0]).filter((command) => command.type === "prompt").length;
+        children[0].stdout.write(JSON.stringify({{ id: reset.id, type: "response", command: "new_session", success: true, data: {{ cancelled: false }} }}) + "\\n");
+        const success = await promise;
+        const own = commands.get(children[0]);
+        console.log(JSON.stringify({{
+          resetCount: own.filter((command) => command.type === "new_session").length,
+          promptCount: own.filter((command) => command.type === "prompt").length,
+          promptsAfterWrongChild,
+          success,
+        }}));
+        children.forEach((child) => child.emit("close", 0, null));
+        mock.restoreAll();
+        ''',
+    )
+    assert payload == {
+        "resetCount": 1,
+        "promptCount": 1,
+        "promptsAfterWrongChild": 0,
+        "success": True,
+    }
+
+
+def test_rejected_cancelled_timed_out_and_closed_fresh_resets_never_prompt_old_session() -> None:
+    payload = run_node(
+        f'''\
+        import childProcess from "node:child_process";
+        import {{ EventEmitter }} from "node:events";
+        import {{ syncBuiltinESMExports }} from "node:module";
+        import {{ PassThrough, Writable }} from "node:stream";
+        import {{ mock }} from "node:test";
+        mock.timers.enable({{ apis: ["setTimeout"] }});
+        const children = [];
+        mock.method(childProcess, "spawn", () => {{
+          const child = Object.assign(new EventEmitter(), {{
+            pid: children.length + 1,
+            stdout: new PassThrough(),
+            stderr: new PassThrough(),
+          }});
+          child.commands = [];
+          child.stdin = new Writable({{ write(chunk, _encoding, done) {{ child.commands.push(JSON.parse(String(chunk))); done(); }} }});
+          children.push(child);
+          return child;
+        }});
+        syncBuiltinESMExports();
+        const {{ deliverFreshAssignment, sendWorkerSteer, spawnResident }} = await import("{(SRC / "spawner.ts").as_uri()}");
+        const outcomes = [];
+        for (const mode of ["rejected", "cancelled", "timed-out", "closed"]) {{
+          spawnResident({{ workerName: mode, onUpdate: () => {{}}, onExit: () => {{}} }});
+          const child = children.at(-1);
+          const promise = deliverFreshAssignment(mode, `${{mode}} assignment`);
+          child.stdout.write(JSON.stringify({{ type: "agent_settled" }}) + "\\n");
+          const reset = child.commands.find((command) => command.type === "new_session");
+          const guidanceAccepted = sendWorkerSteer(mode, `${{mode}} guidance`);
+          if (mode === "closed") child.emit("close", 1, null);
+          else if (mode === "timed-out") mock.timers.tick(5_000);
+          else child.stdout.write(JSON.stringify({{
+            id: reset.id,
+            type: "response",
+            command: "new_session",
+            success: mode !== "rejected",
+            data: {{ cancelled: mode === "cancelled" }},
+            error: mode === "rejected" ? "reset rejected" : undefined,
+          }}) + "\\n");
+          outcomes.push({{
+            mode,
+            success: await promise,
+            guidanceAccepted,
+            resetCount: child.commands.filter((command) => command.type === "new_session").length,
+            promptCount: child.commands.filter((command) => command.type === "prompt").length,
+          }});
+        }}
+        console.log(JSON.stringify({{ outcomes }}));
+        mock.timers.reset();
+        mock.restoreAll();
+        ''',
+    )
+    assert payload["outcomes"] == [
+        {"mode": "rejected", "success": False, "guidanceAccepted": True, "resetCount": 1, "promptCount": 0},
+        {"mode": "cancelled", "success": False, "guidanceAccepted": True, "resetCount": 1, "promptCount": 0},
+        {"mode": "timed-out", "success": False, "guidanceAccepted": True, "resetCount": 1, "promptCount": 0},
+        {"mode": "closed", "success": False, "guidanceAccepted": True, "resetCount": 1, "promptCount": 0},
+    ]
+
+
+def test_fresh_reset_failure_releases_work_without_delivering_queued_guidance(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import childProcess from "node:child_process";
+        import {{ EventEmitter }} from "node:events";
+        import {{ syncBuiltinESMExports }} from "node:module";
+        import {{ PassThrough, Writable }} from "node:stream";
+        import {{ mock }} from "node:test";
+        mock.timers.enable({{ apis: ["setTimeout"] }});
+        const children = [];
+        mock.method(childProcess, "spawn", () => {{
+          const child = Object.assign(new EventEmitter(), {{
+            pid: children.length + 1,
+            stdout: new PassThrough(),
+            stderr: new PassThrough(),
+          }});
+          child.commands = [];
+          child.stdin = new Writable({{ write(chunk, _encoding, done) {{ child.commands.push(JSON.parse(String(chunk))); done(); }} }});
+          children.push(child);
+          return child;
+        }});
+        syncBuiltinESMExports();
+        const {{ spawnResident }} = await import("{(SRC / "spawner.ts").as_uri()}");
+        const {{ initTeamMachine, sendLeaderMessage, shutdownTeamMachine }} = await import("{(SRC / "team-machine.ts").as_uri()}");
+        const {{ getTask, getTeammate, registerTeammate, resetState }} = await import("{(SRC / "state.ts").as_uri()}");
+        const cwd = {str(tmp_path)!r};
+        initTeamMachine({{ sessionManager: undefined, cwd }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        const outcomes = [];
+        for (const mode of ["rejected", "cancelled", "timed-out", "closed"]) {{
+          const name = `worker-${{mode}}`;
+          const workId = `work-${{mode}}`;
+          spawnResident({{ workerName: name, onUpdate: () => {{}}, onExit: () => {{}} }});
+          const child = children.at(-1);
+          registerTeammate({{ name, agent: "reviewer", spawnId: `spawn-${{mode}}`, workId, pid: child.pid, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+          const opened = sendLeaderMessage(name, `${{mode}} assignment`);
+          child.stdout.write(JSON.stringify({{ type: "agent_settled" }}) + "\\n");
+          const reset = child.commands.find((command) => command.type === "new_session");
+          const guidance = sendLeaderMessage(name, `${{mode}} same-attempt guidance`);
+          if (mode === "closed") child.emit("close", 1, null);
+          else if (mode === "timed-out") mock.timers.tick(5_000);
+          else child.stdout.write(JSON.stringify({{
+            id: reset.id,
+            type: "response",
+            command: "new_session",
+            success: mode !== "rejected",
+            data: {{ cancelled: mode === "cancelled" }},
+            error: mode === "rejected" ? "reset rejected" : undefined,
+          }}) + "\\n");
+          await new Promise((resolve) => setImmediate(resolve));
+          outcomes.push({{
+            mode,
+            opened: opened.ok,
+            guidance: guidance.ok ? guidance.outcome : "rejected",
+            taskStatus: getTask(workId)?.status,
+            taskError: getTask(workId)?.errorMessage,
+            assignmentReleased: getTeammate(name)?.assignment === undefined,
+            promptCount: child.commands.filter((command) => command.type === "prompt").length,
+          }});
+        }}
+        shutdownTeamMachine();
+        children.forEach((child) => child.emit("close", 0, null));
+        mock.timers.reset();
+        mock.restoreAll();
+        console.log(JSON.stringify({{ outcomes }}));
+        ''',
+    )
+    for outcome in payload["outcomes"]:
+        assert outcome == {
+            "mode": outcome["mode"],
+            "opened": True,
+            "guidance": "steered",
+            "taskStatus": "pending",
+            "taskError": "Pi session reset failed before the new Assignment Attempt started.",
+            "assignmentReleased": True,
+            "promptCount": 0,
+        }
+
+
+def test_unexpected_owner_execution_requires_a_fresh_session_before_recovery(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import childProcess from "node:child_process";
+        import {{ EventEmitter }} from "node:events";
+        import {{ syncBuiltinESMExports }} from "node:module";
+        import {{ PassThrough, Writable }} from "node:stream";
+        import {{ mock }} from "node:test";
+        const commands = [];
+        const child = Object.assign(new EventEmitter(), {{
+          pid: 1,
+          stdout: new PassThrough(),
+          stderr: new PassThrough(),
+          stdin: new Writable({{ write(chunk, _encoding, done) {{ commands.push(JSON.parse(String(chunk))); done(); }} }}),
+        }});
+        mock.method(childProcess, "spawn", () => child);
+        syncBuiltinESMExports();
+        const {{ spawnResident }} = await import("{(SRC / "spawner.ts").as_uri()}");
+        const {{ applyProgress, initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, sendLeaderMessage, setVerifyGateRunner }} = await import("{(SRC / "team-machine.ts").as_uri()}");
+        const {{ resetState, registerTeammate, createDirectWork, getTask, getTeammate }} = await import("{(SRC / "state.ts").as_uri()}");
+        spawnResident({{ workerName: "w", onUpdate: () => {{}}, onExit: () => {{}} }});
+        initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const taskId = "direct-work";
+        createDirectWork({{ id: taskId, subject: "gated", resources: ["firmware/direct"], verify: "verify", workerName: "w", assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/direct"] }} }});
+        let release;
+        setVerifyGateRunner(() => new Promise((resolve) => {{ release = () => resolve({{ kind: "pass" }}); }}));
+        attemptSubmission("w", "s1", taskId, "completed", "result");
+        processTaskIntents();
+        await new Promise((resolve) => setImmediate(resolve));
+        applyProgress("w", "s1", {{ text: "new execution", turns: 2, finalResponse: false }});
+        const firstAttempt = getTeammate("w")?.assignment?.id;
+        const recovery = sendLeaderMessage("w", "Recover invalidated review", {{ reopen: true, workId: taskId }});
+        const nextAttempt = getTeammate("w")?.assignment?.id;
+        child.stdout.write(JSON.stringify({{ type: "agent_settled" }}) + "\\n");
+        await new Promise((resolve) => setImmediate(resolve));
+        const reset = commands.find((command) => command.type === "new_session");
+        child.stdout.write(JSON.stringify({{ id: reset.id, type: "response", command: "new_session", success: true, data: {{ cancelled: false }} }}) + "\\n");
+        await new Promise((resolve) => setImmediate(resolve));
+        release();
+        await new Promise((resolve) => setImmediate(resolve));
+        setVerifyGateRunner(undefined);
+        const payload = {{ status: getTask(taskId)?.status, recovery: recovery.ok, resources: getTeammate("w")?.assignment?.resources, freshAttempt: nextAttempt !== firstAttempt, reset: Boolean(reset) }};
+        shutdownTeamMachine();
+        child.emit("close", 0, null);
+        mock.restoreAll();
+        console.log(JSON.stringify(payload));
+        ''',
+    )
+    assert payload == {"status": "claimed", "recovery": True, "resources": ["firmware/direct"], "freshAttempt": True, "reset": True}
+
+
+def test_superseded_direct_holder_retains_resources_until_cancellation_acknowledgement(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, createBoardTask }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createDirectWork, activeAssignmentConflict, updateTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        registerTeammate({{ name: "direct", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const bound = createDirectWork({{ id: "direct-work", subject: "direct", resources: ["firmware/gated"], workerName: "direct", assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/gated"] }} }});
+        updateTeammate("direct", {{ assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/gated"], closed: true }} }});
+        const replacement = createBoardTask({{ subject: "replacement", resources: ["firmware/gated"], supersedes: ["direct-work"] }});
+        const conflict = activeAssignmentConflict(["firmware/gated/subdir"]);
+        shutdownTeamMachine();
+        console.log(JSON.stringify({{ bound: bound.ok, replacement: replacement.ok, conflict: conflict?.name ?? null }}));
+        ''',
+    )
+    assert payload == {"bound": True, "replacement": True, "conflict": "direct"}
+
+
+def test_superseding_a_verifying_holder_routes_cancellation_without_waiting_for_gate(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, createBoardTask, attemptSubmission, processTaskIntents, routePeerInboxes, setVerifyGateRunner }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, applyClaimIntent }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ inboxPath, stateFilePath, readJsonlBatch }} from "{(SRC / "statefile.ts").as_uri()}";
+        const root = {str(tmp_path)!r};
+        initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const old = createTask({{ subject: "old", verify: "verify" }}).task;
+        applyClaimIntent({{ taskId: old.id, worker: "w", spawnId: "s1", timestamp: 1 }});
+        let release;
+        setVerifyGateRunner(() => new Promise((resolve) => {{ release = () => resolve({{ kind: "pass" }}); }}));
+        attemptSubmission("w", "s1", old.id, "completed", "result");
+        processTaskIntents();
+        await new Promise((resolve) => setImmediate(resolve));
+        const replacement = createBoardTask({{ subject: "replacement", supersedes: [old.id] }});
+        routePeerInboxes();
+        const messages = readJsonlBatch(inboxPath(stateFilePath(undefined, root), "w"), 0).records;
+        release();
+        await new Promise((resolve) => setImmediate(resolve));
+        setVerifyGateRunner(undefined);
+        shutdownTeamMachine();
+        console.log(JSON.stringify({{ replacementOk: replacement.ok, cancellationRouted: messages.some((entry) => entry.subject === `Task superseded: ${{old.id}}`) }}));
+        ''',
+    )
+    assert payload == {"replacementOk": True, "cancellationRouted": True}
