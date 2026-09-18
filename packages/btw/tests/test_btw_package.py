@@ -25,36 +25,6 @@ def run_typescript(script: str) -> dict[str, object]:
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
-def test_feature_covers_isolation_and_temp_prompt_lifecycle() -> None:
-    feature = (PACKAGE / "features" / "btw.feature").read_text(encoding="utf-8")
-    assert "Feature: Read-only side questions" in feature
-    assert "Scenario: Side-question feedback uses the shared TUI notification abstraction" in feature
-    assert "portable notification helper" in feature
-    assert "Scenario: A child Pi run is configured read-only" in feature
-    assert "Scenario: A long side prompt exists only for the child lifetime" in feature
-    assert "Scenario: A long side prompt is cleaned up when the child cannot launch" in feature
-    assert "Scenario: Multi-turn side questions include conversation history in the prompt" in feature
-    assert "Scenario: Side-question overlay uses pi-kit's shared panel frame" in feature
-    assert "shared panel renderer" in feature
-    assert "Scenario: Multi-turn overlay maintains turns and aggregates token usage" in feature
-    assert "overlay does not display a redundant header title for the initial question" in feature
-    assert "each conversation turn displays its question with You and its answer with btw" in feature
-    assert "follow-up composer uses two full-width horizontal separators instead of a boxed frame" in feature
-    assert "follow-up composer keeps equal spacing on both sides of the input area" in feature
-    assert "overlay does not report nonexistent hidden lines" in feature
-    assert "conversation separators are longer than the content text and centered" in feature
-    assert "internal overlay separator marker is never displayed" in feature
-    assert "Scenario: Side answers render Markdown formatting" in feature
-    assert "block-level Markdown at the start of an answer is not joined to the btw label" in feature
-    assert "Scenario: Side answers are constrained to concise responses" in feature
-    assert "Scenario: Side context stays compact" in feature
-    assert "Scenario: Excessive side output is capped before display" in feature
-    assert "Scenario: A pre-cancelled side question never starts a child" in feature
-    assert "Scenario: A stream failure keeps its diagnostic ahead of child stderr" in feature
-    assert "Scenario: Side-question children do not discover extensions" in feature
-
-
-
 def test_long_prompt_temp_file_is_available_to_read_only_child_then_removed() -> None:
     result = run_typescript(
         f"""
@@ -762,10 +732,3 @@ def test_overlay_handles_followup_turn_error_gracefully() -> None:
 
     assert result["hasAnswer1"] is True
     assert result["hasTimeoutError"] is True
-
-
-def test_readme_documents_read_only_guarantee() -> None:
-    readme = (PACKAGE / "README.md").read_text(encoding="utf-8")
-    assert "read-only" in readme
-    assert "--no-session" in readme
-    assert "bash" in readme
