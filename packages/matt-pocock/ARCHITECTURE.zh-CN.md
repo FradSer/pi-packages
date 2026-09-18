@@ -55,6 +55,55 @@ version / workItemId / route / procedure / phase / status / loadedReferences
 
 模型可以通过 `matt_pocock_active` 明确完成工作流；完成不再依赖用户进入菜单。用户仍可从同一 `/matt-pocock` 菜单迁移、完成或取消，作为显式控制入口。
 
+### 生命周期提示中的阶段标题
+
+工作流提示使用事件发生时的实际阶段标题，不使用 `hard-bug` 等 route 标识、route 标题，也不生成任务标题。展示复用 `src/workflow.ts` 的 `readablePhaseTitle()` 映射。例如，工作流经过诊断、实现和审查后结束：
+
+```text
+[matt pocock] started · Reproducing & Diagnostics
+[matt pocock] event · Implementation
+[matt pocock] event · Code Review
+[matt pocock] event · Code Review completed
+```
+
+如果在实现阶段取消，则显示 `[matt pocock] event · Implementation cancelled`。`completed` / `cancelled` 仍表示**整个工作流**结束；前面的标题仅说明结束时所在的阶段，可以是入口阶段，不假设已到达流程末尾。
+
+| Route | 可用阶段标题（不是强制执行顺序） |
+| --- | --- |
+| `idea-to-ship` | Shaping & Requirements；Research & Feasibility；Prototyping；Specification Design；Task Decomposition；Implementation；Code Review；Handoff & Summary |
+| `wayfinding` | Initiative Mapping；Research & Feasibility；Prototyping；Specification Design；Task Decomposition；Implementation；Code Review |
+| `triage` | Task Triage；Specification Design；Task Decomposition；Implementation；Code Review |
+| `hard-bug` | Reproducing & Diagnostics；Implementation；Code Review |
+| `architecture` | Architecture Survey；Architecture Design；Implementation；Code Review |
+
+route、procedure、phase、workItemId 和状态的持久化结构不变，模型 guidance、工具参数与结果 details 仍使用原标识。展开启动提示时仅显示不同于阶段标题的 `route · <Readable Route Title>`，例如 `route · Hard Bug Diagnosis`，标题复用 `readableRouteTitle()`；若两者相同（如 Task Triage 入口），也省略该字段。不再重复 phase id，也不会展示 procedure 正文。
+
+展开仅补充当前提示尚未显示的信息：
+
+- 迁移、完成和参考资料加载不显示重复的 `action` 字段；独立能力和独立参考资料也不把标题再复制为字段。标题完整可见时，这些提示没有展开提示或额外正文。
+- 取消提示只在该结果保存的终止快照包含非空白原因时，展开显示一次 `reason · <stored reason>`，不显示 `action · cancel`，也不读取当前工作流的原因。缺失、空字符串或纯空白原因均不会新增详情或展开提示。
+- 窄终端中的标题或摘要被截断时，由 Pi-kit 共享渲染器提供展开，并使用 Pi 原生换行恢复完整文本；本包不自行计算宽度。仅供模型使用的正文与 metadata 不会触发展开提示。
+
+已有可见 `matt-pocock-procedure` 消息同样按阶段标题渲染；恢复会话时仅静默注入 guidance（`display: false`），不新增重复的启动行。旧工具结果即使保存了 route 风格的 subject，也根据该事件保存的 phase 和 action 重新渲染，不读取当前工作流的可变状态，无需迁移会话数据。
+
+独立能力、参考资料和提问保留各自的展示对象：`started · <capability>`、`started · <capability> · <reference>`、`event · loaded <reference>` 和 `ask · <question>`，不替换成工作流阶段。提问的答案或待定状态保持可见，超时、无 UI 和自定义输入等有效 metadata 仍可展开查看，不重复答案。
+
+从仓库根目录运行 `uv run --no-project packages/matt-pocock/tests/live_smoke.py`，可在真实 Pi CLI 中验证 print 模式、交互终端提示、Ctrl+O 展开和缩至 48 列。脚本使用临时 HOME 与离线脚本化 provider，不读取用户凭证或调用外部模型。
+
+## 协作验证与完成门槛
+
+实现阶段由各执行者运行分配的安全局部检查，由一个集成负责人承担共享验证。验证前先确认 HOME、凭证和测试数据的隔离条件；本地命令不等于无生产访问。集成后记录候选版本或本次改动快照，评审与最终检查必须针对同一候选；纳入未跟踪的任务文件，排除原有脏改动和无关工作。后续修改使受影响的证据失效，只重跑适用检查，不要求每个 Agent 重复全仓验证。
+
+评审仍分别给出 Standards 与 Spec 结论，但小范围改动可由一个全新上下文的 reviewer 完成两个维度；只有规模、专业分工或仓库规则需要时才拆成多个 reviewer。当前对话中已确认的需求与验收场景可作为本地未提交任务的 spec，不必为了评审创建 issue tracker 或提交。
+
+评审 Work 完成表示报告已交付，不等于实现 PASS。独立评审或限定 reviewer 任务返回报告即可结束，包括 REWORK；不擅自修改实现，也不等待问题被修复。Leader 或实现负责人负责按根因合并问题、补齐相邻场景及后续交付。
+
+复核前先保存旧报告，并准备保留的基线、新候选指纹、修复差异、原发现与安全检查范围。Agent Teams 的 reopen 会清除旧 result，但不会更新 description；reopen reason 和 assign 也不会自动传递新的复核说明。仅当原 description 已指向“当前尝试的权威 brief”时，才先更新该 brief，再 reopen/assign，且复核期间保持内容稳定。原描述固定了旧候选或没有此引用时，用完整新描述创建范围受限的后续 Work，并通过 dependsOn 关联已完成评审。它是关联的定向复核，不是新一轮广泛评审；仅范围或风险明显变化才扩大评审。
+
+实现交付需等待所有必需结果返回、阻断问题解决且证据适用于最终候选，才调用 complete；仅剩待返回结果时保持工作流活动并让出当前回合。
+
+这些约束属于指导文本，不是新增调度器或跨扩展的强制完成锁；不改变持久化格式，也不强依赖 Agent Teams。
+
 ## 合法迁移
 
 每个 workflow placement 在目录中声明 `allowedNext`。迁移时运行时会：

@@ -232,9 +232,75 @@ Feature: Matt Pocock workflow harness
   Scenario: Workflow activation uses the shared lifecycle row
     Given a Matt Pocock workflow tool result contains a loaded procedure for the model
     When Pi renders the user-facing workflow row
-    Then it shows [matt pocock] started · followed by the route and phase on the shared band
-    And expanding the row shows the route and phase as `label · value` fields
+    Then it shows [matt pocock] started · followed only by the readable current phase title on the shared band
+    And expanding the row shows only a distinct readable route title as a `route · value` field
+    And it does not repeat the phase id as a detail
     And it does not render the procedure text as user-facing details
+
+  Scenario: Workflow lifecycle rows use the actual phase title across all routes
+    Given any catalog workflow route at one of its supported phases
+    When Pi renders a workflow start, procedure message, or phase transition
+    Then the lifecycle subject is the readable title of that actual phase
+    And the collapsed row contains neither a route id nor a route title
+    And persisted route and phase ids remain unchanged
+
+  Scenario Outline: Ending a workflow shows its actual terminal phase
+    Given a workflow is active at any supported phase, including its entry phase
+    When the agent invokes <action> through matt_pocock_active
+    Then the lifecycle subject is the readable current phase title followed by <status>
+    And the entire workflow ends with <status> rather than advancing to a presumed final phase
+    And the terminal record preserves its route, procedure, phase, and work item identity
+    And active-only tools are disabled
+
+    Examples:
+      | action   | status    |
+      | complete | completed |
+      | cancel   | cancelled |
+
+  Scenario: Restored tool results use their recorded phase instead of an old route subject
+    Given a saved transition, completion, or cancellation result has a route-based subject
+    And its details contain the workflow state at that event
+    When Pi renders that result after a reload
+    Then the lifecycle subject is derived from the recorded phase and action
+    And it does not use the current session's active workflow
+
+  Scenario: No-detail lifecycle operations do not advertise empty expansion
+    Given a workflow transition, completion, active reference load, standalone capability, or standalone reference result
+    And its lifecycle title fits the terminal width
+    When Pi renders the registered tool result
+    Then the row has no expand hint or redundant action, capability, or reference fields
+    And expanding it does not repeat the title or reveal model-only content or metadata
+    And native Pi-kit wrapping remains responsible for titles clipped at narrower widths
+
+  Scenario: Cancellation expands only its recorded nonblank reason
+    Given a saved cancellation result records its terminal phase and a nonblank cancellation reason
+    And a different workflow is now active
+    When Pi renders and expands the saved result
+    Then its lifecycle subject still uses the recorded terminal phase
+    And its stored reason appears exactly once as a reason field
+    And it does not repeat action cancel or read the active workflow state
+    And model-visible content and persisted result details remain unchanged
+
+  Scenario Outline: A cancellation without a meaningful reason has no extra details
+    Given a saved cancellation result has a <reason> reason
+    And its lifecycle title fits the terminal width
+    When Pi renders the registered tool result
+    Then the row has no expand hint or action field
+    And expanding it does not add an empty reason field
+
+    Examples:
+      | reason          |
+      | missing         |
+      | empty           |
+      | whitespace-only |
+      | ANSI-only       |
+      | OSC-only        |
+
+  Scenario: Non-workflow subjects keep their own identities
+    Given a standalone capability, reference load, or structured question
+    When Pi renders the lifecycle row
+    Then it retains the capability id, reference id, or question as its subject
+    And it does not substitute an active workflow phase
 
   Scenario: A structured answer keeps question and answer visible in the collapsed row
     Given a Matt Pocock structured interview result contains a question and answer
@@ -331,6 +397,46 @@ Feature: Matt Pocock workflow harness
     Given a workflow is active
     When an agent turn starts
     Then the guidance shows the exact matt_pocock_active JSON shapes for transition, load, complete, and cancel
+
+  Scenario: Workflow completion waits for candidate-bound verification and blocking reviews
+    Given an engineering workflow has delegated implementation or blocking review Work
+    When its active workflow guidance is injected
+    Then completion requires the integrated candidate to be verified and all blocking reviews to have returned with findings resolved
+    And outstanding results require yielding with the workflow still active
+    And a completed review assignment is not treated as a PASS verdict on the implementation
+
+  Scenario: Implementation assigns one integrated verification owner
+    Given the implement procedure is loaded from the catalog
+    When implementation work is divided among Agents
+    Then implementers run assigned local checks and one integration owner runs shared checks
+    And local check safety is established before execution
+    And review and final checks use the same candidate revision
+    And later changes invalidate only affected evidence and trigger applicable rechecks
+
+  Scenario: Review is proportional and has an explicit uncommitted baseline
+    Given the code-review capability is loaded from the catalog
+    When the task concerns scoped uncommitted changes in a dirty worktree
+    Then the confirmed conversation requirements can serve as the spec
+    And the task baseline includes untracked files and excludes unrelated changes
+    And Standards and Spec are separate verdicts without mandatory separate Agents
+    And separate reviewers are used only when scale or independent expertise justifies them
+    And related findings return to a bounded recheck with an explicitly refreshed brief
+
+  Scenario: A review-only request ends with its report rather than implementation repairs
+    Given code-review is loaded for a standalone review or a bounded reviewer assignment
+    When the reviewer has inspected the candidate and completed the requested report
+    Then it returns separate verdicts and findings even when the verdict is REWORK
+    And it does not edit the implementation or wait for the owner to fix findings
+    And remediation and implementation-delivery conditions apply only to the Leader or implementation owner
+
+  Scenario: A recheck receives its new candidate and prior findings before assignment
+    Given a completed review was pinned to an earlier candidate
+    When the owner prepares a bounded recheck after repairs
+    Then it preserves the prior findings outside the result that reopen clears
+    And it supplies the retained baseline, new candidate fingerprint, correction delta and safe check scope in a refreshed brief
+    And it updates a brief already referenced as authoritative before reopening and assigning Work
+    And if the old description pins a conflicting candidate it creates a bounded follow-up with the refreshed description and a dependency on the completed review
+    And it does not claim reopen, assign or the reopen reason updates the old description
 
   Scenario: Active gateway schemas reject undeclared fields
     Given a workflow is active

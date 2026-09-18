@@ -51,6 +51,9 @@ def test_feature_covers_the_catalog_gateway_contract() -> None:
         "Upstream synchronization metadata is verifiable",
         "Exploration procedures allow bidirectional lateral transitions",
         "Bug diagnostics allow returning to root cause analysis",
+        "No-detail lifecycle operations do not advertise empty expansion",
+        "Cancellation expands only its recorded nonblank reason",
+        "A cancellation without a meaningful reason has no extra details",
     ):
         assert scenario in feature
 
@@ -595,10 +598,56 @@ def test_tool_and_message_rendering_preserves_compact_lifecycle_rows() -> None:
     workflow_content = next(row for row in result["workflowRows"] if "[matt pocock] started ·" in row)
     message_content = next(row for row in result["messageRows"] if "[matt pocock] started ·" in row)
     assert len(result["workflowRows"]) == 3
-    assert "[matt pocock] started · Idea to Ship · Shaping & Requirements" in workflow_content
+    assert "[matt pocock] started · Shaping & Requirements" in workflow_content
     assert "Procedure body" not in workflow_content
-    assert "[matt pocock] started · Idea to Ship · Shaping & Requirements" in message_content
+    assert "[matt pocock] started · Shaping & Requirements" in message_content
     assert "Restored body" not in message_content
+
+
+def test_ask_expands_only_genuine_decision_metadata() -> None:
+    result = run_typescript("""
+        import mattPocock from "./packages/matt-pocock/src/index.ts";
+        const tools = new Map();
+        mattPocock({
+          on() {}, registerCommand() {}, registerTool(tool) { tools.set(tool.name, tool); },
+          appendEntry() {}, sendUserMessage() {},
+        });
+        const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text };
+        const cases = {
+          selected: { answer: "Option A", source: "choice_selected" },
+          recommended: { answer: "Option A", timed_out: true, source: "timeout_recommended" },
+          pendingTimeout: { pending: true, timed_out: true, source: "cancelled" },
+          noUi: { pending: true, source: "no_ui" },
+          custom: { answer: "Custom choice", is_custom: true, source: "custom_input" },
+        };
+        console.log(JSON.stringify(Object.fromEntries(Object.entries(cases).map(([name, details]) => {
+          const render = (expanded) => tools.get("matt_pocock_ask").renderResult(
+            { content: [{ type: "text", text: "Model-only decision guidance" }], details }, { expanded }, theme,
+            { isError: false, args: { question: "Which scope?" } },
+          ).render(160);
+          return [name, { rows: render(false), expanded: render(true) }];
+        }))));
+    """)
+    metadata = {
+        "recommended": "reason · selection timed out (used recommendation)",
+        "pendingTimeout": "reason · selection timed out",
+        "noUi": "reason · no UI available",
+        "custom": "source · custom input",
+    }
+    for name, rendered in result.items():
+        collapsed = "\n".join(rendered["rows"])
+        expanded = "\n".join(rendered["expanded"])
+        assert "[matt pocock] ask · Which scope?" in collapsed
+        summary = "Status: pending user decision" if name in ("pendingTimeout", "noUi") else "Answer:"
+        assert summary in collapsed
+        assert "Model-only decision guidance" not in expanded
+        if name == "selected":
+            assert "to expand" not in collapsed
+            assert rendered["rows"] == rendered["expanded"]
+        else:
+            assert "to expand" in collapsed
+            assert metadata[name] not in collapsed
+            assert expanded.count(metadata[name]) == 1
 
 
 def test_native_macos_dialog_environment_guards() -> None:

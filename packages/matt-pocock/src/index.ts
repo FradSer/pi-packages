@@ -44,6 +44,7 @@ import {
   formatReadableWorkflowSubject,
   latestWorkflowRecord,
   readablePhaseTitle,
+  readableRouteTitle,
   routeEntryState,
   transitionState,
   workflowGuidance,
@@ -96,6 +97,11 @@ function activeWorkflowParameters() {
       reason: Type.String({ description: "Why this workflow is being cancelled." }),
     }, { additionalProperties: false }),
   ]);
+}
+
+function workflowEventSubject(action: "transition" | "complete" | "cancel", phase: string): string {
+  const title = readablePhaseTitle(phase);
+  return action === "transition" ? title : `${title} ${action === "complete" ? "completed" : "cancelled"}`;
 }
 
 let pi: ExtensionAPI;
@@ -332,7 +338,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
   if (typeof pi.registerMessageRenderer === "function") {
     pi.registerMessageRenderer("matt-pocock-procedure", (message, options, theme) => {
       const details = (message.details ?? {}) as Partial<WorkflowState>;
-      const subject = formatReadableWorkflowSubject(details.route ?? "workflow", details.phase ?? "active");
+      const subject = readablePhaseTitle(details.phase ?? "active");
       return mattPocockRows.message(() => startedToolLifecycle("matt pocock", subject, { label: "started" }))(message, options, theme);
     });
   }
@@ -360,15 +366,12 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     renderResult(result, options, theme, context) {
       const details = (result.details ?? {}) as { mode?: string; route?: string; phase?: string; capability?: string; reference?: string };
       const subject = details.mode === "workflow"
-        ? formatReadableWorkflowSubject(details.route ?? "workflow", details.phase ?? "active")
+        ? readablePhaseTitle(details.phase ?? "active")
         : details.mode === "reference"
           ? `${details.capability ?? "capability"} · ${details.reference ?? "reference"}`
           : details.capability ?? "standalone capability";
-      const fields = details.mode === "workflow"
-        ? [fieldLine("route", details.route ?? "workflow"), fieldLine("phase", details.phase ?? "active")]
-        : details.mode === "reference"
-          ? [fieldLine("capability", details.capability ?? "capability"), fieldLine("reference", details.reference ?? "reference")]
-          : [fieldLine("capability", details.capability ?? "standalone capability")];
+      const routeTitle = details.mode === "workflow" ? readableRouteTitle(details.route ?? "workflow") : undefined;
+      const fields = routeTitle && routeTitle !== subject ? [fieldLine("route", routeTitle)] : [];
       return mattPocockRows.result(() => eventToolLifecycle("matt pocock", subject, { label: "started", details: fields }))(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -416,10 +419,15 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     renderShell: "self",
     renderCall: () => mattPocockRows.emptyCall(),
     renderResult(result, options, theme, context) {
-      const details = (result.details ?? {}) as { action?: string; subject?: string };
-      return mattPocockRows.result(() => eventToolLifecycle("matt pocock", details.subject ?? details.action ?? "workflow updated", {
+      const details = (result.details ?? {}) as { action?: string; subject?: string; state?: { phase?: string; reason?: string } };
+      // Saved results may still have route-based subjects; render from that event's phase, not active state.
+      const subject = details.state?.phase && (details.action === "transition" || details.action === "complete" || details.action === "cancel")
+        ? workflowEventSubject(details.action, details.state.phase)
+        : details.subject ?? details.action ?? "workflow updated";
+      const reason = details.action === "cancel" ? safeDisplayText(details.state?.reason ?? "").trim() : undefined;
+      return mattPocockRows.result(() => eventToolLifecycle("matt pocock", subject, {
         label: "event",
-        details: details.action ? [fieldLine("action", details.action)] : [],
+        details: reason ? [fieldLine("reason", reason)] : [],
       }))(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -431,7 +439,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         clearPiStatus(ctx.ui, "matt-pocock");
         return {
           content: [{ type: "text", text: workflowPrompt(state, `transitioned to ${state.procedure}`) }],
-          details: { action: "transition", subject: `${state.route} · ${readablePhaseTitle(state.phase)}`, state },
+          details: { action: "transition", subject: workflowEventSubject("transition", state.phase), state },
         };
       }
       if (params.action === "load") {
@@ -452,7 +460,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
           type: "text",
           text: `Workflow ${terminal.workItemId} ${verb}. Persistent active state cleared. Pending: none. Next actor: agent may handle unrelated work normally.`,
         }],
-        details: { action: params.action, subject: `${terminal.route} ${verb}`, state: terminal },
+        details: { action: params.action, subject: workflowEventSubject(params.action, terminal.phase), state: terminal },
       };
     },
   });

@@ -76,6 +76,20 @@ Each workflow operates as a state machine governed by `src/catalog.json`. Graph 
   - `improve-codebase-architecture` ⇄ `codebase-design` (formal Architecture Design review of interfaces and deep modules).
   - Transitions into `implement` ⇄ `code-review`.
 
+## Coordinated implementation and review
+
+Implementation assigns safe local checks to each contributor and shared verification to one integration owner. After integration, name a candidate revision or scoped snapshot; review and final checks must judge that same candidate. Keep unrelated dirty work outside the review baseline, include untracked task files, and invalidate affected evidence when the candidate changes.
+
+Code review retains separate Standards and Spec verdicts, but a bounded change can use one fresh reviewer for both. Separate reviewers are appropriate for distinct expertise, larger scope, or repository policy—not mandatory for every task. Confirmed conversation requirements and acceptance scenarios can serve as the spec for an uncommitted task.
+
+A completed review assignment is not an implementation PASS. A standalone review or bounded reviewer returns its report, including REWORK, without editing the implementation or waiting for repairs. The Leader or implementation owner groups findings by root cause and owns remediation and delivery.
+
+Before a recheck, preserve the prior report and supply the retained baseline, new candidate fingerprint, correction delta, prior findings and safe checks. Agent Teams reopen/assign does not refresh a fixed description or forward the cleared result. Reuse completed review Work only when its description already points to an authoritative current-attempt brief; update that brief before reopening/assignment. Otherwise create bounded follow-up Work with the refreshed description and a dependency on the completed review. This linked recheck is not a new broad review; broaden only for changed scope or risk.
+
+Complete implementation delivery only after required reports arrive, blocking findings are resolved, and applicable verification covers the final candidate. If only required results remain outstanding, yield with the workflow active instead of announcing completion.
+
+These are agent instructions, not a new runtime scheduler or an enforced dependency on Agent Teams. The workflow state format and completion tool contract are unchanged.
+
 ## Standalone Capabilities
 
 The following curated capabilities are reachable via `matt_pocock_workflow` (`mode: "capability"`) without initiating persistent workflow state:
@@ -97,67 +111,59 @@ The following curated capabilities are reachable via `matt_pocock_workflow` (`mo
 
 Following `@fradser/pi-kit` lifecycle renderer conventions, all tool invocations and workflow transitions render as compact single-line lifecycle indicators in the transcript instead of dumping raw payloads.
 
-### Workflow Phase Transitions
+### Workflow Phase Titles
 
-When transitioning between phases via `matt_pocock_active` (`action: "transition"`), the tool renders:
+Workflow lifecycle subjects use the readable title of the phase recorded at that event, not the route id, route title, or a generated task title. The mapping is shared through `readablePhaseTitle()` in `src/workflow.ts`.
+
+| Operation | Lifecycle line |
+| --- | --- |
+| Start a workflow | `[matt pocock] started · <Phase Title>` |
+| Transition to a phase | `[matt pocock] event · <Phase Title>` |
+| Complete the workflow | `[matt pocock] event · <Phase Title> completed` |
+| Cancel the workflow | `[matt pocock] event · <Phase Title> cancelled` |
+
+For example, a `hard-bug` workflow that reaches code review before completion renders:
 
 ```text
-[matt pocock] event · <route> · <Phase Title>
+[matt pocock] started · Reproducing & Diagnostics
+[matt pocock] event · Implementation
+[matt pocock] event · Code Review
+[matt pocock] event · Code Review completed
 ```
 
-Supported workflow routes and their phase display titles:
+Cancelling during implementation instead renders `[matt pocock] event · Implementation cancelled`. Completion and cancellation still end the **entire workflow**; the title identifies its actual phase at termination, which can also be the entry phase. The renderer never assumes the workflow reached its last phase.
 
-- **`idea-to-ship`**
-  - `[matt pocock] event · idea-to-ship · Shaping & Requirements` (`shaping`)
-  - `[matt pocock] event · idea-to-ship · Research & Feasibility` (`research`)
-  - `[matt pocock] event · idea-to-ship · Prototyping` (`prototype`)
-  - `[matt pocock] event · idea-to-ship · Specification Design` (`to-spec`)
-  - `[matt pocock] event · idea-to-ship · Task Decomposition` (`to-tickets`)
-  - `[matt pocock] event · idea-to-ship · Implementation` (`implement`)
-  - `[matt pocock] event · idea-to-ship · Code Review` (`code-review`)
-  - `[matt pocock] event · idea-to-ship · Handoff & Summary` (`handoff`)
+Supported titles by route (not a mandatory execution order):
 
-- **`wayfinding`**
-  - `[matt pocock] event · wayfinding · Research & Feasibility` (`research`)
-  - `[matt pocock] event · wayfinding · Prototyping` (`prototype`)
-  - `[matt pocock] event · wayfinding · Specification Design` (`to-spec`)
-  - `[matt pocock] event · wayfinding · Task Decomposition` (`to-tickets`)
-  - `[matt pocock] event · wayfinding · Implementation` (`implement`)
-  - `[matt pocock] event · wayfinding · Code Review` (`code-review`)
-  - `[matt pocock] event · wayfinding · Initiative Mapping` (`mapping`)
+| Route | Phase titles |
+| --- | --- |
+| `idea-to-ship` | Shaping & Requirements; Research & Feasibility; Prototyping; Specification Design; Task Decomposition; Implementation; Code Review; Handoff & Summary |
+| `wayfinding` | Initiative Mapping; Research & Feasibility; Prototyping; Specification Design; Task Decomposition; Implementation; Code Review |
+| `triage` | Task Triage; Specification Design; Task Decomposition; Implementation; Code Review |
+| `hard-bug` | Reproducing & Diagnostics; Implementation; Code Review |
+| `architecture` | Architecture Survey; Architecture Design; Implementation; Code Review |
 
-- **`triage`**
-  - `[matt pocock] event · triage · Task Triage` (`triage`)
-  - `[matt pocock] event · triage · Specification Design` (`to-spec`)
-  - `[matt pocock] event · triage · Task Decomposition` (`to-tickets`)
-  - `[matt pocock] event · triage · Implementation` (`implement`)
-  - `[matt pocock] event · triage · Code Review` (`code-review`)
+Route and phase ids remain unchanged in tool arguments, model guidance, result details, and persisted state. Expanding a workflow-start row shows only a distinct `route · <Readable Route Title>` (for example, `route · Hard Bug Diagnosis`), using `readableRouteTitle()`. When the route title equals the phase title, as at the Task Triage entry, that field is omitted too. It does not repeat the phase id or expose procedure bodies.
 
-- **`hard-bug`**
-  - `[matt pocock] event · hard-bug · Reproducing & Diagnostics` (`feedback-loop`)
-  - `[matt pocock] event · hard-bug · Implementation` (`implement`)
-  - `[matt pocock] event · hard-bug · Code Review` (`code-review`)
+Expansion shows information not already visible in the row:
 
-- **`architecture`**
-  - `[matt pocock] event · architecture · Architecture Survey` (`survey`)
-  - `[matt pocock] event · architecture · Architecture Design` (`design-review`)
-  - `[matt pocock] event · architecture · Implementation` (`implement`)
-  - `[matt pocock] event · architecture · Code Review` (`code-review`)
+- Transitions, completion, and reference loads omit repetitive `action` fields; standalone capability and reference rows do not repeat their subjects as fields. When the title fits, these rows have no expand hint or extra detail body.
+- Cancellation expands to `reason · <stored reason>` only when that result's terminal snapshot has a nonblank reason. The reason appears once, never as `action · cancel`, and is not taken from the current workflow. Missing, empty, or whitespace-only reasons add no detail or hint.
+- At narrower widths, Pi-kit's shared renderer can offer expansion to wrap a clipped title or summary with Pi's native wrapping. Model-only content and metadata do not themselves create an expand hint.
 
-### Other Active Workflow Actions
-
-`matt_pocock_active` also reports non-transition workflow actions using the same event lifecycle shape:
-
-- **Reference Loading (`load`)**: `[matt pocock] event · loaded <reference>` (e.g. `[matt pocock] event · loaded HTML-REPORT`)
-- **Workflow Completion (`complete`)**: `[matt pocock] event · <route> completed` (e.g. `[matt pocock] event · idea-to-ship completed`)
-- **Workflow Cancellation (`cancel`)**: `[matt pocock] event · <route> cancelled` (e.g. `[matt pocock] event · idea-to-ship cancelled`)
-- **Fallback**: `[matt pocock] event · workflow updated`
+The `matt-pocock-procedure` message renderer uses the same phase-only `started` line for visible procedure messages already in the transcript. Session restoration reinjects guidance silently (`display: false`), without a duplicate lifecycle event. Saved active-tool results with old route-based subjects are rendered from their recorded phase and action, not the session's current workflow; no session-data migration is needed.
 
 ### Other Lifecycle Displays
 
-- **`matt_pocock_ask`**: User decision prompts render as `[matt pocock] ask · <question>`.
-- **`matt_pocock_workflow`**: Starting a workflow, standalone capability, or capability reference renders as `[matt pocock] started · <subject>` (e.g. `[matt pocock] started · Idea to Ship · Shaping & Requirements` or `[matt pocock] started · research`).
-- **`matt-pocock-procedure` message renderer**: Restoring an active workflow on session startup renders as `[matt pocock] started · <Route Title> · <Phase Title>`.
+These operations keep their own subjects rather than substituting a workflow phase:
+
+- **Reference loading (`load`)**: `[matt pocock] event · loaded <reference>` (e.g. `[matt pocock] event · loaded HTML-REPORT`).
+- **Standalone capability**: `[matt pocock] started · <capability>` (e.g. `[matt pocock] started · research`).
+- **Standalone reference**: `[matt pocock] started · <capability> · <reference>`.
+- **`matt_pocock_ask`**: `[matt pocock] ask · <question>`, with the answer or pending status below. Timeout, no-UI, and custom-input metadata remain available on expansion without repeating the answer.
+- **Fallback**: `[matt pocock] event · workflow updated` when no action or subject is available.
+
+For offline verification in the real Pi CLI, run `uv run --no-project packages/matt-pocock/tests/live_smoke.py` from the repository root. It checks print mode, interactive terminal rows, Ctrl+O expansion, and resizing to 48 columns with a scripted provider and temporary home; it does not use your credentials or call an external model.
 
 ## Configuration
 
