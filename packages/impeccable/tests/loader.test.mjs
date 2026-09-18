@@ -178,10 +178,81 @@ test('resource symlinks cannot escape the package root', () => fixture((resolver
   } finally { rmSync(outside, { recursive: true, force: true }); }
 }));
 
-test('registered renderer bounds details and leaves complete model guidance untouched', () => fixture(async (resolver, root) => {
+test('registered renderer omits a singleton accessibility root from details without losing references', async () => {
+  const { resolver } = await import('../src/resolver.ts');
+  const h = host(resolver);
+  const bundle = resolver.load('polish', 'model', 'accessibility');
+  const result = await h.tool.execute('render-accessibility', { capability: 'polish', reference: 'accessibility' });
+  const before = structuredClone(result);
+  assert.deepEqual(bundle.loaded, ['accessibility']);
+  assert.ok(bundle.availableReferences.length > 0);
+  const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text };
+  const collapsed = h.tool.renderResult(result, { expanded: false, isPartial: false }, theme, { isError: false }).render(80);
+  assert.match(collapsed[1], /\[impeccable\] loaded · accessibility/);
+  assert.match(collapsed[1], /to expand/);
+  // A wide band keeps each field on one line so no disclosed reference can hide in wrapping.
+  const expanded = h.tool.renderResult(result, { expanded: true, isPartial: false }, theme, { isError: false }).render(1000);
+  assert.deepEqual(expanded.map(line => line.trim()).filter(Boolean), [
+    '[impeccable] loaded · accessibility',
+    `references · ${bundle.availableReferences.map(edge => `${edge.id} — ${edge.when}`).join('; ')}`,
+    `bytes · ${bundle.byteLength}`,
+    'scripts · none executed',
+  ]);
+  assert.deepEqual(result, before);
+  assert.deepEqual(result.details, bundle);
+  assert.deepEqual(result.content, [{ type: 'text', text: bundle.content }]);
+});
+
+test('registered renderer shows all polish dependencies except the root and preserves the full bundle', async () => {
+  const { resolver } = await import('../src/resolver.ts');
+  const h = host(resolver);
+  const bundle = resolver.load('polish', 'model');
+  const result = await h.tool.execute('render-polish', { capability: 'polish' });
+  const before = structuredClone(result);
+  assert.deepEqual(bundle.loaded, ['polish', 'setup', 'principles', 'components', 'accessibility', 'motion']);
+  const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text };
+  const collapsed = h.tool.renderResult(result, { expanded: false, isPartial: false }, theme, { isError: false }).render(80);
+  assert.match(collapsed[1], /\[impeccable\] loaded · polish/);
+  assert.match(collapsed[1], /to expand/);
+  const expanded = h.tool.renderResult(result, { expanded: true, isPartial: false }, theme, { isError: false }).render(1000);
+  assert.deepEqual(expanded.map(line => line.trim()).filter(Boolean), [
+    '[impeccable] loaded · polish',
+    'dependencies · setup, principles, components, accessibility, motion',
+    `references · ${bundle.availableReferences.map(edge => `${edge.id} — ${edge.when}`).join('; ')}`,
+    `bytes · ${bundle.byteLength}`,
+    'scripts · none executed',
+  ]);
+  assert.deepEqual(result, before);
+  assert.deepEqual(result.details, bundle);
+  assert.deepEqual(result.content, [{ type: 'text', text: bundle.content }]);
+});
+
+test('registered renderer keeps a motion reference dependency and root terms in disclosure conditions', async () => {
+  const { resolver } = await import('../src/resolver.ts');
+  const h = host(resolver);
+  const result = await h.tool.execute('render-motion', { capability: 'polish', reference: 'motion' });
+  const before = structuredClone(result);
+  assert.deepEqual(result.details.loaded, ['motion', 'accessibility']);
+  assert.ok(result.details.availableReferences.some(edge => edge.when.includes('motion')));
+  const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text };
+  const expanded = h.tool.renderResult(result, { expanded: true, isPartial: false }, theme, { isError: false }).render(1000);
+  assert.deepEqual(expanded.map(line => line.trim()).filter(Boolean), [
+    '[impeccable] loaded · motion',
+    'dependencies · accessibility',
+    `references · ${result.details.availableReferences.map(edge => `${edge.id} — ${edge.when}`).join('; ')}`,
+    `bytes · ${result.details.byteLength}`,
+    'scripts · none executed',
+  ]);
+  assert.deepEqual(result, before);
+});
+
+test('registered renderer bounds singleton motion details and leaves complete model guidance untouched', () => fixture(async (resolver, root) => {
   writeFileSync(join(root, 'references/taste/motion.md'), '# motion\n' + 'long guidance '.repeat(1000));
   const h = host(resolver);
   const result = await h.tool.execute('render', { capability: 'polish', reference: 'motion' });
+  const before = structuredClone(result);
+  const bundle = resolver.load('polish', 'model', 'motion');
+  assert.deepEqual(bundle.loaded, ['motion']);
   assert.ok(result.content[0].text.length > 10000);
   const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text };
   assert.equal(h.tool.renderShell, 'self');
@@ -193,7 +264,20 @@ test('registered renderer bounds details and leaves complete model guidance unto
       assert.ok(lines.every(line => visibleWidth(line) <= width));
       assert.ok(!lines.join(' ').includes('long guidance'));
     }
-    // Four bounded `label · value` fields; at a wide width nothing wraps.
-    assert.ok(component.render(80).length <= (expanded ? 7 : 3));
+    // Singleton references have three fields, without a loaded/dependencies restatement.
+    const wide = component.render(80);
+    assert.equal(wide.length, expanded ? 6 : 3);
+    assert.match(wide[1], /\[impeccable\] loaded · motion/);
+    if (expanded) {
+      assert.deepEqual(wide.map(line => line.trim()).filter(Boolean), [
+        '[impeccable] loaded · motion',
+        'references · none',
+        `bytes · ${bundle.byteLength}`,
+        'scripts · none executed',
+      ]);
+    }
   }
+  assert.deepEqual(result, before);
+  assert.deepEqual(result.details, bundle);
+  assert.deepEqual(result.content, [{ type: 'text', text: bundle.content }]);
 }));

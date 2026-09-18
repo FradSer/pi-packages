@@ -175,16 +175,21 @@ export function registerImpeccable(pi: ExtensionAPI, loader: Resolver, triggers:
     },
     renderShell: "self",
     renderCall: () => impeccableRows.emptyCall(),
-    renderResult: impeccableRows.result<{ content: unknown; details?: Bundle }>((result) => eventToolLifecycle("impeccable", result.details?.root ?? "loading", {
-      label: "loaded",
-      details: [
-        fieldLine("loaded", result.details?.loaded.join(", ") || "none"),
-        fieldLine("references", result.details?.availableReferences.map(edge => `${edge.id} — ${edge.when}`).join("; ") || "none"),
-        fieldLine("bytes", result.details?.byteLength ?? 0),
-        fieldLine("scripts", "none executed"),
-      ],
-      detailLimit: 4,
-    })),
+    renderResult: impeccableRows.result<{ content: unknown; details?: Bundle }>((result) => {
+      const bundle = result.details;
+      // The header already names the root; keep the complete closure in model-facing metadata.
+      const dependencies = bundle?.loaded.filter(id => id !== bundle.root) ?? [];
+      return eventToolLifecycle("impeccable", bundle?.root ?? "loading", {
+        label: "loaded",
+        details: [
+          ...(dependencies.length ? [fieldLine("dependencies", dependencies.join(", "))] : []),
+          fieldLine("references", bundle?.availableReferences.map(edge => `${edge.id} — ${edge.when}`).join("; ") || "none"),
+          fieldLine("bytes", bundle?.byteLength ?? 0),
+          fieldLine("scripts", "none executed"),
+        ],
+        detailLimit: 4,
+      });
+    }),
   });
 }
 

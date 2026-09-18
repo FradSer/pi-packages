@@ -215,6 +215,24 @@ Feature: A unified design capability in Pi
     And the fields share the kit `label · value` vocabulary with wrapping
     And model-facing guidance is not truncated by display limits
 
+  Scenario: A singleton reference does not repeat the header as a detail
+    Given a reference bundle loads only its root
+    When the user expands the registered loader result
+    Then the header names the loaded root
+    And no loaded or dependencies field is shown
+    And references, byte count and scripts none executed remain visible
+    And the complete model-facing bundle still includes the root in loaded metadata
+
+  Scenario: Required dependencies remain visible without repeating the root
+    Given polish loads multiple required resources
+    When the user expands the registered loader result
+    Then the header names polish
+    And a dependencies field lists every loaded resource except polish in the original order
+    And no loaded field is shown
+    And no disclosed reference or repeated term is removed
+    And byte count and scripts none executed remain visible
+    And the complete model-facing bundle metadata and guidance are unchanged
+
   Scenario: Oversized guidance is rejected rather than truncated
     Given the resolved required guidance exceeds 64 KiB
     When that capability is loaded
