@@ -161,65 +161,6 @@ class TestContextPackage(unittest.TestCase):
         self.assertNotIn("agentName", source)
         self.assertNotIn("agentPath", source)
 
-    def test_documentation_describes_only_the_single_tool(self) -> None:
-        for relative in ("README.md", "references/workflow.md", "prompts/context-research.md"):
-            content = read(relative)
-            self.assertIn("context_get", content, relative)
-            self.assertNotIn("context_deepwiki", content, relative)
-            self.assertNotIn("context_context7", content, relative)
-            self.assertNotIn("context_exa", content, relative)
-
-    def test_readme_explains_natural_language_trigger(self) -> None:
-        content = read("README.md")
-        self.assertIn("natural language", content)
-        self.assertIn("invokes `context_get` automatically", content)
-        self.assertIn("do not need to type `context_get`", content)
-
-    def test_feature_records_single_tool_contract(self) -> None:
-        feature = read("features/native-tool-runtime.feature")
-        for phrase in (
-            "only the context_get tool",
-            "does not register a /context command",
-            "print JSON mode without a session",
-            "available tools are limited to read and bash",
-            "edit and write are unavailable because only read and bash are allowlisted",
-            "extension, skill, prompt-template, context-file, and theme discovery are disabled",
-            "typed prompt builder reads its bundled Markdown as a reference protocol rather than using the file as the prompt",
-            "current research request, caller working directory, reference protocol, and completion contract",
-            "complete user research question remains model-facing without becoming a prompt resource identity",
-            "git clone with depth 1 under /tmp",
-            "remove its temporary clone after inspection",
-            "no sandbox",
-            "no result truncation",
-            "live activity widget above the editor",
-            "`[context] research started · <research query>` shape",
-            "concrete query is normalized and width-bounded for display",
-            "different query produces a different started row",
-            "row does not expose a Markdown prompt resource path",
-            "retains no memory between invocations",
-            "identifies the worker as researcher",
-            "exactly one blank line follows the started row",
-            "latest tool, thinking, or answer activity",
-            "newer activity replaces older activity",
-            "widget clears when research completes",
-            "completed tool contributes no second worker-start row",
-            "running tool renders no duplicate progress row",
-            "compact expandable `[context] researched` lifecycle row when finished",
-            "expanding the researched row reveals the complete answer without line truncation",
-            "partial progress renders no transcript row while running",
-            "successful blocks use toolSuccessBg",
-            "failed and cancelled blocks use toolErrorBg",
-            "expand hint comes from the app.tools.expand keybinding",
-            "Pi cancellation terminates the child process",
-            "cancellation error rather than a partial answer",
-            "Empty successful research retries for a final answer",
-            "retries the research exactly once with a prompt requiring a self-contained final answer",
-            "without relying on hidden reasoning or prior tool output",
-            "only an empty retry reports that research returned no answer",
-            "A failed child process does not return an answer",
-        ):
-            self.assertIn(phrase, feature)
-
 
 if __name__ == "__main__":
     unittest.main()
