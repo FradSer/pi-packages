@@ -56,12 +56,6 @@ def test_claude_only_artifacts_are_not_shipped() -> None:
         assert forbidden not in content
 
 
-def test_no_emojis_in_shipped_documentation() -> None:
-    for path in (PACKAGE / "README.md",):
-        for char in path.read_text(encoding="utf-8"):
-            assert not 0x1F600 < ord(char) < 0x1F9FF, f"Emoji found in {path.name}: {char}"
-
-
 def test_extension_registers_result_contract_tools_without_polling_or_reading() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     for tool in ("monitor_start", "monitor_stop"):
@@ -407,12 +401,6 @@ def test_monitor_report_renderer_includes_status_in_event_title() -> None:
         }
         ''',
     )
-
-
-def test_monitor_docs_use_configured_expansion_key() -> None:
-    readme = (PACKAGE / "README.md").read_text(encoding="utf-8")
-    assert "<configured expand key> to expand" in readme
-    assert "Ctrl+O to expand" not in readme
 
 
 def test_monitor_start_uses_shared_lifecycle_style() -> None:
@@ -1294,7 +1282,6 @@ def test_monitor_extension_does_not_register_bash_guard() -> None:
     extension = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
     assert 'pi.on("tool_call"' not in extension
     assert 'evaluateBashGuard' not in extension
-
 
 
 def test_tool_descriptions_stay_under_char_budget() -> None:

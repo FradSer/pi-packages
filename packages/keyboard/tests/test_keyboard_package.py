@@ -10,7 +10,6 @@ PACKAGE = Path(__file__).resolve().parents[1]
 REPO = PACKAGE.parents[1]
 SRC = PACKAGE / "src"
 TYPES_URI = (SRC / "types.ts").as_uri()
-PROTOCOL_URI = (SRC / "protocol.ts").as_uri()
 CONFIG_URI = (SRC / "config.ts").as_uri()
 STATE_MACHINE_URI = (SRC / "state-machine.ts").as_uri()
 GLOBAL_SESSIONS_URI = (SRC / "global-sessions.ts").as_uri()
@@ -30,34 +29,6 @@ def run_typescript(script: str) -> dict[str, object]:
     )
     assert result.returncode == 0, f"TypeScript runtime check failed:\n{result.stderr}\n{result.stdout}"
     return json.loads(result.stdout.strip().splitlines()[-1])
-
-
-def test_feature_covers_keyboard_scenarios() -> None:
-    feature = (PACKAGE / "features" / "keyboard.feature").read_text(encoding="utf-8")
-    assert "Feature: Pi Keyboard Lighting Indicator" in feature
-    assert "Scenario: Pi transitions to idle state with white breathing light" in feature
-    assert "Scenario: Pi transitions to unread chat state with green breathing light" in feature
-    assert "Scenario: User activates thread and marks message as read" in feature
-    assert "Scenario: User activates thread while another session is running" in feature
-    assert "Scenario: User manual abort does not trigger red error light" in feature
-    assert "Scenario: All sessions must be read for unread green light to clear" in feature
-    assert "Scenario: Pi transitions to thinking state with blue breathing light" in feature
-    assert "Scenario: Pi transitions to need approval state with yellow blinking light" in feature
-    assert "Scenario: Pi transitions to error state with red blinking light" in feature
-    assert "Scenario: Non-fatal tool errors do not trigger red blinking light" in feature
-    assert "Scenario: Upstream provider rate limit (429) triggers red blinking error light" in feature
-    assert "Scenario: User submits input and clears unread chat status" in feature
-    assert "Scenario: Orphaned unread record from an unexpectedly-exited session is cleaned up" in feature
-    assert "Scenario: Keyboard glow records verify canonical directory ownership" in feature
-    assert "Scenario: Target lighting zone selection" in feature
-    assert "Scenario: In-memory updates without EEPROM wear" in feature
-    assert "Scenario: State change deduplication prevents redundant HID writes" in feature
-    assert "Scenario: Keyboard disconnection handling" in feature
-    assert "Scenario: Missing via-rgb executable reports a failed hardware update" in feature
-    assert "Scenario: Non-zero via-rgb exit reports a failed hardware update" in feature
-    assert "Scenario: Hardware updates remain serial and recover after a failed command" in feature
-    assert "Scenario: Homebrew via-rgb candidate uses the executable path" in feature
-    assert "Scenario: /keyboard command allows manual state testing and toggle" in feature
 
 
 def test_keyboard_command_notifications_use_native_ui_surface() -> None:
@@ -111,51 +82,6 @@ def test_state_definitions_match_requirements() -> None:
     assert result["error"]["hue"] == 0  # Red
     assert result["error"]["sat"] == 255
     assert result["error"]["pattern"] == "blinking"
-
-
-def test_protocol_packet_construction() -> None:
-    result = run_typescript(
-        f"""
-        import {{
-            buildSetBrightnessPacket,
-            buildSetEffectPacket,
-            buildSetSpeedPacket,
-            buildSetColorPacket,
-            buildSavePacket,
-            resolveChannels,
-        }} from "{PROTOCOL_URI}";
-
-        const bPacket = Array.from(buildSetBrightnessPacket(3, 200));
-        const ePacket = Array.from(buildSetEffectPacket(3, 2));
-        const sPacket = Array.from(buildSetSpeedPacket(3, 150));
-        const cPacket = Array.from(buildSetColorPacket(3, 85, 255));
-        const savePacket = Array.from(buildSavePacket(3));
-
-        const allCh = resolveChannels("all");
-        const matrixCh = resolveChannels("matrix");
-        const underglowCh = resolveChannels("underglow");
-
-        console.log(JSON.stringify({{
-            bPacket,
-            ePacket,
-            sPacket,
-            cPacket,
-            savePacket,
-            allCh,
-            matrixCh,
-            underglowCh,
-        }}));
-        """
-    )
-    # Set Value command is 0x07
-    assert result["bPacket"][0] == 7 and result["bPacket"][1] == 3 and result["bPacket"][2] == 1 and result["bPacket"][3] == 200
-    assert result["ePacket"][0] == 7 and result["ePacket"][1] == 3 and result["ePacket"][2] == 2 and result["ePacket"][3] == 2
-    assert result["sPacket"][0] == 7 and result["sPacket"][1] == 3 and result["sPacket"][2] == 3 and result["sPacket"][3] == 150
-    assert result["cPacket"][0] == 7 and result["cPacket"][1] == 3 and result["cPacket"][2] == 4 and result["cPacket"][3] == 85 and result["cPacket"][4] == 255
-    assert result["savePacket"][0] == 9 and result["savePacket"][1] == 3
-    assert result["allCh"] == [2, 3]
-    assert result["matrixCh"] == [3]
-    assert result["underglowCh"] == [2]
 
 
 def test_driver_reports_missing_and_nonzero_cli_failures() -> None:

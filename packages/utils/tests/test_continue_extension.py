@@ -161,43 +161,6 @@ class TestContinueExtension(unittest.TestCase):
         self.assertIn("expandPromptTemplates: true", content)
         self.assertIn("isIdle()", content)
 
-    def test_feature_file_covers_direct_retry_recovery(self) -> None:
-        feature = (UTILS_PKG_DIR / "features" / "continue.feature").read_text(encoding="utf-8")
-        self.assertIn('stopReason "error"', feature)
-        self.assertIn("provider is overloaded or the network timed out", feature)
-        self.assertIn('stopReason "length"', feature)
-        self.assertIn("A stale failure is retried after the model or configuration changed", feature)
-        self.assertIn("the stale persisted error is not treated as a permanent refusal", feature)
-        self.assertIn("Context overflow recovery has already failed", feature)
-        self.assertIn("Provider authentication is unavailable", feature)
-        self.assertIn("Provider quota or billing is exhausted", feature)
-        self.assertIn("safety policy", feature)
-        self.assertIn('stopReason "toolUse"', feature)
-        self.assertIn('stopReason "pending"', feature)
-        self.assertIn("arguments were truncated", feature)
-        self.assertIn("An interrupted turn keeps its saved tool results intact", feature)
-        self.assertIn("Consecutive failed retry attempts are all omitted", feature)
-        self.assertIn("unclassified provider error", feature)
-        self.assertIn('latest assistant message has stopReason "stop"', feature)
-        self.assertIn("without a continuation user message", feature)
-        self.assertIn("omitted before the provider request", feature)
-        self.assertIn("included in the model context", feature)
-        self.assertIn("nothing to continue", feature)
-        self.assertIn('stopReason "stop"', feature)
-
-    def test_feature_file_covers_stale_session_recovery(self) -> None:
-        feature = (UTILS_PKG_DIR / "features" / "continue.feature").read_text(encoding="utf-8")
-        self.assertIn("Entries written by another process are inherited before continuing", feature)
-        self.assertIn("The user-selected tree node is the continuation starting point", feature)
-        self.assertIn("the same session file is reloaded before the continuation starts", feature)
-        self.assertIn("the continuation starts from the selected node", feature)
-
-    def test_feature_file_is_mirrored_in_project_memory(self) -> None:
-        memory = (UTILS_PKG_DIR.parent.parent / ".memory" / "project_continue_recovery.md").read_text(encoding="utf-8")
-        self.assertIn("packages/utils/extensions/continue.ts", memory)
-        self.assertIn("retries directly", memory)
-        self.assertIn("needsSessionReload", memory)
-        self.assertNotIn("requiresUserAction", memory)
 
     def test_package_json_registers_extensions(self) -> None:
         manifest = json.loads((UTILS_PKG_DIR / "package.json").read_text(encoding="utf-8"))

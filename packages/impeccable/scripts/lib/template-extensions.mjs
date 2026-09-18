@@ -1,3 +1,4 @@
+// Modified for @fradser/pi-impeccable: remove unused internal helpers and constants.
 /**
  * One owner for "which file extensions hold UI markup".
  *
@@ -50,29 +51,6 @@ export function normalizeExtensionEntries(entries) {
   return out;
 }
 
-export function mergeExtensions(existing, incoming) {
-  const map = new Map();
-  for (const entry of normalizeExtensionEntries(existing)) map.set(entry.ext, entry);
-  for (const entry of normalizeExtensionEntries(incoming)) map.set(entry.ext, entry);
-  return Array.from(map.values());
-}
-
-export function matchConfiguredExtension(filePath, extensions) {
-  if (!Array.isArray(extensions) || extensions.length === 0) return null;
-  const name = path.basename(String(filePath || '')).toLowerCase();
-  if (!name) return null;
-  // The longest matching suffix wins, so `.blade.php` beats a broader `.php`
-  // entry regardless of config order.
-  let best = null;
-  for (const entry of normalizeExtensionEntries(extensions)) {
-    if (name.length > entry.ext.length && name.endsWith(entry.ext)
-      && (!best || entry.ext.length > best.ext.length)) {
-      best = entry;
-    }
-  }
-  return best;
-}
-
 /**
  * Does this filename end in one of `extensions`?
  *
@@ -112,11 +90,6 @@ export function resolveLiveTemplateExtensions(cwd = process.cwd()) {
 // both config files. Keyed by cwd; a single CLI process never rewrites its own
 // config mid-run.
 const extensionCache = new Map();
-
-/** Test seam: drop the memoized config so a fixture can rewrite config.json. */
-export function clearTemplateExtensionCache() {
-  extensionCache.clear();
-}
 
 function readLiveTemplateExtensions(cwd) {
   const configured = [];

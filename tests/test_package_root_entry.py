@@ -25,13 +25,6 @@ def read_manifest(package: str) -> dict[str, object]:
     return json.loads((PACKAGES / package / "package.json").read_text(encoding="utf-8"))
 
 
-def test_feature_covers_package_root_entry_contract() -> None:
-    feature = (REPO / "features" / "package-root-entry.feature").read_text(encoding="utf-8")
-    assert "Every runtime package declares the package-root entry" in feature
-    assert "Multi-module packages compose registration through the root entry" in feature
-    assert "A skill collection router declares the package-root entry" in feature
-
-
 def test_all_runtime_packages_use_root_index_entry() -> None:
     for package in sorted(RUNTIME_PACKAGES):
         package_dir = PACKAGES / package

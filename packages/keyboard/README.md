@@ -1,5 +1,7 @@
 # pi-keyboard
 
+Lighting commands use `via-rgb`, which owns HID packet encoding.
+
 Dynamic VIA/QMK keyboard RGB lighting indicator reflecting Pi's internal states.
 
 Ambient physical awareness of what your AI coding agent is doing right on your mechanical keyboard:
@@ -46,7 +48,6 @@ keyboard/
 ├── src/
 │   ├── config.ts      — Keyboard config read/write helpers
 │   ├── driver.ts      — via-rgb binary resolution & CLI execution
-│   ├── protocol.ts    — VIA RAW HID packet building
 │   ├── state-machine.ts — State transitions and LED apply logic
 │   ├── global-sessions.ts — Per-cwd session glow record registry
 │   ├── types.ts       — KeyboardState, KeyboardZone, KeyboardConfig

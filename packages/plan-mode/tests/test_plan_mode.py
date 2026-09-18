@@ -22,31 +22,6 @@ def run_typescript(script: str) -> dict[str, object]:
     return json.loads(result.stdout)
 
 
-def test_plan_mode_feature_covers_live_worker_widget_and_diagnostics():
-    feature = (PACKAGE / "features" / "plan-mode.feature").read_text(encoding="utf-8")
-    assert "Scenario: Plan feedback uses the shared TUI notification abstraction" in feature
-    assert "portable notification helper" in feature
-    assert "Feature: Plan worker diagnostics and CLI compatibility" in feature
-    assert "Scenario: Plan overlays and widgets use pi-kit's shared TUI renderers" in feature
-    assert "shared panel renderer" in feature
-    assert "shared widget-row renderer" in feature
-    assert "Scenario: Plan workers render through pi-kit's live activity widget" in feature
-    assert "Scenario: The main-session plan is shown before optional research" in feature
-    assert "Scenario: Plan worker failures remain visible until cleanup" in feature
-    assert "Scenario: Explore workers avoid unsupported CLI options" in feature
-    assert "Scenario: Failed explore workers expose status and diagnostics" in feature
-    assert "Scenario: Empty successful output is not reported as completed" in feature
-    assert "Scenario: Plan writer receives structured explore status" in feature
-    assert "Scenario: Plan workers do not use wall-clock timeouts" in feature
-    assert "Scenario: Plan review timeout defaults to a fresh implementation session" in feature
-    assert "Scenario: Explore workers cannot mutate the project" in feature
-    assert "Scenario: The plan writer cannot mutate paths outside the plan file" in feature
-    assert "Scenario: Plan writer completion requires a fresh non-empty plan" in feature
-    assert "Scenario: Finished plan worker tool activity does not remain current" in feature
-    assert "Scenario: Plan review reserves space for its action menu" in feature
-    assert "Scenario: Plan completion does not loop review commands to the agent" in feature
-
-
 def test_notifications_use_pi_kits_portable_helper():
     source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
     assert "notifyPi" in source

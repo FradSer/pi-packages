@@ -91,8 +91,8 @@
    "source": "cli/engine/design-system.mjs",
    "sha256": "cacf7ae83b4ccfff84ceb6ab06549b399e0ec88750f053249db65371dd302de1",
    "destination": "scripts/detector/design-system.mjs",
-   "disposition": "retained",
-   "reason": null
+   "disposition": "adapted",
+   "reason": "Remove unused internal helpers and constants after checking repository callers."
   },
   {
    "source": "cli/engine/engines/static-html/detect-html.mjs",
@@ -112,8 +112,8 @@
    "source": "skill/scripts/lib/surface-briefs.mjs",
    "sha256": "33b35099b95d40e034b6a65657a1fd90fd011cdcb752f1c7a51e8470df37e668",
    "destination": "scripts/lib/surface-briefs.mjs",
-   "disposition": "retained",
-   "reason": null
+   "disposition": "adapted",
+   "reason": "Remove unused internal helpers and constants after checking repository callers."
   },
   {
    "source": "skill/scripts/lib/target-slug.mjs",
@@ -334,13 +334,15 @@
    "source": "skill/scripts/live/generation-preflight.mjs",
    "sha256": "d98806a798bc0425c204e3dcbbf40071fe9ab46a95bcfb3624f36740b6a0f1da",
    "destination": "scripts/live/generation-preflight.mjs",
-   "disposition": "retained"
+   "disposition": "adapted",
+   "reason": "Remove unused internal helpers and constants after checking repository callers."
   },
   {
    "source": "skill/scripts/live/insert-ui.mjs",
    "sha256": "c86839fc9be98eadc0ff6afaa6ab010a7539e9af77e8deeba898cb93f7f311f4",
    "destination": "scripts/live/insert-ui.mjs",
-   "disposition": "retained"
+   "disposition": "adapted",
+   "reason": "Remove unused internal helpers and constants after checking repository callers."
   },
   {
    "source": "skill/scripts/live/instructions.mjs",
@@ -415,7 +417,8 @@
    "source": "skill/scripts/live/svelte-component.mjs",
    "sha256": "234dae2735aae9385716416a4e958d6890ec7cb42dec2e158fe128e8856eaf97",
    "destination": "scripts/live/svelte-component.mjs",
-   "disposition": "retained"
+   "disposition": "adapted",
+   "reason": "Remove unused internal helpers and constants after checking repository callers."
   },
   {
    "source": "skill/scripts/live/sveltekit-adapter.mjs",
@@ -440,7 +443,7 @@
    "sha256": "f1765c853a8894074f511f7b34bda815552e45ea6458babee0ace97416c652ed",
    "destination": "scripts/live/vocabulary.mjs",
    "disposition": "adapted",
-   "reason": "Picker vocabulary reduced to shipped capabilities; unsupported upstream verbs are removed rather than advertised as unavailable."
+   "reason": "Picker vocabulary reduced to shipped capabilities; unsupported upstream verbs are removed rather than advertised as unavailable. Remove unused internal helpers and constants after checking repository callers."
   },
   {
    "source": "skill/scripts/live/frameworks/astro.mjs",
@@ -458,7 +461,8 @@
    "source": "skill/scripts/live/frameworks/index.mjs",
    "sha256": "54936fa60f0abb9483fbaac59ba9797c4173e9a77f504ff3df9a32b208ae1bab",
    "destination": "scripts/live/frameworks/index.mjs",
-   "disposition": "retained"
+   "disposition": "adapted",
+   "reason": "Remove unused internal helpers and constants after checking repository callers."
   },
   {
    "source": "skill/scripts/live/frameworks/journal.mjs",
@@ -524,7 +528,8 @@
    "source": "skill/scripts/lib/impeccable-paths.mjs",
    "sha256": "276ec7ac47e3c250e76616755d83cca4846f0f951b51c29f985ec84b51282aa2",
    "destination": "scripts/lib/impeccable-paths.mjs",
-   "disposition": "retained"
+   "disposition": "adapted",
+   "reason": "Remove unused internal helpers and constants after checking repository callers."
   },
   {
    "source": "skill/scripts/lib/is-generated.mjs",
@@ -542,19 +547,22 @@
    "source": "skill/scripts/lib/template-extensions.mjs",
    "sha256": "1a3808237835998f3fea600424c64ab1775beac7e0c344d6b23f472ffc2a3e64",
    "destination": "scripts/lib/template-extensions.mjs",
-   "disposition": "retained"
+   "disposition": "adapted",
+   "reason": "Remove unused internal helpers and constants after checking repository callers."
   },
   {
    "source": "skill/scripts/lib/staleness.mjs",
    "sha256": "f900a3ce0cd836194859c575dd32f8802d6a078bb8af27e1b8b6bb49485ad7d6",
    "destination": "scripts/lib/staleness.mjs",
-   "disposition": "retained"
+   "disposition": "adapted",
+   "reason": "Remove unused internal helpers and constants after checking repository callers."
   },
   {
    "source": "skill/scripts/lib/artifact-schema.mjs",
    "sha256": "ad0a72e96c74be09490b1aea095478e307f45d707b15021c922cbd4466619359",
    "destination": "scripts/lib/artifact-schema.mjs",
-   "disposition": "retained"
+   "disposition": "adapted",
+   "reason": "Remove unused internal helpers and constants after checking repository callers."
   },
   {
    "source": "skill/reference/live.md",

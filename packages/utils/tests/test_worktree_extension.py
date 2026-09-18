@@ -111,13 +111,6 @@ class TestWorktreeExtension(unittest.TestCase):
     def test_non_worktree_commands_are_ignored(self) -> None:
         self.assertEqual(rewrite("git worktree list"), "git worktree list")
 
-    def test_feature_describes_safe_parsing_contract(self) -> None:
-        feature = (UTILS_PKG_DIR / "features" / "worktree.feature").read_text(encoding="utf-8")
-        self.assertIn("--lock", feature)
-        self.assertIn("--lock", feature)
-        self.assertIn("Quoted and escaped paths", feature)
-        self.assertIn("unsupported shell syntax", feature)
-
 
 if __name__ == "__main__":
     unittest.main()

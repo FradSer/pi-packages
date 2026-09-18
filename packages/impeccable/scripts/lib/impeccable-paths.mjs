@@ -1,3 +1,4 @@
+// Modified for @fradser/pi-impeccable: remove unused internal helpers and constants.
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveProjectRoot } from '../context.mjs';
@@ -122,14 +123,6 @@ export function getLegacyLiveSessionsDir(cwd = process.cwd(), options = {}) {
 
 export function getLiveAnnotationsDir(cwd = process.cwd(), options = {}) {
   return path.join(getLiveDir(cwd, options), 'annotations');
-}
-
-export function getCritiqueDir(cwd = process.cwd(), options = {}) {
-  return path.join(getImpeccableDir(cwd, options), CRITIQUE_DIR);
-}
-
-export function getLegacyLiveAnnotationsDir(cwd = process.cwd(), options = {}) {
-  return path.join(resolveProjectRoot(cwd, options), '.impeccable-live', 'annotations');
 }
 
 function firstExisting(paths) {

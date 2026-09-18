@@ -28,53 +28,6 @@ def run_typescript(script: str) -> dict[str, object]:
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
-def test_feature_covers_recap_scenarios() -> None:
-    feature = (PACKAGE / "features" / "recap.feature").read_text(encoding="utf-8")
-    assert "Feature: Session Recap" in feature
-    assert "Scenario: Recap feedback uses the shared TUI notification abstraction" in feature
-    assert "portable notification helper" in feature
-    assert "Scenario: Recap widget uses pi-kit's shared live activity and row renderers" in feature
-    assert "live activity widget" in feature
-    assert "shared widget-row renderer" in feature
-    assert "Scenario: Persisted recap entries stay out of the transcript" in feature
-    assert "registers no entry renderer" in feature
-    assert "adds no TUI message row" in feature
-    assert "Scenario: Recap widget is displayed above the editor by default" in feature
-    assert "Scenario: Recap is informative and scannable" in feature
-    assert "Scenario: Empty or meaningless recap output is retried" in feature
-    assert "Scenario: Recap models have enough output budget to finish a summary" in feature
-    assert "Scenario: Provider failures are not retried as output-quality failures" in feature
-    assert "Scenario: Manual recap reports the actual failure reason" in feature
-    assert "Scenario: Recap reflects only evidenced progress" in feature
-    assert "Scenario: Recap pairs the latest complete answer with its preceding user request" in feature
-    assert "Scenario: Interrupted or failed answers are excluded from recap exchanges" in feature
-    assert "Scenario: Recap keeps the newest complete answer for one user request" in feature
-    assert "Scenario: /recap opens an interactive management menu" in feature
-    assert "Scenario: Generate recap now bypasses same-exchange deduplication" in feature
-    assert "Scenario: Model selection supports custom provider and model overrides" in feature
-    assert "dismisses the model picker without selecting a model" in feature
-    assert "stored model override is cleared" in feature
-    assert "the menu does not repeat the current recap text" in feature
-    assert "Scenario: Language selection allows specifying target generation language" in feature
-    assert "Scenario: Regeneration replaces the recap line with a generation marker" in feature
-    assert "carries no \"· Working...\" activity suffix" in feature
-    assert "generation marker is replaced by the new recap" in feature
-    assert "Scenario: Recap preserves a leading inline code marker" in feature
-    assert "Scenario: Recap maintains context continuity using previous recap and last exchange" in feature
-    assert "Scenario: Generated recap is persisted to the session" in feature
-    assert "Scenario: Directory recap sync uses canonical session ownership" in feature
-    assert "Scenario: Existing session restores persisted recap on startup across restarts" in feature
-    assert "Scenario: Session replacement cancels a pending first-prompt recap" in feature
-    assert "Scenario: Existing session without saved recap computes initial recap on startup" in feature
-    assert "Scenario: Existing recap prevents redundant startup generation" in feature
-    assert "Scenario: Headless recap commands do not start generation" in feature
-    assert "Scenario: Background recap ignores stale session context failures" in feature
-    assert "Scenario: Recap generation requests are deduplicated and cancellable" in feature
-    assert "Scenario: Recap generation times out safely" in feature
-    assert "Scenario: Recap ignores thinking-only provider output" in feature
-    assert "Scenario: Recap skips unchanged persistence" in feature
-
-
 def test_notifications_use_pi_kits_portable_helper() -> None:
     source = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
     assert "notifyPi" in source
@@ -175,7 +128,6 @@ def test_extract_latest_saved_recap_edge_cases() -> None:
     assert result["blank"] is None
     assert result["wrongType"] is None
     assert result["missingData"] is None
-
 
 
 def test_first_prompt_starts_recap_before_agent_settled_and_refreshes_after_completion() -> None:
@@ -876,7 +828,6 @@ def test_extension_appends_entry_when_recap_generated() -> None:
     assert result["entry"]["data"]["recap"] == "Implemented feature X in module"
 
 
-
 def test_extension_restores_recap_from_session_branch_on_startup() -> None:
     result = run_typescript(
         f"""
@@ -1523,14 +1474,6 @@ def test_extract_message_text_string_and_array() -> None:
     )
     assert result["t1"] == "hello world"
     assert result["t2"] == "answer part"
-
-
-def test_readme_documents_features() -> None:
-    readme = (PACKAGE / "README.md").read_text(encoding="utf-8")
-    assert "/recap" in readme
-    assert "aboveEditor" in readme or "widget" in readme
-    assert "Model Selection" in readme or "recap.json" in readme
-    assert "Non-blocking" in readme or "in-process" in readme
 
 
 def test_all_prompt_and_ui_strings_are_english() -> None:

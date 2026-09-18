@@ -1,3 +1,4 @@
+// Modified for @fradser/pi-impeccable: remove unused internal helpers and constants.
 /**
  * Pure helpers for live-mode insert UI (browser + tests).
  * Kept separate from live-browser.js so insert logic is unit-testable.
@@ -303,57 +304,6 @@ export function resizePlaceholderFromEdge(start, edge, dx, dy, parentWidth, opts
   };
 }
 
-/** Pick and insert toggles are independent but turning one ON turns the other OFF. */
-export function applyPickToggle(pickActive, insertActive) {
-  const nextPick = !pickActive;
-  return {
-    pickActive: nextPick,
-    insertActive: nextPick ? false : insertActive,
-  };
-}
-
-export function applyInsertToggle(pickActive, insertActive) {
-  const nextInsert = !insertActive;
-  return {
-    pickActive: nextInsert ? false : pickActive,
-    insertActive: nextInsert,
-  };
-}
-
-/**
- * Build the browser generate payload for insert mode.
- */
-export function buildInsertGeneratePayload({
-  id,
-  count,
-  pageUrl,
-  anchorContext,
-  position,
-  placeholder,
-  freeformPrompt,
-  comments,
-  strokes,
-  screenshotPath,
-}) {
-  const payload = {
-    type: 'generate',
-    mode: 'insert',
-    id,
-    count,
-    pageUrl,
-    insert: {
-      position,
-      anchor: anchorContext,
-    },
-    placeholder,
-    freeformPrompt: freeformPrompt?.trim() || undefined,
-  };
-  if (comments?.length) payload.comments = comments;
-  if (strokes?.length) payload.strokes = strokes;
-  if (screenshotPath) payload.screenshotPath = screenshotPath;
-  return payload;
-}
-
 /**
  * Whether a variant wrapper is currently shown (handles `hidden` and display:none).
  * @param {{ hidden?: boolean, style?: { display?: string } } | null | undefined} el
@@ -363,49 +313,6 @@ export function isVariantShown(el) {
   if (el.hidden) return false;
   if (el.style?.display === 'none') return false;
   return true;
-}
-
-/**
- * Show or hide a variant wrapper for cycling.
- * @param {{ hidden?: boolean, style?: { display?: string }, removeAttribute?: (name: string) => void, setAttribute?: (name: string, value?: string) => void } | null | undefined} el
- * @param {boolean} shown
- */
-export function setVariantShown(el, shown) {
-  if (!el) return;
-  if (shown) {
-    el.removeAttribute?.('hidden');
-    if (el.style) el.style.display = '';
-  } else {
-    el.setAttribute?.('hidden', '');
-    if (el.style) el.style.display = 'none';
-  }
-}
-
-/**
- * Pick the best live anchor during an insert session (placeholder until variants land).
- * @param {{
- *   wrapper?: unknown,
- *   variantCount?: number,
- *   visibleVariant?: number,
- *   placeholder?: unknown,
- *   insertAnchor?: unknown,
- *   pickVariantContent?: (wrapper: unknown, index: number) => unknown,
- * }} opts
- */
-export function resolveInsertSessionAnchor(opts) {
-  const {
-    wrapper,
-    variantCount = 0,
-    visibleVariant = 0,
-    placeholder,
-    insertAnchor,
-    pickVariantContent,
-  } = opts || {};
-  if (wrapper && variantCount > 0 && visibleVariant > 0 && pickVariantContent) {
-    const vis = pickVariantContent(wrapper, visibleVariant);
-    if (vis) return vis;
-  }
-  return placeholder || insertAnchor || null;
 }
 
 /**

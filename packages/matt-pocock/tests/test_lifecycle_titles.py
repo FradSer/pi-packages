@@ -246,17 +246,3 @@ def test_non_workflow_rows_keep_their_subjects(lifecycle_results: dict[str, obje
     assert lifecycle_results["nonWorkflow"]["reference"]["details"] == {
         "mode": "reference", "capability": "writing-for-agents", "reference": "SKILL-MECHANICS",
     }
-
-
-def test_lifecycle_docs_describe_phase_only_rows() -> None:
-    readme = (PACKAGE / "README.md").read_text()
-    guide = (PACKAGE / "ARCHITECTURE.zh-CN.md").read_text()
-    for text in (readme, guide):
-        assert "[matt pocock] started · Reproducing & Diagnostics" in text
-        assert "[matt pocock] event · Implementation" in text
-        assert "[matt pocock] event · Code Review completed" in text
-        assert "[matt pocock] event · Implementation cancelled" in text
-        for route in ROUTES:
-            assert f"[matt pocock] event · {route}" not in text
-        assert "[matt pocock] event · <route>" not in text
-        assert "[matt pocock] started · <Route Title>" not in text

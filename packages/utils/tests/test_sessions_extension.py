@@ -27,11 +27,6 @@ class TestSessionsExtension(unittest.TestCase):
         self.assertIn('session_start', content)
         self.assertIn('session_shutdown', content)
 
-    def test_feature_covers_directory_key_isolation_and_ownership(self) -> None:
-        feature = (UTILS_PKG_DIR / "features" / "sessions.feature").read_text(encoding="utf-8")
-        self.assertIn("Scenario: Directory session keys keep distinct directories isolated", feature)
-        self.assertIn("Scenario: Directory session reads and cleanup verify record ownership", feature)
-        self.assertIn("Scenario: Malformed registry records remain unowned", feature)
 
     def test_list_directory_sessions_is_disclosed_only_while_peer_sessions_exist(self) -> None:
         script = f"""

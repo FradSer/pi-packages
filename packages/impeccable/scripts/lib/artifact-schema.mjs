@@ -1,3 +1,4 @@
+// Modified for @fradser/pi-impeccable: remove unused internal helpers and constants.
 /**
  * Schema versions for the artifacts Impeccable writes, plus the readers and
  * writers for the PRODUCT.md provenance stamp.
@@ -62,24 +63,6 @@ export function readProductSchemaVersion(markdown) {
   if (!match) return null;
   const version = Number.parseInt(match[1], 10);
   return Number.isInteger(version) ? version : null;
-}
-
-/**
- * Add or update the stamp, returning the new body. Idempotent. A stamped file
- * keeps the stamp where it already sits so a migration never reorders the
- * user's prose; an unstamped file gets it directly under the leading `#`
- * heading, or at the top when there is none.
- */
-export function stampProductSchema(markdown, version = PRODUCT_SCHEMA_VERSION) {
-  const body = String(markdown || '');
-  const line = productStampLine(version);
-  if (PRODUCT_STAMP_RE.test(body)) return body.replace(PRODUCT_STAMP_RE, line);
-
-  const lines = body.split('\n');
-  const headingIndex = lines.findIndex((entry) => /^#\s+\S/.test(entry));
-  if (headingIndex === -1) return `${line}\n\n${body.replace(/^\n+/, '')}`;
-  lines.splice(headingIndex + 1, 0, '', line);
-  return lines.join('\n');
 }
 
 /**

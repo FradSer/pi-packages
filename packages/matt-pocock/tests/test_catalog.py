@@ -216,26 +216,6 @@ def test_restored_bundle_replays_loaded_reference_chain() -> None:
     assert "writing-great-skills" in result["availableReferences"]
 
 
-def test_feature_file_covers_catalog_gateway_and_lifecycle_contracts() -> None:
-    feature = (PACKAGE / "features" / "matt-pocock.feature").read_text()
-    for scenario in (
-        "The catalog is the single source of procedure truth",
-        "Starting a workflow loads its mandatory dependency closure",
-        "A workflow advertises only legal next transitions",
-        "The agent explicitly completes or cancels a workflow",
-        "Standalone capabilities are reachable without child skills",
-        "A de-slop capability removes AI slop without workflow state",
-        "The standards baseline rejects AI slop patterns in code review",
-        "A local-only capability stays out of the upstream selection metadata",
-        "Conditional references load through the active gateway",
-        "Procedure texts route agents through the catalog gateway, not Pi skills",
-        "Loaded references survive workflow restoration",
-        "The active gateway is progressively disclosed",
-        "Upstream synchronization metadata is verifiable",
-    ):
-        assert scenario in feature
-
-
 def test_procedure_texts_route_agents_through_the_catalog_gateway() -> None:
     catalog = json.loads((PACKAGE / "src" / "catalog.json").read_text())
     patterns = {

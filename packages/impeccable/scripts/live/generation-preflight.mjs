@@ -1,3 +1,4 @@
+// Modified for @fradser/pi-impeccable: remove unused internal helpers and constants.
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -11,11 +12,6 @@ const PREFLIGHT_TIMEOUT_MS = 15_000;
 // target signature (locator + route), so it invalidates automatically when the
 // element or route changes; a failed resolution evicts its entry (see below).
 const sourceResolutionCache = new Map();
-
-/** Test/lifecycle hook: drop all cached source resolutions. */
-export function clearSourceResolutionCache() {
-  sourceResolutionCache.clear();
-}
 
 function targetSignature(event) {
   const isInsert = event.mode === 'insert';

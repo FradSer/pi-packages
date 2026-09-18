@@ -1,3 +1,4 @@
+// Modified for @fradser/pi-impeccable: remove unused internal helpers and constants.
 import fs from 'node:fs';
 import path from 'node:path';
 import { slugFromTarget } from './target-slug.mjs';
@@ -120,30 +121,4 @@ export function resolveSurfaceBrief(projectRoot = process.cwd(), target = null) 
     candidates: mapped.length > 1 ? mapped : briefs,
     reason: mapped.length === 1 ? 'mapping' : mapped.length > 1 ? 'ambiguous-target' : 'not-found',
   };
-}
-
-export function writeSurfaceBrief({
-  projectRoot = process.cwd(),
-  primaryTarget,
-  relatedTargets = [],
-  body,
-}) {
-  const normalizedPrimary = normalizeSurfaceTarget(primaryTarget, { projectRoot });
-  if (!normalizedPrimary) throw new Error('surface brief requires a concrete project-relative primary target or URL');
-  const normalizedRelated = [...new Set(relatedTargets
-    .map((target) => normalizeSurfaceTarget(target, { projectRoot }))
-    .filter((target) => target && target !== normalizedPrimary))];
-  const slug = slugFromTarget(normalizedPrimary, { cwd: projectRoot });
-  const filePath = surfaceBriefPathForTarget(normalizedPrimary, { projectRoot });
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const frontmatter = [
-    '---',
-    `version: ${SURFACE_BRIEF_VERSION}`,
-    `slug: ${JSON.stringify(slug)}`,
-    `primary_target: ${JSON.stringify(normalizedPrimary)}`,
-    `related_targets: ${JSON.stringify(normalizedRelated)}`,
-    '---',
-  ].join('\n');
-  fs.writeFileSync(filePath, `${frontmatter}\n\n${String(body || '').trim()}\n`, 'utf-8');
-  return filePath;
 }

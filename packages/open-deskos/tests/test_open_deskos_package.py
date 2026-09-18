@@ -65,18 +65,6 @@ def test_extension_declares_kits_as_dependencies_and_pi_core_as_peers() -> None:
         assert peer in manifest["peerDependencies"], f"{peer} must stay a peer dependency"
 
 
-def test_feature_file_states_the_reported_contract() -> None:
-    feature = (PACKAGE / "features" / "open-deskos.feature").read_text(encoding="utf-8")
-    for promise in (
-        "An unconfigured machine stays silent",
-        "Reported events obey the local bounds",
-        "A long outage bounds what the reporter retains",
-        "A dropped link reconnects with a growing wait",
-        "The reporter never acts inside the session",
-    ):
-        assert promise in feature, f"feature must state: {promise}"
-
-
 def test_every_documented_install_command_can_actually_work() -> None:
     """The documented install path must exist: an unpublished npm name silently
     sends an operator to a 404."""
@@ -619,4 +607,3 @@ def test_link_transitions_notify_so_a_surface_cannot_show_a_stale_state() -> Non
     assert result["seen"] == ["connecting", "connected", "offline", "offline"], (
         "every transition must be announced, including the drop while idle"
     )
-

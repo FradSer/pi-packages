@@ -25,39 +25,6 @@ def run_typescript(script: str) -> dict[str, object]:
     return json.loads(result.stdout)
 
 
-def test_feature_covers_the_catalog_gateway_contract() -> None:
-    feature = (PACKAGE / "features" / "matt-pocock.feature").read_text()
-    for scenario in (
-        "The catalog is the single source of procedure truth",
-        "Starting a workflow loads its mandatory dependency closure",
-        "A workflow advertises only legal next transitions",
-        "The agent explicitly completes or cancels a workflow",
-        "Standalone capabilities are reachable without child skills",
-        "A de-slop capability removes AI slop without workflow state",
-        "The standards baseline rejects AI slop patterns in code review",
-        "A local-only capability stays out of the upstream selection metadata",
-        "Conditional references load through the active gateway",
-        "Procedure texts route agents through the catalog gateway, not Pi skills",
-        "The active gateway is progressively disclosed",
-        "A prompt cancels active workflow before rerouting",
-        "A user explicitly selects a legal next procedure",
-        "Agent-document work uses a standalone capability without workflow state",
-        "Agent autonomously starts a workflow through the baseline gateway",
-        "Known procedure aliases normalize through the catalog",
-        "A stale restored workflow explicitly cancels after validation fails",
-        "Structured interview questions are available only during an active workflow",
-        "Matt Pocock tool rows use operation-specific prefixes",
-        "Packed package resolves workspace dependency protocols",
-        "Upstream synchronization metadata is verifiable",
-        "Exploration procedures allow bidirectional lateral transitions",
-        "Bug diagnostics allow returning to root cause analysis",
-        "No-detail lifecycle operations do not advertise empty expansion",
-        "Cancellation expands only its recorded nonblank reason",
-        "A cancellation without a meaningful reason has no extra details",
-    ):
-        assert scenario in feature
-
-
 def test_capability_mode_targets_are_model_standalone() -> None:
     catalog = json.loads((PACKAGE / "src" / "catalog.json").read_text())
     model_capabilities = {

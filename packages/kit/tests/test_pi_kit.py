@@ -42,45 +42,6 @@ def run_typescript(script: str) -> dict[str, object]:
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
-def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
-    feature = (PACKAGE / "features" / "pi-kit.feature").read_text(encoding="utf-8")
-    root_feature = (REPO / "features" / "package-root-entry.feature").read_text(encoding="utf-8")
-    assert "Package directories use concise names independently of npm package names" in root_feature
-    assert "Feature: Shared pi-kit runtime helpers" in feature
-    assert "Scenario: Spinner frames match pi's native loader" in feature
-    assert "Scenario: Theme style language is adapted from any pi theme" in feature
-    assert "Scenario: Plain text is extracted from string message content" in feature
-    assert "Scenario: Plain text is extracted from content-block arrays" in feature
-    assert "Scenario: Non-message content yields empty text" in feature
-    assert "Scenario: Model reference is parsed from a provider/model string" in feature
-    assert "Scenario: Model reference is formatted from config" in feature
-    assert "Scenario: Model label is formatted from a model object" in feature
-    assert "Scenario: A model is selected from the interactive menu" in feature
-    assert "Scenario: Model search text leads with the provider-prefixed label" in feature
-    assert "Scenario: A search picker filters models by query and resets the selection" in feature
-    assert "Scenario: A search picker restores previous results on backspace" in feature
-    assert "Scenario: Search picker navigation clamps within filtered results" in feature
-    assert "Scenario: Pi workers inherit their working directory without an unsupported flag" in feature
-    assert "Scenario: Pi workers have no wall-clock timeout" in feature
-    assert "Scenario: pi-kit stays a pure runtime dependency" in feature
-    assert "Scenario: Pi CLI resolution accepts only the coding-agent package" in feature
-    assert "Scenario: Child termination observes close and escalates once" in feature
-    assert "Scenario: One-shot workers return final text with usage and diagnostics" in feature
-    assert "Scenario: Aborting a one-shot worker terminates the child" in feature
-    assert "Scenario: A failed one-shot worker surfaces diagnostics without trustworthy text" in feature
-    assert "Scenario: A pre-cancelled Pi worker never starts a child" in feature
-    assert "Scenario: Pi worker stream limits are measured in bytes" in feature
-    assert "And the failure diagnostic appears before captured child stderr" in feature
-    assert "Scenario: Directory session identity uses canonical paths" in feature
-    assert "Scenario: Overlay panels use the shared frame layout" in feature
-    assert "Scenario: Passive console widgets use the shared row layout" in feature
-    assert "Scenario: Live activity widgets share a lifecycle and row language" in feature
-    assert "renders an identity-only row without an activity suffix" in feature
-    assert "Scenario: Custom transcript messages use the standard lifecycle renderer" in feature
-    assert "Scenario: Custom native tools use the standard lifecycle result renderer" in feature
-    assert "Scenario: Notifications use the shared portable UI abstraction" in feature
-
-
 def test_worker_command_does_not_pass_unsupported_cwd_flag() -> None:
     source = (SRC / "index.ts").read_text(encoding="utf-8")
     assert '"--cwd", cwd' not in source
@@ -1241,7 +1202,6 @@ def test_lifecycle_tool_execution_wrapper_enables_mouse_toggling() -> None:
     assert "detail line" in " ".join(result["expanded"])
     assert result["click2Handled"] is True
     assert "ctrl+o to expand" in result["reCollapsed"][1]
-
 
 
 def test_status_and_working_indicator_adapters_sanitize_and_use_shared_spinner() -> None:

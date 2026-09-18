@@ -1,3 +1,4 @@
+// Modified for @fradser/pi-impeccable: remove unused internal helpers and constants.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -568,18 +569,6 @@ function loadDesignSystemForCwd(cwd = process.cwd()) {
   });
 }
 
-// Directory to begin the project-root walk from, given a scan target that may
-// be a file or a directory (and may not exist yet).
-function designSystemStartDir(targetPath, cwd = process.cwd()) {
-  const abs = path.isAbsolute(targetPath) ? targetPath : path.resolve(cwd, targetPath);
-  try {
-    return fs.statSync(abs).isDirectory() ? abs : path.dirname(abs);
-  } catch {
-    // Nonexistent path: treat an extension-bearing leaf as a file.
-    return path.extname(abs) ? path.dirname(abs) : abs;
-  }
-}
-
 // Same two groups as context.mjs's readProjectPatternGroups: Impeccable
 // projectRoots govern any path they match (positive or negated); package-manager
 // globs only apply to paths the Impeccable group does not match.
@@ -789,22 +778,6 @@ export function findDesignRoot(startDir) {
     if (parent === dir) return boundary;
     dir = parent;
   }
-}
-
-// Resolve the design system that governs a specific scan target, by walking up
-// from the target's own location — never process.cwd(). Scanning project B's
-// files from inside project A applies B's DESIGN.md (or none), not A's.
-//
-// Pass a `cache` Map to memoize by resolved design root across a multi-file
-// scan; a target with no design root above it resolves to null.
-export function loadDesignSystemForTarget(targetPath, { cache, cwd = process.cwd() } = {}) {
-  const startDir = designSystemStartDir(targetPath, cwd);
-  const found = findDesignRoot(startDir);
-  const key = found ? `root:${found.dir}` : '\0none';
-  if (cache && cache.has(key)) return cache.get(key);
-  const loaded = found?.hasDesign ? loadDesignSystemForCwd(found.dir) : null;
-  if (cache) cache.set(key, loaded);
-  return loaded;
 }
 
 function isAllowedFont(font, designSystem) {

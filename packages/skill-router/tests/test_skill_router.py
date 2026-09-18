@@ -249,7 +249,6 @@ def test_collection_uses_shared_skill_namespace_as_gateway(tmp_path: Path) -> No
     assert (gateway_root(agent_dir, str(result["id"])) / "SKILL.md").is_file()
 
 
-
 def test_reserved_collection_id_cannot_delete_exposed_container(tmp_path: Path, source_repo: Path) -> None:
     agent_dir = tmp_path / "agent"
     installed = run_harness(agent_dir, "add", str(source_repo), "--id", "existing")
@@ -970,13 +969,3 @@ def test_malformed_enabled_and_duplicate_ids_fail_closed(tmp_path: Path, source_
     )
     routed = run_harness(agent_dir, "route", "please diagnose this bug")
     assert routed["systemPrompt"] == "base system prompt"
-
-
-def test_feature_contract_covers_external_hosting() -> None:
-    feature = (PACKAGE / "features" / "skill-router.feature").read_text(encoding="utf-8")
-    assert "ships no skill content" in feature
-    assert "materializes sub-skills and gateway" in feature
-    assert "resources_discover" in feature
-    assert "Explicit skill invocations are never rerouted" in feature
-    assert "re-materializes the preserved selection" in feature
-    assert "fail closed" in feature

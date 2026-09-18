@@ -1,3 +1,4 @@
+// Modified for @fradser/pi-impeccable: remove unused internal helpers and constants.
 /**
  * Staleness detection for Impeccable's own project artifacts: PRODUCT.md,
  * DESIGN.md and its `.impeccable/design.json` sidecar, `.impeccable/config.json`,
@@ -466,23 +467,6 @@ export function checkProjectRoots({ patterns = [], candidates = [], configuredIn
       + 'but no directory matches any of them, so the repo root is being treated as the active project.',
     fix: 'Report the patterns and ask which directories they should name. A renamed workspace folder is the usual cause.',
   })];
-}
-
-/**
- * Workspaces that inherit the repo-root PRODUCT.md. Inheritance is a feature,
- * not a defect, so this is reported as information for the doctor pass rather
- * than emitted at boot: the judgment call is whether the inherited record
- * actually describes that app.
- */
-export function describeWorkspaceContext(candidates = []) {
-  return candidates.map((candidate) => ({
-    name: candidate.name,
-    path: candidate.path,
-    productStatus: candidate.productStatus,
-    productPath: candidate.productPath,
-    designStatus: candidate.designStatus,
-    designPath: candidate.designPath,
-  }));
 }
 
 // ─── Tier 1 orchestration ──────────────────────────────────────────────────

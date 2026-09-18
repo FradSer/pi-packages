@@ -1,6 +1,6 @@
 # pi-keyboard
 
-基于 VIA/QMK 协议的 Pi 键盘 RGB 状态指示灯插件。
+基于 VIA/QMK 协议的 Pi 键盘 RGB 状态指示灯插件。通过 `via-rgb` 执行灯光命令，由该程序负责 HID 数据包编码。
 
 通过机械键盘的 RGB 灯光，实时提供 AI Coding Agent 运行状态的环境感知：
 
