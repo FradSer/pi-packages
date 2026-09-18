@@ -125,13 +125,13 @@ def test_policy_phases_and_post_execution_checks_are_explicit() -> None:
     assert result["finalArtifactRecheckDeduped"] and result["finalBashRecheckDeduped"]
 
 
-def test_context_guidance_is_registered_separately_from_guardrail_enforcement() -> None:
+def test_harness_guidance_is_registered_separately_from_guardrail_enforcement() -> None:
     source = r'''
       import fs from "node:fs";
       import os from "node:os";
       import path from "node:path";
       import registerGuardrails from "./packages/continual-learning/extensions/guardrails.ts";
-      import registerContextGuidance from "./packages/continual-learning/extensions/context-guidance.ts";
+      import registerHarnessGuidance from "./packages/continual-learning/extensions/harness-guidance.ts";
 
       const hooks = {};
       const entries = [];
@@ -150,7 +150,7 @@ def test_context_guidance_is_registered_separately_from_guardrail_enforcement() 
       const ctx = { cwd, hasUI: false };
       registerGuardrails(pi);
       const guardrailBefore = hooks.before_agent_start?.length ?? 0;
-      registerContextGuidance(pi);
+      registerHarnessGuidance(pi);
       const guidanceResult = await hooks.before_agent_start[0](event, ctx);
       console.log(JSON.stringify({ guardrailBefore, guidanceResult, eventCount: entries.length }));
     '''

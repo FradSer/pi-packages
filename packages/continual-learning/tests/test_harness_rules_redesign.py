@@ -619,12 +619,12 @@ def test_bash_hook_integration() -> None:
     assert 'no UI available to confirm' in result['call3Reason']
 
 
-def test_context_guidance_hook_integration() -> None:
+def test_harness_guidance_hook_integration() -> None:
     result = run_bun('''
       import path from 'node:path';
       import fs from 'node:fs';
       import os from 'node:os';
-      import registerContextGuidance from './packages/continual-learning/extensions/context-guidance.ts';
+      import registerHarnessGuidance from './packages/continual-learning/extensions/harness-guidance.ts';
 
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-ctx-test-'));
       const piDir = path.join(tmpDir, '.pi');
@@ -644,7 +644,7 @@ def test_context_guidance_hook_integration() -> None:
         registerEntryRenderer: () => {},
         appendEntry: (type, data) => { entries.push({ type, data }); },
       };
-      registerContextGuidance(fakePi);
+      registerHarnessGuidance(fakePi);
 
       // before_agent_start fires once per user prompt; sessionManager exposes the
       // retained branch. Empty retained -> first-turn delivery from the prompt.

@@ -444,7 +444,7 @@ async function checkAssistantOutput(
 }
 
 /** Register post-generation checks. Call this alongside registerGuardrails;
- * keeping the registration separate prevents context guidance from becoming
+ * keeping the registration separate prevents harness guidance from becoming
  * an enforcement dependency. */
 export default function registerOutputChecks(pi: ExtensionAPI): void {
   const state: RepairState = { attempts: 0, artifactBytes: 0, artifacts: new Map(), requestedArtifactViolations: new Set() };

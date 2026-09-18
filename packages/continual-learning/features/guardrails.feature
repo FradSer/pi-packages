@@ -63,8 +63,8 @@ Feature: Flat layered Harness rules with installed-policy compatibility
     And compatibility notices are distinct from invalid configuration errors
     And incomplete or stale loading is not reported as successful verification
 
-  Scenario: Context guidance remains separate from execution interception
+  Scenario: Harness guidance remains separate from execution interception
     Given flat skill or text rules
-    When the context-guidance adapter prepares the next generation
-    Then those rules provide retained contextual guidance
+    When the harness-guidance adapter prepares the next generation
+    Then those rules provide retained guidance
     And the guardrails adapter combines flat Bash decisions with installed legacy policy checks and configuration integrity gates

@@ -24,7 +24,7 @@ import termios
 import time
 
 FIXTURE = Path(__file__).with_name("meaningful-details-live-fixture.ts")
-CUSTOM_TYPES = {"harness-event", "harness-check", "context-guidance-event"}
+CUSTOM_TYPES = {"harness-event", "harness-check", "harness-guidance-event"}
 
 
 def snapshots(path: Path) -> list[dict]:

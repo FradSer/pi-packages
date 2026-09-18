@@ -15,6 +15,11 @@ import { evaluateText } from "./guardrail-engine.ts";
 import type { ResolvedHarnessConfig, Rule, TextRule } from "./guardrail-types.ts";
 
 export const HARNESS_GUIDANCE_CUSTOM_TYPE = "harness-guidance";
+/** Entry type for the retained guidance row the planner prepares. */
+export const HARNESS_GUIDANCE_ENTRY_TYPE = "harness-guidance-event";
+/** Entry type an earlier release persisted for the same row. Kept renderable so
+ * existing session transcripts keep their guidance view. */
+export const LEGACY_GUIDANCE_ENTRY_TYPE = "context-guidance-event";
 /** Sentinel prefix for the model-visible note Harness attaches to a Bash tool
  * result. The text scanner excludes it so Harness output never self-triggers. */
 export const HARNESS_BASH_NOTE_PREFIX = "[harness-bash-note]";

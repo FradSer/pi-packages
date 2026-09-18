@@ -5,7 +5,8 @@ import { initTheme, type EntryRenderer, type ExtensionAPI, type Theme } from "@e
 import { visibleWidth } from "@earendil-works/pi-tui";
 import registerGuardrails from "../extensions/guardrails.ts";
 import registerOutputChecks, { type CheckStatus } from "../extensions/output-checks.ts";
-import registerContextGuidance from "../extensions/context-guidance.ts";
+import registerHarnessGuidance from "../extensions/harness-guidance.ts";
+import { HARNESS_GUIDANCE_ENTRY_TYPE, LEGACY_GUIDANCE_ENTRY_TYPE } from "../extensions/harness-guidance-planner.ts";
 
 initTheme("dark");
 const renderers = new Map<string, EntryRenderer>();
@@ -17,7 +18,7 @@ const pi = {
 } as unknown as ExtensionAPI;
 registerGuardrails(pi);
 registerOutputChecks(pi);
-registerContextGuidance(pi);
+registerHarnessGuidance(pi);
 const theme = {
   fg: (_color: string, text: string) => text,
   bg: (_color: string, text: string) => text,
@@ -64,12 +65,13 @@ const fixtures: Array<{ name: string; customType: string; data: unknown }> = [
   })),
   { name: "check-output", customType: "harness-check", data: { ...check, phase: "output", path: undefined } },
   { name: "check-long", customType: "harness-check", data: { ...check, detail: longReason } },
-  { name: "skill-rule", customType: "context-guidance-event", data: guidance },
-  { name: "skill-prompt", customType: "context-guidance-event", data: { ...guidance, kind: "skill-prompt", ruleId: undefined, target: "system" } },
-  { name: "text-rule", customType: "context-guidance-event", data: { ...guidance, kind: "text-rule", skill: undefined, ruleId: "project-a-guidance" } },
-  { name: "text-incomplete", customType: "context-guidance-event", data: { ...guidance, kind: "text-incomplete", skill: undefined, ruleId: undefined } },
-  { name: "guidance-long", customType: "context-guidance-event", data: { ...guidance, skill: "review-with-the-complete-applicable-release-checklist-and-approval-evidence" } },
-  { name: "guidance-full-prompt", customType: "context-guidance-event", data: { ...guidance, prompt: longPrompt } },
+  { name: "skill-rule", customType: HARNESS_GUIDANCE_ENTRY_TYPE, data: guidance },
+  { name: "skill-prompt", customType: HARNESS_GUIDANCE_ENTRY_TYPE, data: { ...guidance, kind: "skill-prompt", ruleId: undefined, target: "system" } },
+  { name: "text-rule", customType: HARNESS_GUIDANCE_ENTRY_TYPE, data: { ...guidance, kind: "text-rule", skill: undefined, ruleId: "project-a-guidance" } },
+  { name: "text-incomplete", customType: HARNESS_GUIDANCE_ENTRY_TYPE, data: { ...guidance, kind: "text-incomplete", skill: undefined, ruleId: undefined } },
+  { name: "guidance-long", customType: HARNESS_GUIDANCE_ENTRY_TYPE, data: { ...guidance, skill: "review-with-the-complete-applicable-release-checklist-and-approval-evidence" } },
+  { name: "guidance-full-prompt", customType: HARNESS_GUIDANCE_ENTRY_TYPE, data: { ...guidance, prompt: longPrompt } },
+  { name: "guidance-legacy-entry", customType: LEGACY_GUIDANCE_ENTRY_TYPE, data: guidance },
 ];
 const output = Object.fromEntries(fixtures.map(({ name, customType, data }) => {
   const renderer = renderers.get(customType);

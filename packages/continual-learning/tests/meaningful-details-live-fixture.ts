@@ -7,7 +7,8 @@ import type { EntryRenderer, ExtensionAPI } from "@earendil-works/pi-coding-agen
 import { visibleWidth } from "@earendil-works/pi-tui";
 import registerGuardrails from "../extensions/guardrails.ts";
 import registerOutputChecks from "../extensions/output-checks.ts";
-import registerContextGuidance from "../extensions/context-guidance.ts";
+import registerHarnessGuidance from "../extensions/harness-guidance.ts";
+import { HARNESS_GUIDANCE_ENTRY_TYPE } from "../extensions/harness-guidance-planner.ts";
 
 export default function (pi: ExtensionAPI): void {
   const snapshots = process.env.PI_DETAILS_LIVE_SNAPSHOTS;
@@ -34,7 +35,7 @@ export default function (pi: ExtensionAPI): void {
   };
   registerGuardrails(registered);
   registerOutputChecks(registered);
-  registerContextGuidance(registered);
+  registerHarnessGuidance(registered);
   pi.on("session_start", () => {
     const entries = [
       { customType: "harness-event", data: {
@@ -46,7 +47,7 @@ export default function (pi: ExtensionAPI): void {
         kind: "harness-check", phase: "artifact", status: "unsupported", policy: "regular-artifact", path: "reports/final.txt",
         detail: "The artifact cannot be inspected safely because its final path is not a regular workspace file. Final check marker.",
       } },
-      { customType: "context-guidance-event", data: {
+      { customType: HARNESS_GUIDANCE_ENTRY_TYPE, data: {
         kind: "skill-rule", skill: "review", ruleId: "review-evidence", source: "project", file: "/fixture/.pi/harness.json",
         prompt: Array.from({ length: 65 }, (_, index) => `guidance-${index + 1} Preserve review evidence for this exact task, including the complete approval reference.`).join("\n"),
       } },

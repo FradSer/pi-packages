@@ -538,7 +538,7 @@ project-a-status
 - 当前领域与所有权说明：@packages/continual-learning/CONTEXT.md。
 - 当前用户文档：@packages/continual-learning/README.md。
 - 规则类型与统一解析：@packages/continual-learning/extensions/guardrail-types.ts、@packages/continual-learning/extensions/guardrail-engine.ts、@packages/continual-learning/extensions/guardrail-config.ts。
-- 当前技能指导与执行入口：@packages/continual-learning/extensions/context-guidance.ts、@packages/continual-learning/extensions/guardrails.ts。
+- 当前技能指导与执行入口：@packages/continual-learning/extensions/harness-guidance.ts、@packages/continual-learning/extensions/guardrails.ts。
 - 当前验收 seam：@packages/continual-learning/tests/test_guardrails_integration.py、@packages/continual-learning/tests/test_harness_audit_followup.py。
 - 既有 Memory 上下文预算决定：@docs/adr/0003-auto-memory-index-injection.md；本设计保留其 Memory index 职责。
 - 本地 Pi 生命周期文档：@/Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/docs/extensions.md。

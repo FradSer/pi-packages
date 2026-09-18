@@ -57,6 +57,14 @@ def test_check_status_and_detail_stay_in_title_while_evidence_remains(rendered: 
     assert not any(line.startswith(("status ·", "detail ·")) for line in expanded)
 
 
+def test_legacy_guidance_entry_type_still_renders_as_harness_guidance(rendered: dict) -> None:
+    current = rendered["skill-rule"]
+    legacy = rendered["guidance-legacy-entry"]
+    assert legacy["data"] == current["data"]
+    assert legacy["views"] == current["views"]
+    assert legacy["views"]["240"]["expanded"][0] == "[harness] skill rule · review"
+
+
 def test_output_check_keeps_phase_and_policy_without_inventing_a_path(rendered: dict) -> None:
     expanded = rendered["check-output"]["views"]["240"]["expanded"]
     assert "phase · output" in expanded and "policy · artifact-evidence" in expanded

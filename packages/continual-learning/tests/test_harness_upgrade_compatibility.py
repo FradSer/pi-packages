@@ -144,7 +144,7 @@ def test_legacy_skill_suffix_and_target_coexist_with_flat_guidance(tmp_path: Pat
     result = run_bun(f'''
       process.env.PI_CODING_AGENT_DIR={json.dumps(str(tmp_path/'agent'))};
       import fs from 'node:fs';import path from 'node:path';
-      const {{default:register}}=await import('./packages/continual-learning/extensions/context-guidance.ts');
+      const {{default:register}}=await import('./packages/continual-learning/extensions/harness-guidance.ts');
       const {{extractModelVisibleTexts}}=await import('./packages/continual-learning/extensions/harness-guidance-planner.ts');
       const cwd={json.dumps(str(tmp_path))};fs.mkdirSync(path.join(cwd,'.pi'));
       fs.writeFileSync(path.join(cwd,'.pi/harness.json'),JSON.stringify({{rules:[{{id:'new',skill:'review',instructions:'flat addition'}}],skillPrompts:{{review:{{prompt:'exact legacy guidance',target:{json.dumps(target)},userMessagePattern:'^approved suffix$'}}}}}}));

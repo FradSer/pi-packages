@@ -1,4 +1,4 @@
-Feature: Harness and context expansion shows additional information
+Feature: Harness expansion shows additional information
   Rendering removes only fields already represented by the lifecycle title.
   Policy decisions, check results, guidance delivery and stored entries do not change.
 
@@ -23,6 +23,12 @@ Feature: Harness and context expansion shows additional information
     And the row is tagged as Harness guidance, not as another surface
     And source, file and the complete prompt remain visible
     And meaningful prompt text is retained even when it contains the title subject
+
+  Scenario: Guidance recorded under the previous entry type still renders
+    Given a retained transcript entry persisted under the earlier guidance entry type
+    When its registered entry renderer is expanded
+    Then it renders exactly like a current guidance row
+    And no stored entry data is rewritten
 
   Scenario: Narrow rows reveal the complete subject without a duplicate detail
     Given a policy reason, check detail or guidance identity longer than the terminal width

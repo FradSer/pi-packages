@@ -1,12 +1,13 @@
 # Continual-learning development
 
 `pi-continual-learning` is a native extension, not a skill. `index.ts` composes
-Memory learning, context guidance, and Harness. Pi loads TypeScript directly.
+Memory learning, Harness guidance, and Harness execution gates. Pi loads
+TypeScript directly.
 
 ## Read for the task
 
 - Configuration, rule authoring, or delivery: @packages/continual-learning/HARNESS-DESIGN.md
-  and the relevant `extensions/guardrail-*.ts`, `guardrails.ts`, or `context-guidance.ts`.
+  and the relevant `extensions/guardrail-*.ts`, `guardrails.ts`, or `harness-guidance.ts`.
 - Memory ownership, privacy, or synchronization: @packages/continual-learning/CONTEXT.md
   and @docs/adr/0003-auto-memory-index-injection.md.
 - Learning changes: the matching package-owned `prompts/*.md`, its typed builder

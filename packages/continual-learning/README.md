@@ -137,8 +137,8 @@ unscoped delivery. If compaction removed its original trigger, an outdated
 delivery is retired once instead of injecting unrelated instructions; a later
 matching task can reactivate it. Updates and retirements are new tail messages;
 previous history stays in place for traceability and stable request prefixes. Incomplete scans
-preserve previous delivery state. Guidance is context, not a guarantee that the
-model follows it.
+preserve previous delivery state. Guidance is prompt text, not a guarantee that
+the model follows it.
 
 Known limits: keywords first introduced by tools in the same run are picked up at
 the next agent start. Synchronous regex evaluation has volume limits, not
