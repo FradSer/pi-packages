@@ -4,8 +4,7 @@
  * Intelligence is not only in model weights; it accumulates across the
  * system's components. This package owns two of the three surfaces:
  *
- * - Harness: declarative tool-call, output, and artifact checks with bounded
- *   corrective feedback.
+ * - Harness: flat skill, Bash and retained-text rules with explicit Bash gates.
  * - Context: memory retrieval, skill guidance, and learning from settled user
  *   tasks through parent-validated plans.
  *

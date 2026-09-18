@@ -13,7 +13,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { ChildProcess } from "node:child_process";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { withFileMutationQueue, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
   minimalPiWorkerArgs,
   notifyPi,
@@ -33,25 +33,27 @@ import {
   MAX_JSONL_LINES,
   MAX_PLAN_BYTES,
   MAX_STDOUT_BYTES,
+  MAX_SNAPSHOT_BYTES,
   type ConsolidationRun,
 } from "./consolidation-run";
-import { DEFAULT_POLICIES, evaluate, evaluatePhase, mergeLayers, validatePolicyDeclaration, validateSkillPromptDeclaration } from "./guardrail-engine";
+import { DEFAULT_RULES, evaluateBash, evaluateSkill, evaluateText, mergeLayers, ruleRevision, validateRuleDeclaration } from "./guardrail-engine";
+import { assertHarnessTargetContained } from "./guardrails";
 import { assertHarnessConfigContainers, configPaths, loadLayers } from "./guardrail-config";
-import type { PolicyLayer, PolicyPhase } from "./guardrail-types";
-import type { ToolCallInput } from "./guardrail-engine";
+import type { RuleLayer } from "./guardrail-types";
+import { legacyReservedNames } from "./legacy-harness";
 import { buildHarnessConsolidatorPrompt } from "./planner-prompts";
 
 export const HARNESS_PLAN_KIND = "harness-consolidation-plan";
 export const MAX_HARNESS_OPS = 12;
 export const MAX_HARNESS_REPORTS = 12;
-export const MAX_POLICY_BYTES = 8_192;
-export const MAX_SKILL_PROMPT_CHARS = 2_000;
+export const MAX_RULE_BYTES = 8_192;
+export const MAX_GUIDANCE_CHARS = 2_000;
 export const MAX_EVIDENCE_QUOTE_CHARS = 2_000;
-export const MAX_POLICY_CASES = 12;
-export const MAX_POLICY_CASE_ARG_BYTES = 8_192;
-export const MAX_POLICY_CASE_TEXT_CHARS = 8_192;
+export const MAX_RULE_CASES = 12;
+export const MAX_RULE_CASE_BYTES = 8_192;
+export const MAX_RULE_CASE_TEXT_CHARS = 8_192;
 const HARNESS_PHASE_TIMEOUT_MS = 15 * 60 * 1000;
-const HARNESS_OP_KINDS = ["addPolicy", "updatePolicy", "disablePolicy", "addSkillPrompt", "removeSkillPrompt"] as const;
+const HARNESS_OP_KINDS = ["addRule", "updateRule"] as const;
 export type HarnessOpKind = (typeof HARNESS_OP_KINDS)[number];
 
 /** Terminal gate for the second pipeline phase, shared by callers and tests:
@@ -65,12 +67,8 @@ export function shouldRunHarnessPhase(state: PipelineGateState, noContext?: bool
 
 export interface HarnessOp {
   op: HarnessOpKind;
-  name?: string;
-  policy?: Record<string, unknown>;
-  prompt?: string;
-  target?: string;
-  userMessagePattern?: string;
-  /** Executable transfer tests required for learned policy add/update ops. */
+  rule: Record<string, unknown>;
+  /** Bounded selector fixtures evaluated without executing commands. */
   cases?: unknown;
 }
 
@@ -85,21 +83,14 @@ export interface HarnessEvidence {
   eventIndex?: number;
 }
 
-export interface HarnessPolicyCase {
-  /** Required in automatic plans so each transfer test names its evaluator. */
-  phase?: PolicyPhase;
-  toolName?: string;
-  args?: Record<string, unknown>;
-  /** Output/artifact cases are evaluated against this bounded text fixture. */
-  text?: string;
-  expected?: "match" | "no-match" | "block" | "confirm" | "observe";
-  action?: "block" | "confirm" | "observe";
+export interface HarnessRuleCase {
+  bash?: string;
+  skill?: string;
+  text?: string[];
+  expected?: "match" | "no-match" | "execute" | "confirm" | "block";
 }
 
-export interface HarnessPolicyCases {
-  positive: HarnessPolicyCase[];
-  negative: HarnessPolicyCase[];
-}
+export interface HarnessRuleCases { positive: HarnessRuleCase[]; negative: HarnessRuleCase[] }
 
 /** Inputs needed for the autonomous parent-side gates. `snapshot` may be the
  * parsed snapshot object or its `entries` array. `snapshotText` is retained so
@@ -109,13 +100,13 @@ export interface HarnessPlanValidationOptions {
   targetSource?: "project" | "project.local";
   snapshot?: unknown;
   snapshotText?: string;
-  layers?: readonly PolicyLayer[];
-  learnedPolicyNames?: ReadonlySet<string> | readonly string[];
+  layers?: readonly RuleLayer[];
+  learnedRules?: Readonly<Record<string, string>>;
   /** Evidence is supplied separately when validating ops before apply. */
   evidence?: unknown;
   /** Automatic consolidation owns only rules marked by this metadata. */
   automatic?: boolean;
-  /** Internal apply path: skip the already-checked top-level evidence array. */
+  /** Direct non-automatic callers may omit evidence explicitly. */
   requireEvidence?: boolean;
   requireCases?: boolean;
 }
@@ -139,8 +130,8 @@ export interface ConsolidationPhaseState {
   cancelled: boolean;
 }
 
-function policyNameValid(name: unknown): name is string {
-  return typeof name === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(name);
+function ruleIdValid(id: unknown): id is string {
+  return typeof id === "string" && !!id.trim() && id.length <= 128;
 }
 
 function boundedString(value: unknown, max: number): value is string {
@@ -347,345 +338,169 @@ function evidenceForOperation(
   }
 }
 
-function parsePolicyCase(
-  raw: unknown,
-  label: string,
-  errors: string[],
-  positive: boolean,
-  defaultPhase: PolicyPhase,
-  requirePhase: boolean,
-): HarnessPolicyCase | undefined {
-  if (!isRecord(raw)) {
-    errors.push(`${label} is not an object`);
+function parseRuleCases(raw: unknown, label: string, errors: string[], required: boolean): HarnessRuleCases | undefined {
+  if (raw === undefined && !required) return undefined;
+  if (!isRecord(raw) || !Array.isArray(raw.positive) || !Array.isArray(raw.negative)) {
+    errors.push(`${label} must include positive and negative rule cases`);
     return undefined;
   }
-  if (requirePhase && raw.phase === undefined) {
-    errors.push(`${label}.phase is required for an automatic policy case`);
-    return undefined;
-  }
-  const phase = raw.phase === undefined ? defaultPhase : raw.phase;
-  if (phase !== "tool-call" && phase !== "output" && phase !== "artifact") {
-    errors.push(`${label}.phase must be tool-call, output, or artifact`);
-    return undefined;
-  }
-  const toolName = raw.toolName;
-  if (toolName !== undefined && !boundedString(toolName, 128)) {
-    errors.push(`${label}.toolName must be 1..128 chars when supplied`);
-    return undefined;
-  }
-  const args = raw.args;
-  if (phase === "tool-call" && !isRecord(args)) {
-    errors.push(`${label}.args must be an object for a tool-call case`);
-    return undefined;
-  }
-  if (phase === "tool-call" && !boundedString(toolName, 128)) {
-    errors.push(`${label}.toolName must be 1..128 chars for a tool-call case`);
-    return undefined;
-  }
-  const text = raw.text;
-  if (phase !== "tool-call" && !boundedString(text, MAX_POLICY_CASE_TEXT_CHARS)) {
-    errors.push(`${label}.text must be 1..${MAX_POLICY_CASE_TEXT_CHARS} chars for an output or artifact case`);
-    return undefined;
-  }
-  if (phase !== "tool-call" && args !== undefined) {
-    errors.push(`${label}.args is only supported for tool-call cases`);
-    return undefined;
-  }
-  const expected = raw.expected === undefined ? (positive ? "match" : "no-match") : raw.expected;
-  const validExpected = ["match", "no-match", "block", "confirm", "observe"];
-  if (!validExpected.includes(expected as string)) {
-    errors.push(`${label}.expected must be match, no-match, block, confirm, or observe`);
-    return undefined;
-  }
-  if (positive && expected === "no-match") errors.push(`${label} positive case must expect a policy match`);
-  if (!positive && expected !== "no-match") errors.push(`${label} negative case must expect no policy match`);
-  const action = raw.action;
-  if (action !== undefined && action !== "block" && action !== "confirm" && action !== "observe") {
-    errors.push(`${label}.action must be block, confirm, or observe`);
-    return undefined;
-  }
-  let argsBytes = 0;
-  if (args !== undefined) {
-    try { argsBytes = Buffer.byteLength(JSON.stringify(args), "utf8"); } catch { argsBytes = MAX_POLICY_CASE_ARG_BYTES + 1; }
-    if (argsBytes > MAX_POLICY_CASE_ARG_BYTES) errors.push(`${label}.args exceeds ${MAX_POLICY_CASE_ARG_BYTES} bytes`);
-  }
-  return {
-    phase,
-    ...(toolName !== undefined ? { toolName } : {}),
-    ...(isRecord(args) ? { args } : {}),
-    ...(typeof text === "string" ? { text } : {}),
-    expected: expected as HarnessPolicyCase["expected"],
-    ...(action !== undefined ? { action: action as HarnessPolicyCase["action"] } : {}),
-  };
-}
-
-function parsePolicyCases(
-  raw: HarnessOp,
-  label: string,
-  errors: string[],
-  required: boolean,
-  defaultPhase: PolicyPhase,
-): HarnessPolicyCases | undefined {
-  const direct = raw.cases;
-  const container = direct;
-  if (container === undefined) {
-    if (required) errors.push(`${label} must include positive and negative policy cases`);
-    return undefined;
-  }
-  if (!isRecord(container)) {
-    errors.push(`${label}.cases must be an object`);
-    return undefined;
-  }
-  const positiveRaw = container.positive;
-  const negativeRaw = container.negative;
-  if (!Array.isArray(positiveRaw) || !Array.isArray(negativeRaw)) {
-    errors.push(`${label}.cases must include positive and negative arrays`);
-    return undefined;
-  }
-  if (positiveRaw.length > MAX_POLICY_CASES || negativeRaw.length > MAX_POLICY_CASES) {
-    errors.push(`${label}.cases exceed the maximum of ${MAX_POLICY_CASES} per side`);
-    return undefined;
-  }
-  if (required && positiveRaw.length === 0) errors.push(`${label}.cases.positive must contain at least one case`);
-  if (required && negativeRaw.length === 0) errors.push(`${label}.cases.negative must contain at least one case`);
-  const positive = positiveRaw.flatMap((entry, index) => {
-    const parsed = parsePolicyCase(entry, `${label}.cases.positive[${index}]`, errors, true, defaultPhase, required);
-    return parsed ? [parsed] : [];
-  });
-  const negative = negativeRaw.flatMap((entry, index) => {
-    const parsed = parsePolicyCase(entry, `${label}.cases.negative[${index}]`, errors, false, defaultPhase, required);
-    return parsed ? [parsed] : [];
-  });
-  return { positive, negative };
-}
-
-function validatePolicyCases(policy: Record<string, unknown>, cases: HarnessPolicyCases, label: string, errors: string[]): void {
-  const candidate = mergeLayers([{ source: "candidate policy", policies: [policy] }]);
-  const policyPhase: PolicyPhase = policy.phase === "output" || policy.phase === "artifact" ? policy.phase : "tool-call";
-  const evaluateCase = (testCase: HarnessPolicyCase) => {
-    if (testCase.phase !== policyPhase) {
-      errors.push(`${label}.cases phase ${testCase.phase} does not match proposed policy phase ${policyPhase}`);
-      return null;
-    }
-    if (testCase.phase === "tool-call") {
-      if (!testCase.toolName || !testCase.args) return null;
-      return evaluate(candidate, { toolName: testCase.toolName, args: testCase.args } satisfies ToolCallInput);
-    }
-    if (!testCase.text) return null;
-    return evaluatePhase(candidate, {
-      phase: testCase.phase,
-      text: testCase.text,
-      ...(testCase.toolName ? { toolName: testCase.toolName } : {}),
-      policyName: policy.name as string,
-    });
-  };
-  for (const [index, testCase] of cases.positive.entries()) {
-    const decision = evaluateCase(testCase);
-    if (!decision) {
-      errors.push(`${label}.cases.positive[${index}] did not match the proposed policy`);
+  const result: HarnessRuleCases = { positive: [], negative: [] };
+  if (Object.keys(raw).some(key => key !== "positive" && key !== "negative")) errors.push(`${label}.cases has unsupported fields`);
+  for (const side of ["positive", "negative"] as const) {
+    const entries = raw[side] as unknown[];
+    if (!entries.length || entries.length > MAX_RULE_CASES) {
+      errors.push(`${label}.cases.${side} must contain 1..${MAX_RULE_CASES} cases`);
       continue;
     }
-    const expectedAction = testCase.action ?? (testCase.expected === "block" || testCase.expected === "confirm" || testCase.expected === "observe" ? testCase.expected : undefined);
-    if (expectedAction && decision.action !== expectedAction) errors.push(`${label}.cases.positive[${index}] expected action ${expectedAction} but evaluator returned ${decision.action}`);
+    entries.forEach((entry, index) => {
+      const name = `${label}.cases.${side}[${index}]`;
+      if (!isRecord(entry)) { errors.push(`${name} must be an object`); return; }
+      if (Buffer.byteLength(JSON.stringify(entry), "utf8") > MAX_RULE_CASE_BYTES) { errors.push(`${name} exceeds ${MAX_RULE_CASE_BYTES} bytes`); return; }
+      const selectors = ["bash", "skill", "text"].filter(key => entry[key] !== undefined);
+      if (selectors.length !== 1 || Object.keys(entry).some(key => !["bash", "skill", "text", "expected"].includes(key))) {
+        errors.push(`${name} requires exactly one supported selector fixture`); return;
+      }
+      const selector = selectors[0];
+      if (selector === "text") {
+        if (!Array.isArray(entry.text) || !entry.text.length || entry.text.length > 64 || entry.text.some(text => !boundedString(text, MAX_RULE_CASE_TEXT_CHARS))) {
+          errors.push(`${name}.text must be a bounded non-empty array of text segments`); return;
+        }
+      } else if (!boundedString(entry[selector], MAX_RULE_CASE_TEXT_CHARS)) {
+        errors.push(`${name}.${selector} must be a bounded non-empty string`); return;
+      }
+      const expected = entry.expected ?? (side === "positive" ? "match" : "no-match");
+      if (!(side === "positive" ? ["match", "execute", "confirm", "block"] : ["no-match"]).includes(expected as string)) {
+        errors.push(`${name} ${side} case has invalid expected result`); return;
+      }
+      result[side].push({ ...entry, expected } as HarnessRuleCase);
+    });
   }
-  for (const [index, testCase] of cases.negative.entries()) {
-    const decision = evaluateCase(testCase);
-    if (decision) errors.push(`${label}.cases.negative[${index}] matched policy "${decision.policyName}" but must remain unmatched`);
-  }
+  return result;
 }
 
-function actionRank(action: unknown): number {
-  return action === "confirm" ? 2 : action === "observe" ? 1 : 3;
-}
-
-function policyWeakens(existing: Record<string, unknown>, proposed: Record<string, unknown>): boolean {
-  const existingPhase = existing.phase ?? "tool-call";
-  const proposedPhase = proposed.phase ?? "tool-call";
-  if (existingPhase !== proposedPhase) return true;
-  if (actionRank(proposed.action) < actionRank(existing.action)) return true;
-  // Matcher containment is not decidable from declarations alone. Keep every
-  // scope and expression byte-equivalent; only a stronger action or a reason
-  // update is an automatic revision that can be trusted without a new owner
-  // approval route.
-  for (const field of ["tools", "paths", "artifactPaths", "pattern", "patterns", "require"] as const) {
-    if (JSON.stringify(existing[field] ?? null) !== JSON.stringify(proposed[field] ?? null)) return true;
-  }
-  return false;
-}
-
-function layerPolicyOwnership(options: HarnessPlanValidationOptions): Map<string, { source: string; policy: Record<string, unknown> }> {
-  const ownership = new Map<string, { source: string; policy: Record<string, unknown> }>();
-  const layers: PolicyLayer[] = [builtInDefaultsLayer(), ...(options.layers ?? [])];
-  for (const layer of layers) {
-    for (const raw of layer.policies ?? []) {
-      if (!isRecord(raw) || typeof raw.name !== "string") continue;
-      ownership.set(raw.name, { source: layer.source, policy: raw });
+function validateRuleCases(rule: Record<string, unknown>, cases: HarnessRuleCases, label: string, errors: string[], skills?: ReadonlySet<string>): void {
+  const config = mergeLayers([{ source: "candidate", rules: [rule] }], skills);
+  const selector = ["bash", "skill", "text"].find(key => rule[key] !== undefined);
+  for (const side of ["positive", "negative"] as const) for (const [index, fixture] of cases[side].entries()) {
+    const name = `${label}.cases.${side}[${index}]`;
+    if (!selector || fixture[selector as keyof HarnessRuleCase] === undefined) { errors.push(`${name} selector does not match proposed rule`); continue; }
+    let matched = false;
+    let decision: string | undefined;
+    if (selector === "bash") {
+      const evaluation = evaluateBash(config, fixture.bash!);
+      matched = evaluation.matchedRules.some(match => match.id === rule.id);
+      decision = evaluation.decision;
+    } else if (selector === "skill") matched = evaluateSkill(config, fixture.skill!).some(match => match.id === rule.id);
+    else {
+      const evaluation = evaluateText(config, fixture.text!);
+      if (evaluation.incomplete) errors.push(`${name} evaluator incomplete`);
+      matched = evaluation.matches.some(match => match.id === rule.id);
     }
+    if (side === "positive" && !matched) errors.push(`${name} did not match proposed rule`);
+    if (side === "negative" && matched) errors.push(`${name} matched but must remain unmatched`);
+    if (side === "positive" && fixture.expected !== "match" && fixture.expected !== decision) errors.push(`${name} expected ${fixture.expected}, evaluator returned ${decision ?? "guidance"}`);
   }
-  return ownership;
 }
 
-function learnedNames(options: HarnessPlanValidationOptions): ReadonlySet<string> {
-  return asStringSet(options.learnedPolicyNames) ?? new Set();
+function ruleWeakens(existing: Record<string, unknown>, proposed: Record<string, unknown>): boolean {
+  if (existing.enabled === false || proposed.enabled === false) return true;
+  for (const field of ["skill", "bash", "text"] as const) if (existing[field] !== proposed[field]) return true;
+  const rank = (action: unknown) => action === "block" ? 2 : action === "confirm" ? 1 : 0;
+  return rank(proposed.action) < rank(existing.action);
 }
 
-function validateAutomaticOwnership(
-  ops: readonly unknown[],
-  options: HarnessPlanValidationOptions,
-  errors: string[],
-): void {
+function validateAutomaticOwnership(ops: readonly unknown[], options: HarnessPlanValidationOptions, errors: string[]): void {
   if (!options.automatic) return;
-  const ownership = layerPolicyOwnership(options);
-  const skillPromptOwnership = new Map<string, string>();
-  for (const layer of options.layers ?? []) {
-    for (const name of Object.keys(layer.skillPrompts ?? {})) skillPromptOwnership.set(name, layer.source);
+  if (options.targetSource === "project.local") errors.push("automatic learning targets only the project shared layer");
+  const ownership = new Map<string, Array<{ source: string; rule: Record<string, unknown> }>>();
+  for (const layer of [builtInDefaultsLayer(), ...(options.layers ?? [])]) {
+    for (const id of legacyReservedNames(layer)) {
+      const entries = ownership.get(id) ?? [];
+      entries.push({ source: `legacy ${layer.source}`, rule: { id } });
+      ownership.set(id, entries);
+    }
+    for (const raw of layer.rules ?? []) {
+      if (!isRecord(raw) || typeof raw.id !== "string") continue;
+      const entries = ownership.get(raw.id) ?? [];
+      if (!entries.some(entry => entry.source === layer.source && entry.rule === raw)) entries.push({ source: layer.source, rule: raw });
+      ownership.set(raw.id, entries);
+    }
   }
-  const learned = learnedNames(options);
-  const plannedAdds = new Set<string>();
-  const plannedSkillPromptAdds = new Set<string>();
-  ops.forEach((raw, index) => {
-    if (!isRecord(raw) || typeof raw.op !== "string") return;
-    const op = raw as unknown as HarnessOp;
+  for (const [index, raw] of ops.entries()) {
+    if (!isRecord(raw) || !isRecord(raw.rule) || typeof raw.rule.id !== "string") continue;
+    const id = raw.rule.id;
+    const entries = ownership.get(id) ?? [];
     const label = `operations[${index}]`;
-    if (op.op === "addSkillPrompt") {
-      const existingSource = skillPromptOwnership.get(op.name ?? "");
-      if (existingSource) {
-        errors.push(`${label}: skill prompt "${op.name}" already belongs to ${existingSource} and cannot be overwritten by automatic learning`);
+    if (raw.op === "addRule") {
+      if (entries.length) errors.push(`${label}: rule "${id}" already belongs to ${entries.map(entry => entry.source).join(", ")}; identity conflict, including disabled or invalid declarations`);
+    } else if (raw.op === "updateRule") {
+      if (entries.length !== 1 || entries[0]?.source !== (options.targetSource ?? "project")) {
+        errors.push(`${label}: rule "${id}" is missing or protected by another layer`); continue;
       }
-      if (plannedSkillPromptAdds.has(op.name ?? "")) {
-        errors.push(`${label}: skill prompt "${op.name}" is proposed more than once in one automatic plan`);
-      }
-      plannedSkillPromptAdds.add(op.name ?? "");
-      return;
+      const existing = entries[0].rule;
+      if (options.learnedRules?.[id] !== ruleRevision(existing)) errors.push(`${label}: rule "${id}" is manually authored or its learned revision no longer matches`);
+      if (ruleWeakens(existing, raw.rule)) errors.push(`${label}: automatic learning cannot weaken, change selectors, disable, or re-enable an existing rule; use explicit /harness authorization`);
     }
-    if (op.op === "addPolicy") {
-      const owner = ownership.get(op.name ?? "");
-      if (owner) errors.push(`${label}: policy "${op.name}" already belongs to ${owner.source} and cannot be overridden by automatic learning`);
-      plannedAdds.add(op.name ?? "");
-      return;
-    }
-    if (op.op === "updatePolicy") {
-      const owner = ownership.get(op.name ?? "");
-      if (!owner) return;
-      if (owner.source !== (options.targetSource ?? "project")) {
-        errors.push(`${label}: policy "${op.name}" is protected because it belongs to ${owner.source}`);
-        return;
-      }
-      if (!learned.has(op.name ?? "") && !plannedAdds.has(op.name ?? "")) {
-        errors.push(`${label}: policy "${op.name}" is an unmarked manually authored project-local rule`);
-        return;
-      }
-      const proposed = isRecord(op.policy) ? { ...op.policy, name: op.name } : {};
-      if (policyWeakens(owner.policy, proposed)) errors.push(`${label}: automatic learning cannot weaken an existing learned policy; use the explicit /harness command`);
-      return;
-    }
-    if (op.op === "disablePolicy") {
-      errors.push(`${label}: automatic learning cannot disable policy "${op.name}"; use the explicit /harness command`);
-      return;
-    }
-    if (op.op === "removeSkillPrompt") {
-      errors.push(`${label}: automatic learning cannot remove skill guidance; use the explicit /harness command`);
-    }
-  });
+  }
 }
 
-/** Validate shape and bounds in legacy callers. Autonomous callers pass a
- * snapshot-aware options object, which additionally verifies actor-bound
- * evidence, evaluator cases, and policy ownership before applying anything. */
+/** All automatic writes require grounded evidence, executed fixtures and exact
+ * revision ownership. Direct callers can skip evidence only explicitly. */
 export function validateHarnessPlan(plan: unknown, options: HarnessPlanValidationOptions = {}): string[] {
-  const p = plan as HarnessConsolidationPlan;
+  if (!isRecord(plan)) return ["plan is not an object"];
+  const p = plan as unknown as HarnessConsolidationPlan;
   const strict = options.snapshot !== undefined || options.snapshotText !== undefined || options.automatic === true;
   const validationOptions = { ...options, automatic: options.automatic ?? strict };
-  const requireEvidence = options.requireEvidence ?? true;
-  const requireCases = options.requireCases ?? strict;
   const errors: string[] = [];
-  if (!p || typeof p !== "object" || Array.isArray(p)) return ["plan is not an object"];
   if (p.kind !== HARNESS_PLAN_KIND) errors.push(`kind must be "${HARNESS_PLAN_KIND}"`);
   if (p.version !== undefined && p.version !== 1) errors.push("version must be 1");
   if (p.schemaVersion !== undefined && p.schemaVersion !== 1) errors.push("schemaVersion must be 1");
-  const ops = Array.isArray(p.operations) ? p.operations : p.operations === undefined ? [] : null;
-  if (ops === null) {
-    errors.push("operations must be an array");
-    return errors;
-  }
-  if (ops.length > MAX_HARNESS_OPS) {
-    errors.push(`operations exceed the maximum of ${MAX_HARNESS_OPS}`);
-    return errors;
-  }
-  const parsedCases = new Map<number, HarnessPolicyCases>();
-  ops.forEach((raw, i) => {
-    const op = raw as HarnessOp;
-    const label = `operations[${i}]`;
-    if (!op || typeof op !== "object") {
-      errors.push(`${label} is not an object`);
-      return;
+  const ops = p.operations === undefined ? [] : p.operations;
+  if (!Array.isArray(ops)) return [...errors, "operations must be an array"];
+  if (ops.length > MAX_HARNESS_OPS) return [...errors, `operations exceed the maximum of ${MAX_HARNESS_OPS}`];
+  const skills = availableSkills(options) ?? new Set<string>();
+  const identities = new Set<string>();
+  ops.forEach((raw, index) => {
+    const label = `operations[${index}]`;
+    if (!isRecord(raw)) { errors.push(`${label} is not an object`); return; }
+    if (!HARNESS_OP_KINDS.includes(raw.op as HarnessOpKind)) { errors.push(`${label}.op must be one of ${HARNESS_OP_KINDS.join(", ")}`); return; }
+    if (Object.keys(raw).some(key => !["op", "rule", "cases"].includes(key))) errors.push(`${label} has unsupported operation fields`);
+    if (!isRecord(raw.rule)) { errors.push(`${label}.rule must be an object`); return; }
+    const rule = raw.rule;
+    if (!ruleIdValid(rule.id)) errors.push(`${label}.rule.id must be a non-empty string up to 128 chars`);
+    else {
+      if (identities.has(rule.id)) errors.push(`${label}: rule "${rule.id}" is proposed more than once`);
+      identities.add(rule.id);
     }
-    if (!HARNESS_OP_KINDS.includes(op.op)) {
-      errors.push(`${label}.op must be one of ${HARNESS_OP_KINDS.join(", ")}`);
-      return;
+    if (Buffer.byteLength(JSON.stringify(rule), "utf8") > MAX_RULE_BYTES) { errors.push(`${label}.rule exceeds ${MAX_RULE_BYTES} bytes`); return; }
+    const declarationErrors = validateRuleDeclaration(rule, skills);
+    errors.push(...declarationErrors.map(error => `${label}.rule ${error}`));
+    if (rule.instructions !== undefined && !boundedString(rule.instructions, MAX_GUIDANCE_CHARS)) errors.push(`${label}.rule.instructions must be 1..${MAX_GUIDANCE_CHARS} chars`);
+    if (validationOptions.automatic && rule.enabled === false) errors.push(`${label}: automatic learning cannot disable rules`);
+    const fixtures = parseRuleCases(raw.cases, label, errors, strict || options.requireCases === true);
+    if (fixtures && !declarationErrors.length) validateRuleCases(rule, fixtures, label, errors, skills);
+    // A registry entry alone proves availability, not an evidence-backed scope.
+    if (strict && (rule.skill !== undefined || rule.text !== undefined) && !declarationErrors.length) {
+      const evidence = options.evidence ?? p.evidence;
+      const quotes = Array.isArray(evidence) ? evidence.filter(item => isRecord(item) && item.index === index && typeof item.quote === "string").map(item => (item as HarnessEvidence).quote) : [];
+      const config = mergeLayers([{ source: "candidate", rules: [rule] }], skills);
+      const groundedScope = typeof rule.skill === "string"
+        ? quotes.some(quote => quote.includes(rule.skill as string))
+        : evaluateText(config, quotes).matches.length > 0;
+      if (!groundedScope) errors.push(`${label}: guidance requires narrow quoted evidence identifying its actual skill or matching text scope`);
     }
-    if (op.op === "addSkillPrompt" || op.op === "removeSkillPrompt") {
-      if (!policyNameValid(op.name)) errors.push(`${label}.name is invalid`);
-      if (op.op === "addSkillPrompt") {
-        const knownSkills = availableSkills(validationOptions) ?? (strict ? new Set<string>() : undefined);
-        errors.push(...validateSkillPromptDeclaration(op.name, { prompt: op.prompt, target: op.target }, knownSkills).map((error) => `${label}: ${error}`));
-        if (!boundedString(op.prompt, MAX_SKILL_PROMPT_CHARS)) errors.push(`${label}.prompt must be 1..${MAX_SKILL_PROMPT_CHARS} chars`);
-        if (op.target !== "system" && op.target !== "user") errors.push(`${label}.target must be "system" or "user"`);
-        if (op.userMessagePattern !== undefined) {
-          if (!boundedString(op.userMessagePattern, 500)) errors.push(`${label}.userMessagePattern must be 1..500 chars`);
-          else {
-            try {
-              new RegExp(op.userMessagePattern);
-            } catch {
-              errors.push(`${label}.userMessagePattern must be a valid regular expression`);
-            }
-          }
-        }
-      }
-      return;
-    }
-    if (!boundedString(op.name, 64) || !policyNameValid(op.name)) {
-      errors.push(`${label}.name is invalid`);
-      return;
-    }
-    if (op.op === "disablePolicy") return;
-    if (!op.policy || typeof op.policy !== "object" || Array.isArray(op.policy)) {
-      errors.push(`${label}.policy must be an object`);
-      return;
-    }
-    const policy = { ...op.policy, name: op.name };
-    const policyBytes = Buffer.byteLength(JSON.stringify(policy), "utf8");
-    if (policyBytes > MAX_POLICY_BYTES) {
-      errors.push(`${label}.policy exceeds ${MAX_POLICY_BYTES} bytes`);
-      return;
-    }
-    for (const policyError of validatePolicyDeclaration(policy)) errors.push(`${label}.policy ${policyError}`);
-    const declaredPhase = (policy as { phase?: unknown }).phase;
-    const defaultPhase: PolicyPhase = declaredPhase === "output" || declaredPhase === "artifact" ? declaredPhase : "tool-call";
-    const cases = parsePolicyCases(op, label, errors, requireCases, defaultPhase);
-    if (cases) parsedCases.set(i, cases);
   });
-
-  evidenceForOperation(p, validationOptions, ops.length, strict, requireEvidence, errors);
-  if (requireCases) {
-    for (const [index, cases] of parsedCases) {
-      const op = ops[index] as HarnessOp;
-      if (op.policy && typeof op.policy === "object" && !Array.isArray(op.policy)) {
-        validatePolicyCases({ ...op.policy, name: op.name }, cases, `operations[${index}]`, errors);
-      }
-    }
+  evidenceForOperation(p, validationOptions, ops.length, strict, strict || options.requireEvidence !== false, errors);
+  if (validationOptions.automatic && ops.length) {
+    const merged = mergeLayers([builtInDefaultsLayer(), ...(options.layers ?? [])], skills);
+    errors.push(...merged.errors.map(error => `existing harness configuration: ${error}`));
   }
   validateAutomaticOwnership(ops, validationOptions, errors);
   if (p.report !== undefined) {
     if (!Array.isArray(p.report)) errors.push("report must be an array");
     else {
       if (p.report.length > MAX_HARNESS_REPORTS) errors.push(`report exceeds the maximum of ${MAX_HARNESS_REPORTS} entries`);
-      p.report.forEach((raw, i) => {
-        const r = raw as { summary?: unknown };
-        if (!r || typeof r !== "object" || typeof r.summary !== "string" || r.summary.length === 0 || r.summary.length > 400) {
-          errors.push(`report[${i}] must carry a 1..400 char summary`);
-        }
-      });
+      p.report.forEach((raw, index) => { if (!isRecord(raw) || !boundedString(raw.summary, 400)) errors.push(`report[${index}] must carry a 1..400 char summary`); });
     }
   }
   return errors;
@@ -721,171 +536,141 @@ export function buildHarnessReceipt(input: {
   return base;
 }
 
-async function readLayerFileBytes(filePath: string): Promise<Buffer | null> {
+async function readLayerFileBytes(filePath: string, maxBytes = 1_000_000): Promise<Buffer | null> {
   try {
-    const st = await fs.stat(filePath);
-    if (!st.isFile()) return null;
+    const stat = await fs.lstat(filePath);
+    if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`Harness input is not a regular file: ${filePath}`);
+    if (stat.size > maxBytes) throw new Error(`Harness input exceeds ${maxBytes} bytes: ${filePath}`);
     return await fs.readFile(filePath);
-  } catch {
-    return null;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
   }
 }
 
-/** Read provenance written by autonomous consolidation. A project-local rule
- * without this marker is treated as manually authored and is immutable to the
- * learner. The metadata is intentionally top-level and ignored by the runtime
- * policy loader. */
-export function learnedPolicyNamesFromConfig(config: unknown): Set<string> {
-  if (!isRecord(config)) return new Set();
-  const raw = config.learnedPolicies;
-  if (Array.isArray(raw)) return new Set(raw.filter((name): name is string => typeof name === "string" && policyNameValid(name)));
-  if (!isRecord(raw)) return new Set();
-  return new Set(Object.entries(raw).filter(([name, marker]) => {
-    if (!policyNameValid(name)) return false;
-    if (marker === true) return true;
-    return isRecord(marker) && (marker.origin === "consolidation" || marker.source === "consolidation");
-  }).map(([name]) => name));
+/** Marker-only names are not ownership: the exact current declaration must
+ * still match the parent-written revision before automatic updating is safe. */
+export function learnedRuleRevisionsFromConfig(config: unknown): Record<string, string> {
+  if (!isRecord(config) || !isRecord(config.learnedRules) || !Array.isArray(config.rules)) return {};
+  const revisions: Record<string, string> = Object.create(null);
+  for (const rule of config.rules) {
+    if (!isRecord(rule) || !ruleIdValid(rule.id)) continue;
+    const marker = config.learnedRules[rule.id];
+    if (isRecord(marker) && marker.origin === "consolidation" && marker.revision === ruleRevision(rule)) revisions[rule.id] = marker.revision as string;
+  }
+  return revisions;
 }
 
 type HarnessApplyArgument = ReadonlySet<string> | HarnessPlanValidationOptions | undefined;
-
 function applyValidationOptions(argument: HarnessApplyArgument): HarnessPlanValidationOptions {
   if (argument instanceof Set) return { availableSkills: argument, requireEvidence: false, requireCases: false };
-  // Applying without a parent-supplied registry must fail closed for skill
-  // guidance; callers that know the registry pass it explicitly (the AGENTS
-  // and automatic phase paths do so).
   if (!argument) return { availableSkills: new Set<string>(), requireEvidence: false, requireCases: false };
-  const options = argument as HarnessPlanValidationOptions;
-  return {
-    ...options,
-    availableSkills: options.availableSkills ?? new Set<string>(),
-    requireEvidence: options.requireEvidence ?? false,
-  };
+  return { ...argument, availableSkills: (argument as HarnessPlanValidationOptions).availableSkills ?? new Set<string>(), requireEvidence: (argument as HarnessPlanValidationOptions).requireEvidence ?? false };
 }
 
-/** Apply harness ops by merging the project-local layer in ONE atomic write.
- * Semantic conflicts (e.g. addPolicy for an existing name) reject the whole
- * plan before anything is written, so no partial application is possible. */
-export async function applyHarnessOps(
-  projectLocalPath: string,
-  ops: readonly HarnessOp[],
-  argument?: HarnessApplyArgument,
-): Promise<{ ok: true; applied: string[] } | { ok: false; error: string }> {
+function builtInDefaultsLayer(): RuleLayer {
+  return { source: "built-in defaults", rules: DEFAULT_RULES as unknown as Array<Record<string, unknown>> };
+}
+
+async function prepareHarnessOps(target: string, ops: readonly HarnessOp[], requested: HarnessPlanValidationOptions): Promise<{ before: Buffer | null; next: string; applied: string[] }> {
+  const workspace = path.basename(path.dirname(target)) === ".pi" ? path.dirname(path.dirname(target)) : undefined;
+  await assertHarnessTargetContained(target, workspace);
+  const before = await readLayerFileBytes(target);
+  let base: Record<string, unknown> = { rules: [] };
+  if (before) {
+    try { const parsed: unknown = JSON.parse(before.toString("utf8")); assertHarnessConfigContainers(parsed); base = parsed; }
+    catch (error) { throw new Error(`existing ${target} ${error instanceof SyntaxError ? "is not valid JSON" : "is invalid"}: ${(error as Error).message}`); }
+  }
+  const skills = availableSkills(requested) ?? new Set<string>();
+  const rootErrors = mergeLayers([{ ...base, source: "target" } as RuleLayer], skills).errors;
+  if (rootErrors.length) throw new Error(`existing ${target} is invalid: ${rootErrors.join("; ")}`);
+  const source = path.basename(target) === "harness.local.json" ? "project.local" : "project";
+  const local: RuleLayer = { ...base, source, rules: (base.rules ?? []) as Array<Record<string, unknown>> };
+  const observedLayers = requested.automatic && workspace ? loadLayers(workspace) : requested.layers ?? [];
+  const layers = observedLayers.filter(layer => layer.source !== source && layer.source !== "built-in defaults");
+  layers.push(local);
+  const order = ["user", "project", "project.local"];
+  layers.sort((a, b) => order.indexOf(a.source) - order.indexOf(b.source));
+  const options = { ...requested, targetSource: source as "project" | "project.local", layers, learnedRules: learnedRuleRevisionsFromConfig(base) };
+  const validation = validateHarnessPlan({ kind: HARNESS_PLAN_KIND, operations: ops, evidence: options.evidence }, options);
+  if (validation.length) throw new Error(validation.join("; "));
+  const rules = [...local.rules!];
+  const learnedRules: Record<string, unknown> = { ...(isRecord(base.learnedRules) ? base.learnedRules : {}) };
   const applied: string[] = [];
-  let base: Record<string, unknown> = {};
-  const prior = await readLayerFileBytes(projectLocalPath);
-  if (prior) {
-    try {
-      const parsed: unknown = JSON.parse(prior.toString("utf8"));
-      assertHarnessConfigContainers(parsed);
-      base = parsed;
-    } catch (error) {
-      return { ok: false, error: `existing ${projectLocalPath} ${error instanceof SyntaxError ? "is not valid JSON" : "is invalid"}: ${(error as Error).message}` };
-    }
+  for (const op of ops) {
+    const id = op.rule.id as string;
+    const index = rules.findIndex(rule => rule.id === id);
+    if (op.op === "addRule" && index >= 0) throw new Error(`rule "${id}" already exists in the project layer`);
+    if (op.op === "updateRule" && index < 0) throw new Error(`rule "${id}" does not exist in the project layer`);
+    if (index < 0) rules.push({ ...op.rule }); else rules[index] = { ...op.rule };
+    if (options.automatic) learnedRules[id] = { origin: "consolidation", revision: ruleRevision(op.rule) };
+    applied.push(`${op.op}:${id}`);
   }
-  const requestedOptions = applyValidationOptions(argument);
-  const targetSource = path.basename(projectLocalPath) === "harness.local.json" ? "project.local" : "project";
-  const localLayer: PolicyLayer = { source: targetSource, policies: Array.isArray(base.policies) ? base.policies as Array<Record<string, unknown>> : [], skillPrompts: isRecord(base.skillPrompts) ? base.skillPrompts : undefined };
-  const effectiveOptions: HarnessPlanValidationOptions = {
-    ...requestedOptions,
-    targetSource,
-    layers: (requestedOptions.layers ?? []).some((layer) => layer.source === targetSource)
-      ? (requestedOptions.layers ?? []).map((layer) => layer.source === targetSource ? localLayer : layer)
-      : [...(requestedOptions.layers ?? []), localLayer],
-    learnedPolicyNames: new Set([
-      ...learnedPolicyNamesFromConfig(base),
-      ...(asStringSet(requestedOptions.learnedPolicyNames) ?? []),
-    ]),
-  };
-  const validationErrors = validateHarnessPlan(
-    { kind: HARNESS_PLAN_KIND, operations: ops, ...(requestedOptions.evidence !== undefined ? { evidence: requestedOptions.evidence } : {}) },
-    effectiveOptions,
-  );
-  if (validationErrors.length) return { ok: false, error: validationErrors.join("; ") };
-  const policies = Array.isArray(base.policies) ? [...(base.policies as Array<Record<string, unknown>>)] : [];
-  const disabled = Array.isArray(base.disabled) ? [...(base.disabled as string[])] : [];
-  const skillPrompts = base.skillPrompts && typeof base.skillPrompts === "object" && !Array.isArray(base.skillPrompts)
-    ? { ...(base.skillPrompts as Record<string, unknown>) }
-    : {};
-  const learnedPolicies = learnedPolicyNamesFromConfig(base);
-  const learnedMetadata = isRecord(base.learnedPolicies) && !Array.isArray(base.learnedPolicies)
-    ? { ...(base.learnedPolicies as Record<string, unknown>) }
-    : {};
-  if (effectiveOptions.automatic) {
-    for (const name of learnedPolicies) {
-      if (learnedMetadata[name] === undefined) learnedMetadata[name] = { origin: "consolidation" };
-    }
-  }
-  for (const [i, op] of ops.entries()) {
-    const label = `operations[${i}]`;
-    if (op.op === "addPolicy") {
-      const policy = { ...(op.policy as Record<string, unknown>), name: op.name };
-      const name = policy.name as string;
-      if (policies.some((x) => x.name === name)) return { ok: false, error: `${label}: policy "${name}" already exists in the project-local layer` };
-      policies.push(policy);
-      if (effectiveOptions.automatic) {
-        learnedPolicies.add(name);
-        learnedMetadata[name] = { origin: "consolidation", learnedAt: new Date().toISOString() };
-      }
-      applied.push(`addPolicy:${name}`);
-    } else if (op.op === "updatePolicy") {
-      const idx = policies.findIndex((x) => x.name === op.name);
-      const policy = { ...(op.policy as Record<string, unknown>), name: op.name };
-      if (idx >= 0) policies[idx] = policy;
-      else policies.push(policy);
-      if (effectiveOptions.automatic && idx < 0) {
-        learnedPolicies.add(op.name as string);
-        learnedMetadata[op.name as string] = { origin: "consolidation", learnedAt: new Date().toISOString() };
-      }
-      applied.push(`updatePolicy:${op.name}${idx >= 0 ? "" : " (added)"}`);
-    } else if (op.op === "disablePolicy") {
-      if (!disabled.includes(op.name as string)) disabled.push(op.name as string);
-      applied.push(`disablePolicy:${op.name}`);
-    } else if (op.op === "addSkillPrompt") {
-      skillPrompts[op.name as string] = {
-        prompt: op.prompt,
-        target: op.target,
-        ...(op.userMessagePattern !== undefined ? { userMessagePattern: op.userMessagePattern } : {}),
-      };
-      applied.push(`addSkillPrompt:${op.name}`);
-    } else if (op.op === "removeSkillPrompt") {
-      delete skillPrompts[op.name as string];
-      applied.push(`removeSkillPrompt:${op.name}`);
-    }
-  }
-  const next = {
-    ...base,
-    policies,
-    disabled,
-    skillPrompts,
-    ...(effectiveOptions.automatic ? { learnedPolicies: learnedMetadata } : {}),
-  };
-  await writeFileAtomic(projectLocalPath, `${JSON.stringify(next, null, 2)}\n`, 0o600);
-  return { ok: true, applied };
+  const effective = mergeLayers([builtInDefaultsLayer(), ...layers.map(layer => layer.source === source ? { ...layer, rules } : layer)], skills);
+  if (effective.errors.length) throw new Error(`invalid effective harness configuration: ${effective.errors.join("; ")}`);
+  const next = JSON.stringify({ ...base, rules, ...(options.automatic ? { learnedRules } : {}) }, null, 2) + "\n";
+  if (Buffer.byteLength(next, "utf8") > 1_000_000) throw new Error("candidate harness configuration exceeds 1000000 bytes");
+  return { before, next, applied };
 }
 
-function builtInDefaultsLayer(): { source: string; policies: Array<Record<string, unknown>> } {
-  return { source: "built-in defaults", policies: DEFAULT_POLICIES as unknown as Array<Record<string, unknown>> };
+/** Called under the target mutation queue. Only byte-identifiable candidate
+ * content belongs to this transaction; a newer external edit is never restored
+ * over. Unreadable content is not proof of ownership and must fail explicitly. */
+async function rollbackPreparedHarness(target: string, prepared: { before: Buffer | null; next: string }): Promise<void> {
+  await assertHarnessTargetContained(target);
+  const now = await readLayerFileBytes(target);
+  if (now?.equals(Buffer.from(prepared.next))) {
+    if (prepared.before) await writeFileAtomic(target, prepared.before, 0o600);
+    else await fs.rm(target, { force: true });
+  }
 }
 
-/** Current resolved harness surface handed to the planner as context. */
+async function writePreparedHarness(target: string, prepared: { before: Buffer | null; next: string }): Promise<void> {
+  await assertHarnessTargetContained(target);
+  const current = await readLayerFileBytes(target);
+  if (current?.toString("base64") !== prepared.before?.toString("base64")) throw new Error("Harness target changed before atomic application");
+  // The boundary begins before replacement, not after readback: an atomic write
+  // can succeed and still throw while verifying or finalizing its result.
+  try {
+    await writeFileAtomic(target, prepared.next, 0o600);
+    const verified = await readLayerFileBytes(target);
+    if (!verified?.equals(Buffer.from(prepared.next))) throw new Error("Harness readback does not match the complete candidate");
+  } catch (error) {
+    try { await rollbackPreparedHarness(target, prepared); }
+    catch (rollbackError) {
+      throw new Error(`${(error as Error).message}; rollback could not verify or restore the target: ${(rollbackError as Error).message}`, { cause: error });
+    }
+    throw error;
+  }
+}
+
+export async function applyHarnessOps(target: string, ops: readonly HarnessOp[], argument?: HarnessApplyArgument): Promise<{ ok: true; applied: string[] } | { ok: false; error: string }> {
+  try {
+    return await withFileMutationQueue(path.resolve(target), async () => {
+      const prepared = await prepareHarnessOps(target, ops, applyValidationOptions(argument));
+      if (ops.length) await writePreparedHarness(target, prepared);
+      return { ok: true as const, applied: prepared.applied };
+    });
+  } catch (error) { return { ok: false, error: (error as Error).message }; }
+}
+
 export async function harnessSurfaceSummary(cwd: string, agentDir?: string, availableSkills: ReadonlySet<string> = new Set()): Promise<string> {
   const paths = configPaths(cwd, agentDir);
   const config = mergeLayers([builtInDefaultsLayer(), ...loadLayers(cwd, agentDir)], availableSkills);
-  let localConfig: unknown;
-  const localBytes = await readLayerFileBytes(paths.project);
-  if (localBytes) {
-    try { localConfig = JSON.parse(localBytes.toString("utf8")) as unknown; } catch { localConfig = undefined; }
-  }
-  const summary = {
-    layers: Object.entries(paths).map(([k, v]) => ({ layer: k, file: v })),
-    activePolicies: config.policies.map((p) => ({ name: p.name, action: (p as { action?: string }).action })),
-    learnedPolicies: [...learnedPolicyNamesFromConfig(localConfig)].sort(),
-    skillPrompts: Object.keys(config.skillPrompts),
+  let local: unknown;
+  const bytes = await readLayerFileBytes(paths.project);
+  if (bytes) try { local = JSON.parse(bytes.toString("utf8")); } catch { /* diagnostics come from shared loader */ }
+  return JSON.stringify({
+    layers: Object.entries(paths).map(([layer, file]) => ({ layer, file })),
+    rules: config.rules.map(({ source, ...rule }) => ({ ...rule, regexp: undefined, source })),
+    invalidRules: config.invalidRules,
+    learnedRules: learnedRuleRevisionsFromConfig(local),
+    availableSkills: [...availableSkills].sort(),
     errors: config.errors,
-    note: "the planner targets ONLY the project harness.json layer file",
-  };
-  return JSON.stringify(summary, null, 1);
+    notices: config.notices,
+    reservedLegacyNames: [...new Set(loadLayers(cwd, agentDir).flatMap(legacyReservedNames))],
+    note: "the planner targets ONLY project harness.json flat rules; existing legacy containers and provenance stay unchanged",
+  }, null, 1);
 }
 
 export interface HarnessConsolidationPhaseOptions {
@@ -962,12 +747,8 @@ export async function planHarnessConsolidationPhase(
     const taskText = [
       `Task: produce a read-only structured harness consolidation plan for the project at ${opts.cwd}.`,
       `- Reason: ${opts.reason}`,
-      `- Run ID: ${run.manifest.runId}`,
-      `- Scope digest: ${run.manifest.scopeDigest}`,
-      `- Artifact/snapshot digest: ${run.manifest.snapshotDigest}`,
-      `- Immutable task-slice snapshot: ${run.manifest.snapshotPath}`,
       ...(opts.explorationPath ? [
-        `- Authoritative Learning Dossier: ${opts.explorationPath}`,
+        "- Authoritative Learning Dossier and immutable task-slice snapshot paths are bound in the protocol below.",
         `- Dossier digest: ${opts.explorationDigest}`,
         "- Use the dossier and task-slice snapshot; do not perform independent repository-wide exploration.",
       ] : []),
@@ -1054,7 +835,7 @@ export async function planHarnessConsolidationPhase(
       maxPlanBytes: MAX_PLAN_BYTES,
     });
     if (!extracted.ok) return fail(extracted.error);
-    const snapshotBytes = await readLayerFileBytes(run.manifest.snapshotPath);
+    const snapshotBytes = await readLayerFileBytes(run.manifest.snapshotPath, MAX_SNAPSHOT_BYTES);
     if (!snapshotBytes) return fail("immutable harness evidence snapshot is missing");
     if (sha256Digest(snapshotBytes) !== run.manifest.snapshotDigest) return fail("immutable harness evidence snapshot changed after capture");
     let snapshot: unknown;
@@ -1075,7 +856,7 @@ export async function planHarnessConsolidationPhase(
       snapshot,
       snapshotText: snapshotBytes.toString("utf8"),
       layers: [builtInDefaultsLayer(), ...loadLayers(opts.cwd)],
-      learnedPolicyNames: learnedPolicyNamesFromConfig(localConfig),
+      learnedRules: learnedRuleRevisionsFromConfig(localConfig),
       automatic: true,
     };
     const errors = validateHarnessPlan(extracted.plan, validationOptions);
@@ -1104,61 +885,40 @@ export async function applyHarnessConsolidationPlan(
   const { run, plan, validationOptions, target } = planning;
   const ops = Array.isArray(plan.operations) ? plan.operations as HarnessOp[] : [];
   const runDir = run.manifest.runDir;
+  if (!current()) return { outcome: "cancelled", operations: ops.length };
+  const errors = validateHarnessPlan(plan, validationOptions);
+  if (errors.length) return { outcome: "rejected", operations: ops.length, error: errors.join("; ") };
   if (ops.length === 0) {
     await writeFileAtomic(path.join(runDir, "harness-noop.txt"), "verified no-op\n").catch(() => {});
     return { outcome: "noop", operations: 0 };
   }
-  const errors = validateHarnessPlan(plan, validationOptions);
-  if (errors.length) return { outcome: "rejected", operations: ops.length, error: errors.join("; ") };
-  const planDigest = sha256Digest(JSON.stringify(plan));
-  const beforeBytes = await readLayerFileBytes(target);
-  if (beforeBytes) {
-    try {
-      assertHarnessConfigContainers(JSON.parse(beforeBytes.toString("utf8")));
-    } catch (error) {
-      return { outcome: "rejected", operations: ops.length, error: `existing ${target} is invalid: ${(error as Error).message}` };
-    }
-  }
-  const digestBefore = beforeBytes ? sha256Digest(beforeBytes) : null;
-  const preReceipt = buildHarnessReceipt({
-    phase: "pre",
-    runId: run.manifest.runId,
-    scopeDigest: run.manifest.scopeDigest,
-    snapshotDigest: run.manifest.snapshotDigest,
-    targetFile: target,
-    digestBefore,
-    planDigest,
-  });
-  await writeFileAtomic(path.join(runDir, "harness-pre-receipt.json"), `${JSON.stringify(preReceipt, null, 2)}\n`);
-  const applied = await applyHarnessOps(target, ops, {
-    ...validationOptions,
-    evidence: plan.evidence,
-    requireEvidence: false,
-    automatic: true,
-  });
-  if (!applied.ok) return { outcome: "rejected", operations: ops.length, error: applied.error };
-  const postBytes = await readLayerFileBytes(target);
-  if (!current()) {
-    const nowBytes = await readLayerFileBytes(target);
-    if (postBytes && nowBytes && postBytes.equals(nowBytes)) {
-      if (!beforeBytes) await fs.rm(target, { force: true }).catch(() => {});
-      else await writeFileAtomic(target, beforeBytes, 0o600).catch(() => {});
-    }
-    return { outcome: "cancelled", operations: ops.length };
-  }
-  const receipt = buildHarnessReceipt({
-    phase: "post",
-    runId: run.manifest.runId,
-    scopeDigest: run.manifest.scopeDigest,
-    snapshotDigest: run.manifest.snapshotDigest,
-    targetFile: target,
-    digestBefore,
-    digestAfter: postBytes ? sha256Digest(postBytes) : null,
-    applied: applied.applied,
-    planDigest,
-  });
-  await writeFileAtomic(path.join(runDir, "harness-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
-  return { outcome: "applied", operations: ops.length, applied: applied.applied };
+  try {
+    return await withFileMutationQueue(path.resolve(target), async () => {
+      // Reload all three layers immediately before validation. Planning snapshots
+      // cannot authorize overwriting a newer manual or personal declaration.
+      const prepared = await prepareHarnessOps(target, ops, {
+        ...validationOptions,
+        layers: loadLayers(run.manifest.cwd ?? path.dirname(path.dirname(target))),
+        evidence: plan.evidence, automatic: true, requireEvidence: true,
+      });
+      if (!current()) return { outcome: "cancelled" as const, operations: ops.length };
+      const planDigest = sha256Digest(JSON.stringify(plan));
+      const receiptInput = {
+        runId: run.manifest.runId, scopeDigest: run.manifest.scopeDigest,
+        snapshotDigest: run.manifest.snapshotDigest, targetFile: target,
+        digestBefore: prepared.before ? sha256Digest(prepared.before) : null, planDigest,
+      };
+      await writeFileAtomic(path.join(runDir, "harness-pre-receipt.json"), `${JSON.stringify(buildHarnessReceipt({ ...receiptInput, phase: "pre" }), null, 2)}\n`);
+      await writePreparedHarness(target, prepared);
+      const rollback = () => rollbackPreparedHarness(target, prepared);
+      if (!current()) { await rollback(); return { outcome: "cancelled" as const, operations: ops.length }; }
+      const receipt = buildHarnessReceipt({ ...receiptInput, phase: "post", digestAfter: sha256Digest(prepared.next), applied: prepared.applied });
+      try { await writeFileAtomic(path.join(runDir, "harness-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`); }
+      catch (error) { await rollback(); throw error; }
+      return { outcome: "applied" as const, operations: ops.length, applied: prepared.applied };
+    });
+  } catch (error) { return { outcome: "rejected", operations: ops.length, error: (error as Error).message }; }
+
 }
 
 /** Preserve the original sequential phase behavior while exposing planning and

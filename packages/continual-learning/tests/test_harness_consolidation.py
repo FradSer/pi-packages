@@ -4,158 +4,50 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 PKG_DIR = Path(__file__).resolve().parents[1]
 REPO = PKG_DIR.parents[1]
 PKG_REL = "packages/continual-learning"
 
 
-def run_bun(source: str) -> dict[str, object]:
-    result = subprocess.run(
-        ["bun", "-e", source],
-        cwd=REPO,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+def run_bun(source: str):
+    result = subprocess.run(["bun", "-e", source], cwd=REPO, capture_output=True, text=True, check=False, timeout=120)
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
 def validate(plan: dict) -> list[str]:
-    src = f"""
-        import {{ validateHarnessPlan }} from './packages/continual-learning/extensions/harness-consolidation.ts';
-        console.log(JSON.stringify(validateHarnessPlan({json.dumps(plan)})));
-    """
-    return run_bun(src)  # type: ignore[return-value]
+    return run_bun(f"import {{validateHarnessPlan}} from './{PKG_REL}/extensions/harness-consolidation.ts';console.log(JSON.stringify(validateHarnessPlan({json.dumps(plan)})));")
 
 
 def validate_against_snapshot(plan: dict, snapshot: dict, **context: object) -> list[str]:
-    validation_context = {"snapshot": snapshot, **context}
-    src = f"""
-        import {{ validateHarnessPlan }} from './packages/continual-learning/extensions/harness-consolidation.ts';
-        console.log(JSON.stringify(validateHarnessPlan({json.dumps(plan)}, {json.dumps(validation_context)})));
-    """
-    return run_bun(src)  # type: ignore[return-value]
-
-
-def apply_ops(tmp_path: Path, ops: list[dict]) -> tuple[dict, Path]:
-    target = tmp_path / "harness.json"
-    src = f"""
-        import {{ applyHarnessOps }} from './packages/continual-learning/extensions/harness-consolidation.ts';
-        const result = await applyHarnessOps({json.dumps(str(target))}, {json.dumps(ops)}, new Set(['sk', 'impeccable']));
-        let after = null;
-        try {{ after = JSON.parse(await Bun.file({json.dumps(str(target))}).text()); }} catch {{}}
-        console.log(JSON.stringify({{ ...result, after }}));
-    """
-    out = run_bun(src)
-    return out, target
-
-
-def policy(name: str = "evidence-rule") -> dict:
-    return {
-        "name": name,
-        "tools": ["edit", "write"],
-        "paths": ["content", "newText"],
-        "patterns": ["width:\\s*\\d{3,}px"],
-        "action": "block",
-        "reason": "use design tokens",
-    }
-
-
-# ── plan validation ───────────────────────────────────────────────────
+    return run_bun(f"import {{validateHarnessPlan}} from './{PKG_REL}/extensions/harness-consolidation.ts';console.log(JSON.stringify(validateHarnessPlan({json.dumps(plan)},{json.dumps({'snapshot':snapshot,**context})})));")
 
 
 def valid_plan() -> dict:
-    return {
-        "kind": "harness-consolidation-plan",
-        "version": 1,
-        "schemaVersion": 1,
-        "operations": [
-            {"op": "updatePolicy", "name": "evidence-rule", "policy": policy()},
-            {"op": "disablePolicy", "name": "stale-rule"},
-            {
-                "op": "addSkillPrompt",
-                "name": "using-open-artifacts",
-                "prompt": "Use coda0.com",
-                "target": "system",
-                "userMessagePattern": "^publish",
-            },
-        ],
-        "evidence": [
-            {"index": 0, "observation": "blocked 3 writes hard-coding px widths", "count": 3},
-            {"index": 1, "observation": "stale rule contradicts current guidance twice", "count": 2},
-            {"index": 2, "observation": "skill invocation went off-target once", "count": 1},
-        ],
-    }
+    return {"kind":"harness-consolidation-plan","version":1,"schemaVersion":1,
+        "operations":[{"op":"addRule","rule":rule(f"rule-{i}"),"cases":cases()} for i in range(3)],
+        "evidence":[{"index":i,"observation":"observed fixture constraint","count":1} for i in range(3)]}
 
 
 def test_valid_plan_with_operations_passes() -> None:
-    errs = validate(valid_plan())
-    assert errs == []
-
-
-def test_unknown_skill_prompt_is_rejected_when_registry_is_supplied() -> None:
-    src = """
-        import { validateHarnessPlan } from './packages/continual-learning/extensions/harness-consolidation.ts';
-        const plan = { kind: 'harness-consolidation-plan', operations: [{ op: 'addSkillPrompt', name: 'invented-skill', prompt: 'x', target: 'system' }], evidence: [{ index: 0, observation: 'x', count: 1 }] };
-        console.log(JSON.stringify(validateHarnessPlan(plan, { availableSkills: new Set(['known-skill']) })));
-    """
-    result = subprocess.run(['bun', '-e', src], cwd=REPO, capture_output=True, text=True, check=False)
-    assert result.returncode == 0, result.stderr
-    errors = json.loads(result.stdout.strip())
-    assert any('available registered skill' in error for error in errors)
+    assert validate(valid_plan()) == []
 
 
 def test_empty_and_missing_operations_are_verified_noops() -> None:
-    assert validate({"kind": "harness-consolidation-plan"}) == []
-    assert validate({"kind": "harness-consolidation-plan", "operations": []}) == []
+    assert validate({"kind":"harness-consolidation-plan"}) == []
+    assert validate({"kind":"harness-consolidation-plan","operations":[]}) == []
 
 
-def test_wrong_kind_is_rejected() -> None:
-    errs = validate({"kind": "memory-consolidation-plan", "operations": []})
-    assert any("kind" in e for e in errs)
-
-
-def test_operation_overflow_is_rejected() -> None:
-    ops = [{"op": "disablePolicy", "name": f"rule-{i}"} for i in range(13)]
-    errs = validate({"kind": "harness-consolidation-plan", "operations": ops})
-    assert any("maximum" in e for e in errs)
-
-
-def test_unknown_op_kind_is_rejected() -> None:
-    errs = validate({"kind": "harness-consolidation-plan", "operations": [{"op": "deleteEverything"}]})
-    assert any("op must be one of" in e for e in errs)
-
-
-def test_oversized_policy_payload_is_rejected() -> None:
-    big = policy()
-    big["reason"] = "x" * 9000
-    errs = validate({"kind": "harness-consolidation-plan", "operations": [{"op": "addPolicy", "name": "big", "policy": big}]})
-    assert any("8192 bytes" in e for e in errs)
-
-
-def test_policy_operations_require_runtime_supported_schema() -> None:
-    legacy = {
-        "name": "legacy",
-        "action": "confirm",
-        "scope": {"commands": ["node live.mjs"]},
-        "rule": "check first",
-    }
-    errs = validate({
-        "kind": "harness-consolidation-plan",
-        "operations": [{"op": "addPolicy", "name": "legacy", "policy": legacy}],
-    })
-    assert any("unsupported field(s): scope, rule" in error for error in errs)
-
-
-def test_skill_prompt_requires_target_and_prompt() -> None:
-    errs = validate(
-        {"kind": "harness-consolidation-plan", "operations": [{"op": "addSkillPrompt", "name": "s"}]}
-    )
-    assert any("prompt" in e for e in errs) and any("target" in e for e in errs)
-
-
-# ── autonomous evidence and evaluator gates ───────────────────────────
+@pytest.mark.parametrize('mutate, expected', [
+    ({'kind':'other'}, 'kind'), ({'operations':[{'op':'addRule','rule':{'id':'x'}}]*13}, 'maximum'),
+    ({'operations':[{'op':'addPolicy'}]}, 'op must be one of'),
+    ({'operations':[{'op':'addRule','rule':{'id':'big','bash':'x','message':'x'*9000}}]}, '8192 bytes'),
+    ({'operations':[{'op':'addRule','rule':{'id':'legacy','scope':{},'rule':'x'}}]}, 'unsupported field'),
+])
+def test_shape_bounds_and_legacy_operations_fail_closed(mutate: dict, expected: str) -> None:
+    assert any(expected in error for error in validate(valid_plan() | mutate))
 
 
 def evidence_snapshot() -> dict:
@@ -185,31 +77,12 @@ def evidence_snapshot() -> dict:
     }
 
 
-def executable_policy(name: str = "learned-width", action: str = "block") -> dict:
-    return {
-        "name": name,
-        "tools": ["write"],
-        "paths": ["content"],
-        "pattern": r"width:\s*\d{3,}px",
-        "action": action,
-        "reason": "Use design tokens for responsive widths.",
-    }
+def rule(name: str = "learned-width", action: str = "block") -> dict:
+    return {"id": name, "bash": "^publish-fixture$", "action": action, "message": "Use the safe fixture."}
 
 
-def executable_cases(action: str = "block") -> dict:
-    return {
-        "positive": [
-            {
-                "phase": "tool-call",
-                "toolName": "write",
-                "args": {"content": "width: 480px"},
-                "action": action,
-            }
-        ],
-        "negative": [
-            {"phase": "tool-call", "toolName": "write", "args": {"content": "width: var(--card-width)"}}
-        ],
-    }
+def cases(action: str = "block") -> dict:
+    return {"positive": [{"bash": "publish-fixture", "expected": action}], "negative": [{"bash": "safe-fixture"}]}
 
 
 def grounded_plan(op: dict, *, source: str = "tool", quote: str = "blocked by ui-width policy; use design tokens") -> dict:
@@ -231,11 +104,11 @@ def grounded_plan(op: dict, *, source: str = "tool", quote: str = "blocked by ui
 
 
 def test_evidence_requires_verbatim_snapshot_quote_and_observed_actor() -> None:
-    plan = grounded_plan({"op": "addPolicy", "name": "learned-width", "policy": executable_policy(), "cases": executable_cases()})
+    plan = grounded_plan({"op": "addRule", "rule": rule(), "cases": cases()})
     assert validate_against_snapshot(plan, evidence_snapshot()) == []
 
     invented = grounded_plan(
-        {"op": "addPolicy", "name": "invented", "policy": executable_policy("invented"), "cases": executable_cases()},
+        {"op": "addRule", "rule": rule("invented"), "cases": cases()},
         source="user",
         quote="The user prefers a universal write prohibition.",
     )
@@ -243,7 +116,7 @@ def test_evidence_requires_verbatim_snapshot_quote_and_observed_actor() -> None:
     assert any("quote" in error and "snapshot" in error for error in errors)
 
     model_quote = grounded_plan(
-        {"op": "addPolicy", "name": "model-only", "policy": executable_policy("model-only"), "cases": executable_cases()},
+        {"op": "addRule", "rule": rule("model-only"), "cases": cases()},
         source="model",
         quote="The model speculates that all writes should be blocked.",
     )
@@ -263,14 +136,14 @@ def test_evidence_matches_actual_content_leaves_and_distinct_events() -> None:
         ]
     }
     user_plan = grounded_plan(
-        {"op": "addPolicy", "name": "multiline", "policy": executable_policy("multiline"), "cases": executable_cases()},
+        {"op": "addRule", "rule": rule("multiline"), "cases": cases()},
         source="user",
         quote=multiline,
     )
     assert validate_against_snapshot(user_plan, snapshot) == []
 
     two_events = grounded_plan(
-        {"op": "addPolicy", "name": "two-events", "policy": executable_policy("two-events"), "cases": executable_cases()},
+        {"op": "addRule", "rule": rule("two-events"), "cases": cases()},
         source="tool",
         quote="blocked once",
     )
@@ -278,7 +151,7 @@ def test_evidence_matches_actual_content_leaves_and_distinct_events() -> None:
     assert validate_against_snapshot(two_events, snapshot) == []
 
     repeated_in_one_event = grounded_plan(
-        {"op": "addPolicy", "name": "one-event", "policy": executable_policy("one-event"), "cases": executable_cases()},
+        {"op": "addRule", "rule": rule("one-event"), "cases": cases()},
         source="tool",
         quote="ordinary outcome",
     )
@@ -287,7 +160,7 @@ def test_evidence_matches_actual_content_leaves_and_distinct_events() -> None:
     assert any("count exceeds" in error for error in errors)
 
     metadata = grounded_plan(
-        {"op": "addPolicy", "name": "metadata", "policy": executable_policy("metadata"), "cases": executable_cases()},
+        {"op": "addRule", "rule": rule("metadata"), "cases": cases()},
         source="tool",
         quote="metadata-only",
     )
@@ -295,7 +168,7 @@ def test_evidence_matches_actual_content_leaves_and_distinct_events() -> None:
     assert any("not grounded" in error for error in errors)
 
     assistant = grounded_plan(
-        {"op": "addPolicy", "name": "assistant", "policy": executable_policy("assistant"), "cases": executable_cases()},
+        {"op": "addRule", "rule": rule("assistant"), "cases": cases()},
         source="user",
         quote="assistant-only claim",
     )
@@ -325,14 +198,14 @@ def test_sdk_tool_result_message_content_is_tool_evidence() -> None:
         ]
     }
     accepted = grounded_plan(
-        {"op": "addPolicy", "name": "sdk-tool-result", "policy": executable_policy("sdk-tool-result"), "cases": executable_cases()},
+        {"op": "addRule", "rule": rule("sdk-tool-result"), "cases": cases()},
         source="tool",
         quote="blocked by sdk policy",
     )
     assert validate_against_snapshot(accepted, snapshot) == []
 
     metadata = grounded_plan(
-        {"op": "addPolicy", "name": "sdk-metadata", "policy": executable_policy("sdk-metadata"), "cases": executable_cases()},
+        {"op": "addRule", "rule": rule("sdk-metadata"), "cases": cases()},
         source="tool",
         quote="write",
     )
@@ -340,7 +213,7 @@ def test_sdk_tool_result_message_content_is_tool_evidence() -> None:
     assert any("not grounded" in error for error in errors)
 
     assistant = grounded_plan(
-        {"op": "addPolicy", "name": "sdk-assistant", "policy": executable_policy("sdk-assistant"), "cases": executable_cases()},
+        {"op": "addRule", "rule": rule("sdk-assistant"), "cases": cases()},
         source="tool",
         quote="assistant-only tool claim",
     )
@@ -349,278 +222,22 @@ def test_sdk_tool_result_message_content_is_tool_evidence() -> None:
 
 
 def test_policy_add_and_update_require_passing_positive_and_negative_evaluator_cases() -> None:
-    base = {"op": "addPolicy", "name": "learned-width", "policy": executable_policy()}
+    base = {"op": "addRule", "rule": rule()}
     missing = validate_against_snapshot(grounded_plan(base), evidence_snapshot())
     assert any("positive" in error and "negative" in error for error in missing)
 
-    bad_cases = executable_cases()
-    bad_cases["negative"][0]["args"]["content"] = "width: 480px"
+    bad_cases = cases()
+    bad_cases["negative"][0]["bash"] = "publish-fixture"
     errors = validate_against_snapshot(
         grounded_plan({**base, "cases": bad_cases}), evidence_snapshot()
     )
     assert any("negative" in error and ("match" in error or "unmatched" in error) for error in errors)
 
     valid = validate_against_snapshot(
-        grounded_plan({**base, "cases": executable_cases()}), evidence_snapshot()
+        grounded_plan({**base, "cases": cases()}), evidence_snapshot()
     )
     assert valid == []
 
-
-def test_policy_cases_use_the_declared_output_and_artifact_evaluator_phases() -> None:
-    output_policy = {
-        "name": "output-secret",
-        "phase": "output",
-        "pattern": r"secret",
-        "action": "block",
-        "reason": "Do not disclose secrets.",
-    }
-    output_cases = {
-        "positive": [{"phase": "output", "text": "secret value", "action": "block"}],
-        "negative": [{"phase": "output", "text": "public value"}],
-    }
-    output_plan = grounded_plan(
-        {"op": "addPolicy", "name": "output-secret", "policy": output_policy, "cases": output_cases}
-    )
-    assert validate_against_snapshot(output_plan, evidence_snapshot()) == []
-
-    artifact_policy = {
-        "name": "artifact-secret",
-        "phase": "artifact",
-        "artifactPaths": ["dist/app.js"],
-        "pattern": r"secret",
-        "action": "block",
-        "reason": "Do not ship secrets.",
-    }
-    artifact_cases = {
-        "positive": [{"phase": "artifact", "text": "bundle contains secret", "action": "block"}],
-        "negative": [{"phase": "artifact", "text": "bundle is public"}],
-    }
-    artifact_plan = grounded_plan(
-        {"op": "addPolicy", "name": "artifact-secret", "policy": artifact_policy, "cases": artifact_cases}
-    )
-    assert validate_against_snapshot(artifact_plan, evidence_snapshot()) == []
-
-    missing_phase = grounded_plan(
-        {
-            "op": "addPolicy",
-            "name": "missing-phase",
-            "policy": executable_policy("missing-phase"),
-            "cases": {
-                "positive": [{"toolName": "write", "args": {"content": "width: 480px"}}],
-                "negative": [{"phase": "tool-call", "toolName": "write", "args": {"content": "safe"}}],
-            },
-        }
-    )
-    errors = validate_against_snapshot(missing_phase, evidence_snapshot())
-    assert any("phase is required" in error for error in errors)
-
-
-def test_automatic_learning_rejects_shared_and_manual_rule_changes() -> None:
-    layers = [
-        {"source": "built-in defaults", "policies": [executable_policy("built-in")]},
-        {"source": "user", "policies": [executable_policy("shared")]},
-        {"source": "project", "policies": [executable_policy("manual"), executable_policy("learned")]},
-    ]
-    update_manual = grounded_plan(
-        {"op": "updatePolicy", "name": "manual", "policy": executable_policy("manual", "confirm"), "cases": executable_cases("confirm")}
-    )
-    errors = validate_against_snapshot(
-        update_manual, evidence_snapshot(), layers=layers, learnedPolicyNames=["learned"]
-    )
-    assert any("manual" in error and ("owned" in error or "authored" in error) for error in errors)
-
-    disable_shared = grounded_plan(
-        {"op": "disablePolicy", "name": "shared"},
-        source="user",
-        quote="Please disable the shared rule now.",
-    )
-    errors = validate_against_snapshot(
-        disable_shared, evidence_snapshot(), layers=layers, learnedPolicyNames=["learned"]
-    )
-    assert any("shared" in error or "protected" in error for error in errors)
-
-    prompt_layers = layers + [{"source": "project", "skillPrompts": {"impeccable": {"prompt": "manual guidance", "target": "system"}}}]
-    overwrite_prompt = grounded_plan(
-        {"op": "addSkillPrompt", "name": "impeccable", "prompt": "replacement", "target": "system"}
-    )
-    errors = validate_against_snapshot(
-        overwrite_prompt, evidence_snapshot(), layers=prompt_layers, learnedPolicyNames=["learned"]
-    )
-    assert any("cannot be overwritten" in error for error in errors)
-
-
-def test_automatic_learning_cannot_weaken_even_with_user_looking_evidence() -> None:
-    layers = [{"source": "project", "policies": [executable_policy("learned")]}]
-    weaken = grounded_plan(
-        {"op": "updatePolicy", "name": "learned", "policy": executable_policy("learned", "confirm"), "cases": executable_cases("confirm")}
-    )
-    errors = validate_against_snapshot(
-        weaken, evidence_snapshot(), layers=layers, learnedPolicyNames=["learned"]
-    )
-    assert any("cannot weaken" in error for error in errors)
-
-    user_wording = grounded_plan(
-        {
-            "op": "updatePolicy",
-            "name": "learned",
-            "policy": executable_policy("learned", "confirm"),
-            "cases": executable_cases("confirm"),
-        },
-        source="user",
-        quote="Please weaken the learned width rule to confirmation.",
-    )
-    user_wording_snapshot = evidence_snapshot() | {
-        "entries": evidence_snapshot()["entries"][:1]
-        + [{"type": "message_end", "message": {"role": "user", "content": "Please weaken the learned width rule to confirmation."}}]
-    }
-    errors = validate_against_snapshot(
-        user_wording, user_wording_snapshot, layers=layers, learnedPolicyNames=["learned"]
-    )
-    assert any("cannot weaken" in error for error in errors)
-
-
-def test_learned_rule_can_receive_a_reason_only_revision() -> None:
-    layers = [{"source": "project", "policies": [executable_policy("learned")]}]
-    revision = grounded_plan(
-        {
-            "op": "updatePolicy",
-            "name": "learned",
-            "policy": executable_policy("learned") | {"reason": "Keep responsive widths tokenized."},
-            "cases": executable_cases(),
-        },
-        source="tool",
-        quote="blocked by ui-width policy; use design tokens",
-    )
-    assert validate_against_snapshot(
-        revision, evidence_snapshot(), layers=layers, learnedPolicyNames=["learned"]
-    ) == []
-
-
-def test_learned_rule_scope_changes_are_rejected_as_unproven_weakening() -> None:
-    layers = [{"source": "project", "policies": [executable_policy("learned")]}]
-    remove_tool = grounded_plan(
-        {
-            "op": "updatePolicy",
-            "name": "learned",
-            "policy": executable_policy("learned") | {"tools": ["edit"]},
-            "cases": executable_cases(),
-        }
-    )
-    errors = validate_against_snapshot(
-        remove_tool, evidence_snapshot(), layers=layers, learnedPolicyNames=["learned"]
-    )
-    assert any("cannot weaken" in error for error in errors)
-
-    add_require = grounded_plan(
-        {
-            "op": "updatePolicy",
-            "name": "learned",
-            "policy": executable_policy("learned") | {"require": {"path": "content", "pattern": "width"}},
-            "cases": executable_cases(),
-        }
-    )
-    errors = validate_against_snapshot(
-        add_require, evidence_snapshot(), layers=layers, learnedPolicyNames=["learned"]
-    )
-    assert any("cannot weaken" in error for error in errors)
-
-
-def test_automatic_apply_records_parent_owned_learned_provenance(tmp_path: Path) -> None:
-    op = {"op": "addPolicy", "name": "learned-on-apply", "policy": executable_policy("learned-on-apply"), "cases": executable_cases()}
-    evidence = grounded_plan(op)["evidence"]
-    target = tmp_path / "harness.json"
-    src = f"""
-        import {{ applyHarnessOps }} from './packages/continual-learning/extensions/harness-consolidation.ts';
-        const result = await applyHarnessOps(
-          {json.dumps(str(target))},
-          {json.dumps([op])},
-          {{ automatic: true, snapshot: {json.dumps(evidence_snapshot())}, evidence: {json.dumps(evidence)} }},
-        );
-        let after = null;
-        try {{ after = JSON.parse(await Bun.file({json.dumps(str(target))}).text()); }} catch {{}}
-        console.log(JSON.stringify({{ result, after }}));
-    """
-    out = run_bun(src)
-    assert out["result"]["ok"] is True
-    assert out["after"]["learnedPolicies"]["learned-on-apply"]["origin"] == "consolidation"
-
-
-# ── apply semantics ───────────────────────────────────────────────────
-
-
-def test_apply_creates_layer_file_when_missing(tmp_path: Path) -> None:
-    out, _ = apply_ops(tmp_path, [{"op": "addPolicy", "name": "evidence-rule", "policy": policy()}])
-    assert out["ok"] is True and out["applied"] == ["addPolicy:evidence-rule"]
-    after = out["after"]
-    assert after["policies"][0]["name"] == "evidence-rule"
-    assert after["disabled"] == [] and after["skillPrompts"] == {}
-
-
-def test_add_policy_conflict_rejects_whole_plan_without_writing(tmp_path: Path) -> None:
-    target = tmp_path / "harness.json"
-    target.write_text(json.dumps({"policies": [policy("dup")]}), encoding="utf-8")
-    before = target.read_bytes()
-    ops = [
-        {"op": "addPolicy", "name": "fresh", "policy": policy("fresh")},
-        {"op": "addPolicy", "name": "dup", "policy": policy("dup")},
-    ]
-    src = f"""
-        import {{ applyHarnessOps }} from './packages/continual-learning/extensions/harness-consolidation.ts';
-        const result = await applyHarnessOps({json.dumps(str(target))}, {json.dumps(ops)});
-        console.log(JSON.stringify(result));
-    """
-    conflict = run_bun(src)
-    assert conflict["ok"] is False and "already exists" in str(conflict["error"])
-    assert target.read_bytes() == before
-
-
-def test_update_disable_and_skill_prompt_roundtrip(tmp_path: Path) -> None:
-    out, _ = apply_ops(
-        tmp_path,
-        [
-            {"op": "addPolicy", "name": "r1", "policy": policy("r1")},
-            {"op": "updatePolicy", "name": "r1", "policy": policy("r1") | {"action": "confirm"}},
-            {"op": "updatePolicy", "name": "r2", "policy": policy("r2")},
-            {"op": "disablePolicy", "name": "r2"},
-            {"op": "addSkillPrompt", "name": "sk", "prompt": "p", "target": "user", "userMessagePattern": "^live$"},
-            {"op": "removeSkillPrompt", "name": "sk"},
-        ],
-    )
-    assert out["ok"] is True
-    after = out["after"]
-    assert [p["name"] for p in after["policies"]] == ["r1", "r2"]
-    assert after["policies"][0]["action"] == "confirm"
-    assert after["disabled"] == ["r2"]
-    assert after["skillPrompts"] == {}
-
-
-def test_skill_prompt_pattern_is_persisted_and_invalid_pattern_is_rejected(tmp_path: Path) -> None:
-    out, _ = apply_ops(
-        tmp_path,
-        [{"op": "addSkillPrompt", "name": "impeccable", "prompt": "p", "target": "system", "userMessagePattern": "^live$"}],
-    )
-    assert out["ok"] is True
-    assert out["after"]["skillPrompts"]["impeccable"]["userMessagePattern"] == "^live$"
-    errs = validate({
-        "kind": "harness-consolidation-plan",
-        "operations": [{"op": "addSkillPrompt", "name": "impeccable", "prompt": "p", "target": "system", "userMessagePattern": "(["}],
-        "evidence": [{"index": 0, "observation": "Live prompts were repeatedly misapplied", "count": 2}],
-    })
-    assert any("userMessagePattern must be a valid regular expression" in error for error in errs)
-
-
-def test_invalid_existing_json_is_reported_not_overwritten(tmp_path: Path) -> None:
-    target = tmp_path / "harness.json"
-    target.write_text("{not json", encoding="utf-8")
-    before = target.read_bytes()
-    src = f"""
-        import {{ applyHarnessOps }} from './packages/continual-learning/extensions/harness-consolidation.ts';
-        const result = await applyHarnessOps({json.dumps(str(target))}, []);
-        console.log(JSON.stringify(result));
-    """
-    out = run_bun(src)
-    assert out["ok"] is False and "not valid JSON" in str(out["error"])
-    assert target.read_bytes() == before
 
 
 # ── wiring contracts (source assertions per repo test style) ──────────
@@ -630,7 +247,7 @@ def test_command_registered_as_harness_not_guardrails() -> None:
     src = (PKG_DIR / "extensions" / "guardrails.ts").read_text(encoding="utf-8")
     assert 'pi.registerCommand("harness"' in src
     assert 'pi.registerCommand("guardrails"' not in src
-    assert "`harness: ${decision.policyName}" in src
+    assert "harness confirmation:" in src
 
 
 def test_consolidate_pipeline_gates_harness_phase() -> None:
@@ -683,7 +300,7 @@ def test_incremental_harness_task_uses_authoritative_dossier_without_broad_disco
     assert Path(result["runDir"]).is_relative_to(tmp_path / "agent")
     assert result["ok"] is True
     assert "Authoritative Learning Dossier" in result["task"]
-    assert "Immutable task-slice snapshot" in result["task"]
+    assert "immutable task-slice snapshot" in result["task"]
     assert "do not perform independent repository-wide exploration" in result["task"]
 
 
@@ -766,13 +383,13 @@ def test_receipt_builder_shapes_pre_and_post() -> None:
         const base = {{ runId: "run_x", scopeDigest: "s", snapshotDigest: "a", targetFile: "/t/p", digestBefore: "aa", planDigest: "pd" }};
         console.log(JSON.stringify({{
           pre: buildHarnessReceipt({{ ...base, phase: "pre" }}),
-          post: buildHarnessReceipt({{ ...base, phase: "post", digestAfter: "bb", applied: ["disablePolicy:x"] }}),
+          post: buildHarnessReceipt({{ ...base, phase: "post", digestAfter: "bb", applied: ["addRule:x"] }}),
         }}));
     """
     out = run_bun(src)
     assert out["pre"]["phase"] == "pre" and "applied" not in out["pre"] and "digestAfter" not in out["pre"]
     assert out["post"]["phase"] == "post"
-    assert out["post"]["digestAfter"] == "bb" and out["post"]["applied"] == ["disablePolicy:x"]
+    assert out["post"]["digestAfter"] == "bb" and out["post"]["applied"] == ["addRule:x"]
     for receipt in (out["pre"], out["post"]):
         assert receipt["kind"] == "harness-consolidation-receipt"
         assert receipt["digestBefore"] == "aa" and receipt["planDigest"] == "pd"
@@ -888,7 +505,7 @@ def test_planner_timeout_output_limit_and_post_spawn_cancel_await_child_close() 
 
 def test_no_cli_dependency_fails_isolated_without_touching_state(tmp_path: Path) -> None:
     target = tmp_path / "harness.json"
-    target.write_text(json.dumps({"policies": [policy("keep")]}), encoding="utf-8")
+    target.write_text(json.dumps({"rules": [rule("keep")]}), encoding="utf-8")
     before = target.read_bytes()
     script = f"""
         import {{ runHarnessConsolidationPhase }} from './{PKG_REL}/extensions/harness-consolidation.ts';
@@ -912,11 +529,11 @@ def test_no_cli_dependency_fails_isolated_without_touching_state(tmp_path: Path)
 def test_phase_writes_pre_receipt_before_apply_and_post_after(tmp_path: Path) -> None:
     src = (PKG_DIR / "extensions" / "harness-consolidation.ts").read_text(encoding="utf-8")
     pre_idx = src.index('"harness-pre-receipt.json"')
-    apply_idx = src.index("const applied = await applyHarnessOps(target, ops,")
+    apply_idx = src.index("await writePreparedHarness(target, prepared);", pre_idx)
     post_idx = src.index('"harness-post-receipt.json"')
     assert pre_idx < apply_idx < post_idx
-    assert 'sha256Digest(beforeBytes)' in src and 'sha256Digest(postBytes)' in src
-    assert 'postBytes.equals(nowBytes)' in src
+    assert 'sha256Digest(prepared.before)' in src and 'sha256Digest(prepared.next)' in src
+    assert 'now?.equals(Buffer.from(prepared.next))' in src
 
 
 def test_harness_planner_uses_package_prompt_and_minimal_readonly_args() -> None:

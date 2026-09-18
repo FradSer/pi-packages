@@ -1,422 +1,111 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import tempfile
 from pathlib import Path
+
+import pytest
 
 PKG_DIR = Path(__file__).resolve().parents[1]
 REPO = PKG_DIR.parents[1]
+ENGINE = './packages/continual-learning/extensions/guardrail-engine.ts'
 
 
-def run_bun(source: str) -> dict[str, object]:
-    result = subprocess.run(
-        ["bun", "-e", source],
-        cwd=REPO,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+def run_bun(source: str):
+    with tempfile.TemporaryDirectory(prefix='harness-test-agent-') as agent_dir:
+        result = subprocess.run(['bun', '-e', source], cwd=REPO, env={**os.environ, 'PI_CODING_AGENT_DIR': agent_dir}, capture_output=True, text=True, check=False, timeout=120)
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
-def defaults_layer() -> str:
-    return json.dumps(
-        {
-            "source": "built-in defaults",
-            "policies": "${DEFAULTS}",
-        }
-    )
+def test_default_rules_block_auth_and_otp_but_allow_normal_calls() -> None:
+    result = run_bun(f'''
+      import {{DEFAULT_RULES,mergeLayers,evaluateBash}} from '{ENGINE}';
+      const config=mergeLayers([{{source:'defaults',rules:DEFAULT_RULES}}]);
+      console.log(JSON.stringify(['npm login','pnpm adduser','printf otp > /tmp/code','pnpm test'].map(command=>evaluateBash(config,command))));
+    ''')
+    assert [r['decision'] for r in result] == ['block', 'block', 'block', 'execute']
+    assert 'their own terminal' in result[0]['reason']
 
 
-def evaluate(layers_json: str, tool_name: str, args: dict) -> dict[str, object]:
-    src = f"""
-        import {{ DEFAULT_POLICIES, evaluate, mergeLayers }} from './packages/continual-learning/extensions/guardrail-engine.ts';
-        const layers = {layers_json}.map((l) =>
-          l.source === "built-in defaults" ? {{ ...l, policies: DEFAULT_POLICIES }} : l,
-        );
-        const config = mergeLayers(layers);
-        const decision = evaluate(config, {{ toolName: {json.dumps(tool_name)}, args: {json.dumps(args)} }});
-        console.log(JSON.stringify(decision ? {{ matched: true, ...decision }} : {{ matched: false }}));
-    """
-    return run_bun(src)
+def test_nearest_rule_completely_replaces_same_id_and_ids_are_exact() -> None:
+    result = run_bun(f'''
+      import {{mergeLayers,evaluateBash}} from '{ENGINE}';
+      const config=mergeLayers([{{source:'user',rules:[{{id:'a',bash:'alpha',action:'block',message:'outer'}},{{id:' a ',bash:'gamma',message:'distinct'}}]}},{{source:'project',rules:[{{id:'a',bash:'beta',message:'inner'}}]}}]);
+      console.log(JSON.stringify({{config,alpha:evaluateBash(config,'alpha'),beta:evaluateBash(config,'beta')}}));
+    ''')
+    assert result['alpha']['matchedRules'] == []
+    assert result['beta']['decision'] == 'execute'
+    assert result['beta']['messages'] == ['inner']
+    assert [r['id'] for r in result['config']['rules']] == [' a ', 'a']
 
 
-def merge_only(layers_json: str) -> dict[str, object]:
-    src = f"""
-        import {{ DEFAULT_POLICIES, mergeLayers }} from './packages/continual-learning/extensions/guardrail-engine.ts';
-        const layers = {layers_json}.map((l) =>
-          l.source === "built-in defaults" ? {{ ...l, policies: DEFAULT_POLICIES }} : l,
-        );
-        const config = mergeLayers(layers);
-        console.log(JSON.stringify({{ names: config.policies.map((p) => p.name), errors: config.errors }}));
-    """
-    return run_bun(src)
+def test_harness_target_resolution_defaults_and_flags() -> None:
+    result = run_bun('''
+      import {resolveHarnessTarget} from './packages/continual-learning/extensions/guardrails.ts';
+      console.log(JSON.stringify(['x','--global x','-g x','--shared x','--project x','--repo x','--local x','--user x'].map(args=>resolveHarnessTarget(args,'/tmp/project','/tmp/agent'))));
+    ''')
+    assert [r['scope'] for r in result] == ['project','user','user','project','project','project','project.local','user']
+    assert result[0]['targetFile'] == '/tmp/project/.pi/harness.json'
+    assert result[1]['targetFile'] == '/tmp/agent/harness.json'
+    assert all(r['request'] == 'x' for r in result)
 
 
-def test_default_policy_blocks_interactive_auth_with_guidance() -> None:
-    layers = json.dumps([{"source": "built-in defaults"}])
-    decision = evaluate(
-        layers,
-        "bash",
-        {"command": "npm login --registry=https://registry.npmjs.org/"},
-    )
-    assert decision["matched"] is True
-    assert decision["policyName"] == "no-interactive-auth-automation"
-    assert "their own terminal" in str(decision["reason"])
+def test_exact_three_layers_and_no_mtime_cache_blind_spot(tmp_path: Path) -> None:
+    agent = tmp_path / 'agent'
+    project = tmp_path / 'project'
+    (project / '.pi/agent').mkdir(parents=True)
+    agent.mkdir()
+    def config(message: str) -> str:
+        return json.dumps({'rules':[{'id':'layered','bash':'fixture','message':message}]})
+    for target, text in [(agent/'harness.json','user'), (agent/'harness.local.json','ignored'), (project/'.pi/harness.json','project'), (project/'.pi/harness.local.json','local'), (project/'.pi/agent/harness.json','ignored')]:
+        target.write_text(config(text))
+    result = run_bun(f'''
+      import fs from 'node:fs';
+      import {{loadLayers,resolveHarnessConfig,configPaths}} from './packages/continual-learning/extensions/guardrail-config.ts';
+      const cwd={json.dumps(str(project))}, agent={json.dumps(str(agent))};
+      const first=resolveHarnessConfig(cwd,agent); const file=first.paths.projectLocal;
+      const stat=fs.statSync(file);fs.writeFileSync(file,{json.dumps(config('newer'))});fs.utimesSync(file,stat.atime,stat.mtime);
+      const second=resolveHarnessConfig(cwd,agent);
+      console.log(JSON.stringify({{keys:Object.keys(configPaths(cwd,agent)),sources:loadLayers(cwd,agent).map(l=>l.source),first:first.config.rules.find(r=>r.id==='layered').message,second:second.config.rules.find(r=>r.id==='layered').message}}));
+    ''')
+    assert result == {'keys':['user','project','projectLocal'],'sources':['user','project','project.local'],'first':'local','second':'newer'}
 
 
-def test_non_matching_call_passes_through() -> None:
-    layers = json.dumps([{"source": "built-in defaults"}])
-    decision = evaluate(layers, "bash", {"command": "pnpm test"})
-    assert decision["matched"] is False
+@pytest.mark.parametrize('malformed', ['{broken', '{"rules":[{"id":"same","bash":"x","message":"x"},{"id":"same","enabled":false}]}', '{"rules":[],"policies":{}}'])
+def test_structural_errors_use_last_identity_unambiguous_snapshot(tmp_path: Path, malformed: str) -> None:
+    (tmp_path / '.pi').mkdir()
+    file = tmp_path / '.pi/harness.json'
+    file.write_text(json.dumps({'rules':[{'id':'kept','bash':'fixture','action':'block','message':'keep'}]}))
+    result = run_bun(f'''
+      import fs from 'node:fs';
+      import {{resolveHarnessConfig}} from './packages/continual-learning/extensions/guardrail-config.ts';
+      import {{evaluateBash}} from '{ENGINE}';
+      const cwd={json.dumps(str(tmp_path))}, agent={json.dumps(str(tmp_path/'agent'))};
+      resolveHarnessConfig(cwd,agent);fs.writeFileSync({json.dumps(str(file))},{json.dumps(malformed)});
+      const {{config}}=resolveHarnessConfig(cwd,agent);
+      console.log(JSON.stringify({{config,decision:evaluateBash(config,'fixture'),bytes:fs.readFileSync({json.dumps(str(file))},'utf8')}}));
+    ''')
+    assert result['config']['configReadIncomplete']
+    assert result['decision']['decision'] == 'block'
+    assert result['bytes'] == malformed
 
 
-def test_require_gate_scopes_ui_width_policy() -> None:
-    ui_policy = {
-        "name": "ui-fixed-width",
-        "tools": ["edit", "write"],
-        "require": {"path": "path", "pattern": "\\.(tsx|css)$"},
-        "patterns": ["width:\\s*\\d{3,}px"],
-        "action": "block",
-        "reason": "Use design tokens or responsive units.",
-    }
-    layers = json.dumps([{"source": "project", "policies": [ui_policy]}])
-
-    blocked = evaluate(
-        layers,
-        "edit",
-        {"path": "src/Button.tsx", "edits": [{"newText": "width: 480px"}]},
-    )
-    assert blocked["matched"] is True
-    assert blocked["policyName"] == "ui-fixed-width"
-    assert "responsive" in str(blocked["reason"])
-
-    passed = evaluate(
-        layers,
-        "edit",
-        {"path": "docs/notes.md", "edits": [{"newText": "width: 480px"}]},
-    )
-    assert passed["matched"] is False
-
-
-def test_innermost_policy_definition_wins() -> None:
-    outer = {
-        "name": "shared-rule",
-        "pattern": "alpha",
-        "action": "block",
-        "reason": "outer reason",
-    }
-    inner = {
-        "name": "shared-rule",
-        "pattern": "beta",
-        "action": "block",
-        "reason": "inner reason",
-    }
-    layers = json.dumps(
-        [
-            {"source": "user", "policies": [outer]},
-            {"source": "project", "policies": [inner]},
-        ]
-    )
-    hit_outer = evaluate(layers, "bash", {"command": "echo alpha"})
-    assert hit_outer["matched"] is False
-    hit_inner = evaluate(layers, "bash", {"command": "echo beta"})
-    assert hit_inner["matched"] is True
-    assert "inner reason" in str(hit_inner["reason"])
-
-
-def test_harness_target_resolution_defaults_to_project_shared_and_supports_flags() -> None:
-    source = """
-        import { resolveHarnessTarget } from './packages/continual-learning/extensions/guardrails.ts';
-        const cwd = '/tmp/my-project';
-        const agentDir = '/tmp/user/agent';
-        console.log(JSON.stringify({
-          defaultTarget: resolveHarnessTarget('Block edits that add hard-coded colors', cwd, agentDir),
-          globalFlag: resolveHarnessTarget('--global Block edits', cwd, agentDir),
-          globalShort: resolveHarnessTarget('-g Block edits', cwd, agentDir),
-          sharedFlag: resolveHarnessTarget('--shared Block edits', cwd, agentDir),
-          projectFlag: resolveHarnessTarget('--project Block edits', cwd, agentDir),
-          repoFlag: resolveHarnessTarget('--repo Block edits', cwd, agentDir),
-          projectLocalFlag: resolveHarnessTarget('--local Block edits', cwd, agentDir),
-          userFlag: resolveHarnessTarget('--user Block edits', cwd, agentDir),
-        }));
-    """
-    result = run_bun(source)
-    assert result["defaultTarget"]["scope"] == "project"
-    assert result["defaultTarget"]["targetFile"] == "/tmp/my-project/.pi/harness.json"
-    assert result["defaultTarget"]["request"] == "Block edits that add hard-coded colors"
-
-    assert result["globalFlag"]["scope"] == "user"
-    assert result["globalFlag"]["targetFile"] == "/tmp/user/agent/harness.json"
-    assert result["globalFlag"]["request"] == "Block edits"
-
-    assert result["globalShort"]["scope"] == "user"
-    assert result["globalShort"]["targetFile"] == "/tmp/user/agent/harness.json"
-
-    assert result["sharedFlag"]["scope"] == "project"
-    assert result["sharedFlag"]["targetFile"] == "/tmp/my-project/.pi/harness.json"
-    assert result["sharedFlag"]["request"] == "Block edits"
-
-    assert result["projectFlag"]["scope"] == "project"
-    assert result["repoFlag"]["scope"] == "project"
-
-    assert result["projectLocalFlag"]["scope"] == "project.local"
-    assert result["projectLocalFlag"]["targetFile"] == "/tmp/my-project/.pi/harness.local.json"
-
-    assert result["userFlag"]["scope"] == "user"
-    assert result["userFlag"]["targetFile"] == "/tmp/user/agent/harness.json"
-
-
-def test_harness_discovery_uses_exactly_three_layers_and_ignores_user_personal(tmp_path: Path) -> None:
-    agent_dir = tmp_path / "agent"
-    project = tmp_path / "project"
-    project_pi = project / ".pi"
-    agent_dir.mkdir()
-    project_pi.mkdir(parents=True)
-    obsolete_project_agent = project_pi / "agent"
-    obsolete_project_agent.mkdir()
-    policy = lambda reason: {
-        "policies": [{"name": "layered", "pattern": reason, "action": "block", "reason": reason}]
-    }
-    (agent_dir / "harness.json").write_text(json.dumps(policy("user-shared")), encoding="utf-8")
-    (agent_dir / "harness.local.json").write_text(json.dumps(policy("user-personal")), encoding="utf-8")
-    (project_pi / "harness.json").write_text(json.dumps(policy("project-shared")), encoding="utf-8")
-    (project_pi / "harness.local.json").write_text(json.dumps(policy("project-personal")), encoding="utf-8")
-    (obsolete_project_agent / "harness.json").write_text(json.dumps(policy("obsolete-project-shared")), encoding="utf-8")
-    (obsolete_project_agent / "harness.local.json").write_text(json.dumps(policy("obsolete-project-personal")), encoding="utf-8")
-    source = f"""
-        import {{ configPaths, loadLayers }} from './packages/continual-learning/extensions/guardrail-config.ts';
-        import {{ mergeLayers }} from './packages/continual-learning/extensions/guardrail-engine.ts';
-        const paths = configPaths({json.dumps(str(project))}, {json.dumps(str(agent_dir))});
-        const layers = loadLayers({json.dumps(str(project))}, {json.dumps(str(agent_dir))});
-        const merged = mergeLayers(layers);
-        console.log(JSON.stringify({{
-          pathKeys: Object.keys(paths),
-          pathValues: Object.values(paths),
-          sources: layers.map((layer) => layer.source),
-          reason: merged.policies.find((policy) => policy.name === 'layered')?.reason,
-        }}));
-    """
-    result = run_bun(source)
-    assert result["pathKeys"] == ["user", "project", "projectLocal"]
-    assert result["pathValues"] == [
-        str(agent_dir / "harness.json"),
-        str(project_pi / "harness.json"),
-        str(project_pi / "harness.local.json"),
-    ]
-    assert result["sources"] == ["user", "project", "project.local"]
-    assert result["reason"] == "project-personal"
-
-
-def test_harness_cache_tracks_the_exact_canonical_project_files(tmp_path: Path) -> None:
-    agent_dir = tmp_path / "agent"
-    project = tmp_path / "project"
-    project_pi = project / ".pi"
-    obsolete_project_agent = project_pi / "agent"
-    agent_dir.mkdir()
-    obsolete_project_agent.mkdir(parents=True)
-    canonical = project_pi / "harness.json"
-    obsolete = obsolete_project_agent / "harness.json"
-    policy = lambda pattern: {
-        "policies": [{"name": "cached", "pattern": pattern, "action": "block", "reason": pattern}]
-    }
-    canonical.write_text(json.dumps(policy("alpha")), encoding="utf-8")
-    obsolete.write_text(json.dumps(policy("obsolete")), encoding="utf-8")
-    source = f"""
-        import fs from 'node:fs';
-        import {{ resolveHarnessConfig }} from './packages/continual-learning/extensions/guardrail-config.ts';
-        const cwd = {json.dumps(str(project))};
-        const agentDir = {json.dumps(str(agent_dir))};
-        const first = resolveHarnessConfig(cwd, agentDir);
-        fs.writeFileSync({json.dumps(str(canonical))}, {json.dumps(json.dumps(policy("beta")))});
-        const future = new Date(Date.now() + 60_000);
-        fs.utimesSync({json.dumps(str(canonical))}, future, future);
-        const second = resolveHarnessConfig(cwd, agentDir);
-        console.log(JSON.stringify({{
-          paths: second.paths,
-          first: first.config.policies.find((policy) => policy.name === 'cached')?.pattern,
-          second: second.config.policies.find((policy) => policy.name === 'cached')?.pattern,
-        }}));
-    """
-    result = run_bun(source)
-    assert result["paths"]["project"] == str(canonical)
-    assert result["first"] == "alpha"
-    assert result["second"] == "beta"
-
-
-def test_harness_prompt_routes_a_direct_rule_request() -> None:
-    source = """
-        import { buildHarnessRulePrompt } from './packages/continual-learning/extensions/guardrails.ts';
-        console.log(JSON.stringify(buildHarnessRulePrompt('Block edits that add hard-coded colors', '/tmp/project/.pi/harness.local.json', 'project personal harness.local.json')));
-    """
-    result = run_bun(source)
-    prompt = result
-    assert 'Block edits that add hard-coded colors' in str(prompt)
-    assert '/tmp/project/.pi/harness.local.json' in str(prompt)
-    assert 'project personal harness.local.json' in str(prompt)
-    assert 'Preserve every existing rule' in str(prompt)
-    assert 'keep all target access on this supplied path' in str(prompt)
-    assert 'Execute this exact sequence' in str(prompt)
-    assert 'returns ENOENT' in str(prompt)
-    assert 'Perform the supported change and report the exact rule id' in str(prompt)
-    assert 'flat "rules" array' in str(prompt)
-    assert 'Omit "action" to execute the command and deliver the message' in str(prompt)
-
-
-def test_global_harness_target_initializes_exact_path_and_preserves_existing(tmp_path: Path) -> None:
-    missing = tmp_path / 'agent' / 'harness.local.json'
-    existing = tmp_path / 'existing' / 'harness.local.json'
-    existing.parent.mkdir()
-    original = {
-        'policies': [{'name': 'keep', 'pattern': 'keep', 'action': 'block', 'reason': 'keep'}],
-        'disabled': ['disabled-rule'],
-        'skillPrompts': {'review': {'prompt': 'keep this', 'target': 'system'}},
-        'custom': {'preserve': True},
-    }
-    existing.write_text(json.dumps(original), encoding='utf-8')
-    source = f"""
-        import fs from 'node:fs/promises';
-        import {{ ensureGlobalHarnessTarget }} from './packages/continual-learning/extensions/guardrails.ts';
-        const missing = await ensureGlobalHarnessTarget({json.dumps(str(missing))});
-        const before = await fs.readFile({json.dumps(str(existing))}, 'utf8');
-        const reused = await ensureGlobalHarnessTarget({json.dumps(str(existing))});
-        const after = await fs.readFile({json.dumps(str(existing))}, 'utf8');
-        console.log(JSON.stringify({{
-          created: missing.created,
-          missingPath: missing.path,
-          initialized: JSON.parse(await fs.readFile({json.dumps(str(missing))}, 'utf8')),
-          reused: reused.created,
-          preservedBytes: before === after,
-          preserved: JSON.parse(after),
-        }}));
-    """
-    result = run_bun(source)
-    assert result['created'] is True
-    assert result['missingPath'] == str(missing)
-    assert result['initialized'] == {'rules': []}
-    assert result['reused'] is False
-    assert result['preservedBytes'] is True
-    assert result['preserved'] == original
-
-
-def test_global_harness_target_rejects_symlinks(tmp_path: Path) -> None:
-    target = tmp_path / 'harness.local.json'
-    outside = tmp_path / 'outside.json'
-    outside.write_text('{}', encoding='utf-8')
-    target.symlink_to(outside)
-    source = f"""
-        import {{ ensureGlobalHarnessTarget }} from './packages/continual-learning/extensions/guardrails.ts';
-        try {{ await ensureGlobalHarnessTarget({json.dumps(str(target))}); console.log(JSON.stringify({{ rejected: false }})); }}
-        catch (error) {{ console.log(JSON.stringify({{ rejected: /regular file/.test(String(error)) }})); }}
-    """
-    result = run_bun(source)
-    assert result['rejected'] is True
-
-
-def test_project_harness_target_rejects_a_symlinked_parent_escape(tmp_path: Path) -> None:
-    project = tmp_path / "project"
-    outside = tmp_path / "outside"
-    project.mkdir()
-    outside.mkdir()
-    (project / ".pi").symlink_to(outside, target_is_directory=True)
-    target = project / ".pi" / "harness.local.json"
-    source = f"""
-        import {{ ensureHarnessTarget }} from './packages/continual-learning/extensions/guardrails.ts';
-        try {{
-          await ensureHarnessTarget({json.dumps(str(target))}, {json.dumps(str(project))});
-          console.log(JSON.stringify({{ rejected: false }}));
-        }} catch (error) {{
-          console.log(JSON.stringify({{ rejected: /symlink|outside/.test(String(error)) }}));
-        }}
-    """
-    result = run_bun(source)
-    assert result["rejected"] is True
-    assert not (outside / "harness.local.json").exists()
-
-
-def test_invalid_skill_prompt_user_message_pattern_is_skipped_without_hiding_valid_siblings() -> None:
-    layers = json.dumps(
-        [
-            {
-                "source": "project",
-                "skillPrompts": {
-                    "broken": {"prompt": "bad", "target": "system", "userMessagePattern": "(["},
-                    "valid": {"prompt": "good", "target": "system", "userMessagePattern": "^live$"},
-                },
-            }
-        ]
-    )
-    source = f"""
-        import {{ mergeLayers }} from './packages/continual-learning/extensions/guardrail-engine.ts';
-        const result = mergeLayers({layers});
-        console.log(JSON.stringify({{ skillPrompts: result.skillPrompts, errors: result.errors }}));
-    """
-    result = run_bun(source)
-    assert "broken" not in result["skillPrompts"]
-    assert result["skillPrompts"]["valid"]["userMessagePattern"] == "^live$"
-    assert any("broken" in error and "invalid regex" in error for error in result["errors"])
-
-
-def test_legacy_scope_and_rule_fields_are_rejected_with_schema_guidance() -> None:
-    legacy = {
-        "name": "impeccable-live-runtime-stability",
-        "action": "confirm",
-        "scope": {"commands": ["node live.mjs"]},
-        "rule": "verify the live server before restarting",
-    }
-    valid = {
-        "name": "valid-live-runtime-stability",
-        "tools": ["bash"],
-        "paths": ["command"],
-        "pattern": r"node\\s+.*live\\.mjs",
-        "action": "confirm",
-        "reason": "Verify the live server before restarting.",
-    }
-    merged = merge_only(json.dumps([{"source": "project", "policies": [legacy, valid]}]))
-    assert "impeccable-live-runtime-stability" not in merged["names"]
-    assert "valid-live-runtime-stability" in merged["names"]
-    diagnostics = " ".join(str(error) for error in merged["errors"])
-    assert "unsupported field(s): scope, rule" in diagnostics
-    assert "tools, paths, pattern, patterns" in diagnostics
-    assert "reason" in diagnostics
-
-
-def test_policy_declaration_requires_one_supported_pattern_form() -> None:
-    source = """
-        import { validatePolicyDeclaration } from './packages/continual-learning/extensions/guardrail-engine.ts';
-        const results = {
-          missing: validatePolicyDeclaration({ name: 'missing' }),
-          both: validatePolicyDeclaration({ name: 'both', pattern: 'a', patterns: ['b'] }),
-          empty: validatePolicyDeclaration({ name: 'empty', patterns: [] }),
-          valid: validatePolicyDeclaration({ name: 'valid', tools: ['bash'], paths: ['command'], pattern: 'live', action: 'confirm', reason: 'check first' }),
-        };
-        console.log(JSON.stringify(results));
-    """
-    result = run_bun(source)
-    assert any("requires a non-empty pattern" in str(error) for error in result["missing"])
-    assert any("not both" in str(error) for error in result["both"])
-    assert any("non-empty array" in str(error) for error in result["empty"])
-    assert result["valid"] == []
-
-
-def test_disabled_names_and_invalid_regex_are_tolerated() -> None:
-    layers = json.dumps(
-        [
-            {
-                "source": "user",
-                "policies": [
-                    {"name": "broken", "pattern": "([unclosed", "action": "block", "reason": "x"},
-                    {"name": "bad-paths", "paths": [42], "pattern": "x", "action": "block", "reason": "x"},
-                    {"name": "ok", "pattern": "deploy-prod", "action": "block", "reason": "ask first"},
-                ],
-                "disabled": ["no-otp-in-chat"],
-            }
-        ]
-    )
-    merged = merge_only(layers)
-    assert "no-otp-in-chat" not in merged["names"]
-    assert "bad-paths" not in merged["names"]
-    assert "ok" in merged["names"]
-    assert any("invalid regex" in str(e) for e in merged["errors"])
-    assert any("paths must be an array of strings" in str(e) for e in merged["errors"])
+@pytest.mark.parametrize('symlink_parent', [False, True])
+def test_tool_gate_rejects_symlinked_target_or_parent(tmp_path: Path, symlink_parent: bool) -> None:
+    project = tmp_path / 'project'; project.mkdir()
+    outside = tmp_path / 'outside'; outside.mkdir()
+    target = project / '.pi/harness.json'
+    if symlink_parent:
+        (project / '.pi').symlink_to(outside, target_is_directory=True)
+    else:
+        target.parent.mkdir(); (outside/'harness.json').write_text('{"rules":[]}'); target.symlink_to(outside/'harness.json')
+    result = run_bun(f'''
+      process.env.PI_CODING_AGENT_DIR={json.dumps(str(tmp_path/'agent'))};
+      const {{default:register}}=await import('./packages/continual-learning/extensions/guardrails.ts');
+      const hooks={{}};register({{on:(n,f)=>hooks[n]=f,registerEntryRenderer(){{}},registerCommand(){{}},getCommands:()=>[]}});
+      console.log(JSON.stringify(await hooks.tool_call({{toolName:'write',input:{{path:{json.dumps(str(target))},content:'{{"rules":[]}}'}}}},{{cwd:{json.dumps(str(project))}}})));
+    ''')
+    assert result['block'] and 'Unsafe' in result['reason']

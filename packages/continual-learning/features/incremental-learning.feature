@@ -44,6 +44,19 @@ Feature: Select the minimum sufficient scope for incremental learning
     Then the exact selection is accepted
     But multiple balanced selection objects are rejected as ambiguous
 
+  Scenario: Memory management points to the shipped planner
+    Given a headless user opens memory management
+    When the command reports its consolidation procedure
+    Then the path names the package-owned incremental planner in prompts
+    And the referenced Markdown file exists in the installed package
+
+  Scenario: Planner tasks bind one authoritative identity block
+    Given a full or incremental Memory plan is requested
+    When the parent builds the child task
+    Then run identity and input paths are defined once by the mode-specific prompt
+    And the task header supplies only task-specific scope, mode, and rejection feedback
+    And the planner still returns a parent-validated bounded plan or a no-op
+
   Scenario: The authoritative dossier contains selected evidence once
     Given the selector chooses related existing Memory
     When the parent writes the Learning Dossier

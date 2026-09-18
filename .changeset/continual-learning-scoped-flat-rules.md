@@ -1,0 +1,7 @@
+---
+"pi-continual-learning": minor
+---
+
+Unify new Harness authoring, automatic learning, and AGENTS extraction on flat skill/Bash/text rules. Preserve installed policy/skill-prompt and output/artifact protections through read-only compatibility rather than treating valid old configurations as global execution failures. Additions preserve existing declarations; removals require explicit authorization, with no automatic file migration. Preserve evidence, revision-bound ownership, narrow evaluator cases, privacy, and transactional receipts.
+
+Replace rigid authoring scripts with a bounded outcome contract, retain conditional AGENTS pointers during extraction, make guidance scope visible in retained messages, and keep omitted Memory entries discoverable without silently cutting relevance cues. Simplify planner instructions while retaining their machine protocols. Live smoke now requires actual learned rules rather than masking failed learning with fixtures. Scoped delivery revisions refresh resumed conversations once. Failed Harness readback rolls back identifiable parent writes without overwriting external changes; explicitly approved repairs can proceed one configuration layer at a time. Preserve exact repair-approval byte snapshots through later policy confirmations so concurrent edits cannot be overwritten merely because their resolved diagnostics match. Resolve execution policy after asynchronous preflight so newly installed protections cannot be bypassed by an earlier cached configuration.

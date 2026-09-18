@@ -26,6 +26,23 @@ def test_automatic_pipeline_does_not_request_routine_result_rows() -> None:
     assert 'eventToolLifecycle("learning", subject' in source
 
 
+def test_memory_management_reports_shipped_incremental_planner() -> None:
+    result = run_bun(r'''
+      import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-procedure-'));
+      process.env.PI_CODING_AGENT_DIR = path.join(root, 'agent');
+      const { default: register } = await import('./packages/continual-learning/extensions/inject-memory.ts');
+      const commands = new Map(), notices = [];
+      register({ on() {}, registerCommand: (name, command) => commands.set(name, command), getCommands: () => [] });
+      await commands.get('memory').handler('', { cwd: root, hasUI: false, ui: { notify: text => notices.push(text) }, getSystemPromptOptions: () => ({ contextFiles: [] }) });
+      const file = /Consolidate procedure: (.+)/.exec(notices.join('\n'))[1];
+      console.log(JSON.stringify({ file, exists: fs.existsSync(file) }));
+      fs.rmSync(root, { recursive: true, force: true });
+    ''')
+    assert result['exists'] is True
+    assert result['file'].endswith('/prompts/incremental-memory-consolidator.md')
+
+
 def test_learning_deduplicates_and_ignores_extension_inputs() -> None:
     result = run_bun("""
       import { createAutomaticLearning } from './packages/continual-learning/extensions/automatic-learning.ts';
@@ -237,7 +254,7 @@ def test_headless_pipeline_freezes_context_and_finishes_all_phases() -> None:
       await emit('session_shutdown', {});
       const exitMarkers = ['memory-worker-exited'].filter(name => fs.existsSync(path.join(temp, name)));
       const incrementalAgent = plannerTasks.every(task => task.includes('"kind": "incremental-memory-plan"') || task.includes('"kind":"incremental-memory-plan"'));
-      const dossierOnly = plannerTasks.every(task => task.includes('Incremental Learning Dossier'));
+      const dossierOnly = plannerTasks.every(task => task.includes('`dossierPath`:') && task.includes('Learning Dossier'));
       fs.rmSync(temp, { recursive: true, force: true });
       console.log(JSON.stringify({ snapshots, lockFiles, created, leaked, exitMarkers, selectorPrompts, incrementalAgent, dossierOnly, receiptAttempts: learningReceipt.attempts, receiptOperations: learningReceipt.operations, failures: notices.filter(text => /failed|rejected|blocked|without verified/i.test(text)) }));
     ''')
@@ -435,7 +452,7 @@ def test_consolidate_full_skips_selector_and_uses_exhaustive_planner() -> None:
       const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'full-consolidation-'));
       const cwd = path.join(temp, 'project'), agent = path.join(temp, 'agent');
       fs.mkdirSync(cwd); fs.mkdirSync(agent); execFileSync('git', ['init', '-q', cwd]); process.env.PI_CODING_AGENT_DIR = agent;
-      let selectorCalls = 0; const plannerTasks = [];
+      let selectorCalls = 0; const plannerTasks = []; const memoryIdentityCounts = [];
       const kit = await import('./packages/kit/src/index.ts');
       mock.module('./packages/kit/src/index.ts', () => ({
         ...kit,
@@ -446,6 +463,7 @@ def test_consolidate_full_skips_selector_and_uses_exhaustive_planner() -> None:
           const task = fs.readFileSync(taskFile, 'utf8'); plannerTasks.push(task);
           const manifest = JSON.parse(fs.readFileSync(path.join(path.dirname(taskFile), 'manifest.json'), 'utf8'));
           const harness = task.startsWith('Task: produce a read-only structured harness consolidation plan');
+          if (!harness) memoryIdentityCounts.push((task.match(/(?:- Run ID:|- `runId`:)/g) ?? []).length);
           const plan = harness
             ? { kind: 'harness-consolidation-plan', version: 1, schemaVersion: 1, runId: manifest.runId, scopeDigest: manifest.scopeDigest, artifactHash: manifest.snapshotDigest, operations: [], evidence: [], report: [] }
             : { kind: 'memory-consolidation-plan', version: 1, schemaVersion: 1, runId: manifest.runId, scopeKey: manifest.scopeKey, scopeDigest: manifest.scopeDigest, artifactHash: manifest.snapshotDigest, snapshotDigest: manifest.snapshotDigest, selected: [], operations: [], newMemories: [], inventory: [], clusters: [], staleness: [], grounding: [], report: [] };
@@ -464,9 +482,12 @@ def test_consolidate_full_skips_selector_and_uses_exhaustive_planner() -> None:
       const memoryTask = plannerTasks.find(task => task.startsWith('Task: produce a read-only structured consolidation plan'));
       await Promise.all((hooks.get('session_shutdown') ?? []).map(handler => handler({}, ctx)));
       fs.rmSync(temp, { recursive: true, force: true });
-      console.log(JSON.stringify({ selectorCalls, fullAgent: memoryTask.includes('# Memory consolidation child planner'), incrementalAgent: memoryTask.includes('# Incremental Memory consolidation child planner'), fullSnapshot: memoryTask.includes('Immutable context snapshot') }));
+      console.log(JSON.stringify({ selectorCalls, fullAgent: memoryTask.includes('# Memory consolidation child planner'), incrementalAgent: memoryTask.includes('# Incremental Memory consolidation child planner'), fullSnapshot: memoryTask.includes('snapshotPath'), memoryIdentityCounts }));
     ''')
-    assert result == {"selectorCalls": 0, "fullAgent": True, "incrementalAgent": False, "fullSnapshot": True}
+    assert result["selectorCalls"] == 0
+    assert result["fullAgent"] is True and result["incrementalAgent"] is False
+    assert result["fullSnapshot"] is True
+    assert result["memoryIdentityCounts"] and set(result["memoryIdentityCounts"]) == {1}
 
 
 def test_incremental_memory_repair_prompt_contains_only_rejected_delta_errors_scope_and_identity() -> None:

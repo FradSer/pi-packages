@@ -7,10 +7,12 @@ Feature: Harness consolidation alongside memory consolidation
   to the project harness.json layer. The harness phase never mutates
   memory results and never writes shared config layers.
 
-  Scenario: Harness planner tests isolate runtime artifacts
-    Given an incremental Harness planner test uses a temporary project
-    When it creates its consolidation run
-    Then its run directory is below a temporary agent directory
+  Scenario: Harness tests isolate configuration and runtime artifacts
+    Given a Harness test uses a temporary project and agent root
+    And the caller's ambient global Harness configuration may be invalid
+    When it resolves configuration or creates its consolidation run
+    Then it reads only the disposable user and project layers
+    And its run directory is below the temporary agent directory
     And it leaves the real user agent directory untouched
 
   Scenario: /consolidate consolidates both surfaces
@@ -51,12 +53,13 @@ Feature: Harness consolidation alongside memory consolidation
     And a quote from the tool name or envelope metadata is rejected
     And assistant message content remains ineligible as tool evidence
 
-  Scenario: Policy learning requires executable positive and negative cases
-    Given an addPolicy or updatePolicy operation declares positive and negative tool calls
-    When the parent evaluates those cases with the actual harness policy evaluator
-    Then every positive case matches the proposed policy with its declared action
-    And every negative case remains unmatched by the proposed policy
-    And missing or failing cases reject the operation before any write
+  Scenario: Flat rule learning requires executable positive and negative cases
+    Given an addRule or updateRule operation carries one rule with an id and skill, bash, or text selector
+    When the parent evaluates bounded positive and negative fixtures with the actual selector evaluator
+    Then every positive case matches with its declared Bash action when applicable
+    And every negative case remains unmatched
+    And unknown skills, missing cases, failing cases, or legacy operations reject the plan before any write
+    And skill and text guidance cite narrow user or tool evidence for their actual scope
 
   Scenario: Automatic learning protects explicit and manually authored rules
     Given an existing rule comes from built-in defaults, another layer, or an unmarked project entry
@@ -64,6 +67,10 @@ Feature: Harness consolidation alongside memory consolidation
     Then the operation is rejected because automatic learning cannot disable or weaken existing rules
     And a user-looking quote or model authorization field cannot change that result
     And a project rule marked as learned may be revised only with grounded evidence and passing cases
+    And learnedRules metadata binds its id to the current rule revision
+    And manual edits invalidate automatic ownership even if old metadata remains
+    And identity conflicts in any layer include disabled and invalid declarations
+    And selector changes, re-enabling and weaker execution conditions require explicit authorization
 
   Scenario: Oversized non-plan telemetry does not abort harness consolidation
     Given child output contains an oversized non-plan message_update event followed by a valid final plan
@@ -74,9 +81,17 @@ Feature: Harness consolidation alongside memory consolidation
 
   Scenario: Harness operations are bounded
     Given a harness plan declares more than the configured maximum operations
-    Or a single policy payload exceeds the configured byte bound
+    Or a single rule payload exceeds the configured byte bound
     When the parent validates the plan
     Then the plan is rejected and no harness file is modified
+
+  Scenario: Legacy configuration coexists with new learning without migration
+    Given a target contains valid policies, disabled names or skillPrompts
+    When runtime loading encounters it
+    Then existing protections remain active and loading preserves actual file bytes
+    When automatic learning adds a non-conflicting flat rule
+    Then legacy containers and provenance remain structurally unchanged
+    And old policy and disabled identities are reserved against automatic replacement
 
   Scenario: Harness plans bind to the run identity
     Given a harness plan whose runId, scopeDigest, or artifactHash disagrees with the run
@@ -89,6 +104,15 @@ Feature: Harness consolidation alongside memory consolidation
     Then changes merge into <project>/.pi/harness.json in one atomic write
     And the user shared and project personal layers are never written
     And a pre-apply receipt records the prior file digest and a post-apply receipt records the final digest
+
+  Scenario: Failed readback after replacement rolls back only the parent's own candidate
+    Given a complete validated candidate replaces an existing or missing target atomically
+    When readback fails before a verified result or post receipt
+    Then both direct application and pipeline application report failure
+    And if the current bytes still equal that candidate the exact predecessor is restored
+    And a previously missing target is removed instead of left partially applied
+    And an external replacement is preserved rather than overwritten during rollback
+    And a failed pipeline creates no post receipt
 
   Scenario: Harness planner termination is awaited before the phase finishes
     Given the harness planner child has been spawned

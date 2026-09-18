@@ -7,7 +7,7 @@ import type { ChildProcess } from "node:child_process";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { terminateChildProcess } from "@fradser/pi-kit";
 import { resolveMemoryPaths, type MemoryPaths } from "./memory-paths";
-import { isMemoryFilename } from "./memory-files";
+import { buildMemoryIndexContent, isMemoryFilename } from "./memory-files";
 
 export const CONSOLIDATION_SCHEMA_VERSION = 1;
 export const MAX_PLAN_BYTES = 512_000;
@@ -1212,11 +1212,10 @@ async function updateMemoryIndex(root: string, privateNames: Set<string>, isActi
   for (const name of privateNames) {
     if (!nameKeys.has(name.toLowerCase())) throw new Error(`Memory index marks a missing private file: ${name}`);
   }
-  const lines = ["# Memory Index", ""];
-  for (const name of names) lines.push(`- [${name}](${name})${privateNames.has(name.toLowerCase()) ? " (harness only)" : ""}`);
+  const content = await buildMemoryIndexContent(root, privateNames);
   await assertMemoryRootStable(root, rootIdentity);
   isActive?.();
-  await writeMemoryFile(path.join(root, "MEMORY.md"), `${lines.join("\n")}\n`);
+  await writeMemoryFile(path.join(root, "MEMORY.md"), content);
   await assertMemoryRootStable(root, rootIdentity);
   const indexed = await readPrivateIndexNames(root);
   if (indexed.size !== privateNames.size || [...indexed].some((name) => !privateNames.has(name))) {

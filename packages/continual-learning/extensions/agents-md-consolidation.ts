@@ -39,11 +39,13 @@ import {
   MAX_STDOUT_BYTES,
   type ConsolidationRun,
 } from "./consolidation-run";
-import { isMemoryFilename } from "./memory-files";
+import { buildMemoryIndexContent, isMemoryFilename } from "./memory-files";
 import { resolveMemoryPaths } from "./memory-paths";
 import type { HarnessOp } from "./harness-consolidation";
 import { buildAgentsMdConsolidatorPrompt } from "./planner-prompts";
 import { assertHarnessConfigContainers, configPaths, loadLayers } from "./guardrail-config";
+import { legacyReservedNames } from "./legacy-harness";
+import { DEFAULT_RULES, evaluateSkill, mergeLayers, validateRuleDeclaration } from "./guardrail-engine";
 
 export const AGENTS_PLAN_KIND = "agents-md-consolidation-plan";
 /** Learning rate: at most five small edits per consolidation run. */
@@ -52,7 +54,10 @@ export const MAX_AGENTS_MD_OPS = 5;
 export const MAX_AGENTS_MD_FILE_BYTES = 262_144;
 /** One addressed unit stays bounded and auditable. */
 export const MAX_UNIT_TEXT_CHARS = 4_000;
-export const MAX_EXTRACT_PROMPT_CHARS = 2_000;
+export const MAX_EXTRACT_INSTRUCTIONS_CHARS = 2_000;
+/** Extraction can retain a discoverable route, not another detailed unit. */
+export const MAX_REPLACEMENT_TEXT_CHARS = 500;
+export const MAX_MEMORY_DESCRIPTION_CHARS = 120;
 /** Default always-loaded budget (~4k English tokens by the common bytes/4
  * heuristic). Anchored conservatively below two industry reference points:
  * backpass defaults to ~20KB for its memory file, and Claude Code loads only
@@ -82,18 +87,20 @@ interface ExtractionMemory {
   classification: "safe" | "private";
 }
 
-interface ExtractionSkillPrompt {
-  target: "skillPrompt";
+interface ExtractionSkillRule {
+  target: "skillRule";
+  ruleId: string;
   skillName: string;
-  prompt: string;
-  promptTarget: "system" | "user";
+  instructions: string;
 }
 
-type Extraction = ExtractionMemory | ExtractionSkillPrompt;
+type Extraction = ExtractionMemory | ExtractionSkillRule;
 
 export interface AgentsOp {
   op: AgentsOpKind;
   oldText?: string;
+  /** Optional concise conditional pointer left where the extracted unit was. */
+  replacementText?: string;
   newText?: string;
   text?: string;
   anchor?: string;
@@ -117,6 +124,10 @@ export interface AgentsPlan {
 
 function boundedString(value: unknown, max: number): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= max;
+}
+
+function boundedLine(value: unknown, max: number): value is string {
+  return boundedString(value, max) && value.trim().length > 0 && !/[\x00-\x1f\x7f\u2028\u2029]/.test(value);
 }
 
 function parseEvidence(raw: unknown, label: string, errors: string[]): AgentsEvidence[] {
@@ -159,20 +170,20 @@ function parseExtraction(raw: unknown, label: string, errors: string[]): Extract
     return undefined;
   }
   const record = raw as Record<string, unknown>;
-  if (record.target === "skillPrompt") {
+  if (record.target === "skillRule") {
+    if (!boundedLine(record.ruleId, 128) || record.ruleId !== record.ruleId.trim()) {
+      errors.push(`${label}.extraction.ruleId must be a non-blank 1..128 char ID without surrounding whitespace`);
+      return undefined;
+    }
     if (typeof record.skillName !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(record.skillName)) {
       errors.push(`${label}.extraction.skillName is invalid`);
       return undefined;
     }
-    if (!boundedString(record.prompt, MAX_EXTRACT_PROMPT_CHARS)) {
-      errors.push(`${label}.extraction.prompt must be 1..${MAX_EXTRACT_PROMPT_CHARS} chars`);
+    if (!boundedString(record.instructions, MAX_EXTRACT_INSTRUCTIONS_CHARS) || !record.instructions.trim()) {
+      errors.push(`${label}.extraction.instructions must be non-blank and 1..${MAX_EXTRACT_INSTRUCTIONS_CHARS} chars`);
       return undefined;
     }
-    if (record.promptTarget !== "system" && record.promptTarget !== "user") {
-      errors.push(`${label}.extraction.promptTarget must be "system" or "user"`);
-      return undefined;
-    }
-    return { target: "skillPrompt", skillName: record.skillName, prompt: record.prompt, promptTarget: record.promptTarget };
+    return { target: "skillRule", ruleId: record.ruleId, skillName: record.skillName, instructions: record.instructions };
   }
   if (record.target === "memory") {
     const name = record.memoryName;
@@ -182,8 +193,8 @@ function parseExtraction(raw: unknown, label: string, errors: string[]): Extract
       errors.push(`${label}.extraction.memoryName is not a canonical memory filename`);
       return undefined;
     }
-    if (!boundedString(record.description, 300)) {
-      errors.push(`${label}.extraction.description must be 1..300 chars`);
+    if (!boundedLine(record.description, MAX_MEMORY_DESCRIPTION_CHARS)) {
+      errors.push(`${label}.extraction.description must be a non-blank single line of 1..${MAX_MEMORY_DESCRIPTION_CHARS} chars`);
       return undefined;
     }
     if (!MEMORY_TYPES.includes(record.type as (typeof MEMORY_TYPES)[number])) {
@@ -202,7 +213,7 @@ function parseExtraction(raw: unknown, label: string, errors: string[]): Extract
       classification: record.classification,
     };
   }
-  errors.push(`${label}.extraction.target must be "memory" or "skillPrompt"`);
+  errors.push(`${label}.extraction.target must be "memory" or "skillRule"`);
   return undefined;
 }
 
@@ -217,6 +228,10 @@ function coerceOperation(raw: unknown, label: string, errors: string[]): AgentsO
     return undefined;
   }
   const op = record.op as AgentsOpKind;
+  if (record.replacementText !== undefined && op !== "extractUnit") {
+    errors.push(`${label}.replacementText is only valid for extractUnit`);
+    return undefined;
+  }
   const evidence = parseEvidence(record.evidence, label, errors);
   const base: AgentsOp = {
     op,
@@ -256,6 +271,13 @@ function coerceOperation(raw: unknown, label: string, errors: string[]): AgentsO
       base.newText = record.newText;
     }
     if (op === "extractUnit") {
+      if (record.replacementText !== undefined) {
+        if (!boundedLine(record.replacementText, MAX_REPLACEMENT_TEXT_CHARS)) {
+          errors.push(`${label}.replacementText must be a non-blank single line of 1..${MAX_REPLACEMENT_TEXT_CHARS} chars`);
+          return undefined;
+        }
+        base.replacementText = record.replacementText;
+      }
       base.extraction = parseExtraction(record.extraction, label, errors);
       if (!base.extraction) return undefined;
     }
@@ -379,6 +401,7 @@ export function fingerprintOp(op: AgentsOp): string {
   const material = JSON.stringify({
     op: op.op,
     oldText: op.oldText ?? null,
+    replacementText: op.replacementText ?? null,
     newText: op.newText ?? null,
     text: op.text ?? null,
     anchor: op.anchor ?? null,
@@ -428,8 +451,8 @@ export function simulateAgentsOps(
     const first = next.indexOf(oldText);
     if (first < 0) return { ok: false, error: `${label}.oldText does not match the document` };
     if (next.indexOf(oldText, first + 1) >= 0) return { ok: false, error: `${label}.oldText matches more than once` };
-    if (op.op === "rewriteUnit") next = next.slice(0, first) + op.newText! + next.slice(first + oldText.length);
-    else next = next.slice(0, first) + next.slice(first + oldText.length);
+    const replacement = op.op === "rewriteUnit" ? op.newText! : op.op === "extractUnit" ? op.replacementText ?? "" : "";
+    next = next.slice(0, first) + replacement + next.slice(first + oldText.length);
     applied.push(`${op.op}[${index}]`);
   }
   return { ok: true, doc: next, applied };
@@ -846,13 +869,8 @@ async function memoryNames(root: string): Promise<string[]> {
 }
 
 async function writeMemoryIndex(root: string, privateNames: ReadonlySet<string>): Promise<void> {
-  const names = await memoryNames(root);
-  const actual = new Set(names.map((name) => name.toLowerCase()));
-  for (const name of privateNames) {
-    if (!actual.has(name.toLowerCase())) throw new Error(`Memory index marks missing private file: ${name}`);
-  }
-  const lines = ["# Memory Index", "", ...names.map((name) => `- [${name}](${name})${privateNames.has(name.toLowerCase()) ? " (harness only)" : ""}`)];
-  await writeFileAtomic(path.join(root, "MEMORY.md"), `${lines.join("\n")}\n`, 0o600);
+  const content = await buildMemoryIndexContent(root, new Set(privateNames));
+  await writeFileAtomic(path.join(root, "MEMORY.md"), content, 0o600);
 }
 
 async function assertMemoryNameAvailable(roots: readonly string[], name: string): Promise<void> {
@@ -869,34 +887,59 @@ async function readHarnessConfig(file: string): Promise<Record<string, unknown>>
     assertHarnessConfigContainers(parsed);
     return parsed;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { rules: [] };
     throw error;
   }
 }
 
-function assertSkillPromptsAvailable(cwd: string, ops: readonly HarnessOp[], availableSkills: readonly string[]): void {
+function assertSkillRulesAvailable(cwd: string, ops: readonly HarnessOp[], availableSkills: readonly string[]): void {
   const knownSkills = new Set(availableSkills);
-  const existing = new Set(loadLayers(cwd).flatMap((layer) => Object.keys(layer.skillPrompts ?? {})));
+  const layers = loadLayers(cwd);
+  const incomplete = layers.flatMap((layer) => layer.errors?.length ? layer.errors : layer.stale ? [`${layer.source}: unreadable layer`] : []);
+  if (incomplete.length) throw new Error(`Cannot establish skill rule ownership: ${incomplete.join("; ")}`);
+  // Use declarations, not only active winners: invalid, disabled, and shadowed
+  // IDs are still owned and automatic extraction must never replace them.
+  const existing = new Set([
+    ...DEFAULT_RULES.map((rule) => rule.id),
+    ...layers.flatMap(legacyReservedNames),
+    ...layers.flatMap((layer) => (layer.rules ?? []).flatMap((rule) =>
+      isRecord(rule) && typeof rule.id === "string" ? [rule.id] : [],
+    )),
+  ]);
   for (const op of ops) {
-    const name = op.name!;
-    if (!knownSkills.has(name)) throw new Error(`Skill prompt targets an unavailable skill: ${name}`);
-    if (existing.has(name)) throw new Error(`Skill prompt already exists and cannot be overwritten: ${name}`);
+    const errors = validateRuleDeclaration(op.rule, knownSkills);
+    if (errors.length) throw new Error(`Invalid extracted skill rule: ${errors.join("; ")}`);
+    const id = String(op.rule.id);
+    if (existing.has(id)) throw new Error(`Skill rule ID already exists and cannot be overwritten: ${id}`);
+    const skill = String(op.rule.skill);
+    const candidate = mergeLayers([{ source: "extraction", rules: [op.rule] }], knownSkills);
+    // Exact-skill routing has deterministic fixtures; this is selector evidence,
+    // not proof that a live invocation delivered or followed the instructions.
+    const positive = evaluateSkill(candidate, skill);
+    const negative = evaluateSkill(candidate, `${skill}-other`);
+    if (candidate.errors.length || positive.length !== 1 || positive[0].id !== id || negative.length !== 0) {
+      throw new Error(`Extracted skill rule failed its exact-skill selector checks: ${id}`);
+    }
+    existing.add(id);
   }
 }
 
-function mergeSkillPrompts(base: Record<string, unknown>, ops: readonly HarnessOp[]): Record<string, unknown> {
-  const current = isRecord(base.skillPrompts) ? { ...base.skillPrompts } : {};
+function mergeSkillRules(base: Record<string, unknown>, ops: readonly HarnessOp[]): Record<string, unknown> {
+  assertHarnessConfigContainers(base);
+  const rules: unknown[] = Array.isArray(base.rules) ? [...base.rules] : [];
   for (const op of ops) {
-    const name = op.name!;
-    if (Object.hasOwn(current, name)) throw new Error(`Skill prompt already exists and cannot be overwritten: ${name}`);
-    current[name] = { prompt: op.prompt, target: op.target };
+    const id = String(op.rule.id);
+    if (rules.some((rule) => isRecord(rule) && rule.id === id)) {
+      throw new Error(`Skill rule ID already exists and cannot be overwritten: ${id}`);
+    }
+    rules.push(op.rule);
   }
-  return { ...base, skillPrompts: current };
+  return { ...base, rules };
 }
 
 function extractedMemoryContent(op: AgentsOp): string {
   const extraction = op.extraction as ExtractionMemory;
-  const frontmatter = ["---", `name: ${extraction.memoryName.replace(/\.md$/i, "")}`, `description: ${extraction.description}`, `type: ${extraction.type}`, "---", ""].join("\n");
+  const frontmatter = ["---", `name: ${extraction.memoryName.replace(/\.md$/i, "")}`, `description: ${JSON.stringify(extraction.description)}`, `type: ${extraction.type}`, "---", ""].join("\n");
   return `${frontmatter}${(op.oldText ?? "").trim()}\n`;
 }
 
@@ -905,14 +948,14 @@ async function assertProjectLocalTarget(cwd: string, target: string): Promise<vo
   const resolvedTarget = path.resolve(target);
   const relative = path.relative(projectRoot, resolvedTarget);
   if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-    throw new Error(`Skill prompt target escapes the project: ${target}`);
+    throw new Error(`Skill rule target escapes the project: ${target}`);
   }
   let current = projectRoot;
   for (const component of relative.split(path.sep).filter(Boolean).slice(0, -1)) {
     current = path.join(current, component);
     try {
       const stat = await fs.lstat(current);
-      if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error(`Skill prompt target has an unsafe path component: ${current}`);
+      if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error(`Skill rule target has an unsafe path component: ${current}`);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
       throw error;
@@ -920,7 +963,7 @@ async function assertProjectLocalTarget(cwd: string, target: string): Promise<vo
   }
   try {
     const stat = await fs.lstat(resolvedTarget);
-    if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`Skill prompt target is not a regular file: ${resolvedTarget}`);
+    if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`Skill rule target is not a regular file: ${resolvedTarget}`);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
@@ -967,16 +1010,8 @@ async function planAgentsMdConsolidationPhaseInternal(
   const taskText = [
     `Task: produce a read-only structured AGENTS.md consolidation plan for the project at ${opts.cwd}.`,
     `- Reason: ${opts.reason}`,
-    `- Run ID: ${run.manifest.runId}`,
-    `- Scope digest: ${run.manifest.scopeDigest}`,
-    `- Artifact/snapshot digest: ${run.manifest.snapshotDigest}`,
-    `- Immutable task-slice snapshot: ${run.manifest.snapshotPath}`,
-    ...(opts.explorationPath ? [
-      `- Authoritative Learning Dossier: ${opts.explorationPath}`,
-      `- Dossier digest: ${opts.explorationDigest}`,
-      "- Use the dossier and task-slice snapshot; do not perform independent repository-wide exploration.",
-    ] : []),
-    `- Budget bytes: ${opts.budgetBytes}`,
+    ...(opts.explorationDigest ? [`- Dossier digest: ${opts.explorationDigest}`] : []),
+    `- Registered skill names: ${JSON.stringify(opts.availableSkills ?? [])}`,
     `- Current AGENTS.md (${preBytes} bytes), authoritative for anchoring operations:`,
     "<<<AGENTS.MD>>>",
     doc,
@@ -1120,7 +1155,14 @@ export async function applyAgentsMdConsolidationPlan(
 ): Promise<AgentsMdConsolidationApplyResult> {
   const current = (): boolean => !state.cancelled && generation === state.generation && (isActive?.() ?? true);
   if (!current()) return { outcome: "cancelled", applied: 0, extractions: [], detail: "cancelled before apply" };
-  const { run, targetPath, docBytes, doc, preBytes, rawPlan, operations } = planning;
+  const { run, targetPath, docBytes, doc, preBytes, rawPlan } = planning;
+  const shape = validateAgentsMdPlan({ kind: AGENTS_PLAN_KIND, operations: planning.operations });
+  if (!shape.ok) return { outcome: "failed", applied: 0, extractions: [], detail: shape.errors.join("; ") };
+  const quoteCheck = verifyPlanQuotes(shape.operations, planning.snapshotText);
+  if (quoteCheck.dropped.length || quoteCheck.operations.some((op) => !addUnitEvidenceSufficient(op))) {
+    return { outcome: "failed", applied: 0, extractions: [], detail: "AGENTS.md plan failed its apply evidence gates" };
+  }
+  const operations = quoteCheck.operations;
   const currentDocBytes = await readRegularFileIfExists(targetPath, MAX_AGENTS_MD_FILE_BYTES);
   if (!currentDocBytes || !currentDocBytes.equals(docBytes)) {
     const detail = "AGENTS.md changed after planning";
@@ -1137,8 +1179,8 @@ export async function applyAgentsMdConsolidationPlan(
 
   const memoryOps = operations.filter((op): op is AgentsOp & { extraction: ExtractionMemory } => op.op === "extractUnit" && op.extraction?.target === "memory");
   const skillOps: HarnessOp[] = operations.flatMap((op) =>
-    op.op === "extractUnit" && op.extraction?.target === "skillPrompt"
-      ? [{ op: "addSkillPrompt", name: op.extraction.skillName, prompt: op.extraction.prompt, target: op.extraction.promptTarget }]
+    op.op === "extractUnit" && op.extraction?.target === "skillRule"
+      ? [{ op: "addRule", rule: { id: op.extraction.ruleId, skill: op.extraction.skillName, instructions: op.extraction.instructions } }]
       : [],
   );
   const privateRoot = run.manifest.harnessDir;
@@ -1179,8 +1221,9 @@ export async function applyAgentsMdConsolidationPlan(
       if (publicRoot) files.add(path.join(publicRoot, "MEMORY.md"));
     }
     if (skillOps.length > 0) {
-      assertSkillPromptsAvailable(opts.cwd, skillOps, opts.availableSkills ?? []);
       await assertProjectLocalTarget(opts.cwd, harnessConfig);
+      await readHarnessConfig(harnessConfig);
+      assertSkillRulesAvailable(opts.cwd, skillOps, opts.availableSkills ?? []);
       files.add(harnessConfig);
     }
     snapshots = await Promise.all([...files].map(captureTransactionFile));
@@ -1204,7 +1247,8 @@ export async function applyAgentsMdConsolidationPlan(
 
     if (skillOps.length > 0) {
       await assertProjectLocalTarget(opts.cwd, harnessConfig);
-      mergeSkillPrompts(await readHarnessConfig(harnessConfig), skillOps);
+      mergeSkillRules(await readHarnessConfig(harnessConfig), skillOps);
+      assertSkillRulesAvailable(opts.cwd, skillOps, opts.availableSkills ?? []);
     }
     const planDigest = sha256Digest(JSON.stringify(rawPlan));
     const preReceipt = {
@@ -1251,9 +1295,10 @@ export async function applyAgentsMdConsolidationPlan(
     if (skillOps.length > 0) {
       await assertProjectLocalTarget(opts.cwd, harnessConfig);
       const base = await readHarnessConfig(harnessConfig);
-      await writeFileAtomic(harnessConfig, `${JSON.stringify(mergeSkillPrompts(base, skillOps), null, 2)}\n`, 0o600);
+      assertSkillRulesAvailable(opts.cwd, skillOps, opts.availableSkills ?? []);
+      await writeFileAtomic(harnessConfig, `${JSON.stringify(mergeSkillRules(base, skillOps), null, 2)}\n`, 0o600);
       await assertProjectLocalTarget(opts.cwd, harnessConfig);
-      extractionNotes.push(...skillOps.map((op) => `addSkillPrompt:${op.name}`));
+      extractionNotes.push(...skillOps.map((op) => `addRule:${op.rule.id}`));
     }
     if (opts.transactionFault === "after-artifacts") throw new Error("Injected transaction failure after artifacts");
     if (!current()) throw new Error("__CANCELLED__:after artifacts");

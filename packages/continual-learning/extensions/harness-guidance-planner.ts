@@ -18,6 +18,8 @@ export const HARNESS_GUIDANCE_CUSTOM_TYPE = "harness-guidance";
 /** Sentinel prefix for the model-visible note Harness attaches to a Bash tool
  * result. The text scanner excludes it so Harness output never self-triggers. */
 export const HARNESS_BASH_NOTE_PREFIX = "[harness-bash-note]";
+/** Write-result activation diagnostics are Harness-owned, not matching evidence. */
+export const HARNESS_CONFIG_NOTE_PREFIX = "[harness-config-note]";
 
 /** Bounded work for one text scan. A single catastrophic regex pattern is not
  * interruptible without a worker; these bounds cap volume and let the caller
@@ -27,7 +29,7 @@ export const TEXT_SCAN_BUDGET = { maxSegments: 4000, maxChars: 2_000_000 } as co
 export function isHarnessOwnedMessage(msg: unknown): boolean {
   if (!msg || typeof msg !== "object") return false;
   const customType = (msg as { customType?: unknown }).customType;
-  return typeof customType === "string" && customType.startsWith("harness-");
+  return typeof customType === "string" && (customType.startsWith("harness-") || customType === "skill-prompt-guidance");
 }
 
 function collectStringLeaves(val: unknown): string[] {
@@ -41,7 +43,7 @@ function collectStringLeaves(val: unknown): string[] {
 
 /**
  * Extract model-visible text fragments from a retained conversation snapshot.
- * Excludes Harness-owned guidance messages and Harness-appended Bash notes
+ * Excludes Harness-owned guidance messages and appended Bash/config notes
  * (no self-trigger), thinking blocks, image binaries, and non-text metadata.
  */
 export function extractModelVisibleTexts(messages: unknown[]): string[] {
@@ -60,7 +62,7 @@ export function extractModelVisibleTexts(messages: unknown[]): string[] {
           if (!block || typeof block !== "object") continue;
           const b = block as Record<string, unknown>;
           if (b.type === "text" && typeof b.text === "string") {
-            if (b.text.startsWith(HARNESS_BASH_NOTE_PREFIX)) continue;
+            if (b.text.startsWith(HARNESS_BASH_NOTE_PREFIX) || b.text.startsWith(HARNESS_CONFIG_NOTE_PREFIX)) continue;
             texts.push(b.text);
           }
         }
@@ -94,15 +96,15 @@ export function extractModelVisibleTexts(messages: unknown[]): string[] {
   return texts;
 }
 
-/** Revision = digest of the normalized rule (selector + payload), so changing
- * the match condition or the action is a new revision, not just new text. */
+/** Delivery revision covers rule semantics and model-visible message format.
+ * A format change refreshes retained guidance without rewriting history. */
 export function hashRuleRevision(rule: Rule): string {
   let canonical: Record<string, unknown>;
   if ("skill" in rule) canonical = { k: "skill", skill: rule.skill, instructions: rule.instructions };
   else if ("bash" in rule) canonical = { k: "bash", bash: rule.bash, action: rule.action ?? null, message: rule.message };
   else if ("text" in rule) canonical = { k: "text", text: rule.text, instructions: rule.instructions };
   else canonical = { k: "disabled" };
-  return crypto.createHash("sha256").update(JSON.stringify({ id: rule.id, ...canonical })).digest("hex").slice(0, 16);
+  return crypto.createHash("sha256").update(JSON.stringify({ deliveryFormat: 2, id: rule.id, ...canonical })).digest("hex").slice(0, 16);
 }
 
 export type GuidanceStatus = "active" | "update" | "retired";
@@ -127,6 +129,10 @@ export interface TextGuidancePlan {
 interface DeliveredState {
   revision?: string;
   status: GuidanceStatus;
+}
+
+function scopedTextGuidance(rule: TextRule): string {
+  return `[harness:${rule.id}] Only for subjects matching ${JSON.stringify(rule.text)}; a historical match does not extend this guidance to unrelated tasks.\n${rule.instructions}`;
 }
 
 function readDeliveredState(messages: unknown[]): Map<string, DeliveredState> {
@@ -164,30 +170,28 @@ export function planTextGuidance(
   if (incomplete) return { entries: [], incomplete: true };
 
   const entries: TextGuidanceEntry[] = [];
-  const matchedById = new Map<string, TextRule>();
-  for (const rule of matches) matchedById.set(rule.id, rule);
 
   // 1. New or changed matches.
   for (const rule of matches) {
     const revision = hashRuleRevision(rule);
     const prior = delivered.get(rule.id);
     if (!prior) {
-      entries.push({ id: rule.id, revision, status: "active", text: `[harness:${rule.id}] ${rule.instructions}` });
+      entries.push({ id: rule.id, revision, status: "active", text: scopedTextGuidance(rule) });
     } else if (prior.status === "retired" || prior.revision !== revision) {
       const reactivation = prior.status === "retired";
       entries.push({
         id: rule.id,
         revision,
         status: reactivation ? "active" : "update",
-        text: `[harness:${rule.id}] ${rule.instructions}`,
+        text: scopedTextGuidance(rule),
       });
     }
     // Same revision, still active: already retained in place, no new copy.
   }
 
-  // 2. Retirement for previously-delivered guidance whose rule is now disabled
-  //    or removed. A rule that merely does not match this turn is NOT retired:
-  //    its delivered guidance stays as retained history.
+  // Retire removed/disabled guidance and outdated revisions that no longer
+  // apply. An unchanged scoped delivery stays in retained history.
+  const matchedIds = new Set(matches.map((rule) => rule.id));
   const configRuleById = new Map<string, Rule>();
   for (const r of config.rules) configRuleById.set(r.id, r);
 
@@ -195,14 +199,16 @@ export function planTextGuidance(
     if (prior.status === "retired") continue;
     const rule = configRuleById.get(id);
     const goneOrDisabled = !rule || rule.enabled === false;
-    if (!goneOrDisabled) continue;
+    const outdatedUnmatched = rule && !matchedIds.has(id) &&
+      (!("text" in rule) || prior.revision !== hashRuleRevision(rule));
+    if (!goneOrDisabled && !outdatedUnmatched) continue;
     // A vanished rule under an incomplete config read is indeterminate, not a
     // confirmed removal — do not emit a definitive retirement.
     if (config.configReadIncomplete) continue;
     entries.push({
       id,
       status: "retired",
-      text: `[harness:${id} retired] The earlier guidance for this rule no longer reflects the active configuration.`,
+      text: `[harness:${id} retired] The earlier guidance for this rule no longer applies to this task or reflects the current delivery.`,
     });
   }
 

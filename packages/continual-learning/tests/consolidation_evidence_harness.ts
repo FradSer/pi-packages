@@ -9,27 +9,22 @@ const evidence = createConsolidationEvidence();
 
 if (scenario === "verified") {
   recordConsolidationEvent(evidence, {
-    type: "tool_execution_start",
-    toolCallId: "validator",
-    args: { command: "python3 validate-consolidate.py" },
-  });
-  recordConsolidationEvent(evidence, {
-    type: "tool_execution_end",
-    toolCallId: "validator",
-    isError: false,
-    result: {
-      content: [{ type: "text", text: "PASSED  checks=cluster,privacy,report,staleness inventory=1" }],
-    },
-  });
-  recordConsolidationEvent(evidence, {
     type: "message_end",
     message: {
       role: "assistant",
-      content: [{ type: "text", text: "G1 passed\nG2 passed\nG3 passed\nG4 passed\nG5 passed\nG6 passed\nG7 passed\nG8 passed" }],
+      content: [{ type: "text", text: JSON.stringify({
+        kind: "incremental-memory-plan", schemaVersion: 1,
+        runId: "run_evidence", scopeKey: "test", scopeDigest: "scope", artifactHash: "snapshot",
+        operations: [],
+      }) }],
     },
   });
+  // Only the parent validator, never child events or written gate claims,
+  // establishes transaction completion and the verified receipt.
+  evidence.completedToolWork = true;
+  evidence.parentReceiptVerified = true;
 } else if (scenario === "streamed-gates") {
-  // Gates arrive via message_update text_delta events, not message_end
+  // Child gate claims do not establish completion, even when streamed.
   recordConsolidationEvent(evidence, {
     type: "tool_execution_start",
     toolCallId: "validator",
@@ -51,7 +46,7 @@ if (scenario === "verified") {
     });
   }
 } else if (scenario === "gates-in-tool-result") {
-  // Gates appear in a tool_execution_end result (e.g. cat of report file)
+  // Reading a child-authored report is not a parent validation receipt.
   recordConsolidationEvent(evidence, {
     type: "tool_execution_start",
     toolCallId: "validator",

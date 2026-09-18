@@ -1,7 +1,7 @@
 @design_contract
 Feature: Flat Harness rules with consistent resolution and append-only guidance
-  These scenarios specify the proposed replacement format.
-  They are design acceptance criteria, not claims about the current runtime.
+  These scenarios define the flat-rule runtime and its verification contract.
+  Known runtime limitations remain documented separately from tested behavior.
 
   Rule: Every rule has one identity and one execution selector
     Scenario Outline: Accept a complete rule for an established selector
@@ -69,8 +69,9 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
     Scenario: Diagnose duplicate identities
       Given one file declares the same id twice
       When the file is loaded
-      Then the layer has a configuration diagnostic
+      Then the entire ambiguous layer has a configuration diagnostic
       And no declaration is chosen by array position
+      And without a previous unambiguous snapshot that layer is unavailable and Bash evaluation is incomplete
 
     Scenario: Report configuration failure honestly
       Given a layer was previously valid
@@ -171,6 +172,13 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
       And a subsequent invocation can receive the guidance again
       And each message identifies its invocation scope
 
+    Scenario: Keep the skill scope in retained model-visible guidance
+      Given a registered skill rule is delivered for an expanded invocation
+      When a later unrelated task retains that guidance in history
+      Then the guidance text names the skill task it applies to
+      And retaining the message does not make it a project-wide instruction
+      And skill and text guidance are both delivered without rewriting the system prompt
+
     Scenario: Distinguish reading a skill from invoking it
       Given a tool reads a SKILL.md file
       When skill rules are evaluated
@@ -208,6 +216,12 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
       Given a keyword exists only in an abandoned branch, discarded history, thinking, image data, metadata, or excluded shell output
       When text rules are evaluated
       Then those sources contribute no match
+
+    Scenario: Keep the text selector in model-visible guidance
+      Given a text rule matches retained conversation about Project A
+      When its guidance is delivered while the current prompt concerns Project B
+      Then its model-visible text identifies the Project A selector and limited subject scope
+      And the matching history remains in place without another copy of unchanged guidance
 
     Scenario: Match individual text segments
       Given one message ends with A项 and a later message starts with 目
@@ -267,6 +281,22 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
       And no unmatched or retirement conclusion is inferred from incomplete evaluation
       And the status reports incomplete evaluation
 
+    Scenario: Refresh a retained delivery after guidance format changes
+      Given the current branch retains a pre-scope delivery of an unchanged text rule
+      When the scoped guidance format is loaded after reload or resume
+      Then one scoped replacement message is appended at the tail
+      And the earlier message remains at its original position
+      And subsequent starts deduplicate the scoped delivery
+
+    Scenario: Retire an outdated delivery whose original trigger was compacted away
+      Given the current branch retains an unscoped text guidance delivery
+      And compaction removed every ordinary text segment matching that rule
+      When a later unrelated task starts with the scoped delivery format
+      Then one retirement notice marks the old guidance as inapplicable
+      And no unrelated replacement instructions are injected
+      And repeated starts do not duplicate retirement
+      And a later matching task receives one scoped activation
+
     Scenario: Recover after compaction
       Given compaction removed the identifiable guidance message
       And retained ordinary text still matches the rule
@@ -306,8 +336,11 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
       When automatic consolidation proposes an overlapping identity
       Then the parent requests an explicit authoring decision instead of replacing it
 
-    Scenario: Treat the previous format as a separate release concern
-      Given an actual user file uses policies, disabled, and skillPrompts
+    Scenario: Preserve the previous format until explicit replacement
+      Given an actual user file uses valid policies, disabled names, and skillPrompts
       When the new format is introduced
-      Then the file receives a format diagnostic and an explicit replacement preview
-      And its bytes remain unchanged until an authorized replacement
+      Then compatible declarations remain enforced without automatic migration
+      And compatibility notices are distinct from configuration errors
+      And its bytes remain unchanged during loading
+      When removal is explicitly requested
+      Then a before-and-after protection-loss preview requires native authorization

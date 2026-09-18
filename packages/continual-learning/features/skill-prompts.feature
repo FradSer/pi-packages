@@ -1,56 +1,48 @@
-Feature: Skill-invocation prompt guidance
-  The harness can layer corrective guidance by skill name. Guidance applies only
-  to Pi's fully expanded skill invocation, not raw commands or arbitrary text.
+Feature: Flat skill rules provide invocation-scoped context
+  Skill guidance is a rules entry with an identity independent from the exact
+  registered skill selector. It supplements an expanded invocation through a
+  retained conversation message, not a system-prompt mutation.
 
-  Scenario: Project skill prompt overrides the user layer
-    Given user and project harness.json files define the same skill prompt
-    When the expanded skill invocation reaches before_agent_start
-    Then the project definition is selected
+  Scenario: Layer resolution uses rule identity rather than skill name
+    Given user and project layers declare the same rule id
+    When the flat rules are resolved
+    Then the project declaration completely replaces the user declaration
+    And independent ids matching the same skill remain independently applicable
 
-  Scenario: System guidance is appended once
-    Given a system-target skill prompt is configured
-    When the same expanded skill event is handled twice
-    Then the guidance is present in the system prompt only once
+  Scenario: Every matching valid skill rule contributes its instructions
+    Given two enabled rules selecting the same registered skill
+    And a third rule selecting another skill
+    When that exact skill is evaluated
+    Then both matching rule identities and their instructions are returned
+    And the unrelated skill rule is not returned
 
-  Scenario: Matching requires Pi's complete expanded skill XML
-    Given a skill prompt is configured
-    When before_agent_start receives a raw /skill command or malformed XML
-    Then no guidance is injected
+  Scenario: Expanded invocations receive retained task-scoped guidance
+    Given a valid skill rule in project harness.json
+    When before_agent_start receives Pi's expanded registered skill invocation
+    Then the context adapter returns a harness-guidance custom message
+    And its model-visible text identifies the rule and limits guidance to that skill task
+    And message details identify the skill and contributing rule ids
+    And retaining the message does not broaden the instruction's scope
+    And the system prompt is not rewritten to carry the guidance
 
-  Scenario: User-target guidance uses one custom context message per turn
-    Given a user-target skill prompt is configured
-    When duplicate handlers receive fresh expanded-skill events in the same turn
-    Then one hidden custom message carries the guidance
-    And a later turn receives the guidance again
-    And the original expanded user prompt is not rewritten
+  Scenario: Skill availability is validated independently from invocation matching
+    Given an unknown skill declaration beside a valid registered skill rule
+    When the configuration is resolved with the session skill registry
+    Then the unknown declaration has a diagnostic
+    And the valid independent sibling remains available
+    And registration alone is not reported as a verified trigger or successful task outcome
 
-  Scenario: Unknown and unconfigured skills pass through
-    Given no matching skill prompt is configured
-    When an expanded skill invocation reaches before_agent_start
-    Then the system prompt and messages remain unchanged
+  Scenario: The skill-rule schema has no legacy target or suffix matcher
+    Given a complete harness write with a skill rule
+    When it contains target, prompt, or userMessagePattern fields
+    Then validation rejects unsupported fields
+    And accepted user-maintained fields are id, optional enabled, skill and instructions
+    And an unchanged invalid predecessor is not silently accepted
+    And automatic skill additions without a registry fail closed
 
-  Scenario: System guidance is safe in a headless session
-    Given a system-target skill prompt is configured
+  Scenario: Guidance requires no interactive confirmation
+    Given a valid skill rule and an expanded registered invocation
     And no interactive UI is available
-    When the expanded skill invocation reaches before_agent_start
-    Then guidance is appended without prompting or failing
-
-  Scenario: Command-specific guidance matches the expanded user message
-    Given a skill prompt with a userMessagePattern regular expression
-    When the complete expanded skill invocation has a matching user message
-    Then the guidance is injected
-    And a different user message for the same skill receives no guidance
-
-  Scenario: Invalid command-specific guidance is skipped safely
-    Given a skill prompt with an invalid userMessagePattern regular expression
-    When the harness configuration is loaded or a complete harness write is validated
-    Then the skill prompt is skipped or the write is blocked with a diagnostic
-    And valid sibling skill prompts remain active
-
-  Scenario: Authored skill prompts have an exact schema
-    Given a complete harness write changes a registered skill prompt
-    When the prompt contains an unknown field or a malformed optional userMessagePattern
-    Then the write is blocked
-    And the accepted fields are exactly prompt, target, and userMessagePattern
-    And unchanged stale skill prompts also fail validation without modifying the file
-    But explicitly authorized removal of stale skill prompts is valid
+    When the context adapter prepares generation
+    Then it returns the contextual message without a user-input dialog
+    And it does not claim that delivery guarantees compliance or global interception

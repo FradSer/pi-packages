@@ -1,275 +1,307 @@
 # pi-continual-learning
 
-Continual learning for Pi across the two surfaces that matter at runtime —
-model weights are explicitly out of scope:
+Learns durable Memory and scoped Harness rules from completed user tasks.
+Model weights are out of scope.
 
-- **Memory and context guidance** — project facts, decisions, and personal
-  preferences help the model understand the task before generation. A bounded
-  memory index is injected and full entries are read when relevant. Skill
-  guidance is also context; it does not guarantee enforcement.
-- **Harness** — executable constraints check generated tool calls before
-  execution, and inspect assistant output and configured file artifacts after
-  generation. Violations produce concrete feedback with a bounded repair loop.
+- **Memory** supplies a bounded relevance index before generation. Full entries
+  are read only when needed; omitted entries remain discoverable.
+- **Harness** uses one flat `rules` list for new declarations: `skill` and `text`
+  deliver scoped guidance, while `bash` supplies messages and optionally confirms
+  or blocks a command before execution. Installed legacy policies retain their
+  original protections through read-only compatibility.
+- **AGENTS.md consolidation** keeps common project instructions small and moves
+  detailed knowledge into Memory or skill rules, retaining conditional pointers
+  when needed.
 
-With auto-memory enabled (the default), a completed user task first passes a deterministic, zero-token evidence screen at `agent_settled`, after automatic retries and queued continuations. Routine tasks with no durable signal launch no learning model. Automatic runs and default `/consolidate` use only the current completed Task Slice. A lightweight metadata-only selector chooses the minimum sufficient related Memory scope; the selected bodies and task evidence form one authoritative Learning Dossier. `/consolidate full` is the only full-corpus maintenance path. New user tasks are coalesced while learning runs; extension-generated continuations do not independently retrigger learning. Interactive sessions remain responsive; print/JSON runs wait for the pipeline and its receipts before exiting.
+## Install and commands
 
-Memory, Harness, and AGENTS.md planners consume the same bounded dossier and return only proposed deltas; they do not independently explore the complete session or repository. Their substantial Markdown protocols remain package-owned under `prompts/`, and `extensions/planner-prompts.ts` loads them through typed builders that perform literal nonrecursive binding and reject missing, unknown, or unresolved placeholders. Planning may overlap while parent validation and mutation remain sequential. Pipeline receipts account for every selector/planner attempt and display input, output, cacheRead, cacheWrite, total tokens, and provider cost availability separately.
-
-The parent freezes the task context, runs read-only planners, validates their
-bounded proposals, and applies changes. Ordinary task execution no longer asks
-the main model to write memory directly. Turning auto-memory off stops new
-automatic learning while preserving retrieval of existing memory. `/consolidate`
-remains available for an explicit run, including headless execution.
-
-## Install
-
-Python 3 must be available as `python3` on `PATH`; Memory consolidation runs
-the package's bundled Python validator at runtime.
+Python 3 must be available as `python3` for the bundled Memory validator.
 
 ```bash
 pi install npm:pi-continual-learning
 ```
 
-## Commands
-
 | Command | Purpose |
 | --- | --- |
-| `/memory` | Memory management menu: instructions, model, consolidation, settings |
-| `/consolidate` | Incrementally learn from the current completed Task Slice |
-| `/consolidate full` | Explicitly run expensive full-corpus Memory, Harness, and AGENTS.md maintenance |
-| `/harness` | Show active constraints, or create a rule from a prompt (default: project `.pi/harness.json`, `--local` for explicitly requested personal configuration, `--global` for user) |
+| `/memory` | Manage model, instructions, memory folder, and auto-memory |
+| `/consolidate` | Learn incrementally from the current completed Task Slice |
+| `/consolidate full` | Explicit full-corpus maintenance |
+| `/consolidate no-context` | Full Memory maintenance without task evidence; skips Harness and AGENTS.md |
+| `/harness` | Show rules and configuration diagnostics |
+| `/harness <request>` | Create or update a project-shared rule |
+| `/harness --local <request>` | Explicit personal project configuration |
+| `/harness --global <request>` | User-shared configuration |
 
-## Guardrails configuration
-
-Policies layer innermost-last; a policy name defined in several layers
-resolves to the innermost definition, and any layer can disable names. Every
-policy is validated against the runtime schema before it can become active;
-unknown fields are rejected with a diagnostic rather than silently ignored:
-
-Built-in defaults are the outermost package-owned baseline. User-owned configuration has exactly three layers:
-
-1. User shared: `~/.pi/agent/harness.json` (the agent directory honors `PI_CODING_AGENT_DIR`).
-2. Project shared: `<project>/.pi/harness.json`.
-3. Project personal: `<project>/.pi/harness.local.json`.
-
-The obsolete user-personal `~/.pi/agent/harness.local.json` and project `.pi/agent/harness*.json` files are not discovered or shown by `/harness`. Runtime precedence is project personal over project shared over user shared (with built-in defaults outermost).
-
-Policy shape:
-
-```jsonc
-{
-  "name": "ui-fixed-width",
-  "tools": ["edit", "write"],
-  // AND-gate: scope the policy to a class of calls first...
-  "require": { "path": "path", "pattern": "\\.(tsx|css)$" },
-  // ...then patterns inspect only text being written, never edit oldText
-  "paths": ["content", "newText", "edits.newText"],
-  "patterns": ["width:\\s*\\d{3,}px"],
-  "action": "block",
-  // The policy reason is fed back when a call is blocked or confirmed,
-  // and appears in the display-only transcript event for observe:
-  "reason": "Fixed pixel widths break responsiveness. Use design tokens or responsive units."
-}
-```
-
-Declarative policies support `name`, `phase`, `tools`, `paths`, `artifactPaths`,
-`pattern` or `patterns`, optional `require`, `action`, and `reason`.
-Fields such as `scope` and `rule` are not aliases and are rejected. A matching
-policy can `block`, `confirm`, or `observe`: observe leaves the call untouched
-and records a display-only harness event with its reason. Policies do not execute
-generated scripts or probe external services.
-
-### Check phases
-
-| Phase | Checked input | Response to a violation |
-| --- | --- | --- |
-| `tool-call` (default) | Generated tool arguments, before execution | Block, ask for confirmation, or observe |
-| `output` | Completed assistant text | Request a corrected response, or observe |
-| `artifact` | Actual workspace file bytes | Request correction of the file, or observe |
-
-For example, an artifact rule can inspect the final dependency declaration even
-when it was written through a shell command:
+## Harness rules
 
 ```json
 {
-  "name": "no-retired-sdk",
-  "phase": "artifact",
-  "tools": ["write", "edit", "bash"],
-  "artifactPaths": ["package.json"],
-  "pattern": "\"retired-sdk\"\\s*:",
-  "action": "block",
-  "reason": "The retired SDK is prohibited. Remove its dependency declaration."
+  "rules": [
+    {
+      "id": "review-checklist",
+      "skill": "review",
+      "instructions": "For this review task, check the project's documented release constraints."
+    },
+    {
+      "id": "project-a-status",
+      "text": "Project A|A项目",
+      "instructions": "When discussing Project A, use its confirmed replacement plan."
+    },
+    {
+      "id": "confirm-publish",
+      "bash": "\\bpnpm\\s+publish\\b",
+      "action": "confirm",
+      "message": "Confirm the package, version, and registry before publishing."
+    }
+  ]
 }
 ```
 
-Artifact paths are explicit workspace files; checks read actual content rather
-than trusting the tool arguments. Unsafe paths, missing files, and files beyond
-the read limit are reported as unsupported, never as passed. Checks cover only
-their declared files and patterns; regex matching cannot establish arbitrary
-semantic correctness.
+`review` above is an example registered skill name, not a bundled skill. Use an
+exact skill name available in the current session. Every rule has a stable `id`
+and exactly one selector:
 
-Post-generation checks have a bounded repair budget per user task. They report
-unresolved violations when that budget is exhausted. Assistant text has already
-been streamed when an output check runs: a correction does not retract or hide
-the original response. Use tool-call gates for actions that must be prevented
-before their side effects occur.
+| Selector | Payload | Meaning |
+| --- | --- | --- |
+| `skill` | `instructions` | Guidance for that expanded `/skill:<name>` task |
+| `text` | `instructions` | Guidance for subjects matching a regex in retained conversation |
+| `bash` | `message`, optional `action` | Message with the real command result, or `confirm` / `block` before execution |
 
-A generalized example — AI-generated UI widths violating layout rules — ships
-at `examples/ui-width.harness.json`: edits touching UI files that contain
-fixed pixel widths above the threshold are blocked with design guidance, while
-the same text in non-UI files passes through. Drop the file's contents into
-your project `.pi/harness.json` to activate it.
+Omit `action` to allow a Bash call and append its message to the real result.
+Empty strings, `null`, and `observe` are not actions. A block wins over confirmation;
+multiple confirmation reasons produce one prompt. Missing UI, rejection, and
+confirmation timeout leave the call unexecuted. Regex patterns inspect command
+text, not an interpreted shell execution tree; verify both intended and unrelated
+cases. Tests that might cause side effects use evaluator fixtures, not live commands.
 
-To create a rule directly, pass a natural-language request: `/harness
-block edits that add hard-coded colors`. By default, it targets the project
-shared layer at `<project>/.pi/harness.json`. Use `--local` (or `--project-local`)
-only for explicitly requested non-Git-tracked personal configuration at `.pi/harness.local.json`.
-`--shared`, `--project`, and `--repo` explicitly select the default; use `--global`
-(or `--user`) to target the user-shared `~/.pi/agent/harness.json`. The request is sent as a
-follow-up with an explicit write protocol: it reads that exact target file,
-creates it there when missing, preserves existing entries, and verifies the
-result at that same path.
+### Configuration and ownership
 
-Built-in defaults cover known-futile automation: interactive auth commands
-(`npm/pnpm/yarn login|adduser|logout`) and OTP-via-file/chat routing are
-blocked with guidance to hand those steps to the user's own terminal.
+User-owned layers, nearest last:
 
-### Harness consolidation
+1. `<agent-dir>/harness.json` — user shared.
+2. `<project>/.pi/harness.json` — project shared and default authoring target.
+3. `<project>/.pi/harness.local.json` — explicit personal choice.
 
-In incremental mode, Harness consumes the selector-built Learning Dossier and current Task Slice; it does not run an independent model explorer or repository-wide scan. After verified Memory learning, or a verified no-mutation Memory gate, one read-only planner runs against that same frozen task context: it mines blocked tool
-calls, confirmation outcomes, and user corrections, then proposes bounded
-policy/context-guidance changes citing that evidence. The parent alone applies
-them — atomically, and only to the project layer
-(`.pi/harness.json`). User and project-personal layers are never written; a failed or
-rejected harness plan never touches applied memory results; `no-context`
-runs skip the phase entirely. Evidence must quote real user or tool messages
-from the captured context. Policy additions and updates must also supply
-positive and negative examples that the parent executes with the runtime
-evaluator. A model-written evidence summary or occurrence count alone is not
-proof. Automatically learned rules cannot override other layers, built-in, or
-manually authored constraints; explicit rule changes remain available through
-`/harness`.
+`<agent-dir>` defaults to `~/.pi/agent` and honors `PI_CODING_AGENT_DIR`.
+There is no global `harness.local.json` or project `.pi/agent/harness*.json` layer.
+A personal filename is not a guarantee of Git exclusion; check ignore settings.
+Package defaults are the outermost layer.
 
-### AGENTS.md consolidation
+The nearest declaration of an `id` replaces the whole rule. Different identities
+remain independent. `{ "id": "example", "enabled": false }` disables an inherited
+identity; a complete nearer definition can re-enable it. Invalid winning rules
+are diagnosed rather than replaced with an outer same-id rule. An unreadable or
+malformed layer is marked incomplete; any retained parse snapshot is labelled
+stale, never verified as the current file.
 
-In incremental mode, AGENTS.md planning reuses the same Learning Dossier and Task Slice as Harness and returns only proposed edits. The third pipeline phase treats the repository-root `AGENTS.md` like trained
-weights. Against the same snapshot, a read-only planner proposes at most five
-evidence-cited edits — rewrite, remove, add, or extract addressable units.
-The parent enforces the discipline in code before anything is applied:
+Authoring reads the exact supplied file, assesses whether the request can be
+represented, and writes a complete valid candidate once. Unsupported or ambiguous
+requests leave files unchanged. Recommending AGENTS.md as a better home does not
+authorize editing it. Existing invalid data requires an explicit native confirmation
+preview before replacement; headless repair fails closed. If several layers need
+repair, a strictly valid, approved target can be repaired independently while
+unchanged other layers still have diagnostics. Activation remains incomplete and
+Bash stays fail-closed where coverage is incomplete until those layers are fixed.
+Approval binds the exact tool arguments and predecessor bytes across the entire
+call, including any later policy confirmation. Target and other-layer raw bytes
+are rechecked after the final asynchronous approval; changes require fresh
+validation even when resolved diagnostics are identical. Execution policy is
+resolved after asynchronous preflight and repair checks, so newly installed
+protections govern the call. Recovery bypasses only incomplete coverage, never a
+valid policy protecting configuration reads or writes.
+The native `write` gate validates the whole candidate; `edit` is blocked for
+Harness targets. This is not an OS sandbox or an interceptor for arbitrary shell writes.
 
-- Every cited quote must come from an indexed user or tool-result message and
-  appear verbatim in the snapshot text; unverifiable quotes are discarded
-  mechanically, and an operation left without evidence never reaches the
-  automatic application step.
-- A brand-new unit needs batched evidence (at least two cited occurrences in
-  the current session).
-- The post-edit document must fit the byte budget (default 16 KB ≈ 4k English
-  tokens by the bytes/4 heuristic — deliberately tighter than backpass's ~20 KB
-  default and Claude Code's 25 KB MEMORY.md load cap; lower it further for
-  primarily Chinese files, where UTF-8 packs fewer tokens per byte); once the
-  file sits at or above budget, updates are zero-sum — removals pay for
-  additions.
-- Narrow instructions are extracted instead of kept: trigger-scoped guidance
-  becomes a harness skill prompt; durable detail becomes a memory file.
+Automatic learning writes only project-shared configuration. Evidence and
+positive/negative evaluator cases are required. New identities cannot collide
+with other layers, disabled declarations, invalid declarations, or manual rules.
+`learnedRules` is parent-owned provenance binding each learned identity to its
+current revision; a manual edit invalidates automatic ownership. Updates cannot
+change the selector, re-enable a rule, or weaken its Bash action automatically.
 
-After the mechanical gates pass, surviving operations are applied
-autonomously within one parent-owned transaction and rollback boundary. Before mutation, an `agents-pre-receipt.json` records the plan digest plus exact predecessor files and directory existence; if the process stops before the post receipt, the next session validates and consumes that record before new learning starts. The pre receipt is retained beside a verified post receipt. User-level instruction files are never touched, and the child planner remains read-only.
-Configure via the agent-global settings file at
-`<agent-dir>/memory/settings.json` (normally
-`~/.pi/agent/memory/settings.json`; `<agent-dir>` honors
-`PI_CODING_AGENT_DIR`). These settings apply to every project using that agent
-directory:
+### Guidance scope and delivery
+
+A skill read is not an invocation. Skill guidance names the applicable skill task
+in model-visible text. Text guidance names its matching condition and does not
+turn a historical mention into permission to apply it to unrelated work.
+
+At `before_agent_start`, text matching scans the current prompt plus retained
+branch conversation: user and assistant text, visible tool results and string
+arguments, and retained summaries. Thinking, metadata, excluded shell output,
+abandoned history, and Harness's own messages are not matching sources.
+
+Guidance is a persistent tail message, not a changing system prompt. Text
+revisions already retained are not appended again. Delivery revisions include the
+message format, so reload/resume appends one scoped replacement for an older
+unscoped delivery. If compaction removed its original trigger, an outdated
+delivery is retired once instead of injecting unrelated instructions; a later
+matching task can reactivate it. Updates and retirements are new tail messages;
+previous history stays in place for traceability and stable request prefixes. Incomplete scans
+preserve previous delivery state. Guidance is context, not a guarantee that the
+model follows it.
+
+Known limits: keywords first introduced by tools in the same run are picked up at
+the next agent start. Synchronous regex evaluation has volume limits, not
+preemptive cancellation of a single pathological pattern. Avoid unbounded patterns.
+Configuration readback proves persistence only; report effective activation,
+actual trigger verification, and unverified behavior separately.
+
+### Transcript display
+
+Expanded policy rows keep the policy, action, outcome, tool, source and file;
+check rows keep their phase, policy and artifact path. Reasons already shown in
+the title and check statuses already shown in its label are not repeated as
+fields. Context guidance likewise shows the skill or rule in its title, with
+source, file and the complete prompt below, including prompts longer than 50
+lines. Clipped titles wrap when expanded. This display-only cleanup does not
+change enforcement, guidance delivery or stored event data.
+
+### Existing configuration and safe upgrades
+
+Installed `policies`, `disabled`, and `skillPrompts` remain supported runtime
+input through a read-only compatibility boundary. A compatible old format is
+reported as a notice, not unavailable configuration. In particular, a valid
+write/edit-only policy does not block unrelated Bash commands after an upgrade.
+Loading preserves every configuration byte. Existing cumulative `disabled` names
+retain their historical same-ID effect, including saved flat rules, so upgrading
+does not reactivate paused protections. Legacy same-name overrides of equivalent
+built-in policies also keep their prior meaning.
+
+New authoring and learning still produce flat `rules`. Adding them preserves
+existing containers and provenance. Removing installed protections requires an
+explicit before/after preview and authorization; old manual or learned entries
+do not become automatically owned flat rules. No automatic migration is performed.
+
+Legacy output/artifact checks, tool-argument paths and `require` gates retain
+their original behavior. Legacy skill guidance retains its exact registered
+invocation, optional user-message matcher, and configured system/user target.
+These are compatibility capabilities, not new flat selectors. Mixed rules must
+not bypass a matching block or create redundant approval prompts. Invalid
+policies restrict only their identifiable tool/phase scope; unknowable scope or
+unreadable configuration is conservatively diagnosed.
+
+Built-in protection for futile interactive authentication and bulk Memory deletion
+remains. A weaker Bash/text rule is never presented as an equivalent replacement
+for an installed file or artifact policy. See the upgrade decision in
+`docs/adr/0005-preserve-installed-harness-protections.md` in the source repository.
+
+## Learning pipeline
+
+With auto-memory enabled (the default), `agent_settled` runs a deterministic
+zero-token evidence screen after queued continuations and retries finish.
+Routine tasks launch no learning model. A metadata-only selector chooses the
+minimum sufficient existing Memory and relevant phases for the current Task
+Slice. Selected bodies and task evidence form one authoritative Learning Dossier.
+Only explicit full maintenance explores the whole corpus.
+
+Package-owned `prompts/*.md` protocols are bound through typed builders. Planners
+are read-only, have resource discovery disabled, and return bounded deltas or a
+no-op. The parent owns identity, evidence, privacy, path and source-hash checks,
+mutation, rollback, indexes, and receipts. An assistant's success claim is not a
+receipt. Later planning can overlap; mutation remains sequential. A later phase
+failure does not undo an earlier verified phase.
+
+Real user tasks are coalesced while learning runs; extension continuations do not
+train themselves. Print/JSON sessions await completion and receipts. Turning
+auto-memory off stops learning without disabling Memory retrieval. Receipts count
+every selector/planner attempt, applied operations, duration, input/output tokens,
+cache reads/writes, and provider cost availability.
+
+## Memory
+
+Exactly two roots participate:
+
+- Complete canonical private root: `<agent-dir>/memory/<escaped-canonical-cwd>/`.
+- Safe Git-trackable mirror: `<canonical Git project root>/.memory/`.
+
+The project mirror is enabled only at the canonical Git root. There is no
+project-local private Memory root. Safe entries synchronize byte-identically;
+private entries exist only in the private root and are marked `(harness only)`
+in its `MEMORY.md`. Preferences stay private; credentials and secrets are never
+stored, including in private files or evidence.
+
+The root name uses Pi's flat path escaping: strip the leading slash, replace
+separators and colons with `-`, and wrap with `--`. Names beyond 240 bytes fail
+explicitly; no hash fallback exists. Paths with the same escaped name share the
+root, lock and run storage. Obsolete roots are neither discovered nor migrated.
+
+Before planning, newer-mtime-wins drift normalization synchronizes safe entries;
+ties prefer the private copy. First adoption can import committed shared Memory
+when the private root is absent. Privacy leaks and public orphans are removed
+under the existing parent-owned validation contract.
+
+### Retrieval and descriptions
+
+The default injection budget is 8,000 characters. Entry bodies are not injected.
+Descriptions should begin with when the entry is relevant and fit one line of
+at most 120 characters; detail belongs in the body. Existing longer descriptions
+are retained when they fit, or visibly shortened rather than silently losing a
+late trigger.
+
+The loader reports unique entry counts and file-read omissions; final formatting
+reports budget omissions. Discovery pointers name `MEMORY.md` and exact roots
+for bounded reads/listing. Indexes are discovery metadata and can be stale;
+individual bounded files remain the authority. Parent rebuilds include descriptions
+in complete indexes. Loading memory never writes indexes. All retrieved content
+is explicitly untrusted reference data, not instructions.
+
+Only strict `[A-Za-z0-9][A-Za-z0-9_-]*.md` basenames are entries; `MEMORY.md` is
+metadata. Symlinks, non-regular files, escapes, and root replacement are rejected.
+New Memory cites exact indexed user/tool-result evidence and cannot overwrite
+existing names. Deletes require a contradicted, superseded, or subsumed verdict
+plus a mechanically verifiable `preservedIn` target.
+
+## AGENTS.md consolidation
+
+A read-only planner proposes at most five small evidence-cited operations against
+project-root AGENTS.md: rewrite, remove, add, or extract. Indexed quotes must match
+user/tool-result content; assistant text and metadata do not count. New units
+require two distinct evidence entries. The parent simulates exact anchors and
+byte budgets before applying changes.
+
+Common constraints and short task-to-document pointers remain always loaded.
+Detailed durable knowledge need not be relevant to every task: it can move to
+Memory. Registered skill-specific instructions can become a flat skill rule.
+An extraction can retain a bounded single-line `replacementText` pointer; it
+participates in the same evidence, anchor, size, fingerprint and rollback checks.
+A lack of use in one task is not evidence that an instruction is obsolete.
+
+Memory, Harness, AGENTS.md, and receipts participate in one extraction transaction.
+A pre-receipt records exact predecessors before mutation; startup recovers an
+interrupted transaction only after verifying the canonical scope. User-level
+instruction files are never automatic targets. Configure the agent-global phase
+in `<agent-dir>/memory/settings.json`:
 
 ```json
 { "autoMemory": true, "agentsMd": { "budgetBytes": 16384 } }
 ```
 
-`"disabled": true` inside `agentsMd` turns the phase off. A failed AGENTS.md
-phase never touches applied memory or harness results.
+`agentsMd.disabled: true` skips that phase. At or above budget, changes are
+zero-sum rather than mandatory expansion. Empty validated plans are successful no-ops.
 
-### Skill prompt guidance
+## Development verification
 
-Authoring preserves the user's semantic boundary: a fullscreen popup describes an overlay relationship. Clarify ambiguous requirements and ask before adding opacity, input, or scroll restrictions.
-
-`/harness <request>` supplies the current session's registered skill keys. Policy names may be descriptive; `skillPrompts` keys must be exact registered skill names, and values must be `{ "prompt": "...", "target": "system" | "user" }` objects, never strings. Complete `write` tool calls to harness configuration files are checked before writing: all invalid/unknown skill entries are blocked, including unchanged malformed entries. The blocked write leaves existing data intact; repair or removal requires explicit user authorization. The `edit` tool is blocked for these configuration paths with guidance to read and write the complete validated JSON instead. Native tool path aliases (including `~`, a leading `@`, file URLs, and Unicode spaces) receive the same write/edit gates. Pi currently exports no native target resolver, and pi-kit has no equivalent; this gate uses local deterministic normalization tested against the public `createWriteTool`, without importing private modules from `PI_PACKAGE_DIR` (which may contain only binary assets); reads remain available for diagnosis. This gate does not intercept arbitrary shell writes or make semantic instructions globally enforceable.
-
-Automatic harness consolidation and AGENTS.md skill extraction also validate additions against the session registry; without a registry, adding a skill prompt fails closed. Runtime loading with a skill registry excludes unknown names as well as malformed entries, while keeping valid siblings. `/harness` status and planner surface summaries list registered guidance and report invalid-entry diagnostics. Both consolidation surfaces reject malformed existing roots or containers before mutation or pre-receipt creation, preserving the original bytes and ownership metadata rather than resetting invalid data. Registered does not mean trigger-tested: reading JSON back proves persistence only. A skill prompt is not a project-wide rule, and unsupported global/multi-step requirements must be reported rather than assigned an invented skill name.
-
-`skillPrompts` is a context-guidance namespace stored alongside policies in the
-same configuration layers. Its separate `context-guidance` extension adds
-guidance when Pi expands a configured
-`/skill:<name>` invocation. The same three user-owned layers apply, with the
-project-personal definition winning over project shared and user shared by skill name.
-`disabled` affects declarative policies in every phase; it does not affect skill prompts:
-
-```json
-{
-  "skillPrompts": {
-    "using-open-artifacts": {
-      "prompt": "Use coda0.com as the default instance unless the user specifies another host.",
-      "target": "system"
-    },
-    "impeccable": {
-      "prompt": "For Live on macOS, use open <served app URL>, never helper serverPort or agent-browser; then keep one foreground live-poll.mjs active.",
-      "target": "system",
-      "userMessagePattern": "^live$"
-    }
-  }
-}
+```bash
+python3 -m pytest packages/continual-learning/tests/ -q
+pnpm typecheck
+pnpm --dir packages/continual-learning pack --dry-run
+pnpm check:install
+uv run --no-project packages/continual-learning/tests/live_meaningful_details.py
+python3 packages/continual-learning/tests/live_smoke.py
+python3 packages/continual-learning/tests/live_upgrade_smoke.py
 ```
 
-`target: "system"` appends the prompt to the current system prompt. The
-`target: "user"` form delivers a hidden custom context message because Pi's
-`before_agent_start` hook cannot rewrite the already-expanded user message;
-both targets are matched only against Pi's complete expanded skill XML, not a
-raw `/skill:` command or arbitrary XML-looking text. An optional
-`userMessagePattern` narrows a prompt to the expanded block's user-message
-suffix (for example `^live$`); it is a regular expression and invalid patterns
-are skipped with a configuration diagnostic. Guidance is appended idempotently
-when a hook is evaluated more than once.
+The display smoke runs real Pi print and interactive sessions with an offline
+scripted provider and disposable roots, without user credentials or network
+requests. It verifies Ctrl+O, narrow-terminal wrapping and complete guidance
+readback. The live scripts are not collected by pytest.
 
-## Memory
-
-Memory has exactly two synchronized roots:
-
-1. Agent-private (canonical and complete): `<agent-dir>/memory/<escaped-canonical-cwd>/`
-2. Project-shared Git mirror: `<canonical Git project root>/.memory/` (safe to commit)
-
-`<agent-dir>` is normally `~/.pi/agent` and honors `PI_CODING_AGENT_DIR`.
-The project-shared mirror is enabled only when Pi runs at that canonical Git
-root. Private Memory is never persisted anywhere inside
-the project; no project-local private root is recognized.
-
-The private directory name uses Pi's official flat escaping matching session storage:
-leading slash stripped, path separators and colons replaced with `-`, wrapped in
-double dashes (`--<escaped-path>--`). For example: `--Users-FradSer-Documents-Home Lab--`.
-Names over 240 bytes are rejected, never truncated. `scopeKey` is this same readable
-name, used for `memory/<scopeKey>/`, `memory/locks/<scopeKey>.lock`, and
-`memory/runs/<scopeKey>/`. The separate `locks/` directory prevents locks from colliding
-with private directory names. No project path uses a hash; content-integrity digests
-remain unchanged. Paths with the same escaped name share private Memory, a lock, and run storage.
-
-Safe entries are byte-identical in both roots; entries marked `(harness only)`
-in the private `MEMORY.md` never appear in the project mirror. Before
-consolidation, newer-mtime-wins drift normalization runs bidirectionally, with
-ties preferring the private copy. The private root remains the runtime source
-of truth, while project `.memory/` participates in first adoption and
-committed-update synchronization.
-
-The flat escaped canonical-path directory is the only agent-private runtime
-root. Other layouts, including hash-only and hash-suffixed directories, are
-ignored: the extension does not discover, read, import, rename, or delete them,
-and provides no compatibility fallback or migration interface. Existing flat
-directories matching the current sanitizer are used directly.
-
-See `prompts/memory-consolidator.md` for the parent-owned transactional consolidation protocol.
-
-New memories are proposed separately from the parent-selected existing-file
-scope, so a project with no memory files can learn from its first task. Each
-proposal names a bounded Markdown file and cites the exact text and index of a
-user or tool-result message in the immutable snapshot. Preferences remain
-private; credentials and tokens are rejected even for private storage. New
-names cannot overwrite existing entries, and creations participate in the same
-rollback, index, privacy, hash, and receipt validation as existing-file edits.
-
-Automatic and manual consolidation may delete contradicted, superseded, or subsumed Memory only when a mechanically verifiable `preservedIn` repository file or same-transaction Memory target proves where the durable knowledge survives. The receipt's change summary is checked against the validated plan. Built-in Harness rules also block generated shell commands that bulk-delete `.memory` or the private Pi Memory root.
+The learning smoke reuses configured model/auth in disposable project and agent
+roots, requires actual learned project rules and receipts, and separately verifies
+scoped guidance with a harmless Bash command.
+It never replaces failed learning with fixtures or edits real user configuration.
+The separate upgrade smoke starts a real Pi process with a disposable old-format
+configuration, confirms harmless Bash and unrelated writes execute, and confirms
+protected write/batched-edit calls remain blocked while configuration bytes stay
+unchanged. The learning and upgrade scripts copy provider credentials into
+private temporary roots rather than link to writable user files.

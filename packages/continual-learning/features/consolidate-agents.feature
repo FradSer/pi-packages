@@ -46,24 +46,60 @@ Feature: AGENTS.md consolidation as the third pipeline phase
     When the current document is already at or above the budget
     Then only plans whose post-edit document is no larger than the current document are automatically applied
 
+  Scenario: Root instructions retain common rules and discoverable conditional routing
+    Given a narrow instruction is useful only for a detectable task
+    And its durable detail belongs in Memory or a registered skill rule
+    When the planner proposes extraction
+    Then common cross-task rules remain in the root AGENTS.md
+    And durable Memory need not be relevant to every task
+    And replacementText keeps a concise conditional pointer when removing the unit would hide its route
+    And existing project documentation can be linked but is never an arbitrary extraction write target
+    And no extractable target or discoverable route means keeping the unit instead of deleting useful guidance
+
+  Scenario: An extraction pointer is a bounded exact replacement
+    Given an extractUnit operation includes optional replacementText
+    When the parent validates, simulates, and applies the plan
+    Then replacementText is a non-empty single line of at most 500 characters
+    And only extractUnit accepts replacementText
+    And oldText must match the current document exactly once
+    And the replacement participates in verified indexed evidence, the byte budget, and operation fingerprints
+    And the artifact retains the extracted oldText rather than the replacement pointer
+    And omitting replacementText removes the old unit without inserting another unit
+    And invalid anchors, unsupported evidence, oversized pointers, or over-budget replacements never mutate any surface
+
   Scenario: Narrow instructions are transactionally extracted instead of deleted
-    Given an extractUnit operation targeting memory or a skill prompt
+    Given an extractUnit operation targeting memory or a skill rule
     When the parent autonomously applies the validated plan
-    Then the extracted unit is removed from AGENTS.md in the same rollback boundary as its artifact and receipt
+    Then the extracted unit is removed or replaced by its conditional pointer in the same rollback boundary as its artifact and receipt
     And every memory extraction declares safe or private independently of its memory type
     And a safe memory extraction is byte-identical in the private root and project mirror
     And a private memory extraction exists only in the private root and is marked harness only
     And pre-existing private index classifications remain unchanged
     And an existing memory name is never overwritten, including case-insensitive matches
     And duplicate case-insensitive memory extraction names within the same plan are rejected before mutation
-    And a skill-prompt extraction merges into the project harness.json layer without overwriting existing guidance
+    And a Memory frontmatter description is a single line of at most 120 characters with relevance front-loaded
+    And both rebuilt Memory indexes include that conditional description beside the discoverable filename
+    And privacy-looking description text cannot invent a harness-only classification
+    And a skillRule extraction supplies ruleId, skillName, and instructions for an exact registered skill
+    And the parent executes a positive exact-skill selector check and a negative different-name selector check before mutation
+    And selector evaluation does not claim a real skill invocation or grant learned-rule ownership
+    And skill guidance appends a flat id, skill, and instructions rule to project harness.json without overwriting existing guidance
+    And built-in, user, project, and personal rule IDs remain owned even when disabled or invalid
+    And duplicate extraction rule IDs or unreadable ownership layers fail before mutation
+    And obsolete skillPrompt extraction is rejected instead of silently persisted
     And a symlinked project .pi path cannot redirect skill guidance outside the project
     And swapping either captured Memory root to a symlink during apply fails before redirected writes
+
+  Scenario: Extracted rule ownership uses exact runtime identities
+    Given an existing rule has id " artifact-host " with surrounding spaces
+    When an extraction proposes the distinct id "artifact-host"
+    Then the new rule is accepted without replacing the existing identity
+    And exact same-id collisions remain rejected in every layer
 
   Scenario: Extraction failure or cancellation rolls back every surface
     Given a validated plan that extracts memory or skill guidance
     When artifact creation, cancellation, the AGENTS.md write, or receipt persistence fails
-    Then the memory roots, indexes, project harness.json layer, AGENTS.md, and receipt are restored to their exact pre-apply state
+    Then the memory roots, indexes, project harness.json layer, AGENTS.md including its conditional pointers, and receipt are restored to their exact pre-apply state
     And Memory roots and the project .pi directory that were absent before apply are absent again when rollback leaves them empty
     And the successful post receipt retains the secure pre-apply recovery receipt, while normal failure or cancellation deletes it
     And the application result reports failed or cancelled with zero applied operations
@@ -85,6 +121,13 @@ Feature: AGENTS.md consolidation as the third pipeline phase
     And a post-apply receipt records digests and applied operation fingerprints
     And the structured planning and application outcomes distinguish applied, no-op, rejected, failed, skipped, and cancelled attempts
     And safety validation remains the only gate before the atomic transaction
+
+  Scenario: The planner protocol is compact without losing authority or safety
+    Given the package-owned AGENTS.md planner prompt
+    When the child receives the protocol
+    Then one compact read-only authority section distinguishes proposed work from parent-verified completion
+    And no neural-network analogy or repeated confirmation instructions appear
+    And the machine schema, operation and character counts, quote and index meaning, identity binding, evidence gates, and safe/private rules remain explicit
 
   Scenario: Planner termination is awaited before returning
     Given the AGENTS.md planner child was spawned

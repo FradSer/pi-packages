@@ -767,7 +767,8 @@ def test_child_task_uses_selector_scope_for_incremental_and_full_scope_for_full_
     content = source()
     assert "const selectedScope = parentSelectedScope(run, Boolean(opts.noContext), opts.selectedScope);" in content
     assert "Authoritative selected Memory names" in content
-    assert "Read only the dossier by default" in content
+    incremental = (MEMORY_PKG_DIR / "prompts" / "incremental-memory-consolidator.md").read_text(encoding="utf-8")
+    assert "Read `dossierPath` only by default" in incremental
     assert "...formatSelectedScopeTaskLines(selectedScope, Boolean(opts.noContext))," in content
     procedure = (MEMORY_PKG_DIR / "prompts" / "memory-consolidator.md").read_text(encoding="utf-8")
     assert "authoritative selected memory scope" in procedure and "newMemories" in procedure
@@ -899,10 +900,14 @@ def test_memory_index_is_bounded_at_entry_boundaries() -> None:
         full_block = _format_block(repo, agent)["block"]
         full_lines = full_block.splitlines()
         first_entry = next(index for index, line in enumerate(full_lines) if line.startswith("- "))
-        first_budget = len("\n".join(full_lines[:first_entry])) + 1 + len(full_lines[first_entry]) + 1
+        # Omission counts and discovery pointers are part of the final budget.
+        summary_budget = len(full_lines[-1]) + 2
+        first_budget = len("\n".join(full_lines[:first_entry])) + 1 + len(full_lines[first_entry]) + 1 + summary_budget
         block = _format_block(repo, agent, f", {first_budget}")["block"]
         assert "git-agent-commits.md" in block
         assert "huge.md" not in block
         assert "no-description.md" not in block
         lines = [line for line in block.splitlines() if line.startswith("- ")]
         assert all(len(line) <= 500 for line in lines)
+        assert "1 shown, 2 omitted of 3 total" in block
+        assert len(block) <= first_budget

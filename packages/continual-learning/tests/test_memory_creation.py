@@ -336,7 +336,7 @@ def test_loader_budget_counts_metadata_instead_of_memory_bodies() -> None:
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
-        assert [entry["filename"] for entry in result] == ["a.md", "b.md"]
+        assert [entry["filename"] for entry in result["entries"]] == ["a.md", "b.md"]
 
 
 def test_private_memory_exposes_its_exact_bounded_read_path() -> None:
@@ -361,6 +361,6 @@ def test_private_memory_exposes_its_exact_bounded_read_path() -> None:
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
-        assert result["entries"][0]["source"] == "harness"
-        assert Path(result["entries"][0]["readPath"]).resolve() == (Path(result["harness"]).resolve() / "private.md")
-        assert result["entries"][0]["readPath"] in result["block"]
+        assert result["entries"]["entries"][0]["source"] == "harness"
+        assert Path(result["entries"]["entries"][0]["readPath"]).resolve() == (Path(result["harness"]).resolve() / "private.md")
+        assert result["entries"]["entries"][0]["readPath"] in result["block"]

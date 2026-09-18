@@ -109,6 +109,20 @@ Feature: Learn from settled user tasks without a memory command
     And the repaired delta is expanded before the existing validation and apply gates
     But a second rejection ends the phase without a full planner rerun
 
+  Scenario: Live verification does not substitute fixtures for learning
+    Given the explicit live smoke runs against disposable project and agent roots
+    When the user requests a private preference and a durable Bash prohibition
+    Then verification requires a learned flat rule in project harness.json and parent-owned receipts
+    And missing or rejected learning fails the smoke instead of installing a replacement fixture
+    And a separate runtime fixture checks scoped guidance and a harmless Bash result
+    And every temporary file is removed after verification
+
+  Scenario: Live verification isolates authentication from source files
+    Given synthetic auth, model, and Memory model files in an explicit source agent directory
+    When live verification prepares its disposable agent root
+    Then auth and model files are private copies with mode 0600 and not symlinks
+    And writing the child auth file never changes the source files
+
   Scenario: Receipts count applied Memory operations
     Given Memory planning creates or changes durable Memory
     When the parent validates and applies the plan

@@ -199,15 +199,19 @@ def test_layer_merging_reenable_and_duplicate_ids() -> None:
       };
 
       const config = mergeLayers([userLayer, projectLayer]);
+      const valid = mergeLayers([userLayer, { source: 'project', rules: [projectLayer.rules[0]] }]);
       console.log(JSON.stringify({
-        rules: config.rules,
+        rules: config.rules, validRules: valid.rules,
         errors: config.errors,
+        complete: config.bashEvaluationComplete,
       }));
     ''')
     rules = {r['id']: r for r in result['rules']}
-    assert rules['re-enabled']['enabled'] is True
-    assert rules['re-enabled']['message'] == 'Now enabled'
+    assert rules['re-enabled']['enabled'] is False
+    assert result['complete'] is False
     assert any('dup' in e for e in result['errors'])
+    assert result['validRules'][0]['enabled'] is True
+    assert result['validRules'][0]['message'] == 'Now enabled'
 
 
 def test_bash_evaluation_decisions() -> None:
@@ -366,6 +370,50 @@ def test_text_guidance_revision_covers_selector_and_action() -> None:
     assert result['entries'][0]['status'] == 'update'
 
 
+def test_retained_unscoped_guidance_gets_one_scoped_replacement() -> None:
+    result = run_bun('''
+      import { createHash } from 'node:crypto';
+      import { planTextGuidance, HARNESS_GUIDANCE_CUSTOM_TYPE } from './packages/continual-learning/extensions/harness-guidance-planner.ts';
+      import { mergeLayers } from './packages/continual-learning/extensions/guardrail-engine.ts';
+      const config = mergeLayers([{ source:'project', rules:[{ id:'alpha', text:'Project A', instructions:'Use the confirmed replacement plan.' }] }]);
+      const previousRevision = createHash('sha256').update(JSON.stringify({ id:'alpha', k:'text', text:'Project A', instructions:'Use the confirmed replacement plan.' })).digest('hex').slice(0,16);
+      const old = { role:'custom', customType:HARNESS_GUIDANCE_CUSTOM_TYPE, content:'[harness:alpha] Use the confirmed replacement plan.', details:{ entries:[{id:'alpha',revision:previousRevision,status:'active'}] } };
+      const retained = [{role:'user',content:'Project A'}, old];
+      const updated = planTextGuidance(retained, 'Now discuss Project B', config);
+      const scoped = { role:'custom', customType:HARNESS_GUIDANCE_CUSTOM_TYPE, content:updated.entries.map(e=>e.text).join(' '), details:{entries:updated.entries} };
+      const again = planTextGuidance([...retained,scoped], 'Continue Project B', config);
+      console.log(JSON.stringify({updated,again,old}));
+    ''')
+    assert len(result['updated']['entries']) == 1
+    assert result['updated']['entries'][0]['status'] == 'update'
+    assert 'Only for subjects matching "Project A"' in result['updated']['entries'][0]['text']
+    assert result['again']['entries'] == []
+    assert result['old']['content'] == '[harness:alpha] Use the confirmed replacement plan.'
+
+
+def test_old_unscoped_delivery_retires_when_compaction_removed_its_trigger() -> None:
+    result = run_bun('''
+      import { createHash } from 'node:crypto';
+      import { planTextGuidance, HARNESS_GUIDANCE_CUSTOM_TYPE } from './packages/continual-learning/extensions/harness-guidance-planner.ts';
+      import { mergeLayers } from './packages/continual-learning/extensions/guardrail-engine.ts';
+      const config = mergeLayers([{ source:'project', rules:[{ id:'alpha', text:'Project A', instructions:'Use the confirmed replacement plan.' }] }]);
+      const revision = createHash('sha256').update(JSON.stringify({ id:'alpha', k:'text', text:'Project A', instructions:'Use the confirmed replacement plan.' })).digest('hex').slice(0,16);
+      const old = { role:'custom', customType:HARNESS_GUIDANCE_CUSTOM_TYPE, content:'[harness:alpha] Use the confirmed replacement plan.', details:{entries:[{id:'alpha',revision,status:'active'}]} };
+      const retired = planTextGuidance([old], 'Project B task', config);
+      const notice = {role:'custom',customType:HARNESS_GUIDANCE_CUSTOM_TYPE,content:retired.entries.map(e=>e.text).join(' '),details:{entries:retired.entries}};
+      const again = planTextGuidance([old,notice], 'Continue Project B', config);
+      const active = planTextGuidance([old,notice], 'Return to Project A', config);
+      console.log(JSON.stringify({retired,again,active}));
+    ''')
+    assert len(result['retired']['entries']) == 1
+    assert result['retired']['entries'][0]['status'] == 'retired'
+    assert 'Use the confirmed replacement plan.' not in result['retired']['entries'][0]['text']
+    assert result['again']['entries'] == []
+    assert len(result['active']['entries']) == 1
+    assert result['active']['entries'][0]['status'] == 'active'
+    assert 'Only for subjects matching "Project A"' in result['active']['entries'][0]['text']
+
+
 def test_bash_incomplete_scoping_is_structural_not_prose() -> None:
     result = run_bun('''
       import { evaluateBash, mergeLayers } from './packages/continual-learning/extensions/guardrail-engine.ts';
@@ -433,13 +481,14 @@ def test_duplicate_id_is_structural_not_positional() -> None:
       ]}]);
       console.log(JSON.stringify({
         ruleIds: config.rules.map(r=>r.id),
-        invalidIds: config.invalidRules.map(i=>i.id),
+        complete: config.bashEvaluationComplete,
+        incomplete: config.configReadIncomplete,
         hasDupError: config.errors.some(e=>e.includes('duplicate')),
       }));
     ''')
-    # No positional winner: the id is invalid, not silently resolved.
-    assert 'dup' not in result['ruleIds']
-    assert 'dup' in result['invalidIds']
+    # No positional winner: the ambiguous layer cannot establish coverage.
+    assert result['ruleIds'] == []
+    assert result['complete'] is False and result['incomplete'] is True
     assert result['hasDupError'] is True
 
 
@@ -634,7 +683,10 @@ def test_context_guidance_hook_integration() -> None:
     assert 'Project A is deprecated.' in result['textContent']
     assert result['textEntries'][0]['id'] == 'text-rule'
     assert result['textEntries'][0]['status'] == 'active'
-    # Skill guidance rides the same persistent message on an expanded invocation.
+    assert 'A项目|Project A' in result['textContent']
+    assert 'Only for subjects matching' in result['textContent']
+    # Skill guidance carries its task scope in model-visible text, not only details.
+    assert 'Only for this /skill:open-deskos-widget task' in result['skillContent']
     assert 'Overlay relationship.' in result['skillContent']
     assert result['skillRuleIds'] == ['skill-rule']
 

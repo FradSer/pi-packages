@@ -879,8 +879,6 @@ async function spawnAsyncConsolidation(
   state.cancelled = false;
   const isGenerationCurrent = (): boolean => !state.cancelled && generation === state.generation;
 
-  const memoryPaths = resolveMemoryPaths(opts.cwd);
-  const harnessDir = memoryPaths.harnessDir;
   let run: ConsolidationRun;
   try {
     run = await createConsolidationRun(ctx, opts.cwd, opts.noContext);
@@ -963,29 +961,15 @@ async function spawnAsyncConsolidation(
     `Task: produce a read-only structured consolidation plan for the project at ${opts.cwd}.`,
     `- Reason: ${opts.reason}`,
     ...buildTaskFeedbackLines(opts.rejectionFeedback),
-    `- Run ID: ${run.manifest.runId}`,
-    `- Scope key: ${run.manifest.scopeKey}`,
-    `- Scope digest: ${run.manifest.scopeDigest}`,
-    `- Artifact/snapshot digest: ${run.manifest.snapshotDigest}`,
-    `- Run directory: ${run.manifest.runDir}`,
     `- Context mode: ${opts.noContext ? "no-context (do not capture session context)" : "parent-provided immutable snapshot"}`,
     ...(incremental
       ? [
-          `- Incremental Learning Dossier: ${opts.dossierPath}`,
-          `- Dossier digest: ${opts.dossierDigest}`,
           `- Authoritative selected Memory names: ${JSON.stringify(selectedScope)}`,
-          "- Read only the dossier by default; it already contains the selected Memory bodies.",
-          "- Return one delta-only incremental-memory-plan; do not emit exhaustive unchanged sections.",
         ]
       : [
           `- Pre-run mirror normalization: ${JSON.stringify({ repaired: run.normalization.repaired, removed: run.normalization.removed })}`,
           ...formatSelectedScopeTaskLines(selectedScope, Boolean(opts.noContext)),
-          `- Immutable manifest: ${path.join(run.manifest.runDir, "manifest.json")}`,
-          `- Immutable context snapshot: ${run.manifest.snapshotPath}`,
-          `- Harness memory dir: ${harnessDir}`,
-          `- Public memory dir: ${run.manifest.publicDir ?? "disabled for this non-project directory"}`,
-          "- Do not write to either memory directory.",
-          "- Your final assistant message must be one exhaustive Memory consolidation plan.",
+
         ]),
     "",
     procedure,
@@ -1779,10 +1763,10 @@ export default function (pi: ExtensionAPI) {
     const memories = await loadAndDeduplicateMemories(cwd);
     const settings = await readSettings(cwd);
 
-    if (memories.length === 0 && !settings.autoMemory) return;
+    if (memories.totalEntries === 0 && !settings.autoMemory) return;
 
     let systemPrompt = event.systemPrompt || "";
-    if (memories.length > 0) {
+    if (memories.totalEntries > 0) {
       systemPrompt = systemPrompt
         ? systemPrompt + "\n\n" + formatMemoriesBlock(memories)
         : formatMemoriesBlock(memories);
@@ -1818,7 +1802,7 @@ export default function (pi: ExtensionAPI) {
       const harnessDir = memoryPaths.harnessDir;
       const home = getAgentDir();
       const pkgDir = resolvePackageDir();
-      const procedureFile = path.join(pkgDir, "agents", "memory-consolidator.md");
+      const procedureFile = path.join(pkgDir, "prompts", "incremental-memory-consolidator.md");
       const projectInstructions = await resolveProjectInstructionsFile(cwd, ctx);
 
       const options = [

@@ -29,9 +29,9 @@ const checkRows = bindLifecycleRenderers({
   expandHint: () => keyHint("app.tools.expand", "to expand"),
   hostComponent: ToolExecutionComponent,
 });
-import { evaluatePhase } from "./guardrail-engine.ts";
+import { evaluateLegacyPhase as evaluatePhase, invalidLegacyAffects } from "./legacy-harness.ts";
 import { resolveHarnessConfig } from "./guardrail-config.ts";
-import type { Policy, PolicyPhase } from "./guardrail-types.ts";
+import type { Policy, PolicyPhase } from "./legacy-harness.ts";
 
 export const MAX_REPAIR_ATTEMPTS = 2;
 export const MAX_ARTIFACT_BYTES = 1_000_000;
@@ -194,7 +194,7 @@ function appendNoMatch(
 
 function appendUnsupported(
   pi: ExtensionAPI,
-  phase: "artifact",
+  phase: "output" | "artifact",
   policy: Policy | undefined,
   reason: string,
   paths: ReturnType<typeof resolveHarnessConfig>["paths"],
@@ -276,7 +276,7 @@ async function readSafeArtifact(
 }
 
 function artifactPolicies(config: ReturnType<typeof resolveHarnessConfig>["config"], toolName: string): Policy[] {
-  return config.policies.filter((policy) =>
+  return config.legacy.policies.filter((policy) =>
     (policy.phase ?? "tool-call") === "artifact" && (!policy.tools || policy.tools.includes(toolName)),
   );
 }
@@ -320,7 +320,7 @@ async function checkFinalArtifacts(
   state: RepairState,
   resolved: ReturnType<typeof resolveHarnessConfig>,
 ): Promise<void> {
-  const policies = resolved.config.policies.filter((policy) => (policy.phase ?? "tool-call") === "artifact");
+  const policies = resolved.config.legacy.policies.filter((policy) => (policy.phase ?? "tool-call") === "artifact");
   let pathCount = 0;
   for (const policy of policies) {
     const touched = state.artifacts.get(policy.name) ?? new Set<string>();
@@ -336,7 +336,7 @@ async function checkFinalArtifacts(
         appendUnsupported(pi, "artifact", policy, read.reason, resolved.paths, file);
         continue;
       }
-      const decision = evaluatePhase(resolved.config, {
+      const decision = evaluatePhase(resolved.config.legacy, {
         phase: "artifact",
         text: read.text,
         policyName: policy.name,
@@ -355,8 +355,18 @@ async function checkFinalArtifacts(
   }
 }
 
+function reportIncomplete(pi: ExtensionAPI, resolved: ReturnType<typeof resolveHarnessConfig>, phase: "output" | "artifact", toolName?: string): void {
+  for (const invalid of resolved.config.legacy.invalidPolicies) {
+    if (!invalidLegacyAffects(invalid, phase, toolName)) continue;
+    appendCheck(pi, { kind: "harness-check", phase, status: "unsupported", policy: invalid.name, source: invalid.source,
+      file: sourceFile(invalid.source, resolved.paths), detail: `Check incomplete: invalid persisted policy: ${invalid.errors.join("; ")}. Use /harness and authorized config repair; no successful check is claimed.` });
+  }
+  if (resolved.config.configReadIncomplete) appendUnsupported(pi, phase, undefined, "Check incomplete: current configuration is unreadable or stale; retained checks do not prove current coverage. Use /harness for diagnostics.", resolved.paths);
+}
+
 async function checkArtifactResult(pi: ExtensionAPI, event: ToolResultEvent, ctx: ExtensionContext, state: RepairState): Promise<void> {
   const resolved = resolveHarnessConfig(ctx.cwd || process.cwd());
+  reportIncomplete(pi, resolved, "artifact", event.toolName);
   const policies = artifactPolicies(resolved.config, event.toolName);
   if (!policies.length) return;
 
@@ -383,7 +393,7 @@ async function checkArtifactResult(pi: ExtensionAPI, event: ToolResultEvent, ctx
         appendUnsupported(pi, "artifact", policy, read.reason, resolved.paths, file);
         continue;
       }
-      const decision = evaluatePhase(resolved.config, {
+      const decision = evaluatePhase(resolved.config.legacy, {
         phase: "artifact",
         toolName: event.toolName,
         text: read.text,
@@ -411,14 +421,17 @@ async function checkAssistantOutput(
   const finalAssistant = isFinalAssistantMessage(event.message);
   const text = textFromMessage(event.message);
   const resolved = resolveHarnessConfig(ctx.cwd || process.cwd());
+  if (finalAssistant) {
+    reportIncomplete(pi, resolved, "output");
+    reportIncomplete(pi, resolved, "artifact");
+  }
   if (finalAssistant && text !== undefined) {
-    const policy = resolved.config.policies.find((entry) => (entry.phase ?? "tool-call") === "output");
-    if (policy) {
-      const decision = evaluatePhase(resolved.config, { phase: "output", text });
+    for (const policy of resolved.config.legacy.policies.filter((entry) => entry.phase === "output")) {
+      const decision = evaluatePhase(resolved.config.legacy, { phase: "output", text, policyName: policy.name });
       if (!decision) {
         appendNoMatch(pi, "output", policy, "final assistant text was checked and no prohibited pattern matched", resolved.paths);
       } else {
-        const matchedPolicy = resolved.config.policies.find((entry) => entry.name === decision.policyName) ?? policy;
+        const matchedPolicy = resolved.config.legacy.policies.find((entry) => entry.name === decision.policyName) ?? policy;
         if (decision.action === "observe") {
           appendCheck(pi, policyDetails("output", matchedPolicy, "observed", "final assistant text matched an observe policy", resolved.paths));
         } else {
@@ -453,10 +466,8 @@ export default function registerOutputChecks(pi: ExtensionAPI): void {
       label: details?.status === "unsupported" ? "check unsupported" : `check ${details?.status ?? "recorded"}`,
       details: details ? [
         fieldLine("phase", details.phase),
-        fieldLine("status", details.status),
         ...(details.policy ? [fieldLine("policy", details.policy)] : []),
         ...(details.path ? [fieldLine("path", details.path)] : []),
-        fieldLine("detail", reason),
       ] : undefined,
     }))({ content: "", details }, { expanded }, theme);
   });

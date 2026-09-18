@@ -70,10 +70,10 @@ def extract_skill_plan() -> dict:
                 "op": "extractUnit",
                 "oldText": "- Use coda0.com as the default artifacts host",
                 "extraction": {
-                    "target": "skillPrompt",
+                    "target": "skillRule",
+                    "ruleId": "artifact-host",
                     "skillName": "using-open-artifacts",
-                    "prompt": "Use coda0.com as the default instance.",
-                    "promptTarget": "system",
+                    "instructions": "Use coda0.com as the default instance.",
                 },
                 "rationale": "only matters when that skill is invoked",
                 "evidence": [evidence("published to the wrong host", kind="unused")],
@@ -141,6 +141,49 @@ def test_extract_memory_rejects_noncanonical_names_types_and_classifications() -
         plan_json = json.dumps(plan)
         result = call_js(f"validateAgentsMdPlan({plan_json})", "validateAgentsMdPlan")
         assert result["ok"] is False
+
+
+def test_extract_pointer_schema_is_optional_bounded_and_extraction_only() -> None:
+    base = extract_skill_plan()["operations"][1]
+    pointer = "- For schema changes, read @.memory/fixture-regeneration.md."
+    for replacement in (pointer, "x" * 500):
+        op = {**base, "replacementText": replacement}
+        result = call_js(f"validateAgentsMdPlan({json.dumps({'kind': 'agents-md-consolidation-plan', 'operations': [op]})})", "validateAgentsMdPlan")
+        assert result["ok"] is True
+        assert result["operations"][0]["replacementText"] == replacement
+    for replacement in (None, 1, "", " ", "x" * 501, "- One\n- Two", "route\rhidden", "route\u2028hidden"):
+        op = {**base, "replacementText": replacement}
+        result = call_js(f"validateAgentsMdPlan({json.dumps({'kind': 'agents-md-consolidation-plan', 'operations': [op]})})", "validateAgentsMdPlan")
+        assert result["ok"] is False, replacement
+    for op in (rewrite_plan()["operations"][0], add_op(), {"op": "removeUnit", "oldText": "x", "evidence": [evidence("x")]}):
+        op["replacementText"] = pointer
+        result = call_js(f"validateAgentsMdPlan({json.dumps({'kind': 'agents-md-consolidation-plan', 'operations': [op]})})", "validateAgentsMdPlan")
+        assert result["ok"] is False
+
+
+def test_memory_description_is_short_nonblank_and_single_line() -> None:
+    base = extract_skill_plan()["operations"][1]
+    for description, expected in (("Schema changes: regenerate fixtures before testing", True), ("x" * 120, True), ("x" * 121, False), (" ", False), ("Schema\nextra: injected", False), ("Schema\rhidden", False)):
+        op = {**base, "extraction": {**base["extraction"], "description": description}}
+        result = call_js(f"validateAgentsMdPlan({json.dumps({'kind': 'agents-md-consolidation-plan', 'operations': [op]})})", "validateAgentsMdPlan")
+        assert result["ok"] is expected, description
+
+
+def test_skill_extraction_requires_flat_rule_fields_and_rejects_obsolete_targets() -> None:
+    base = extract_skill_plan()["operations"][0]
+    for extraction in (
+        {key: value for key, value in base["extraction"].items() if key != "ruleId"},
+        {**base["extraction"], "ruleId": " "},
+        {**base["extraction"], "ruleId": "x" * 129},
+        {**base["extraction"], "skillName": "invented skill"},
+        {**base["extraction"], "instructions": " "},
+        {**base["extraction"], "instructions": "x" * 2001},
+        {"target": "skillPrompt", "skillName": "using-open-artifacts", "prompt": "obsolete", "promptTarget": "system"},
+        {"target": "projectDoc", "path": "docs/rules.md"},
+    ):
+        plan = {"kind": "agents-md-consolidation-plan", "operations": [{**base, "extraction": extraction}]}
+        result = call_js(f"validateAgentsMdPlan({json.dumps(plan)})", "validateAgentsMdPlan")
+        assert result["ok"] is False, extraction
 
 
 # ── quote verification ────────────────────────────────────────────────
@@ -278,6 +321,21 @@ def test_ambiguous_or_missing_matches_fail_closed() -> None:
     assert "does not match" in str(missing["error"])
 
 
+def test_extraction_replaces_only_exact_unit_and_fingerprints_the_pointer() -> None:
+    base = extract_skill_plan()["operations"][1]
+    pointer = "- For schema changes, read @.memory/fixture-regeneration.md."
+    op = {**base, "replacementText": pointer}
+    doc = "# Rules\n\n- Common cross-task rule\n" + base["oldText"] + "\n- Unrelated task rule\n"
+    out = simulate(doc, [op])
+    assert out["ok"] is True
+    assert out["doc"] == doc.replace(base["oldText"], pointer)
+    assert simulate(doc, [base])["doc"] == doc.replace(base["oldText"], "")
+    for bad_doc in (doc + base["oldText"], "# No anchor\n"):
+        assert simulate(bad_doc, [op])["ok"] is False
+    fingerprints = call_js(f"[{json.dumps(base)}, {json.dumps(op)}].map(fingerprintOp)", "fingerprintOp")
+    assert fingerprints[0] != fingerprints[1]
+
+
 # ── budget ────────────────────────────────────────────────────────────
 
 
@@ -408,10 +466,10 @@ def extraction_ops(memory_type: str = "project", classification: str = "safe") -
             "op": "extractUnit",
             "oldText": "- Use coda0.com as the default artifacts host",
             "extraction": {
-                "target": "skillPrompt",
+                "target": "skillRule",
+                "ruleId": "artifact-host",
                 "skillName": "using-open-artifacts",
-                "prompt": "Use coda0.com as the default instance.",
-                "promptTarget": "system",
+                "instructions": "Use coda0.com as the default instance.",
             },
             "evidence": [evidence("npm test failed with ERR_PNPM_NO_SCRIPT", 1)],
         },
@@ -443,7 +501,10 @@ def test_safe_extraction_updates_both_roots_and_preserves_private_markers(tmp_pa
     result = js(apply_plan_script(project, agent, run_dir, extraction_ops()), {"PI_CODING_AGENT_DIR": str(agent)})
     assert result["result"]["outcome"] == "applied"
     assert result["result"]["applied"] == 2
-    assert result["harnessConfig"] is not None
+    assert json.loads(result["harnessConfig"])["rules"] == [{
+        "id": "artifact-host", "skill": "using-open-artifacts", "instructions": "Use coda0.com as the default instance.",
+    }]
+    assert "skillPrompts" not in json.loads(result["harnessConfig"])
     assert not (project / ".pi" / "harness.local.json").exists()
     assert result["harnessMemory"] == result["publicMemory"]
     assert "(harness only)" in result["harnessIndex"]
@@ -457,6 +518,188 @@ def test_safe_extraction_updates_both_roots_and_preserves_private_markers(tmp_pa
     assert "coda0.com" not in result["agents"]
 
 
+def test_routing_pointer_survives_while_extracted_detail_reaches_memory(tmp_path: Path) -> None:
+    project, agent, run_dir = prepare_extraction_roots(tmp_path)
+    ops = extraction_ops()[:1]
+    pointer = "- For schema changes, read @.memory/fixture-regeneration.md."
+    ops[0]["replacementText"] = pointer
+    before = (project / "AGENTS.md").read_text()
+    result = js(apply_plan_script(project, agent, run_dir, ops), {"PI_CODING_AGENT_DIR": str(agent)})
+    assert result["result"]["outcome"] == "applied"
+    assert result["agents"] == before.replace(ops[0]["oldText"], pointer)
+    assert ops[0]["oldText"] in result["harnessMemory"]
+    assert pointer not in result["harnessMemory"]
+    assert result["harnessMemory"] == result["publicMemory"]
+    assert result["receiptExists"] is True
+
+
+def test_extraction_pointer_failures_leave_every_surface_unchanged(tmp_path: Path) -> None:
+    for case in ("oversized", "unverified", "missing-anchor", "duplicate-anchor", "budget"):
+        project, agent, run_dir = prepare_extraction_roots(tmp_path / case)
+        op = extraction_ops()[0]
+        op["replacementText"] = "- For schema changes, read @.memory/fixture-regeneration.md."
+        if case == "oversized":
+            op["replacementText"] = "x" * 501
+        elif case == "unverified":
+            op["evidence"] = [evidence("invented quotation", 0)]
+        elif case == "missing-anchor":
+            op["oldText"] = "missing"
+        elif case == "duplicate-anchor":
+            (project / "AGENTS.md").write_text(op["oldText"] + "\n" + op["oldText"] + "\n")
+        before = (project / "AGENTS.md").read_text()
+        script = apply_plan_script(project, agent, run_dir, [op])
+        if case == "budget":
+            script = script.replace("budgetBytes: 16384", f"budgetBytes: {len(before.encode())}")
+        result = js(script, {"PI_CODING_AGENT_DIR": str(agent)})
+        assert result["result"]["outcome"] == "failed", case
+        assert result["result"]["applied"] == 0
+        assert result["agents"] == before
+        assert result["harnessMemory"] is None and result["publicMemory"] is None
+        assert result["preReceiptExists"] is False and result["receiptExists"] is False
+
+
+def test_extraction_indexes_include_relevance_without_forging_privacy(tmp_path: Path) -> None:
+    project, agent, run_dir = prepare_extraction_roots(tmp_path)
+    op = extraction_ops()[0]
+    op["extraction"]["description"] = "Schema changes: review (harness only) labels before regenerating fixtures"
+    result = js(apply_plan_script(project, agent, run_dir, [op]), {"PI_CODING_AGENT_DIR": str(agent)})
+    assert result["result"]["outcome"] == "applied"
+    assert result["harnessMemory"] == result["publicMemory"]
+    for index in (result["harnessIndex"], result["publicIndex"]):
+        line = next(line for line in index.splitlines() if line.startswith("- [fixture-regeneration.md]"))
+        assert "Schema changes: review" in line
+        assert "harness only" in line and "(harness only)" not in line
+    assert "existing-private.md](existing-private.md) (harness only)" in result["harnessIndex"]
+    assert "existing-private.md" not in result["publicIndex"]
+
+
+def test_skill_rule_extraction_checks_registration_and_every_layer_id_owner(tmp_path: Path) -> None:
+    for case in ("missing-registry", "unknown-skill", "built-in", "user", "project", "personal", "disabled", "invalid", "other-selector", "duplicate-plan", "unreadable-layer"):
+        project, agent, run_dir = prepare_extraction_roots(tmp_path / case)
+        ops = extraction_ops()[1:]
+        op = ops[0]
+        if case == "unknown-skill":
+            op["extraction"]["skillName"] = "not-registered"
+        elif case == "built-in":
+            op["extraction"]["ruleId"] = "no-bulk-memory-deletion"
+        elif case == "duplicate-plan":
+            second = json.loads(json.dumps(op))
+            second["oldText"] = extraction_ops()[0]["oldText"]
+            ops.append(second)
+        elif case not in ("missing-registry",):
+            config_path = agent / "harness.json" if case in ("user", "unreadable-layer") else project / ".pi" / ("harness.local.json" if case == "personal" else "harness.json")
+            owned = {"id": "artifact-host", "skill": "using-open-artifacts", "instructions": "Owned guidance"}
+            if case == "disabled":
+                owned = {"id": "artifact-host", "enabled": False}
+            elif case == "invalid":
+                owned = {"id": "artifact-host", "skill": "using-open-artifacts", "instructions": 42}
+            elif case == "other-selector":
+                owned = {"id": "artifact-host", "bash": "dangerous", "action": "block", "message": "Keep constraint"}
+            config_path.write_text("{malformed" if case == "unreadable-layer" else json.dumps({"rules": [owned]}))
+        before_agents = (project / "AGENTS.md").read_text()
+        configs = {p: p.read_bytes() for p in (agent / "harness.json", project / ".pi" / "harness.json", project / ".pi" / "harness.local.json") if p.exists()}
+        script = apply_plan_script(project, agent, run_dir, ops)
+        if case == "missing-registry":
+            script = script.replace("availableSkills: ['using-open-artifacts']", "availableSkills: []")
+        result = js(script, {"PI_CODING_AGENT_DIR": str(agent)})
+        assert result["result"]["outcome"] == "failed", case
+        assert result["agents"] == before_agents
+        assert all(p.read_bytes() == content for p, content in configs.items())
+        assert result["preReceiptExists"] is False and result["receiptExists"] is False
+
+
+def test_skill_rule_extraction_preserves_distinct_rules_and_ownership_metadata(tmp_path: Path) -> None:
+    project, agent, run_dir = prepare_extraction_roots(tmp_path)
+    prior = {"id": " artifact-host ", "skill": "using-open-artifacts", "instructions": "Keep guidance."}
+    revision = js(f"import {{ ruleRevision }} from './packages/continual-learning/extensions/guardrail-engine.ts'; console.log(JSON.stringify(ruleRevision({json.dumps(prior)})));")
+    base = {"rules": [prior], "learnedRules": {" artifact-host ": {"origin": "consolidation", "revision": revision}}}
+    (project / ".pi" / "harness.json").write_text(json.dumps(base))
+    result = js(apply_plan_script(project, agent, run_dir, extraction_ops()[1:]), {"PI_CODING_AGENT_DIR": str(agent)})
+    assert result["result"]["outcome"] == "applied"
+    after = json.loads(result["harnessConfig"])
+    assert after["rules"] == base["rules"] + [{"id": "artifact-host", "skill": "using-open-artifacts", "instructions": "Use coda0.com as the default instance."}]
+    assert after["learnedRules"] == base["learnedRules"]
+    assert "skillPrompts" not in after
+
+
+def test_skill_extraction_preserves_legacy_containers_and_respects_reserved_names(tmp_path: Path) -> None:
+    from test_harness_upgrade_compatibility import LEGACY
+    for conflict in (False, True):
+        project, agent, run_dir = prepare_extraction_roots(tmp_path / str(conflict))
+        base = json.loads(json.dumps(LEGACY))
+        if conflict:
+            base['policies'][0]['name'] = 'artifact-host'
+        target = project / '.pi/harness.json'
+        target.write_text(json.dumps(base))
+        before = target.read_bytes()
+        result = js(apply_plan_script(project, agent, run_dir, extraction_ops()[1:]), {'PI_CODING_AGENT_DIR': str(agent)})
+        if conflict:
+            assert result['result']['outcome'] == 'failed'
+            assert target.read_bytes() == before
+        else:
+            assert result['result']['outcome'] == 'applied'
+            after = json.loads(result['harnessConfig'])
+            assert {key: after[key] for key in base} == base
+            assert after['rules'][0]['id'] == 'artifact-host'
+
+
+def test_skill_extraction_executes_positive_and_negative_selector_checks(tmp_path: Path) -> None:
+    for case in ("valid", "positive-misses", "negative-matches"):
+        project, agent, run_dir = prepare_extraction_roots(tmp_path / case)
+        script = apply_plan_script(project, agent, run_dir, extraction_ops()[1:])
+        import_line = f"import {{ applyAgentsMdConsolidationPlan }} from '{MODULE}';"
+        script = script.replace(import_line, f"const {{ applyAgentsMdConsolidationPlan }} = await import('{MODULE}');")
+        script = f"""
+          import {{ mock }} from 'bun:test';
+          const engine = await import('./packages/continual-learning/extensions/guardrail-engine.ts');
+          const originalEvaluateSkill = engine.evaluateSkill;
+          const selectors = [];
+          mock.module('./packages/continual-learning/extensions/guardrail-engine.ts', () => ({{
+            ...engine,
+            evaluateSkill: (config, name) => {{
+              selectors.push(name);
+              const matches = originalEvaluateSkill(config, name);
+              if ({json.dumps(case)} === 'positive-misses' && name === 'using-open-artifacts') return [];
+              if ({json.dumps(case)} === 'negative-matches' && name !== 'using-open-artifacts') return originalEvaluateSkill(config, 'using-open-artifacts');
+              return matches;
+            }},
+          }}));
+        """ + script
+        script = script.replace("        result,", "        result, selectors,")
+        before = (project / "AGENTS.md").read_text()
+        result = js(script, {"PI_CODING_AGENT_DIR": str(agent)})
+        assert "using-open-artifacts" in result["selectors"]
+        if case == "valid":
+            assert any(name != "using-open-artifacts" for name in result["selectors"])
+            assert result["result"]["outcome"] == "applied"
+            assert "artifact-host" not in json.loads(result["harnessConfig"]).get("learnedRules", {})
+        else:
+            assert result["result"]["outcome"] == "failed"
+            assert result["agents"] == before
+            assert result["harnessConfig"] is None
+            assert result["preReceiptExists"] is False and result["receiptExists"] is False
+
+
+def test_skill_rule_ownership_is_rechecked_before_receipt_creation(tmp_path: Path) -> None:
+    project, agent, run_dir = prepare_extraction_roots(tmp_path)
+    user_config = agent / "harness.json"
+    owned = json.dumps({"rules": [{"id": "artifact-host", "enabled": False}]})
+    before = (project / "AGENTS.md").read_text()
+    script = apply_plan_script(project, agent, run_dir, extraction_ops()[1:])
+    script = script.replace(
+        "const opts = {",
+        f"const opts = {{ transactionHook: async stage => {{ if (stage === 'before-artifacts') await Bun.write({json.dumps(str(user_config))}, {json.dumps(owned)}); }},",
+        1,
+    )
+    result = js(script, {"PI_CODING_AGENT_DIR": str(agent)})
+    assert result["result"]["outcome"] == "failed"
+    assert "already exists" in result["result"]["detail"]
+    assert result["agents"] == before
+    assert user_config.read_text() == owned
+    assert result["harnessConfig"] is None
+    assert result["preReceiptExists"] is False and result["receiptExists"] is False
+
+
 def test_private_extraction_stays_private_and_is_indexed(tmp_path: Path) -> None:
     project, agent, run_dir = prepare_extraction_roots(tmp_path)
     result = js(apply_plan_script(project, agent, run_dir, extraction_ops("project", "private")[:1]), {"PI_CODING_AGENT_DIR": str(agent)})
@@ -467,7 +710,7 @@ def test_private_extraction_stays_private_and_is_indexed(tmp_path: Path) -> None
     assert "existing-private.md](existing-private.md) (harness only)" in result["harnessIndex"]
 
 
-def test_skill_prompt_extraction_rejects_symlinked_project_config_path(tmp_path: Path) -> None:
+def test_skill_rule_extraction_rejects_symlinked_project_config_path(tmp_path: Path) -> None:
     project, agent, run_dir = prepare_extraction_roots(tmp_path)
     outside = tmp_path / "outside"
     outside.mkdir()
@@ -503,8 +746,11 @@ def test_failure_and_cancellation_roll_back_every_surface(tmp_path: Path) -> Non
             "harnessIndex": (agent / "memory" / "project" / "MEMORY.md").read_bytes(),
             "publicIndex": (project / ".memory" / "MEMORY.md").read_bytes(),
         }
+        ops = extraction_ops()
+        ops[0]["replacementText"] = "- For schema changes, read @.memory/fixture-regeneration.md."
+        ops[1]["replacementText"] = "- When publishing artifacts, use /skill:using-open-artifacts."
         result = js(
-            apply_plan_script(project, agent, run_dir, extraction_ops(), cancelled_after=cancelled_after, fail_at=fail_at),
+            apply_plan_script(project, agent, run_dir, ops, cancelled_after=cancelled_after, fail_at=fail_at),
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
         expected = "cancelled" if cancelled_after is not None else "failed"
@@ -705,6 +951,10 @@ def test_agents_planner_uses_package_prompt_and_minimal_readonly_args() -> None:
     source = (PKG_DIR / "extensions" / "agents-md-consolidation.ts").read_text(encoding="utf-8")
     assert "buildAgentsMdConsolidatorPrompt" in source
     assert 'minimalPiWorkerArgs(["read", "grep", "find", "ls"])' in source
+    header = source.split("const taskText = [", 1)[1].split('].join("\\n");', 1)[0]
+    for duplicate in ("Run ID:", "Scope digest:", "Artifact/snapshot digest:", "Immutable task-slice snapshot:", "Authoritative Learning Dossier:"):
+        assert duplicate not in header
+    assert "Registered skill names" in header
 
 
 def test_procedure_declares_readonly_boundary_and_discipline() -> None:
@@ -717,6 +967,32 @@ def test_procedure_declares_readonly_boundary_and_discipline() -> None:
     assert "parent" in text and "distinct" in text
     assert "five operations" in text
     assert '"agents-md-consolidation-plan"' in text
+
+
+def test_procedure_routes_conditionally_with_compact_authority() -> None:
+    text = (PKG_DIR / "prompts" / "agents-md-consolidator.md").read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+    for retained in ("common", "conditional pointer", "replacementText", "500", "120", "front-loaded", "registered", "skillRule", "ruleId", "instructions", "safe", "private"):
+        assert retained in normalized
+    assert "always-relevant" not in normalized
+    assert "neural net" not in normalized and "gradient" not in normalized
+    assert "skillPrompt" not in normalized
+    assert normalized.count("confirmation") == 1
+    assert "not proof" in normalized
+    assert "need not" in normalized
+
+
+def test_evidence_harness_requires_parent_completion_not_child_claims() -> None:
+    for scenario in ("verified", "empty", "streamed-gates", "gates-in-tool-result"):
+        result = subprocess.run(
+            ["bun", str(PKG_DIR / "tests" / "consolidation_evidence_harness.ts"), scenario],
+            cwd=REPO, capture_output=True, text=True, check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        missing = json.loads(result.stdout.strip().splitlines()[-1])
+        assert missing == ([] if scenario == "verified" else [
+            "completed tool work", "exactly one schema-valid consolidation plan", "a parent-owned validation receipt",
+        ])
 
 
 def test_plan_and_apply_interfaces_are_discriminated() -> None:

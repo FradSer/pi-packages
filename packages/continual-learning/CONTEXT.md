@@ -5,7 +5,7 @@
 `pi-continual-learning` improves Pi without changing model weights. It learns across three runtime surfaces:
 
 1. **Memory** stores durable knowledge that is injected into future sessions as untrusted reference data.
-2. **Harness** evaluates declarative policies on tool calls, assistant output, and actual file artifacts. Skill-specific prompts are a separate pre-generation context-guidance module.
+2. **Harness** resolves identified flat rules for new authoring: skill/text guidance and Bash messages or execution gates. A read-only compatibility boundary preserves installed tool-call, output/artifact, and skill-prompt declarations without weakening their semantics or rewriting configuration.
 3. **AGENTS.md consolidation** maintains the small, always-loaded project instruction document and extracts narrower material into Memory or Harness.
 
 Automatic learning and default `/consolidate` operate on one completed **Task Slice**. A metadata-only **Memory Selector** chooses the minimum sufficient related existing Memory, and the parent builds one authoritative **Learning Dossier** containing that Task Slice plus selected bodies. Memory, Harness, and AGENTS.md planners consume the dossier and return only deltas. `/consolidate full` is the explicit exhaustive maintenance path.
@@ -14,11 +14,11 @@ Every phase follows the same trust boundary: the parent freezes the task context
 
 Later-phase failure does not roll back an earlier verified phase. When Memory is selected, it must complete and verify before Harness starts; grounded Harness/AGENTS-only automatic evidence may instead use a verified no-mutation Memory gate. Harness failure leaves Memory intact; AGENTS.md failure leaves both earlier phases intact.
 
-## Planned Harness vocabulary
+## Harness vocabulary
 
-The next Harness model is specified in
-@packages/continual-learning/HARNESS-DESIGN.md. These terms describe the design;
-the current runtime architecture below remains unchanged until implementation.
+The flat Harness contract is described in
+@packages/continual-learning/HARNESS-DESIGN.md. Authoring, automatic learning,
+and AGENTS extraction use the same rule format and evaluator.
 
 - **Rule identity** names one agreement independently of the content it matches.
 - **Match entry** identifies a skill invocation, command invocation, or retained
@@ -38,7 +38,7 @@ Harness configuration has exactly three user-owned layers, plus package defaults
 2. Project shared: `<project>/.pi/harness.json`
 3. Project personal: `<project>/.pi/harness.local.json`
 
-Precedence is project personal over project shared over user shared over built-in defaults. Policy names and skill-prompt names are the addressable override keys. The obsolete user-personal `~/.pi/agent/harness.local.json` and project `.pi/agent/harness*.json` paths are not loaded, displayed, or targeted.
+Precedence is project personal over project shared over user shared over built-in defaults. Flat rule IDs are the addressable override keys across new selectors; nearer declarations replace a whole rule. Installed legacy policy/skill-prompt containers retain their original name-based override and disablement semantics through compatibility execution, including the historical effect of cumulative disabled names on same-ID flat rules. Compatible data is a notice, not an error; loading never migrates files. The obsolete user-personal `~/.pi/agent/harness.local.json` and project `.pi/agent/harness*.json` paths are not loaded, displayed, or targeted.
 
 Direct authoring and automatic Harness consolidation default to `<project>/.pi/harness.json`. Other layers are read-only inputs to consolidation. Project personal `.pi/harness.local.json` is selected only by an explicit personal-configuration request; a global local variant is unsupported.
 
@@ -108,13 +108,15 @@ The flat escaped canonical-path directory is the sole agent-private runtime root
 - `/consolidate` incrementally learns from the current completed Task Slice.
 - `/consolidate full` explicitly runs exhaustive Memory, Harness, and AGENTS.md maintenance.
 - `/consolidate no-context` performs the context-disabled full Memory path and skips Harness and AGENTS.md, which require task evidence.
-- `/harness` displays active policies and creates rules in the selected Harness configuration layer.
+- `/harness` displays resolved rules and creates rules in the selected Harness configuration layer. Unsupported or ambiguous requests do not create empty files or authorize edits elsewhere.
 
 Auto-memory enables learning after `agent_settled` for real user input. It coalesces pending completed tasks, ignores extension-generated continuations as independent triggers, and waits for the full pipeline in headless mode. Existing Memory remains available regardless of the toggle. The main model is not asked to write memories directly; the parent validates new-memory proposals even when the existing corpus is empty.
 
-New memories live in a separate `newMemories` proposal array while `selected` remains the exact parent-owned existing-file list. Snapshot message indices and quotes ground the proposals; preferences stay private and credentials are rejected. AGENTS.md extraction uses the same explicit safe/private classification, persists exact predecessor state in a pre-apply recovery receipt, and applies Memory, Harness, instruction, and post-receipt changes in one rollback boundary. On the next session start, an orphan pre receipt without a matching post receipt is validated against the canonical project scope and restored before new learning starts. Harness learning verifies user/tool evidence and executes positive and negative evaluator cases. Shared, built-in, and manually authored policies remain protected from automatic replacement or disabling.
+New memories live in a separate `newMemories` proposal array while `selected` remains the exact parent-owned existing-file list. Snapshot message indices and quotes ground the proposals; preferences stay private and credentials are rejected. AGENTS.md extraction uses the same explicit safe/private classification, persists exact predecessor state in a pre-apply recovery receipt, and applies Memory, Harness, instruction, and post-receipt changes in one rollback boundary. On the next session start, an orphan pre receipt without a matching post receipt is validated against the canonical project scope and restored before new learning starts. Harness learning verifies user/tool evidence and executes positive and negative evaluator cases for each selector. Revision-bound `learnedRules` provenance protects manual edits; shared, built-in, personal, invalid, disabled, and manually authored identities cannot be overwritten by automatic learning.
 
-Post-generation policies explicitly choose `output` or `artifact`. Artifact checks read actual bounded workspace file contents, including explicit paths for command-produced files. Unreadable or unsafe artifacts are unsupported, not verified. Output checks run after streaming and can request bounded corrections but cannot hide the original response.
+Skill guidance names its invocation task in the model-visible message. Text guidance retains its selector and subject scope even when triggered by historical conversation. New flat guidance uses persistent tail messages, never per-turn system-prompt changes; installed legacy skill targets preserve their configured delivery semantics. A delivery revision includes its message format, so a restored unscoped delivery receives one scoped replacement without rewriting history. Matching and delivery do not prove semantic compliance. Output/artifact checks remain available for installed declarations, without becoming a fourth flat-rule selector or replacing project verification.
+
+Memory injection carries bounded relevance descriptions, exact body paths, omission counts, and discovery pointers. Complete indexes are parent-rebuilt, stale-capable discovery metadata; loading never writes them. Descriptions front-load when the memory is relevant. AGENTS extraction can retain a bounded conditional `replacementText` pointer in the same evidence-checked, budgeted transaction instead of losing discoverability.
 
 ## Design assessment
 
@@ -131,4 +133,4 @@ The two Memory roots are intentionally asymmetric rather than ordinary override 
 - Safe Memory synchronizes both ways and remains byte-identical after normalization/application.
 - Private Memory never appears in project `.memory/`.
 - The parent owns all mutation, validation, rollback, index rebuilding, and receipts. Automatic and manual consolidation may permanently delete Memory only with a stale verdict that permits removal plus a mechanically verifiable preservation target; receipt change counts are bound back to the validated plan. Generated shell commands cannot bulk-delete either project Memory directory or the private Pi Memory root.
-- Harness retains its separate three-layer policy model.
+- Harness retains its three-layer flat-rule model plus read-only compatibility execution of installed declarations. Legacy files remain unchanged; additions preserve their protections. @docs/adr/0005-preserve-installed-harness-protections.md records why compatibility, not global lockout or silent retirement, is required.

@@ -318,8 +318,9 @@ def test_loader_rejects_symlinked_memory_files_and_orders_entries() -> None:
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
-        assert [entry["filename"] for entry in result] == ["a.md", "z.md"]
-        assert all("private" not in entry["content"] for entry in result)
+        assert [entry["filename"] for entry in result["entries"]] == ["a.md", "z.md"]
+        assert result["totalEntries"] == 2
+        assert all("private" not in entry["content"] for entry in result["entries"])
 
 
 def test_loader_uses_strict_memory_filename_policy() -> None:
@@ -340,7 +341,7 @@ def test_loader_uses_strict_memory_filename_policy() -> None:
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
-        assert [entry["filename"] for entry in result] == ["valid_name.md"]
+        assert [entry["filename"] for entry in result["entries"]] == ["valid_name.md"]
         truncated = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
@@ -348,7 +349,7 @@ def test_loader_uses_strict_memory_filename_policy() -> None:
             console.log(JSON.stringify(await loadAndDeduplicateMemories({json.dumps(str(repo))}, {{ maxFileChars: 3 }})));
             """
         )
-        assert truncated[0]["content"] == "val\n… [truncated]"
+        assert truncated["entries"][0]["content"] == "val\n… [truncated]"
 
 
 def test_invalid_memory_config_is_reported_without_crashing_or_overwriting() -> None:
@@ -416,7 +417,7 @@ def test_loader_reads_only_bounded_bytes_before_truncating() -> None:
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
         assert result["bytesRequested"] <= 16
-        assert result["values"][0]["content"] == "xxx\n… [truncated]"
+        assert result["values"]["entries"][0]["content"] == "xxx\n… [truncated]"
 
 
 def test_loader_fails_closed_when_root_is_replaced_by_a_symlink() -> None:
@@ -429,6 +430,7 @@ def test_loader_fails_closed_when_root_is_replaced_by_a_symlink() -> None:
         outside.mkdir()
         (memory / "a.md").write_text("safe", encoding="utf-8")
         (outside / "a.md").write_text("secret", encoding="utf-8")
+        initialize_git_repo(repo)
         result = run_bun(
             f"""
             import fs from 'node:fs/promises';
@@ -448,7 +450,8 @@ def test_loader_fails_closed_when_root_is_replaced_by_a_symlink() -> None:
             """,
             {"PI_CODING_AGENT_DIR": str(root / "agent")},
         )
-        assert result == []
+        assert result["entries"] == []
+        assert result["indexes"] == []
 
 
 def test_loader_skips_a_child_replaced_by_a_symlink() -> None:
@@ -460,6 +463,7 @@ def test_loader_skips_a_child_replaced_by_a_symlink() -> None:
         memory.mkdir(parents=True)
         secret.write_text("secret", encoding="utf-8")
         (memory / "a.md").write_text("safe", encoding="utf-8")
+        initialize_git_repo(repo)
         result = run_bun(
             f"""
             import fs from 'node:fs/promises';
@@ -479,7 +483,76 @@ def test_loader_skips_a_child_replaced_by_a_symlink() -> None:
             """,
             {"PI_CODING_AGENT_DIR": str(root / "agent")},
         )
-        assert result == []
+        assert result["entries"] == []
+
+
+def test_index_rebuild_rejects_root_swap_before_publishing_metadata(tmp_path: Path) -> None:
+    memory = tmp_path / "memory"
+    outside = tmp_path / "outside"
+    memory.mkdir()
+    outside.mkdir()
+    (memory / "a.md").write_text("---\ndescription: safe cue\n---\n", encoding="utf-8")
+    (outside / "a.md").write_text("---\ndescription: outside cue\n---\n", encoding="utf-8")
+    result = run_bun(
+        f"""
+        import fs from 'node:fs/promises';
+        import {{ rebuildMemoryIndex }} from './packages/continual-learning/extensions/memory-files.ts';
+        const open = fs.open.bind(fs);
+        let swapped = false;
+        fs.open = async (target, ...args) => {{
+          if (!swapped && String(target).endsWith('/a.md')) {{
+            await fs.rename({json.dumps(str(memory))}, {json.dumps(str(tmp_path / 'saved'))});
+            await fs.symlink({json.dumps(str(outside))}, {json.dumps(str(memory))}, 'dir');
+            swapped = true;
+          }}
+          return open(target, ...args);
+        }};
+        let error = '';
+        try {{ await rebuildMemoryIndex({json.dumps(str(memory))}); }} catch (cause) {{ error = cause.message; }}
+        console.log(JSON.stringify({{ error, outside: await fs.readdir({json.dumps(str(outside))}) }}));
+        """
+    )
+    assert "root changed" in result["error"]
+    assert result["outside"] == ["a.md"]
+    assert "outside cue" not in result["error"]
+
+
+def test_index_rebuild_cleanup_does_not_remove_a_replacement_root_file(tmp_path: Path) -> None:
+    memory = tmp_path / "memory"
+    outside = tmp_path / "outside"
+    memory.mkdir()
+    outside.mkdir()
+    (memory / "a.md").write_text("---\ndescription: safe cue\n---\n", encoding="utf-8")
+    result = run_bun(
+        f"""
+        import fs from 'node:fs/promises';
+        import {{ basename, join }} from 'node:path';
+        import {{ rebuildMemoryIndex }} from './packages/continual-learning/extensions/memory-files.ts';
+        const open = fs.open.bind(fs);
+        let replacement = '';
+        fs.open = async (target, ...args) => {{
+          const handle = await open(target, ...args);
+          if (String(target).endsWith('.tmp')) {{
+            const write = handle.writeFile.bind(handle);
+            handle.writeFile = async (...values) => {{
+              await write(...values);
+              await fs.rename({json.dumps(str(memory))}, {json.dumps(str(tmp_path / 'saved'))});
+              await fs.symlink({json.dumps(str(outside))}, {json.dumps(str(memory))}, 'dir');
+              replacement = join({json.dumps(str(outside))}, basename(target));
+              await fs.writeFile(replacement, 'outside must remain');
+            }};
+          }}
+          return handle;
+        }};
+        let error = '';
+        try {{ await rebuildMemoryIndex({json.dumps(str(memory))}); }} catch (cause) {{ error = cause.message; }}
+        let preserved = false;
+        try {{ preserved = (await fs.readFile(replacement, 'utf8')) === 'outside must remain'; }} catch {{}}
+        console.log(JSON.stringify({{ error, preserved }}));
+        """
+    )
+    assert "root changed" in result["error"]
+    assert result["preserved"] is True
 
 
 def test_memory_config_rejects_symlinked_roots_and_targets() -> None:
@@ -718,7 +791,7 @@ def test_obsolete_private_roots_are_ignored_without_mutation() -> None:
             const before = obsolete.map((dir, index) => readFileSync(dir + `/obsolete${{index}}.md`, 'utf8'));
             const entries = await loadAndDeduplicateMemories({json.dumps(str(repo))});
             console.log(JSON.stringify({{
-              entries: entries.map((entry) => [entry.filename, entry.content]),
+              entries: entries.entries.map((entry) => [entry.filename, entry.content]),
               obsoleteStillExist: obsolete.map((dir, index) => existsSync(dir + `/obsolete${{index}}.md`)),
               obsoleteUnchanged: obsolete.map((dir, index) => readFileSync(dir + `/obsolete${{index}}.md`, 'utf8') === before[index]),
             }}));
@@ -754,8 +827,8 @@ def test_colliding_readable_roots_load_the_same_private_memory() -> None:
             const rightEntries = await loadAndDeduplicateMemories(rightCwd);
             console.log(JSON.stringify({{
               sharedCanonicalRoot: left.harnessDir === right.harnessDir,
-              left: leftEntries.map((entry) => entry.filename),
-              right: rightEntries.map((entry) => entry.filename),
+              left: leftEntries.entries.map((entry) => entry.filename),
+              right: rightEntries.entries.map((entry) => entry.filename),
               sharedKept: existsSync(sharedRoot + '/ambiguous.md'),
               sharedBytes: readFileSync(sharedRoot + '/ambiguous.md', 'utf8'),
             }}));
