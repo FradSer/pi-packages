@@ -54,6 +54,14 @@ export interface ToolLifecycleSpec {
   /** Default bounds expanded details to 50 lines; opt in only when every
    * line is required for a user-visible readback. */
   detailLimit?: number | "all";
+  /** Show an authored subject exactly as written: every authored line keeps its
+   * own row, long lines wrap, and the subject alone never advertises expansion. */
+  verbatimSubject?: boolean;
+  /** Render the head and the subject as separate blocks: the head row, one blank
+   * band row, then the subject rows. Intended for authored subjects. */
+  subjectBlock?: boolean;
+  /** Band background token; `userMessageBg` marks user-authored content. */
+  bgToken?: string;
 }
 
 /** Build the common one-line lifecycle title for a tool result.
@@ -65,20 +73,38 @@ export function formatToolLifecycleTitle(spec: ToolLifecycleSpec): string {
   return `${tag} ${safeDisplayText(spec.label)} · ${safeDisplayText(spec.subject)}`;
 }
 
+/** Optional spec fields shared by the lifecycle factories. */
+export interface ToolLifecycleFlags {
+  /** See `ToolLifecycleSpec.verbatimSubject`. */
+  verbatimSubject?: boolean;
+  /** See `ToolLifecycleSpec.subjectBlock`. */
+  subjectBlock?: boolean;
+  /** See `ToolLifecycleSpec.bgToken`. */
+  bgToken?: string;
+}
+
 /** Build a started-row specification. */
 export function startedToolLifecycle(
   tool: string,
   subject: string,
-  options: { label?: string } = {},
+  options: { label?: string } & ToolLifecycleFlags = {},
 ): ToolLifecycleSpec {
-  return { kind: "started", tool, subject, label: options.label };
+  return {
+    kind: "started",
+    tool,
+    subject,
+    label: options.label,
+    verbatimSubject: options.verbatimSubject,
+    subjectBlock: options.subjectBlock,
+    bgToken: options.bgToken,
+  };
 }
 
 /** Build an event-row specification with optional semantic verb and expandable details. */
 export function eventToolLifecycle(
   tool: string,
   subject: string,
-  options: { label?: string; expandedSubject?: string; summary?: readonly string[]; details?: readonly string[]; detailLimit?: number | "all" } = {},
+  options: { label?: string; expandedSubject?: string; summary?: readonly string[]; details?: readonly string[]; detailLimit?: number | "all" } & ToolLifecycleFlags = {},
 ): ToolLifecycleSpec {
   return {
     kind: "event",
@@ -89,6 +115,9 @@ export function eventToolLifecycle(
     summary: options.summary,
     details: options.details,
     detailLimit: options.detailLimit,
+    verbatimSubject: options.verbatimSubject,
+    subjectBlock: options.subjectBlock,
+    bgToken: options.bgToken,
   };
 }
 
@@ -216,8 +245,9 @@ function styleSubject(subject: string, options: ToolLifecycleRenderOptions): str
  * its bounded detail lines, painted as a full-width toolPendingBg / toolSuccessBg /
  * toolErrorBg band with a blank band row above and below — the shared report-row visual language:
  * status-colored `[tool] label ·` prefix, per-teammate colored @names, plain
- * subject text, dim expand hint. pi-kit owns the styling so extensions cannot
- * drift.
+ * subject text, dim expand hint. Authored subjects opt into `verbatimSubject`
+ * (raw, never hidden) and `subjectBlock` (`[tool] label` alone, blank row, then
+ * the subject). pi-kit owns the styling so extensions cannot drift.
  */
 export function renderToolLifecycle(
   spec: ToolLifecycleSpec,
@@ -227,12 +257,22 @@ export function renderToolLifecycle(
   const { theme, fit } = options;
   const contentWidth = Math.max(1, options.width - 2 * bandPaddingX(options.width));
   const tag = `[${safeDisplayText(spec.tool)}]`;
-  const label = spec.label === undefined ? "" : ` ${safeDisplayText(spec.label)} ·`;
+  const blockSubject = spec.subjectBlock === true;
+  const label = spec.label === undefined ? "" : ` ${safeDisplayText(spec.label)}${blockSubject ? "" : " ·"}`;
   const headColor = options.isError ? "error" : options.isPending ? "warning" : "success";
   const head = theme.fg(headColor, theme.bold(`${tag}${label}`));
   const subjectText = safeDisplayText(spec.subject);
   const expandedSubject = spec.expandedSubject === undefined ? undefined : safeDisplayText(spec.expandedSubject);
-  const title = `${head} ${styleSubject(subjectText, options)}`;
+  // Authored text is raw: no teammate-name recoloring, and every written line stays visible.
+  const authoredSubject = spec.verbatimSubject === true;
+  const subjectBody = (text: string) => (authoredSubject ? text : styleSubject(text, options));
+  const subjectLine = (text: string) => `${head} ${subjectBody(text)}`;
+  const title = subjectLine(subjectText);
+  // A block subject keeps the head, a blank band row, and the authored lines apart;
+  // nothing authored means nothing to echo, so the head stands alone.
+  const subjectRows = (text: string): string[] => blockSubject
+    ? (text.trim() ? [fit(head, contentWidth), fit("", contentWidth), ...wrap(subjectBody(text))] : [fit(head, contentWidth)])
+    : wrap(subjectLine(text));
   const summary = (spec.summary ?? []).map((line) => safeDisplayText(line));
   const details = formatToolLifecycleDetails(spec);
   const singleLine = (text: string) => text.replace(/\r\n|\r|\n/g, " ").trimEnd();
@@ -245,24 +285,27 @@ export function renderToolLifecycle(
     return visibleText.trim().length > 0 && (/[\r\n]/.test(visibleText)
       || (options.wrapDetail !== undefined && options.visibleWidth(visibleText) > contentWidth));
   };
-  const hiddenSubject = (expandedSubject !== undefined && expandedSubject.trimEnd() !== subjectText.trimEnd()) || isHidden(title);
+  const hiddenSubject = (expandedSubject !== undefined && expandedSubject.trimEnd() !== subjectText.trimEnd())
+    || (authoredSubject ? false : isHidden(title));
   const expandable = options.expandable ?? (details.length > 0 || hiddenSubject || summary.some(isHidden));
   const hint = expandable && !options.expanded
     ? theme.fg("dim", ` · ${options.expandHint ?? "to expand"}`)
     : "";
   const textToken = options.isError ? "error" : "customMessageText";
-  const expandedTitle = `${head} ${styleSubject(expandedSubject ?? subjectText, options)}`;
   const rows = options.expanded
     ? [
-        ...wrap(expandedTitle),
+        ...subjectRows(expandedSubject ?? subjectText),
         ...summary.flatMap((line) => wrap(line).map((part) => theme.fg(textToken, part))),
         ...details.flatMap((detail) => wrap(detail).map((line) => theme.fg(textToken, line))),
       ]
     : [
-        ...collapsedBandRows(singleLine(title), hint, contentWidth, options),
+        ...(authoredSubject
+          // Verbatim rows never merge written lines; hidden details keep their own hint row.
+          ? [...subjectRows(subjectText), ...(hint ? [fit(hint, contentWidth)] : [])]
+          : collapsedBandRows(singleLine(title), hint, contentWidth, options)),
         ...summary.map((line) => fit(theme.fg(textToken, singleLine(line)), contentWidth)),
       ];
-  return paintBand(rows, options);
+  return paintBand(rows, spec.bgToken === undefined ? options : { ...options, bgToken: spec.bgToken });
 }
 
 /** One collapsed teammate-message row inside the shared band. */

@@ -72,6 +72,23 @@ Feature: Shared pi-kit runtime helpers
     When resizing makes all text visible and there are no hidden details
     Then the expand hint disappears
 
+  Scenario: Authored text rows stay verbatim on the user-message band
+    Given a lifecycle spec opts into a verbatim authored subject on the userMessageBg band
+    When that subject holds several authored lines, including one longer than the display width
+    Then every authored line keeps its own band row and long lines wrap instead of merging
+    And the row adds no expand hint for a subject that is already fully visible
+    And the whole row block paints userMessageBg rather than the success band
+    And separate hidden details still expand independently and keep their hint
+
+  Scenario: An authored subject can sit in its own block under the head
+    Given a verbatim lifecycle spec opts into a block subject
+    When the row renders
+    Then the head row carries only the bracketed tool and its label
+    And one blank band row separates the head from the authored lines
+    And every authored line follows on its own row without an expand hint
+    And an empty authored subject renders as the head alone
+    And separate hidden details still expand independently and keep their hint
+
   Scenario: Expansion does not infer business semantics or rewrite readbacks
     Given distinct details include repeated values or a complete original report
     When the lifecycle row expands

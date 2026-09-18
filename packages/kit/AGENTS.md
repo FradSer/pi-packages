@@ -43,6 +43,12 @@ TypeScript export.
 - `startedToolLifecycle` accepts a label; `eventToolLifecycle` also accepts
   summary/details and `detailLimit`. Expanded details default to 50 lines;
   reserve `"all"` for explicit full readbacks.
+- `verbatimSubject` renders an authored subject raw: no `@name` recoloring, one
+  band row per authored line, wrapping instead of merging, and no expand hint for
+  text that is already visible. `subjectBlock` moves the subject under the head
+  (`[tool] label`, one blank band row, then the authored lines) and drops the
+  inline ` ·` separator. `bgToken` picks the band tint; `userMessageBg` marks
+  user-authored content.
 - Keep `safeDisplayText`, `formatToolErrorLine`, and `detailField` safe for
   untrusted values. Native dialogs remain consumer-layer APIs, outside this
   dependency-free runtime.

@@ -618,6 +618,123 @@ def test_tool_lifecycle_titles_share_the_compact_monitor_pattern() -> None:
     }
 
 
+def test_authored_text_rows_stay_verbatim_on_the_user_message_band() -> None:
+    result = run_typescript(
+        f"""
+        import {{ eventToolLifecycle, renderToolLifecycle, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ visibleWidth, wrapTextWithAnsi }} from "@earendil-works/pi-tui";
+        const bgTokens = [];
+        const theme = {{
+          fg: (_color, text) => text,
+          bg: (token, text) => {{ bgTokens.push(token); return text; }},
+          bold: (text) => text,
+        }};
+        const fit = (text, width, ellipsis = "...", pad = false) => {{
+          const plain = text.replace(/<[^>]+>/g, "");
+          const shortened = plain.length > width
+            ? `${{plain.slice(0, Math.max(0, width - ellipsis.length))}}${{ellipsis.slice(0, width)}}`
+            : plain;
+          return pad ? shortened.padEnd(width) : shortened;
+        }};
+        const render = (spec, options = {{}}) => renderToolLifecycle(spec, {{
+          width: 40,
+          theme,
+          fit,
+          visibleWidth,
+          wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+          expandHint: "ctrl+o to expand",
+          ...options,
+        }});
+        const authored = startedToolLifecycle(
+          "impeccable",
+          "audit src/Page.tsx spacing and padding\\nsecond authored line",
+          {{ label: "started", verbatimSubject: true, bgToken: "userMessageBg" }},
+        );
+        const withDetails = eventToolLifecycle("tool", "first line\\nsecond line", {{
+          label: "started",
+          verbatimSubject: true,
+          bgToken: "userMessageBg",
+          details: ["hidden detail"],
+        }});
+        const banded = (spec, options = {{}}) => {{
+          bgTokens.length = 0;
+          return {{ rows: render(spec, options).slice(1, -1), tokens: [...new Set(bgTokens)] }};
+        }};
+        const authoredRows = banded(authored);
+        const detailRows = banded(withDetails);
+        console.log(JSON.stringify({{
+          content: authoredRows.rows,
+          expandedContent: banded(authored, {{ expanded: true }}).rows,
+          detailContent: detailRows.rows,
+          detailExpanded: banded(withDetails, {{ expanded: true }}).rows,
+          defaultContent: banded(startedToolLifecycle("tool", "one line subject")).rows,
+          tokens: [authoredRows.tokens, detailRows.tokens, banded(startedToolLifecycle("tool", "one line subject")).tokens],
+          bounded: authoredRows.rows.every((row) => visibleWidth(row) <= 40),
+        }}));
+        """
+    )
+    content = [row.strip() for row in result["content"]]
+    assert content[0].startswith("[impeccable] started · audit")
+    assert content[-1] == "second authored line"
+    assert len(content) >= 3
+    assert "".join(content).count("second authored line") == 1
+    assert not any("audit" in row and "second" in row for row in content)
+    assert not any("..." in row for row in content)
+    joined = "".join(content)
+    assert "src/Page.tsx" in joined and "padding" in joined
+    assert result["expandedContent"] == result["content"]
+    assert [row.strip() for row in result["defaultContent"]] == ["[tool] one line subject"]
+    detailContent = [row.strip() for row in result["detailContent"]]
+    assert detailContent[:2] == ["[tool] started · first line", "second line"]
+    assert any("to expand" in row for row in detailContent)
+    assert "hidden detail" not in "\n".join(detailContent)
+    assert [row.strip() for row in result["detailExpanded"]][-1] == "hidden detail"
+    assert result["bounded"] is True
+    assert result["tokens"] == [["userMessageBg"], ["userMessageBg"], ["toolSuccessBg"]]
+
+
+def test_an_authored_subject_can_sit_in_its_own_block_under_the_head() -> None:
+    result = run_typescript(
+        f"""
+        import {{ renderToolLifecycle, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ visibleWidth, wrapTextWithAnsi }} from "@earendil-works/pi-tui";
+        const theme = {{ fg: (_color, text) => text, bg: (_token, text) => text, bold: (text) => text }};
+        const fit = (text, width, ellipsis = "...", pad = false) => {{
+          const shortened = text.length > width
+            ? `${{text.slice(0, Math.max(0, width - ellipsis.length))}}${{ellipsis.slice(0, width)}}`
+            : text;
+          return pad ? shortened.padEnd(width) : shortened;
+        }};
+        const render = (spec, options = {{}}) => renderToolLifecycle(spec, {{
+          width: 40,
+          theme,
+          fit,
+          visibleWidth,
+          wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+          expandHint: "ctrl+o to expand",
+          ...options,
+        }});
+        const flags = {{ label: "started", verbatimSubject: true, bgToken: "userMessageBg" }};
+        const block = startedToolLifecycle("impeccable", "aaaa\\nzzzz", {{ ...flags, subjectBlock: true }});
+        const inline = startedToolLifecycle("impeccable", "aaaa\\nzzzz", flags);
+        const rows = render(block);
+        const empty = render(startedToolLifecycle("matt pocock", "", {{ ...flags, subjectBlock: true }}));
+        console.log(JSON.stringify({{
+          content: rows.slice(1, -1).map((row) => row.trim()),
+          expanded: render(block, {{ expanded: true }}),
+          inline: render(inline),
+          empty: empty.slice(1, -1).map((row) => row.trim()),
+          bounded: rows.every((row) => visibleWidth(row) <= 40),
+        }}));
+        """
+    )
+    assert result["content"] == ["[impeccable] started", "", "aaaa", "zzzz"]
+    assert result["expanded"] == result["content"] or [row.strip() for row in result["expanded"][1:-1]] == result["content"]
+    assert [row.strip() for row in result["inline"][1:-1]] == ["[impeccable] started · aaaa", "zzzz"]
+    assert result["empty"] == ["[matt pocock] started"]
+    assert result["bounded"] is True
+
+
 def test_panel_and_widget_layout_primitives_share_tui_geometry() -> None:
     result = run_typescript(
         f"""
@@ -840,7 +957,7 @@ def test_lifecycle_details_default_to_fifty_lines_unless_explicitly_unbounded() 
 def test_tool_lifecycle_band_preserves_class_theme_receiver() -> None:
     result = run_typescript(
         f"""
-        import {{ renderToolLifecycle, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ eventToolLifecycle, renderToolLifecycle, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
         import {{ truncateToWidth, visibleWidth }} from "@earendil-works/pi-tui";
         class ClassTheme {{
           constructor() {{ this.bgColors = new Map([["toolSuccessBg", "\\u001B[44m"]]); }}
@@ -893,7 +1010,7 @@ def test_expand_hint_uses_the_shared_lifecycle_row_style() -> None:
 def test_truncated_band_rows_keep_the_band_background_after_the_ellipsis() -> None:
     result = run_typescript(
         f"""
-        import {{ renderToolLifecycle, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ eventToolLifecycle, renderToolLifecycle, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
         import {{ truncateToWidth, visibleWidth }} from "@earendil-works/pi-tui";
         const theme = {{
           fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
@@ -925,7 +1042,7 @@ def test_truncated_band_rows_keep_the_band_background_after_the_ellipsis() -> No
 def test_collapsed_lifecycle_rows_reserve_width_for_expand_hint() -> None:
     result = run_typescript(
         f"""
-        import {{ renderToolLifecycle, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ eventToolLifecycle, renderToolLifecycle, startedToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
         import {{ truncateToWidth, visibleWidth }} from "@earendil-works/pi-tui";
         const theme = {{
           fg: (_color, text) => text,
