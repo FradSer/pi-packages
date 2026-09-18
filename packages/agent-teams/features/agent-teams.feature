@@ -12,11 +12,12 @@ Feature: Agent Teams final coordination surface
     Then its coordination grant contains agent_event and work
     And requested Pi built-ins are added without legacy coordination capabilities
 
-  Scenario: Incompatible persisted Work snapshot fails explicitly
-    Given persisted Work data has a different runtime version
+  Scenario: Incompatible persisted Work snapshot is preserved, not discarded
+    Given persisted Work data has a different runtime version or is unreadable
     When Agent Teams initializes that runtime
-    Then initialization fails with an incompatible runtime snapshot error
-    And it does not silently discard or migrate that Work data
+    Then it surfaces an explicit incompatible runtime snapshot error to the Leader
+    And it archives the preserved snapshot file instead of deleting it
+    And it does not silently migrate that Work data or continue with it loaded
 
   Scenario: Agent event is communication-only
     Given a Leader or Worker sends an agent event

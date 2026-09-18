@@ -218,7 +218,7 @@ export function setPeerInboxOffset(inboxName: string, offset: number): void {
 }
 
 /** Record only the harness-controlled routing transition, never recipient read. */
-export function setPeerDeliveryState(messageId: string, routing: "queued" | "routed"): void {
+export function setPeerDeliveryState(messageId: string, routing: "queued" | "routed" | "dropped"): void {
   state.peerDeliveryStates ??= {};
   if (!(messageId in state.peerDeliveryStates)
     && Object.keys(state.peerDeliveryStates).length >= MAX_PEER_DELIVERY_STATES) {
@@ -228,7 +228,7 @@ export function setPeerDeliveryState(messageId: string, routing: "queued" | "rou
   state.peerDeliveryStates[messageId] = routing;
 }
 
-export function getPeerDeliveryState(messageId: string): "queued" | "routed" | undefined {
+export function getPeerDeliveryState(messageId: string): "queued" | "routed" | "dropped" | undefined {
   return state.peerDeliveryStates?.[messageId];
 }
 
@@ -439,18 +439,32 @@ export function taskDependenciesMet(task: BoardTask): boolean {
 export function createDirectWork(input: {
   id: string;
   subject: string;
+  description?: string;
   resources: string[];
   verify?: string;
   workerName: string;
   assignment: WorkerAssignment;
 }): { ok: true; task: BoardTask } | { ok: false; error: string } {
-  const created = createTask({ id: input.id, subject: input.subject, resources: input.resources, verify: input.verify });
+  const created = createTask({
+    id: input.id,
+    subject: input.subject,
+    description: input.description,
+    resources: input.resources,
+    verify: input.verify,
+  });
   if (!created.ok) return created;
   const task = created.task;
   const worker = getTeammate(input.workerName);
   if (!worker || worker.assignment || activeAssignmentConflict(task.resources, input.workerName)) {
+    // The Work is rolled back here, so its id would render as an unresolvable
+    // handle: name the work a person can recognize instead.
+    const reason = !worker
+      ? `@${input.workerName} is not a registered teammate`
+      : worker.assignment
+        ? `@${input.workerName} already owns ${worker.assignment.kind} assignment "${worker.assignment.id}"`
+        : `its resources conflict with active Work`;
     delete state.tasks[task.id];
-    return { ok: false, error: `Unable to bind direct Work Item "${task.id}".` };
+    return { ok: false, error: `Cannot bind direct Work "${input.subject}" to @${input.workerName}: ${reason}.` };
   }
   task.status = "claimed";
   task.claimedBy = input.workerName;

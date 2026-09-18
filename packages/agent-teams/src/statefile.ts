@@ -186,16 +186,26 @@ export function submissionsDir(boardDirectory: string): string {
 }
 
 export function readBoardFile(file: string): { tasks: Record<string, import("./types").BoardTask> } | undefined {
+  let raw: string;
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as { runtimeVersion?: number; tasks?: Record<string, import("./types").BoardTask> };
-    if (parsed.tasks && parsed.runtimeVersion !== TEAM_RUNTIME_VERSION) {
-      throw new Error(`Incompatible Agent Teams runtime snapshot version ${String(parsed.runtimeVersion)}; expected ${TEAM_RUNTIME_VERSION}.`);
-    }
-    return parsed.tasks ? { tasks: parsed.tasks } : undefined;
+    raw = fs.readFileSync(file, "utf-8");
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Incompatible Agent Teams runtime snapshot")) throw error;
-    return undefined;
+    // An absent board is a fresh session, not a data-loss event.
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw new Error(`Agent Teams Work snapshot at ${file} could not be read: ${error instanceof Error ? error.message : String(error)}`);
   }
+  let parsed: { runtimeVersion?: number; tasks?: Record<string, import("./types").BoardTask> };
+  try {
+    parsed = JSON.parse(raw) as { runtimeVersion?: number; tasks?: Record<string, import("./types").BoardTask> };
+  } catch {
+    // A present but unreadable board must never be treated as an empty board:
+    // callers archive the preserved file instead of silently losing work.
+    throw new Error(`Agent Teams Work snapshot at ${file} is not valid JSON; refusing to treat it as an empty board.`);
+  }
+  if (parsed.tasks && parsed.runtimeVersion !== TEAM_RUNTIME_VERSION) {
+    throw new Error(`Incompatible Agent Teams runtime snapshot version ${String(parsed.runtimeVersion)}; expected ${TEAM_RUNTIME_VERSION}.`);
+  }
+  return parsed.tasks ? { tasks: parsed.tasks } : undefined;
 }
 
 export function writeBoardFile(file: string, tasks: Record<string, import("./types").BoardTask>): void {
@@ -206,6 +216,10 @@ export function writeBoardFile(file: string, tasks: Record<string, import("./typ
 /**
  * Express a board intent through an exclusive-create marker file. Returns
  * true exactly when this caller won the race for the taskId.
+ *
+ * Publication is atomic: the record is fully written to a private temp file
+ * and then hard-linked into place, so `link()` still fails with EEXIST for a
+ * loser while a concurrent reader can never observe a partial record.
  */
 export function createTaskIntent(dir: string, taskId: string, intent: TaskIntent): boolean {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -214,19 +228,35 @@ export function createTaskIntent(dir: string, taskId: string, intent: TaskIntent
   if (Buffer.byteLength(payload, "utf-8") > MAX_INTENT_BYTES) {
     throw new Error(`Task intent exceeds ${MAX_INTENT_BYTES} bytes.`);
   }
+  const tmp = path.join(dir, `.${safeName(taskId)}.${process.pid}.${crypto.randomUUID()}.tmp`);
   try {
-    fs.writeFileSync(file, payload, { encoding: "utf-8", mode: 0o600, flag: "wx" });
+    fs.writeFileSync(tmp, payload, { encoding: "utf-8", mode: 0o600, flag: "wx" });
+    fs.linkSync(tmp, file);
     return true;
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === "EEXIST") return false;
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
     throw error;
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+}
+
+/** An unparseable intent younger than this may still be mid-publish elsewhere. */
+export const INTENT_PUBLISH_GRACE_MS = 30_000;
+
+function olderThan(file: string, milliseconds: number): boolean {
+  try {
+    return Date.now() - fs.statSync(file).mtimeMs > milliseconds;
+  } catch {
+    return true;
   }
 }
 
 /**
  * Drain one pending intent file. Malformed records are consumed and reported
- * so one broken file can never block the queue.
+ * so one broken file can never block the queue — but a record that cannot be
+ * parsed yet is retried while it is younger than the publish grace, because a
+ * destroyed in-flight intent would leave its author waiting forever.
  */
 export function takeTaskIntent(dir: string): { intent?: TaskIntent; diagnostic?: string } {
   let entries: string[] = [];
@@ -237,28 +267,37 @@ export function takeTaskIntent(dir: string): { intent?: TaskIntent; diagnostic?:
   }
   for (const name of entries) {
     const file = path.join(dir, name);
+    let raw: string;
     try {
-      const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as Partial<TaskIntent>;
-      fs.rmSync(file, { force: true });
-      if (
-        typeof parsed.taskId !== "string" || parsed.taskId.trim() === ""
-        || typeof parsed.worker !== "string" || parsed.worker.trim() === ""
-        || typeof parsed.spawnId !== "string" || parsed.spawnId.trim() === ""
-        || typeof parsed.timestamp !== "number" || !Number.isFinite(parsed.timestamp)
-      ) {
-        return { diagnostic: `malformed task intent "${name}" was consumed (requires non-empty taskId/worker/spawnId and finite timestamp)` };
-      }
-      if (parsed.status !== undefined && parsed.status !== "completed" && parsed.status !== "failed") {
-        return { diagnostic: `malformed task intent "${name}" was consumed (invalid submission status)` };
-      }
-      if (typeof parsed.result !== "undefined" && typeof parsed.result !== "string") {
-        return { diagnostic: `malformed task intent "${name}" was consumed (invalid submission result)` };
-      }
-      return { intent: parsed as TaskIntent };
+      raw = fs.readFileSync(file, "utf-8");
     } catch {
+      // Raced with a concurrent publish or removal; the next tick retries.
+      continue;
+    }
+    let parsed: Partial<TaskIntent>;
+    try {
+      parsed = JSON.parse(raw) as Partial<TaskIntent>;
+    } catch {
+      if (!olderThan(file, INTENT_PUBLISH_GRACE_MS)) continue;
       fs.rmSync(file, { force: true });
       return { diagnostic: `unreadable task intent "${name}" was consumed` };
     }
+    fs.rmSync(file, { force: true });
+    if (
+      typeof parsed.taskId !== "string" || parsed.taskId.trim() === ""
+      || typeof parsed.worker !== "string" || parsed.worker.trim() === ""
+      || typeof parsed.spawnId !== "string" || parsed.spawnId.trim() === ""
+      || typeof parsed.timestamp !== "number" || !Number.isFinite(parsed.timestamp)
+    ) {
+      return { diagnostic: `malformed task intent "${name}" was consumed (requires non-empty taskId/worker/spawnId and finite timestamp)` };
+    }
+    if (parsed.status !== undefined && parsed.status !== "completed" && parsed.status !== "failed") {
+      return { diagnostic: `malformed task intent "${name}" was consumed (invalid submission status)` };
+    }
+    if (typeof parsed.result !== "undefined" && typeof parsed.result !== "string") {
+      return { diagnostic: `malformed task intent "${name}" was consumed (invalid submission result)` };
+    }
+    return { intent: parsed as TaskIntent };
   }
   return {};
 }

@@ -19,14 +19,17 @@ export function resolveExactSession(route: string, roster: readonly Teammate[]):
   return roster.find((teammate) => teammate.name === parsed.name && teammate.spawnId === parsed.spawnId && teammate.status !== "stopped");
 }
 
+/** Resolve a model-facing recipient route to its live roster entry. The entry's
+ *  spawn id travels with the message so a later replacement resident of the same
+ *  name cannot consume mail addressed to its predecessor. */
 export function resolveRecipient(
   to: string,
   roster: ReadonlyArray<{ name: string; agent: string; status: string; spawnId?: string }>,
-): string {
+): { name: string; spawnId?: string } {
   const exact = parseExactSessionRoute(to);
   if (exact) {
     const matched = roster.find((entry) => entry.name === exact.name && entry.spawnId === exact.spawnId && entry.status !== "stopped");
-    if (matched) return matched.name;
+    if (matched) return { name: matched.name, spawnId: matched.spawnId };
     throw new Error(`No living session named "${to}".`);
   }
   const explicit = to.startsWith("session:");
@@ -36,6 +39,6 @@ export function resolveRecipient(
   if (recipients.length > 1) {
     throw new Error(`Ambiguous Agent @${to}. Use a precise route: ${recipients.map((entry) => entry.spawnId ? exactSessionRoute(entry.name, entry.spawnId) : sessionRoute(entry.name)).join(", ")}.`);
   }
-  if (recipients.length === 1) return recipients[0].name;
+  if (recipients.length === 1) return { name: recipients[0].name, spawnId: recipients[0].spawnId };
   throw new Error(`No living teammate named "${to}".`);
 }

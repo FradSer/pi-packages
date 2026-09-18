@@ -13,7 +13,7 @@ SRC = PACKAGE / "src"
 def run_node(script: str) -> dict[str, object]:
     env = {key: value for key, value in os.environ.items() if not key.startswith("PI_TEAMMATE_")}
     result = subprocess.run(
-        ["node", "--input-type=module", "--eval", textwrap.dedent(script)],
+        ["node", "--experimental-test-module-mocks", "--input-type=module", "--eval", textwrap.dedent(script)],
         cwd=PACKAGE,
         check=False,
         capture_output=True,
@@ -807,3 +807,203 @@ def test_superseding_a_verifying_holder_routes_cancellation_without_waiting_for_
         ''',
     )
     assert payload == {"replacementOk": True, "cancellationRouted": True}
+
+
+def test_unexpected_execution_park_rejects_further_completed_submissions(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, routePeerInboxes, setVerifyGateRunner, applyProgress }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createDirectWork, getTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ inboxPath, stateFilePath, readJsonlBatch }} from "{(SRC / "statefile.ts").as_uri()}";
+        const root = {str(tmp_path)!r};
+        initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const taskId = "parked-work";
+        createDirectWork({{ id: taskId, subject: "parked work", resources: ["firmware/direct"], verify: "verify", workerName: "w", assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/direct"] }} }});
+        let releaseGate;
+        setVerifyGateRunner(() => new Promise((resolve) => {{ releaseGate = () => resolve({{ kind: "pass" }}); }}));
+        attemptSubmission("w", "s1", taskId, "completed", "first");
+        processTaskIntents();
+        await new Promise((resolve) => setImmediate(resolve));
+        applyProgress("w", "s1", {{ text: "unexpected tool run", turns: 2, finalResponse: false }});
+        attemptSubmission("w", "s1", taskId, "completed", "second");
+        processTaskIntents();
+        routePeerInboxes();
+        const messages = readJsonlBatch(inboxPath(stateFilePath(undefined, root), "w"), 0).records;
+        setVerifyGateRunner(undefined);
+        shutdownTeamMachine();
+        const rejection = messages.find((m) => m.subject === "Submission rejected while verification is parked");
+        console.log(JSON.stringify({{
+          taskStatus: getTask(taskId)?.status,
+          rejectionFound: Boolean(rejection),
+          rejectionBody: rejection?.body ?? "",
+        }}));
+        ''',
+    )
+    assert payload["taskStatus"] == "claimed"
+    assert payload["rejectionFound"] is True
+    assert "unexpected execution during verification" in payload["rejectionBody"]
+
+
+def test_direct_revision_includes_task_details_and_verify_criteria(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import childProcess from "node:child_process";
+        import {{ EventEmitter }} from "node:events";
+        import {{ syncBuiltinESMExports }} from "node:module";
+        import {{ PassThrough, Writable }} from "node:stream";
+        import {{ mock }} from "node:test";
+        const commands = [];
+        const child = Object.assign(new EventEmitter(), {{
+          pid: 1,
+          stdout: new PassThrough(),
+          stderr: new PassThrough(),
+          stdin: new Writable({{ write(chunk, _encoding, done) {{ commands.push(JSON.parse(String(chunk))); done(); }} }}),
+        }});
+        mock.method(childProcess, "spawn", () => child);
+        syncBuiltinESMExports();
+        const {{ spawnResident }} = await import("{(SRC / "spawner.ts").as_uri()}");
+        const {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner }} = await import("{(SRC / "team-machine.ts").as_uri()}");
+        const {{ resetState, registerTeammate, createDirectWork, createTask, getTask }} = await import("{(SRC / "state.ts").as_uri()}");
+        spawnResident({{ workerName: "w", onUpdate: () => {{}}, onExit: () => {{}} }});
+        initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const taskId = "revised-work";
+        createDirectWork({{
+          id: taskId,
+          subject: "build new parser",
+          resources: ["firmware/parser"],
+          verify: "Every token must parse cleanly",
+          workerName: "w",
+          assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/parser"] }},
+        }});
+        getTask(taskId).description = "Detailed parser requirements from spec.";
+        setVerifyGateRunner(() => Promise.resolve({{ kind: "fail", detail: "Syntax error on line 42" }}));
+        attemptSubmission("w", "s1", taskId, "completed", "candidate-1");
+        processTaskIntents();
+        await new Promise((resolve) => setImmediate(resolve));
+        child.stdout.write(JSON.stringify({{ type: "agent_settled" }}) + "\\n");
+        await new Promise((resolve) => setImmediate(resolve));
+        const reset = commands.find((command) => command.type === "new_session");
+        if (reset) {{
+          child.stdout.write(JSON.stringify({{ id: reset.id, type: "response", command: "new_session", success: true, data: {{ cancelled: false }} }}) + "\\n");
+          await new Promise((resolve) => setImmediate(resolve));
+        }}
+        const promptCommand = commands.find((command) => command.type === "prompt" && command.message?.includes("Syntax error on line 42"));
+        setVerifyGateRunner(undefined);
+        shutdownTeamMachine();
+        child.emit("close", 0, null);
+        mock.restoreAll();
+        console.log(JSON.stringify({{
+          promptFound: Boolean(promptCommand),
+          hasSubject: promptCommand?.message?.includes("build new parser") ?? false,
+          hasDescription: promptCommand?.message?.includes("Detailed parser requirements from spec.") ?? false,
+          hasVerify: promptCommand?.message?.includes("Every token must parse cleanly") ?? false,
+          hasDetail: promptCommand?.message?.includes("Syntax error on line 42") ?? false,
+        }}));
+        ''',
+    )
+    assert payload["promptFound"] is True
+    assert payload["hasSubject"] is True
+    assert payload["hasDescription"] is True
+    assert payload["hasVerify"] is True
+    assert payload["hasDetail"] is True
+
+
+def test_pending_shutdown_rejects_late_passing_gate_completion(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import childProcess from "node:child_process";
+        import {{ EventEmitter }} from "node:events";
+        import {{ syncBuiltinESMExports }} from "node:module";
+        import {{ PassThrough, Writable }} from "node:stream";
+        import {{ mock }} from "node:test";
+        import * as kit from "@fradser/pi-kit";
+        const child = Object.assign(new EventEmitter(), {{
+          pid: 100,
+          stdin: new PassThrough(),
+          stdout: new PassThrough(),
+          stderr: new PassThrough(),
+        }});
+        mock.module("@fradser/pi-kit", {{
+          namedExports: {{
+            ...kit,
+            resolvePiCli: () => ({{ command: "unused-mock", args: [] }}),
+            spawnPiChild: () => child,
+            terminateChildProcess: async () => false,
+          }},
+        }});
+        const {{ initTeamMachine, shutdownTeamMachine, shutdownTeammate, spawnTeammate, attemptSubmission, processTaskIntents, setVerifyGateRunner }} = await import("{(SRC / "team-machine.ts").as_uri()}");
+        const {{ resetState, getTask, createTask, setTaskClaimed }} = await import("{(SRC / "state.ts").as_uri()}");
+        const root = {str(tmp_path)!r};
+        resetState();
+        initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        const spawned = spawnTeammate({{ name: "w", agent: "test-agent", definition: {{ description: "test", prompt: "prompt", tools: [] }} }});
+        const task = createTask({{ subject: "shutdown work", resources: ["src/work"], verify: "must pass" }}).task;
+        setTaskClaimed(task.id, "w");
+        let gateResolve;
+        setVerifyGateRunner(() => new Promise((resolve) => {{ gateResolve = resolve; }}));
+        attemptSubmission("w", spawned.teammate.spawnId, task.id, "completed", "result");
+        processTaskIntents();
+        await new Promise((resolve) => setImmediate(resolve));
+        const shutdownResult = await shutdownTeammate("w");
+        gateResolve({{ kind: "pass" }});
+        await new Promise((resolve) => setImmediate(resolve));
+        const taskState = getTask(task.id);
+        setVerifyGateRunner(undefined);
+        shutdownTeamMachine();
+        child.emit("close", 0, null);
+        mock.restoreAll();
+        console.log(JSON.stringify({{
+          shutdownPending: shutdownResult.ok === false,
+          taskStatus: taskState?.status,
+        }}));
+        ''',
+    )
+    assert payload["shutdownPending"] is True
+    assert payload["taskStatus"] != "completed"
+
+
+def test_invalidated_holding_aborts_its_in_flight_reviewer(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, releaseExistingWork, setVerifyGateRunner }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask }} from "{(SRC / "state.ts").as_uri()}";
+        initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const task = createTask({{ subject: "gated", verify: "verify" }}).task;
+        applyClaimIntent({{ taskId: task.id, worker: "w", spawnId: "s1", timestamp: 1 }});
+        let signal;
+        let settle;
+        setVerifyGateRunner((input) => {{ signal = input.signal; return new Promise((resolve) => {{ settle = resolve; }}); }});
+        attemptSubmission("w", "s1", task.id, "completed", "candidate");
+        processTaskIntents();
+        await new Promise((resolve) => setImmediate(resolve));
+        const beforeRelease = signal ? signal.aborted : null;
+        const released = releaseExistingWork(task.id, "scope changed");
+        const afterRelease = signal ? signal.aborted : null;
+        // A late verdict from the aborted reviewer must not resurrect the task.
+        settle({{ kind: "pass" }});
+        await new Promise((resolve) => setImmediate(resolve));
+        const status = getTask(task.id)?.status;
+        setVerifyGateRunner(undefined);
+        shutdownTeamMachine();
+        console.log(JSON.stringify({{
+          runnerGotSignal: signal !== undefined,
+          beforeRelease,
+          afterRelease,
+          released: released.ok,
+          status,
+        }}));
+        ''',
+    )
+    assert payload["runnerGotSignal"] is True
+    assert payload["beforeRelease"] is False
+    assert payload["afterRelease"] is True
+    assert payload["released"] is True
+    assert payload["status"] == "pending"
+
+

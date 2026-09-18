@@ -105,7 +105,7 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
         throw new Error("No bound reply route exists. Please specify 'to' explicitly.");
       }
       if (params.to === LEADER_RECIPIENT) throw new Error("The leader cannot send an event to itself.");
-      const to = resolveRecipient(params.to, livingTeammates());
+      const to = resolveRecipient(params.to, livingTeammates()).name;
       const result = runtime.sendLeaderMessage(to, params.message, {});
       if (!result.ok) throw new Error(result.error);
       const recorded = result.outcome === "not-sent" ? `\nRECORDED TERMINAL REPORT · ${result.terminalReport}` : "";
@@ -169,9 +169,12 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
         if (!released.ok) throw new Error(released.error);
         refreshTeamUI(ctx);
         refreshLeaderToolDisclosure();
+        const residual = released.holderStillRunning
+          ? `\nRISK · @${released.holderStillRunning} was still working; an in-flight tool batch may still write inside ${released.resources.join(", ") || "the released scope"}.`
+          : "";
         return {
-          content: [{ type: "text", text: `WORK · current session\nRELEASED · ${released.workId} · pending\nREASON · ${params.reason}` }],
-          details: { action: "release", outcome: "released", state: "pending", work: { id: released.workId, subject: released.subject, resources: released.resources, state: "pending" }, reason: params.reason },
+          content: [{ type: "text", text: `WORK · current session\nRELEASED · ${released.workId} · pending\nREASON · ${params.reason}${residual}` }],
+          details: { action: "release", outcome: "released", state: "pending", work: { id: released.workId, subject: released.subject, resources: released.resources, state: "pending" }, reason: params.reason, ...(released.holderStillRunning ? { holderStillRunning: released.holderStillRunning } : {}) },
         };
       }
       if (params.action === "assign") {

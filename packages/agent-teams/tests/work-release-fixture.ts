@@ -20,6 +20,9 @@ assert.equal(released.details.action, "release");
 assert.equal(released.details.outcome, "released");
 assert.equal(released.details.state, "pending");
 assert.equal(released.details.work.id, "held-work");
+// The holder was still working, so the residual write window is reported.
+assert.equal(released.details.holderStillRunning, "holder");
+assert.match(released.content[0].text, /RISK · @holder was still working/);
 assert.equal(getState().tasks["held-work"]?.status, "pending");
 assert.equal(getState().tasks["held-work"]?.claimedBy, undefined);
 assert.equal(getState().tasks["held-work"]?.errorMessage, "Scope changed");

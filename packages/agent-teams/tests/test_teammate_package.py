@@ -117,29 +117,113 @@ def test_worker_claim_uses_exclusive_create_marker_files() -> None:
     assert payload["boardEmptyAgain"] is True
 
 
+def test_task_intent_publishes_complete_records_without_leftover_temporaries() -> None:
+    payload = run_node(
+        f'''\
+        import {{ createTaskIntent, takeTaskIntent }} from "{(SRC / "statefile.ts").as_uri()}";
+        import fs from "node:fs";
+        import os from "node:os";
+        import path from "node:path";
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-teams-atomicintents-"));
+        const intent = {{ taskId: "t_atomic", worker: "security", spawnId: "s1", timestamp: 1, status: "completed", result: "evidence" }};
+        const won = createTaskIntent(dir, "t_atomic", intent);
+        const filesAfterWin = fs.readdirSync(dir);
+        const published = JSON.parse(fs.readFileSync(path.join(dir, "t_atomic.json"), "utf-8"));
+        const lost = createTaskIntent(dir, "t_atomic", {{ ...intent, worker: "backend" }});
+        const filesAfterLoss = fs.readdirSync(dir);
+        const drained = takeTaskIntent(dir);
+        console.log(JSON.stringify({{
+          won,
+          lost,
+          winnerIsComplete: published.worker === "security" && published.taskId === "t_atomic" && published.spawnId === "s1",
+          noTemporariesAfterWin: filesAfterWin.every((name) => !name.endsWith(".tmp")),
+          noTemporariesAfterLoss: filesAfterLoss.every((name) => !name.endsWith(".tmp")),
+          onlyTheWinnerPublished: filesAfterLoss.length === 1,
+          drainedWorker: drained?.intent?.worker ?? null,
+        }}));
+        '''
+    )
+    assert payload["won"] is True
+    assert payload["lost"] is False
+    assert payload["winnerIsComplete"] is True
+    assert payload["noTemporariesAfterWin"] is True
+    assert payload["noTemporariesAfterLoss"] is True
+    assert payload["onlyTheWinnerPublished"] is True
+    assert payload["drainedWorker"] == "security"
+
+
+def test_fully_consumed_inbox_rotates_instead_of_destroying_records(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, routePeerInboxes }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ appendInboxMessage, inboxPath, stateFilePath }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ registerTeammate, resetState }} from "{(SRC / "state.ts").as_uri()}";
+        import fs from "node:fs";
+        import path from "node:path";
+        const root = {str(tmp_path)!r};
+        initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const inbox = inboxPath(stateFilePath(undefined, root), "w");
+        const body = "x".repeat(48 * 1024);
+        for (let index = 0; index < 7; index++) appendInboxMessage(inbox, {{ id: `msg-${{index}}`, from: "peer", subject: "s", body }});
+        const sizeBefore = fs.statSync(inbox).size;
+        routePeerInboxes();
+        routePeerInboxes();
+        routePeerInboxes();
+        const dir = path.dirname(inbox);
+        const archived = fs.readdirSync(dir).filter((name) => name.includes(".compacted-"));
+        const archivedRecords = archived.length === 1 ? fs.readFileSync(path.join(dir, archived[0]), "utf-8").split("\\n").filter(Boolean).length : -1;
+        console.log(JSON.stringify({{
+          oversized: sizeBefore > 256 * 1024,
+          archivedCount: archived.length,
+          archivedRecords,
+          liveInboxGone: !fs.existsSync(inbox),
+          archiveIsNotConsoleVisible: archived.every((name) => !name.endsWith(".jsonl")),
+        }}));
+        shutdownTeamMachine();
+        '''
+    )
+    assert payload["oversized"] is True
+    assert payload["archivedCount"] == 1
+    # Rotation preserves every consumed record for forensics; truncation lost them.
+    assert payload["archivedRecords"] == 7
+    assert payload["liveInboxGone"] is True
+    assert payload["archiveIsNotConsoleVisible"] is True
+
+
 def test_take_task_intent_skips_malformed_records() -> None:
     payload = run_node(
         f'''\
-        import {{ takeTaskIntent }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ takeTaskIntent, INTENT_PUBLISH_GRACE_MS }} from "{(SRC / "statefile.ts").as_uri()}";
         import fs from "node:fs";
         import os from "node:os";
         import path from "node:path";
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-teams-badintents-"));
         fs.writeFileSync(path.join(dir, "a-broken.json"), "{{ not json");
         fs.writeFileSync(path.join(dir, "b-good.json"), JSON.stringify({{ taskId: "t_2", worker: "tests", spawnId: "s", timestamp: 2 }}));
-        const first = takeTaskIntent(dir);
-        const second = takeTaskIntent(dir);
-        const third = takeTaskIntent(dir);
+        // A freshly unparseable file may still be mid-publish: it is retried,
+        // never destroyed, so its author cannot be stranded silently.
+        const fresh = takeTaskIntent(dir);
+        const freshPreserved = fs.existsSync(path.join(dir, "a-broken.json"));
+        // An aged unparseable file is a real malformed record and is consumed.
+        const aged = Date.now() - INTENT_PUBLISH_GRACE_MS - 1000;
+        fs.utimesSync(path.join(dir, "a-broken.json"), aged / 1000, aged / 1000);
+        const drained = takeTaskIntent(dir);
+        const after = takeTaskIntent(dir);
         console.log(JSON.stringify({{
-          firstWasDiagnostic: typeof first.diagnostic === "string" && first.intent === undefined,
-          goodWorker: second?.intent?.worker ?? null,
+          freshWorker: fresh?.intent?.worker ?? null,
+          freshPreserved,
+          drainedWasDiagnostic: typeof drained.diagnostic === "string" && drained.intent === undefined,
           malformedConsumed: !fs.existsSync(path.join(dir, "a-broken.json")),
-          drainedEmpty: third.intent === undefined && third.diagnostic === undefined,
+          drainedEmpty: after.intent === undefined && after.diagnostic === undefined,
         }}));
         '''
     )
-    assert payload["firstWasDiagnostic"] is True
-    assert payload["goodWorker"] == "tests"
+    # The good intent behind the ambiguous file is still drained in the same pass.
+    assert payload["freshWorker"] == "tests"
+    assert payload["freshPreserved"] is True
+    assert payload["drainedWasDiagnostic"] is True
     assert payload["malformedConsumed"] is True
     assert payload["drainedEmpty"] is True
 
@@ -1539,3 +1623,135 @@ def test_teammate_report_message_renderer_toggles_with_mouse_click() -> None:
     assert payload["click2Handled"] is True
     assert "[message] from" in payload["reCollapsed"][1]
     assert "to expand" in payload["reCollapsed"][1]
+
+def test_peer_mail_addressed_to_a_retired_incarnation_is_not_delivered(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, routePeerInboxes }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ appendInboxMessage, inboxPath, stateFilePath, readJsonlBatch }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ getPeerDeliveryState, registerTeammate, resetState }} from "{(SRC / "state.ts").as_uri()}";
+        const root = {str(tmp_path)!r};
+        initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        // The inbox file belongs to the name; the message belongs to an incarnation.
+        registerTeammate({{ name: "sender", agent: "reviewer", spawnId: "s-sender", pid: 2, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerTeammate({{ name: "reader", agent: "reviewer", spawnId: "s-replacement", pid: 3, status: "idle", isolation: "none", createdAt: 2, updatedAt: 2 }});
+        const readerInbox = inboxPath(stateFilePath(undefined, root), "reader");
+        appendInboxMessage(readerInbox, {{ id: "stale-1", from: "sender", subject: "For the old incarnation", body: "Old request", toSpawnId: "s-retired" }});
+        appendInboxMessage(readerInbox, {{ id: "live-1", from: "sender", subject: "For this incarnation", body: "Current request", toSpawnId: "s-replacement" }});
+        appendInboxMessage(readerInbox, {{ id: "unaddressed-1", from: "sender", subject: "Unaddressed", body: "Open letter" }});
+        routePeerInboxes();
+        routePeerInboxes();
+        const senderMail = readJsonlBatch(inboxPath(stateFilePath(undefined, root), "sender"), 0).records;
+        console.log(JSON.stringify({{
+          staleState: getPeerDeliveryState("stale-1") ?? null,
+          liveState: getPeerDeliveryState("live-1") ?? null,
+          unaddressedState: getPeerDeliveryState("unaddressed-1") ?? null,
+          senderNotices: senderMail.filter((m) => m.subject === "Message not delivered").length,
+          noticeMentionsRetiredIncarnation: senderMail.some((m) => String(m.body).includes("earlier incarnation of @reader")),
+        }}));
+        shutdownTeamMachine();
+        ''',
+    )
+    assert payload["staleState"] == "dropped"
+    assert payload["liveState"] != "dropped"
+    assert payload["unaddressedState"] != "dropped"
+    # The sender, not the leader's context, learns its message could not arrive.
+    assert payload["senderNotices"] == 1
+    assert payload["noticeMentionsRetiredIncarnation"] is True
+
+
+def test_persistent_snapshot_write_failure_is_reported_once(tmp_path: Path) -> None:
+    unwritable = tmp_path / "not-a-directory"
+    unwritable.write_text("occupied")
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, publishStateSnapshot }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ getState }} from "{(SRC / "state.ts").as_uri()}";
+        initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path / "cwd")!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        for (let attempt = 0; attempt < 6; attempt++) publishStateSnapshot();
+        const noticed = getState().leaderMailbox.filter((message) => message.subject === "Work snapshot writes are failing");
+        console.log(JSON.stringify({{
+          warned: noticed.length,
+          namesTheStreak: noticed[0] ? String(noticed[0].body).includes("failed 3 consecutive writes") : false,
+          keepsRetrying: noticed[0] ? String(noticed[0].body).includes("still authoritative for this session") : false,
+        }}));
+        shutdownTeamMachine();
+        ''',
+        env_overrides={"PI_CODING_AGENT_DIR": str(unwritable)},
+    )
+    assert payload["warned"] == 1
+    assert payload["namesTheStreak"] is True
+    assert payload["keepsRetrying"] is True
+
+
+def test_a_second_live_leader_lease_is_reported_without_blocking(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ stateFilePath }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ createTask, getState, listTasks }} from "{(SRC / "state.ts").as_uri()}";
+        import fs from "node:fs";
+        import path from "node:path";
+        const root = {str(tmp_path)!r};
+        const lock = path.join(path.dirname(stateFilePath(undefined, root)), "leader.pid");
+        fs.mkdirSync(path.dirname(lock), {{ recursive: true }});
+        fs.writeFileSync(lock, `${{process.ppid}}\\n`);
+        initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        const warned = getState().leaderMailbox.filter((message) => message.subject === "Another Leader process shares this session");
+        const created = createTask({{ subject: "still usable" }});
+        console.log(JSON.stringify({{
+          warned: warned.length,
+          namesTheOtherPid: warned[0] ? String(warned[0].body).includes(String(process.ppid)) : false,
+          keepsWorking: created.ok && listTasks().length === 1,
+          leaseTaken: fs.readFileSync(lock, "utf-8").trim() === String(process.pid),
+        }}));
+        shutdownTeamMachine();
+        ''',
+    )
+    assert payload["warned"] == 1
+    assert payload["namesTheOtherPid"] is True
+    assert payload["keepsWorking"] is True
+    assert payload["leaseTaken"] is True
+
+
+def test_direct_work_bind_failure_names_the_work_a_person_recognizes() -> None:
+    payload = run_node(
+        f'''\
+        import {{ resetState, registerTeammate, assignTeammate, createDirectWork }} from "{(SRC / "state.ts").as_uri()}";
+        resetState();
+        registerTeammate({{ name: "busy", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        assignTeammate("busy", {{ id: "direct:held", kind: "direct", resources: ["src/held"] }});
+        const attempted = createDirectWork({{
+          id: "work:11111111-2222-3333-4444-555555555555",
+          subject: "Audit the release path",
+          resources: [],
+          workerName: "busy",
+          assignment: {{ id: "direct:new", kind: "direct", resources: [] }},
+        }});
+        console.log(JSON.stringify({{ error: attempted.ok ? "" : attempted.error }}));
+        ''',
+    )
+    assert payload["error"].startswith('Cannot bind direct Work "Audit the release path" to @busy')
+    assert "already owns" in payload["error"]
+    # The rolled-back Work id would have rendered as an unresolvable handle.
+    assert "work:" not in payload["error"]
+
+
+def test_leader_message_creates_direct_work_with_a_single_line_subject(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, sendLeaderMessage }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ getTask, registerTeammate, resetState }} from "{(SRC / "state.ts").as_uri()}";
+        const root = {str(tmp_path)!r};
+        initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        registerTeammate({{ name: "worker", agent: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        sendLeaderMessage("worker", "Rebuild the index\\n\\nKeep the schema stable.", {{ reopen: true, workId: "explicit-work" }});
+        const task = getTask("explicit-work");
+        console.log(JSON.stringify({{ subject: task?.subject ?? null, description: task?.description ?? null }}));
+        shutdownTeamMachine();
+        ''',
+    )
+    assert payload["subject"] == "Rebuild the index"
+    assert payload["description"] == "Rebuild the index\n\nKeep the schema stable."

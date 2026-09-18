@@ -56,7 +56,9 @@ function clipLines(value: unknown): string {
 }
 
 function shortTask(value: unknown): string {
-  const line = oneLine(value);
+  const text = displayText(value);
+  const firstLine = text.split("\n").map((l) => plainText(l).trim()).find(Boolean) ?? "";
+  const line = collapse(firstLine);
   return line.length <= COLLAPSED_TASK_LIMIT ? line : `${line.slice(0, COLLAPSED_TASK_LIMIT - 1).trimEnd()}…`;
 }
 
@@ -116,7 +118,7 @@ function workOf(teammate: Teammate | undefined, task?: BoardTask): string | unde
   const source = task ?? (teammate?.workId ? getTask(teammate.workId) : undefined);
   if (!source) return undefined;
   const owner = source.claimedBy ? ` · @${source.claimedBy}` : "";
-  return `${source.subject} · ${stateWord(source.status)}${owner}`;
+  return `${shortTask(source.subject)} · ${stateWord(source.status)}${owner}`;
 }
 
 // ── agent ─────────────────────────────────────────────────────────
@@ -158,7 +160,7 @@ function roleLine(args: AgentRowArgs, name: string): string | undefined {
   return resolved ? `${oneLine(resolved.description) || "role"} · ${resolved.scope} role` : undefined;
 }
 
-function agentStateWord(args: AgentRowArgs, teammate: Teammate | undefined, flags: { isError?: boolean; isPartial?: boolean }): string {
+function agentStateWord(args: AgentRowArgs, teammate: Teammate | undefined, details: unknown, flags: { isError?: boolean; isPartial?: boolean }): string {
   if (flags.isError) return "failed";
   const action = args.action ?? "agent";
   const live = teammate ? stateWord(teammate.status) : undefined;
@@ -167,7 +169,13 @@ function agentStateWord(args: AgentRowArgs, teammate: Teammate | undefined, flag
     if (action === "inspect") return live ?? "checking";
     return "starting";
   }
-  if (action === "inspect") return live ?? "no living session";
+  if (action === "inspect") {
+    if (teammate?.status === "working") return "working";
+    const sessions = detailField<Array<{ status?: string }>>(details, "sessions");
+    const sessionStatus = sessions?.[0]?.status;
+    if (sessionStatus) return stateWord(sessionStatus);
+    return live ?? "no living session";
+  }
   if (action === "stop") return "stopped";
   return "started";
 }
@@ -180,9 +188,22 @@ export function agentRow(
 ): CoordinationRow {
   const name = agentName(args, details);
   const teammate = getTeammate(name);
-  const task = args.prompt || (teammate?.workId ? getTask(teammate.workId)?.subject : undefined)
-    || args.definition?.description || resolveAgent(name)?.description;
-  const subject = [`@${name}`, agentStateWord(args, teammate, flags), task ? shortTask(task) : ""]
+  const action = args.action ?? "agent";
+  let task: string | undefined;
+  if (action === "delegate") {
+    task = args.prompt || (teammate?.workId ? getTask(teammate.workId)?.subject : undefined)
+      || args.definition?.description || resolveAgent(name)?.description;
+  } else if (action === "start") {
+    task = args.definition?.description || resolveAgent(name)?.description;
+  } else if (action === "inspect") {
+    const sessions = detailField<Array<{ status?: string; workId?: string }>>(details, "sessions");
+    const sessStatus = sessions?.[0]?.status ?? teammate?.status;
+    const workId = sessions?.[0]?.workId ?? teammate?.workId;
+    if ((sessStatus === "working" || teammate?.status === "working") && workId) {
+      task = getTask(workId)?.subject;
+    }
+  }
+  const subject = [`@${name}`, agentStateWord(args, teammate, details, flags), task ? shortTask(task) : ""]
     .filter(Boolean)
     .join(" · ");
   return { subject, body: agentBody(args, name, teammate, details, flags) };
@@ -199,16 +220,22 @@ function agentBody(
   const action = args.action ?? "agent";
   const work = workOf(teammate, teammate?.workId ? getTask(teammate.workId) : undefined);
   if (action === "inspect") {
+    const sessions = detailField<Array<{ tools?: string[]; id?: string; status?: string; warning?: string; workId?: string }>>(details, "sessions");
+    const sess = sessions?.[0];
+    const status = sess?.status ?? teammate?.status;
+    const isWorking = status === "working" || teammate?.status === "working";
+    const sessionTools = sess?.tools ?? teammate?.tools;
+    const warning = sess?.warning;
     return [
-      ...(work ? [labeled("work", work)] : []),
-      ...(teammate ? [labeled("now", shortTask(runningTeammateActivity(teammate)))] : []),
+      ...(status ? [labeled("status", stateWord(status))] : []),
+      ...(isWorking && teammate ? [labeled("now", shortTask(runningTeammateActivity(teammate)))] : []),
+      ...(work && isWorking ? [labeled("work", work)] : []),
+      ...(sessionTools ? [labeled("tools", sessionTools.join(", "))] : []),
+      ...(warning ? [labeled("warning", warning)] : []),
     ];
   }
   if (action === "stop") {
-    return [
-      ...(work ? [labeled("work", work)] : []),
-      ...bodyLines(detailField<string>(details, "body") ?? teammate?.error ?? ""),
-    ];
+    return bodyLines(detailField<string>(details, "body") ?? teammate?.error ?? "");
   }
   const role = roleLine(args, name);
   const resources = strings(args.resources);
@@ -225,7 +252,7 @@ function agentBody(
       const verify = args.verify ?? resolveAgent(name)?.verify;
       return verify ? labeledBlock("verify", verify) : [];
     })(),
-    ...(work ? [labeled("work", work)] : []),
+    ...(!args.prompt && work ? [labeled("work", work)] : []),
   ];
 }
 
@@ -258,10 +285,12 @@ export function leaderWorkRow(
   const assignment = detailField<{ owner?: string }>(details, "assignment");
   const superseded = strings(detailField<unknown>(details, "supersededWorkIds"));
   const workResources = strings(detailField<unknown>(work, "resources"));
+  const stillRunning = detailField<string>(details, "holderStillRunning");
   return {
     subject: `${shortTask(subject)} · ${flags.isError ? "failed" : stateWord(outcome)}`,
     body: [
       ...(work?.state ? [labeled("state", stateWord(work.state))] : []),
+      ...(stillRunning ? [labeled("risk", `@${stillRunning} was still working; an in-flight batch may still write inside the released scope`)] : []),
       ...(action === "create" || action === "supersede"
         ? [labeled("routing", notified.length > 0 ? notified.map((entry) => `@${entry}`).join(", ") : "no living teammate notified")]
         : []),

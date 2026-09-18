@@ -297,7 +297,8 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
           details: { to: LEADER_RECIPIENT, intent: params.intent ?? "inform", outcome: "queued" },
         };
       }
-      const to = resolveRecipient(params.to, readRoster(binding.rosterFile));
+      const recipient = resolveRecipient(params.to, readRoster(binding.rosterFile));
+      const to = recipient.name;
       if (to === binding.worker) throw new Error("You are already the recipient — no need to message yourself.");
       const recipientInbox = path.join(path.dirname(binding.inbox), `inbox-${encodeURIComponent(to)}.jsonl`);
       appendInboxMessage(recipientInbox, {
@@ -305,6 +306,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
         from: binding.worker,
         subject: messageTitle(params.message),
         body: params.message,
+        ...(recipient.spawnId ? { toSpawnId: recipient.spawnId } : {}),
       });
       return {
         content: [{ type: "text", text: `MESSAGING\nQUEUED · to=@${to}\nNEXT · harness will route the inbox message into a recipient turn` }],

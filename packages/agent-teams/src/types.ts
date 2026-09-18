@@ -206,6 +206,9 @@ export interface InboxMessage {
   from: string;
   subject: string;
   body: string;
+  /** Incarnation the sender addressed. A replacement resident of the same name
+   *  must never consume mail written for its predecessor. */
+  toSpawnId?: string;
   timestamp: number;
 }
 
@@ -325,7 +328,8 @@ export interface TeamState {
   peerInboxOffsets: Record<string, number>;
   /** Delivered peer message ids per inbox, capped FIFO for deduplication. */
   peerDeliveredIds: Record<string, string[]>;
-  /** Harness-owned peer-delivery transition by message id. This records queueing
-   * or control-stream acceptance only; it never asserts recipient processing. */
-  peerDeliveryStates: Record<string, "queued" | "routed">;
+  /** Harness-owned peer-delivery transition by message id. This records queueing,
+   *  control-stream acceptance, or a drop aimed at a retired incarnation; it
+   *  never asserts recipient processing. */
+  peerDeliveryStates: Record<string, "queued" | "routed" | "dropped">;
 }

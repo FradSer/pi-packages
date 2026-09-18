@@ -162,6 +162,46 @@ export function getConfirmedStopTime(spawnId: string): number | undefined {
 /** Task ids under verification, bound to one exact submission via token so a
  *  release/re-claim or newer submission invalidates any older in-flight gate. */
 const verifyingTasks = new Map<string, { worker: string; spawnId: string; assignmentId: string; submissionId: string; token: string }>();
+/** In-flight gate reviewers by task id. Invalidating a holding's authority must
+ *  also stop its reviewer child, not merely discard the verdict it returns. */
+const verifyAborts = new Map<string, { controller: AbortController; submissionId: string }>();
+
+/** Drop any in-flight gate for one task and stop its reviewer process. Every
+ *  invalidation path uses this so Work authority and child processes cannot
+ *  diverge. */
+function invalidateVerifyGate(taskId: string): void {
+  verifyingTasks.delete(taskId);
+  const active = verifyAborts.get(taskId);
+  if (!active) return;
+  verifyAborts.delete(taskId);
+  active.controller.abort();
+}
+
+/** Start one gate attempt, aborting any earlier reviewer for the same task. */
+function runVerifyGate(
+  intent: import("./types").TaskIntent,
+  subject: string,
+  submissionId: string,
+  token: string,
+  input: VerifyReviewInput,
+): void {
+  const previous = verifyAborts.get(intent.taskId);
+  if (previous) {
+    verifyAborts.delete(intent.taskId);
+    previous.controller.abort();
+  }
+  const controller = new AbortController();
+  verifyAborts.set(intent.taskId, { controller, submissionId });
+  // A reviewer crash is a concrete failed gate. A missing verdict is handled
+  // separately as inconclusive so prose-format drift cannot count as a defect.
+  Promise.resolve()
+    .then(() => verifyGateRunner({ ...input, signal: controller.signal }))
+    .then((outcome) => resolveGateOutcome(intent, subject, submissionId, token, outcome))
+    .catch((error) => resolveGateOutcome(intent, subject, submissionId, token, {
+      kind: "fail",
+      detail: truncated(`(completion review crashed) ${error instanceof Error ? error.message : String(error)}`),
+    }));
+}
 type PendingSubmission = import("./types").TaskIntent & { assignmentId: string; verify: string | undefined };
 /** Submitted Work waits for its authoring Worker to settle before a gate can
  * inspect its files. This applies to direct automatic and board submissions. */
@@ -197,17 +237,30 @@ export function initTeamMachine(
   boardFile = boardFilePath(sessionFile, leaderCwd);
   sendUpdate = hooks.sendUpdate;
   notifyChange = hooks.notifyChange;
+  // The board and runtime dir are keyed per session, so two Leader processes
+  // holding the same session would overwrite each other's single-writer state.
+  // Detection is a report, not a block: the harness never takes ownership away
+  // from a session the user may legitimately be resuming.
+  claimLeaderLease();
   // Resume: reload a persisted board; claims die with their holders. A board
-  // from a removed public surface is archived rather than silently discarded
-  // or allowed to prevent extension reload.
+  // that cannot be loaded is archived rather than silently discarded or allowed
+  // to prevent extension reload.
   try {
     const persisted = readBoardFile(boardFile);
     if (persisted) loadBoard(persisted.tasks);
   } catch (error) {
-    const archived = `${boardFile}.incompatible-${Date.now()}`;
-    fs.renameSync(boardFile, archived);
     const detail = error instanceof Error ? error.message : String(error);
-    deliverToLeader({ from: "harness", subject: "Incompatible Work snapshot", body: `${detail}\nArchived preserved snapshot: ${archived}` });
+    let preservation: string;
+    try {
+      const archived = `${boardFile}.incompatible-${Date.now()}`;
+      fs.renameSync(boardFile, archived);
+      preservation = `Archived preserved snapshot: ${archived}`;
+    } catch {
+      // An unusable agents directory must still not turn preservation into a
+      // fatal startup error: report where the snapshot stayed instead.
+      preservation = `The preserved snapshot could not be archived and stays in place: ${boardFile}`;
+    }
+    deliverToLeader({ from: "harness", subject: "Incompatible Work snapshot", body: `${detail}\n${preservation}` });
   }
 }
 
@@ -237,6 +290,8 @@ export function shutdownTeamMachine(): void {
   confirmedStopTimes.clear();
   closeFinalizations.clear();
   verifyingTasks.clear();
+  for (const active of verifyAborts.values()) active.controller.abort();
+  verifyAborts.clear();
   pendingSubmissions.clear();
   idleNudgesSent.clear();
   selfFinalizeAttempts.clear();
@@ -246,6 +301,7 @@ export function shutdownTeamMachine(): void {
   verifyFailureParks.clear();
   unexpectedExecutionParks.clear();
   announcedFinishKeys.clear();
+  snapshotFailure = undefined;
 }
 
 // ── Spawn model resolution ────────────────────────────────────
@@ -329,6 +385,52 @@ export function runtimeDirPath(): string {
   return file.slice(0, Math.max(file.lastIndexOf("/"), 0));
 }
 
+/** Consecutive snapshot writes that failed. The tick retries, so only a
+ *  persistent failure (no successful write in this many attempts) is reported
+ *  instead of being silently invisible. */
+const SNAPSHOT_FAILURE_REPORT_AFTER = 3;
+let snapshotFailure: { count: number; reported: boolean; detail: string } | undefined;
+
+/** Runtime dir that holds the leader lease for the current session. */
+function leaderLockPath(stateFile: string): string {
+  return path.join(path.dirname(stateFile), "leader.pid");
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/** Record this process as the session's Leader, warning when another live one
+ *  still holds the same session. The lease dies with the runtime dir. */
+function claimLeaderLease(): void {
+  const lock = leaderLockPath(requireStateFile());
+  let previous: number | undefined;
+  try {
+    const parsed = Number(fs.readFileSync(lock, "utf-8").trim());
+    if (Number.isInteger(parsed) && parsed > 0 && parsed !== process.pid) previous = parsed;
+  } catch {
+    // No lease yet, or an unreadable one: this process takes it either way.
+  }
+  try {
+    fs.mkdirSync(path.dirname(lock), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(lock, `${process.pid}\n`, { encoding: "utf-8", mode: 0o600 });
+  } catch {
+    return;
+  }
+  if (previous !== undefined && isProcessAlive(previous)) {
+    deliverToLeader({
+      from: "harness",
+      subject: "Another Leader process shares this session",
+      body: `Leader process ${previous} is still running for this session's Work directory. Two Leaders writing one session would overwrite each other's Work state; finish or stop the other Pi session (or confirm it exited) before editing Work here.`,
+    });
+  }
+}
+
 function flushSnapshots(): void {
   const stateFile = requireStateFile();
   try {
@@ -343,8 +445,23 @@ function flushSnapshots(): void {
       assignment: t.assignment,
     })));
     if (boardFile) writeBoardFile(boardFile, getState().tasks);
-  } catch {
-    // The next poll retries the snapshot.
+    snapshotFailure = undefined;
+  } catch (error) {
+    // The next poll retries. A transient failure stays quiet, but a persistent
+    // one is surfaced once: durable Work state silently diverging from memory
+    // is a decision the Leader must be able to make.
+    const detail = error instanceof Error ? error.message : String(error);
+    const count = (snapshotFailure?.count ?? 0) + 1;
+    const alreadyReported = snapshotFailure?.reported ?? false;
+    snapshotFailure = { count, reported: alreadyReported, detail };
+    if (count >= SNAPSHOT_FAILURE_REPORT_AFTER && !alreadyReported) {
+      snapshotFailure.reported = true;
+      deliverToLeader({
+        from: "harness",
+        subject: "Work snapshot writes are failing",
+        body: `The durable Work snapshot under ${path.dirname(stateFile)} has failed ${count} consecutive writes (${detail}). In-memory Work state is still authoritative for this session; the files on disk are stale. Check disk space and permissions before ending the session.`,
+      });
+    }
   }
 }
 
@@ -478,7 +595,8 @@ export function spawnTeammate(input: {
       ? reclaimDirectWork(input.existingWorkId, input.name, assignment, "pending")
       : createDirectWork({
         id: getTeammate(input.name)?.workId ?? `work:${spawnId}`,
-        subject: effectiveKickoff ?? "Direct work",
+        subject: effectiveKickoff ? messageTitle(effectiveKickoff) : "Direct work",
+        description: effectiveKickoff,
         resources: directResources,
         verify: input.verify,
         workerName: input.name,
@@ -749,7 +867,7 @@ export function applyProgress(name: string, spawnId: string, progress: {
   updateTeammate(name, { lastOutputAt: Date.now(), ...(progress.finalResponse === false ? { status: "working" } : {}) });
   if (progress.finalResponse === false && teammate.currentTaskId && verifyingTasks.has(teammate.currentTaskId)) {
     const holding = `${teammate.currentTaskId}:${spawnId}`;
-    verifyingTasks.delete(teammate.currentTaskId);
+    invalidateVerifyGate(teammate.currentTaskId);
     unexpectedExecutionParks.add(holding);
     sendUpdate({
       teammate: name,
@@ -889,9 +1007,8 @@ export async function shutdownTeammate(name: string): Promise<{ ok: true; body: 
     pendingShutdowns.delete(name);
     const released = releaseTasksOf(name, "Agent was stopped.");
     for (const task of released) {
-      verifyFailures.delete(`${task.id}:${teammate.spawnId}`);
       clearInconclusiveForHolding(task.id, teammate.spawnId);
-      verifyingTasks.delete(task.id);
+      invalidateVerifyGate(task.id);
       rearmTaskNotice(task.id);
     }
     updateTeammate(name, { status: "stopped", activeTool: undefined });
@@ -926,13 +1043,13 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
 
   const released = releaseTasksOf(name, requested ? "Agent was stopped." : "Agent stopped unexpectedly.");
   for (const task of released) {
-    verifyFailures.delete(`${task.id}:${teammate.spawnId}`);
     clearInconclusiveForHolding(task.id, teammate.spawnId);
-    verifyingTasks.delete(task.id);
+    invalidateVerifyGate(task.id);
     rearmTaskNotice(task.id);
   }
   pendingShutdowns.delete(name);
   // A stopped teammate must not keep the poll loop or its queue alive.
+  pendingSubmissions.delete(name);
   pendingDeliveries.delete(name);
   idleNudgesSent.delete(`${name}:${teammate.spawnId}`);
   selfFinalizeAttempts.delete(`${name}:${teammate.spawnId}`);
@@ -1166,6 +1283,18 @@ export function routePeerInboxes(): void {
       const message = parseInboxMessage(record);
       if (!message || isPeerDelivered(inboxName, message.id)) continue;
       markPeerDelivered(inboxName, message.id);
+      // Mail addressed to an earlier incarnation is not this resident's to read.
+      // Dropping it is recorded once so a replacement never inherits stale
+      // intent, and the sender — never the leader's context — is told.
+      if (message.toSpawnId && message.toSpawnId !== teammate.spawnId) {
+        setPeerDeliveryState(message.id, "dropped");
+        deliverFeedback(
+          message.from,
+          "Message not delivered",
+          `Your message "${message.subject}" was addressed to an earlier incarnation of @${inboxName} that is no longer running, so it was not delivered. Re-resolve the recipient and send it again.`,
+        );
+        continue;
+      }
       dispatchInboxMessage(teammate, message);
     }
   }
@@ -1176,6 +1305,7 @@ function parseInboxMessage(record: unknown): InboxMessage | undefined {
   const candidate = record as Partial<InboxMessage>;
   if (typeof candidate.id !== "string" || typeof candidate.from !== "string") return undefined;
   if (typeof candidate.subject !== "string" || typeof candidate.body !== "string") return undefined;
+  if (candidate.toSpawnId !== undefined && typeof candidate.toSpawnId !== "string") return undefined;
   return { ...candidate, timestamp: candidate.timestamp ?? Date.now() } as InboxMessage;
 }
 
@@ -1327,7 +1457,7 @@ export function reopenExistingWork(workId: string): ReopenExistingWorkResult {
 }
 
 export type ReleaseExistingWorkResult =
-  | { ok: true; workId: string; subject: string; resources: string[] }
+  | { ok: true; workId: string; subject: string; resources: string[]; holderStillRunning?: string }
   | { ok: false; error: string };
 
 /** Return one claimed Work Item to pending. This invalidates all in-memory
@@ -1336,14 +1466,18 @@ export function releaseExistingWork(workId: string, reason: string): ReleaseExis
   const task = getState().tasks[workId];
   if (!task || task.status !== "claimed") return { ok: false, error: `Work Item "${workId}" is not claimed.` };
   const holder = task.claimedBy ? getTeammate(task.claimedBy) : undefined;
+  let holderStillRunning: string | undefined;
   if (holder) {
     pendingSubmissions.delete(holder.name);
-    verifyingTasks.delete(workId);
-    verifyFailures.delete(`${workId}:${holder.spawnId}`);
+    invalidateVerifyGate(workId);
     clearInconclusiveForHolding(workId, holder.spawnId);
-    verifyFailureParks.delete(`${workId}:${holder.spawnId}`);
-    unexpectedExecutionParks.delete(`${workId}:${holder.spawnId}`);
     archiveDeferredDeliveries(holder);
+    sendWorkerSteer(holder.name, `Work Item "${workId}" was released by the leader: ${reason}. Stop work on this assignment.`);
+    deliverFeedback(holder.name, `Work Item "${workId}" released`, `Work Item "${workId}" was released by the leader: ${reason}.`);
+    // Release frees the resource immediately by contract. When the holder is
+    // still working, its in-flight tool batch may still be writing, so the
+    // residual window is reported instead of being silently implied safe.
+    holderStillRunning = holder.status === "working" ? holder.name : undefined;
   }
   const released = releaseTask(workId, reason);
   if (!released) return { ok: false, error: `Work Item "${workId}" could not be released.` };
@@ -1351,7 +1485,7 @@ export function releaseExistingWork(workId: string, reason: string): ReleaseExis
   publishStateSnapshot();
   ensureLivePoll();
   notifyChange();
-  return { ok: true, workId: released.id, subject: released.subject, resources: released.resources };
+  return { ok: true, workId: released.id, subject: released.subject, resources: released.resources, ...(holderStillRunning ? { holderStillRunning } : {}) };
 }
 
 export function sendLeaderMessage(
@@ -1370,7 +1504,7 @@ export function sendLeaderMessage(
     && unexpectedExecutionParks.has(unexpectedParkKey);
   if (verificationFrozen(teammate) && !recoveringUnexpectedExecution) {
     const envelope: InboxMessage = {
-      id: randomUUID(), from: "leader", subject: messageTitle(message), body: message, timestamp: Date.now(),
+      id: randomUUID(), from: "leader", subject: messageTitle(message), body: message, timestamp: Date.now(), toSpawnId: teammate.spawnId,
     };
     const queued = pendingDeliveries.get(teammate.name) ?? [];
     queued.unshift(envelope);
@@ -1442,7 +1576,8 @@ export function sendLeaderMessage(
       if (selectedWorkId) {
         const created = createDirectWork({
           id: selectedWorkId,
-          subject: message,
+          subject: messageTitle(message),
+          description: message,
           resources,
           workerName: to,
           assignment,
@@ -1469,6 +1604,7 @@ export function sendLeaderMessage(
     subject: messageTitle(message),
     body: `${opensDirectAssignment || (activeBoardHolder && priorTerminalReport !== undefined) ? `[agent-teams-assignment:${teammate.assignment?.id ?? "none"}]\n` : ""}${message}`,
     timestamp: Date.now(),
+    toSpawnId: teammate.spawnId,
   };
   flushSnapshots();
   if (opensDirectAssignment) {
@@ -1506,8 +1642,15 @@ function continueMaybeCompact(inbox: string, inboxName: string, offset: number):
     return;
   }
   // Truncate only fully-consumed inboxes; message ids make replay safe.
+  // Rotation, not truncation: a teammate appending concurrently would lose its
+  // message inside the stat/truncate window, while a rename always preserves
+  // the records on disk and lets the next append start a fresh file.
   if (size > INBOX_COMPACT_BYTES && offset >= size) {
-    fs.truncateSync(inbox, 0);
+    try {
+      fs.renameSync(inbox, `${inbox}.compacted-${Date.now()}`);
+    } catch {
+      return;
+    }
     setPeerInboxOffset(inboxName, 0);
   }
 }
@@ -1552,10 +1695,9 @@ function applyClaimMarker(intent: import("./types").TaskIntent): void {
   if (!sender || pendingShutdowns.has(sender.name)) return;
   const outcome = applyClaimIntent(intent);
   if (outcome.applied) {
-    verifyFailures.delete(`${intent.taskId}:${intent.spawnId}`);
     clearInconclusiveForHolding(intent.taskId, intent.spawnId);
     // A new holding must not inherit an in-flight gate from a previous one.
-    verifyingTasks.delete(intent.taskId);
+    invalidateVerifyGate(intent.taskId);
     updateTeammate(intent.worker, { currentTaskId: intent.taskId });
     const teammate = getTeammate(intent.worker);
     const task = getState().tasks[intent.taskId];
@@ -1606,10 +1748,12 @@ function applySubmissionMarker(intent: import("./types").TaskIntent): void {
     return;
   }
   const parkKey = `${intent.taskId}:${intent.spawnId}`;
-  if (intent.status === "completed" && (inconclusiveParks.has(parkKey) || verifyFailureParks.has(parkKey))) {
-    const reason = inconclusiveParks.has(parkKey)
-      ? "two inconclusive reviews"
-      : "two explicit verification failures";
+  if (intent.status === "completed" && (inconclusiveParks.has(parkKey) || verifyFailureParks.has(parkKey) || unexpectedExecutionParks.has(parkKey))) {
+    const reason = unexpectedExecutionParks.has(parkKey)
+      ? "unexpected execution during verification"
+      : inconclusiveParks.has(parkKey)
+        ? "two inconclusive reviews"
+        : "two explicit verification failures";
     deliverFeedback(
       intent.worker,
       "Submission rejected while verification is parked",
@@ -1655,10 +1799,16 @@ function authorizeDirectRevision(intent: import("./types").TaskIntent, detail: s
   assignTeammate(intent.worker, assignment, intent.taskId);
   updateTeammate(intent.worker, { reportSequenceEnded: false });
   flushSnapshots();
+  const revisionBrief = [
+    `The completion gate failed for Work Item ${intent.taskId}: ${task.subject}. Revise the result and return a new final answer.`,
+    task.description,
+    task.verify ? `Verification criteria:\n${task.verify}` : undefined,
+    `Review failure detail:\n${detail}`,
+  ].filter(Boolean).join("\n\n");
   const prompt = buildFreshAssignmentPrompt(
     teammate,
     assignment.id,
-    `The completion gate failed for Work Item ${intent.taskId}. Revise the result and return a new final answer.\n\n${detail}`,
+    revisionBrief,
   );
   void deliverFreshAssignment(teammate.name, prompt).then((sent) => {
     if (sent) return;
@@ -1699,15 +1849,7 @@ function beginVerifyOrComplete(intent: import("./types").TaskIntent, verify: str
     workerResult: intent.result ?? "",
     cwd: getTeammate(intent.worker)?.cwd || leaderCwd,
   };
-  // A reviewer crash is a concrete failed gate. A missing verdict is handled
-  // separately as inconclusive so prose-format drift cannot count as a defect.
-  Promise.resolve()
-    .then(() => verifyGateRunner(input))
-    .then((outcome) => resolveGateOutcome(intent, task.subject, submissionId, token, outcome))
-    .catch((error) => resolveGateOutcome(intent, task.subject, submissionId, token, {
-      kind: "fail",
-      detail: truncated(`(completion review crashed) ${error instanceof Error ? error.message : String(error)}`),
-    }));
+  runVerifyGate(intent, task.subject, submissionId, token, input);
 }
 
 /** Apply one gate outcome to its submission, guarded by the binding token. */
@@ -1721,12 +1863,15 @@ function resolveGateOutcome(
   const active = verifyingTasks.get(intent.taskId);
   if (active?.token !== token || active.submissionId !== submissionId) return;
   verifyingTasks.delete(intent.taskId);
+  const registered = verifyAborts.get(intent.taskId);
+  if (registered?.submissionId === submissionId) verifyAborts.delete(intent.taskId);
   const current = getState().tasks[intent.taskId];
   const holder = getTeammate(intent.worker);
   const stillHolds = current?.status === "claimed"
     && current.claimedBy === intent.worker
     && holder?.spawnId === intent.spawnId
-    && holder.assignment?.id === active.assignmentId;
+    && holder.assignment?.id === active.assignmentId
+    && !pendingShutdowns.has(intent.worker);
   if (!stillHolds) return;
   if (outcome.kind === "pass") {
     inconclusiveVerifications.delete(submissionId);
@@ -1803,13 +1948,7 @@ function requestVerifyVerdict(
       workerResult: intent.result ?? "",
       cwd: getTeammate(intent.worker)?.cwd || leaderCwd,
     };
-    Promise.resolve()
-      .then(() => verifyGateRunner(input))
-      .then((outcome) => resolveGateOutcome(intent, subject, submissionId, token, outcome))
-      .catch((error) => resolveGateOutcome(intent, subject, submissionId, token, {
-        kind: "fail",
-        detail: truncated(`(verdict clarification crashed) ${error instanceof Error ? error.message : String(error)}`),
-      }));
+    runVerifyGate(intent, subject, submissionId, token, input);
     return;
   }
   inconclusiveParks.set(`${intent.taskId}:${intent.spawnId}`, { worker: intent.worker, spawnId: intent.spawnId });
@@ -1828,13 +1967,19 @@ function requestVerifyVerdict(
   });
 }
 
+/** Drop every per-holding gate record for one task incarnation. Every authority
+ *  invalidation routes through here so no counter or park outlives the holding
+ *  it was created for. */
 function clearInconclusiveForHolding(taskId: string, spawnId: string): void {
   const prefix = `${taskId}:${spawnId}:`;
   for (const key of inconclusiveVerifications.keys()) {
     if (key.startsWith(prefix)) inconclusiveVerifications.delete(key);
   }
-  inconclusiveParks.delete(`${taskId}:${spawnId}`);
-  verifyFailureParks.delete(`${taskId}:${spawnId}`);
+  const holding = `${taskId}:${spawnId}`;
+  inconclusiveParks.delete(holding);
+  verifyFailureParks.delete(holding);
+  unexpectedExecutionParks.delete(holding);
+  verifyFailures.delete(holding);
 }
 
 function finishCompletion(intent: import("./types").TaskIntent): void {
@@ -1846,7 +1991,6 @@ function finishCompletion(intent: import("./types").TaskIntent): void {
   retirePendingSubmission(intent);
   const completed = completeTask(intent.taskId, intent.result);
   if (!completed) return;
-  verifyFailures.delete(`${intent.taskId}:${intent.spawnId}`);
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
   freeTeammateFromTask(intent.worker, intent.taskId);
   announceWorkOutcome(intent, teammate, assignmentId);
@@ -1863,7 +2007,7 @@ function releaseSupersededHolding(intent: import("./types").TaskIntent): void {
   retirePendingSubmission(intent);
   releaseTask(intent.taskId, intent.result?.trim() || "Superseded task cancellation acknowledged.");
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
-  verifyingTasks.delete(intent.taskId);
+  invalidateVerifyGate(intent.taskId);
 }
 
 function finishFailure(intent: import("./types").TaskIntent): void {
@@ -1873,9 +2017,8 @@ function finishFailure(intent: import("./types").TaskIntent): void {
   retirePendingSubmission(intent);
   const released = releaseTask(intent.taskId, intent.result?.trim() || "Agent reported failure.");
   if (!released) return;
-  verifyFailures.delete(`${intent.taskId}:${intent.spawnId}`);
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
-  verifyingTasks.delete(intent.taskId);
+  invalidateVerifyGate(intent.taskId);
   rearmTaskNotice(intent.taskId);
   announceWorkOutcome(intent, teammate, assignmentId);
 }
@@ -1913,6 +2056,10 @@ export interface VerifyReviewInput {
   /** Working directory to review: the holder's worktree root when isolated,
    *  else the leader cwd — the reviewer must inspect the claimed work's tree. */
   cwd: string;
+  /** Aborted when the holding's authority is invalidated (release, stop, new
+   *  claim, supersession, or resumed owner execution), so an orphaned reviewer
+   *  cannot keep a child process running against a tree it no longer judges. */
+  signal?: AbortSignal;
 }
 
 export type VerifyReviewOutcome =
@@ -1978,6 +2125,7 @@ export function buildVerifyReviewWorkerOptions(input: VerifyReviewInput): RunPiW
     tools: [...VERIFY_REVIEW_TOOLS],
     minimal: true,
     model: resolveSpawnModel(undefined, getTeamDefaultModel(), currentLeaderModelRef()).model,
+    ...(input.signal ? { signal: input.signal } : {}),
   };
 }
 
@@ -2169,7 +2317,8 @@ export function createBoardTask(input: {
     // it submits failed or stops; cancellation is lifecycle control, so it
     // must unpark the holder before its feedback can be routed.
     const holder = task.claimedBy ? getTeammate(task.claimedBy) : undefined;
-    verifyingTasks.delete(task.id);
+    invalidateVerifyGate(task.id);
+    if (holder) unexpectedExecutionParks.delete(`${task.id}:${holder.spawnId}`);
     for (const [name, pending] of pendingSubmissions) {
       if (pending.taskId === task.id) pendingSubmissions.delete(name);
     }

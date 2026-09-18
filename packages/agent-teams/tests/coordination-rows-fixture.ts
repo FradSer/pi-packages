@@ -132,6 +132,7 @@ expectReadable(expanded, "expanded delegate row");
 for (const line of ["role · Audits visible TUI rows · session role", "task · Fix the spacing under the started row.", "Check the widget too.", "model · anthropic/claude-sonnet-4-5", "tools · read, bash, agent_event, work", "resources · packages/context"]) {
   assert.ok(expanded.includes(line), `expanded delegate row missing "${line}":\n${expanded}`);
 }
+assert.ok(!expanded.includes("work · Fix the spacing"), "expanded delegate row must not duplicate the prompt as a work field");
 
 const handle = started.session.id;
 const working = runAgentAction({ action: "inspect", name: "ui-auditor", session: handle }, undefined, runtime);
@@ -141,11 +142,17 @@ expectReadable(inspected, "inspect row");
 assert.match(inspected, /@ui-auditor · working/);
 assert.ok(inspected.includes("now · file: overlay.ts"), `inspect row missing live activity:\n${inspected}`);
 
+updateTeammate("ui-auditor", { status: "idle", activeTool: undefined });
+const idleInspected = render("leader:agent", { action: "inspect", name: "ui-auditor", session: handle }, { details: { ...working, sessions: [{ ...working.sessions[0], status: "idle" }] }, expanded: true });
+assert.ok(!idleInspected.includes("now ·"), `idle inspect row must not display a now activity:\n${idleInspected}`);
+assert.ok(!idleInspected.includes("work ·"), `idle inspect row without active work must not dump old work:\n${idleInspected}`);
+
 const stopped = await runAgentAction({ action: "stop", session: handle }, undefined, runtime);
 const stoppedRow = render("leader:agent", { action: "stop", session: handle }, { details: stopped, expanded: true });
 expectReadable(stoppedRow, "stop row");
 assert.ok(stoppedRow.includes("@ui-auditor · stopped"), `stop row missing plain state:\n${stoppedRow}`);
 assert.ok(stoppedRow.includes("Agent @ui-auditor stopped."), `stop row missing the shutdown summary:\n${stoppedRow}`);
+assert.ok(!stoppedRow.includes("work ·"), `stop row must not duplicate previous work:\n${stoppedRow}`);
 
 const failure = `Agent "ghost" not found. Direct assignment resources conflict with @ui-auditor's direct assignment "${started.assignment.id}" over ${started.work.id}.`;
 const failureRow = render("leader:agent", { action: "delegate", name: "ghost" }, { text: failure, details: undefined, isError: true, expanded: true });
