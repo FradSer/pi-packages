@@ -20,6 +20,7 @@ Feature: Harness and context expansion shows additional information
     Given a skill prompt, skill rule or text rule with source, file and prompt text
     When its registered entry renderer is expanded
     Then the skill or rule identity appears in the title rather than a repeated field
+    And the row is tagged as Harness guidance, not as another surface
     And source, file and the complete prompt remain visible
     And meaningful prompt text is retained even when it contains the title subject
 

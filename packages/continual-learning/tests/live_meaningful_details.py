@@ -37,6 +37,8 @@ def verify_expanded(row: dict) -> None:
     lines = [line.strip() for line in row["lines"] if line.strip()]
     text = "".join("".join(lines).split())
     data = row["data"]
+    # Every lifecycle row in this package is delivered by the Harness surface.
+    assert lines[0].startswith("[harness]"), lines
     if row["customType"] == "harness-event":
         assert text.count("".join(data["reason"].split())) == 1, lines
         fields = ("policy", "action", "outcome", "tool", "source", "file")

@@ -78,7 +78,7 @@ export default function registerContextGuidance(pi: ExtensionAPI): void {
           : "skill rule";
     // The full prompt stays visible when expanded: it is the deliverable.
     const promptFields = fieldBlock("prompt", prompt, Number.POSITIVE_INFINITY);
-    return guidanceRows.message(() => eventToolLifecycle("context", subject, {
+    return guidanceRows.message(() => eventToolLifecycle("harness", subject, {
       label,
       detailLimit: "all",
       details: details

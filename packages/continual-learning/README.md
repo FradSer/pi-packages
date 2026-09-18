@@ -151,8 +151,8 @@ actual trigger verification, and unverified behavior separately.
 Expanded policy rows keep the policy, action, outcome, tool, source and file;
 check rows keep their phase, policy and artifact path. Reasons already shown in
 the title and check statuses already shown in its label are not repeated as
-fields. Context guidance likewise shows the skill or rule in its title, with
-source, file and the complete prompt below, including prompts longer than 50
+fields. Guidance rows likewise carry the `[harness]` tag and show the skill or rule as
+their title subject, with source, file and the complete prompt below, including prompts longer than 50
 lines. Clipped titles wrap when expanded. This display-only cleanup does not
 change enforcement, guidance delivery or stored event data.
 

@@ -78,7 +78,7 @@ def test_guidance_identity_is_only_in_title_but_prompt_and_provenance_survive(
     row = rendered[case]
     data = row["data"]
     expanded = row["views"]["240"]["expanded"]
-    assert expanded[0] == f"[context] {label} · {subject}"
+    assert expanded[0] == f"[harness] {label} · {subject}"
     assert f"source · {data['source']}" in expanded
     assert f"file · {data['file']}" in expanded
     assert f"prompt · {data['prompt'].splitlines()[0]}" in expanded
