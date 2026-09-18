@@ -55,19 +55,6 @@ export interface IncrementalNewMemoryProposal {
   evidence: IncrementalNewMemoryEvidence[];
 }
 
-export interface IncrementalMemoryDeltaPlan {
-  kind: "incremental-memory-plan";
-  version: typeof CONSOLIDATION_SCHEMA_VERSION;
-  schemaVersion: typeof CONSOLIDATION_SCHEMA_VERSION;
-  runId: string;
-  scopeKey: string;
-  scopeDigest: string;
-  artifactHash: string;
-  snapshotDigest?: string;
-  operations: IncrementalMemoryOperation[];
-  newMemories: IncrementalNewMemoryProposal[];
-}
-
 export interface FullIncrementalMemoryPlan {
   kind: "memory-consolidation-plan";
   version: typeof CONSOLIDATION_SCHEMA_VERSION;

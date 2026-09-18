@@ -143,10 +143,6 @@ export function readMemoryConfigState(): MemoryConfigState {
   }
 }
 
-export function readMemoryConfig(): MemoryConfig {
-  return readMemoryConfigState().config;
-}
-
 function writeAll(fd: number, bytes: Buffer): void {
   let offset = 0;
   while (offset < bytes.length) {

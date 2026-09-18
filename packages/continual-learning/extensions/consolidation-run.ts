@@ -810,28 +810,6 @@ export function boundText(value: string | Uint8Array, maxBytes: number): Bounded
   return { text: Buffer.from(value.buffer, value.byteOffset, maxBytes).toString("utf8"), bytes: maxBytes, truncated: true };
 }
 
-export class BoundedTextBuffer {
-  private readonly chunks: Buffer[] = [];
-  private used = 0;
-  private didTruncate = false;
-  private readonly maxBytes: number;
-  constructor(maxBytes: number) {
-    if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) throw new Error("maxBytes must be a non-negative integer.");
-    this.maxBytes = maxBytes;
-  }
-  append(value: string | Uint8Array): void {
-    if (this.didTruncate || this.used >= this.maxBytes) { this.didTruncate = true; return; }
-    const remaining = this.maxBytes - this.used;
-    const bytes = typeof value === "string" ? boundedStringBytes(value, remaining) : Buffer.from(value.buffer, value.byteOffset, Math.min(value.byteLength, remaining));
-    if (bytes.length) { this.chunks.push(bytes); this.used += bytes.length; }
-    if (typeof value === "string" ? Buffer.byteLength(value, "utf8") > bytes.length : value.byteLength > bytes.length) this.didTruncate = true;
-  }
-  get text(): string { return Buffer.concat(this.chunks).toString("utf8"); }
-  get bytes(): number { return this.used; }
-  get truncated(): boolean { return this.didTruncate; }
-  result(): BoundedText { return { text: this.text, bytes: this.used, truncated: this.didTruncate }; }
-}
-
 export interface PlanIdentity { runId: string; scopeDigest: string; artifactHash?: string }
 export interface PlanIdentityExpectation { runId: string; scopeDigest: string; artifactHash: string }
 function planIdentity(plan: unknown): PlanIdentity | undefined {
@@ -840,7 +818,6 @@ function planIdentity(plan: unknown): PlanIdentity | undefined {
   if (typeof value.runId !== "string" || typeof value.scopeDigest !== "string") return undefined;
   return { runId: value.runId, scopeDigest: value.scopeDigest, ...(typeof value.artifactHash === "string" ? { artifactHash: value.artifactHash } : {}) };
 }
-export function extractPlanIdentity(plan: unknown): PlanIdentity | undefined { return planIdentity(plan); }
 export function validatePlanIdentityResult(plan: unknown, expected: PlanIdentityExpectation): { ok: true } | { ok: false; error: string } {
   const identity = planIdentity(plan);
   if (!identity) return { ok: false, error: "plan is missing runId and scopeDigest" };
@@ -989,7 +966,6 @@ export function extractChildPlan<T = unknown>(stdout: string | Uint8Array, optio
   if (options.validatePlan && !options.validatePlan(matching[0].plan)) return { ok: false, error: "structured consolidation plan failed schema validation" };
   return { ok: true, plan: matching[0].plan as T, line: matching[0].line };
 }
-export function extractFinalPlan(stdout: string): unknown { const result = extractChildPlan(stdout); return result.ok ? result.plan : undefined; }
 
 export interface FinalHashes { harness: Record<string, string>; public: Record<string, string> }
 const SHA256_RE = /^(?:sha256:)?[0-9a-f]{64}$/i;
@@ -1127,7 +1103,6 @@ export async function cancelChildWithClose(child: ChildProcess, graceMs?: number
   return close;
 }
 export async function terminateConsolidationChild(child: ChildProcess, graceMs = 5_000): Promise<boolean> { return (await cancelChildWithClose(child, graceMs)).closeObserved; }
-export function boundedStderr(value: string | Uint8Array): BoundedText { return boundText(value, MAX_STDERR_BYTES); }
 export function boundedStdout(value: string | Uint8Array): BoundedText { return boundText(value, MAX_STDOUT_BYTES); }
 
 type MemoryHashes = Record<string, string>;
@@ -1541,20 +1516,6 @@ export function normalizeNewMemoryProposals(
     const evidence = normalizeNewMemoryEvidence(item.evidence, entries, `${label}.evidence`);
     return { name, kind, classification, content, evidence };
   });
-}
-
-export function validateNewMemoryProposals(
-  plan: unknown,
-  snapshot: unknown,
-): { ok: true; proposals: NewMemoryProposal[] } | { ok: false; errors: string[] } {
-  try {
-    const selected = plan && typeof plan === "object" && !Array.isArray(plan) && Array.isArray((plan as Record<string, unknown>).selected)
-      ? scopeEntries((plan as Record<string, unknown>).selected, "selected scope").map((entry) => entry.name)
-      : [];
-    return { ok: true, proposals: normalizeNewMemoryProposals(plan, snapshot, selected) };
-  } catch (error) {
-    return { ok: false, errors: [(error as Error).message] };
-  }
 }
 
 function newMemoryNames(value: readonly NewMemoryProposal[]): string[] {

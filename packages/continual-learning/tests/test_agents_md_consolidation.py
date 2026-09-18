@@ -914,7 +914,6 @@ def test_pipeline_plans_harness_and_agents_in_parallel_then_applies_sequentially
     assert "DEFAULT_AGENTS_MD_BUDGET_BYTES" in inject
     assert "hasUI" not in agents
     assert "ctx.ui.select" not in agents
-    assert "apply without an interactive prompt" in agents
 
 
 def test_changed_snapshot_bytes_are_rejected_before_agents_planning() -> None:

@@ -26,9 +26,7 @@ import {
   type PiWorkerUsage,
 } from "@fradser/pi-kit";
 import {
-  createConsolidationRun,
   extractChildPlan,
-  releaseConsolidationRun,
   sha256Digest,
   terminateConsolidationChild,
   writeFileAtomic,
@@ -1356,52 +1354,5 @@ export async function applyAgentsMdConsolidationPlan(
     return { outcome: cancelled ? "cancelled" : "failed", applied: 0, extractions: [], detail };
   } finally {
     await closeStableRoots(stableRoots);
-  }
-}
-
-/** Third pipeline phase. Planning is read-only; validated operations apply without an interactive prompt. */
-export async function runAgentsMdConsolidationPhase(
-  ctx: ExtensionContext,
-  state: { active: boolean; generation: number; cancelled: boolean; child?: ChildProcess },
-  opts: AgentsMdConsolidationPhaseOptions,
-): Promise<void> {
-  if (state.active || opts.disabled) return;
-  state.active = true;
-  const generation = state.generation + 1;
-  state.generation = generation;
-  state.cancelled = false;
-  const current = (): boolean => !state.cancelled && generation === state.generation;
-
-  let run: ConsolidationRun;
-  try {
-    run = await createConsolidationRun(ctx, opts.cwd, false);
-    if (!current()) {
-      await releaseConsolidationRun(run);
-      state.active = false;
-      return;
-    }
-  } catch (err) {
-    state.active = false;
-    if (current()) notifyPi(ctx.ui, `AGENTS.md consolidation skipped: ${(err as Error).message}`, "warning");
-    return;
-  }
-
-  try {
-    const planned = await planAgentsMdConsolidationPhase(ctx, state, opts, run, generation);
-    if (planned.outcome === "planned" && current()) await applyAgentsMdConsolidationPlan(ctx, state, opts, planned.planning, generation);
-  } catch (err) {
-    if (current()) notifyPi(ctx.ui, `AGENTS.md consolidation failed: ${(err as Error).message.slice(-300)}`, "warning");
-  } finally {
-    const owned = current();
-    try {
-      if (owned && state.child) {
-        const child = state.child;
-        state.child = undefined;
-        if (!child.killed) void terminateConsolidationChild(child, 5_000).catch(() => {});
-      }
-    } finally {
-      await releaseConsolidationRun(run, { keepArtifacts: owned }).catch(() => {});
-      if (owned) state.active = false;
-    }
   }
 }

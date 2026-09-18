@@ -2,7 +2,7 @@ import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { runPiWorker, type PiWorkerUsage } from "@fradser/pi-kit";
-import { isMemoryFilename, type MemoryEntry } from "./memory-files";
+import { isMemoryFilename } from "./memory-files";
 import { MAX_MEMORY_BYTES, MAX_MEMORY_FILES, sha256Digest, writeFileAtomic } from "./consolidation-run";
 import { resolveMemoryPaths } from "./memory-paths";
 import { buildMemorySelectorPrompt } from "./planner-prompts";
@@ -152,15 +152,6 @@ function metadataFromContent(
     description: (description ?? frontmatterValue(content, "description", MAX_METADATA_DESCRIPTION_CHARS))
       .slice(0, MAX_METADATA_DESCRIPTION_CHARS),
   };
-}
-
-export function memoryMetadata(entries: readonly MemoryEntry[]): MemoryMetadata[] {
-  return entries.map((entry) => metadataFromContent(
-    entry.filename,
-    entry.source === "public" ? "safe" : "private",
-    entry.content,
-    entry.description,
-  ));
 }
 
 async function readRegularPrefix(
