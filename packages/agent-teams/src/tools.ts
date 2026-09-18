@@ -1,4 +1,4 @@
-import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { truncateHead, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { notifyPi } from "@fradser/pi-kit";
 import {
   assignExistingWork,
@@ -24,7 +24,9 @@ function formatWorkList(tasks: ReturnType<typeof listTasks>): string {
   const works = tasks.map((task) => {
     const dependencies = task.dependsOn.length > 0 ? ` · depends=${task.dependsOn.join(",")}` : "";
     const holder = task.claimedBy ? ` · owner=@${task.claimedBy}` : "";
-    return `- ${task.id} · ${task.status} · ${task.subject}${holder}${dependencies}`;
+    const result = task.result ? truncateHead(task.result, { maxBytes: 4096, maxLines: 40 }) : undefined;
+    const evidence = result ? `\n  RESULT · ${result.content}${result.truncated ? "\n  [Result preview truncated; complete evidence is retained in Work details.]" : ""}` : "";
+    return `- ${task.id} · ${task.status} · ${task.subject}${holder}${dependencies}${evidence}`;
   });
   return [
     "WORK · current session",
@@ -61,7 +63,8 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
     name: "agent",
     promptSnippet: "Delegate, start, inspect, or stop an Agent session",
     label: "Agent",
-    description: "Strict Agent lifecycle interface. Delegate creates independent Work; start creates an unassigned resident; inspect and stop use incarnation-bound session handles.",
+    description: "Strict Agent lifecycle interface. Delegate creates independent Work; start creates an unassigned resident; inspect and stop use incarnation-bound session handles. Results arrive automatically; inspect is for deliberate diagnosis, not waiting.",
+    promptGuidelines: ["After agent delegation, results arrive automatically. Continue independent work or end the turn; do not wait with sleep, repeated agent inspect, or work list polling."],
     parameters: AgentActionParams,
     renderShell: "self",
     renderCall: emptyToolCall,

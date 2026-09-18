@@ -1,4 +1,4 @@
-# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-14-blue)
+# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-15-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -11,6 +11,12 @@
 ### [`@fradser/pi-agent-teams`](packages/agent-teams/)
 
 通过简洁的 `agent` 委派和共享 `agent_event` 通信进行协作。每次新工作启动独立会话，默认使用全新上下文，也可用 `fork: true` 继承 Leader 上下文；最终回答自动回传，`work` 定向已有执行。仍支持常驻团队、任务看板和点对点消息。
+
+省略 `definition.tools` 或传入 `[]` 只授权协调工具，不默认提供文件或 shell 能力；委派、启动和检查结果会显示实际工具授权。执行任务需明确选择最小工具集（`read`、`bash`、`edit`、`write`、`grep`、`find`、`ls`）。无法执行时，Worker 必须用 `work` 的 `submit` 动作明确提交 `outcome: "failed"`，不能只在最终回答里描述阻塞。普通最终回答是成功候选；没有验证门的完成并不表示独立验证通过。Leader 应委派具体的真实验收标准，必要时设置验证门；信息报告无需重复确认，除非决策或行动发生变化。
+
+`agent start` 创建未分配的常驻会话，不伪造 Work ID，也不运行无任务的初始模型轮次；公开调用会等待原生就绪确认，返回后可立即向该精确会话分配任务，无需调用方轮询。后续看板通知和自主认领仍保留。恢复时先明确释放原 Work，确认执行权限真正释放后再分配同一 Work，不通过重复委派制造竞争任务。
+
+[调度指导](packages/agent-teams/README.md#coordination-and-delivery) 明确单一集成验证负责人，将评审证据绑定到候选版本，并要求阻断评审返回、问题解决后再交付实现。纯评审任务返回报告即结束，定向复核需显式交接更新后的候选 brief。这是 Agent 指导，不是新增调度器或运行时完成锁。
 
 **工具：** `agent`、`work`、`agent_event`
 
@@ -48,7 +54,7 @@ pi install npm:@fradser/pi-context
 
 ### [`pi-continual-learning`](packages/continual-learning/)
 
-从完成的用户任务中自动学习持久记忆与可验证约束。Memory 在生成前提供相关上下文；Harness 检查工具调用、模型输出和指定文件产物，并提供次数受限的纠错反馈。也可通过 `/consolidate` 显式整理。
+从完成的用户任务中自动学习持久记忆与有明确范围的规则。Memory 提供有预算且可继续查阅的索引；扁平 Harness `rules` 提供 skill/text 指导，以及 Bash 消息、确认或阻止。也可通过 `/consolidate` 显式整理。存量 `policies`/`skillPrompts` 通过只读兼容保留原有保护，包括已有 output/artifact 检查；升级不改写配置，也不会仅因文件格式较旧就阻止无关命令。
 
 **命令：** `/memory`、`/consolidate`、`/harness`
 
@@ -112,6 +118,18 @@ pi install npm:pi-matt-pocock
 
 ```bash
 pi install npm:@fradser/pi-monitor
+```
+
+### [`@fradser/pi-open-deskos`](packages/open-deskos/)
+
+把本机的 Pi 会话及其运作事件经 package 主动打开的 Desk Link 上报给 Open DeskOS，事件规则与运行时本地采集器完全一致。
+
+**命令：** `/open-deskos`
+
+**安装：**
+
+```bash
+pi install npm:@fradser/pi-open-deskos
 ```
 
 ### [`@fradser/pi-plan-mode`](packages/plan-mode/)
@@ -195,7 +213,7 @@ pnpm check
 
 在仓库根目录执行 `pnpm --dir packages/<name> pack --dry-run` 可以检查单个包将要发布的文件。
 
-共享运行时辅助位于内部包 [`@fradser/pi-kit`](packages/kit/)。它是内部工作区依赖，不能通过 `pi install` 安装。
+共享运行时辅助位于内部包 [`@fradser/pi-kit`](packages/kit/)。它是内部工作区依赖，不能通过 `pi install` 安装。生命周期渲染器仅在有补充展示内容，或当前宽度隐藏了可展开恢复的文字时提示展开，不因工具结果含有 metadata 就显示提示。各包移除与标题重复的详情，同时保留完整报告和有用的诊断信息。
 
 ## 添加包
 

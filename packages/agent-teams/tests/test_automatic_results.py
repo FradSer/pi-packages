@@ -133,15 +133,50 @@ def test_communication_event_does_not_require_completion_bookkeeping(tmp_path: P
     assert "status=" not in payload["response"]
 
 
-@pytest.mark.parametrize("kind", ["board", "none"])
-def test_board_holders_and_unassigned_workers_do_not_autocomplete(tmp_path: Path, kind: str) -> None:
+def test_unassigned_workers_do_not_autocomplete(tmp_path: Path) -> None:
     payload = run_worker(tmp_path, '''
         await fixture.start("attempt-1");
-        await fixture.answer(assistant("An answer does not submit board work"));
+        await fixture.answer(assistant("Unassigned answer"));
         await fixture.emit({ type: "agent_settled" });
         console.log(JSON.stringify({ records: fixture.records(), submitted: fs.existsSync(fixture.binding.submissionsDir) }));
-    ''', kind)
+    ''', "none")
     assert payload == {"records": [], "submitted": False}
+
+
+def test_board_final_answer_is_submitted_once_after_settlement(tmp_path: Path) -> None:
+    payload = run_worker(tmp_path, '''
+        await fixture.start();
+        await fixture.answer(assistant("Board result evidence"));
+        await fixture.emit({ type: "agent_end", messages: [] });
+        assert.deepEqual(fixture.records(), []);
+        await fixture.emit({ type: "agent_settled" });
+        await fixture.emit({ type: "agent_settled" });
+        console.log(JSON.stringify({ records: fixture.records() }));
+    ''', "board")
+    assert len(payload["records"]) == 1
+    assert payload["records"][0]["assignmentId"] == "attempt-1"
+    assert payload["records"][0]["body"] == "Board result evidence"
+
+
+@pytest.mark.parametrize("kind", ["direct", "board"])
+@pytest.mark.parametrize("outcome", ["success", "failed"])
+def test_explicit_submission_suppresses_automatic_duplicate(tmp_path: Path, kind: str, outcome: str) -> None:
+    payload = run_worker(tmp_path, f'''
+        const roster = JSON.parse(fs.readFileSync(fixture.binding.rosterFile, "utf8"));
+        roster.teammates[0].currentTaskId = "work-1";
+        fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify(roster));
+        await fixture.start();
+        const submitted = await fixture.call("work", {{ action: "submit", outcome: {json.dumps(outcome)}, result: "Explicit evidence" }});
+        await fixture.answer(assistant("Do not duplicate the submission"));
+        await fixture.emit({{ type: "agent_settled" }});
+        await fixture.emit({{ type: "agent_settled" }});
+        const marker = JSON.parse(fs.readFileSync(fixture.binding.submissionsDir + "/work-1.json", "utf8"));
+        console.log(JSON.stringify({{ records: fixture.records(), marker, terminate: submitted.terminate }}));
+    ''', kind)
+    assert payload["records"] == []
+    assert payload["marker"]["result"] == "Explicit evidence"
+    assert payload["marker"]["assignmentId"] == "attempt-1"
+    assert payload["terminate"] is True
 
 
 @pytest.mark.parametrize("change", ["assignment", "spawn", "closed", "stopped", "missing", "binding"])
@@ -297,7 +332,9 @@ def test_agent_event_requires_precise_route_for_concurrent_peer_sessions(tmp_pat
     assert payload == {"exact": "reviewer-two", "unique": "reviewer-one", "first": "Only living route", "second": "Exact route"}
 
 
-def test_native_pi_retry_reports_only_after_settlement(tmp_path: Path) -> None:
+@pytest.mark.parametrize("outcome", [None, "success", "failed"], ids=["retry", "explicit-success", "explicit-failed"])
+def test_native_pi_reports_only_after_settlement(tmp_path: Path, outcome: str | None) -> None:
+    explicit = outcome is not None
     pi = shutil.which("pi")
     if pi is None:
         pytest.skip("Pi CLI is required for native settlement verification")
@@ -306,7 +343,7 @@ def test_native_pi_retry_reports_only_after_settlement(tmp_path: Path) -> None:
     (agent_dir / "settings.json").write_text(json.dumps({"retry": {"enabled": True, "maxRetries": 1, "baseDelayMs": 1}}))
     roster = tmp_path / "roster.json"
     roster.write_text(json.dumps({"teammates": [{"name": "worker", "agent": "reviewer", "spawnId": "spawn-1", "status": "working",
-        "assignment": {"id": "attempt-1", "kind": "direct", "resources": []}}]}))
+        "currentTaskId": "work-1", "assignment": {"id": "attempt-1", "kind": "direct", "resources": []}}]}))
     outbox = tmp_path / "events.jsonl"
     env = {key: value for key, value in os.environ.items() if not key.startswith("PI_")}
     env.update({
@@ -316,16 +353,29 @@ def test_native_pi_retry_reports_only_after_settlement(tmp_path: Path) -> None:
         "PI_TEAMMATE_BOARD_FILE": str(tmp_path / "board.json"), "PI_TEAMMATE_CLAIMS_DIR": str(tmp_path / "claims"),
         "PI_TEAMMATE_SUBMISSIONS_DIR": str(tmp_path / "submissions"),
     })
+    env["PI_SUBMISSION_AUTH"] = secrets.token_hex(16)
+    if outcome:
+        env["PI_SUBMISSION_OUTCOME"] = outcome
+    fixture = "explicit-submission-live-fixture" if explicit else "automatic-results-fixture"
+    provider = "explicit-submission-fixture" if explicit else "automatic-results-fixture"
     result = subprocess.run(
         [pi, "--print", "--no-session", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes",
-         "--no-context-files", "--no-approve", "--extension", str(PACKAGE / "tests" / "automatic-results-fixture.ts"),
-         "--provider", "automatic-results-fixture", "--model", "deterministic", "--thinking", "off", "--no-builtin-tools",
+         "--no-context-files", "--no-approve", "--extension", str(PACKAGE / "tests" / f"{fixture}.ts"),
+         "--provider", provider, "--model", "deterministic", "--thinking", "off", "--no-builtin-tools",
          "[agent-teams-assignment:attempt-1]\nRun the automatic result fixture"],
         cwd=tmp_path, env=env, capture_output=True, text=True, timeout=25,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "PI_AUTOMATIC_RESULTS_OK" in result.stdout, result.stdout + result.stderr
+    sentinel = "NATIVE_EXPLICIT_SUBMISSION_OK" if explicit else "PI_AUTOMATIC_RESULTS_OK"
+    assert sentinel in result.stdout + result.stderr, result.stdout + result.stderr
     assert "AssertionError" not in result.stderr
-    assert outbox.exists(), result.stdout + result.stderr
-    records = [json.loads(line) for line in outbox.read_text().splitlines()]
-    assert [(record["status"], record["body"]) for record in records] == [("completed", "PI_AUTOMATIC_RESULTS_OK")]
+    if explicit:
+        marker = json.loads((tmp_path / "submissions" / "work-1.json").read_text())
+        assert marker["assignmentId"] == "attempt-1"
+        assert marker["result"] == "Native submission evidence"
+        assert marker["status"] == ("completed" if outcome == "success" else "failed")
+        assert not outbox.exists() or outbox.read_text() == ""
+    else:
+        assert outbox.exists(), result.stdout + result.stderr
+        records = [json.loads(line) for line in outbox.read_text().splitlines()]
+        assert [(record["status"], record["body"]) for record in records] == [("completed", "PI_AUTOMATIC_RESULTS_OK")]

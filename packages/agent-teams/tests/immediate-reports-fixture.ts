@@ -3,8 +3,8 @@ import { createAssistantMessageEventStream, type AssistantMessage } from "@earen
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import agentTeams from "../src/index.ts";
-import { drainTeammateOutboxes } from "../src/team-machine.ts";
-import { registerTeammate } from "../src/state.ts";
+import { applyProgress, drainTeammateOutboxes } from "../src/team-machine.ts";
+import { createTask, getTeammate, registerTeammate, setTaskClaimed } from "../src/state.ts";
 import { appendWorkerEvent, stateFilePath, workerOutboxPath } from "../src/statefile.ts";
 
 export default function (pi: ExtensionAPI): void {
@@ -48,8 +48,8 @@ export default function (pi: ExtensionAPI): void {
   pi.on("message_end", (event) => {
     const message = event.message;
     if (message.role !== "custom" || message.customType !== "agent-teams-report") return;
-    const details = message.details as { eventId: string };
-    received.push(details.eventId);
+    const details = message.details as { eventId: string; status?: string };
+    received.push(details.status === "completed" ? "terminal" : details.eventId);
   });
 
   pi.registerTool({
@@ -58,12 +58,18 @@ export default function (pi: ExtensionAPI): void {
     async execute(_id, _params, _signal, _update, ctx) {
       registerTeammate({ name: "fixture-worker", agent: "fixture", spawnId: "fixture-spawn",
         pid: 0, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 });
+      const created = createTask({ subject: "Fixture work" });
+      assert.ok(created.ok);
+      setTaskClaimed(created.task.id, "fixture-worker");
+      const assignmentId = getTeammate("fixture-worker")!.assignment!.id;
+      applyProgress("fixture-worker", "fixture-spawn", { text: "", turns: 1, finalResponse: false });
       const outbox = workerOutboxPath(stateFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd), "fixture-worker", "fixture-spawn");
       for (const [id, status] of [["progress", "in_progress"], ["terminal", "completed"]] as const) {
         appendWorkerEvent(outbox, { id, type: "message", worker: "fixture-worker", spawnId: "fixture-spawn",
-          body: id === "progress" ? "New evidence" : "Completed with verification", status, timestamp: 100 });
+          assignmentId, body: id === "progress" ? "New evidence" : "Completed with verification", status, timestamp: 100 });
         drainTeammateOutboxes();
       }
+      applyProgress("fixture-worker", "fixture-spawn", { text: "Completed with verification", turns: 1, finalResponse: true });
       assert.deepEqual(received, [], "Reports must not split an in-flight tool call and its result");
       return { content: [{ type: "text", text: "Reports produced" }], details: {} };
     },
@@ -75,7 +81,7 @@ export default function (pi: ExtensionAPI): void {
     async execute(_id, _params, _signal, _update, ctx) {
       const entries = ctx.sessionManager.getEntries();
       const ids = entries.flatMap((entry) => entry.type === "custom_message" && entry.customType === "agent-teams-report"
-        ? [(entry.details as { eventId: string }).eventId] : []);
+        ? [(entry.details as { status?: string }).status === "completed" ? "terminal" : (entry.details as { eventId: string }).eventId] : []);
       const expected = calls === 2 ? ["progress"] : ["progress", "terminal"];
       assert.deepEqual(ids, expected);
       assert.deepEqual(received, expected);

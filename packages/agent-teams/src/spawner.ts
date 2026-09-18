@@ -11,6 +11,8 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
+export { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
 import * as fs from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
@@ -57,6 +59,8 @@ export interface WorkerProgressUpdate {
    *  tool-call, or tool execution events). Independent of usage totals so
    *  providers that omit usage are not misclassified as silent. */
   modelOutputSeen?: boolean;
+  /** A prompt-less child acknowledged native startup readiness. */
+  ready?: boolean;
   /** Lifetime accumulated usage parsed from message_end events. */
   usage?: WorkerUsage;
   controlError?: string;
@@ -86,16 +90,7 @@ export function resolveWorkerTools(requested?: string[]): string[] {
  *  --no-extensions, so this list (plus the capability set) is the complete
  *  grantable universe; anything else is silently dropped by the child's
  *  --tools allowlist filter. */
-export const WORKER_BUILTIN_TOOLS: readonly string[] = [
-  "read",
-  "bash",
-  "edit",
-  "write",
-  "grep",
-  "find",
-  "ls",
-  "powershell",
-];
+// Canonical IDs are shared with public schema and guidance in worker-tools.ts.
 
 /** Every tool id a teammate can actually receive: pi built-ins plus the capability set. */
 export const WORKER_TOOL_UNIVERSE: readonly string[] = [...WORKER_BUILTIN_TOOLS, ...WORKER_CAPABILITY_TOOLS];
@@ -312,7 +307,7 @@ type JsonEvent = {
   command?: string;
   success?: boolean;
   error?: string;
-  data?: { cancelled?: boolean };
+  data?: { cancelled?: boolean; isStreaming?: boolean; isCompacting?: boolean; pendingMessageCount?: number };
   toolCallId?: string;
   toolName?: string;
   args?: unknown;
@@ -418,7 +413,9 @@ function applyStreamLine(state: StreamState, line: string, child?: ChildProcess)
     if (pending && child === pending.child && pending.command === event.command) {
       clearTimeout(pending.timeout);
       pendingControlResponses.delete(event.id);
-      pending.resolve(event.success === true && event.data?.cancelled !== true);
+      pending.resolve(event.success === true && event.data?.cancelled !== true
+        && (pending.command !== "get_state" || (event.data?.isStreaming === false
+          && event.data?.isCompacting !== true && (event.data?.pendingMessageCount ?? 0) === 0)));
     }
   }
   if (event.type === "response" && event.success === false) {
@@ -709,6 +706,36 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
     });
   });
 
+  if (!options.description?.trim()) {
+    const id = randomUUID();
+    const timeout = setTimeout(() => {
+      pendingControlResponses.delete(id);
+      streamState.controlError = "Resident startup readiness was not acknowledged.";
+      emitProgress();
+    }, CONTROL_RESPONSE_TIMEOUT_MS);
+    timeout.unref?.();
+    pendingControlResponses.set(id, {
+      child,
+      command: "get_state",
+      timeout,
+      resolve: (ready) => {
+        if (workers.get(options.workerName) !== child) return;
+        if (!ready) {
+          streamState.controlError = "Resident startup readiness acknowledgement was rejected or not idle.";
+          emitProgress();
+          return;
+        }
+        streamState.finalResponse = true;
+        options.onUpdate?.({ text: "", turns: 0, finalResponse: true, ready: true });
+        startFreshAssignmentReset(options.workerName);
+      },
+    });
+    if (!writeToControlStream(child, { type: "get_state", id })) {
+      clearTimeout(timeout);
+      pendingControlResponses.delete(id);
+      options.onError?.(new Error("Cannot request resident startup readiness."));
+    }
+  }
   return { pid: child.pid ?? 0 };
 }
 

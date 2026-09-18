@@ -17,6 +17,8 @@ scopes:
       description: Persisted Matt Pocock workflow routes, procedures, and command integration in packages/matt-pocock/; does not cover other package runtimes.
     - name: mon
       description: Background command monitoring, result contracts, diagnostics, and event handling in packages/monitor/; does not cover shared kit internals.
+    - name: odk
+      description: Desk Link reporting of a machine's Pi sessions and their operating events to Open DeskOS in packages/open-deskos/; does not cover shared kit internals or the Open DeskOS runtime.
     - name: plan
       description: Planning workers, overlay management, and execution orchestration in packages/plan-mode/; does not cover general-purpose utilities.
     - name: rc

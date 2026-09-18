@@ -181,11 +181,11 @@ function createWorkerReports(pi: ExtensionAPI) {
   let reportClosed = initialAssignment?.closed === true;
   let pending: { binding: WorkerBinding; assignmentId: string; timestamp: number; awaitingFinal?: boolean; outcome?: AutomaticResult } | undefined;
   const finalizedMessages = new WeakSet<AssistantResponse>();
-  const currentDirect = (binding: WorkerBinding) => {
+  const currentAssignment = (binding: WorkerBinding) => {
     const self = readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker);
     const assignment = self?.assignment;
     return !reportClosed && self?.spawnId === binding.spawnId && self.status !== "stopped"
-      && assignment?.kind === "direct" && assignment.id === assignmentId && !assignment.closed ? assignment : undefined;
+      && assignment && assignment.id === assignmentId && !assignment.closed ? assignment : undefined;
   };
   const close = () => {
     reportClosed = true;
@@ -216,7 +216,7 @@ function createWorkerReports(pi: ExtensionAPI) {
         assignmentId = id;
         pending = undefined;
       }
-      const assignment = currentDirect(binding);
+      const assignment = currentAssignment(binding);
       if (assignment) pending = { binding, assignmentId: assignment.id, timestamp: message.timestamp };
     } else if (message.role === "assistant" && pending && message.timestamp >= pending.timestamp) {
       pending.timestamp = message.timestamp;
@@ -232,7 +232,7 @@ function createWorkerReports(pi: ExtensionAPI) {
   });
   pi.on("message_end", ({ message }) => {
     if (message.role !== "assistant" || !pending?.awaitingFinal || message.timestamp < pending.timestamp
-      || finalizedMessages.has(message) || !currentDirect(pending.binding)) return;
+      || finalizedMessages.has(message) || !currentAssignment(pending.binding)) return;
     finalizedMessages.add(message);
     pending.timestamp = message.timestamp;
     pending.awaitingFinal = false;
@@ -242,7 +242,7 @@ function createWorkerReports(pi: ExtensionAPI) {
     if (!pending || !ctx.isIdle()) return;
     const binding = workerBinding();
     if (!binding || binding.worker !== pending.binding.worker || binding.spawnId !== pending.binding.spawnId
-      || binding.outbox !== pending.binding.outbox || pending.assignmentId !== assignmentId || !currentDirect(binding)) return;
+      || binding.outbox !== pending.binding.outbox || pending.assignmentId !== assignmentId || !currentAssignment(binding)) return;
     const result = pending.outcome ?? executionResult();
     appendWorkerEvent(binding.outbox, {
       id: randomUUID(), type: "message", worker: binding.worker, spawnId: binding.spawnId,
@@ -252,6 +252,7 @@ function createWorkerReports(pi: ExtensionAPI) {
     close();
   });
   return {
+    close,
     send(binding: WorkerBinding, body: string, status: import("./types.ts").WorkerReportEvent["status"]) {
       appendWorkerEvent(binding.outbox, {
         assignmentId: reportAssignment(binding), id: randomUUID(), type: "message",
@@ -387,10 +388,13 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
   async function queueWorkSubmission(input: { taskId: string; status: "completed" | "failed"; result?: string; presentation: "board" | "work" }) {
     const binding = workerBinding();
     if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
+    const assignmentId = readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker)?.assignment?.id;
     const won = createTaskIntent(binding.submissionsDir, input.taskId, {
-      taskId: input.taskId, worker: binding.worker, spawnId: binding.spawnId, status: input.status, result: input.result, timestamp: Date.now(),
+      taskId: input.taskId, worker: binding.worker, spawnId: binding.spawnId, assignmentId,
+      status: input.status, result: input.result, timestamp: Date.now(),
     });
     if (!won) throw new Error(`A submission for "${input.taskId}" is already pending.`);
+    reports.close();
     disclosure.reset();
     const task = loadBoardTasks(binding).find((candidate) => candidate.id === input.taskId);
     const roleVerify = process.env.PI_TEAMMATE_VERIFY_DEFAULT?.trim();
@@ -410,7 +414,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
     const details = input.presentation === "work"
       ? { action: "submit", outcome: "queued", id: input.taskId, subject: task?.subject, status: input.status === "completed" ? "success" : "failed", verify: Boolean(task?.verify || roleVerify) }
       : { taskId: input.taskId, subject: task?.subject, status: input.status, verify: Boolean(task?.verify || roleVerify) };
-    return { content: [{ type: "text" as const, text: content }], details };
+    return { content: [{ type: "text" as const, text: content }], details, terminate: true };
   }
 
   return {

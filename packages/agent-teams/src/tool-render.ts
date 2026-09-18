@@ -63,7 +63,9 @@ export function renderCoordinationRow(
   row: CoordinationRow,
 ): { render: (width: number) => string[]; invalidate: () => void } {
   if (!context.isError) {
-    return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(tool, row.subject), row.body);
+    return renderLifecycleResult(result, options, theme, context, eventToolLifecycle(tool, row.subject, {
+      expandedSubject: row.expandedSubject,
+    }), row.body);
   }
   const failure = failureBody(result);
   const display: ToolResultText = { ...result, content: [{ type: "text", text: failure.join(" ") }] };

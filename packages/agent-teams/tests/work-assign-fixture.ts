@@ -22,6 +22,7 @@ const { initTeamMachine, shutdownTeamMachine } = await import("../src/team-machi
 const { registerSessionAgent } = await import("../src/agents.ts");
 const { getState, registerTeammate, resetState } = await import("../src/state.ts");
 const { WorkToolParams } = await import("../src/types.ts");
+const { readRoster, rosterPath, stateFilePath } = await import("../src/statefile.ts");
 
 const root = process.env.PI_TEST_DIR;
 assert.ok(root, "PI_TEST_DIR is required");
@@ -50,6 +51,9 @@ assert.equal(assigned.details.work.state, "claimed");
 assert.equal(assigned.details.work.claimedBy, "resident");
 assert.deepEqual(getState().teammates.resident.assignment?.resources, ["firmware/storage"]);
 assert.equal(getState().teammates.resident.currentTaskId, workId);
+const published = readRoster(rosterPath(stateFilePath(undefined, root))).find((entry) => entry.name === "resident");
+assert.equal(published?.assignment?.id, assigned.details.assignment.id, "Assignment binding must be published before the new session can read its prompt");
+assert.equal(published?.currentTaskId, workId);
 child.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\n");
 await new Promise((resolve) => setImmediate(resolve));
 const reset = commands.find((command) => command.type === "new_session");

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isValidTeammateName, listTeammates } from "./state.ts";
 import { resolveAgent } from "./agents.ts";
@@ -15,7 +16,11 @@ export interface AgentActionRuntime {
 type Definition = Parameters<typeof spawnTeammate>[0]["definition"];
 
 function session(teammate: Teammate) {
+  const tools = teammate.tools;
+  const coordinationOnly = tools !== undefined && tools.every((tool) => tool === "agent_event" || tool === "work");
   return {
+    tools,
+    ...(coordinationOnly ? { warning: "coordination-only: no file or shell tools granted. Delegate execution work with explicit canonical tools; no bash is granted by default." } : {}),
     id: exactSessionRoute(teammate.name, teammate.spawnId),
     status: teammate.status,
     workId: teammate.workId,
@@ -63,7 +68,7 @@ export function runAgentAction(
   if (!params.name) throw new Error(`Agent ${params.action} requires a name.`);
   requireName(params.name);
   if (!params.definition && !resolveAgent(params.name, _cwd)) {
-    throw new Error(`Unknown Agent @${params.name}. Define it inline through agent action=delegate or start.`);
+    throw new Error(`Unknown Agent @${params.name}. Define it inline through agent action=delegate or start; for example definition: { description: "Read evidence", prompt: "Read the assigned file and report evidence", tools: ["read"] }. Choose only needed canonical tools: ${WORKER_BUILTIN_TOOLS.join(", ")}. Omitted tools or [] grant coordination-only access.`);
   }
   const prompt = params.action === "delegate" ? params.prompt?.trim() : undefined;
   if (params.action === "delegate" && !prompt) throw new Error("Agent delegate requires a prompt.");
@@ -77,11 +82,20 @@ export function runAgentAction(
     ...(params.definition ? { definition: params.definition } : {}),
   });
   if (!result.ok) throw new Error(result.error);
-  return {
+  const receipt = (teammate: Teammate) => ({
     action: params.action,
     outcome: "started",
     agent: params.name,
-    session: session(result.teammate),
-    ...(params.action === "delegate" ? { work: { id: result.teammate.workId, state: "claimed" }, assignment: { id: result.teammate.assignment?.id } } : {}),
-  };
+    session: session(teammate),
+    ...(params.action === "delegate" ? { work: { id: teammate.workId, state: "claimed" }, assignment: { id: teammate.assignment?.id } } : {}),
+  });
+  if (params.action === "start" && result.readiness) {
+    return result.readiness.then((error) => {
+      if (error) throw new Error(error);
+      const current = resolveExactSession(exactSessionRoute(result.teammate.name, result.teammate.spawnId), listTeammates());
+      if (!current || current.status === "stopped") throw new Error("Resident exited or was replaced before startup readiness completed.");
+      return receipt(current);
+    });
+  }
+  return receipt(result.teammate);
 }

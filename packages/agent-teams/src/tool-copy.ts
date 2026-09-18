@@ -8,7 +8,7 @@
  * strings (errors, harness events) whose identifiers cannot be re-derived.
  */
 
-import { contentDetailLines, detailField, displayText, fieldBlock, fieldLine, scrubHandles } from "@fradser/pi-kit";
+import { contentDetailLines, detailField, displayText, fieldBlock, fieldLine, safeDisplayText, scrubHandles } from "@fradser/pi-kit";
 import { resolveAgent } from "./agents.ts";
 import { runningTeammateActivity } from "./activity.ts";
 import { parseExactSessionRoute } from "./recipient.ts";
@@ -19,6 +19,8 @@ import type { BoardTask, Teammate } from "./types.ts";
 /** One rendered lifecycle row: the collapsed line plus its expanded body. */
 export interface CoordinationRow {
   subject: string;
+  /** Replace the collapsed subject inline, retaining its semantic line breaks. */
+  expandedSubject?: string;
   body: string[];
 }
 
@@ -281,14 +283,17 @@ export function messageRow(
   details: unknown,
   options: { isError?: boolean } = {},
 ): CoordinationRow {
-  const to = detailField<string>(details, "to") ?? args.to ?? "leader";
+  const to = oneLine(detailField<string>(details, "to") ?? args.to ?? "leader").replace(/^@+/, "");
   const outcome = detailField<string>(details, "outcome");
-  const message = args.message ?? "";
+  // Messages are literal readbacks, not prose to clean up. Only terminal
+  // controls and runtime handles change; the shared renderer owns truncation.
+  const message = scrubHandles(safeDisplayText(displayText(args.message)), workHandle);
+  const prefix = [`to @${to}`, options.isError ? "failed" : outcome ? stateWord(outcome) : undefined]
+    .filter(Boolean).join(" · ");
   return {
-    subject: [`to @${to}`, options.isError ? "failed" : outcome ? stateWord(outcome) : undefined, message ? shortTask(message) : undefined]
-      .filter(Boolean)
-      .join(" · "),
-    body: [...bodyLines(message), ...(detailField<string>(details, "terminalReport") ? [labeled("note", "terminal report recorded for this Work")] : [])],
+    subject: [prefix, collapse(message)].filter(Boolean).join(" · "),
+    expandedSubject: [prefix, message].filter(Boolean).join(" · "),
+    body: detailField<string>(details, "terminalReport") ? [labeled("note", "terminal report recorded for this Work")] : [],
   };
 }
 

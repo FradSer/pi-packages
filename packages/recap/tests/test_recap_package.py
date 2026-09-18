@@ -36,6 +36,9 @@ def test_feature_covers_recap_scenarios() -> None:
     assert "Scenario: Recap widget uses pi-kit's shared live activity and row renderers" in feature
     assert "live activity widget" in feature
     assert "shared widget-row renderer" in feature
+    assert "Scenario: Persisted recap entries stay out of the transcript" in feature
+    assert "registers no entry renderer" in feature
+    assert "adds no TUI message row" in feature
     assert "Scenario: Recap widget is displayed above the editor by default" in feature
     assert "Scenario: Recap is informative and scannable" in feature
     assert "Scenario: Empty or meaningless recap output is retried" in feature
@@ -49,8 +52,13 @@ def test_feature_covers_recap_scenarios() -> None:
     assert "Scenario: /recap opens an interactive management menu" in feature
     assert "Scenario: Generate recap now bypasses same-exchange deduplication" in feature
     assert "Scenario: Model selection supports custom provider and model overrides" in feature
+    assert "dismisses the model picker without selecting a model" in feature
+    assert "stored model override is cleared" in feature
+    assert "the menu does not repeat the current recap text" in feature
     assert "Scenario: Language selection allows specifying target generation language" in feature
-    assert "Scenario: Recap shows a generation marker while refreshing" in feature
+    assert "Scenario: Regeneration replaces the recap line with a generation marker" in feature
+    assert "carries no \"· Working...\" activity suffix" in feature
+    assert "generation marker is replaced by the new recap" in feature
     assert "Scenario: Recap preserves a leading inline code marker" in feature
     assert "Scenario: Recap maintains context continuity using previous recap and last exchange" in feature
     assert "Scenario: Generated recap is persisted to the session" in feature
@@ -71,6 +79,28 @@ def test_notifications_use_pi_kits_portable_helper() -> None:
     source = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
     assert "notifyPi" in source
     assert "ctx.ui.notify(" not in source
+
+
+def test_extension_registers_no_recap_entry_renderer() -> None:
+    source = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
+    assert "registerEntryRenderer" not in source
+
+    result = run_typescript(
+        f"""
+        import extensionModule from "{INDEX_URI}";
+
+        const renderers = new Map();
+        const extension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        extension({{
+          on() {{}},
+          registerCommand() {{}},
+          appendEntry() {{}},
+          registerEntryRenderer(type, renderer) {{ renderers.set(type, renderer); }},
+        }});
+        console.log(JSON.stringify({{ registeredTypes: [...renderers.keys()] }}));
+        """
+    )
+    assert result["registeredTypes"] == []
 
 
 def test_directory_recap_sync_uses_shared_canonical_identity_helpers() -> None:
@@ -224,6 +254,7 @@ def test_first_prompt_starts_recap_before_agent_settled_and_refreshes_after_comp
           finalPromptHasAssistantOutcome: promptTexts[1]?.includes("I implemented feature X") ?? false,
           finalRecapPersisted: appendedEntries.some((entry) => entry.data.recap === "Recapped feature X (2)"),
           showsProgress: progressLines.some((line) => line.includes("Recapping...")),
+          progressActivitySuffix: progressLines.some((line) => line.includes("Working...")),
           progressLeadingSpaces: progressLines.find((line) => line.includes("Recapping..."))?.match(/^ */)?.[0].length ?? 0,
         }}));
         """
@@ -235,7 +266,87 @@ def test_first_prompt_starts_recap_before_agent_settled_and_refreshes_after_comp
     assert result["finalPromptHasAssistantOutcome"] is True
     assert result["finalRecapPersisted"] is True
     assert result["showsProgress"] is True
+    assert result["progressActivitySuffix"] is False
     assert result["progressLeadingSpaces"] == 1
+
+
+def test_generation_marker_replaces_the_recap_line() -> None:
+    result = run_typescript(
+        f"""
+        import extensionModule from "{INDEX_URI}";
+        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+
+        let registeredEvents = {{}};
+        let resolveCompletion;
+        const pendingCompletion = new Promise((resolve) => {{ resolveCompletion = resolve; }});
+        const widgetCalls = [];
+        let branch = [
+          {{ type: "message", message: {{ role: "user", content: "fix bug" }} }},
+          {{ type: "message", message: {{ role: "assistant", content: "bug fixed in auth.ts" }} }},
+          {{ type: "custom", customType: "recap", data: {{ recap: "Persisted: Fixed auth bug" }} }},
+        ];
+        const fakePi = {{
+          on(event, handler) {{ registeredEvents[event] = handler; }},
+          registerCommand() {{}},
+          appendEntry() {{}},
+        }};
+        initExtension(fakePi);
+        const fakeCtx = {{
+          mode: "tui",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{
+            getBranch: () => branch,
+            getSessionFile: () => undefined,
+          }},
+          ui: {{
+            setWidget: (name, factory, options) => {{ widgetCalls.push({{ name, factory, options }}); }},
+            notify: () => {{}},
+          }},
+          modelRegistry: {{
+            find: () => ({{ provider: "mock", id: "m1" }}),
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => {{
+              await pendingCompletion;
+              return {{ role: "assistant", content: [{{ type: "text", text: "Recapped auth fix" }}] }};
+            }},
+          }},
+          model: {{ provider: "mock", id: "m1" }},
+        }};
+
+        const recapLineMounted = () =>
+          widgetCalls.filter((call) => call.name === "recap").at(-1)?.factory !== undefined;
+
+        await registeredEvents["session_start"]({{}}, fakeCtx);
+        const mountedBeforeGeneration = recapLineMounted();
+        branch = [
+          ...branch,
+          {{ type: "message", message: {{ role: "user", content: "add tests" }} }},
+          {{ type: "message", message: {{ role: "assistant", content: "auth tests added" }} }},
+        ];
+        registeredEvents["input"]({{ source: "interactive", text: "add tests" }}, fakeCtx);
+        await registeredEvents["agent_settled"]({{}}, fakeCtx);
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        const mountedDuringGeneration = recapLineMounted();
+        const markerFactory = widgetCalls.filter((call) => call.name === "recap-activity").at(-1)?.factory;
+        const markerLines = markerFactory
+          ? markerFactory({{ requestRender: () => {{}} }}, {{ fg: (_name, text) => text, bold: (text) => text }}).render(80)
+          : [];
+        resolveCompletion();
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        console.log(JSON.stringify({{
+          mountedBeforeGeneration,
+          mountedDuringGeneration,
+          markerLines,
+          mountedAfterGeneration: recapLineMounted(),
+        }}));
+        """
+    )
+    assert result["mountedBeforeGeneration"] is True
+    assert result["mountedDuringGeneration"] is False
+    assert len(result["markerLines"]) == 1
+    assert "Recapping..." in result["markerLines"][0]
+    assert "Working..." not in result["markerLines"][0]
+    assert result["mountedAfterGeneration"] is True
 
 
 def test_session_replacement_aborts_pending_first_prompt_recap() -> None:
@@ -883,6 +994,93 @@ def test_extension_registers_recap_command_with_menu() -> None:
     assert 'identity: "Recapping..."' in extension
     assert "generatingRecap" in extension
     assert "starts with one leading space like native working rows" in (PACKAGE / "features" / "recap.feature").read_text(encoding="utf-8")
+
+
+def test_recap_menu_merges_model_override_and_never_repeats_the_recap() -> None:
+    result = run_typescript(
+        f"""
+        import fs from "node:fs";
+        import os from "node:os";
+        import path from "node:path";
+
+        const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "recap-menu-"));
+        process.env.PI_CODING_AGENT_DIR = agentDir;
+        const configPath = path.join(agentDir, "recap.json");
+        fs.writeFileSync(configPath, JSON.stringify({{ provider: "old", model: "old-model", enabled: true, autoRecap: true, language: "auto" }}), "utf-8");
+
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
+
+        const commands = {{}};
+        initExtension({{
+          on() {{}},
+          registerCommand(name, definition) {{ commands[name] = definition; }},
+          appendEntry() {{}},
+        }});
+
+        const selectCalls = [];
+        const notices = [];
+        const models = [{{ provider: "newprov", id: "new-model", name: "New Model" }}];
+        let pickerResult;
+        const fakeCtx = {{
+          hasUI: true,
+          mode: "tui",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{ getBranch: () => [], getSessionFile: () => undefined }},
+          scopedModels: [],
+          modelRegistry: {{ getAll: () => models, getAvailable: () => models, find: () => undefined }},
+          model: {{ provider: "session", id: "session-model" }},
+          ui: {{
+            select: async (title, options) => {{
+              selectCalls.push({{ title, options }});
+              return options.find((option) => option.startsWith("Select recap model"));
+            }},
+            custom: async () => pickerResult,
+            setWidget: () => {{}},
+            notify: (message, level) => notices.push({{ message, level }}),
+          }},
+        }};
+
+        pickerResult = undefined;
+        await commands["recap"].handler("", fakeCtx);
+        const clearedConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+
+        pickerResult = {{ provider: "newprov", model: "new-model" }};
+        await commands["recap"].handler("", fakeCtx);
+        const selectedConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+        await commands["recap"].handler("", fakeCtx);
+        const selectedTitle = selectCalls.at(-1).title;
+        const selectedOptions = selectCalls.at(-1).options;
+        fs.rmSync(agentDir, {{ recursive: true, force: true }});
+
+        console.log(JSON.stringify({{
+          firstTitle: selectCalls[0].title,
+          firstOptions: selectCalls[0].options,
+          clearedConfig,
+          selectedConfig,
+          selectedTitle,
+          selectedOptions,
+          notices,
+        }}));
+        """
+    )
+
+    assert "Current recap" not in result["firstTitle"]
+    assert "Model: old/old-model" in result["firstTitle"]
+    assert [
+        option for option in result["firstOptions"] if "model" in option.lower()
+    ] == ["Select recap model (current: old/old-model)", "Enter provider/model manually"]
+    assert "provider" not in result["clearedConfig"]
+    assert "model" not in result["clearedConfig"]
+    assert result["selectedConfig"]["provider"] == "newprov"
+    assert result["selectedConfig"]["model"] == "new-model"
+    assert "Select recap model (current: newprov/new-model)" in result["selectedOptions"]
+    assert "Model: newprov/new-model" in result["selectedTitle"]
+    assert {
+        "message": "Recap model reset to session default",
+        "level": "info",
+    } in result["notices"]
 
 
 def test_extension_listens_to_agent_settled_and_session_start() -> None:

@@ -383,7 +383,7 @@ def test_invalid_submission_status_is_consumed_before_state_machine() -> None:
     assert "invalid submission status" in payload["diagnostic"]
 
 
-def test_two_explicit_verify_failures_park_until_leader_steer(tmp_path: Path) -> None:
+def test_two_explicit_verify_failures_require_release_and_reassignment(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner, sendLeaderMessage }} from "{(SRC / "team-machine.ts").as_uri()}";
@@ -407,8 +407,11 @@ def test_two_explicit_verify_failures_park_until_leader_steer(tmp_path: Path) ->
         processTaskIntents();
         await pause();
         const callsWhileParked = calls;
-        const steer = sendLeaderMessage("w", "Leader direction: fix the finding and resubmit.");
-        attemptSubmission("w", "s1", task.id, "completed", "after-steer");
+        const steer = sendLeaderMessage("w", "New information without recovery authorization");
+        const {{ releaseExistingWork }} = await import("{(SRC / "team-machine.ts").as_uri()}");
+        releaseExistingWork(task.id, "Authorize another attempt");
+        applyClaimIntent({{ taskId: task.id, worker: "w", spawnId: "s1", timestamp: 2 }});
+        attemptSubmission("w", "s1", task.id, "completed", "after-reassignment");
         processTaskIntents();
         await pause();
         console.log(JSON.stringify({{ callsWhileParked, steer: steer.ok, finalStatus: getTask(task.id)?.status, calls }}));
@@ -418,7 +421,7 @@ def test_two_explicit_verify_failures_park_until_leader_steer(tmp_path: Path) ->
     assert payload == {"callsWhileParked": 2, "steer": True, "finalStatus": "completed", "calls": 3}
 
 
-def test_twice_inconclusive_park_requires_leader_steer_before_resubmit(tmp_path: Path) -> None:
+def test_twice_inconclusive_park_requires_release_and_reassignment(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner, sendLeaderMessage }} from "{(SRC / "team-machine.ts").as_uri()}";
@@ -440,15 +443,17 @@ def test_twice_inconclusive_park_requires_leader_steer_before_resubmit(tmp_path:
         processTaskIntents();
         await pause();
         const callsWhileParked = calls;
-        const rejectedReopen = sendLeaderMessage("w", "wrong reopen", {{ reopen: true }});
+        const {{ reopenExistingWork, releaseExistingWork }} = await import("{(SRC / "team-machine.ts").as_uri()}");
+        const rejectedReopen = reopenExistingWork(task.id);
         attemptSubmission("w", "s1", task.id, "completed", "still-blocked");
         processTaskIntents();
         await pause();
         const callsAfterRejectedReopen = calls;
-        // The holder now reports terminally, but its board task remains active.
         updateTeammate("w", {{ reportSequenceEnded: true }});
-        const terminalSteer = sendLeaderMessage("w", "terminal board holder: revise and resubmit");
-        attemptSubmission("w", "s1", task.id, "completed", "after-steer");
+        const terminalSteer = sendLeaderMessage("w", "New information without recovery authorization");
+        releaseExistingWork(task.id, "Authorize another attempt");
+        applyClaimIntent({{ taskId: task.id, worker: "w", spawnId: "s1", timestamp: 2 }});
+        attemptSubmission("w", "s1", task.id, "completed", "after-reassignment");
         processTaskIntents();
         await pause();
         console.log(JSON.stringify({{ callsWhileParked, rejectedReopen: rejectedReopen.ok, callsAfterRejectedReopen, terminalSteer: terminalSteer.ok, finalStatus: getTask(task.id)?.status, calls }}));
@@ -645,8 +650,8 @@ def test_fresh_reset_failure_releases_work_without_delivering_queued_guidance(tm
         }});
         syncBuiltinESMExports();
         const {{ spawnResident }} = await import("{(SRC / "spawner.ts").as_uri()}");
-        const {{ initTeamMachine, sendLeaderMessage, shutdownTeamMachine }} = await import("{(SRC / "team-machine.ts").as_uri()}");
-        const {{ getTask, getTeammate, registerTeammate, resetState }} = await import("{(SRC / "state.ts").as_uri()}");
+        const {{ initTeamMachine, assignExistingWork, sendLeaderMessage, shutdownTeamMachine }} = await import("{(SRC / "team-machine.ts").as_uri()}");
+        const {{ createTask, getTask, getTeammate, registerTeammate, resetState }} = await import("{(SRC / "state.ts").as_uri()}");
         const cwd = {str(tmp_path)!r};
         initTeamMachine({{ sessionManager: undefined, cwd }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
@@ -657,7 +662,8 @@ def test_fresh_reset_failure_releases_work_without_delivering_queued_guidance(tm
           spawnResident({{ workerName: name, onUpdate: () => {{}}, onExit: () => {{}} }});
           const child = children.at(-1);
           registerTeammate({{ name, agent: "reviewer", spawnId: `spawn-${{mode}}`, workId, pid: child.pid, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
-          const opened = sendLeaderMessage(name, `${{mode}} assignment`);
+          createTask({{ id: workId, subject: `${{mode}} assignment` }});
+          const opened = assignExistingWork(workId, `session:${{name}}:spawn-${{mode}}`);
           child.stdout.write(JSON.stringify({{ type: "agent_settled" }}) + "\\n");
           const reset = child.commands.find((command) => command.type === "new_session");
           const guidance = sendLeaderMessage(name, `${{mode}} same-attempt guidance`);
@@ -695,7 +701,7 @@ def test_fresh_reset_failure_releases_work_without_delivering_queued_guidance(tm
             "opened": True,
             "guidance": "steered",
             "taskStatus": "pending",
-            "taskError": "Pi session reset failed before the new Assignment Attempt started.",
+            "taskError": "Pi session reset failed before the assigned Work started.",
             "assignmentReleased": True,
             "promptCount": 0,
         }

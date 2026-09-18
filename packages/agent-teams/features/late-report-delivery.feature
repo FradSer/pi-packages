@@ -1,6 +1,7 @@
 Feature: Assignment completion and delayed report delivery have explicit meanings
   Scenario: Pi delivers an accepted report after its process has stopped
-    Given a worker report has already been handed to Pi during a leader tool call
+    Given a worker's current Work result was accepted after execution settled
+    And its report has already been handed to Pi during a leader tool call
     When the worker is shut down before that tool call finishes
     Then Pi still delivers the original report at the next safe boundary
     And the report is marked as delivered after the process stopped
@@ -9,7 +10,7 @@ Feature: Assignment completion and delayed report delivery have explicit meaning
     And delivery does not make the worker live again
 
   Scenario: A terminal report finishes an assignment, not a resident process
-    Given a terminal report from a resident worker
+    Given an accepted Work result from a resident worker
     When the finish entry is rendered
     Then it describes the assignment as finished
     And it does not describe the agent process as stopped

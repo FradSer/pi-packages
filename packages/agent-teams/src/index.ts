@@ -109,7 +109,7 @@ export default function (pi: ExtensionAPI) {
           const groups = groupReportsByTeammate(reports);
           const band = renderAgentMessageBand(
             groups.map((group) => ({ direction: "from", teammate: group.teammate, count: group.reports.length })),
-            { theme: effTheme, fit: truncateToWidth, expandHint: keyHint("app.tools.expand", "to expand") },
+            { theme: effTheme, fit: truncateToWidth, visibleWidth, wrapDetail: wrapTextWithAnsi, expandHint: keyHint("app.tools.expand", "to expand") },
           );
           if (!reports.some((report) => report.deliveredAfterStop)) return band;
           const box = new Box(0, 0);

@@ -55,7 +55,7 @@ import {
 let config: RecapConfig = readRecapConfig();
 
 function configuredModelLabel(): string {
-  return modelRef(config) ?? "(session default)";
+  return modelRef(config) ?? "session default";
 }
 
 function availableModels(ctx: ExtensionContext) {
@@ -150,6 +150,7 @@ export default function (pi: ExtensionAPI) {
     placement: "aboveEditor",
     fit: truncateToWidth,
     leadingSpaces: 1,
+    fallbackActivity: "",
   });
   let shouldRecap = false;
   let initialPromptRecapStarted = false;
@@ -175,10 +176,14 @@ export default function (pi: ExtensionAPI) {
     try {
       if (ctx.mode !== "tui") return;
 
-      if (!config.enabled || !generatingRecap) recapActivityWidget.clear(ctx);
-      else recapActivityWidget.update(ctx, [{ id: "recap", identity: "Recapping..." }]);
+      const generating = config.enabled && generatingRecap;
+      if (generating) {
+        recapActivityWidget.update(ctx, [{ id: "recap", identity: "Recapping..." }]);
+      } else {
+        recapActivityWidget.clear(ctx);
+      }
 
-      if (!config.enabled || !currentRecap) {
+      if (!config.enabled || !currentRecap || generating) {
         ctx.ui.setWidget("recap", undefined);
         return;
       }
@@ -319,7 +324,13 @@ export default function (pi: ExtensionAPI) {
       { title: "Select a model for recap generation:" },
     );
 
-    if (!result) return;
+    if (!result) {
+      // Dismissing the picker without a model is how the override is cleared.
+      if (!config.provider && !config.model) return;
+      saveConfig({ ...config, provider: undefined, model: undefined }, ctx);
+      notifyPi(ctx.ui, "Recap model reset to session default", "info");
+      return;
+    }
 
     saveConfig({ ...config, ...result }, ctx);
     notifyPi(ctx.ui, `Recap model set to ${result.provider}/${result.model}`, "info");
@@ -391,7 +402,6 @@ export default function (pi: ExtensionAPI) {
       `Auto-recap: ${config.autoRecap ? "on" : "off"}`,
       `Language: ${languageLabel(config.language)}`,
       `Model: ${configuredModelLabel()}`,
-      `Current recap: ${currentRecap || "(none)"}`,
       `Config file: ${recapConfigPath()}`,
     ].join("\n");
   }
@@ -402,15 +412,9 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    const modelDesc =
-      config.provider && config.model
-        ? `Model: ${configuredModelLabel()}`
-        : "Model: (session default)";
+    const modelDesc = `Model: ${configuredModelLabel()}`;
     const langDesc = `Language: ${languageLabel(config.language)}`;
-    const recapPreview = currentRecap
-      ? `Current recap: ${currentRecap}`
-      : "Current recap: (none)";
-    const title = `Recap: ${config.enabled ? "on" : "off"} · Auto: ${config.autoRecap ? "on" : "off"} · ${langDesc} · ${modelDesc}\n\n${recapPreview}\n\nRecap management:`;
+    const title = `Recap: ${config.enabled ? "on" : "off"} · Auto: ${config.autoRecap ? "on" : "off"} · ${langDesc} · ${modelDesc}\n\nRecap management:`;
 
     const toggleDisplay = config.enabled
       ? "Disable recap display"
@@ -422,14 +426,11 @@ export default function (pi: ExtensionAPI) {
     const options = [
       "Generate recap now",
       `Set recap language (current: ${languageLabel(config.language)})`,
-      `Select recap model${config.provider && config.model ? ` (current: ${configuredModelLabel()})` : ""}`,
+      `Select recap model (current: ${configuredModelLabel()})`,
       "Enter provider/model manually",
-      config.provider && config.model
-        ? "Clear model override (use session default)"
-        : "",
       toggleDisplay,
       toggleAuto,
-    ].filter(Boolean);
+    ];
 
     const choice = await ctx.ui.select(title, options);
     if (!choice) return;
@@ -448,9 +449,6 @@ export default function (pi: ExtensionAPI) {
       await chooseRecapModel(ctx);
     } else if (choice === "Enter provider/model manually") {
       await enterRecapModel(ctx);
-    } else if (choice.startsWith("Clear model override")) {
-      saveConfig({ ...config, provider: undefined, model: undefined }, ctx);
-      notifyPi(ctx.ui, "Recap model reset to session default", "info");
     } else if (choice === "Enable recap display") {
       saveConfig({ ...config, enabled: true }, ctx);
       notifyPi(ctx.ui, "Recap display enabled", "info");

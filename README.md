@@ -1,4 +1,4 @@
-# Frad's Pi Packages ![](https://img.shields.io/badge/packages-14-blue)
+# Frad's Pi Packages ![](https://img.shields.io/badge/packages-15-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -11,6 +11,10 @@ Native Pi packages for reusable skills, extensions, and workflow commands.
 ### [`@fradser/pi-agent-teams`](packages/agent-teams/)
 
 Compact `agent` delegation and shared `agent_event` communication for Pi. New work starts an independent session, fresh by default or forked from the Leader's context with `fork: true`; final answers return automatically. Work IDs target existing execution. Resident teams, board work, and peer messaging remain available.
+
+`agent start` creates unassigned presence without an initial model turn or fabricated Work ID; the public call awaits native readiness so immediate exact-session assignment needs no caller wait. Later autonomous board claims remain enabled. Recovery releases and reassigns the same Work after authority is actually released, rather than delegating competing duplicate Work.
+
+[Coordination guidance](packages/agent-teams/README.md#coordination-and-delivery) assigns one integration verification owner, binds review evidence to a candidate, and keeps implementation delivery pending until blocking reviews return and findings are resolved. Review-only work ends with its report; bounded rechecks receive an explicitly refreshed candidate brief. These are agent instructions, not a new scheduler or a runtime completion lock.
 
 **Tools:** `agent`, `work`, `agent_event`
 
@@ -48,7 +52,7 @@ pi install npm:@fradser/pi-context
 
 ### [`pi-continual-learning`](packages/continual-learning/)
 
-Learns durable memory and verifiable constraints from completed user tasks. Memory supplies relevant context before generation; Harness checks tool calls, assistant output, and configured file artifacts, with bounded corrective feedback. `/consolidate` also runs learning explicitly.
+Learns durable memory and scoped rules from completed user tasks. Memory supplies a bounded, discoverable index; flat Harness `rules` provide skill/text guidance and Bash messages, confirmation, or blocking. `/consolidate` also runs learning explicitly. Installed `policies`/`skillPrompts` retain their protections through read-only compatibility, including existing output/artifact checks; upgrades do not rewrite configuration or block unrelated commands merely because a file uses the older format.
 
 **Commands:** `/memory`, `/consolidate`, `/harness`
 
@@ -112,6 +116,18 @@ Runs background commands against an explicit result contract and reports one str
 
 ```bash
 pi install npm:@fradser/pi-monitor
+```
+
+### [`@fradser/pi-open-deskos`](packages/open-deskos/)
+
+Reports this machine's Pi sessions and their operating events to Open DeskOS over a package-initiated Desk Link, using the same bounded event rules as the runtime's local collector.
+
+**Command:** `/open-deskos`
+
+**Install:**
+
+```bash
+pi install npm:@fradser/pi-open-deskos
 ```
 
 ### [`@fradser/pi-plan-mode`](packages/plan-mode/)
@@ -195,7 +211,7 @@ The test suite requires Python 3 with `pytest` and Bun 1.4.1 for subprocess fixt
 
 Use `pnpm --dir packages/<name> pack --dry-run` to inspect one package's contents before publishing.
 
-Shared runtime helpers live in the internal [`@fradser/pi-kit`](packages/kit/) package. It is an internal workspace dependency and is not installable via `pi install`.
+Shared runtime helpers live in the internal [`@fradser/pi-kit`](packages/kit/) package. It is an internal workspace dependency and is not installable via `pi install`. Its lifecycle renderers show expansion hints only for supplementary display content or text hidden at the current width—not merely because tool results contain metadata. Consumer packages omit details that repeat the title while preserving full reports and actionable diagnostics.
 
 ## Adding a package
 

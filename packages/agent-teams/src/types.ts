@@ -1,5 +1,6 @@
 import type { Static } from "typebox";
 import { Type } from "typebox";
+import { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
 
 // ── Teammate ──────────────────────────────────────────────────────
 
@@ -126,6 +127,7 @@ export interface TaskIntent {
   taskId: string;
   worker: string;
   spawnId: string;
+  assignmentId?: string;
   status?: "completed" | "failed";
   result?: string;
   timestamp: number;
@@ -211,7 +213,7 @@ export interface InboxMessage {
 
 export const InlineAgentDefinitionParams = Type.Object({
   description: Type.String({ minLength: 1, description: "Routing contract for the generated Agent" }),
-  tools: Type.Optional(Type.Array(Type.String(), { description: "Pi tool ids for the Agent" })),
+  tools: Type.Optional(Type.Array(Type.String(), { description: `Explicit minimal tool grant. Canonical built-ins: ${WORKER_BUILTIN_TOOLS.join(", ")}. Omitted or [] means coordination-only (agent_event and work), with no file or shell access. No aliases or inherited leader extension tools.` })),
   model: Type.Optional(Type.String({ description: "Provider/model pin or inherit" })),
   verify: Type.Optional(Type.String({ description: "Default Work verification gate" })),
   worktree: Type.Optional(Type.Boolean({ description: "Dedicated Git worktree" })),

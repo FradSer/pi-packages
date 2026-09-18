@@ -1317,68 +1317,53 @@ def test_intermediate_worker_reports_reach_the_leader_queue(tmp_path: Path) -> N
 def test_terminal_report_closes_reporting_and_suppresses_following_reports(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ initTeamMachine, shutdownTeamMachine, drainTeammateOutboxes, sendLeaderMessage }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, getState }} from "{(SRC / "state.ts").as_uri()}";
+        import assert from "node:assert/strict";
+        import {{ initTeamMachine, shutdownTeamMachine, drainTeammateOutboxes, sendLeaderMessage, applyProgress }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createDirectWork, getState }} from "{(SRC / "state.ts").as_uri()}";
         import {{ stateFilePath, workerOutboxPath, appendWorkerEvent }} from "{(SRC / "statefile.ts").as_uri()}";
         const sent = [];
         const cwd = {str(tmp_path)!r};
-        initTeamMachine({{ sessionManager: undefined, cwd }}, {{ sendUpdate: (report) => sent.push(report), notifyChange: () => {{}} }});
+        initTeamMachine({{ cwd }}, {{ sendUpdate: (report) => sent.push(report), notifyChange() {{}} }});
         resetState();
         registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 0, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const outbox = workerOutboxPath(stateFilePath(undefined, cwd), "w", "s1");
-        appendWorkerEvent(outbox, {{ id: "evt1", type: "message", worker: "w", spawnId: "s1", body: "analysis", status: "in_progress" }});
-        appendWorkerEvent(outbox, {{ id: "evt2", type: "message", worker: "w", spawnId: "s1", body: "recommendation", status: "in_progress" }});
-        appendWorkerEvent(outbox, {{ id: "evt3", type: "message", worker: "w", spawnId: "s1", body: "review complete", status: "completed" }});
-        appendWorkerEvent(outbox, {{ id: "evt4", type: "message", worker: "w", spawnId: "s1", body: "assignment complete", status: "completed" }});
-        drainTeammateOutboxes();
-        const afterTerminal = {{
-          sent: sent.length,
-          mailbox: getState().leaderMailbox.length,
-          closed: getState().teammates.w.reportSequenceEnded === true,
-          idle: getState().teammates.w.status === "idle",
-          sequenceEnded: getState().teammates.w.sequenceEnded === true,
+        const start = (id) => {{
+          assert.ok(createDirectWork({{ id, subject: "Review", workerName: "w", resources: [],
+            assignment: {{ id: `attempt:${{id}}`, kind: "direct", resources: [] }} }}).ok);
+          applyProgress("w", "s1", {{ text: "", turns: 1, finalResponse: false }});
         }};
-        sent.length = afterTerminal.sent;
-        const replayBeforeWake = getState().leaderMailbox.length;
+        const report = (id, body, status) => appendWorkerEvent(outbox, {{ id, type: "message", worker: "w", spawnId: "s1",
+          assignmentId: getState().teammates.w.assignment?.id ?? getState().teammates.w.lastAssignment?.id, body, status }});
+        const settle = () => applyProgress("w", "s1", {{ text: "result", turns: 1, finalResponse: true }});
+        start("first");
+        report("evt1", "analysis", "in_progress");
+        report("evt2", "recommendation", "in_progress");
+        report("evt3", "review complete", "completed");
+        report("evt4", "assignment complete", "completed");
         drainTeammateOutboxes();
-        const replayAfterWake = getState().leaderMailbox.length;
-        const rejectedSteer = sendLeaderMessage("w", "please report again");
-        const reopened = sendLeaderMessage("w", "review a distinct follow-up assignment", {{ reopen: true }});
-        appendWorkerEvent(outbox, {{ id: "evt5", type: "message", worker: "w", spawnId: "s1", assignmentId: getState().teammates.w.assignment.id, body: "follow-up complete", status: "completed" }});
+        assert.equal(sent.length, 2, "Completion must wait for execution settlement");
+        settle();
+        report("evt-late", "duplicate complete", "completed");
         drainTeammateOutboxes();
-        console.log(JSON.stringify({{
-          afterTerminal,
-          sentBodies: sent.slice(0, afterTerminal.sent).map((report) => report.body),
-          rejectedSteer: rejectedSteer.ok ? rejectedSteer.outcome : rejectedSteer.error,
-          rejectedReport: rejectedSteer.ok && rejectedSteer.outcome === "not-sent" ? rejectedSteer.terminalReport : null,
-          reopened: reopened.ok,
-          reopenedPrior: reopened.ok ? (reopened.priorTerminalReport ?? null) : null,
-          afterNewSequence: sent.length,
-          mailboxAfterNewSequence: getState().leaderMailbox.length,
-          mailboxBodies: getState().leaderMailbox.map((message) => message.body),
-          replayBeforeWake,
-          replayAfterWake,
-        }}));
+        assert.equal(sent.length, 3);
+        const rejected = sendLeaderMessage("w", "please report again");
+        start("second");
+        report("evt5", "follow-up complete", "completed");
+        drainTeammateOutboxes();
+        assert.equal(sent.length, 3);
+        settle(); drainTeammateOutboxes();
+        console.log(JSON.stringify({{ rejected, bodies: sent.map(r => r.body),
+          mailbox: getState().leaderMailbox.map(r => r.body),
+          completed: Object.values(getState().tasks).map(t => t.status) }}));
         shutdownTeamMachine();
         '''
     )
-    rejected_steer = str(payload.pop("rejectedSteer"))
-    rejected_report = payload.pop("rejectedReport")
     assert payload == {
-        "afterTerminal": {"sent": 3, "mailbox": 3, "closed": True, "idle": False, "sequenceEnded": False},
-        "sentBodies": ["analysis", "recommendation", "review complete"],
-        "reopened": True,
-        "reopenedPrior": "review complete",
-        "afterNewSequence": 4,
-        "mailboxAfterNewSequence": 4,
-        "mailboxBodies": ["analysis", "recommendation", "review complete", "follow-up complete"],
-        "replayBeforeWake": 3,
-        "replayAfterWake": 3,
+        "rejected": {"ok": True, "outcome": "not-sent", "terminalReport": "review complete"},
+        "bodies": ["analysis", "recommendation", "review complete", "follow-up complete"],
+        "mailbox": ["analysis", "recommendation", "review complete", "follow-up complete"],
+        "completed": ["completed", "completed"],
     }
-    assert rejected_steer == "not-sent"
-    # The leader reads the recorded report directly from the structured result
-    # instead of steering the teammate into a duplicate resend.
-    assert rejected_report == "review complete"
 
 
 def test_worktree_cleanup_preserves_directory_when_commit_fails(tmp_path: Path) -> None:

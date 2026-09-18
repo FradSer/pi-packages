@@ -16,8 +16,8 @@ def test_reports_are_handed_off_without_waiting(tmp_path: Path, leader_idle: boo
     payload = run_node(
         f'''\
         import extension from "{(SRC / 'index.ts').as_uri()}";
-        import {{ drainTeammateOutboxes, shutdownTeamMachine }} from "{(SRC / 'team-machine.ts').as_uri()}";
-        import {{ registerTeammate }} from "{(SRC / 'state.ts').as_uri()}";
+        import {{ drainTeammateOutboxes, shutdownTeamMachine, applyProgress }} from "{(SRC / 'team-machine.ts').as_uri()}";
+        import {{ registerTeammate, createTask, setTaskClaimed, getTeammate }} from "{(SRC / 'state.ts').as_uri()}";
         import {{ appendWorkerEvent, stateFilePath, workerOutboxPath }} from "{(SRC / 'statefile.ts').as_uri()}";
         const hooks = new Map();
         const sent = [];
@@ -38,13 +38,18 @@ def test_reports_are_handed_off_without_waiting(tmp_path: Path, leader_idle: boo
         try {{
           registerTeammate({{ name: 'author', agent: 'worker', spawnId: 's1', pid: 0,
             status: 'working', isolation: 'none', createdAt: 1, updatedAt: 1 }});
+          const task = createTask({{ subject: 'Validate work' }}).task;
+          setTaskClaimed(task.id, 'author');
+          const assignmentId = getTeammate('author').assignment.id;
+          applyProgress('author', 's1', {{ text: '', turns: 1, finalResponse: false }});
           const outbox = workerOutboxPath(stateFilePath(undefined, cwd), 'author', 's1');
           for (const [id, body, status] of [
             ['e1', 'New evidence changes the scope', 'in_progress'],
             ['e2', 'Assignment complete with validation', 'completed'],
           ]) {{
-            appendWorkerEvent(outbox, {{ id, type: 'message', worker: 'author', spawnId: 's1', body, status, timestamp: 100 }});
+            appendWorkerEvent(outbox, {{ id, type: 'message', worker: 'author', spawnId: 's1', assignmentId, body, status, timestamp: 100 }});
             drainTeammateOutboxes();
+            if (status === 'completed') applyProgress('author', 's1', {{ text: body, turns: 1, finalResponse: true }});
           }}
           const beforeSettlement = sent.map((entry) => ({{
             eventId: entry.message.details.eventId,
@@ -63,10 +68,12 @@ def test_reports_are_handed_off_without_waiting(tmp_path: Path, leader_idle: boo
         ''',
         env_overrides={"PI_CODING_AGENT_DIR": str(tmp_path / "agent")},
     )
-    assert payload["beforeSettlement"] == [
-        {"eventId": "e1", "status": "in_progress", "deliverAs": "steer", "triggerTurn": True, "stamped": True},
-        {"eventId": "e2", "status": "completed", "deliverAs": "steer", "triggerTurn": True, "stamped": True},
-    ]
+    reports = payload["beforeSettlement"]
+    assert reports[0] == {"eventId": "e1", "status": "in_progress", "deliverAs": "steer", "triggerTurn": True, "stamped": True}
+    assert reports[1]["eventId"]
+    assert reports[1] | {"eventId": "accepted"} == {
+        "eventId": "accepted", "status": "completed", "deliverAs": "steer", "triggerTurn": True, "stamped": True,
+    }
     assert payload["afterSettlement"] == 2
 
 

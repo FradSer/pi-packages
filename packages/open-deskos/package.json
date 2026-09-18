@@ -1,0 +1,41 @@
+{
+  "name": "@fradser/pi-open-deskos",
+  "version": "0.1.0",
+  "description": "Report this machine's Pi sessions and their operating events to Open DeskOS over a package-initiated Desk Link",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "open-deskos",
+    "desk-link",
+    "reporting",
+    "observability",
+    "sessions"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "README.md"
+  ],
+  "dependencies": {
+    "@fradser/pi-kit": "workspace:*"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

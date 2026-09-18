@@ -20,6 +20,13 @@ Feature: Session Recap
     Then in-progress recap activity uses pi-kit's live activity widget
     And every completed recap row uses pi-kit's shared widget-row renderer
 
+  Scenario: Persisted recap entries stay out of the transcript
+    Given a persisted recap entry exists in the session branch
+    When Pi renders the session transcript
+    Then the recap extension registers no entry renderer
+    And the recap entry adds no TUI message row
+    And the recap appears only above the editor as "✦ Recap: <summary>"
+
   Scenario: Recap widget is displayed above the editor by default
     Given an active session in TUI mode
     When a turn completes with a user request and assistant response
@@ -124,7 +131,8 @@ Feature: Session Recap
   Scenario: /recap opens an interactive management menu
     Given an active session in TUI mode
     When the user runs /recap
-    Then an interactive select menu opens displaying the current recap, language, and management options
+    Then an interactive select menu opens showing the recap state, language, and management options
+    And the menu does not repeat the current recap text
 
   Scenario: Generate recap now bypasses same-exchange deduplication
     Given the current exchange already has a displayed recap
@@ -133,10 +141,13 @@ Feature: Session Recap
     And the displayed recap is replaced with the refreshed result
 
   Scenario: Model selection supports custom provider and model overrides
-    Given the recap management menu
+    Given the recap management menu offering one "Select recap model" option
     When the user selects a custom recap model
     Then the preference is persisted in recap.json
     And subsequent recap generations use the configured model
+    When the user dismisses the model picker without selecting a model
+    Then the stored model override is cleared
+    And recap generation falls back to the session default model
 
   Scenario: Language selection allows specifying target generation language
     Given the recap management menu
@@ -150,12 +161,12 @@ Feature: Session Recap
     Then the recap generator prompt includes the previous recap and the latest exchange
     And produces an updated progressive summary
 
-  Scenario: Recap shows a generation marker while refreshing
-    Given an active session in TUI mode
+  Scenario: Regeneration replaces the recap line with a generation marker
+    Given an active session in TUI mode with a visible recap
     When recap generation starts
-    Then the widget shows an animated "⠙ Recapping..." status line
-    And the recap content remains on its own "✦ Recap:" line
-    And the previous recap remains visible until the new recap is ready
+    Then the above-editor line shows only an animated "⠹ Recapping..."
+    And the generation marker carries no "· Working..." activity suffix
+    And the "✦ Recap:" line is hidden while generation is running
     When recap generation finishes
     Then the generation marker is replaced by the new recap
 
@@ -188,7 +199,7 @@ Feature: Session Recap
     Given recap generation does not complete before its timeout
     When the timeout is reached
     Then the request is cancelled
-    And the previous recap remains visible
+    And the previous recap is shown again
 
   Scenario: Pre-cancelled recap generation does not authenticate or complete
     Given recap generation receives an already aborted signal

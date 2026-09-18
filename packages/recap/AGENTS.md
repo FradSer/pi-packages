@@ -28,7 +28,9 @@ abort timeout, and stale-session error handling. Keep summaries single-line
 and capped at 120 characters. Persist changed recaps with `pi.appendEntry`
 and best-effort directory-session synchronization. Widgets and menus are TUI
 only; headless sessions and commands must not start generation. Keep the
-recap widget above the editor and preserve its native-spinner alignment.
+recap widget above the editor and preserve its native-spinner alignment. While
+generation runs, the recap line is replaced by the identity-only `Recapping...`
+activity row; never render the marker above a stale recap line.
 
 ## Testing Guidelines
 

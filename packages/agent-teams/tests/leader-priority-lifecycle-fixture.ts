@@ -18,7 +18,7 @@ const updates: Array<{ finalResponse?: boolean; controlError?: string }> = [];
 spawnResident({ workerName: "fixture", onUpdate: (update) => updates.push(update), onExit: () => {} });
 sendWorkerFollowUp("fixture", "peer");
 sendWorkerSteer("fixture", "leader active");
-assert.deepEqual(commands.map(({ type, streamingBehavior }) => ({ type, streamingBehavior })), [
+assert.deepEqual(commands.filter(({ type }) => type === "prompt").map(({ type, streamingBehavior }) => ({ type, streamingBehavior })), [
   { type: "prompt", streamingBehavior: "followUp" }, { type: "prompt", streamingBehavior: "steer" },
 ]);
 child.stdout.write(JSON.stringify({ type: "agent_start" }) + "\n");
@@ -47,8 +47,10 @@ try {
   appendWorkerEvent(outbox, { id: "terminal", type: "message", worker: "fixture", spawnId: "s", assignmentId: "old", body: "done", status: "completed" });
   drainTeammateOutboxes();
   assert.equal(getTeammate("fixture")?.status, "working", "Terminal report cannot settle execution");
-  const reopened = sendLeaderMessage("fixture", "distinct new work", { reopen: true });
-  assert.equal(reopened.ok, true);
+  const { deliverFreshAssignment } = await import("../src/spawner.ts");
+  // Exercise the transport after explicit lifecycle authorization, not a
+  // removed message-owned reopen operation.
+  const freshDelivery = deliverFreshAssignment("fixture", "[agent-teams-assignment:direct:new]\ndistinct new work");
   assert.equal(commands.at(-1)?.type, "new_session", "A new Assignment Attempt must reset working memory first");
   const resetId = commands.at(-1)?.id;
   assert.ok(resetId);
@@ -69,10 +71,7 @@ try {
   assert.equal(freshCommands[1]?.type, "prompt");
   assert.equal(freshCommands[1]?.streamingBehavior, "steer");
   assert.equal(freshCommands[1]?.message, "same-attempt guidance");
-  assert.notEqual(getTeammate("fixture")?.assignment?.id, "old");
-  appendWorkerEvent(outbox, { id: "late", type: "message", worker: "fixture", spawnId: "s", assignmentId: "old", body: "late", status: "completed" });
-  drainTeammateOutboxes();
-  assert.notEqual(getTeammate("fixture")?.assignment?.closed, true);
+  assert.equal(await freshDelivery, true);
 } finally {
   shutdownTeamMachine();
   rmSync(join(stateFilePath(undefined, cwd), ".."), { recursive: true, force: true });
