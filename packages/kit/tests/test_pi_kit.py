@@ -75,6 +75,7 @@ def test_feature_covers_spinner_theme_messages_and_dependency_hygiene() -> None:
     assert "Scenario: Overlay panels use the shared frame layout" in feature
     assert "Scenario: Passive console widgets use the shared row layout" in feature
     assert "Scenario: Live activity widgets share a lifecycle and row language" in feature
+    assert "renders an identity-only row without an activity suffix" in feature
     assert "Scenario: Custom transcript messages use the standard lifecycle renderer" in feature
     assert "Scenario: Custom native tools use the standard lifecycle result renderer" in feature
     assert "Scenario: Notifications use the shared portable UI abstraction" in feature
@@ -175,6 +176,35 @@ def test_live_activity_widget_remounts_after_host_disposal() -> None:
     mounted_calls = [call for call in result["calls"] if call["mounted"]]
     assert len(mounted_calls) >= 2, result["calls"]
     assert "after reload" in result["row"]
+
+
+def test_live_activity_widget_omits_the_activity_suffix_without_a_fallback() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createLiveActivityWidget }} from {json.dumps((SRC / "index.ts").as_uri())};
+        let component;
+        const ui = {{
+          setWidget(key, factory) {{
+            if (!factory) return;
+            component = factory({{ requestRender() {{}} }}, {{
+              fg: (_color, text) => text,
+              bold: (text) => text,
+            }});
+          }},
+        }};
+        const identityOnly = createLiveActivityWidget({{ key: "recap-activity", fit: (text) => text, fallbackActivity: "" }});
+        identityOnly.update({{ mode: "tui", ui }}, [{{ id: "recap", identity: "Recapping..." }}]);
+        const identityRow = component.render(80)[0];
+        const withDefaultFallback = createLiveActivityWidget({{ key: "other", fit: (text) => text }});
+        withDefaultFallback.update({{ mode: "tui", ui }}, [{{ id: "other", identity: "Dreaming..." }}]);
+        const fallbackRow = component.render(80)[0];
+        console.log(JSON.stringify({{ identityRow, fallbackRow }}));
+        """
+    )
+    assert "Recapping..." in result["identityRow"]
+    assert "·" not in result["identityRow"]
+    assert "Working..." not in result["identityRow"]
+    assert "Working..." in result["fallbackRow"]
 
 
 def test_spinner_constants_match_pi_native_loader() -> None:
@@ -959,6 +989,124 @@ def test_collapsed_lifecycle_rows_reserve_width_for_expand_hint() -> None:
     assert "ctrl+o to expand" in result["row"]
 
 
+def test_inline_expanded_subject_uses_native_wrapping_and_width_based_hints() -> None:
+    result = run_typescript(
+        f"""
+        import {{ stripVTControlCharacters }} from "node:util";
+        import {{ eventToolLifecycle, renderToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ truncateToWidth, visibleWidth, wrapTextWithAnsi }} from "@earendil-works/pi-tui";
+        const theme = {{ fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text }};
+        const subject = "to @audit · steered · " + "检查 café evidence ".repeat(25);
+        const spec = eventToolLifecycle("message", subject.trim(), {{ expandedSubject: subject.trim() }});
+        const rows = (width, expanded = false, value = spec) => renderToolLifecycle(value, {{
+          width, expanded, theme, fit: truncateToWidth, visibleWidth, wrapDetail: wrapTextWithAnsi,
+          expandHint: "ctrl+shift+e to expand",
+        }});
+        const content = (lines) => lines.slice(1, -1).map((line) => stripVTControlCharacters(line).slice(1).trimEnd());
+        const hint = " · ctrl+shift+e to expand";
+        const widths = [48, 90, 240];
+        const multiline = "to @audit · steered · first\\n\\n" + Array.from({{ length: 61 }}, (_, i) => `line-${{i}} ${{"complete ".repeat(8)}}`).join("\\n");
+        const expanded = content(rows(90, true, eventToolLifecycle("message", "preview", {{ expandedSubject: multiline }})));
+        const shortSpec = eventToolLifecycle("message", "to @audit · short", {{ expandedSubject: "to @audit · short" }});
+        const ordinary = eventToolLifecycle("other", "preview", {{ details: ["first", "second"] }});
+        console.log(JSON.stringify({{
+          collapsed: widths.map((width) => content(rows(width))),
+          expectedCollapsed: widths.map((width) => [stripVTControlCharacters(truncateToWidth(`[message] ${{subject.trim()}}`, width - 2 - visibleWidth(hint))) + hint]),
+          expanded: widths.map((width) => content(rows(width, true))),
+          expectedExpanded: widths.map((width) => wrapTextWithAnsi(`[message] ${{subject.trim()}}`, width - 2)),
+          allFit: widths.every((width) => [false, true].every((expanded) => rows(width, expanded).every((line) => visibleWidth(line) <= width))),
+          multiline: expanded,
+          expectedMultiline: wrapTextWithAnsi(`[message] ${{multiline}}`, 88).map((line) => line.trimEnd()),
+          short: content(rows(90, false, shortSpec)),
+          note: content(rows(90, false, {{ ...shortSpec, details: ["separate note"] }})),
+          tiny: content(rows(8)),
+          expectedTiny: wrapTextWithAnsi(hint, 6),
+          ordinary: content(rows(90, true, ordinary)),
+        }}));
+        """
+    )
+    assert result["collapsed"] == result["expectedCollapsed"]
+    assert result["expanded"] == result["expectedExpanded"]
+    assert result["allFit"] is True
+    assert result["multiline"] == result["expectedMultiline"]
+    assert result["short"] == ["[message] to @audit · short"]
+    assert result["note"] == ["[message] to @audit · short · ctrl+shift+e to expand"]
+    assert result["tiny"] == result["expectedTiny"]
+    assert result["ordinary"] == ["[other] preview", "first", "second"]
+
+
+def test_inline_subject_hints_ignore_opaque_result_metadata_in_all_factories() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createToolLifecycleMessageRenderer, createToolLifecycleResultRenderer, eventToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ truncateToWidth, visibleWidth, wrapTextWithAnsi }} from "@earendil-works/pi-tui";
+        const theme = {{ fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text }};
+        const options = {{
+          createSpec: () => eventToolLifecycle("message", "short", {{ expandedSubject: "short" }}),
+          fit: truncateToWidth, visibleWidth, wrapDetail: wrapTextWithAnsi, expandHint: "ctrl+o to expand",
+        }};
+        const value = {{ content: "model-only routing record", details: {{ internal: "metadata" }} }};
+        console.log(JSON.stringify({{
+          result: createToolLifecycleResultRenderer(options)(value, {{}}, theme, {{}}).render(90)[1].trim(),
+          message: createToolLifecycleMessageRenderer(options)(value, {{}}, theme).render(90)[1].trim(),
+        }}));
+        """
+    )
+    assert result == {"result": "[message] short", "message": "[message] short"}
+
+
+def test_context_shaped_research_rows_keep_a_distinct_query_and_complete_answer() -> None:
+    result = run_typescript(
+        f"""
+        import {{ bindLifecycleRenderers, contentDetailLines, eventToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ truncateToWidth, visibleWidth, wrapTextWithAnsi }} from "@earendil-works/pi-tui";
+        import {{ stripVTControlCharacters }} from "node:util";
+        const theme = {{ fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text }};
+        const rows = bindLifecycleRenderers({{
+          fit: truncateToWidth, visibleWidth, wrapDetail: wrapTextWithAnsi,
+          expandHint: "ctrl+o to expand",
+        }});
+        const answer = Array.from({{ length: 61 }}, (_, i) => `research finding ${{i}}`);
+        const result = {{ content: [{{ type: "text", text: answer.join("\\n") }}], details: {{ operation: "context-review" }} }};
+        const spec = eventToolLifecycle("context", "Research the lifecycle renderer", {{
+          label: "researched", details: contentDetailLines(result), detailLimit: "all",
+        }});
+        const renderer = rows.result(() => spec);
+        const content = (expanded) => renderer(result, {{ expanded }}, theme, {{}}).render(90)
+          .slice(1, -1).map((line) => stripVTControlCharacters(line).trim());
+        console.log(JSON.stringify({{ collapsed: content(false), expanded: content(true), answer }}));
+        """
+    )
+    assert result["collapsed"] == ["[context] researched · Research the lifecycle renderer · ctrl+o to expand"]
+    assert result["expanded"] == ["[context] researched · Research the lifecycle renderer", *result["answer"]]
+
+
+def test_incoming_message_bands_reserve_the_complete_configured_hint() -> None:
+    result = run_typescript(
+        f"""
+        import {{ renderAgentMessageBand }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ truncateToWidth, visibleWidth, wrapTextWithAnsi }} from "@earendil-works/pi-tui";
+        import {{ stripVTControlCharacters }} from "node:util";
+        const theme = {{ fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text }};
+        const hint = " · ctrl+shift+e to expand";
+        const render = (direction) => renderAgentMessageBand([{{ direction, teammate: "continual-audit-close" }}], {{
+          theme, fit: truncateToWidth, visibleWidth, wrapDetail: wrapTextWithAnsi,
+          expandHint: "ctrl+shift+e to expand",
+        }});
+        const content = (lines) => lines.slice(1, -1).map((line) => stripVTControlCharacters(line).slice(1).trimEnd());
+        console.log(JSON.stringify({{
+          hints: ["from", "to"].map((direction) => [48, 90, 240].every((width) => content(render(direction).render(width))[0].endsWith(hint))),
+          allFit: [1, 2, 8, 48, 90, 240].every((width) => render("from").render(width).every((line) => visibleWidth(line) <= width)),
+          tiny: content(render("from").render(8)),
+          expectedTiny: wrapTextWithAnsi(hint, 6),
+        }}));
+        """
+    )
+    assert result["hints"] == [True, True]
+    assert result["allFit"] is True
+    assert result["tiny"] == result["expectedTiny"]
+
+
 def test_agent_message_band_shares_the_report_row_language() -> None:
     result = run_typescript(
         f"""
@@ -1132,6 +1280,41 @@ def test_safe_display_text_sanitizes_terminal_output() -> None:
         """
     )
     assert result == {"ansi": "red", "osc": "EvilName", "control": "abc"}
+
+
+def test_safe_display_text_preserves_osc_hyperlink_labels() -> None:
+    result = run_typescript(r'''
+        import { safeDisplayText } from './packages/kit/src/index.ts';
+        const st = '\u001b\\', esc = '\u001b', bel = '\u0007';
+        console.log(JSON.stringify({
+          st: safeDisplayText(`Open ${esc}]8;;https://example.test${st}LINK-LABEL${esc}]8;;${st} after.`),
+          bel: safeDisplayText(`Open ${esc}]8;;https://example.test${bel}LINK-LABEL${esc}]8;;${bel} after.`),
+          c1: safeDisplayText('Open \u009d8;;https://example.test\u009cLINK-LABEL\u009d8;;\u009c after.'),
+          adjacent: safeDisplayText(`${esc}]0;hidden${st}First${esc}]0;hidden2${st}Second`),
+          mixed: safeDisplayText(`${esc}]0;hidden${bel}First${esc}]0;hidden2${st}Second`),
+          unfinished: safeDisplayText(`Visible ${esc}]0;hidden`),
+          controls: safeDisplayText(`${esc}[31mred${esc}[0m\nnext\tcolumn\u0007`),
+        }));
+    ''')
+    assert result == {
+        'st': 'Open LINK-LABEL after.', 'bel': 'Open LINK-LABEL after.',
+        'c1': 'Open LINK-LABEL after.', 'adjacent': 'FirstSecond',
+        'mixed': 'FirstSecond', 'unfinished': 'Visible ', 'controls': 'red\nnext\tcolumn',
+    }
+
+
+def test_handle_scrubbing_preserves_surrounding_literal_syntax() -> None:
+    result = run_typescript(r'''
+        import { scrubHandles } from './packages/kit/src/index.ts';
+        const message = 'Preserve this JSON: {"value":""}\nLiteral spacing: alpha ; beta !\nTwo quoted lines: "\n"';
+        console.log(JSON.stringify({
+          plain: scrubHandles(message),
+          addressed: scrubHandles(message + '\n"session:reader:spawn-1" ; work:e0cfae81-57dd-4b68-8b67-2103ed825cfd !', () => 'Fix spacing'),
+        }));
+    ''')
+    message = 'Preserve this JSON: {"value":""}\nLiteral spacing: alpha ; beta !\nTwo quoted lines: "\n"'
+    assert result['plain'] == message
+    assert result['addressed'] == message + '\n"@reader" ; Fix spacing !'
 
 
 def test_agent_display_helpers_share_labels_and_message_counts() -> None:

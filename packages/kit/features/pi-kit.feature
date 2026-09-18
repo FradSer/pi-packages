@@ -41,6 +41,50 @@ Feature: Shared pi-kit runtime helpers
     And a static result renderer keeps model-only result text out of the expandable user-facing row
     And a lifecycle row can show a compact multi-line summary while remaining expandable
 
+  Scenario: Lifecycle rows support an inline expanded subject
+    Given a lifecycle spec opts into a complete inline expanded subject
+    When its collapsed title exceeds the terminal display width
+    Then the title truncates to the remaining columns before the full configured expand hint
+    And a hint wider than the content area wraps using the injected native wrapper
+    When the row expands
+    Then the complete expanded subject replaces the preview and wraps with the styled prefix
+    And semantic line breaks and all subject lines survive without the detail limit
+    And a short fully visible subject has no expand hint unless separate details are hidden
+    And lifecycle specs without an inline expanded subject use their subject as the full title
+
+  Scenario: Every lifecycle factory expands only user-facing content
+    Given normal and static result and message factories receive model-only content and structured metadata
+    When their display spec has no extra visible details or hidden text
+    Then none of the four factories shows an expand hint
+    And adding unrelated machine metadata does not change the rendered rows
+    And a detail body containing only whitespace or terminal controls does not make a row expandable
+    And semantic blank lines within a nonempty detail body are preserved
+
+  Scenario: Long lifecycle titles and summaries can be read in full
+    Given a lifecycle row has a long or multiline title or summary without explicit expandedSubject
+    And the consumer supplies the native ANSI-aware wrapper
+    When the current width hides some of that text
+    Then the collapsed row shows the configured expand hint
+    And expansion wraps the full title and summary without losing semantic line breaks
+    And LF, CRLF, and bare CR line breaks never escape into a rendered terminal row
+    And trailing whitespace alone does not advertise expansion
+    And every rendered line stays within the current terminal width
+    When resizing makes all text visible and there are no hidden details
+    Then the expand hint disappears
+
+  Scenario: Expansion does not infer business semantics or rewrite readbacks
+    Given distinct details include repeated values or a complete original report
+    When the lifecycle row expands
+    Then the shared renderer preserves those details in order rather than guessing semantic duplicates
+    And consumer adapters omit facts already expressed by their title or summary
+    And the existing detail limit and explicit unbounded readback contract remain unchanged
+
+  Scenario: Low-level host expansion override remains explicit
+    Given a legacy host directly calls renderToolLifecycle with an explicit expandable override
+    When that host owns expansion outside the standard lifecycle body
+    Then the low-level override remains available for compatibility
+    And result and message factories never infer that override from machine metadata
+
   Scenario: Overlay panels use the shared frame layout
     Given an overlay has a header, body lines, and a footer
     When it uses renderPiPanel
@@ -77,6 +121,7 @@ Feature: Shared pi-kit runtime helpers
     When it updates a pi-kit live activity widget in TUI mode
     Then the widget is mounted at its declared editor placement
     And each active row uses the shared 120 ms braille spinner as "<spinner> <identity> · <latest activity>"
+    And a widget that configures no fallback activity renders an identity-only row without an activity suffix
     And the identity is bold and accented while activity is muted and width-bounded
     And completed, failed, and pending entries use stable terminal markers until their owner clears the widget
     And a later update replaces the visible activity instead of appending old activity
@@ -154,6 +199,19 @@ Feature: Shared pi-kit runtime helpers
     Given untrusted registry values containing ANSI, OSC, and control characters
     When safeDisplayText sanitizes them
     Then escape sequences are stripped and only printable text remains
+
+  Scenario: Display sanitization preserves visible terminal hyperlink labels
+    Given OSC-8 hyperlinks and adjacent control strings use BEL or ST terminators
+    When safeDisplayText sanitizes the message
+    Then each control sequence is removed independently
+    And every visible hyperlink label remains exactly once in source order
+    And unterminated control payloads cannot inject terminal actions
+
+  Scenario: Handle scrubbing does not rewrite surrounding message syntax
+    Given message text contains empty quoted strings, punctuation spacing and quoted line breaks
+    When runtime handles are replaced with human-readable names
+    Then only matched handles change
+    And literal quotes and whitespace outside those handles remain unchanged
 
   Scenario: Model reference is parsed from a provider/model string
     Given a valid "provider/model" string

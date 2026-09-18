@@ -19,7 +19,7 @@ no skills, and no extensions. Consumer packages declare it as
 - `renderPiPanel({ width, style, fit, title, body, footer })` — standard bordered panel geometry for overlays and full-screen consoles. Consumers keep interaction, scrolling, and Markdown rendering; pi-kit supplies the shared frame.
 - `computeScrollWindow(lines, scroll, maxBody)` — compute scroll window slice indices and clamped scroll offset for scrollable panels.
 - `renderPiWidgetRow(content, width, fit)` — one leading-space, width-bounded passive status-widget row aligned with Pi's native rows.
-- `createLiveActivityWidget(options)` — package-owned passive widget controller that renders one or more active rows as `<spinner> <identity> · <latest activity>` using Pi's native cadence. It owns TUI-only mounting, refresh, and disposal; callers retain worker state, activity extraction, and domain labels.
+- `createLiveActivityWidget(options)` — package-owned passive widget controller that renders one or more active rows as `<spinner> <identity> · <latest activity>` using Pi's native cadence. It owns TUI-only mounting, refresh, and disposal; callers retain worker state, activity extraction, and domain labels. A caller that passes `fallbackActivity: ""` asks for an identity-only `<spinner> <identity>` row with no activity suffix.
 - `setPiStatus` / `clearPiStatus` — sanitized set/clear adapters for package-owned transient status entries.
 - `startPiWorkingIndicator` / `clearPiWorkingIndicator` — start the shared native-cadence spinner or restore Pi's default indicator.
 
@@ -31,8 +31,22 @@ no skills, and no extensions. Consumer packages declare it as
 - `createToolLifecycleMessageRenderer(options)` — structural custom-message renderer factory using the lifecycle band.
 - `createStaticToolLifecycleMessageRenderer(options)` — compact custom-message factory that keeps model-only text out of the TUI row.
 - `createToolLifecycleResultRenderer(options)` — structural native-tool result renderer factory. Partial results render on the toolPendingBg band, settled results on toolSuccessBg, and errors on the shared toolErrorBg band (first error line as subject, remaining lines expandable); pi-kit owns every state so consumers cannot drift.
+- `bindLifecycleRenderers` + `eventToolLifecycle` — shared expansion path used by context research and coordination messages. Context keeps its query title plus distinct answer details (`detailLimit: "all"`). Titles and summaries wrap in full on expansion through the injected native wrapper; `expandedSubject` is only needed when the collapsed subject is an intentional preview. Width fitting, native wrapping, configured key hints, and theme bands remain in pi-kit.
 - `createStaticToolLifecycleResultRenderer(options)` — compact native-tool factory that keeps model-only text out of the TUI row.
+- `scrubHandles(text, resolve?)` — replaces runtime handles only. It preserves surrounding literal quotes, spacing, and line breaks; consumers that want prose cleanup apply that separately, never to exact message readbacks.
 - `notifyPi(ui, message, level)` — sanitized forwarding to Pi's native notification surface.
+
+### Meaningful expansion contract
+
+All four normal/static result/message factories use the same display-driven rule: an expand hint appears only when a bounded, nonempty `ToolLifecycleSpec.details` body is hidden, a full subject differs from its preview, or the current width hides title/summary text that expansion can reveal. Resizing recomputes the hint. Model-facing `content` and opaque `result.details` are not expansion signals; only their explicit projection into the display spec is.
+
+- Consumers put the outcome in `subject`/`label`, essential always-visible content in `summary`, and supplementary evidence in `details`. Do not repeat a title's action or identifier as a detail merely to make it expandable.
+- A short row with no supplementary information has no hint. Long or multiline titles and summaries use the injected native wrapper on expansion; collapsed summaries stay compact. Supply `wrapDetail` to recover width-clipped text. Legacy hosts without a wrapper can still expand explicit line breaks and detail bodies; pi-kit does not reimplement Pi's Unicode/ANSI wrapping.
+- All-whitespace or control-only bounded detail bodies are empty. Within a nonempty body, paragraph spacing and repeated values are preserved. Pi-kit does not guess business semantics or deduplicate original reports.
+- Error bands use the first error line as the title and subsequent evidence as details. They follow the same width/expansion rule.
+- `renderToolLifecycle` retains its explicit low-level `expandable` override for legacy hosts that own additional content outside the standard body. Standard factories never set it from machine metadata; new consumers should use the display spec instead.
+
+Read @features/pi-kit.feature when changing this contract and run `python3 -m pytest packages/kit/tests/ -q`. Consumer tests must also verify that removed display fields remain available in machine results and persisted state. With Pi installed, `tests/test_live_expansion.py` exercises the real offline CLI in print mode and a PTY, native host mouse expansion where supported (explicitly reported unavailable on older Pi), Ctrl+O, and 48/90/240-column resizing using a temporary home and scripted provider; it does not use user credentials or an external model.
 
 ### One-shot workers
 

@@ -42,10 +42,14 @@ export interface ToolLifecycleSpec {
   kind: ToolLifecycleKind;
   tool: string;
   subject: string;
+  /** Full text replacing an intentional preview on expansion. Defaults to
+   * subject; all titles wrap on expansion through the injected native wrapper. */
+  expandedSubject?: string;
   /** Optional semantic verb such as `created`, `listed`, `gathered`, or `to @name`. */
   label?: string;
-  /** Always-visible secondary lines, shown both collapsed and expanded. */
+  /** Always-visible secondary content: compact when collapsed, wrapped in full when expanded. */
   summary?: readonly string[];
+  /** Supplementary user-facing evidence, not raw result metadata or a title restatement. */
   details?: readonly string[];
   /** Default bounds expanded details to 50 lines; opt in only when every
    * line is required for a user-visible readback. */
@@ -74,13 +78,14 @@ export function startedToolLifecycle(
 export function eventToolLifecycle(
   tool: string,
   subject: string,
-  options: { label?: string; summary?: readonly string[]; details?: readonly string[]; detailLimit?: number | "all" } = {},
+  options: { label?: string; expandedSubject?: string; summary?: readonly string[]; details?: readonly string[]; detailLimit?: number | "all" } = {},
 ): ToolLifecycleSpec {
   return {
     kind: "event",
     tool,
     subject,
     label: options.label,
+    expandedSubject: options.expandedSubject,
     summary: options.summary,
     details: options.details,
     detailLimit: options.detailLimit,
@@ -94,7 +99,10 @@ export function formatToolLifecycleDetails(spec: ToolLifecycleSpec, maxLines = 5
     ? undefined
     : Math.max(0, typeof spec.detailLimit === "number" ? spec.detailLimit : maxLines);
   const details = spec.details ?? [];
-  return (limit === undefined ? details : details.slice(0, limit)).map((line) => safeDisplayText(line));
+  const visibleDetails = (limit === undefined ? details : details.slice(0, limit)).map((line) => safeDisplayText(line));
+  // An empty body is not an expansion affordance. Preserve paragraph spacing
+  // and repeated values when the bounded body does contain visible evidence.
+  return visibleDetails.some((line) => line.trim()) ? visibleDetails : [];
 }
 
 /** Return the first safe non-empty line from a failed tool result. */
@@ -126,7 +134,8 @@ export interface ToolLifecycleRenderOptions {
   expanded?: boolean;
   /** Host-resolved expand-key text, e.g. keyHint("app.tools.expand", "to expand"). */
   expandHint?: string;
-  /** Whether the row has expandable result metadata even when its body is empty. */
+  /** Legacy low-level host override for expansion owned outside this body.
+   * Standard factories derive hints only from display content, never metadata. */
   expandable?: boolean;
   theme: ToolLifecycleTheme;
   /** ANSI-aware width fit, e.g. pi-tui's truncateToWidth. */
@@ -146,6 +155,11 @@ export interface ToolLifecycleRenderOptions {
 /** Shared band geometry: every lifecycle row block renders in this style. */
 const BAND_PAD_X = 1;
 const BAND_PAD_Y = 1;
+
+/** Keep at least one content column when even the normal insets cannot fit. */
+function bandPaddingX(width: number): number {
+  return width > 2 * BAND_PAD_X ? BAND_PAD_X : 0;
+}
 
 /** pi's theme.bg emits `<bg-ansi><text>\x1b[49m`; recover the leading bg-ansi alone. */
 function bandBgPrefix(theme: ToolLifecycleTheme, bgToken: string): string {
@@ -169,10 +183,26 @@ function paintBand(
     // Re-apply the background immediately after every reset so the whole row —
     // ellipsis and padding included — stays on the uniform band color.
     ...rows.map((row) =>
-      bg(options.fit(`${" ".repeat(BAND_PAD_X)}${row}`, options.width, "", true).replaceAll("\x1b[0m", `\x1b[0m${prefix}`)),
+      bg(options.fit(`${" ".repeat(bandPaddingX(options.width))}${row}`, options.width, "", true).replaceAll("\x1b[0m", `\x1b[0m${prefix}`)),
     ),
     ...Array.from({ length: BAND_PAD_Y }, padRow),
   ];
+}
+
+/** Keep the host hint intact before allocating the remaining title columns.
+ * If the hint itself cannot fit, use the host's native wrapper when supplied. */
+function collapsedBandRows(
+  title: string,
+  hint: string,
+  width: number,
+  options: Pick<ToolLifecycleRenderOptions, "fit" | "visibleWidth" | "wrapDetail">,
+): string[] {
+  if (!hint) return [options.fit(title, width)];
+  const hintWidth = options.visibleWidth(hint);
+  if (hintWidth > width) {
+    return (options.wrapDetail?.(hint, width) ?? [hint]).map((line) => options.fit(line, width));
+  }
+  return [`${options.fit(title, width - hintWidth)}${hint}`];
 }
 
 /** Compose the report-row text language: label-colored prefix, colored @names, plain rest. */
@@ -195,43 +225,42 @@ export function renderToolLifecycle(
 ): string[] {
   if (options.width <= 0) return [];
   const { theme, fit } = options;
-  const contentWidth = Math.max(1, options.width - 2 * BAND_PAD_X);
+  const contentWidth = Math.max(1, options.width - 2 * bandPaddingX(options.width));
   const tag = `[${safeDisplayText(spec.tool)}]`;
   const label = spec.label === undefined ? "" : ` ${safeDisplayText(spec.label)} ·`;
   const headColor = options.isError ? "error" : options.isPending ? "warning" : "success";
   const head = theme.fg(headColor, theme.bold(`${tag}${label}`));
   const subjectText = safeDisplayText(spec.subject);
+  const expandedSubject = spec.expandedSubject === undefined ? undefined : safeDisplayText(spec.expandedSubject);
+  const title = `${head} ${styleSubject(subjectText, options)}`;
   const summary = (spec.summary ?? []).map((line) => safeDisplayText(line));
   const details = formatToolLifecycleDetails(spec);
-  // Structured metadata can make a result expandable even when its visible
-  // content body is empty (for example teammate_spawn's { started }).
-  const expandable = options.expandable ?? details.length > 0;
-  // Any lifecycle row with details can expand. Started rows remain compact
-  // until the host toggles them with its standard expand key.
+  const singleLine = (text: string) => text.replace(/\r\n|\r|\n/g, " ").trimEnd();
+  const wrap = (text: string) => (options.wrapDetail?.(text, contentWidth) ?? text.split(/\r\n|\r|\n/))
+    .map((line) => fit(line, contentWidth));
+  // Only advertise text we can actually reveal. Native wrapping is injected;
+  // without it, a legacy host can still reveal explicit line breaks or details.
+  const isHidden = (text: string) => {
+    const visibleText = text.trimEnd();
+    return visibleText.trim().length > 0 && (/[\r\n]/.test(visibleText)
+      || (options.wrapDetail !== undefined && options.visibleWidth(visibleText) > contentWidth));
+  };
+  const hiddenSubject = (expandedSubject !== undefined && expandedSubject.trimEnd() !== subjectText.trimEnd()) || isHidden(title);
+  const expandable = options.expandable ?? (details.length > 0 || hiddenSubject || summary.some(isHidden));
   const hint = expandable && !options.expanded
     ? theme.fg("dim", ` · ${options.expandHint ?? "to expand"}`)
     : "";
-  const title = `${head} ${styleSubject(subjectText, options)}`;
   const textToken = options.isError ? "error" : "customMessageText";
-  const summaryRows = summary.map((line) => fit(theme.fg(textToken, line), contentWidth));
+  const expandedTitle = `${head} ${styleSubject(expandedSubject ?? subjectText, options)}`;
   const rows = options.expanded
     ? [
-        fit(title, contentWidth),
-        ...summaryRows,
-        ...details.flatMap((detail) => {
-          const wrapped = options.wrapDetail
-            ? options.wrapDetail(detail, contentWidth)
-            : [detail];
-          return wrapped.map((line) => fit(theme.fg(textToken, line), contentWidth));
-        }),
+        ...wrap(expandedTitle),
+        ...summary.flatMap((line) => wrap(line).map((part) => theme.fg(textToken, part))),
+        ...details.flatMap((detail) => wrap(detail).map((line) => theme.fg(textToken, line))),
       ]
     : [
-        hint
-          ? options.visibleWidth(hint) >= contentWidth
-            ? fit(hint, contentWidth)
-            : `${fit(title, Math.max(0, contentWidth - options.visibleWidth(hint)))}${hint}`
-          : fit(title, contentWidth),
-        ...summaryRows,
+        ...collapsedBandRows(singleLine(title), hint, contentWidth, options),
+        ...summary.map((line) => fit(theme.fg(textToken, singleLine(line)), contentWidth)),
       ];
   return paintBand(rows, options);
 }
@@ -245,6 +274,9 @@ export interface AgentMessageRowSpec {
 
 export interface AgentMessageBandOptions {
   theme: ToolLifecycleTheme;
+  /** Native width and wrapping enable hint reservation on narrow terminals. */
+  visibleWidth?: ToolLifecycleRenderOptions["visibleWidth"];
+  wrapDetail?: ToolLifecycleRenderOptions["wrapDetail"];
   /** ANSI-aware width fit, e.g. pi-tui's truncateToWidth. */
   fit: (text: string, width: number, ellipsis?: string, pad?: boolean) => string;
   /** Host-resolved expand-key text, e.g. keyHint("app.tools.expand", "to expand"). */
@@ -265,13 +297,15 @@ export function renderAgentMessageBand(
     render: (width) => {
       if (width <= 0) return [];
       const { theme, fit } = options;
-      const contentWidth = Math.max(1, width - 2 * BAND_PAD_X);
+      const contentWidth = Math.max(1, width - 2 * bandPaddingX(width));
       const hint = theme.fg("dim", ` · ${options.expandHint ?? "to expand"}`);
-      const content = rows.map(({ direction, teammate, count }) => {
+      const content = rows.flatMap(({ direction, teammate, count }) => {
         const label = count === 1 || count === undefined ? "message" : `${count} messages`;
         const prefix = theme.fg("customMessageLabel", theme.bold(`[${label}] ${direction} `));
         const name = theme.fg(agentColor(teammate), `@${teammate}`);
-        return fit(`${prefix}${name}${hint}`, contentWidth);
+        return options.visibleWidth
+          ? collapsedBandRows(`${prefix}${name}`, hint, contentWidth, { ...options, visibleWidth: options.visibleWidth })
+          : [fit(`${prefix}${name}${hint}`, contentWidth)];
       });
       return paintBand(content, { ...options, width, bgToken: "customMessageBg" });
     },
@@ -408,7 +442,6 @@ export function createToolLifecycleMessageRenderer(
     const renderContent = (contentState: { expanded?: boolean }, currentTheme: ToolLifecycleTheme = theme) =>
       lifecycleComponent(spec, {
         expanded: contentState.expanded,
-        expandable: message.details !== undefined || details.length > 0,
         expandHint: options.expandHint,
         theme: currentTheme,
         fit: options.fit,
@@ -500,7 +533,6 @@ export function createToolLifecycleResultRenderer<T extends PiCustomMessageLike>
     const spec = options.createSpec(result, text, details);
     return lifecycleComponent(spec, {
       expanded: state.expanded,
-      expandable: result.details !== undefined || details.length > 0,
       expandHint: options.expandHint,
       theme,
       fit: options.fit,
@@ -572,7 +604,6 @@ function errorBandComponent(
     details,
   }, {
     expanded: state.expanded,
-    expandable: details.length > 0,
     expandHint: options.expandHint,
     theme: options.theme,
     fit: options.fit,
@@ -710,16 +741,15 @@ function defaultHandleWords(token: string): string {
 
 /** Scrub runtime handles from human text. `session:<name>:<id>` becomes `@name`;
  * other `prefix:<uuid>` handles use the resolver, falling back to a plain noun.
- * A bare identifier a person wrote themselves is not a handle and survives. */
+ * A bare identifier a person wrote themselves is not a handle and survives.
+ * Only matched handles change; literal punctuation, quotes and spacing stay intact. */
 export function scrubHandles(text: unknown, resolve?: HandleResolver): string {
   return displayText(text)
     .replace(SESSION_ROUTE, (route) => {
       const name = route.split(":")[1];
       return name ? `@${name}` : route;
     })
-    .replace(HANDLE_TOKEN, (token) => resolve?.(token.replace(/:$/, "")) ?? defaultHandleWords(token))
-    .replace(/"\s*"/g, "")
-    .replace(/[ \t]+([.,;:!?])/g, "$1");
+    .replace(HANDLE_TOKEN, (token) => resolve?.(token.replace(/:$/, "")) ?? defaultHandleWords(token));
 }
 
 /** Minimal structural `ctx.ui` surface for notifications. */
@@ -783,8 +813,11 @@ export function detailField<T>(details: unknown, key: string): T | undefined {
  */
 export function safeDisplayText(value: unknown): string {
   return String(value)
-    .replace(/\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001b\\)|[@-_])/g, "")
-    .replace(/(?:\u009b[0-?]*[ -/]*[@-~]|\u009d[^\u0007]*(?:\u0007|\u009c)|\u0090[^\u0007]*(?:\u0007|\u009c)|\u0098[^\u0007]*(?:\u0007|\u009c)|\u009e[^\u0007]*(?:\u0007|\u009c)|\u009f[^\u0007]*(?:\u0007|\u009c))/g, "")
+    // Consume each control string through its first terminator. A greedy OSC
+    // match swallows visible OSC-8 link labels between opening/closing escapes.
+    // An unterminated payload remains control data, not printable user text.
+    .replace(/(?:\u001b[\]PX^_]|[\u0090\u0098\u009d-\u009f])[\s\S]*?(?:\u0007|\u009c|\u001b\\|$)/g, "")
+    .replace(/(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]|\u001b[@-_]/g, "")
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u0080-\u009f]/g, "");
 }
 
@@ -912,6 +945,7 @@ export interface PiLiveActivityWidgetOptions {
   formatIdentity?: (identity: string, theme: PiThemeLike & { bold(text: string): string }) => string;
   /** Retain package-specific activity formatting without duplicating lifecycle mechanics. */
   formatActivity?: (activity: string, theme: PiThemeLike & { bold(text: string): string }) => string;
+  /** Row activity when an entry carries none; an explicit empty string renders an identity-only row. */
   fallbackActivity?: string;
   leadingSpaces?: number;
 }
@@ -1016,12 +1050,19 @@ function renderLiveActivityRow(
   const identity = options.formatIdentity
     ? options.formatIdentity(safeDisplayText(entry.identity), theme)
     : theme.fg("accent", theme.bold(safeDisplayText(entry.identity)));
-  const activityText = safeDisplayText(entry.activity?.trim() || options.fallbackActivity || "Working...");
-  const activity = options.formatActivity
-    ? options.formatActivity(activityText, theme)
-    : theme.fg("muted", activityText);
+  // `fallbackActivity: ""` is an explicit opt-out of the activity suffix.
+  const configuredActivity = entry.activity?.trim() || options.fallbackActivity;
+  const activityText = safeDisplayText(
+    configuredActivity === undefined ? "Working..." : configuredActivity,
+  );
+  const activity = activityText
+    ? options.formatActivity
+      ? options.formatActivity(activityText, theme)
+      : theme.fg("muted", activityText)
+    : "";
   const marker = liveActivityMarker(entry.status, frame, theme);
-  return renderPiWidgetRow(`${marker} ${identity} · ${activity}`, width, options.fit, options.leadingSpaces);
+  const label = activity ? `${marker} ${identity} · ${activity}` : `${marker} ${identity}`;
+  return renderPiWidgetRow(label, width, options.fit, options.leadingSpaces);
 }
 
 function liveActivityMarker(
