@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-import pathlib
+import re
 import subprocess
 import tempfile
 import textwrap
@@ -80,28 +80,44 @@ def test_feature_file_states_the_reported_contract() -> None:
 def test_every_documented_install_command_can_actually_work() -> None:
     """The documented install path must exist: an unpublished npm name silently
     sends an operator to a 404."""
-    readme = (PACKAGE / "README.md").read_text(encoding="utf-8")
-    commands = [
-        line.strip()
-        for line in readme.splitlines()
-        if line.strip().startswith("pi install ") and "npm:" not in line
-    ]
-    assert commands, "the README must document a working install command"
+    with tempfile.TemporaryDirectory(prefix="desk-install-test-") as temporary:
+        root = Path(temporary)
+        checkout = root / "checkout with spaces"
+        package = checkout / "packages" / "open-deskos"
+        package.mkdir(parents=True)
+        (package / "package.json").write_bytes((PACKAGE / "package.json").read_bytes())
+        home = root / "unrelated home"
+        (home / ".pi" / "agent").mkdir(parents=True)
+        bin_dir = root / "bin"
+        bin_dir.mkdir()
+        recorder = bin_dir / "pi"
+        recorder.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$PI_INSTALL_RECORD"\n')
+        recorder.chmod(0o755)
 
-    # The operator runs the documented steps in order, so resolve each install
-    # target against the directory the preceding `cd` established.
-    base = pathlib.Path.home() / ".pi" / "agent"
-    for line in readme.splitlines():
-        step = line.strip()
-        if step.startswith("cd "):
-            base = pathlib.Path(step.removeprefix("cd ").strip().replace("~", str(pathlib.Path.home())))
-        elif step in commands:
-            target = step.removeprefix("pi install ").strip()
-            resolved = (base / target).resolve() if target.startswith(".") else pathlib.Path(target).resolve()
-            assert resolved.exists(), f"documented install target does not exist: {step} (from {base})"
+        for filename in ("README.md", "README.zh-CN.md"):
+            readme = (PACKAGE / filename).read_text(encoding="utf-8")
+            recipes = [
+                block
+                for block in re.findall(r"```bash\n(.*?)```", readme, re.DOTALL)
+                if any(line.strip().startswith("pi install ") and "npm:" not in line for line in block.splitlines())
+            ]
+            assert recipes, f"{filename} must document a local install command"
+            for index, recipe in enumerate(recipes):
+                record = root / f"{filename}-{index}.args"
+                result = subprocess.run(
+                    ["/bin/sh", "-eu", "-c", recipe],
+                    cwd=checkout,
+                    env={"HOME": str(home), "PATH": str(bin_dir), "PI_INSTALL_RECORD": str(record)},
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=5,
+                )
+                assert result.returncode == 0, f"{filename}: {result.stdout}{result.stderr}"
+                assert record.read_text().splitlines() == ["install", str(package.resolve())], filename
 
-    for variable in ("ODK_DESK_LINK_ADDRESS", "ODK_DESK_LINK_TOKEN"):
-        assert variable in readme, f"the README must document {variable}"
+            for variable in ("ODK_DESK_LINK_ADDRESS", "ODK_DESK_LINK_TOKEN"):
+                assert variable in readme, f"{filename} must document {variable}"
 
 
 # ── Configuration boundary ──────────────────────────────────────────

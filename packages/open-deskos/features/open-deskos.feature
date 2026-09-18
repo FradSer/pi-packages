@@ -1,5 +1,11 @@
 Feature: Report this machine's Pi sessions to Open DeskOS
 
+  Scenario: Local installation works from any checkout location
+    Given the repository is checked out outside the user's home in a path containing spaces
+    When the user follows either language's local installation command from the checkout root
+    Then Pi receives the absolute path to the Open DeskOS package
+    And the command does not depend on a personal home-directory layout
+
   Scenario: A configured reporter opens a link and reports its session
     Given the machine has a Desk Link address and token
     When its Pi session starts

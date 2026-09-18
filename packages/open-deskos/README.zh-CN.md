@@ -8,14 +8,13 @@ Open DeskOS 通常靠扫描来发现 Pi 会话：本地扫，或经 SSH 扫。�
 
 ## 安装
 
-npm 包尚未发布，因此先从仓库按路径安装：
+从本地 checkout 安装时，请在仓库根目录运行：
 
 ```bash
-cd ~/.pi/agent
-pi install ../../Developer/FradSer/pi-packages/packages/open-deskos
+pi install "$(pwd -P)/packages/open-deskos"
 ```
 
-路径以 Pi 的设置目录为基准记录，所以要在该目录下运行。
+该命令记录包的绝对路径，不依赖个人 HOME 目录结构，也支持含空格的路径。请保留 checkout；Pi 会直接加载其中的本地文件。
 
 `@fradser/pi-open-deskos` 发布之后，改用 `pi install npm:@fradser/pi-open-deskos` 即可。
 

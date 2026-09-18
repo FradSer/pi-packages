@@ -8,14 +8,13 @@ Open DeskOS normally learns about Pi sessions by scanning a machine locally or o
 
 ## Install
 
-The npm package is not published yet, so install it from this repository:
+To install from this checkout, run the following from the repository root:
 
 ```bash
-cd ~/.pi/agent
-pi install ../../Developer/FradSer/pi-packages/packages/open-deskos
+pi install "$(pwd -P)/packages/open-deskos"
 ```
 
-The path is recorded relative to Pi's settings directory, so run it from there.
+The command records an absolute package path, so the checkout can live anywhere, including a directory with spaces. Keep the checkout in place; Pi loads the local files directly.
 
 Once `@fradser/pi-open-deskos` is published, `pi install npm:@fradser/pi-open-deskos` replaces that path.
 
