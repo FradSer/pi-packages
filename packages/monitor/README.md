@@ -17,7 +17,10 @@ noisy, long-running, or asynchronous work, including finite workflows such as
 dependency installation, builds, tests, deploys, and verification pipelines.
 In interactive sessions, `monitor_start` returns a compact acknowledgement and
 ends the current agent turn. Do not sleep, poll, wait, or do follow-up work;
-wait for the terminal result to wake the agent. In `pi --print` and JSON
+wait for the terminal result to wake the agent. While monitors run, one
+above-editor activity row per running monitor (`monitor · <description>`, Pi's
+native spinner cadence) keeps the background work visible even though the agent
+is idle; each row disappears with its terminal result. In `pi --print` and JSON
 sessions, it instead waits inside the tool call and returns that same terminal
 result directly, so it is not lost after the one-shot run ends. Other tools and
 commands remain available and are never blocked by the monitor. The terminal

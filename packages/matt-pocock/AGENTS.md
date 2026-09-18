@@ -34,14 +34,14 @@ The sync checker does not clone or fetch upstream.
 
 ## Gateway and Workflow Contracts
 
-- `/matt-pocock` is the single command menu for workflows, standalone capabilities, status, transitions, completion, and cancellation. Do not add one command per workflow or a second public skill surface.
+- `/matt-pocock` is the single command menu for workflows, standalone capabilities, status, transitions, completion, and cancellation. Do not add one command per workflow or a second public skill surface. Its input grammar is `<route|capability> [task]` — mirroring `/impeccable <capability> [request]` — plus `status`, `transition [target]`, `complete`, and `cancel [reason]`. A first word matching nothing is forwarded verbatim for autonomous routing rather than partially matched. Carry a supplied task into the procedure prompt as `User target/request:` and into the delivered row; never write it into the persisted workflow record.
 - `matt_pocock_workflow` is the baseline gateway. It starts a catalog workflow, runs a model-reachable standalone capability, or loads a reference disclosed by a standalone capability.
 - `matt_pocock_active` and `matt_pocock_ask` are active-state tools. Enable them only after workflow start or valid restore; remove them after completion, cancellation, failed restore validation, or inactive session start.
 - Persist each work item with a stable `workItemId`. Active records use `status: active`; terminal records preserve the identity and use `completed` or `cancelled`, with a cancellation reason when available.
 - Enforce the current catalog placement's `allowedNext` list for every transition. Invalid targets fail with allowed alternatives; never fall back to a route entry procedure. A valid transition resets loaded references.
 - The model can complete or cancel active work through `matt_pocock_active`; the command menu remains the user control surface. Standalone capabilities do not create persistent workflow state.
 - Inject the resolved bundle at start, transition, restore, or explicit reference load. Subsequent turns receive concise state guidance rather than every procedure body.
-- Preserve the existing compact lifecycle rows and `@fradser/pi-kit` notification, status, sanitization, and ask-rendering adapters.
+- Preserve the existing compact lifecycle rows and `@fradser/pi-kit` notification, status, sanitization, and ask-rendering adapters. User-invoked starts (`matt-pocock-procedure`) use pi-kit's verbatim block on the `userMessageBg` band: head row, blank band row, then the user's task or the readable phase/capability name. Agent-invoked tool rows stay inline and compact.
 
 ## Upstream Sync and Release
 

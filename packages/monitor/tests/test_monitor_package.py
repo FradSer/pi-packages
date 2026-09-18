@@ -465,31 +465,111 @@ def test_monitor_start_renderer_uses_the_shared_lifecycle_band() -> None:
     )
 
 
-def test_monitor_footer_status_uses_pi_kit_transient_status_adapter() -> None:
-    extension = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    assert "setPiStatus(ctx.ui, \"monitor\", text)" in extension
-    assert "clearPiStatus(ctx.ui, \"monitor\")" in extension
-    assert 'ctx.ui.setStatus("monitor", text)' not in extension
-
-
-def test_monitor_footer_status_uses_singular_and_plural_text_without_inspect_hint() -> None:
-    extension = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    assert 'count === 1 ? "1 monitor waiting" : `${count} monitors waiting`' in extension
-    status_update = extension.split("function updateFooterStatus", 1)[1].split("function setupMonitorFooter", 1)[0]
-    assert "result monitor(s) waiting" not in status_update
-    assert "/monitor to inspect" not in status_update
-
-
-def test_monitor_status_uses_the_native_footer_and_console_owns_input() -> None:
+def test_monitor_activity_uses_pi_kit_live_activity_widget() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
-    assert "setPiStatus(ctx.ui, \"monitor\", text)" in extension
-    assert "clearPiStatus(ctx.ui, \"monitor\")" in extension
-    assert 'setWidget("monitor"' not in extension
+    assert "createLiveActivityWidget({" in extension
+    assert 'key: "monitor"' in extension
+    assert 'placement: "aboveEditor"' in extension
+    assert "setPiStatus(" not in extension
+    assert "clearPiStatus(" not in extension
+    assert 'ctx.ui.setStatus("monitor"' not in extension
+    assert "monitor waiting" not in extension
+
+
+def test_monitor_activity_rows_are_mounted_per_running_monitor() -> None:
+    run_typescript(
+        r'''
+        import * as extensionModule from "./packages/monitor/index.ts";
+
+        const tools = new Map();
+        const handlers = new Map();
+        const widgetCalls = [];
+        let component;
+        const ui = {
+          setWidget(key, factory, options) {
+            widgetCalls.push({ key, mounted: Boolean(factory), placement: options?.placement });
+            component = factory === undefined ? undefined : factory(
+              { requestRender() {} },
+              { fg: (_color, text) => text, bold: (text) => text },
+            );
+          },
+        };
+        const pi = {
+          registerTool(tool) { tools.set(tool.name, tool); },
+          registerMessageRenderer() {},
+          registerCommand() {},
+          on(name, handler) {
+            const current = handlers.get(name) ?? [];
+            current.push(handler);
+            handlers.set(name, current);
+          },
+          sendMessage() {},
+          getActiveTools() { return ["monitor_start"]; },
+          setActiveTools() {},
+        };
+        extensionModule.default(pi);
+        for (const handler of handlers.get("session_start") ?? []) {
+          await handler({}, { mode: "tui", ui });
+        }
+        if (widgetCalls.length !== 0) throw new Error("activity widget mounted without a monitor");
+
+        const start = tools.get("monitor_start");
+        const stop = tools.get("monitor_stop");
+        const ctx = { cwd: process.cwd(), mode: "tui", ui };
+        const first = await start.execute("start-1", {
+          command: "sleep 30",
+          description: "first running monitor",
+          result_pattern: "NEVER_MATCHES",
+        }, undefined, undefined, ctx);
+        if (widgetCalls.length !== 1 || widgetCalls[0].key !== "monitor" ||
+            widgetCalls[0].mounted !== true || widgetCalls[0].placement !== "aboveEditor") {
+          throw new Error(JSON.stringify(widgetCalls));
+        }
+        const single = component.render(120);
+        if (single.length !== 1 || !single[0].includes("monitor \u00b7 first running monitor") || !single[0].includes("\u280b")) {
+          throw new Error(JSON.stringify(single));
+        }
+
+        await start.execute("start-2", {
+          command: "sleep 30",
+          description: "second running monitor",
+          result_pattern: "NEVER_MATCHES",
+        }, undefined, undefined, ctx);
+        const both = component.render(120);
+        if (both.length !== 2 ||
+            !both.some((line) => line.includes("first running monitor")) ||
+            !both.some((line) => line.includes("second running monitor"))) {
+          throw new Error(JSON.stringify(both));
+        }
+
+        await stop.execute("stop-1", { monitor_id: first.details.monitorId }, undefined, ctx);
+        const remaining = component.render(120);
+        if (remaining.length !== 1 || !remaining[0].includes("second running monitor")) {
+          throw new Error(JSON.stringify(remaining));
+        }
+
+        await stop.execute("stop-2", {}, undefined, ctx);
+        if (widgetCalls[widgetCalls.length - 1].mounted !== false) {
+          throw new Error("activity widget survived the last stop: " + JSON.stringify(widgetCalls));
+        }
+
+        for (const handler of handlers.get("session_shutdown") ?? []) await handler({}, { mode: "tui", ui });
+        ''',
+    )
+
+
+def test_monitor_activity_is_not_rendered_in_the_footer_and_the_console_owns_input() -> None:
+    extension = (SRC / "index.ts").read_text(encoding="utf-8")
+    assert "createLiveActivityWidget({" in extension
+    assert 'placement: "aboveEditor"' in extension
     assert 'placement: "belowEditor"' not in extension
+    assert "setPiStatus(" not in extension
+    assert "clearPiStatus(" not in extension
     assert "onTerminalInput" not in extension
     assert "ctx.ui.custom" in extension
     assert "handleInput" in extension
-    assert "updateFooterStatus" in extension
+    assert "syncMonitorActivity" in extension
+    assert "monitorActivity.clear(sessionUi)" in extension
     assert "requestRender = () => tui.requestRender()" in extension
     assert "isKeyRelease(data)" in extension
     assert 'monitorRows.result(' in extension

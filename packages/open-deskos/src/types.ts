@@ -12,6 +12,8 @@ export const DESK_LINK_PROTOCOL = 1;
 export const MAX_EVENTS_PER_SESSION = 60;
 export const MAX_EVENT_TEXT = 200;
 export const MAX_RESULT_BYTES = 65536;
+/** An assistant reply keeps its Markdown body; prose stays bounded smaller. */
+export const MAX_MESSAGE_BYTES = 16384;
 export const MAX_SESSION_EVENT_BYTES = 262144;
 
 export type SessionStatus = "running" | "settled" | "exited";
@@ -24,7 +26,8 @@ export interface SessionEvent {
   text: string;
   /** Result-only label, kept outside the Markdown body. */
   toolName?: string;
-  /** Present only when a result body was shortened. */
+  /** Present only when a result or assistant body was shortened. */
+  /** Present only when a result or assistant body was shortened. */
   truncated?: true;
 }
 

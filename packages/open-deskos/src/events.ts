@@ -1,6 +1,7 @@
 import {
   MAX_EVENT_TEXT,
   MAX_EVENTS_PER_SESSION,
+  MAX_MESSAGE_BYTES,
   MAX_RESULT_BYTES,
   MAX_SESSION_EVENT_BYTES,
   type SessionEvent,
@@ -20,25 +21,33 @@ export function boundEventText(value: unknown, max = MAX_EVENT_TEXT): string {
   return "";
 }
 
-/** Apply the result-body bound without flattening or prefixing its Markdown. */
+/** Kinds that carry a rendered body rather than a one-line summary. */
+const BODY_KINDS = new Set(["result", "assistant"]);
+
+/**
+ * Apply the body bound without flattening or prefixing its Markdown. A tool
+ * result and an assistant reply keep their line structure so the desk can
+ * render them the way Pi does; summaries stay one bounded line.
+ */
 export function boundSessionEvent(event: SessionEvent): SessionEvent | null {
-  if (event.kind !== "result") {
+  if (!BODY_KINDS.has(event.kind)) {
     const text = boundEventText(event.text);
     return text ? { kind: event.kind, text } : null;
   }
   if (!event.text.trim()) return null;
+  const maxBytes = event.kind === "assistant" ? MAX_MESSAGE_BYTES : MAX_RESULT_BYTES;
   const bytes = Buffer.from(event.text, "utf8");
   let text = event.text;
   let truncated = event.truncated === true;
-  if (bytes.length > MAX_RESULT_BYTES) {
-    let end = MAX_RESULT_BYTES;
+  if (bytes.length > maxBytes) {
+    let end = maxBytes;
     // A byte limit must never bisect a UTF-8 code point.
     while (end > 0 && (bytes[end]! & 0xc0) === 0x80) end -= 1;
     text = bytes.subarray(0, end).toString("utf8");
     truncated = true;
   }
   const toolName = boundEventText(event.toolName);
-  return { kind: "result", text, ...(toolName ? { toolName } : {}), ...(truncated ? { truncated: true } : {}) };
+  return { kind: event.kind, text, ...(toolName ? { toolName } : {}), ...(truncated ? { truncated: true } : {}) };
 }
 
 /** Keep a contiguous newest tail within both the event-count and UTF-8 budgets. */
@@ -159,11 +168,12 @@ export function eventsFromMessage(message: unknown): SessionEvent[] {
       if (text) events.push({ kind: "tool", text });
       continue;
     }
-    if (view.role === "assistant" && isText(part)) {
-      const text = boundEventText(part.text);
-      if (text) events.push({ kind: "assistant", text });
-      continue;
-    }
+    // The reply body is added once, after its thinking and tool calls.
+  }
+  if (view.role === "assistant") {
+    // One reply may stream as several text parts; Pi reads them as one body.
+    const said = parts.filter((part): part is TextPart => isText(part) && part.text.trim().length > 0);
+    if (said.length > 0) events.push({ kind: "assistant", text: said.map((part) => part.text).join("\n\n") });
   }
   return events;
 }

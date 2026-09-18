@@ -12,6 +12,7 @@ Feature: Result-contract background monitoring
     And an interactive tool call returns immediately without blocking
     And the tool result terminates the current agent turn
     And the agent remains idle until the terminal result arrives
+    And the running monitor keeps an above-editor activity row visible while the agent is idle
     And ordinary stdout and stderr do not wake the agent
 
   Scenario: Tool guidance keeps the description, the sentinel, and the pattern in separate fields
@@ -262,30 +263,26 @@ Feature: Result-contract background monitoring
     When the extension notifies the user
     Then it delegates notification sanitization and delivery to pi-kit
 
-  Scenario: Monitor footer status uses the shared Pi-kit transient-status adapter
-    Given a monitor is waiting or has finished
-    When the extension updates its monitor footer status
-    Then it sets the visible text through pi-kit's status adapter
-    And it clears the monitor entry through pi-kit's status adapter when no monitor is waiting
+  Scenario: Monitor activity uses the shared Pi-kit live activity widget
+    Given a monitor is running
+    When the extension refreshes its monitor activity
+    Then it mounts one above-editor activity row per running monitor through pi-kit's live activity widget
+    And the row uses Pi's native spinner cadence with the `monitor` identity and the monitor description as activity
+    And it clears the activity row when no monitor is running
+    And it does not write a transient footer status entry
 
-  Scenario: The monitor status is rendered after the native footer
-    Given one or more result monitors are waiting
-    When the TUI renders the footer
-    Then the working directory and token statistics appear first
-    And the monitor waiting status appears below the native footer lines
-    And the monitor status is not rendered above the editor
+  Scenario: The monitor activity is rendered above the editor instead of below the input
+    Given one or more result monitors are running
+    When the TUI renders the input area
+    Then the monitor activity appears above the editor as a spinner row
+    And nothing about running monitors appears in the footer below the directory and usage lines
 
-  Scenario: A single waiting monitor uses singular status text without an inspect hint
-    Given one result monitor is waiting
-    When the TUI renders the footer
-    Then the monitor status reads `1 monitor waiting`
-    And the monitor status does not include `/monitor to inspect`
-
-  Scenario: Multiple waiting monitors use plural status text without an inspect hint
-    Given two result monitors are waiting
-    When the TUI renders the footer
-    Then the monitor status reads `2 monitors waiting`
-    And the monitor status does not include `/monitor to inspect`
+  Scenario: Every running monitor keeps its own activity row
+    Given two result monitors are running
+    When the TUI renders the monitor activity
+    Then two above-editor activity rows appear, one per running monitor
+    And each row carries that monitor's description as its activity
+    And a finished or stopped monitor's row is removed without disturbing the remaining rows
 
   Scenario: The monitor extension does not intercept bash tool calls
     Given the monitor extension is loaded

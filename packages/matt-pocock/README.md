@@ -12,6 +12,8 @@ pi install npm:pi-matt-pocock
 
 `/matt-pocock` starts or manages persisted workflows and runs standalone capabilities. A single `procedureCatalog` manifest classifies bundled resources as workflow procedures, standalone capabilities, references, or assets, and defines their dependencies, disclosures, workflow placement, and legal transitions.
 
+The command takes `<route|capability> [task]`, mirroring `/impeccable <capability> [request]`: the first word selects, the rest is your own task, and that task is carried into the procedure prompt and shown in the transcript row. `status` reports the active work item, `transition [target]` moves to a catalog-legal next procedure, `complete` closes it, and `cancel [reason]` records why. An input whose first word matches no route, capability, or action is forwarded verbatim for autonomous routing and supersedes any active workflow; the task itself is never written into the persisted workflow record.
+
 The package enforces strict engineering disciplines adapted for coding agents:
 - **BDD-first verification**: Executable Gherkin (`Given`/`When`/`Then`) scenarios in `.feature` files define acceptance criteria before coding.
 - **Two-axis code review**: Independent evaluation along the Standards and Spec axes, sealed with a mandatory **Refute-before-PASS** red-team verification protocol.
@@ -117,10 +119,21 @@ Workflow lifecycle subjects use the readable title of the phase recorded at that
 
 | Operation | Lifecycle line |
 | --- | --- |
-| Start a workflow | `[matt pocock] started · <Phase Title>` |
+| `/matt-pocock <route> [task]` start, menu start, or menu transition | `[matt pocock] started` block, then the task or the readable phase title |
+| Agent-invoked workflow start (`matt_pocock_workflow`) | `[matt pocock] started · <Phase Title>` |
 | Transition to a phase | `[matt pocock] event · <Phase Title>` |
 | Complete the workflow | `[matt pocock] event · <Phase Title> completed` |
 | Cancel the workflow | `[matt pocock] event · <Phase Title> cancelled` |
+
+A user-invoked start mirrors `/impeccable`: the head row carries only the label, a blank band row separates it from the body, and the whole block paints on Pi's native user-message band (`userMessageBg`). The body is the user's own task verbatim when they supplied one, otherwise the readable phase or capability name:
+
+```text
+[matt pocock] started
+
+fix the login redirect
+```
+
+Every authored task line keeps its own row, long lines wrap instead of merging, and the block never advertises expansion. Agent-invoked starts stay on the compact inline row because a tool call has no user text to echo.
 
 For example, a `hard-bug` workflow that reaches code review before completion renders:
 
@@ -151,7 +164,7 @@ Expansion shows information not already visible in the row:
 - Cancellation expands to `reason · <stored reason>` only when that result's terminal snapshot has a nonblank reason. The reason appears once, never as `action · cancel`, and is not taken from the current workflow. Missing, empty, or whitespace-only reasons add no detail or hint.
 - At narrower widths, Pi-kit's shared renderer can offer expansion to wrap a clipped title or summary with Pi's native wrapping. Model-only content and metadata do not themselves create an expand hint.
 
-The `matt-pocock-procedure` message renderer uses the same phase-only `started` line for visible procedure messages already in the transcript. Session restoration reinjects guidance silently (`display: false`), without a duplicate lifecycle event. Saved active-tool results with old route-based subjects are rendered from their recorded phase and action, not the session's current workflow; no session-data migration is needed.
+The `matt-pocock-procedure` message renderer owns that block layout. A `/matt-pocock` route or capability start (including a freeform routing request and the menu's "Start a task") delivers the procedure through this displayed message instead of posting the procedure text as a user message, while the model still receives the complete body plus any `User target/request:` section. Session restoration reinjects guidance silently (`display: false`), without a duplicate lifecycle event. Saved active-tool results with old route-based subjects are rendered from their recorded phase and action, not the session's current workflow; no session-data migration is needed.
 
 ### Other Lifecycle Displays
 
@@ -163,7 +176,7 @@ These operations keep their own subjects rather than substituting a workflow pha
 - **`matt_pocock_ask`**: `[matt pocock] ask · <question>`, with the answer or pending status below. Timeout, no-UI, and custom-input metadata remain available on expansion without repeating the answer.
 - **Fallback**: `[matt pocock] event · workflow updated` when no action or subject is available.
 
-For offline verification in the real Pi CLI, run `uv run --no-project packages/matt-pocock/tests/live_smoke.py` from the repository root. It checks print mode, interactive terminal rows, Ctrl+O expansion, and resizing to 48 columns with a scripted provider and temporary home; it does not use your credentials or call an external model.
+For offline verification in the real Pi CLI, run `uv run --no-project packages/matt-pocock/tests/live_smoke.py` from the repository root. It checks print mode, interactive terminal rows, Ctrl+O expansion, resizing to 48 columns, and `/matt-pocock hard-bug fix the login redirect` delivering one block row on the user-message band, with a scripted provider and temporary home; it does not use your credentials or call an external model.
 
 ## Configuration
 

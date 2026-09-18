@@ -90,6 +90,10 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, snapshots: Pa
         return any(row["kind"] == "render" and row["width"] == width and row["expanded"] is expanded
                    for row in read_snapshots(snapshots))
 
+    def has_message(width: int) -> bool:
+        return any(row["kind"] == "message" and row["width"] == width and "[matt pocock]" in "\n".join(row["lines"])
+                   for row in read_snapshots(snapshots))
+
     try:
         wait_for(lambda: b"MP_PHASE_LIVE_READY" in transcript and has_render(120, False))
         rows = read_snapshots(snapshots)
@@ -131,9 +135,31 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, snapshots: Pa
         for row in read_snapshots(snapshots):
             if row["kind"] == "render":
                 assert all("\n" not in line and len(line) <= row["width"] for line in row["lines"]), row
+        # `/matt-pocock <route> [task]` delivers one impeccable-style block, never a user message.
+        resize(120)
+        process.send_signal(signal.SIGWINCH)
+        wait_for(lambda: has_render(120, False))
+        os.write(master, b"\x1b[200~/matt-pocock hard-bug fix the login redirect\x1b[201~\r")
+        wait_for(lambda: has_message(120))
+        procedure = [row for row in read_snapshots(snapshots) if row["kind"] == "message" and row["width"] == 120][-1]
+        content = [line.strip() for line in procedure["lines"][1:-1]]
+        assert procedure["customType"] == "matt-pocock-procedure", procedure
+        assert content == ["[matt pocock] started", "", "fix the login redirect"], procedure["lines"]
+        assert procedure["details"]["route"] == "hard-bug", procedure
+        assert procedure["details"]["phase"] == "feedback-loop", procedure
+        assert procedure["details"]["status"] == "active", procedure
+        assert procedure["details"]["request"] == "fix the login redirect", procedure
+        assert "48;2;52;53;65" in "\n".join(procedure["raw"]), "the block is not on pi's user-message band"
+        assert "to expand" not in "\n".join(procedure["lines"]), procedure
+        assert "procedure/" not in "\n".join(procedure["lines"]), procedure
+        assert all("\n" not in line and len(line) <= 120 for line in procedure["lines"]), procedure
         os.write(master, b"/quit\r")
         wait_for(lambda: process.poll() is not None)
         assert process.returncode == 0
+        # The model-facing prompt never reaches the terminal; the block row stands in for it.
+        rendered = transcript.decode(errors="replace")
+        for leak in ("Matt Pocock workflow procedure", "User target/request"):
+            assert leak not in rendered, rendered[-3000:]
         return sorted(set(headers))
     finally:
         if process.poll() is None:

@@ -417,6 +417,7 @@ def test_menu_context_auto_start_forwards_conversation_context() -> None:
           on() {}, registerCommand(name, command) { commands.set(name, command); }, registerTool() {},
           appendEntry(customType, data) { entries.push({ customType, data }); },
           sendUserMessage(message, options) { sent.push({ message, options }); },
+          sendMessage(message, options) { sent.push({ message, options }); },
         });
         await commands.get("matt-pocock").handler("", {
           hasUI: true,
@@ -426,11 +427,13 @@ def test_menu_context_auto_start_forwards_conversation_context() -> None:
     """)
     assert result["entries"] == []
     assert len(result["sent"]) == 1
-    message = result["sent"][0]["message"]
-    assert "recent conversation context" in message
-    assert "matt_pocock_workflow" in message
-    assert "Begin immediately once the route is clear" in message
-    assert result["sent"][0]["options"] == {"deliverAs": "followUp"}
+    delivery = result["sent"][0]
+    assert "recent conversation context" in delivery["message"]["content"]
+    assert "matt_pocock_workflow" in delivery["message"]["content"]
+    assert "Begin immediately once the route is clear" in delivery["message"]["content"]
+    assert delivery["message"]["customType"] == "matt-pocock-procedure"
+    assert delivery["message"]["details"] == {"request": ""}
+    assert delivery["options"] == {"deliverAs": "followUp", "triggerTurn": True}
 
 
 def test_menu_context_auto_start_supersedes_active_workflow() -> None:
@@ -444,6 +447,7 @@ def test_menu_context_auto_start_supersedes_active_workflow() -> None:
           registerTool(tool) { tools.set(tool.name, tool); },
           appendEntry(customType, data) { entries.push({ customType, data }); },
           sendUserMessage(message, options) { sent.push({ message, options }); },
+          sendMessage(message, options) { sent.push({ message, options }); },
           getActiveTools() { return activeTools; }, setActiveTools(names) { activeTools = names; },
         };
         mattPocock(pi);
@@ -462,8 +466,9 @@ def test_menu_context_auto_start_supersedes_active_workflow() -> None:
     assert terminal["workItemId"] == result["entries"][0]["data"]["workItemId"]
     assert "Superseded" in terminal["reason"]
     assert len(result["sent"]) == 1
-    assert "previous active workflow has been cancelled" in result["sent"][0]["message"]
-    assert "recent conversation context" in result["sent"][0]["message"]
+    content = result["sent"][0]["message"]["content"]
+    assert "previous active workflow has been cancelled" in content
+    assert "recent conversation context" in content
 
 
 def test_inactive_guidance_advertises_workflows_and_model_capabilities() -> None:
@@ -563,12 +568,12 @@ def test_tool_and_message_rendering_preserves_compact_lifecycle_rows() -> None:
     assert any("B" in row for row in result["askRows"])
     assert all("\n" not in row for row in result["askRows"])
     workflow_content = next(row for row in result["workflowRows"] if "[matt pocock] started ·" in row)
-    message_content = next(row for row in result["messageRows"] if "[matt pocock] started ·" in row)
+    message_rows = [row.strip() for row in result["messageRows"][1:-1]]
     assert len(result["workflowRows"]) == 3
     assert "[matt pocock] started · Shaping & Requirements" in workflow_content
     assert "Procedure body" not in workflow_content
-    assert "[matt pocock] started · Shaping & Requirements" in message_content
-    assert "Restored body" not in message_content
+    assert message_rows == ["[matt pocock] started", "", "Shaping & Requirements"]
+    assert "Restored body" not in "\n".join(result["messageRows"])
 
 
 def test_ask_expands_only_genuine_decision_metadata() -> None:

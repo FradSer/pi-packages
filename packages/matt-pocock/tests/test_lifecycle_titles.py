@@ -132,6 +132,13 @@ def assert_phase_row(rows: list[str], label: str, phase: str, route: str, route_
     assert f"[matt pocock] {label} · {route_title} · {PHASE_TITLES[phase]}" not in header
 
 
+def assert_phase_block(rows: list[str], phase: str, route: str) -> None:
+    """Messages render the head, a blank band row, then the body."""
+    content = [row.strip() for row in rows[1:-1]]
+    assert content == ["[matt pocock] started", "", PHASE_TITLES[phase]]
+    assert route not in "\n".join(rows)
+
+
 @pytest.mark.parametrize("route", ROUTES)
 def test_workflow_start_rows_use_only_entry_phase(lifecycle_results: dict[str, object], route: str) -> None:
     start = next(item for item in lifecycle_results["starts"] if item["route"] == route)
@@ -151,7 +158,7 @@ def test_restored_procedure_rows_use_recorded_phase(lifecycle_results: dict[str,
     phases = [item for item in lifecycle_results["phases"] if item["route"] == route]
     assert phases
     for item in phases:
-        assert_phase_row(item["rows"], "started", item["state"]["phase"], route, item["routeTitle"])
+        assert_phase_block(item["rows"], item["state"]["phase"], route)
         assert item["restored"]["message"]["details"] == item["state"]
         assert item["restored"]["message"]["display"] is False
         assert item["restored"]["options"] == {"deliverAs": "nextTurn"}

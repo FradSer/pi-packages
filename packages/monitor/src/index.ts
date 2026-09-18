@@ -5,7 +5,7 @@ import {
   type ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import { isKeyRelease, Key, matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { bindLifecycleRenderers, clearPiStatus, contentDetailLines, createPiThemeStyle, detailField, eventToolLifecycle, fieldLine, notifyPi, renderPiPanel, safeDisplayText, setPiStatus } from "@fradser/pi-kit";
+import { bindLifecycleRenderers, contentDetailLines, createLiveActivityWidget, createPiThemeStyle, detailField, eventToolLifecycle, fieldLine, notifyPi, renderPiPanel, safeDisplayText } from "@fradser/pi-kit";
 import {
   MonitorManager,
   type Monitor,
@@ -30,17 +30,43 @@ const monitorRows = bindLifecycleRenderers({
 
 export default function (pi: ExtensionAPI) {
   let requestRender: (() => void) | undefined;
-  let footerStatus: ((text: string | undefined) => void) | undefined;
+  let sessionUi: { mode: string; ui: ExtensionUIContext } | undefined;
   let monitorStopRegistered = false;
+
+  const monitorActivity = createLiveActivityWidget({
+    key: "monitor",
+    placement: "aboveEditor",
+    fit: truncateToWidth,
+  });
 
   const manager = new MonitorManager({
     onTerminal(monitor, result) {
       requestRender?.();
-      updateFooterStatus();
-      syncMonitorStopToolDisclosure();
+      syncMonitorUi();
       if (monitor.notifyTerminal) deliverTerminal(monitor, result);
     },
   });
+
+  /** One above-editor spinner row per running monitor; cleared when none remain. */
+  function syncMonitorActivity(): void {
+    const running = manager.list();
+    if (running.length === 0) {
+      monitorActivity.clear(sessionUi);
+      return;
+    }
+    monitorActivity.update(sessionUi, running.map((monitor) => ({
+      id: monitor.id,
+      identity: "monitor",
+      activity: monitor.description,
+      status: "running" as const,
+    })));
+  }
+
+  /** Keep the running-monitor activity rows and the monitor_stop disclosure in step. */
+  function syncMonitorUi(): void {
+    syncMonitorStopToolDisclosure();
+    syncMonitorActivity();
+  }
 
   function syncMonitorStopToolDisclosure(): void {
     if (!monitorStopRegistered) return;
@@ -54,7 +80,7 @@ export default function (pi: ExtensionAPI) {
 
   function stopMonitors(id?: string): { stopped: string[] } {
     const result = manager.stop(id);
-    syncMonitorStopToolDisclosure();
+    syncMonitorUi();
     return result;
   }
 
@@ -72,21 +98,6 @@ export default function (pi: ExtensionAPI) {
     } catch {
       // The session may be shutting down.
     }
-  }
-
-  function updateFooterStatus(): void {
-    if (!footerStatus) return;
-    const count = manager.list().length;
-    footerStatus(count === 0 ? undefined : count === 1 ? "1 monitor waiting" : `${count} monitors waiting`);
-  }
-
-  function setupMonitorFooter(ctx: { mode: string; ui: ExtensionUIContext }): void {
-    if (ctx.mode !== "tui") return;
-    footerStatus = (text) => {
-      if (text === undefined) clearPiStatus(ctx.ui, "monitor");
-      else setPiStatus(ctx.ui, "monitor", text);
-    };
-    updateFooterStatus();
   }
 
   function openMonitorConsole(ctx: { ui: ExtensionUIContext }): Promise<void> {
@@ -197,13 +208,14 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    setupMonitorFooter(ctx);
-    syncMonitorStopToolDisclosure();
+    sessionUi = { mode: ctx.mode, ui: ctx.ui };
     requestRender?.();
+    syncMonitorUi();
   });
 
   pi.on("session_shutdown", async () => {
-    footerStatus = undefined;
+    monitorActivity.clear(sessionUi);
+    sessionUi = undefined;
     try {
       await manager.stopAllOnShutdown();
     } finally {
@@ -266,8 +278,7 @@ export default function (pi: ExtensionAPI) {
         notifyTerminal: !waitInToolCall,
       });
       requestRender?.();
-      updateFooterStatus();
-      syncMonitorStopToolDisclosure();
+      syncMonitorUi();
       if (waitInToolCall) {
         try {
           const terminal = await manager.waitForTerminal(monitor.id, signal);
@@ -311,7 +322,6 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params) {
       const result = stopMonitors(params.monitor_id);
       requestRender?.();
-      updateFooterStatus();
       if (result.stopped.length === 0) {
         throw new Error(params.monitor_id
           ? `No active monitor with id ${params.monitor_id}.`
@@ -343,7 +353,7 @@ export default function (pi: ExtensionAPI) {
       }
       await openMonitorConsole(ctx);
       requestRender?.();
-      updateFooterStatus();
+      syncMonitorUi();
     },
   });
 

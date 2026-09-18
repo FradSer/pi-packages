@@ -168,7 +168,8 @@ def test_events_come_from_messages_with_complete_tool_result_bodies() -> None:
           query: summarizeToolCall("ffgrep", { query: "index" }),
           bare: summarizeToolCall("work", {}),
           bounded: boundEventText(long).length,
-          noNewline: eventsFromMessage({ role: "assistant", content: [{ type: "text", text: "a\nb" }] })[0].text,
+          assistantBody: eventsFromMessage({ role: "assistant", content: [{ type: "text", text: "a\nb" }] })[0].text,
+          assistantParts: eventsFromMessage({ role: "assistant", content: [{ type: "text", text: "one" }, { type: "text", text: "two" }] })[0].text,
         }));
         '''
     )
@@ -186,7 +187,9 @@ def test_events_come_from_messages_with_complete_tool_result_bodies() -> None:
     assert result["query"] == "search: index"
     assert result["bare"] == "work"
     assert result["bounded"] == 200
-    assert result["noNewline"] == "a"
+    # An assistant reply keeps its line structure and its text parts are one body.
+    assert result["assistantBody"] == "a\nb"
+    assert result["assistantParts"] == "one\n\ntwo"
 
 
 # ─ Reporter contract ───────────────────────────────────────────────

@@ -56,6 +56,18 @@ import {
 } from "./workflow.ts";
 
 const ACTIVE_TOOLS = ["matt_pocock_active", "matt_pocock_ask"] as const;
+const PROCEDURE_ENTRY = "matt-pocock-procedure";
+
+/** Session details for one delivered procedure: a workflow state, a standalone capability, and the user's own task. */
+type ProcedureDetails = Partial<WorkflowState> & { mode?: string; capability?: string; request?: string };
+
+/** The block body: the user's own task when given, otherwise what they started. */
+function procedureSubject(details: ProcedureDetails): string {
+  const request = details.request?.trim();
+  if (request) return request;
+  if (details.phase) return readablePhaseTitle(details.phase);
+  return details.capability ?? "";
+}
 
 function stringEnum(values: string[], options?: Record<string, unknown>) {
   return Type.Unsafe<string>({ type: "string", enum: values, ...options });
@@ -114,6 +126,11 @@ function refreshActiveTools(active: boolean): void {
   pi.setActiveTools(active ? [...withoutActive, ...ACTIVE_TOOLS] : withoutActive);
 }
 
+/** Deliver a procedure as one lifecycle row: users see their own task, the model sees the whole body. */
+function deliverProcedure(content: string, details: ProcedureDetails): void {
+  pi.sendMessage({ customType: PROCEDURE_ENTRY, content, display: true, details }, { deliverAs: "followUp", triggerTurn: true });
+}
+
 function persistWorkflow(state: WorkflowState | TerminalWorkflowState): void {
   pi.appendEntry(WORKFLOW_STATE_ENTRY, state);
   activeWorkflow = state.status === "active" ? state : undefined;
@@ -142,16 +159,21 @@ function stateContract(state: WorkflowState, action: string): string {
   return `\n\n## Workflow state contract\n- Addressed: ${state.workItemId} · ${state.route} · ${state.procedure}\n- Synchronous action: ${action}\n- Allowed next: ${placement?.allowedNext.join(", ") || "none"}\n- Available references: ${availableReferences(state).join(", ") || "none"}\n- Pending: workflow remains active\n- Next actor: agent`;
 }
 
-function workflowPrompt(state: WorkflowState, action: string): string {
-  const bundle = resolveWorkflowContext(state.procedure, state.loadedReferences);
-  return `# Matt Pocock workflow procedure\n\nRoute: ${state.route}\nPhase: ${state.phase}\nWork item: ${state.workItemId}\n\n${bundle.content}${stateContract(state, action)}`;
+/** Delivered to the model, never rendered: the user's own words belong in the prompt. */
+function userRequestSection(request: string): string {
+  return request ? `\n\nUser target/request:\n${request}` : "";
 }
 
-function standalonePrompt(capability: string): string {
+function workflowPrompt(state: WorkflowState, action: string, request = ""): string {
+  const bundle = resolveWorkflowContext(state.procedure, state.loadedReferences);
+  return `# Matt Pocock workflow procedure\n\nRoute: ${state.route}\nPhase: ${state.phase}\nWork item: ${state.workItemId}\n\n${bundle.content}${userRequestSection(request)}${stateContract(state, action)}`;
+}
+
+function standalonePrompt(capability: string, request = ""): string {
   const definition = findProcedure(capability);
   if (!definition?.standalone) throw new Error(`Unknown standalone Matt Pocock capability: ${capability}`);
   const bundle = resolveProcedureBundle(definition.id);
-  return `# Matt Pocock standalone capability\n\nCapability: ${definition.id}\nPersistent workflow state: none\nAvailable references: ${bundle.availableReferences.join(", ") || "none"}\n\n${bundle.content}`;
+  return `# Matt Pocock standalone capability\n\nCapability: ${definition.id}\nPersistent workflow state: none\nAvailable references: ${bundle.availableReferences.join(", ") || "none"}\n\n${bundle.content}${userRequestSection(request)}`;
 }
 
 function standaloneReferencePrompt(capability: string, reference: string): string {
@@ -207,14 +229,26 @@ async function chooseRoute(ctx: ExtensionCommandContext): Promise<void> {
   if (!route) return;
   const state = startWorkflow(route);
   clearPiStatus(ctx.ui, "matt-pocock");
-  pi.sendUserMessage(workflowPrompt(state, "started workflow"), { deliverAs: "followUp" });
+  deliverProcedure(workflowPrompt(state, "started workflow"), { ...state, request: "" });
 }
 
 async function chooseCapability(ctx: ExtensionCommandContext): Promise<void> {
   const choice = await ctx.ui.select("Run Matt Pocock capability", capabilityChoices());
   if (!choice) return;
   const capability = capabilityFromChoice(choice);
-  if (capability) pi.sendUserMessage(standalonePrompt(capability), { deliverAs: "followUp" });
+  if (capability) deliverProcedure(standalonePrompt(capability), { mode: "capability", capability, request: "" });
+}
+
+/** Apply one catalog-legal transition, whether chosen from the menu or named on the command. */
+function applyTransition(ctx: ExtensionCommandContext, target: string): void {
+  if (!activeWorkflow) {
+    notifyPi(ctx.ui, "No active Matt Pocock workflow.", "warning");
+    return;
+  }
+  const state = transitionState(activeWorkflow, target);
+  resolveProcedureBundle(state.procedure);
+  persistWorkflow(state);
+  deliverProcedure(workflowPrompt(state, `transitioned to ${state.procedure}`), { ...state, request: "" });
 }
 
 async function chooseTransition(ctx: ExtensionCommandContext): Promise<void> {
@@ -229,10 +263,7 @@ async function chooseTransition(ctx: ExtensionCommandContext): Promise<void> {
   }
   const choice = await ctx.ui.select(`Transition ${activeWorkflow.route} from ${activeWorkflow.procedure}`, next);
   if (!choice) return;
-  const state = transitionState(activeWorkflow, choice);
-  resolveProcedureBundle(state.procedure);
-  persistWorkflow(state);
-  pi.sendUserMessage(workflowPrompt(state, `transitioned to ${state.procedure}`), { deliverAs: "followUp" });
+  applyTransition(ctx, choice);
 }
 
 function completeWorkflow(ctx: ExtensionContext): void {
@@ -288,7 +319,7 @@ function startFromContext(ctx: ExtensionCommandContext): void {
     persistWorkflow(terminalState("cancelled", "Superseded by a new /matt-pocock context routing request."));
   }
   clearPiStatus(ctx.ui, "matt-pocock");
-  pi.sendUserMessage(contextRoutingPrompt(cancelledWorkflow), { deliverAs: "followUp" });
+  deliverProcedure(contextRoutingPrompt(cancelledWorkflow), { request: "" });
 }
 
 function workflowRoutingPrompt(prompt: string, cancelledWorkflow: boolean): string {
@@ -316,7 +347,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       refreshActiveTools(true);
       clearPiStatus(ctx.ui, "matt-pocock");
       pi.sendMessage({
-        customType: "matt-pocock-procedure",
+        customType: PROCEDURE_ENTRY,
         content,
         display: false,
         details: record,
@@ -336,10 +367,15 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
   });
 
   if (typeof pi.registerMessageRenderer === "function") {
-    pi.registerMessageRenderer("matt-pocock-procedure", (message, options, theme) => {
-      const details = (message.details ?? {}) as Partial<WorkflowState>;
-      const subject = readablePhaseTitle(details.phase ?? "active");
-      return mattPocockRows.message(() => startedToolLifecycle("matt pocock", subject, { label: "started" }))(message, options, theme);
+    pi.registerMessageRenderer(PROCEDURE_ENTRY, (message, options, theme) => {
+      const details = (message.details ?? {}) as ProcedureDetails;
+      // The user's own task stays verbatim in a block under the head, on pi's native user-message band.
+      return mattPocockRows.message(() => startedToolLifecycle("matt pocock", procedureSubject(details), {
+        label: "started",
+        verbatimSubject: true,
+        subjectBlock: true,
+        bgToken: "userMessageBg",
+      }))(message, options, theme);
     });
   }
 
@@ -654,33 +690,39 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       const command = args.trim();
       if (!command) {
         if (!ctx.hasUI) {
-          notifyPi(ctx.ui, "Usage: /matt-pocock <route | capability | status | transition | complete | cancel>", "error");
+          notifyPi(ctx.ui, "Usage: /matt-pocock <route | capability> [task] | status | transition [target] | complete | cancel [reason]", "error");
           return;
         }
         await showMenu(ctx);
         return;
       }
-      if (command === "status") return showStatus(ctx);
-      if (command === "transition") {
+      // `<route|capability> [task]` mirrors /impeccable: the first word selects, the rest is the user's own task.
+      const token = command.match(/^\S+/)?.[0] ?? command;
+      const task = command.slice(token.length).trim();
+      if (token === "status" && !task) return showStatus(ctx);
+      if (token === "transition" && !task) {
         if (!ctx.hasUI) {
-          notifyPi(ctx.ui, "Choose a transition from the interactive /matt-pocock menu.", "error");
+          notifyPi(ctx.ui, "Name a target: /matt-pocock transition <target>, or use the interactive menu.", "error");
           return;
         }
         return chooseTransition(ctx);
       }
-      if (command === "complete") return completeWorkflow(ctx);
-      if (command === "cancel" || command === "end") return cancelWorkflow(ctx, `Cancelled by user with /matt-pocock ${command}.`);
+      if (token === "transition") return applyTransition(ctx, task);
+      if (token === "complete" && !task) return completeWorkflow(ctx);
+      if (token === "cancel" || token === "end") {
+        return cancelWorkflow(ctx, task || `Cancelled by user with /matt-pocock ${token}.`);
+      }
 
-      if (findWorkflowRoute(command)) {
+      if (findWorkflowRoute(token)) {
         if (activeWorkflow) throw new Error(`Workflow ${activeWorkflow.workItemId} is already active.`);
-        const state = startWorkflow(command);
+        const state = startWorkflow(token);
         clearPiStatus(ctx.ui, "matt-pocock");
-        pi.sendUserMessage(workflowPrompt(state, "started workflow"), { deliverAs: "followUp" });
+        deliverProcedure(workflowPrompt(state, "started workflow", task), { ...state, request: task });
         return;
       }
-      const capability = findProcedure(command);
+      const capability = findProcedure(token);
       if (capability?.standalone) {
-        pi.sendUserMessage(standalonePrompt(capability.id), { deliverAs: "followUp" });
+        deliverProcedure(standalonePrompt(capability.id, task), { mode: "capability", capability: capability.id, request: task });
         return;
       }
 
@@ -689,7 +731,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         const terminal = terminalState("cancelled", "Superseded by a new /matt-pocock routing request.");
         persistWorkflow(terminal);
       }
-      pi.sendUserMessage(workflowRoutingPrompt(command, cancelledWorkflow), { deliverAs: "followUp" });
+      deliverProcedure(workflowRoutingPrompt(command, cancelledWorkflow), { request: command });
     },
   });
 }

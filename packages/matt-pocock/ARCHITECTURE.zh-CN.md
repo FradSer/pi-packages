@@ -84,11 +84,19 @@ route、procedure、phase、workItemId 和状态的持久化结构不变，模�
 - 取消提示只在该结果保存的终止快照包含非空白原因时，展开显示一次 `reason · <stored reason>`，不显示 `action · cancel`，也不读取当前工作流的原因。缺失、空字符串或纯空白原因均不会新增详情或展开提示。
 - 窄终端中的标题或摘要被截断时，由 Pi-kit 共享渲染器提供展开，并使用 Pi 原生换行恢复完整文本；本包不自行计算宽度。仅供模型使用的正文与 metadata 不会触发展开提示。
 
-已有可见 `matt-pocock-procedure` 消息同样按阶段标题渲染；恢复会话时仅静默注入 guidance（`display: false`），不新增重复的启动行。旧工具结果即使保存了 route 风格的 subject，也根据该事件保存的 phase 和 action 重新渲染，不读取当前工作流的可变状态，无需迁移会话数据。
+`matt-pocock-procedure` 消息渲染器负责这条块状提示。用户从 `/matt-pocock` 启动 route/独立能力、用自由文本触发路由、或在菜单里选 “Start a task” 时，procedure 都通过这条可见消息交付，而不是把正文当 user message 贴出：
+
+```text
+[matt pocock] started
+
+fix the login redirect
+```
+
+head 单独成行，一个空行分隔，随后是用户自己的任务原文（未提供任务时用可读的阶段标题或能力 id）；整块使用 Pi 原生 user-message 底色（`userMessageBg`），逐行保留换行、过长自动换行，且不提供展开。模型侧仍收到完整正文和 `User target/request:` 段落。恢复会话时仅静默注入 guidance（`display: false`），不新增重复的启动行。旧工具结果即使保存了 route 风格的 subject，也根据该事件保存的 phase 和 action 重新渲染，不读取当前工作流的可变状态，无需迁移会话数据。
 
 独立能力、参考资料和提问保留各自的展示对象：`started · <capability>`、`started · <capability> · <reference>`、`event · loaded <reference>` 和 `ask · <question>`，不替换成工作流阶段。提问的答案或待定状态保持可见，超时、无 UI 和自定义输入等有效 metadata 仍可展开查看，不重复答案。
 
-从仓库根目录运行 `uv run --no-project packages/matt-pocock/tests/live_smoke.py`，可在真实 Pi CLI 中验证 print 模式、交互终端提示、Ctrl+O 展开和缩至 48 列。脚本使用临时 HOME 与离线脚本化 provider，不读取用户凭证或调用外部模型。
+从仓库根目录运行 `uv run --no-project packages/matt-pocock/tests/live_smoke.py`，可在真实 Pi CLI 中验证 print 模式、交互终端提示、Ctrl+O 展开、缩至 48 列，以及 `/matt-pocock hard-bug fix the login redirect` 只产生一块 user-message 底色的块状提示。脚本使用临时 HOME 与离线脚本化 provider，不读取用户凭证或调用外部模型。
 
 ## 协作验证与完成门槛
 

@@ -14,6 +14,13 @@ Feature: Matt Pocock workflow harness
     Then it persists diagnosing-bugs as the current procedure at the feedback-loop phase
     And it injects the diagnosing-bugs procedure into the session
 
+  Scenario: A route or capability start carries the user's task
+    Given the user invokes /matt-pocock with a catalog route or standalone capability followed by a task
+    When the harness starts it
+    Then the delivered procedure prompt carries that task as the user's target/request
+    And the row shows that task instead of the phase or capability name
+    And persisted workflow state keeps route, phase, and work-item identity only
+
   Scenario: Active workflow state survives a session restart
     Given the harness persisted a workflow route and phase in a custom session entry
     When the session starts again on that branch
@@ -26,6 +33,12 @@ Feature: Matt Pocock workflow harness
     When the user invokes /matt-pocock with an arbitrary engineering prompt
     Then the harness forwards the prompt for autonomous workflow routing and execution
     And it does not reject the prompt as an unknown route
+
+  Scenario: A partial match is forwarded instead of starting a workflow
+    Given the user invokes /matt-pocock with a first word matching no route, capability, or management action
+    When the harness routes the request
+    Then it forwards the whole input for autonomous routing
+    And it does not start a workflow from a partial match
 
   Scenario: A prompt cancels active workflow before rerouting
     Given a Matt Pocock workflow is active
@@ -237,10 +250,21 @@ Feature: Matt Pocock workflow harness
     And it does not repeat the phase id as a detail
     And it does not render the procedure text as user-facing details
 
+  Scenario: User-invoked procedure starts use the impeccable lifecycle block
+    Given the user starts a catalog workflow route, transitions one, or starts a standalone capability from /matt-pocock or its menu
+    When Pi renders that procedure start
+    Then the head row shows [matt pocock] started alone
+    And one blank band row separates that head from the block body
+    And the block body is the user's own task verbatim when provided, otherwise the readable phase title or capability id
+    And a multi-line task keeps every authored line on its own row on pi's native user-message band with no expand hint
+    And the procedure body is delivered as a displayed procedure message rather than a user message
+    And model-facing guidance and persisted workflow state remain complete and unchanged
+
   Scenario: Workflow lifecycle rows use the actual phase title across all routes
-    Given any catalog workflow route at one of its supported phases
+    Given any catalog workflow route at one of its supported phases and no user-supplied task
     When Pi renders a workflow start, procedure message, or phase transition
     Then the lifecycle subject is the readable title of that actual phase
+    And a user-supplied task replaces that subject in the delivered row
     And the collapsed row contains neither a route id nor a route title
     And persisted route and phase ids remain unchanged
 

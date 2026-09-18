@@ -32,6 +32,23 @@ export default function (pi: ExtensionAPI): void {
         },
       });
     },
+    registerMessageRenderer(customType, renderer) {
+      pi.registerMessageRenderer(customType, (message, options, theme) => {
+        const component = renderer(message, options, theme);
+        if (!component) return component;
+        return {
+          invalidate: () => component.invalidate(),
+          render(width) {
+            const lines = component.render(width);
+            appendFileSync(snapshots, JSON.stringify({
+              kind: "message", customType, details: message.details,
+              expanded: options.expanded, width, lines: lines.map(stripVTControlCharacters), raw: lines,
+            }) + "\n");
+            return lines;
+          },
+        };
+      });
+    },
   });
   const calls: Pick<ToolCall, "name" | "arguments">[] = [
     { name: "matt_pocock_workflow", arguments: { mode: "workflow", route: "hard-bug" } },

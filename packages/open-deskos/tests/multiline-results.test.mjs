@@ -112,10 +112,10 @@ test("recordEvents keeps Markdown and optional result fields while activity stay
   h.reporter.stop();
 });
 
-test("non-result summaries keep first-line and 200-character rules without result metadata", () => {
+test("summary events keep first-line and 200-character rules without body metadata", () => {
   const h = harness();
   h.open();
-  h.reporter.recordEvents("s1", ["user", "thinking", "tool", "assistant"].map((kind) => ({
+  h.reporter.recordEvents("s1", ["user", "thinking", "tool"].map((kind) => ({
     kind, text: `\n  ${"x".repeat(250)}  \nignored`, toolName: "ignored", truncated: true,
   })));
   for (const event of h.wire()[0].events) {
@@ -124,6 +124,42 @@ test("non-result summaries keep first-line and 200-character rules without resul
     assert.deepEqual(Object.keys(event).sort(), ["kind", "text"]);
   }
   h.reporter.stop();
+});
+
+// Given an assistant reply, when reported, then its Markdown body is kept so the
+// desk can render it the way Pi does, bounded well below a tool result.
+test("an assistant reply keeps its line structure within a 16-KiB body", () => {
+  const h = harness();
+  h.open();
+  const reply = `# Heading\n\nBody line\n\n${table}${code}`;
+  h.reporter.recordEvents("s1", [{ kind: "assistant", text: reply }]);
+  assert.deepEqual(h.wire()[0].events, [{ kind: "assistant", text: reply }]);
+
+  const oversized = `# Heading\n\n${"界".repeat(6000)}`;
+  h.reporter.recordEvents("s1", [{ kind: "assistant", text: oversized }]);
+  const bounded = h.wire().at(-1).events.at(-1);
+  assert.equal(bounded.kind, "assistant");
+  assert.ok(bounded.text.startsWith("# Heading\n\n"));
+  assert.equal(bounded.truncated, true);
+  assert.ok(Buffer.byteLength(bounded.text) <= 16384);
+  assert.equal(bounded.text.includes("\uFFFD"), false, "a byte limit must not bisect a UTF-8 code point");
+  h.reporter.stop();
+});
+
+// Given several assistant text parts, when finalized, then they are one reply
+// body at the position Pi's reading puts it: after thinking and tool calls.
+test("assistant text parts become one reply body after its thinking and tool calls", () => {
+  const message = { role: "assistant", content: [
+    { type: "thinking", thinking: "First think." },
+    { type: "toolCall", name: "read", arguments: { path: "/fixture/a.ts" } },
+    { type: "text", text: "First part." },
+    { type: "text", text: "Second part." },
+  ] };
+  assert.deepEqual(eventsFromMessage(message), [
+    { kind: "thinking", text: "First think." },
+    { kind: "tool", text: "read: a.ts" },
+    { kind: "assistant", text: "First part.\n\nSecond part." },
+  ]);
 });
 
 test("retained history and pending batches share a 256-KiB text-plus-tool-name tail", () => {

@@ -1,5 +1,5 @@
 /**
- * Skill-specific and text-specific context guidance for the pre-generation
+ * Harness guidance: skill-scoped and text-scoped rules for the pre-generation
  * surface.
  *
  * Delivery is a single persistent before_agent_start message per turn, so
@@ -19,6 +19,7 @@ import {
   parseSkillBlock,
   keyHint,
   ToolExecutionComponent,
+  type EntryRenderer,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
@@ -28,6 +29,8 @@ import { resolveHarnessConfig } from "./guardrail-config.ts";
 import { evaluateSkill } from "./guardrail-engine.ts";
 import {
   HARNESS_GUIDANCE_CUSTOM_TYPE,
+  HARNESS_GUIDANCE_ENTRY_TYPE,
+  LEGACY_GUIDANCE_ENTRY_TYPE,
   planTextGuidance,
   type TextGuidanceEntry,
 } from "./harness-guidance-planner.ts";
@@ -41,7 +44,7 @@ const guidanceRows = bindLifecycleRenderers({
   hostComponent: ToolExecutionComponent,
 });
 
-export interface ContextGuidanceEvent {
+export interface HarnessGuidanceEvent {
   kind: "skill-prompt" | "skill-rule" | "text-rule" | "text-incomplete";
   target?: "system" | "user";
   skill?: string;
@@ -65,10 +68,10 @@ function sourceFile(source: string | undefined, paths: ReturnType<typeof resolve
 }
 
 /** Register configured skill and text guidance. */
-export default function registerContextGuidance(pi: ExtensionAPI): void {
-  pi.registerEntryRenderer("context-guidance-event", (entry, { expanded }, theme) => {
-    const details = entry.data as ContextGuidanceEvent | undefined;
-    const prompt = safeDisplayText(details?.prompt ?? "context guidance");
+export default function registerHarnessGuidance(pi: ExtensionAPI): void {
+  const renderGuidance: EntryRenderer = (entry, { expanded }, theme) => {
+    const details = entry.data as HarnessGuidanceEvent | undefined;
+    const prompt = safeDisplayText(details?.prompt ?? "harness guidance");
     const subject = safeDisplayText(details?.skill ?? details?.ruleId ?? "guidance");
     const label =
       details?.kind === "text-rule"
@@ -89,7 +92,11 @@ export default function registerContextGuidance(pi: ExtensionAPI): void {
         ].filter(Boolean)
         : undefined,
     }))({ content: "", details }, { expanded }, theme);
-  });
+  };
+  pi.registerEntryRenderer(HARNESS_GUIDANCE_ENTRY_TYPE, renderGuidance);
+  // Older sessions persisted the previous entry type. Keep it renderable so a
+  // retained transcript keeps its guidance view instead of degrading to raw data.
+  pi.registerEntryRenderer(LEGACY_GUIDANCE_ENTRY_TYPE, renderGuidance);
 
   pi.on("before_agent_start", (event, ctx) => {
     const availableSkills = new Set(event.systemPromptOptions.skills?.map((skill) => skill.name) ?? []);
@@ -98,10 +105,10 @@ export default function registerContextGuidance(pi: ExtensionAPI): void {
     const skill = parseSkillBlock(event.prompt);
     const candidate = skill ? resolved.config.legacy.skillPrompts[skill.name] : undefined;
     const legacy = candidate && (!candidate.userMessagePattern || new RegExp(candidate.userMessagePattern).test(skill?.userMessage ?? "")) ? candidate : undefined;
-    if (legacy) pi.appendEntry("context-guidance-event", {
+    if (legacy) pi.appendEntry(HARNESS_GUIDANCE_ENTRY_TYPE, {
       kind: "skill-prompt", skill: skill!.name, target: legacy.target, prompt: legacy.prompt,
       source: legacy.source ?? "unknown", file: sourceFile(legacy.source, resolved.paths),
-    } satisfies ContextGuidanceEvent);
+    } satisfies HarnessGuidanceEvent);
     const systemPrompt = legacy?.target === "system"
       ? event.systemPrompt.includes(legacy.prompt) ? event.systemPrompt : `${event.systemPrompt}${event.systemPrompt ? "\n\n" : ""}${legacy.prompt}`
       : undefined;
@@ -116,12 +123,12 @@ export default function registerContextGuidance(pi: ExtensionAPI): void {
     const textPlan = planTextGuidance(retained, event.prompt, resolved.config);
 
     if (textPlan.incomplete) {
-      pi.appendEntry("context-guidance-event", {
+      pi.appendEntry(HARNESS_GUIDANCE_ENTRY_TYPE, {
         kind: "text-incomplete",
         prompt: "Text-rule matching did not complete this turn; prior guidance state is preserved.",
         source: "project",
         file: resolved.paths.project,
-      } satisfies ContextGuidanceEvent);
+      } satisfies HarnessGuidanceEvent);
     }
 
     if (skillRules.length === 0 && textPlan.entries.length === 0 && legacy?.target !== "user") return systemPrompt === undefined ? undefined : { systemPrompt };
@@ -133,23 +140,23 @@ export default function registerContextGuidance(pi: ExtensionAPI): void {
     const content = [...(legacy?.target === "user" ? [legacy.prompt] : []), ...skillSections, ...textSections].join("\n\n");
 
     for (const r of skillRules) {
-      pi.appendEntry("context-guidance-event", {
+      pi.appendEntry(HARNESS_GUIDANCE_ENTRY_TYPE, {
         kind: "skill-rule",
         skill: r.skill,
         ruleId: r.id,
         prompt: r.instructions,
         source: r.source ?? "unknown",
         file: sourceFile(r.source, resolved.paths),
-      } satisfies ContextGuidanceEvent);
+      } satisfies HarnessGuidanceEvent);
     }
     for (const e of textPlan.entries) {
-      pi.appendEntry("context-guidance-event", {
+      pi.appendEntry(HARNESS_GUIDANCE_ENTRY_TYPE, {
         kind: "text-rule",
         ruleId: e.id,
         prompt: e.text,
         source: "project",
         file: resolved.paths.project,
-      } satisfies ContextGuidanceEvent);
+      } satisfies HarnessGuidanceEvent);
     }
 
     const details: { entries: TextGuidanceEntry[]; skill?: string; skillRuleIds?: string[] } = {
