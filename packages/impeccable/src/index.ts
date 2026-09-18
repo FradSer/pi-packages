@@ -69,11 +69,15 @@ function sendProcedure(pi: ExtensionAPI, loader: Resolver, bundles: Bundle[], no
     .map((section, index) => index === 0 ? section : `--- Next capability: ${bundles[index].capability} ---\n\n${section}`)
     .join("\n\n");
   const content = `${notes.length ? `${notes.join("\n")}\n\n` : ""}${sections}\n\nUser target/request:\n${request}`;
-  const details: ProcedureDetails = {
+  deliver(pi, content, {
     request,
     loaded: bundles.map(bundle => ({ id: bundle.capability, label: capabilityLabel(loader, bundle.capability), byteLength: bundle.byteLength })),
     routing: notes,
-  };
+  });
+}
+
+/** One lifecycle row carries model-facing guidance: the user only reads their own request. */
+function deliver(pi: ExtensionAPI, content: string, details: ProcedureDetails): void {
   pi.sendMessage({ customType: PROCEDURE_ENTRY, content, display: true, details }, { deliverAs: "followUp", triggerTurn: true });
 }
 
@@ -125,7 +129,7 @@ async function command(pi: ExtensionAPI, loader: Resolver, args: string, ctx: Ex
       ...(routed && routed.recognized ? [`Recognized intent: ${routed.recognized} (not yet ported and no close equivalent loaded).`] : []),
       `User target/request:\n${args.trim()}`,
     ].join("\n\n");
-    pi.sendUserMessage(pack, { deliverAs: "followUp" });
+    deliver(pi, pack, { request: args.trim(), loaded: [], routing: [] });
     return;
   }
   if (!capability) {
@@ -152,7 +156,14 @@ export function registerImpeccable(pi: ExtensionAPI, loader: Resolver, triggers:
       const details = (message.details ?? {}) as Partial<ProcedureDetails>;
       const loaded = details.loaded ?? [];
       const subject = safeDisplayText(details.request?.trim() || loaded.map(entry => entry.label).join(" + ") || "procedure");
-      return impeccableRows.message(() => startedToolLifecycle("impeccable", subject, { label: "started" }))(message, { expanded }, theme);
+      // The user's own words stay verbatim on pi's native user-message band, so
+      // authored line breaks survive without an expand hint.
+      return impeccableRows.message(() => startedToolLifecycle("impeccable", subject, {
+        label: "started",
+        verbatimSubject: true,
+        subjectBlock: true,
+        bgToken: "userMessageBg",
+      }))(message, { expanded }, theme);
     });
   }
   pi.registerCommand("impeccable", {

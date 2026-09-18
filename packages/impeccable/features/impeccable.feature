@@ -101,8 +101,9 @@ Feature: A unified design capability in Pi
     Given a request whose first word is not a capability id and which matches no command trigger
     When impeccable is invoked with that request
     Then no unknown-capability diagnostic is emitted
-    And one follow-up is sent carrying the capability trigger table and routing rules
-    And the request is preserved verbatim for the agent
+    And one follow-up carrying the capability trigger table and routing rules enters the model context
+    And the follow-up renders as one `[impeccable] started` row on pi's user-message band rather than plain text
+    And the request is preserved verbatim for the agent and on the row
     And no default capability is loaded silently
 
   Scenario: A paraphrased check request still routes to audit
@@ -121,11 +122,13 @@ Feature: A unified design capability in Pi
     And the request is preserved verbatim for the agent
     And no unknown-capability diagnostic is emitted
 
-  Scenario: A procedure start renders the full request with no expansion
+  Scenario: A procedure start renders the full request verbatim with no expansion
     Given a follow-up carrying one or more loaded bundles
     When Pi renders the procedure start row
-    Then the row shows `[impeccable] started` plus the full raw user request on a tinted band
-    And the row offers no expansion and paints no routing notes or bundle text
+    Then the row shows `[impeccable] started` alone on its head row
+    And one blank band row separates that head from the user's request
+    And every authored request line stays on its own row, with long lines wrapping instead of merging or truncating
+    And the whole row paints on pi's native user-message band with no expand hint, routing notes, or bundle text
     And model-facing guidance stays complete in message content
 
   Scenario: Chinese freeform intent loads the matching capability

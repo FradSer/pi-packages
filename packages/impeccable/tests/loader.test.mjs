@@ -80,13 +80,26 @@ test('headless usage and freeform requests route without a turn; menu cancellati
   assert.equal(h.selects(), 0);
   assert.match(h.messages[0][0].content, /Usage: \/impeccable/);
   assert.equal(h.messages[0][1].triggerTurn, false);
-  await h.command.handler('make the pricing hero feel more confident', h.ctx);
-  assert.match(h.sent[0][0], /impeccable_load/);
-  assert.match(h.sent[0][0], /- \/impeccable polish/);
-  assert.match(h.sent[0][0], /max 2 capabilities/);
-  assert.ok(h.sent[0][0].endsWith('make the pricing hero feel more confident'));
-  assert.deepEqual(h.sent[0][1], { deliverAs: "followUp" });
-  assert.equal(h.messages.length, 1);
+  const request = 'make the pricing hero feel more confident';
+  await h.command.handler(request, h.ctx);
+  const [pack, options] = h.messages.at(-1);
+  assert.match(pack.content, /impeccable_load/);
+  assert.match(pack.content, /- \/impeccable polish/);
+  assert.match(pack.content, /max 2 capabilities/);
+  assert.ok(pack.content.endsWith(request));
+  // The router pack stays model-facing: the user sees one lifecycle row, not plain text.
+  assert.equal(pack.customType, 'impeccable-procedure');
+  assert.equal(pack.display, true);
+  assert.equal(pack.details.request, request);
+  assert.deepEqual(pack.details.loaded, []);
+  assert.deepEqual(options, { deliverAs: 'followUp', triggerTurn: true });
+  assert.equal(h.sent.length, 0);
+  const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text };
+  const rows = h.renderers.get('impeccable-procedure')(pack, { expanded: false, outputPad: 0 }, theme).render(80);
+  assert.equal(rows[1].trim(), '[impeccable] started');
+  assert.equal(rows[2].trim(), '');
+  assert.equal(rows[3].trim(), request);
+  assert.ok(!rows.join('\n').includes('impeccable_load'));
   const menu = host(resolver, true);
   await menu.command.handler('', menu.ctx);
   assert.equal(menu.selects(), 1);
@@ -116,20 +129,25 @@ test('explicit user command loads user-only capability but model stays gated', (
   assert.equal(h.messages.length, 1);
 }));
 
-test('procedure start renders the raw request as an expandable pi-kit band', () => fixture(async resolver => {
+test('procedure start renders every authored request line on the user-message band', () => fixture(async resolver => {
   const h = host(resolver);
   const renderer = h.renderers.get('impeccable-procedure');
   assert.ok(renderer, 'message renderer registered');
-  await h.command.handler('promote chosen preview', h.ctx);
+  await h.command.handler('promote chosen preview\nsecond authored line', h.ctx);
   const [message] = h.messages[0];
-  assert.equal(message.details.request, 'chosen preview');
+  assert.equal(message.details.request, 'chosen preview\nsecond authored line');
   assert.deepEqual(message.details.loaded.map(entry => entry.id), ['promote']);
-  const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text };
+  const bgTokens = [];
+  const theme = { fg: (_color, text) => text, bg: (token, text) => { bgTokens.push(token); return text; }, bold: text => text };
   const collapsed = renderer(message, { expanded: false, outputPad: 0 }, theme).render(80);
-  assert.equal(collapsed.length, 3);
-  assert.match(collapsed[1], /\[impeccable\] started \u00b7 chosen preview/);
+  assert.equal(collapsed.length, 6);
+  assert.equal(collapsed[1].trim(), '[impeccable] started');
+  assert.equal(collapsed[2].trim(), '');
+  assert.equal(collapsed[3].trim(), 'chosen preview');
+  assert.equal(collapsed[4].trim(), 'second authored line');
   assert.ok(!collapsed.join('\n').includes('to expand'));
   assert.ok(!collapsed.join('\n').includes('# promote'));
+  assert.deepEqual([...new Set(bgTokens)], ['userMessageBg']);
   assert.ok(collapsed.every(line => visibleWidth(line) <= 80));
   const expanded = renderer(message, { expanded: true, outputPad: 0 }, theme).render(80);
   assert.deepEqual(expanded, collapsed);
@@ -157,7 +175,9 @@ test('multi-intent freeform loads every matched bundle in one follow-up', async 
   assert.ok(message.content.endsWith(request));
   const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text };
   const collapsed = renderers.get('impeccable-procedure')(message, { expanded: false, outputPad: 0 }, theme).render(80);
-  assert.match(collapsed[1], /\[impeccable\] started \u00b7 运行全部检查，然后fix，直到满分/);
+  assert.equal(collapsed[1].trim(), '[impeccable] started');
+  assert.equal(collapsed[2].trim(), '');
+  assert.equal(collapsed[3].trim(), request);
 });
 
 test('catalog rejects missing edges and required cycles, optional cycles terminate', () => fixture((resolver, root, entries) => {

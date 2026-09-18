@@ -24,6 +24,7 @@ Run from the repository root:
 python3 -m pytest packages/impeccable/tests/ -q
 node --import tsx/esm --test packages/impeccable/tests/loader.test.mjs
 node --import tsx/esm --test packages/impeccable/tests/routing.test.mjs
+python3 packages/impeccable/tests/live_procedure_row.py
 pnpm --dir packages/impeccable pack --dry-run
 ```
 
@@ -47,6 +48,13 @@ pnpm --dir packages/impeccable pack --dry-run
   `data-impeccable-*` attributes and comment markers (`impeccable-variants-start`,
   `impeccable-carbonize-start`). During accept or completion, all preview
   scaffolding and markers must be cleanly removed from user source code.
+- **Verbatim Procedure Row**: The `impeccable-procedure` message renders the
+  user's own request on pi's native user-message band (`userMessageBg`) with
+  pi-kit's `verbatimSubject` and `subjectBlock`: one `[impeccable] started` head
+  row, a blank band row, then every authored request line. Long lines wrap and
+  the row never advertises expansion; model-facing bundle text stays out of the
+  transcript. The unmatched freeform router pack uses the same delivery, so
+  `/impeccable <anything>` shows one row instead of a plain-text capability table.
 
 ## Testing Guidelines
 
@@ -54,5 +62,8 @@ pnpm --dir packages/impeccable pack --dry-run
 BDD scenarios. Python tests (`tests/test_*.py`) and Node test runner harnesses
 (`tests/loader.test.mjs`, `tests/routing.test.mjs`) verify bundle size caps,
 canonical link resolution, Chinese intent routing, live server HTTP body limits,
-and clean unpack/pack manifests. Pack checks must include `index.ts`, `src`,
-`procedures`, `references`, `scripts`, and license files.
+and clean unpack/pack manifests. `tests/live_procedure_row.py` drives the real
+Pi TUI in an isolated home with a scripted provider and asserts the authored
+procedure row, its user-message band, and resizing to 48 columns. Pack checks
+must include `index.ts`, `src`, `procedures`, `references`, `scripts`, and
+license files.
