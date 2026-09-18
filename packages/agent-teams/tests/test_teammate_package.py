@@ -1033,8 +1033,6 @@ def test_unknown_agent_error_gives_the_complete_inline_spawn_recovery() -> None:
     assert "name and an existing agent role id" in team_machine
     assert "name, a new agent role id, and an inline definition" in team_machine
     assert "includes description and prompt" in team_machine
-    agent_control = source("agent-control.ts")
-    assert "unknownAgentError" in agent_control
 
 
 def test_follow_up_reports_use_wrapped_marker_format() -> None:

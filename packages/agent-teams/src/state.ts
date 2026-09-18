@@ -42,25 +42,6 @@ function emptyState(): TeamState {
 }
 
 let state = emptyState();
-let stateDirty = false;
-
-export function markStateDirty(): void {
-  stateDirty = true;
-}
-
-export function isStateDirty(): boolean {
-  return stateDirty;
-}
-
-export function clearStateDirty(): void {
-  stateDirty = false;
-}
-
-export function consumeStateDirty(): boolean {
-  const dirty = stateDirty;
-  clearStateDirty();
-  return dirty;
-}
 
 function nextMessageId(): string {
   return `msg_${++state.messageCounter}`;
@@ -74,7 +55,6 @@ function emptyTaskMap(): Record<string, BoardTask> {
 
 export function resetState(): void {
   state = emptyState();
-  markStateDirty();
 }
 
 // ── Team default model ──────────────────────────────────────
@@ -87,7 +67,6 @@ export function getTeamDefaultModel(): string | undefined {
 /** Set (or clear with undefined) the unified teammate model for later spawns. */
 export function setTeamDefaultModel(ref: string | undefined): void {
   state.defaultModel = nonEmpty(ref);
-  markStateDirty();
 }
 
 // ── Roster queries ────────────────────────────────────────────────
@@ -114,14 +93,6 @@ export function idleTeammates(): Teammate[] {
   return livingTeammates().filter((t) => t.status === "idle");
 }
 
-export function workingTeammates(): Teammate[] {
-  return livingTeammates().filter((t) => t.status === "working" || t.status === "starting");
-}
-
-export function findTeammateBySpawn(spawnId: string): Teammate | undefined {
-  return listTeammates().find((t) => t.spawnId === spawnId && t.status !== "stopped");
-}
-
 export function registerTeammate(teammate: Teammate): { ok: true } | { ok: false; error: string } {
   if (!isValidTeammateName(teammate.name)) {
     return { ok: false, error: `Invalid teammate name "${teammate.name}". Use letters, digits, dots, dashes, underscores.` };
@@ -130,7 +101,6 @@ export function registerTeammate(teammate: Teammate): { ok: true } | { ok: false
     return { ok: false, error: `A living teammate named "${teammate.name}" already exists.` };
   }
   state.teammates[teammate.name] = teammate;
-  markStateDirty();
   return { ok: true };
 }
 
@@ -139,7 +109,6 @@ export function updateTeammate(name: string, patch: Partial<Teammate>): Teammate
   if (!teammate) return undefined;
   Object.assign(teammate, patch, { updatedAt: Date.now() });
   if (patch.status === "stopped") teammate.stoppedAt = Date.now();
-  markStateDirty();
   return teammate;
 }
 
@@ -180,7 +149,6 @@ export function updateTeammateProgress(
     teammate.status = progress.sequenceEnded ? "idle" : "working";
   }
   teammate.updatedAt = Date.now();
-  markStateDirty();
   return true;
 }
 
@@ -191,7 +159,6 @@ export function clearWorkerRunEvents(workerName: string, spawnId: string): void 
   for (const id of Object.keys(state.workerEventIds)) {
     if (id.startsWith(`${spawnId}:`)) delete state.workerEventIds[id];
   }
-  markStateDirty();
 }
 
 // ── Leader inbox ──────────────────────────────────────────────────
@@ -202,7 +169,6 @@ export function deliverToLeader(msg: Omit<MailboxMessage, "id" | "timestamp">): 
   if (state.leaderMailbox.length > MAX_LEADER_MAILBOX_MESSAGES) {
     state.leaderMailbox.splice(0, state.leaderMailbox.length - MAX_LEADER_MAILBOX_MESSAGES);
   }
-  markStateDirty();
   return full;
 }
 
@@ -227,7 +193,6 @@ export function receiveWorkerMessage(event: WorkerReportEvent, options?: { archi
   if (state.leaderMailbox.length > MAX_LEADER_MAILBOX_MESSAGES) {
     state.leaderMailbox.splice(0, state.leaderMailbox.length - MAX_LEADER_MAILBOX_MESSAGES);
   }
-  markStateDirty();
   return true;
 }
 
@@ -242,7 +207,6 @@ export function markPeerDelivered(inboxName: string, messageId: string): void {
   ids.push(messageId);
   while (ids.length > MAX_PEER_DELIVERED_IDS) ids.shift();
   state.peerDeliveredIds[inboxName] = ids;
-  markStateDirty();
 }
 
 export function getPeerInboxOffset(inboxName: string): number {
@@ -251,7 +215,6 @@ export function getPeerInboxOffset(inboxName: string): number {
 
 export function setPeerInboxOffset(inboxName: string, offset: number): void {
   state.peerInboxOffsets[inboxName] = offset;
-  markStateDirty();
 }
 
 /** Record only the harness-controlled routing transition, never recipient read. */
@@ -263,7 +226,6 @@ export function setPeerDeliveryState(messageId: string, routing: "queued" | "rou
     if (oldest) delete state.peerDeliveryStates[oldest];
   }
   state.peerDeliveryStates[messageId] = routing;
-  markStateDirty();
 }
 
 export function getPeerDeliveryState(messageId: string): "queued" | "routed" | undefined {
@@ -451,7 +413,6 @@ export function createTask(input: {
     dependent.dependsOn = migratedDependencies;
     dependent.updatedAt = Date.now();
   }
-  markStateDirty();
   return { ok: true, task, superseded };
 }
 
@@ -475,11 +436,6 @@ export function taskDependenciesMet(task: BoardTask): boolean {
   return task.status === "pending" && task.dependsOn.every((dep) => state.tasks[dep]?.status === "completed");
 }
 
-/** First claimable task, or undefined. */
-export function firstClaimableTask(): BoardTask | undefined {
-  return claimableTasks()[0];
-}
-
 export function createDirectWork(input: {
   id: string;
   subject: string;
@@ -494,14 +450,12 @@ export function createDirectWork(input: {
   const worker = getTeammate(input.workerName);
   if (!worker || worker.assignment || activeAssignmentConflict(task.resources, input.workerName)) {
     delete state.tasks[task.id];
-    markStateDirty();
     return { ok: false, error: `Unable to bind direct Work Item "${task.id}".` };
   }
   task.status = "claimed";
   task.claimedBy = input.workerName;
   task.updatedAt = Date.now();
   assignTeammate(input.workerName, input.assignment, task.id);
-  markStateDirty();
   return { ok: true, task };
 }
 
@@ -509,7 +463,6 @@ export function discardDirectWork(taskId: string, workerName: string): boolean {
   const task = state.tasks[taskId];
   if (!task || task.status !== "claimed" || task.claimedBy !== workerName) return false;
   delete state.tasks[taskId];
-  markStateDirty();
   return true;
 }
 
@@ -536,7 +489,6 @@ export function reclaimDirectWork(
   task.completedAt = undefined;
   task.updatedAt = Date.now();
   assignTeammate(workerName, assignment, task.id);
-  markStateDirty();
   return { ok: true };
 }
 
@@ -550,7 +502,6 @@ export function setTaskClaimed(taskId: string, workerName: string): BoardTask | 
   task.claimedBy = workerName;
   task.updatedAt = Date.now();
   assignTeammate(workerName, { id: `board:${randomUUID()}`, kind: "board", resources: task.resources }, task.id);
-  markStateDirty();
   return task;
 }
 
@@ -592,7 +543,6 @@ export function reopenCompletedWork(workId: string): { ok: true; task: BoardTask
   task.errorMessage = undefined;
   task.completedAt = undefined;
   task.updatedAt = Date.now();
-  markStateDirty();
   return { ok: true, task };
 }
 
@@ -605,7 +555,6 @@ export function releaseTask(taskId: string, errorMessage?: string): BoardTask | 
   if (errorMessage !== undefined) task.errorMessage = errorMessage;
   task.updatedAt = Date.now();
   if (holder) assignTeammate(holder, undefined, undefined);
-  markStateDirty();
   return task;
 }
 
@@ -620,7 +569,6 @@ export function completeTask(taskId: string, result?: string): BoardTask | undef
   task.completedAt = Date.now();
   task.updatedAt = Date.now();
   if (holder) assignTeammate(holder, undefined, undefined);
-  markStateDirty();
   return task;
 }
 
@@ -708,16 +656,5 @@ export function loadBoard(tasks: Record<string, BoardTask>): number {
     state.tasks[restored.id] = restored;
     reloaded++;
   }
-  if (reloaded > 0) markStateDirty();
   return reloaded;
-}
-
-export function getSummary(): string | undefined {
-  const alive = livingTeammates();
-  if (alive.length === 0 && listTasks().length === 0) return undefined;
-  const counts = { pending: 0, claimed: 0, completed: 0, superseded: 0 };
-  for (const task of listTasks()) {
-    if (task.status in counts) counts[task.status as keyof typeof counts]++;
-  }
-  return `${alive.length} teammate(s) alive | board: ${counts.pending} pending / ${counts.claimed} claimed / ${counts.completed} completed / ${counts.superseded} superseded`;
 }

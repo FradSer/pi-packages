@@ -57,22 +57,6 @@ export function teammateRowWidths(spinner: string, agent: string, width: number)
   };
 }
 
-/** Fit one widget row to its terminal width while keeping it on one line. */
-export function fitTeammateRow(
-  spinner: string,
-  agent: string,
-  activity: string,
-  width: number,
-  formatActivity: (text: string) => string = (text) => text,
-  markdownTheme: MarkdownTheme = ACTIVITY_THEME,
-): string {
-  const sizes = teammateRowWidths(spinner, agent, width);
-  const nameText = truncateToWidth(agent, sizes.nameWidth);
-  const activityText = formatActivity(truncateToWidth(renderActivityMarkdown(activity, markdownTheme), sizes.activityWidth));
-  const line = `${spinner} ${nameText} · ${activityText}`;
-  return truncateToWidth(line, sizes.lineWidth);
-}
-
 /** Fit a console status label to the requested activity width. */
 export function formatTeammateLabel(
   spinner: string,

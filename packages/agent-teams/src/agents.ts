@@ -274,11 +274,6 @@ export function resolveAgent(name: string, cwd?: string): AgentDefinition | unde
   return discoverAgents(cwd).get(name);
 }
 
-/** True when the agent name is defined in any scope. */
-export function hasAgent(name: string, cwd?: string): boolean {
-  return resolveAgent(name, cwd) !== undefined;
-}
-
 /**
  * Format discovered agents as Markdown for prompt injection in before_agent_start.
  */

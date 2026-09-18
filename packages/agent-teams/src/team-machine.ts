@@ -21,7 +21,6 @@ import {
   applyClaimIntent,
   assignTeammate,
   claimableTasks,
-  clearStateDirty,
   clearWorkerRunEvents,
   completeTask,
   createTask,
@@ -35,12 +34,10 @@ import {
   idleTeammates,
   isPeerDelivered,
   isValidTeammateName,
-  listTasks,
   listTeammates,
   livingTeammates,
   loadBoard,
   markPeerDelivered,
-  markStateDirty,
   getTask,
   normalizeResources,
   registerTeammate,
@@ -130,15 +127,6 @@ export function stallSilenceMs(teammate: Pick<Teammate, "lastOutputAt">, now = D
   return Math.max(0, now - teammate.lastOutputAt);
 }
 
-export function isStallThresholdReached(
-  teammate: Pick<Teammate, "lastOutputAt">,
-  now: number,
-  thresholdMs: number,
-): boolean {
-  const silence = stallSilenceMs(teammate, now);
-  return thresholdMs > 0 && silence !== undefined && silence >= thresholdMs;
-}
-
 export function formatSilenceDuration(milliseconds: number): string {
   const totalMinutes = Math.floor(Math.max(0, milliseconds) / 60_000);
   if (totalMinutes < 1) return "less than 1m";
@@ -182,8 +170,6 @@ const pendingSubmissions = new Map<string, PendingSubmission>();
 const idleNudgesSent = new Set<string>();
 /** One finish entry per assignment attempt; repeated terminal reports stay ordinary report rows. */
 const announcedFinishKeys = new Set<string>();
-/** Incarnations whose terminal report reached the leader pipeline, queued or dispatched. */
-const terminalReportKeys = new Set<string>();
 /** Consecutive verify failures per taskId:spawnId holder incarnation. */
 const verifyFailures = new Map<string, VerifyFailureRecord>();
 /** Self-finalize requests delivered per teammate incarnation before escalating to the leader. */
@@ -260,7 +246,6 @@ export function shutdownTeamMachine(): void {
   verifyFailureParks.clear();
   unexpectedExecutionParks.clear();
   announcedFinishKeys.clear();
-  terminalReportKeys.clear();
 }
 
 // ── Spawn model resolution ────────────────────────────────────
@@ -358,9 +343,8 @@ function flushSnapshots(): void {
       assignment: t.assignment,
     })));
     if (boardFile) writeBoardFile(boardFile, getState().tasks);
-    clearStateDirty();
   } catch {
-    // Keep the dirty bit set so the next poll retries the snapshot.
+    // The next poll retries the snapshot.
   }
 }
 
@@ -815,11 +799,6 @@ function finishKey(report: FinishIdentity): string {
   return `${report.teammate ?? report.agent ?? "teammate"}:${report.spawnId ?? "session"}:${report.assignmentId ?? "unassigned"}`;
 }
 
-function currentFinishKey(name: string): string {
-  const teammate = getTeammate(name);
-  return finishKey({ teammate: name, spawnId: teammate?.spawnId, assignmentId: teammate?.assignment?.id ?? teammate?.lastAssignment?.id });
-}
-
 /** Announce each assignment attempt once, including later work in the same process. */
 export function markTeammateFinished(report: FinishIdentity): boolean {
   if (!report.finished) return false;
@@ -827,19 +806,6 @@ export function markTeammateFinished(report: FinishIdentity): boolean {
   if (announcedFinishKeys.has(key)) return false;
   announcedFinishKeys.add(key);
   return true;
-}
-
-export function hasAnnouncedFinish(name: string): boolean {
-  return announcedFinishKeys.has(currentFinishKey(name));
-}
-
-/** Cover terminal reports still waiting in Pi's delivery pipeline. */
-export function recordTerminalReport(report: FinishIdentity): void {
-  if (report.finished) terminalReportKeys.add(finishKey(report));
-}
-
-export function hasTerminalReport(name: string): boolean {
-  return terminalReportKeys.has(currentFinishKey(name));
 }
 
 /** Only an open current assignment can owe a final result. */
@@ -993,7 +959,6 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
       harnessEvent: { type: "unexpected-stop", subject: `@${name} stopped unexpectedly` },
       finished: false,
     };
-    recordTerminalReport(closeReport);
     sendUpdate(closeReport);
   }
   publishStateSnapshot();
@@ -1098,7 +1063,6 @@ async function finalizeWorktree(name: string): Promise<void> {
 /** Poll one batch per worker; explicit control drains its recipient's existing snapshot. */
 export function drainTeammateOutboxes(recipient?: string): void {
   const stateFile = requireStateFile();
-  let changed = false;
   for (const teammate of livingTeammates()) {
     const key = `${teammate.name}:${teammate.spawnId}`;
     const file = workerOutboxPath(stateFile, teammate.name, teammate.spawnId);
@@ -1109,16 +1073,14 @@ export function drainTeammateOutboxes(recipient?: string): void {
       const { records, nextOffset, diagnostics } = readJsonlBatch(file, previousOffset, endOffset);
       if (nextOffset !== previousOffset) {
         offsets[key] = nextOffset;
-        changed = true;
       }
       for (const diagnostic of diagnostics) deliverDiagnostic(teammate.name, diagnostic);
       for (const record of records) {
-        if (applyOutboxRecord(teammate, record)) changed = true;
+        applyOutboxRecord(teammate, record);
       }
       if (endOffset === undefined || nextOffset >= endOffset || nextOffset <= previousOffset) break;
     }
   }
-  if (changed) markStateDirty();
 }
 
 function deliverDiagnostic(from: string, detail: string): void {
@@ -1132,7 +1094,6 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
   const eventKey = `${teammate.spawnId}:${record.id}`;
   if (ids[eventKey]) return false;
   ids[eventKey] = teammate.spawnId;
-  markStateDirty();
 
   const reportAssignmentId = teammate.assignment?.id ?? teammate.lastAssignment?.id;
   if (record.assignmentId !== reportAssignmentId || teammate.reportSequenceEnded) return false;
@@ -1248,7 +1209,6 @@ function archiveDeferredDeliveries(teammate: Teammate): void {
       ...deliveries.map(({ from, subject, body, timestamp }) => ({ from, subject, body, timestamp })),
     ].slice(-20);
     task.updatedAt = Date.now();
-    markStateDirty();
   }
   for (const delivery of deliveries) setPeerDeliveryState(delivery.id, "routed");
 }
@@ -1304,32 +1264,6 @@ function recordedTerminalReportBody(name: string): string | undefined {
   const taskId = teammate?.lastTaskId;
   const task = taskId ? getTask(taskId) : undefined;
   return task?.status === "completed" ? task.result : undefined;
-}
-
-export type AssignFreshAgentWorkResult =
-  | { ok: true; workId: string; owner: string; assignmentId: string }
-  | { ok: false; error: string };
-
-/** Start a new generated resident bound to an existing pending Work Item. */
-export function assignExistingWorkToFreshAgent(workId: string, agent: string): AssignFreshAgentWorkResult {
-  const task = getState().tasks[workId];
-  if (!task || task.status !== "pending") return { ok: false, error: `Work Item "${workId}" is not pending.` };
-  if (!taskDependenciesMet(task)) return { ok: false, error: `Work Item "${workId}" has unmet dependencies.` };
-  if (activeAssignmentConflict(task.resources)) return { ok: false, error: `Work Item "${workId}" conflicts with active Work resources.` };
-  if (!resolveAgent(agent, leaderCwd)) return { ok: false, error: unknownAgentError(agent, leaderCwd) };
-  const id = randomUUID();
-  const owner = `${agent.slice(0, 27)}-${id}`;
-  const spawned = spawnTeammate({
-    name: owner,
-    agent,
-    workId,
-    existingWorkId: workId,
-    prompt: [task.subject, task.description].filter(Boolean).join("\n\n"),
-  });
-  if (!spawned.ok) return spawned;
-  const assignmentId = spawned.teammate.assignment?.id;
-  if (!assignmentId) return { ok: false, error: `Work Item "${workId}" did not receive an assignment.` };
-  return { ok: true, workId, owner, assignmentId };
 }
 
 export type AssignExistingWorkResult =
@@ -1960,7 +1894,6 @@ function announceWorkOutcome(intent: import("./types").TaskIntent, teammate: Tea
     id: eventId, type: "message", worker: intent.worker, spawnId: intent.spawnId,
     assignmentId, status, body: report.body, timestamp: report.timestamp,
   });
-  recordTerminalReport(report);
   sendUpdate(report);
 }
 
@@ -2215,32 +2148,6 @@ export interface BoardTaskCreationResult {
   supersededTaskIds: string[];
 }
 
-export function formatBoardTaskCreation(subject: string, created: BoardTaskCreationResult): string {
-  const status = created.claimable ? "pending/claimable" : "pending/blocked";
-  const routing = created.notifiedTeammates.length > 0
-    ? `notified=${created.notifiedTeammates.map((name) => `@${name}`).join(",")}`
-    : created.livingTeammates === 0
-      ? "notified=none (no living teammates)"
-      : "notified=none (no eligible idle teammate)";
-  const superseded = (created.supersededTaskIds ?? []).length > 0
-    ? `SUPERSEDED · ${created.supersededTaskIds.join(", ")}`
-    : undefined;
-  const next = !created.claimable
-    ? created.resourceBlocked
-      ? "NEXT · waits for superseded holder or resource owner to release"
-      : "NEXT · waits for dependencies"
-    : created.livingTeammates === 0
-      ? "NEXT · leader: agent action=start or work action=assign"
-      : "NEXT · worker: work action=claim";
-  return [
-    `BOARD · current session`,
-    `CREATED · ${created.id} · ${status} · ${subject}`,
-    `ROUTING · ${routing}`,
-    superseded,
-    next,
-  ].join("\n");
-}
-
 /** Create a task and synchronously offer it to currently-idle teammates.
  *
  * The normal poll loop still handles later dependency unlocks and queued mail,
@@ -2299,21 +2206,6 @@ export function createBoardTask(input: {
     resourceBlocked,
     supersededTaskIds: created.superseded.map((task) => task.id),
   };
-}
-
-export function boardOverview(): Array<import("./types").BoardTask> {
-  return listTasks();
-}
-
-/** Worker-side claim attempt through an exclusive-create marker file. */
-export function attemptClaim(workerName: string, spawnId: string, taskId: string): boolean {
-  return createTaskIntent(claimsDir(boardDirectory()), taskId, {
-    taskId,
-    worker: workerName,
-    spawnId,
-    status: "completed",
-    timestamp: Date.now(),
-  });
 }
 
 /** Worker-side submission through an exclusive-create marker file. */
