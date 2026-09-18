@@ -8,9 +8,10 @@ export const MonitorStartParams = Type.Object({
     description:
       "Shell command to run in the background. The command must not require interactive input. Wrap controllable commands with a unique result sentinel when possible.",
   }),
-  description: Type.String({
-    description: "Short label describing the result being awaited.",
-  }),
+  description: Type.Optional(Type.String({
+    description:
+      "Optional short human label describing the result being awaited. Omit it to derive a bounded label from the command. Never restate the command or the result pattern here.",
+  })),
   result_pattern: Type.String({
     minLength: 1,
     description:

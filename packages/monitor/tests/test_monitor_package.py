@@ -82,6 +82,114 @@ def test_start_schema_requires_result_pattern_and_has_optional_failure_pattern()
     assert "match:" not in schemas
 
 
+def test_start_schema_makes_description_optional() -> None:
+    schemas = (SRC / "types.ts").read_text(encoding="utf-8")
+    assert "description: Type.Optional(Type.String" in schemas
+    assert "description: Type.String" not in schemas
+
+
+def test_monitor_start_guidance_separates_the_label_from_the_contract() -> None:
+    extension = (SRC / "index.ts").read_text(encoding="utf-8")
+    assert "Declare the exact terminal result before starting" not in extension
+    guidelines = extension.split("promptGuidelines: [", 1)[1].split("],", 1)[0]
+    assert "sentinel in the command" in guidelines
+    assert "result_pattern" in guidelines
+    assert "failure_pattern" in guidelines
+    assert "short human label" in guidelines
+    assert "never restate the command or the result pattern" in guidelines
+
+
+def test_monitor_start_render_shows_the_terminal_contract() -> None:
+    extension = (SRC / "index.ts").read_text(encoding="utf-8")
+    start_tool = extension.split('name: "monitor_start"', 1)[1].split('name: "monitor_stop"', 1)[0]
+    assert 'fieldLine("success", args.result_pattern)' in start_tool
+    assert 'fieldLine("failure", args.failure_pattern)' in start_tool
+
+
+def test_monitor_start_derives_a_bounded_label_from_the_command() -> None:
+    run_typescript(
+        r'''
+        import * as extensionModule from "./packages/monitor/index.ts";
+
+        const tools = new Map();
+        extensionModule.default({
+          registerTool(tool) { tools.set(tool.name, tool); },
+          registerMessageRenderer() {},
+          registerCommand() {},
+          on() {},
+          sendMessage() {},
+          getActiveTools() { return ["monitor_start"]; },
+          setActiveTools() {},
+        });
+        const start = tools.get("monitor_start");
+        if (!start) throw new Error("monitor_start not registered");
+
+        const required = start.parameters?.required ?? [];
+        if (required.includes("description")) {
+          throw new Error("description must be optional: " + JSON.stringify(required));
+        }
+        if (!required.includes("result_pattern") || !required.includes("command")) {
+          throw new Error("command and result_pattern must stay required: " + JSON.stringify(required));
+        }
+
+        const theme = {
+          fg: (_color, text) => text,
+          bg: (_color, text) => text,
+          bold: (text) => text,
+        };
+        const rowFor = (args, expanded = false) => start.renderResult(
+          { content: [{ type: "text", text: "ack" }], details: { monitorId: "monitor_3" } },
+          { expanded },
+          theme,
+          { args, isError: false },
+        ).render(160);
+
+        // Derived label: whitespace collapses, the `sh -c` wrapper is dropped.
+        const derived = rowFor({ command: "sh -c '\n  pnpm --filter @fradser/deskos test\n'", result_pattern: "WEATHER_OK" });
+        const derivedLine = derived.find((line) => line.includes("[monitor] started ·"));
+        if (!derivedLine || !derivedLine.includes("started · pnpm --filter @fradser/deskos test")) {
+          throw new Error("Derived label incorrect: " + JSON.stringify(derived));
+        }
+        const multiline = rowFor({ command: "echo one\necho two", result_pattern: "WEATHER_OK" })
+          .find((line) => line.includes("[monitor] started ·"));
+        if (!multiline || !multiline.includes("started · echo one echo two")) {
+          throw new Error("Multi-line command label incorrect: " + multiline);
+        }
+        const longCommand = "node --import tsx ./scripts/verify-weather-interiors.cjs --widget WidgetApp --strict --report /tmp/weather.json";
+        const longLine = rowFor({ command: longCommand, result_pattern: "WEATHER_INTERIORS_RESULT" })
+          .find((line) => line.includes("[monitor] started ·"));
+        const longLabel = longLine?.split("[monitor] started ·")[1] ?? "";
+        if (!longLabel.includes("…") || longLabel.includes("--report")) {
+          throw new Error("Long command label was not truncated: " + longLine);
+        }
+
+        // Explicit description wins over the derived label.
+        const explicit = rowFor({ command: "curl example.com", description: "Google availability", result_pattern: "OK" });
+        if (!explicit.some((line) => line.includes("Google availability"))) {
+          throw new Error("Explicit description was not preferred: " + JSON.stringify(explicit));
+        }
+
+        // Expanded body carries the command plus the success and failure contracts.
+        const expanded = rowFor({
+          command: "curl example.com",
+          description: "Google availability",
+          result_pattern: "READY (?<json>.*)",
+          failure_pattern: "FATAL",
+        }, true);
+        for (const expected of [
+          "command · curl example.com",
+          "success · READY (?<json>.*)",
+          "failure · FATAL",
+          "id · monitor_3",
+        ]) {
+          if (!expanded.some((line) => line.includes(expected))) {
+            throw new Error("Expanded row missing " + expected + ": " + JSON.stringify(expanded));
+          }
+        }
+        ''',
+    )
+
+
 def test_guidance_teaches_result_contract_and_terminal_diagnostics() -> None:
     extension = (SRC / "index.ts").read_text(encoding="utf-8")
     assert "MONITOR_GUIDANCE" in extension
@@ -319,6 +427,7 @@ def test_monitor_start_uses_shared_lifecycle_style() -> None:
     assert 'renderShell: "self"' in start_tool
     assert "formatStartMessage(monitor)" in start_tool
     assert "Success contract:" not in start_tool
+    assert "deriveMonitorDescription(" in start_tool
 
 
 def test_monitor_start_renderer_uses_the_shared_lifecycle_band() -> None:
@@ -346,7 +455,7 @@ def test_monitor_start_renderer_uses_the_shared_lifecycle_band() -> None:
           { content: [{ type: "text", text: "model-only acknowledgement" }], details: { monitorId: "monitor_7" } },
           { expanded: false },
           theme,
-          { args: { description: "Google availability", command: "curl example.com" }, isError: false },
+          { args: { description: "Google availability", command: "curl example.com", result_pattern: "OK" }, isError: false },
         ).render(120);
         const content = row.find((line) => line.includes("[monitor] started ·"));
         if (row.length !== 3 || content?.trim() !== "<success><bold>[monitor] started ·</bold></success> Google availability<dim> · to expand</dim>") {
@@ -356,10 +465,13 @@ def test_monitor_start_renderer_uses_the_shared_lifecycle_band() -> None:
           { content: [{ type: "text", text: "model-only acknowledgement" }], details: { monitorId: "monitor_7" } },
           { expanded: true },
           theme,
-          { args: { description: "Google availability", command: "curl example.com" }, isError: false },
+          { args: { description: "Google availability", command: "curl example.com", result_pattern: "OK" }, isError: false },
         ).render(120);
         if (!expanded.some((line) => line.includes("command · curl example.com")) || !expanded.some((line) => line.includes("id · monitor_7"))) {
           throw new Error(JSON.stringify(expanded));
+        }
+        if (!expanded.some((line) => line.includes("success · OK"))) {
+          throw new Error("Expanded row missing the success contract: " + JSON.stringify(expanded));
         }
         ''',
     )

@@ -14,6 +14,16 @@ Feature: Result-contract background monitoring
     And the agent remains idle until the terminal result arrives
     And ordinary stdout and stderr do not wake the agent
 
+  Scenario: Tool guidance keeps the description, the sentinel, and the pattern in separate fields
+    Given monitor_start exposes parameter descriptions and prompt guidelines to the agent
+    When the agent prepares a contracted background command
+    Then the guidance places the success sentinel in the command
+    And the guidance places the matching regular expression in result_pattern
+    And the guidance keeps the failure regular expression in failure_pattern
+    And the guidance keeps the description a short human label
+    And the guidance forbids restating the command or the result pattern in the description
+    And the guidance does not tell the agent to declare the terminal result before starting
+
   Scenario: Bare PCRE case-insensitive flags receive an actionable validation error
     Given monitor_start receives a result or failure pattern beginning with bare `(?i)`
     When JavaScript validates the regular expression
@@ -34,6 +44,14 @@ Feature: Result-contract background monitoring
     And the tool result states that a terminal result is pending
     And the compact TUI startup row contains only `[monitor] started · <description>`
     And the compact TUI startup row does not contain the monitor id
+
+  Scenario: The monitor description is optional and derived from the command
+    Given monitor_start accepts a command and a result pattern without a description
+    When the agent omits the description
+    Then the started monitor derives a short human label from the command
+    And the derived label collapses whitespace onto one line, drops a leading shell wrapper such as `sh -c`, and truncates to a bounded width
+    And the model-facing acknowledgement and the compact startup row both use the derived label
+    And an explicit description still overrides the derived label
 
   Scenario: A noninteractive monitor returns its terminal result in the same tool call
     Given monitor_start runs in print or JSON mode
@@ -86,7 +104,8 @@ Feature: Result-contract background monitoring
     Then the tool call renderer is empty
     And the tool result renders `[monitor] started · <description>` through the bound pi-kit lifecycle renderer
     And the startup row paints the shared background band with the configured expansion hint
-    And expanding the row shows the command and monitor id as `label · value` fields
+    And expanding the row shows the command, the success contract, and the monitor id as `label · value` fields
+    And an optional failure pattern is shown as its own `label · value` field
     And the monitor id stays visible because monitor_stop needs it
     And the tool result does not render a duplicate monitor start
     And the tool result still terminates the current agent turn

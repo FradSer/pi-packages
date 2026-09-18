@@ -226,28 +226,39 @@ export default function (pi: ExtensionAPI) {
     ].join(" "),
     promptSnippet: "Run a background command and expose one contracted terminal result without streaming progress logs",
     promptGuidelines: [
-      "Declare the exact terminal result before starting; prefer a unique JSON sentinel.",
+      "Keep monitor_start.description a short human label: put the success sentinel in the command, its regex in result_pattern, any failure regex in failure_pattern, and never restate the command or the result pattern in description.",
     ],
     parameters: MonitorStartParams,
     renderShell: "self",
     renderCall: () => monitorRows.emptyCall(),
     renderResult(result, options, theme, context) {
-      const args = context.args as { command?: string; description?: string };
+      const args = context.args as {
+        command?: string;
+        description?: string;
+        result_pattern?: string;
+        failure_pattern?: string;
+      };
       const monitorId = detailField<string>(result.details, "monitorId");
-      return monitorRows.result(() => eventToolLifecycle("monitor", args.description || "monitor", {
+      const description = detailField<string>(result.details, "description")?.trim()
+        || args.description?.trim()
+        || deriveMonitorDescription(args.command);
+      return monitorRows.result(() => eventToolLifecycle("monitor", description, {
         label: "started",
         details: [
           fieldLine("command", args.command),
+          fieldLine("success", args.result_pattern),
+          ...(args.failure_pattern ? [fieldLine("failure", args.failure_pattern)] : []),
           ...(monitorId ? [fieldLine("id", monitorId)] : []),
         ],
       }))(result, options, theme, context);
     },
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       if (!params.command.trim()) throw new Error("monitor_start requires a non-empty command.");
+      const description = params.description?.trim() || deriveMonitorDescription(params.command);
       const waitInToolCall = isNonInteractiveMonitorContext(ctx);
       const monitor = manager.start({
         command: params.command,
-        description: params.description,
+        description,
         resultPattern: params.result_pattern,
         failurePattern: params.failure_pattern,
         timeoutMs: params.timeout_ms,
@@ -358,6 +369,26 @@ export default function (pi: ExtensionAPI) {
 interface MonitorMessageDetails {
   description: string;
   result: MonitorTerminalResult;
+}
+
+/** Bounded width for a label derived from the command head. */
+const MAX_DERIVED_DESCRIPTION = 60;
+/** Leading `sh -c '...'` style wrapper, which is noise in a derived label. */
+const SHELL_WRAPPER_PREFIX = /^(?:sh|bash|zsh|dash|ksh)\s+-c\s+["']?/i;
+
+/** Short human label derived from the command when the agent omits a description,
+ * so the startup row stays readable without asking the model for extra prose. */
+function deriveMonitorDescription(command: string | undefined): string {
+  const collapsed = (command ?? "").replace(/\s+/g, " ").trim();
+  if (!collapsed) return "monitor command";
+  const wrapper = collapsed.match(SHELL_WRAPPER_PREFIX);
+  const body = wrapper
+    ? collapsed.slice(wrapper[0].length).replace(/["']$/, "").trim()
+    : collapsed;
+  const label = body || collapsed;
+  return label.length > MAX_DERIVED_DESCRIPTION
+    ? `${label.slice(0, MAX_DERIVED_DESCRIPTION - 1).trimEnd()}…`
+    : label;
 }
 
 function isNonInteractiveMonitorContext(ctx: { mode: string }): boolean {

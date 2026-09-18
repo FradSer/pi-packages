@@ -106,6 +106,15 @@ monitor_start
   failure_pattern="__PI_MONITOR_FAILURE__ (?<json>\\{.*\\})"
 ```
 
+Each field carries one thing: the sentinel lives in `command`, its matching
+regex in `result_pattern`, an optional failure regex in `failure_pattern`, and
+`description` is a short human label only. Never restate the command or a
+pattern in `description`. Omit `description` entirely and the monitor derives a
+bounded label from the command instead: whitespace collapses onto one line, a
+leading shell wrapper such as `sh -c` is dropped, and the label is truncated to
+60 characters. Expanding a startup row shows the command, the success contract,
+an optional failure contract, and the monitor id.
+
 A successful result wakes the agent once. In the transcript it is shown as a
 compact monitor event; expand it to inspect the terminal fields. The collapsed
 row appends the same dim ` · <configured expand key> to expand` hint used by
@@ -285,7 +294,8 @@ The retained history and terminal diagnostic tail are bounded:
 - Both stdout and stderr are scanned for `result_pattern` and `failure_pattern`.
 - The first terminal match wins and stops the process group.
 - Named regex captures are returned in `captures`.
-- Interactive monitor starts return the description, a model-facing
+- Interactive monitor starts return the description (explicit, or derived from
+  the command when it was omitted), a model-facing
   `monitor_id`, and `terminal_result=pending`, then terminate the current turn.
   The id stays out of compact human-facing TUI rows and identifies a specific
   monitor for `monitor_stop`.
