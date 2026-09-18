@@ -1,4 +1,5 @@
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -6,10 +7,13 @@ PACKAGE = Path(__file__).resolve().parents[1]
 ROOT = PACKAGE.parents[1]
 
 
-def run_node(script: str) -> subprocess.CompletedProcess:
+def run_node(script: str, *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    node = shutil.which("node")
+    assert node is not None, "Node.js is required for runtime tests"
     return subprocess.run(
-        ["node", "--import", "tsx/esm", "--input-type=module"],
+        [node, "--import", "tsx/esm", "--input-type=module"],
         cwd=ROOT,
+        env=env,
         text=True,
         capture_output=True,
         input=script,
@@ -76,21 +80,38 @@ def test_live_boot_reports_actionable_context_in_empty_project(tmp_path: Path) -
     assert "impeccable init" not in check.stdout
 
 
-def test_copy_edit_agent_selects_pi_first() -> None:
+def test_copy_edit_agent_selects_pi_first(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for command in ("pi", "codex", "claude"):
+        executable = bin_dir / command
+        executable.write_text('#!/bin/sh\n[ "$#" -eq 1 ] && [ "$1" = "--version" ]\n')
+        executable.chmod(0o755)
     result = run_node('''
 import assert from "node:assert/strict";
+import { unlinkSync } from "node:fs";
+import path from "node:path";
 import { chooseCopyEditAgent, describeNoProviderError } from "./packages/impeccable/scripts/live-copy-edit-agent.mjs";
-const exists = command => ["pi", "codex", "claude"].includes(command);
-assert.equal(chooseCopyEditAgent({ exists, authCheck: () => true }), "pi");
-assert.equal(chooseCopyEditAgent({ exists, authCheck: command => command !== "pi" }), "codex");
-assert.equal(chooseCopyEditAgent({ exists, authCheck: () => false, chatAvailable: () => true }), "chat");
-assert.equal(chooseCopyEditAgent({ exists, authCheck: () => true, env: { IMPECCABLE_LIVE_COPY_AGENT: "pi" } }), "pi");
-assert.equal(chooseCopyEditAgent({ exists, authCheck: () => true, env: { IMPECCABLE_LIVE_COPY_AGENT: "codex" } }), "codex");
-assert.equal(chooseCopyEditAgent({ exists, authCheck: () => true, env: { IMPECCABLE_LIVE_COPY_AGENT: "off" } }), null);
-assert.equal(chooseCopyEditAgent({ exists: () => false, authCheck: () => false }), null);
-assert.match(describeNoProviderError({ exists, chatAvailable: () => false }), /Pi CLI/);
+const auto = { env: {} };
+assert.equal(chooseCopyEditAgent({ ...auto, authCheck: () => true }), "pi");
+assert.equal(chooseCopyEditAgent({ ...auto, authCheck: command => command !== "pi" }), "codex");
+assert.equal(chooseCopyEditAgent({ ...auto, authCheck: command => command === "claude" }), "claude");
+assert.equal(chooseCopyEditAgent({ ...auto, authCheck: () => false, chatAvailable: () => true }), "chat");
+assert.equal(chooseCopyEditAgent({ ...auto, authCheck: () => false }), null);
+const noAuthProbe = () => { throw new Error("Explicit selection must not authenticate a CLI"); };
+for (const provider of ["pi", "codex", "claude"]) {
+  assert.equal(chooseCopyEditAgent({ authCheck: noAuthProbe, env: { IMPECCABLE_LIVE_COPY_AGENT: provider } }), provider);
+  unlinkSync(path.join(process.env.PATH, provider));
+  assert.equal(chooseCopyEditAgent({ authCheck: noAuthProbe, env: { IMPECCABLE_LIVE_COPY_AGENT: provider } }), null);
+}
+for (const mode of ["off", "unsupported"]) {
+  assert.equal(chooseCopyEditAgent({ authCheck: noAuthProbe, env: { IMPECCABLE_LIVE_COPY_AGENT: mode } }), null);
+}
+assert.equal(chooseCopyEditAgent({ authCheck: noAuthProbe, env: { IMPECCABLE_LIVE_COPY_AGENT: "mock" } }), "mock");
+assert.equal(chooseCopyEditAgent({ env: {} }), null);
+assert.match(describeNoProviderError({ env: {} }), /Pi CLI: not installed/);
 console.log("ok");
-''')
+''', env={"PATH": str(bin_dir), "HOME": str(tmp_path), "IMPECCABLE_LIVE_COPY_AGENT": "off"})
     assert result.returncode == 0, result.stdout + result.stderr
 
 
