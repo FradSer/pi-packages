@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { stripVTControlCharacters } from "node:util";
-import { Markdown, visibleWidth } from "@earendil-works/pi-tui";
-import { getMarkdownTheme, initTheme } from "@earendil-works/pi-coding-agent";
-import {
+import { visibleWidth } from "@earendil-works/pi-tui";
+import { initTheme } from "@earendil-works/pi-coding-agent";import {
   clearResearchWidget,
   startResearchWidget,
   updateResearchWidget,
@@ -73,13 +72,44 @@ for (const width of [0, 1, 2, 10, 40, 80, 160, 40]) {
     assert.ok(!line.includes("\u001b[2J"));
   }
 }
-updateResearchWidget(token, "**New activity**");
-for (const name of ["dark", "light"]) {
-  initTheme(name, false);
-  widget.invalidate();
-  const expected = new Markdown("**New activity**", 0, 0, getMarkdownTheme()).render(80)[0].trim();
-  assert.ok(widget.render(80)[0].includes(expected), "native Markdown styling follows theme invalidation");
+// A streamed fragment that carries line structure or a raw CR must not move the
+// cursor inside the widget row.
+updateResearchWidget(token, "safe\rOVERWRITE\nnext");
+for (const line of widget.render(160)) {
+  assert.ok(!line.includes("\r") && !line.includes("\n"), JSON.stringify(line));
+  assert.ok(stripVTControlCharacters(line).includes("safe OVERWRITE next"), line);
 }
+// Markdown activity is rendered by pi-kit from the theme pi injects into the
+// widget factory, so markdown elements carry that theme's native tokens.
+updateResearchWidget(token, "**New activity**");
+const tokenColors: Record<string, string> = { muted: "2", mdCode: "36", mdHeading: "35", mdLink: "34", mdLinkUrl: "90", mdQuote: "33", mdListBullet: "31", mdHr: "32", mdCodeBlock: "36", mdCodeBlockBorder: "90", mdQuoteBorder: "90", accent: "94", borderAccent: "95" };
+const coloredTheme = {
+  fg: (color: string, text: string) => `\u001b[${tokenColors[color] ?? "0"}m${text}\u001b[39m`,
+  bold: (text: string) => `\u001b[1m${text}\u001b[22m`,
+};
+const coloredFactory = calls[0].factory as (tui: unknown, theme: unknown) => { render(width: number): string[]; invalidate(): void };
+const coloredWidget = coloredFactory(tui, coloredTheme);
+const coloredRow = coloredWidget.render(160)[0];
+assert.ok(coloredRow.includes(`\u001b[1m\u001b[2mNew activity`), coloredRow);
+assert.ok(!coloredRow.includes("**"), coloredRow);
+coloredWidget.invalidate();
+updateResearchWidget(token, "Reading `context-tools.ts`");
+assert.ok(coloredWidget.render(160)[0].includes(`\u001b[36mcontext-tools.ts\u001b[39m`), coloredWidget.render(160)[0]);
+// Pi hands the widget a live theme proxy: the row must read the theme on each
+// render, so a theme switch recolors without a remount.
+const liveTheme = { mdCode: "36" };
+const proxyTheme = {
+  fg: (color: string, text: string) => `\u001b[${color === "mdCode" ? liveTheme.mdCode : "2"}m${text}\u001b[39m`,
+  bold: (text: string) => `\u001b[1m${text}\u001b[22m`,
+};
+const proxyWidget = coloredFactory(tui, proxyTheme);
+assert.ok(proxyWidget.render(160)[0].includes(`\u001b[36mcontext-tools.ts\u001b[39m`), proxyWidget.render(160)[0]);
+liveTheme.mdCode = "35";
+assert.ok(proxyWidget.render(160)[0].includes(`\u001b[35mcontext-tools.ts\u001b[39m`), proxyWidget.render(160)[0]);
+// Activity without visible width leaves an identity-only row instead of a
+// dangling separator.
+updateResearchWidget(token, "\u200b");
+assert.equal(stripVTControlCharacters(proxyWidget.render(160)[0]).trimEnd(), " ⠋ researcher");
 
 updateResearchWidget(token + 999, "stale detail");
 assert.ok(!stripVTControlCharacters(widget.render(80)[0]).includes("stale detail"));

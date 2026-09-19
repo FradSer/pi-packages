@@ -1,5 +1,5 @@
-import { getMarkdownTheme, keyHint, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { type Component, Markdown, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { keyHint, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { type Component, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   bindLifecycleRenderers,
   contentDetailLines,
@@ -92,14 +92,14 @@ interface ActiveResearch {
 
 let researchToken = 0;
 let activeResearch: ActiveResearch | undefined;
+// Identity, marker, and activity rendering all come from pi-kit, so this
+// widget uses the same row language as every other package's status row; the
+// activity format is the only per-package choice.
 const researchWidget = createLiveActivityWidget({
   key: "context-research",
   placement: "aboveEditor",
   fit: truncateToWidth,
-  formatIdentity: (identity, theme) => theme.fg("success", theme.bold(identity)),
-  formatActivity: (activity, theme) => new Markdown(
-    activity, 0, 0, getMarkdownTheme(), { color: (text) => theme.fg("accent", text) },
-  ).render(Math.max(1, visibleWidth(activity))).map((line) => line.trim()).filter(Boolean).join(" "),
+  activityFormat: "markdown",
 });
 
 /** Show the running-research status above the editor; returns a token for updates/clear. */

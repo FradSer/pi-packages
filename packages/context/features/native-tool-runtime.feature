@@ -80,9 +80,13 @@ Feature: Isolated Pi research tool
   Scenario: Live research activity renders Markdown in its compact row
     Given a running research worker streams Markdown activity
     When its widget renders bold text, inline code, a link, or a heading
-    Then the activity uses Pi's native Markdown renderer rather than literal markup
+    Then pi-kit renders the activity through Pi's Markdown using the theme Pi injects into the widget
+    And well-formed markdown elements keep that theme's native tokens instead of literal markup
+    And a fence line is dropped because a streamed fence carries no content
     And the spinner and research identity remain on one width-bounded row
+    And the identity and activity rendering come from pi-kit so every package's status row uses the same language
     And terminal control sequences in activity are sanitized before Markdown rendering
+    And an activity with no visible width leaves an identity-only row
     And newer activity and theme invalidation replace the previous rendering
 
   Scenario: Pi cancellation terminates the child process
