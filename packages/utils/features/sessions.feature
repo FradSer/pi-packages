@@ -24,6 +24,8 @@ Feature: Cross-session awareness and directory recap
     When Session B receives a user prompt
     Then before_agent_start injects Session A's recap and status into the system prompt
     And the injected recap text is stripped of terminal escape sequences
+    And it is framed as untrusted peer-session text that never supplies instructions
+    And each peer goal, recap, and file entry is bounded in length
 
   Scenario: Dead session PIDs are automatically cleaned up
     Given a registered session with a PID that is no longer running
