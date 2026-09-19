@@ -12,6 +12,11 @@ import * as path from "node:path";
 import { createHash } from "node:crypto";
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { fileURLToPath } from "node:url";
+// Pi reifies its core packages for every extension module it loads (jiti
+// alias/virtualModules), so pi-kit can import the host-bundled TUI library
+// directly while keeping a dependency-free manifest. The tarball therefore
+// declares no dependency or peer; the host always supplies this one.
+import { Markdown, visibleWidth, type MarkdownTheme } from "@earendil-works/pi-tui";
 
 // ── TUI ─────────────────────────────────────────────────────────────
 // Spinner cadence matching pi's native " ⠋ Working..." loader and the
@@ -984,14 +989,16 @@ export interface PiLiveActivityWidgetOptions {
   key: string;
   placement?: "aboveEditor" | "belowEditor";
   fit: (text: string, width: number, ellipsis?: string, pad?: boolean) => string;
-  /** Retain package-specific identity formatting without duplicating lifecycle mechanics. */
-  formatIdentity?: (identity: string, theme: PiThemeLike & { bold(text: string): string }) => string;
-  /** Retain package-specific activity formatting without duplicating lifecycle mechanics. */
-  formatActivity?: (activity: string, theme: PiThemeLike & { bold(text: string): string }) => string;
+  /** How the activity text is rendered. A closed set on purpose: pi-kit owns
+   * the row language, so no package can restyle a status line on its own. */
+  activityFormat?: PiLiveActivityTextFormat;
   /** Row activity when an entry carries none; an explicit empty string renders an identity-only row. */
   fallbackActivity?: string;
   leadingSpaces?: number;
 }
+
+/** Activity rendering a live widget may request; each has exactly one implementation in pi-kit. */
+export type PiLiveActivityTextFormat = "plain" | "markdown";
 
 /** Stateful controller for one passive live activity widget. */
 export interface PiLiveActivityWidget {
@@ -1002,8 +1009,9 @@ export interface PiLiveActivityWidget {
 /**
  * Mount and refresh a compact live activity widget using Pi's native spinner
  * cadence. Packages own their activity state and semantics; pi-kit owns the
- * passive-widget lifecycle and the shared `<spinner> <identity> · <activity>`
- * row language.
+ * passive-widget lifecycle and the whole `<spinner> <identity> · <activity>`
+ * row language — identity, marker, and both activity formats — so every
+ * package's status row stays identical.
  */
 export function createLiveActivityWidget(options: PiLiveActivityWidgetOptions): PiLiveActivityWidget {
   let activities: readonly PiLiveActivity[] = [];
@@ -1090,18 +1098,16 @@ function renderLiveActivityRow(
   theme: PiThemeLike & { bold(text: string): string },
   options: PiLiveActivityWidgetOptions,
 ): string {
-  const identity = options.formatIdentity
-    ? options.formatIdentity(safeDisplayText(entry.identity), theme)
-    : theme.fg("accent", theme.bold(safeDisplayText(entry.identity)));
-  // `fallbackActivity: ""` is an explicit opt-out of the activity suffix.
+  const identity = renderLiveActivityIdentity(entry.identity, theme);
+  // An activity with no visible content (whitespace, an ANSI-only string, or
+  // zero-width characters) leaves an identity-only row rather than a bare
+  // separator. `fallbackActivity: ""` is an explicit opt-out of the suffix.
   const configuredActivity = entry.activity?.trim() || options.fallbackActivity;
   const activityText = safeDisplayText(
     configuredActivity === undefined ? "Working..." : configuredActivity,
   );
-  const activity = activityText
-    ? options.formatActivity
-      ? options.formatActivity(activityText, theme)
-      : theme.fg("muted", activityText)
+  const activity = visibleWidth(activityText) > 0
+    ? renderLiveActivityText(activityText, theme, options.activityFormat)
     : "";
   const marker = liveActivityMarker(entry.status, frame, theme);
   const label = activity ? `${marker} ${identity} · ${activity}` : `${marker} ${identity}`;
@@ -1117,6 +1123,110 @@ function liveActivityMarker(
   if (status === "failed") return theme.fg("error", "✗");
   if (status === "pending") return theme.fg("muted", "○");
   return theme.fg("warning", PI_SPINNER_FRAMES[frame % PI_SPINNER_FRAMES.length]);
+}
+
+/** Pi theme surface plus the inline styles a markdown theme may need. */
+export interface PiMarkdownThemeSource extends PiThemeLike {
+  bold?(text: string): string;
+  italic?(text: string): string;
+  underline?(text: string): string;
+  strikethrough?(text: string): string;
+}
+
+/**
+ * The single live-widget identity format: bold in pi-kit's stable per-name
+ * accent palette, shared with `@name` segments in report rows. Packages never
+ * format an identity themselves, so every widget shows the same identity.
+ */
+export function renderLiveActivityIdentity(
+  identity: string,
+  theme: PiThemeLike & { bold(text: string): string },
+  prefix = "",
+): string {
+  const name = safeDisplayText(identity);
+  return theme.fg(agentColor(name), theme.bold(`${prefix}${name}`));
+}
+
+/**
+ * Pi's markdown element-to-token mapping, applied to the injected theme: the
+ * same element tokens pi's `getMarkdownTheme()` uses, minus code highlighting,
+ * which a one-line status row never renders.
+ */
+export function liveActivityMarkdownTheme(theme: PiMarkdownThemeSource): MarkdownTheme {
+  const paint = (token: string) => (text: string) => theme.fg(token, text);
+  const style = (name: "bold" | "italic" | "underline" | "strikethrough") =>
+    (text: string) => theme[name] ? theme[name]!(text) : text;
+  return {
+    heading: paint("mdHeading"),
+    link: paint("mdLink"),
+    linkUrl: paint("mdLinkUrl"),
+    code: paint("mdCode"),
+    codeBlock: paint("mdCodeBlock"),
+    codeBlockBorder: paint("mdCodeBlockBorder"),
+    quote: paint("mdQuote"),
+    quoteBorder: paint("mdQuoteBorder"),
+    hr: paint("mdHr"),
+    listBullet: paint("mdListBullet"),
+    bold: style("bold"),
+    italic: style("italic"),
+    underline: style("underline"),
+    strikethrough: style("strikethrough"),
+  };
+}
+
+/**
+ * The single markdown activity format: one compact, sanitized, single line
+ * rendered by pi-tui's Markdown through the injected theme, with markdown
+ * spans keeping pi's native element colors and plain text staying muted. The
+ * widget row truncates the result with its injected `fit`; this function takes
+ * no width, so it never wraps mid-word by itself.
+ * A host that must nest the activity inside its own color passes a passthrough
+ * theme, which yields the same text with no additional styling.
+ *
+ * Activity is a streamed fragment, so a fence line — which carries no content,
+ * only a language or a terminator — is dropped before rendering.
+ */
+export function renderLiveActivityMarkdown(
+  text: string,
+  theme: PiMarkdownThemeSource,
+): string {
+  const flat = flattenActivityText(dropFenceLines(safeDisplayText(text)));
+  if (visibleWidth(flat) === 0) return "";
+  return new Markdown(flat, 0, 0, liveActivityMarkdownTheme(theme), {
+    color: (plain) => theme.fg("muted", plain),
+  })
+    .render(Math.max(1, visibleWidth(flat) + 1))
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Remove fence lines, including ones nested in a quote or list marker.
+ * `> ```bash` / `- ```bash` : a fragment's fence is metadata, never prose. */
+function dropFenceLines(text: string): string {
+  return text.replace(/^[ \t]*(?:[>-]+[ \t]*)*`{3,}.*$/gm, " ").trim();
+}
+
+/** Flatten any line structure — including CR, tabs, and Unicode separators —
+ * into single spaces, so no control character can move the cursor inside a
+ * row and both activity formats agree on whitespace. */
+function flattenActivityText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+/** The single activity format for one row, chosen from the closed vocabulary.
+ * Plain stays literal, but a row is still flattened to one line: an activity
+ * that carries CR, tabs, or a Unicode separator must not move the cursor. */
+function renderLiveActivityText(
+  text: string,
+  theme: PiMarkdownThemeSource & { bold(text: string): string },
+  format: PiLiveActivityTextFormat | undefined,
+): string {
+  return format === "markdown"
+    ? renderLiveActivityMarkdown(text, theme)
+    : theme.fg("muted", flattenActivityText(safeDisplayText(text)));
 }
 
 // ── Overlay layout helpers ──────────────────────────────────────────

@@ -24,5 +24,9 @@
     "index.ts",
     "src",
     "README.md"
-  ]
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  }
 }

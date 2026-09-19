@@ -139,7 +139,13 @@ Feature: Shared pi-kit runtime helpers
     Then the widget is mounted at its declared editor placement
     And each active row uses the shared 120 ms braille spinner as "<spinner> <identity> · <latest activity>"
     And a widget that configures no fallback activity renders an identity-only row without an activity suffix
-    And the identity is bold and accented while activity is muted and width-bounded
+    And the identity is bold in pi-kit's stable per-name accent so every package shows the same identity language
+    And a plain activity is muted and literal while a markdown activity renders through pi-tui's Markdown from the injected theme
+    And a markdown activity keeps pi's native markdown element colors and never renders a fence line — plain or nested in a quote or list marker — because a streamed fence carries no content
+    And a markdown activity always stays one sanitized line, and the widget row truncates it with its injected fit
+    And an activity carrying line breaks or terminal control sequences stays one row without moving the cursor
+    And an activity without visible width leaves an identity-only row
+    And no package supplies its own identity or activity formatter, so the row language cannot drift
     And completed, failed, and pending entries use stable terminal markers until their owner clears the widget
     And a later update replaces the visible activity instead of appending old activity
     And an update from a replacement TUI context remounts the widget and clears the previous context

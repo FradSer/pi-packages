@@ -168,6 +168,76 @@ def test_live_activity_widget_omits_the_activity_suffix_without_a_fallback() -> 
     assert "Working..." in result["fallbackRow"]
 
 
+def test_live_activity_widget_owns_the_identity_and_activity_language() -> None:
+    result = subprocess.run(
+        ["node", "--import", "tsx", str(PACKAGE / "tests" / "activity-row-fixture.ts")],
+        cwd=REPO,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "KIT_ACTIVITY_ROW_OK" in result.stdout
+
+
+def test_no_consumer_supplies_its_own_widget_row_formatter() -> None:
+    source = (SRC / "index.ts").read_text(encoding="utf-8")
+    assert "formatIdentity" not in source
+    assert "formatActivity" not in source
+    assert 'PiLiveActivityTextFormat = "plain" | "markdown"' in source
+    for consumer in CONSUMERS:
+        for path in sorted((REPO / "packages" / consumer).rglob("*.ts")):
+            text = path.read_text(encoding="utf-8")
+            assert "formatIdentity" not in text, f"{path}: identity formatting belongs to pi-kit"
+            assert "formatActivity" not in text, f"{path}: activity formatting belongs to pi-kit"
+            # A renamed restyle hook would still be a restyle hook: the widget
+            # options are a closed vocabulary, so every mount is checked by key.
+            # A source scan cannot prove "no second activity renderer" — recap,
+            # plan-mode, and btw legitimately parse Markdown for overlay panels
+            # in the same file — so that guarantee is behavioral instead: the
+            # widget takes an activity *string* plus a format, and the fixture
+            # proves a pre-styled activity cannot restyle a row.
+            for options in widget_option_blocks(text):
+                unknown = option_keys(options) - WIDGET_OPTION_KEYS
+                assert not unknown, f"{path}: createLiveActivityWidget got unsupported options {sorted(unknown)}"
+
+
+def widget_option_blocks(text: str) -> list[str]:
+    """Return the brace-balanced argument of every createLiveActivityWidget call."""
+    blocks: list[str] = []
+    marker = "createLiveActivityWidget({"
+    index = text.find(marker)
+    while index >= 0:
+        depth = 0
+        for offset, char in enumerate(text[index + len(marker) - 1:], start=index + len(marker) - 1):
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    blocks.append(text[index + len(marker):offset])
+                    break
+        index = text.find(marker, index + 1)
+    return blocks
+
+
+def option_keys(block: str) -> set[str]:
+    """Top-level option keys of a brace-balanced object argument."""
+    keys: set[str] = set()
+    depth = 0
+    for line in block.splitlines():
+        depth += line.count("{") + line.count("[") + line.count("(")
+        depth -= line.count("}") + line.count("]") + line.count(")")
+        match = re.match(r"\s*([A-Za-z_$][\w$]*)\s*:", line)
+        if match and depth >= 0:
+            keys.add(match.group(1))
+    return keys
+
+
+WIDGET_OPTION_KEYS = {"key", "placement", "fit", "activityFormat", "fallbackActivity", "leadingSpaces"}
+
+
 def test_spinner_constants_match_pi_native_loader() -> None:
     result = run_typescript(
         f"""
@@ -1835,7 +1905,14 @@ def test_kit_manifest_is_a_pure_runtime_dependency() -> None:
     assert manifest["name"] == "@fradser/pi-kit"
     assert "pi" not in manifest
     assert "dependencies" not in manifest
-    assert "peerDependencies" not in manifest
+    # The only declared peers are the host-reified core packages kit uses: the
+    # TUI library it imports for shared live-activity markdown rendering and the
+    # core package its best-effort CLI probe resolves. A core use must be a "*"
+    # peer per pi's package guide, never a bundled dependency.
+    assert manifest["peerDependencies"] == {
+        "@earendil-works/pi-coding-agent": "*",
+        "@earendil-works/pi-tui": "*",
+    }
     assert "pi-package" not in manifest.get("keywords", [])
     assert "src" in manifest["files"]
 
@@ -1846,7 +1923,47 @@ def test_kit_has_no_consumer_imports() -> None:
         text = source.read_text(encoding="utf-8")
         for name in consumer_names:
             assert name not in text, f"{source.name} must not import consumer package {name}"
-        assert 'from "@earendil-works/pi-coding-agent"' not in text, f"{source.name} must not import pi core"
+        # Exactly one pi core package is host-reified for extensions and may be
+        # imported here (shared live-activity markdown rendering); every other
+        # pi core import stays out so the dependency-free manifest holds.
+        imported_core = set(re.findall(r'from "(@earendil-works/[^"/]+)', text))
+        assert imported_core <= {"@earendil-works/pi-tui"}, f"{source.name} imports unexpected pi core: {sorted(imported_core)}"
+        # A dynamic import() or import.meta.resolve() must not smuggle one in
+        # either: the only non-static mention left is resolvePiCli's best-effort
+        # probe for pi's own CLI entry.
+        mentioned_core = set(re.findall(r'"(@earendil-works/[^"/]+)', text))
+        assert mentioned_core <= {"@earendil-works/pi-tui", "@earendil-works/pi-coding-agent"}, f"{source.name} mentions unexpected pi core: {sorted(mentioned_core)}"
+
+
+def test_every_core_use_is_declared_as_a_star_peer() -> None:
+    """pi's package guide: a bundled core package you use is a `"*"` peer, never
+    an undeclared import resolved by hoisting and never a bundled dependency.
+    `import type` counts: pi packages ship TypeScript source, so a consumer's
+    type-checker must resolve it too."""
+    for manifest_path in sorted((REPO / "packages").glob("*/package.json")):
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        used: set[str] = set()
+        for path in manifest_path.parent.rglob("*.ts"):
+            if "tests" in path.parts or "node_modules" in path.parts:
+                continue
+            text = path.read_text(encoding="utf-8")
+            for package in CORE_PACKAGES:
+                if re.search(rf'(?:from|import\(|import\.meta\.resolve\()\s*"{re.escape(package)}"', text):
+                    used.add(package)
+        declared = manifest.get("peerDependencies", {})
+        missing = {package for package in used if declared.get(package) != "*"}
+        assert not missing, f"{manifest_path}: used but not a \"*\" peer: {sorted(missing)}"
+        bundled = sorted(set(CORE_PACKAGES) & set(manifest.get("dependencies", {})))
+        assert not bundled, f"{manifest_path}: pi bundles core packages; do not ship them as dependencies: {bundled}"
+
+
+CORE_PACKAGES = (
+    "@earendil-works/pi-ai",
+    "@earendil-works/pi-agent-core",
+    "@earendil-works/pi-coding-agent",
+    "@earendil-works/pi-tui",
+    "typebox",
+)
 
 
 def test_model_search_text_and_search_picker_behavior() -> None:

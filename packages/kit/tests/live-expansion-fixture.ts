@@ -6,7 +6,7 @@ import { createAssistantMessageEventStream, type AssistantMessage } from "@earen
 import { initTheme, keyHint, ToolExecutionComponent, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager, ProcessTerminal, TuiMainScreen, setKeybindings, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { bindLifecycleRenderers, createToolLifecycleResultRenderer, eventToolLifecycle } from "../src/index.ts";
+import { bindLifecycleRenderers, createLiveActivityWidget, createToolLifecycleResultRenderer, eventToolLifecycle } from "../src/index.ts";
 
 const longTitle = "Full lifecycle title " + Array.from({ length: 14 }, (_, i) => `evidence-${i}`).join(" ");
 const longSummary = "Answer: " + Array.from({ length: 16 }, (_, i) => `answer-${i}`).join(" ");
@@ -19,7 +19,9 @@ const rows = bindLifecycleRenderers(geometry);
 
 export default function (pi: ExtensionAPI): void {
   const snapshots = process.env.PI_EXPANSION_SNAPSHOTS;
+  const widgetSnapshots = process.env.PI_WIDGET_SNAPSHOTS;
   assert.ok(snapshots, "An isolated snapshot path is required");
+  assert.ok(widgetSnapshots, "An isolated widget snapshot path is required");
   const specFor = (kind: string) => eventToolLifecycle("probe", kind === "title" ? longTitle : kind, {
     summary: kind === "summary" ? [longSummary] : undefined,
     details: kind === "details" ? ["additional evidence"] : kind === "empty" ? [" ", "\n"] : [],
@@ -52,7 +54,37 @@ export default function (pi: ExtensionAPI): void {
   };
   pi.registerTool(tool);
   pi.on("session_start", (_event, ctx) => {
-    if (ctx.mode === "tui") return;
+    if (ctx.mode === "tui") {
+      // Real interactive TUI: mount both canonical activity formats through the
+      // host widget surface and snapshot every row the host asks us to render.
+      const hostUi = ctx.ui;
+      assert.ok(hostUi, "TUI mode must expose a UI context");
+      const ui = {
+        setWidget(key: string, factory: undefined | ((tui: unknown, theme: unknown) => { render(width: number): string[]; invalidate(): void }), options?: { placement?: string }) {
+          hostUi.setWidget(key, factory && ((tui, theme) => {
+            const component = factory(tui, theme);
+            return {
+              invalidate: () => component.invalidate(),
+              render(width: number) {
+                const lines = component.render(width);
+                appendFileSync(widgetSnapshots, JSON.stringify({ key, width,
+                  bounded: lines.every(line => !line.includes("\n") && visibleWidth(line) <= width),
+                  lines: lines.map(stripVTControlCharacters),
+                }) + "\n");
+                return lines;
+              },
+            };
+          }) as never, options as never);
+        },
+      };
+      const activity = "**Scanning** `rg` output";
+      const plain = createLiveActivityWidget({ key: "kit-widget-plain", fit: truncateToWidth, placement: "aboveEditor" });
+      const markdown = createLiveActivityWidget({ key: "kit-widget-markdown", fit: truncateToWidth, placement: "aboveEditor", activityFormat: "markdown" });
+      plain.update({ mode: "tui", ui }, [{ id: "probe", identity: "researcher", activity }]);
+      markdown.update({ mode: "tui", ui }, [{ id: "probe", identity: "researcher", activity }]);
+      console.log("KIT_WIDGET_MOUNTED");
+      return;
+    }
     initTheme("dark", false);
     setKeybindings(new KeybindingsManager({ "app.tools.expand": { defaultKeys: "ctrl+o" } }));
     // Never start this native host: only its row's render/mouse methods run.

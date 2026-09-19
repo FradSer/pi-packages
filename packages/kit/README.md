@@ -3,7 +3,12 @@
 Shared runtime helpers for the FradSer pi-packages monorepo. This is an
 internal workspace dependency, **not** a Pi package: it has no `pi` manifest,
 no skills, and no extensions. Consumer packages declare it as
-`"@fradser/pi-kit": "workspace:*"` under `dependencies`.
+`"@fradser/pi-kit": "workspace:*"` under `dependencies`. It declares two `"*"`
+peers — `@earendil-works/pi-tui`, the bundled core TUI library pi reifies for
+every extension module it loads and kit imports for shared live-activity
+markdown rendering, and `@earendil-works/pi-coding-agent`, which its worker CLI
+probe resolves at runtime — per pi's package guide for core imports. It has no
+`dependencies` at all.
 
 ## API
 
@@ -19,7 +24,8 @@ no skills, and no extensions. Consumer packages declare it as
 - `renderPiPanel({ width, style, fit, title, body, footer })` — standard bordered panel geometry for overlays and full-screen consoles. Consumers keep interaction, scrolling, and Markdown rendering; pi-kit supplies the shared frame.
 - `computeScrollWindow(lines, scroll, maxBody)` — compute scroll window slice indices and clamped scroll offset for scrollable panels.
 - `renderPiWidgetRow(content, width, fit)` — one leading-space, width-bounded passive status-widget row aligned with Pi's native rows.
-- `createLiveActivityWidget(options)` — package-owned passive widget controller that renders one or more active rows as `<spinner> <identity> · <latest activity>` using Pi's native cadence. It owns TUI-only mounting, refresh, and disposal; callers retain worker state, activity extraction, and domain labels. A caller that passes `fallbackActivity: ""` asks for an identity-only `<spinner> <identity>` row with no activity suffix.
+- `createLiveActivityWidget(options)` — package-owned passive widget controller that renders one or more active rows as `<spinner> <identity> · <latest activity>` using Pi's native cadence. It owns the lifecycle (TUI-only mounting, refresh, disposal) **and the whole row language**: `renderLiveActivityIdentity` paints the identity bold in pi-kit's stable per-name accent palette, and `activityFormat` picks one of exactly two activity formats — `"plain"` (default: muted, literal) or `"markdown"` (one sanitized line through pi-tui's Markdown with the injected theme's native markdown tokens). Every activity is flattened to a single row, foreign ANSI is stripped, and the widget truncates with `fit`. Callers retain worker state, activity extraction, and domain labels; no caller supplies an identity, an activity formatter, or styled text. A caller that passes `fallbackActivity: ""` asks for an identity-only `<spinner> <identity>` row with no activity suffix.
+- `renderLiveActivityIdentity(identity, theme, prefix?)` / `liveActivityMarkdownTheme(theme)` / `renderLiveActivityMarkdown(text, theme)` — the shared row pieces, exported so console and overlay rows use the same identity and markdown activity rendering instead of reimplementing them. The identity renderer hashes the bare `identity` and prepends `prefix` (for example `"@"`), so a caller that prints `@name` gets the same accent as report rows. Pass a passthrough theme (`{ fg: (_color, text) => text }`) when the row paints its own color around the activity. `renderLiveActivityMarkdown` returns one line and takes no width: the caller (or the widget row) owns truncation. Activity is a streamed fragment, so a fence line is dropped; everything else renders exactly like pi's own streaming assistant text — the same pi-tui `Markdown`, the same `md*` tokens — which means a fragment that is still arriving mid-inline-markup shows that fragment's marker until the next activity replaces it, exactly as the transcript does.
 - `setPiStatus` / `clearPiStatus` — sanitized set/clear adapters for package-owned transient status entries.
 - `startPiWorkingIndicator` / `clearPiWorkingIndicator` — start the shared native-cadence spinner or restore Pi's default indicator.
 
