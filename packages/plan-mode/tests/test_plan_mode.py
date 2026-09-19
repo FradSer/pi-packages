@@ -122,6 +122,10 @@ def test_plan_mode_uses_the_shared_live_worker_widget():
     assert "createLiveActivityWidget" in source
     assert 'key: "plan-workers"' in source
     assert 'placement: "aboveEditor"' in source
+    # Identity and activity formatting belong to pi-kit, so every package's
+    # status row uses the same language.
+    assert "formatIdentity" not in source
+    assert "formatActivity" not in source
     assert "activePlanWorkerActivities" in source
     assert "planWorkerWidget.update(planWidgetContext" in source
     assert "onUpdate" in worker

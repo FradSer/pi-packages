@@ -149,7 +149,6 @@ const planWorkerWidget = createLiveActivityWidget({
   key: "plan-workers",
   placement: "aboveEditor",
   fit: truncateToWidth,
-  formatIdentity: (identity, theme) => theme.bold(identity),
 });
 
 function activePlanWorkerActivities() {
