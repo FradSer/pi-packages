@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-open-deskos",
   "version": "0.1.0",
-  "description": "Report this machine's Pi sessions and their operating events to Open DeskOS over a package-initiated Desk Link",
+  "description": "Report this machine's Pi sessions and their operating events to Open DeskOS over a package-initiated Desk Link, and optionally drive a Pi session Open DeskOS hosts",
   "type": "module",
   "keywords": [
     "pi-package",
@@ -9,7 +9,9 @@
     "desk-link",
     "reporting",
     "observability",
-    "sessions"
+    "sessions",
+    "hosted-pi",
+    "console"
   ],
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",

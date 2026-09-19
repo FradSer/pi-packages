@@ -4,6 +4,9 @@ import {
   MAX_MESSAGE_BYTES,
   MAX_RESULT_BYTES,
   MAX_SESSION_EVENT_BYTES,
+  MAX_THINKING_BYTES,
+  MAX_TOOL_BYTES,
+  MAX_USER_BYTES,
   type SessionEvent,
   type ThinkingPart,
   type ToolCallPart,
@@ -21,21 +24,24 @@ export function boundEventText(value: unknown, max = MAX_EVENT_TEXT): string {
   return "";
 }
 
-/** Kinds that carry a rendered body rather than a one-line summary. */
-const BODY_KINDS = new Set(["result", "assistant"]);
+/** The bound each kind's body is held to. */
+const BODY_BYTES: Record<SessionEvent["kind"], number> = {
+  result: MAX_RESULT_BYTES,
+  assistant: MAX_MESSAGE_BYTES,
+  user: MAX_USER_BYTES,
+  thinking: MAX_THINKING_BYTES,
+  tool: MAX_TOOL_BYTES,
+};
 
 /**
- * Apply the body bound without flattening or prefixing its Markdown. A tool
- * result and an assistant reply keep their line structure so the desk can
- * render them the way Pi does; summaries stay one bounded line.
+ * Apply the body bound without flattening or prefixing its Markdown. Every kind
+ * keeps its line structure so the desk can render it the way Pi does: a bash
+ * command, a prompt, a thought, a reply, and a result are content, and only
+ * their own byte limit shortens them.
  */
 export function boundSessionEvent(event: SessionEvent): SessionEvent | null {
-  if (!BODY_KINDS.has(event.kind)) {
-    const text = boundEventText(event.text);
-    return text ? { kind: event.kind, text } : null;
-  }
   if (!event.text.trim()) return null;
-  const maxBytes = event.kind === "assistant" ? MAX_MESSAGE_BYTES : MAX_RESULT_BYTES;
+  const maxBytes = BODY_BYTES[event.kind] ?? MAX_RESULT_BYTES;
   const bytes = Buffer.from(event.text, "utf8");
   let text = event.text;
   let truncated = event.truncated === true;
@@ -76,19 +82,14 @@ function readArguments(args: unknown): Record<string, unknown> {
   return typeof args === "object" && args !== null ? (args as Record<string, unknown>) : {};
 }
 
-function baseName(value: string): string {
-  const parts = value.split(/[/\\]/).filter((part) => part.length > 0);
-  return parts.length > 0 ? (parts[parts.length - 1] ?? value) : value;
-}
-
-/** Name a tool call the way the desk reads it: a command, a file, or a query. */
+/** The command, file, or query a tool call names, as Pi issued it. */
 export function summarizeToolCall(name: string, args: unknown): string {
   const parsed = readArguments(args);
-  const asText = (value: unknown): string => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "");
+  const asText = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
   const command = asText(parsed.command);
   if (command) return `bash: ${command}`;
   const file = asText(parsed.path);
-  if (file) return `${name}: ${baseName(file)}`;
+  if (file) return `${name}: ${file}`;
   const query = asText(parsed.query);
   if (query) return `search: ${query}`;
   const subject = asText(parsed.subject);
@@ -154,17 +155,18 @@ export function eventsFromMessage(message: unknown): SessionEvent[] {
   const events: SessionEvent[] = [];
   for (const part of parts) {
     if (view.role === "user" && isText(part)) {
-      const text = boundEventText(part.text);
-      if (text) events.push({ kind: "user", text });
+      if (part.text.trim()) events.push({ kind: "user", text: part.text.trim() });
       continue;
     }
     if (view.role === "assistant" && isThinking(part)) {
-      const text = boundEventText(part.thinking);
-      if (text) events.push({ kind: "thinking", text });
+      if (part.thinking.trim()) events.push({ kind: "thinking", text: part.thinking.trim() });
       continue;
     }
     if (view.role === "assistant" && isToolCall(part)) {
-      const text = boundEventText(summarizeToolCall(part.name, part.arguments));
+      // The call is kept as Pi issued it: a multi-line command or a heredoc is
+      // content. The one-line activity summary is made separately, in the
+      // reporter, and never replaces this body.
+      const text = summarizeToolCall(part.name, part.arguments).trim();
       if (text) events.push({ kind: "tool", text });
       continue;
     }

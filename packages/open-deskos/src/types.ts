@@ -9,12 +9,15 @@
 export const DESK_LINK_PROTOCOL = 1;
 
 /** Event bounds, identical to the runtime's local session collector. */
-export const MAX_EVENTS_PER_SESSION = 60;
+export const MAX_EVENTS_PER_SESSION = 300;
 export const MAX_EVENT_TEXT = 200;
+/** Every event keeps the body Pi produced, bounded per kind. */
 export const MAX_RESULT_BYTES = 65536;
-/** An assistant reply keeps its Markdown body; prose stays bounded smaller. */
 export const MAX_MESSAGE_BYTES = 16384;
-export const MAX_SESSION_EVENT_BYTES = 262144;
+export const MAX_USER_BYTES = 8192;
+export const MAX_THINKING_BYTES = 4096;
+export const MAX_TOOL_BYTES = 4096;
+export const MAX_SESSION_EVENT_BYTES = 1048576;
 
 export type SessionStatus = "running" | "settled" | "exited";
 
@@ -27,7 +30,7 @@ export interface SessionEvent {
   /** Result-only label, kept outside the Markdown body. */
   toolName?: string;
   /** Present only when a result or assistant body was shortened. */
-  /** Present only when a result or assistant body was shortened. */
+  /** Present only when the event body was shortened by its kind's limit. */
   truncated?: true;
 }
 

@@ -1,4 +1,4 @@
-Feature: Report this machine's Pi sessions to Open DeskOS
+Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
 
   Scenario: Local installation works from any checkout location
     Given the repository is checked out outside the user's home in a path containing spaces
@@ -17,11 +17,12 @@ Feature: Report this machine's Pi sessions to Open DeskOS
     When its Pi session runs
     Then no connection is attempted
     And no session is reported
+    And no control connection is attempted
 
   Scenario: Reported events obey the local bounds
     Given a session produced more activity than the event bound
     When the reporter sends its events
-    Then at most the bounded number of events is retained or sent
+    Then at most the bounded number of events are retained or sent
     And non-result events remain single-line summaries of at most 200 characters
     And tool results preserve complete multiline Markdown within the result byte bound
 
@@ -35,7 +36,7 @@ Feature: Report this machine's Pi sessions to Open DeskOS
   Scenario: A dropped link reconnects with a growing wait
     Given a Desk Link was established and then dropped
     When the reporter reconnects
-    Then each attempt waits a longer interval than the one before it
+    Then each attempt waits a longer interval than the one before
     And the interval never exceeds the configured maximum
     And only one link is open at a time
 
@@ -46,11 +47,55 @@ Feature: Report this machine's Pi sessions to Open DeskOS
     And it replays the complete bounded retained event tail even if it was already sent
     And it does not replay an unbounded backlog
 
-  Scenario: The reporter never acts inside the session
+  Scenario: The reporter never acts inside a reported session
     Given a Desk Link is connected
     When the reporter observes messages and tool results
     Then it only reads them
-    And it never sends a prompt, blocks a turn, or mutates a message
+    And it never sends a prompt into a reported session, blocks a turn, or mutates a message
+
+  Scenario: A machine without a control credential cannot control
+    Given the machine has a Desk Link address and token but no control credential
+    When its Pi session runs
+    Then it reports exactly as a report-only machine does
+    And the console does not offer to list, launch, attach to, prompt, cancel, or end a Hosted Pi
+
+  Scenario: A Console opens its own connection
+    Given the machine has a control credential
+    When it lists, launches, or reads history
+    Then that work uses its own control connection to the same listener
+    And the reporting connection's records, backoff, and session ownership are unchanged
+
+  Scenario: The control credential is never transmitted
+    Given the machine opens a control connection
+    When the desk challenges it with a one-time nonce
+    Then the machine answers with a proof over that nonce
+    And the credential itself never appears in any record the machine writes
+
+  Scenario: A Console holds a connection only while attached
+    Given the machine is attached to a Hosted Pi
+    When it is attached
+    Then one control connection is held
+    And it is closed once the machine is no longer attached
+    And losing it ends neither the Hosted Pi nor the reporting link
+
+  Scenario: Attaching continues from the position last applied
+    Given the machine previously applied events up to a position in a Hosted Pi's session log
+    When it attaches again
+    Then it reads history from that position and consumes live events from that boundary
+    And it applies no position twice and skips none
+    And it keeps no replay window
+
+  Scenario: Only a bounded tail enters the driving session's context
+    Given an attached Hosted Pi producing more events than the injection bound
+    When those events arrive
+    Then the driving session receives a bounded tail rather than every event
+    And the complete content stays available on demand rather than in context
+
+  Scenario: Tools cover the console without a status or detach tool
+    Given a Console is configured
+    When the assistant inspects its tools
+    Then list, start, attach, prompt, cancel, end, and history are available
+    And no separate status tool and no detach tool are registered
 
   Scenario: Link diagnostics never occupy the footer
     Given the machine is configured or unconfigured
@@ -58,14 +103,21 @@ Feature: Report this machine's Pi sessions to Open DeskOS
     And a configured link connects, drops, or reconnects while idle
     Then Open DeskOS never sets or clears a footer status
     And it never installs a custom footer or working-directory suffix
-    And diagnostics are available only through the open-deskos command
+    And diagnostics are available only through the open-deskos command's menu and its status argument
+
+  Scenario: The command opens the same menu in every configuration
+    Given a machine that is unconfigured, a machine that is report-only, and a machine that is a configured Console
+    When the user runs the open-deskos command with no arguments in each case
+    Then the same menu opens with the same rows
+    And a row that is unavailable names the reason rather than disappearing
 
   Scenario: Missing configuration is diagnosed on demand
     Given the machine has no Desk Link address or token
-    When the user runs the open-deskos command
+    When the user opens the open-deskos command's menu
     Then the missing configuration variables are shown
+    And the console row states that it needs a control credential rather than disappearing
 
   Scenario: The link state is visible from inside Pi
     Given a Desk Link is connected or offline
-    When the user runs the open-deskos command
+    When the user opens the open-deskos command's menu or passes its status argument
     Then the reported link state, machine, session count, and event count are shown
