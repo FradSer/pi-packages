@@ -13,7 +13,7 @@ import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, removeRunt
 import { cleanupExpiredStateDirs } from "./statefile.ts";
 import { livingTeammates, listTasks, resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
-import { refreshLeaderToolDisclosure, registerLeaderTools, registerTeamCommand } from "./tools.ts";
+import { registerLeaderTools, registerTeamCommand } from "./tools.ts";
 import { registerWorkerCapabilities, workerBinding } from "./worker.ts";
 import { plainText } from "./tool-copy.ts";
 import { agentColor, bindLifecycleRenderers, clearPiStatus, createToolExecutionWrapper, eventToolLifecycle, formatAgentMessagePrefix, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
@@ -187,19 +187,16 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     clearSessionAgents();
     resetState();
-    refreshLeaderToolDisclosure();
     leaderCtx = ctx;
     ensureTeamWidget(ctx);
     initTeamMachine(ctx, {
       sendUpdate: sendLeaderReport,
       notifyChange: () => {
         refreshTeamUI(leaderCtx);
-        refreshLeaderToolDisclosure();
       },
     });
     clearPiStatus(ctx.ui, "teammate");
     refreshTeamUI(ctx);
-    refreshLeaderToolDisclosure();
     void cleanupExpiredStateDirs(STATE_DIR_MAX_AGE_MS);
   });
 
@@ -224,7 +221,6 @@ export default function (pi: ExtensionAPI) {
     leaderPi = undefined;
     leaderCtx = undefined;
     resetState();
-    refreshLeaderToolDisclosure();
   });
 }
 

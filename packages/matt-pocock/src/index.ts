@@ -388,7 +388,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
   pi.registerTool({
     name: "matt_pocock_workflow",
     label: "Matt Pocock Gateway",
-    description: "Start a Matt Pocock engineering workflow, run a curated standalone capability, or load a reference disclosed by that capability. Workflows for structured multi-step engineering; capabilities for focused methods (research, prototypes, TDD, code review, grilling, domain modeling, codebase design, writing-for-agents, merge conflicts, de-slop).",
+    description: "Start a Matt Pocock engineering workflow, run a curated standalone capability, or load a reference disclosed by that capability. Workflows cover structured multi-step engineering; standalone capabilities cover focused methods and are listed in the injected capability catalog.",
     promptSnippet: "Start a Matt Pocock workflow or run a standalone capability",
     promptGuidelines: [
       "mode workflow: structured multi-step engineering task (idea-to-ship for features, hard-bug for non-trivial bugs, architecture for deepening/refactoring, wayfinding for ambiguous maps, triage for issues).",

@@ -55,9 +55,6 @@ function formatWorkCreation(subject: string, created: {
   ].join("\n");
 }
 
-/** Final surface uses stable registrations; retained for extension lifecycle callers. */
-export function refreshLeaderToolDisclosure(): void {}
-
 export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntime & { sendLeaderMessage: typeof sendLeaderMessage } = { spawnTeammate, shutdownTeammateExact, sendLeaderMessage }): void {
   pi.registerTool({
     name: "agent",
@@ -79,7 +76,6 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
       const result = await runAgentAction(params, ctx.cwd, runtime, ctx.sessionManager);
       if (params.action !== "inspect") {
         refreshTeamUI(ctx);
-        refreshLeaderToolDisclosure();
       }
       return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
     },
@@ -144,7 +140,6 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
         const work = listTasks().find((task) => task.id === created.id);
         if (!work) throw new Error(`Replacement Work Item "${created.id}" is unavailable.`);
         refreshTeamUI(ctx);
-        refreshLeaderToolDisclosure();
         return {
           content: [{ type: "text", text: `WORK · current session\nSUPERSEDED · ${work.id} · ${work.status}\nREPLACED · ${created.supersededTaskIds.join(", ")}\nROUTING · ${created.notifiedTeammates.length > 0 ? `eligible residents notified: ${created.notifiedTeammates.map((name) => `@${name}`).join(", ")}` : "no eligible resident notified"}` }],
           details: {
@@ -158,7 +153,6 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
         const reopened = reopenExistingWork(params.id);
         if (!reopened.ok) throw new Error(reopened.error);
         refreshTeamUI(ctx);
-        refreshLeaderToolDisclosure();
         return {
           content: [{ type: "text", text: `WORK · current session\nREOPENED · ${reopened.workId} · pending\nREASON · ${params.reason}` }],
           details: { action: "reopen", outcome: "reopened", state: "pending", work: { id: reopened.workId, subject: reopened.subject, resources: reopened.resources, state: "pending" }, reason: params.reason },
@@ -168,7 +162,6 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
         const released = releaseExistingWork(params.id, params.reason);
         if (!released.ok) throw new Error(released.error);
         refreshTeamUI(ctx);
-        refreshLeaderToolDisclosure();
         const residual = released.holderStillRunning
           ? `\nRISK · @${released.holderStillRunning} was still working; an in-flight tool batch may still write inside ${released.resources.join(", ") || "the released scope"}.`
           : "";
@@ -183,7 +176,6 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
         const task = listTasks().find((entry) => entry.id === assigned.workId);
         if (!task) throw new Error(`Assigned Work Item "${assigned.workId}" is unavailable.`);
         refreshTeamUI(ctx);
-        refreshLeaderToolDisclosure();
         return {
           content: [{ type: "text", text: `WORK · current session\nASSIGNED · ${task.id} · claimed · owner=@${assigned.owner}\nATTEMPT · ${assigned.assignmentId} · fresh-session-pending` }],
           details: {
@@ -221,7 +213,6 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
       const work = listTasks().find((task) => task.id === created.id);
       if (!work) throw new Error(`Created Work Item "${created.id}" is unavailable.`);
       refreshTeamUI(ctx);
-      refreshLeaderToolDisclosure();
       return {
         content: [{ type: "text", text: formatWorkCreation(params.subject, created) }],
         details: {
