@@ -17,6 +17,7 @@
 import {
   buildSessionContext,
   parseSkillBlock,
+  sessionEntryToContextMessages,
   keyHint,
   ToolExecutionComponent,
   type EntryRenderer,
@@ -26,7 +27,7 @@ import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works
 import { bindLifecycleRenderers, eventToolLifecycle, fieldBlock, fieldLine, safeDisplayText } from "@fradser/pi-kit";
 
 import { resolveHarnessConfig } from "./guardrail-config.ts";
-import { evaluateSkill } from "./guardrail-engine.ts";
+import { enabledTextRules, evaluateSkill } from "./guardrail-engine.ts";
 import {
   HARNESS_GUIDANCE_CUSTOM_TYPE,
   HARNESS_GUIDANCE_ENTRY_TYPE,
@@ -116,7 +117,16 @@ export default function registerHarnessGuidance(pi: ExtensionAPI): void {
     const skillRules = skill ? evaluateSkill(resolved.config, skill.name) : [];
     let retained: unknown[] = [];
     try {
-      retained = buildSessionContext(ctx.sessionManager.buildContextEntries()).messages as unknown[];
+      // The retained conversation is only needed to scan for text rules. With no
+      // enabled text rule nothing can match from it, so only the delivered
+      // guidance entries are converted: stale guidance still retires, and the
+      // full branch is neither rebuilt nor re-scanned on every turn.
+      const contextEntries = ctx.sessionManager.buildContextEntries();
+      retained = enabledTextRules(resolved.config).length > 0
+        ? buildSessionContext(contextEntries).messages as unknown[]
+        : contextEntries
+          .filter((entry) => entry.type === "custom_message" && entry.customType === HARNESS_GUIDANCE_CUSTOM_TYPE)
+          .flatMap((entry) => sessionEntryToContextMessages(entry)) as unknown[];
     } catch {
       retained = [];
     }

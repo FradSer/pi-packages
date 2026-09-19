@@ -691,3 +691,62 @@ def test_harness_guidance_hook_integration() -> None:
     assert result['skillRuleIds'] == ['skill-rule']
 
 
+
+
+def test_retained_scan_runs_only_when_text_rules_can_match() -> None:
+    # The retained branch is rebuilt and scanned only when an enabled text rule
+    # can match something. Without one, only delivered guidance entries are
+    # converted, so stale guidance still retires while the per-turn cost drops.
+    result = run_bun('''
+      import path from 'node:path';
+      import fs from 'node:fs';
+      import os from 'node:os';
+      import registerHarnessGuidance from './packages/continual-learning/extensions/harness-guidance.ts';
+
+      const now = Date.now();
+      const mk = (rules) => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-scan-test-'));
+        fs.mkdirSync(path.join(tmpDir, '.pi'), { recursive: true });
+        fs.writeFileSync(path.join(tmpDir, '.pi', 'harness.json'), JSON.stringify({ rules }));
+        const hooks = {};
+        registerHarnessGuidance({ on: (event, handler) => { hooks[event] = handler; }, registerEntryRenderer: () => {}, appendEntry: () => {} });
+        return { tmpDir, hooks };
+      };
+      const base = (tmpDir) => [
+        { type: 'message', id: 'e1', parentId: null, timestamp: now, message: { role: 'user', content: [{ type: 'text', text: 'start' }], timestamp: now } },
+        { type: 'message', id: 'e2', parentId: 'e1', timestamp: now, message: { role: 'assistant', content: [{ type: 'text', text: 'Project A work landed earlier' }], timestamp: now } },
+      ];
+
+      // A rule exists, and its keyword appears only in retained conversation.
+      const withRule = mk([{ id: 'text-rule', text: 'Project A', instructions: 'Project A is deprecated.' }]);
+      const retainedForRule = base(withRule.tmpDir);
+      const matched = await withRule.hooks['before_agent_start'](
+        { type: 'before_agent_start', prompt: 'carry on', systemPrompt: '', systemPromptOptions: { skills: [] } },
+        { cwd: withRule.tmpDir, sessionManager: { buildContextEntries: () => retainedForRule } },
+      );
+
+      // No rule exists, and delivered guidance for a removed rule is retained.
+      const withoutRule = mk([]);
+      const retainedForRetirement = [
+        ...base(withoutRule.tmpDir),
+        { type: 'custom_message', id: 'e3', parentId: 'e2', timestamp: now, customType: 'harness-guidance', content: 'older guidance', display: false, details: { entries: [{ id: 'text-rule', status: 'active', revision: 'stale' }] } },
+      ];
+      const retired = await withoutRule.hooks['before_agent_start'](
+        { type: 'before_agent_start', prompt: 'plain prompt', systemPrompt: '', systemPromptOptions: { skills: [] } },
+        { cwd: withoutRule.tmpDir, sessionManager: { buildContextEntries: () => retainedForRetirement } },
+      );
+
+      fs.rmSync(withRule.tmpDir, { recursive: true, force: true });
+      fs.rmSync(withoutRule.tmpDir, { recursive: true, force: true });
+
+      console.log(JSON.stringify({
+        matchedContent: matched?.message?.content ?? null,
+        matchedIds: (matched?.message?.details?.entries ?? []).map((entry) => entry.id),
+        retiredContent: retired?.message?.content ?? null,
+        retiredStatuses: (retired?.message?.details?.entries ?? []).map((entry) => entry.status),
+      }));
+    ''')
+    assert result['matchedIds'] == ['text-rule']
+    assert 'Project A is deprecated.' in result['matchedContent']
+    assert result['retiredStatuses'] == ['retired']
+    assert 'no longer applies' in result['retiredContent']

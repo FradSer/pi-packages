@@ -187,13 +187,22 @@ export function evaluateSkill(config: ResolvedHarnessConfig, skillName: string):
   return config.rules.filter((rule): rule is SkillRule => rule.enabled !== false && "skill" in rule && rule.skill === skillName);
 }
 
+/**
+ * Enabled text rules: the single definition of what the text scanner can match.
+ * Callers that must decide whether scanning is worthwhile use this predicate so
+ * the decision cannot drift from what `evaluateText` actually evaluates.
+ */
+export function enabledTextRules(config: ResolvedHarnessConfig): TextRule[] {
+  return config.rules.filter((rule): rule is TextRule => rule.enabled !== false && "text" in rule);
+}
+
 /** Volume bounds report incomplete, never a successful no-match. Synchronous
  * JavaScript regexes cannot be preempted; pathological patterns remain a known
  * evaluator limitation, not a guarantee supplied by these volume bounds. */
 export function evaluateText(config: ResolvedHarnessConfig, texts: string[], budget: { maxSegments?: number; maxChars?: number } = {}): { matches: TextRule[]; incomplete: boolean } {
   const maxSegments = budget.maxSegments ?? 4000;
   const maxChars = budget.maxChars ?? 2_000_000;
-  const rules = config.rules.filter((rule): rule is TextRule => rule.enabled !== false && "text" in rule);
+  const rules = enabledTextRules(config);
   if (!rules.length) return { matches: [], incomplete: false };
   const matched = new Map<string, TextRule>();
   let chars = 0;

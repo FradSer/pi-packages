@@ -29,14 +29,37 @@ export function projectScopeKey(cwd: string): string {
   return escapedProjectPath(cwd);
 }
 
+/**
+ * `git rev-parse` spawns a process (measured ~6 ms) and memory paths are resolved
+ * on every user turn, so the probe is memoized per canonical project path for a
+ * bounded window. The window keeps a repository created mid-session visible
+ * without paying a subprocess spawn on every turn.
+ */
+const GIT_ROOT_CACHE_LIMIT = 64;
+const GIT_ROOT_TTL_MS = 60_000;
+const gitRootCache = new Map<string, { root: string | undefined; checkedAt: number }>();
+
+function gitRootFor(cwd: string): string | undefined {
+  const now = Date.now();
+  const cached = gitRootCache.get(cwd);
+  if (cached && now - cached.checkedAt < GIT_ROOT_TTL_MS) return cached.root;
+  let root: string | undefined;
+  try {
+    root = canonicalProjectCwd(execFileSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim());
+  } catch {
+    root = undefined;
+  }
+  if (!gitRootCache.has(cwd) && gitRootCache.size >= GIT_ROOT_CACHE_LIMIT) {
+    const oldest = gitRootCache.keys().next();
+    if (!oldest.done) gitRootCache.delete(oldest.value);
+  }
+  gitRootCache.set(cwd, { root, checkedAt: now });
+  return root;
+}
+
 function resolvePublicMemoryDir(cwd: string, agentDir: string): string | undefined {
   if (cwd === agentDir) return undefined;
-  try {
-    const gitRoot = canonicalProjectCwd(execFileSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim());
-    return gitRoot === cwd ? path.join(cwd, ".memory") : undefined;
-  } catch {
-    return undefined;
-  }
+  return gitRootFor(cwd) === cwd ? path.join(cwd, ".memory") : undefined;
 }
 
 const PRIVATE_DIR_MAX_BYTES = 240;

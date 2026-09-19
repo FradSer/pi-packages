@@ -842,3 +842,39 @@ def test_colliding_readable_roots_load_the_same_private_memory() -> None:
             "sharedKept": True,
             "sharedBytes": "ambiguous\n",
         }
+
+
+def test_git_root_probe_is_memoized_within_a_process(tmp_path: Path) -> None:
+    # Memory paths resolve on every user turn; the git probe must not run again
+    # for the same project. Breaking PATH after the first resolve proves the
+    # answer came from the memoized probe rather than a second subprocess.
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    initialize_git_repo(repo)
+    result = run_bun(
+        f"""
+        import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+        const before = resolveMemoryPaths({json.dumps(str(repo))});
+        process.env.PATH = '/nonexistent-path-for-probe-test';
+        const after = resolveMemoryPaths({json.dumps(str(repo))});
+        console.log(JSON.stringify({{ before: before.publicDir ?? null, after: after.publicDir ?? null }}));
+        """
+    )
+    assert result["before"] == str(repo / ".memory")
+    assert result["after"] == result["before"]
+
+
+def test_unavailable_git_probe_disables_public_memory_without_failing(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".memory").mkdir()
+    result = run_bun(
+        f"""
+        process.env.PATH = '/nonexistent-path-for-probe-test';
+        import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+        const resolved = resolveMemoryPaths({json.dumps(str(repo))});
+        console.log(JSON.stringify({{ publicDir: resolved.publicDir ?? null, harnessDir: resolved.harnessDir }}));
+        """
+    )
+    assert result["publicDir"] is None
+    assert result["harnessDir"]

@@ -59,13 +59,18 @@ def test_long_description_keeps_late_trigger_when_it_fits(tmp_path: Path) -> Non
     assert "untrusted" in result["block"].lower()
 
 
-def test_oversized_description_is_explicit_and_preserves_exact_body_path(tmp_path: Path) -> None:
+def test_oversized_description_is_marked_and_root_is_verbatim(tmp_path: Path) -> None:
     repo, memory, agent = memory_repo(tmp_path)
     (memory / "huge.md").write_text(memory_text("routing cue " * 1500), encoding="utf-8")
     result = load_and_format(repo, agent, budget="1500")
     assert len(result["block"]) <= 1500
-    assert "description truncated" in result["block"].lower()
-    assert str(memory.resolve() / "huge.md") in result["block"]
+    # A shortened cue is marked once per row; repeating the full notice on every
+    # row costs more characters than the descriptions it announces.
+    assert "…" in result["block"]
+    assert "read the complete index or the entry file" in result["block"]
+    # The exact body path is the declared root plus the row's own filename.
+    assert str(memory.resolve()) in result["block"]
+    assert "- huge.md (public)" in result["block"]
     assert "routing cue" in result["block"]
     assert "Body must stay out" not in result["block"]
 
@@ -128,7 +133,7 @@ def test_max_files_is_global_after_private_precedence_and_reports_unread_files(t
     assert entries[0]["description"] == "private current"
     assert "1 shown, 2 omitted of 3 total" in result["block"]
     assert "maxFiles: 2" in result["block"]
-    assert "Harness wins duplicate names" in result["block"]
+    assert "prefer harness" in result["block"]
     assert "public stale" not in result["block"]
 
 
@@ -252,8 +257,11 @@ def test_read_pointers_preserve_repeated_whitespace_in_the_actual_path(tmp_path:
     repo, memory, agent = memory_repo(tmp_path / "two  spaces")
     (memory / "a.md").write_text(memory_text("routing cue"), encoding="utf-8")
     result = load_and_format(repo, agent)
-    assert str(memory.resolve() / "a.md") in result["block"]
+    # Declared roots and index pointers keep the exact path, including repeated
+    # whitespace, and the entry row carries the filename to append to the root.
     assert str(memory.resolve()) in result["block"]
+    assert str(memory.resolve() / "MEMORY.md") in result["block"]
+    assert "- a.md (public)" in result["block"]
 
 
 def test_symlinked_complete_index_is_not_advertised_as_a_read_target(tmp_path: Path) -> None:
@@ -394,3 +402,186 @@ def test_selector_protocol_is_compact_metadata_only_and_preserves_schema() -> No
     assert '"kind": "incremental-memory-selection"' in content
     assert '"contextDigest"' in content and "{{TASK}}" in content
     assert "case-sensitive" in content and "minimum sufficient" in content
+
+
+def test_default_budget_lists_every_entry_with_a_relevance_cue(tmp_path: Path) -> None:
+    # Declaring each root once instead of repeating an absolute read path per row
+    # lets the bounded prompt block reach a corpus that previously spent its
+    # budget on path text and truncated descriptions to nothing.
+    repo, memory, agent = memory_repo(tmp_path)
+    for index in range(60):
+        (memory / f"item_{index:02d}.md").write_text(memory_text(f"Route task {index} when it matches"), encoding="utf-8")
+    block = load_and_format(repo, agent)["block"]
+    rows = [line for line in block.splitlines() if line.startswith("- item_")]
+    assert len(rows) == 60
+    assert "0 omitted of 60 total" in block
+    assert all(" — Route task" in line for line in rows)
+    assert len(block) <= 6000
+
+
+def test_cues_give_way_before_entries_under_budget_pressure(tmp_path: Path) -> None:
+    # Coverage first: filenames are never dropped while bare rows fit, so budget
+    # pressure costs relevance metadata, not discoverability of later entries.
+    repo, memory, agent = memory_repo(tmp_path)
+    for index in range(40):
+        (memory / f"item_{index:02d}.md").write_text(memory_text(f"Route task {index} when it matches " * 4), encoding="utf-8")
+    lines = load_and_format(repo, agent)["block"].splitlines()
+    header = "\n".join(lines[: next(i for i, line in enumerate(lines) if line.startswith("- item_"))]) + "\n"
+    bare_rows = [re.sub(r" — .*$", "", line) for line in lines if line.startswith("- item_")]
+    summary = f"{lines[-1]}\n"
+    budget = len(header) + sum(len(row) + 1 for row in bare_rows) + len(summary) + 8
+    block = load_and_format(repo, agent, budget=str(budget))["block"]
+    emitted = [line for line in block.splitlines() if line.startswith("- item_")]
+    assert len(emitted) == 40
+    assert "0 omitted of 40 total" in block
+    assert not any(" — " in line for line in emitted)
+    assert len(block) <= budget
+
+
+def load_twice(repo: Path, agent: Path, script_tail: str = "", options: str = "{}") -> dict[str, object]:
+    return run_bun(
+        f"""
+        import fs from 'node:fs/promises';
+        import {{ loadAndDeduplicateMemories }} from './packages/continual-learning/extensions/memory-files.ts';
+        let opens = 0;
+        const originalOpen = fs.open.bind(fs);
+        fs.open = async (target, ...args) => {{
+          const name = String(target);
+          if (name.endsWith('.md') && !name.endsWith('MEMORY.md')) opens += 1;
+          return originalOpen(target, ...args);
+        }};
+        const root = {json.dumps(str(repo))};
+        const first = await loadAndDeduplicateMemories(root, {options});
+        const firstOpens = opens;
+        opens = 0;
+        {script_tail}
+        const second = await loadAndDeduplicateMemories(root, {options});
+        const summary = (loaded) => loaded.entries.map((entry) => [entry.filename, entry.description ?? null, entry.content]);
+        console.log(JSON.stringify({{
+          firstOpens, secondOpens: opens,
+          firstEntries: summary(first), secondEntries: summary(second),
+          firstTotal: first.totalEntries, secondTotal: second.totalEntries,
+        }}));
+        """,
+        agent,
+    )
+
+
+def test_unchanged_entry_metadata_is_reused_within_a_process(tmp_path: Path) -> None:
+    repo, memory, agent = memory_repo(tmp_path)
+    for index in range(3):
+        (memory / f"item_{index}.md").write_text(memory_text(f"Route cue {index}"), encoding="utf-8")
+    result = load_twice(repo, agent)
+    # Every turn used to open and re-parse every entry only for its description.
+    assert result["firstOpens"] == 3
+    assert result["secondOpens"] == 0
+    assert result["firstEntries"] == result["secondEntries"]
+    assert result["secondTotal"] == 3
+
+
+def test_rewritten_and_replaced_entries_are_re_read(tmp_path: Path) -> None:
+    repo, memory, agent = memory_repo(tmp_path)
+    (memory / "kept.md").write_text(memory_text("Original cue"), encoding="utf-8")
+    (memory / "atomic.md").write_text(memory_text("Atomic original"), encoding="utf-8")
+    result = load_twice(
+        repo,
+        agent,
+        script_tail=f"""
+        const target = {json.dumps(str(memory / "kept.md"))};
+        const replacement = {json.dumps(str(memory / "atomic.md"))};
+        await fs.writeFile(target, {json.dumps(memory_text("Rewritten cue"))});
+        await fs.writeFile(replacement + '.tmp', {json.dumps(memory_text("Atomic replaced"))});
+        await fs.rename(replacement + '.tmp', replacement);
+        """,
+    )
+    descriptions = dict((name, description) for name, description, _ in result["secondEntries"])
+    assert descriptions["kept.md"] == "Rewritten cue"
+    assert descriptions["atomic.md"] == "Atomic replaced"
+    assert result["secondOpens"] == 2
+    assert result["secondTotal"] == 2
+
+
+def test_entry_replaced_by_a_symlink_is_not_reused_or_read(tmp_path: Path) -> None:
+    repo, memory, agent = memory_repo(tmp_path)
+    (memory / "a.md").write_text(memory_text("safe cue"), encoding="utf-8")
+    secret = tmp_path / "secret.md"
+    secret.write_text(memory_text("secret cue"), encoding="utf-8")
+    result = load_twice(
+        repo,
+        agent,
+        script_tail=f"""
+        await fs.unlink({json.dumps(str(memory / "a.md"))});
+        await fs.symlink({json.dumps(str(secret))}, {json.dumps(str(memory / "a.md"))});
+        """,
+    )
+    assert result["firstTotal"] == 1
+    assert result["secondTotal"] == 0
+    assert result["secondEntries"] == []
+    assert "secret cue" not in json.dumps(result["secondEntries"])
+
+
+def test_metadata_reuse_respects_the_read_bound(tmp_path: Path) -> None:
+    repo, memory, agent = memory_repo(tmp_path)
+    (memory / "long.md").write_text(memory_text("cue " * 80), encoding="utf-8")
+    result = run_bun(
+        f"""
+        import {{ loadAndDeduplicateMemories }} from './packages/continual-learning/extensions/memory-files.ts';
+        const root = {json.dumps(str(repo))};
+        const bounded = await loadAndDeduplicateMemories(root, {{ maxFileChars: 60 }});
+        const full = await loadAndDeduplicateMemories(root);
+        const flags = (loaded) => loaded.entries.map((entry) => [entry.descriptionTruncated ?? false, entry.content.length]);
+        console.log(JSON.stringify({{ bounded: flags(bounded), full: flags(full) }}));
+        """,
+        agent,
+    )
+    # The byte bound is part of the reuse key: a shorter bounded read must not be
+    # served to a later load that allowed a longer one.
+    assert result["bounded"][0][0] is True
+    assert result["full"][0][0] is False
+    assert result["full"][0][1] > result["bounded"][0][1]
+
+
+def test_rows_are_listed_without_cues_while_entries_must_be_dropped(tmp_path: Path) -> None:
+    repo, memory, agent = memory_repo(tmp_path)
+    for index in range(12):
+        (memory / f"item_{index:02d}.md").write_text(memory_text(f"Route task {index} " + "detail " * 40), encoding="utf-8")
+    lines = load_and_format(repo, agent)["block"].splitlines()
+    header = "\n".join(lines[: next(i for i, line in enumerate(lines) if line.startswith("- item_"))]) + "\n"
+    bare = [re.sub(r" — .*$", "", line) for line in lines if line.startswith("- item_")]
+    summary = f"{lines[-1]}\n"
+    budget = len(header) + sum(len(row) + 1 for row in bare[:3]) + len(summary) + 8
+    block = load_and_format(repo, agent, budget=str(budget))["block"]
+    emitted = [line for line in block.splitlines() if line.startswith("- item_")]
+    # Coverage first: an unaffordable cue is dropped, never the filename row.
+    assert emitted == bare[:3]
+    assert "3 shown, 9 omitted of 12 total" in block
+    assert len(block) <= budget
+
+
+def test_block_stays_within_every_budget_it_accepts(tmp_path: Path) -> None:
+    repo, memory, agent = memory_repo(tmp_path)
+    for index in range(20):
+        (memory / f"item_{index:02d}.md").write_text(memory_text("cue " * (index + 1)), encoding="utf-8")
+    result = run_bun(
+        f"""
+        import {{ loadAndDeduplicateMemories, formatMemoriesBlock }} from './packages/continual-learning/extensions/memory-files.ts';
+        const loaded = await loadAndDeduplicateMemories({json.dumps(str(repo))});
+        const swept = [];
+        for (let budget = 700; budget <= 9000; budget += 137) {{
+          try {{
+            const block = formatMemoriesBlock(loaded, budget);
+            swept.push([budget, block.length, block.length <= budget]);
+          }} catch (cause) {{
+            swept.push([budget, -1, String(cause.message).includes('too small')]);
+          }}
+        }}
+        const roomy = formatMemoriesBlock(loaded, 9000);
+        console.log(JSON.stringify({{ swept, roomyRows: (roomy.match(/^- item_/gm) ?? []).length, roomyOmitted: roomy.includes('0 omitted') }}));
+        """,
+        agent,
+    )
+    for budget, size, ok in result["swept"]:
+        assert ok, f"budget {budget} produced {size}"
+    assert any(size == -1 for _, size, _ in result["swept"]), "a too-small budget is reported, not silently truncated"
+    assert result["roomyRows"] == 20
+    assert result["roomyOmitted"] is True

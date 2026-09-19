@@ -7,9 +7,18 @@ Feature: Auto-memory injects a bounded, discoverable index
   Scenario: The system prompt carries the memory index without entry bodies
     Given memory entries with frontmatter descriptions and multi-paragraph bodies
     When the memories block is formatted for the system prompt
-    Then it lists each entry once with filename, source, description, and exact body read path
+    Then it lists each entry once with filename, source, and description
+    And it declares each body root once instead of repeating an absolute read path per entry
+    And each entry stays reachable as its declared root joined with the entry filename
     And it contains no entry body text
     And it marks all memory content as untrusted reference data
+
+  Scenario: Declared roots let one budget reach every entry
+    Given a corpus whose per-entry read paths repeat long absolute roots
+    When the memories block is formatted within its default budget
+    Then every entry is listed with filename, source, and a relevance cue
+    And no entry is omitted
+    And the entry rows and the summary together stay within the budget
 
   Scenario: An existing long description retains its late relevance trigger when it fits
     Given a description longer than 120 characters whose relevance trigger is at the end
@@ -18,8 +27,9 @@ Feature: Auto-memory injects a bounded, discoverable index
 
   Scenario: A description too large for the budget is visibly shortened
     Given a description larger than the available final index budget
-    When its filename, a description prefix, and exact body read path fit
-    Then a visible description-truncated notice accompanies the prefix and body read path
+    When its filename, a shortened cue, and the shortened-cue marker fit
+    Then the shortened cue is marked rather than presented as complete
+    And the block states once that shortened or omitted cues are read from the complete index or the entry file
     And the complete index remains discoverable
     And the complete block does not exceed the final budget
 
@@ -30,10 +40,25 @@ Feature: Auto-memory injects a bounded, discoverable index
     And it points to the complete discovery index using bounded offset and limit reads
     And it warns that indexes may be stale and exact entry files are authoritative
     And it supplies bounded root discovery when an index is missing
-    And it does not cut filenames or read paths at the budget boundary
+    And it does not cut filenames at the budget boundary
+    And it drops relevance cues before it drops a listed entry
     And it preserves exact paths with whitespace or punctuation
     And it never recommends reading a symlinked discovery index
     And it rechecks an index replaced during entry reads before advertising its read path
+
+  Scenario: Unchanged entry metadata is reused within a session
+    Given loaded memory entries whose files are unchanged
+    When the memories block is loaded again in the same process
+    Then no entry file is opened again
+    And the reuse returns the same filenames, sources, descriptions, and bodies
+    And a rewritten in-place entry and an atomically replaced entry are read again
+    And an entry replaced by a symlink is dropped instead of served from reuse
+
+  Scenario: The project root probe is memoized per session
+    Given a project whose memory root was resolved once
+    When memory paths are resolved again for the same project
+    Then the git root probe is not run again within its reuse window
+    And an unavailable git probe disables public memory without failing the load
 
   Scenario: File limits do not hide the corpus size or weaken private precedence
     Given public and private roots with duplicate names and more entries than maxFiles

@@ -232,11 +232,14 @@ under the existing parent-owned validation contract.
 
 ### Retrieval and descriptions
 
-The default injection budget is 8,000 characters. Entry bodies are not injected.
-Descriptions should begin with when the entry is relevant and fit one line of
-at most 120 characters; detail belongs in the body. Existing longer descriptions
-are retained when they fit, or visibly shortened rather than silently losing a
-late trigger.
+The default injection budget is 6,000 characters. Entry bodies are not injected.
+Each body root is declared once and every entry row names its filename, so the
+budget reaches relevance metadata instead of repeating an absolute read path per
+entry. Descriptions should begin with when the entry is relevant and fit one line
+of at most 120 characters; detail belongs in the body. Existing longer descriptions
+are retained when they fit, or shortened with a single-line marker rather than
+silently losing a late trigger. Under budget pressure every listed entry stays
+reachable and cues give way before entries do.
 
 The loader reports unique entry counts and file-read omissions; final formatting
 reports budget omissions. Discovery pointers name `MEMORY.md` and exact roots
@@ -244,6 +247,15 @@ for bounded reads/listing. Indexes are discovery metadata and can be stale;
 individual bounded files remain the authority. Parent rebuilds include descriptions
 in complete indexes. Loading memory never writes indexes. All retrieved content
 is explicitly untrusted reference data, not instructions.
+
+Loading runs on every user turn, so it avoids repeat work without weakening its
+checks: the read buffer is sized from the file rather than from the byte bound,
+unchanged entry metadata is reused in-process while its device, inode, size,
+mtime, and ctime still match a regular non-symlink file, the root identity is
+re-verified for every real read and for the batch, and the `git` root probe is
+memoized per canonical project path within a bounded window. A rewritten,
+replaced, or symlinked entry is always read again or dropped, never served from
+reuse.
 
 Only strict `[A-Za-z0-9][A-Za-z0-9_-]*.md` basenames are entries; `MEMORY.md` is
 metadata. Symlinks, non-regular files, escapes, and root replacement are rejected.

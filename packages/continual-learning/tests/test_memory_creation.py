@@ -339,7 +339,7 @@ def test_loader_budget_counts_metadata_instead_of_memory_bodies() -> None:
         assert [entry["filename"] for entry in result["entries"]] == ["a.md", "b.md"]
 
 
-def test_private_memory_exposes_its_exact_bounded_read_path() -> None:
+def test_private_memory_exposes_its_root_and_entry_filename() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         repo = root / "repo"
@@ -363,4 +363,8 @@ def test_private_memory_exposes_its_exact_bounded_read_path() -> None:
         )
         assert result["entries"]["entries"][0]["source"] == "harness"
         assert Path(result["entries"]["entries"][0]["readPath"]).resolve() == (Path(result["harness"]).resolve() / "private.md")
-        assert result["entries"]["entries"][0]["readPath"] in result["block"]
+        # The block declares the exact root verbatim and names the entry; the body
+        # path is that root plus the row's filename, so no per-row repetition is
+        # needed to keep the entry reachable.
+        assert result["harness"] in result["block"]
+        assert "- private.md (harness)" in result["block"]
