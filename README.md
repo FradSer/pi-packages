@@ -120,7 +120,7 @@ pi install npm:@fradser/pi-monitor
 
 ### [`@fradser/pi-open-deskos`](packages/open-deskos/)
 
-Reports this machine's Pi sessions and their operating events to Open DeskOS over a package-initiated Desk Link, using the same bounded event rules as the runtime's local collector.
+Reports this machine's Pi sessions and their operating events to Open DeskOS over a package-initiated Desk Link, using the same bounded event rules as the runtime's local collector. With a separate control credential it also becomes a Console that lists, launches, attaches to, steers, cancels, ends, and reads the history of the Pi sessions the desk hosts.
 
 **Command:** `/open-deskos`
 
@@ -211,7 +211,7 @@ The test suite requires Python 3 with `pytest` and Bun 1.4.1 for subprocess fixt
 
 Use `pnpm --dir packages/<name> pack --dry-run` to inspect one package's contents before publishing.
 
-Shared runtime helpers live in the internal [`@fradser/pi-kit`](packages/kit/) package. It is an internal workspace dependency and is not installable via `pi install`. Its lifecycle renderers show expansion hints only for supplementary display content or text hidden at the current width—not merely because tool results contain metadata. Consumer packages omit details that repeat the title while preserving full reports and actionable diagnostics.
+Shared runtime helpers live in the internal [`@fradser/pi-kit`](packages/kit/) package. It is an internal workspace dependency and is not installable via `pi install`; it declares no `dependencies`, only the host-provided Pi core packages it uses as `"*"` peers. Its lifecycle renderers show expansion hints only for supplementary display content or text hidden at the current width—not merely because tool results contain metadata. Consumer packages omit details that repeat the title while preserving full reports and actionable diagnostics.
 
 ## Adding a package
 

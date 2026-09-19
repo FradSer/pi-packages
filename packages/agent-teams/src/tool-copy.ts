@@ -226,8 +226,10 @@ function agentBody(
     const isWorking = status === "working" || teammate?.status === "working";
     const sessionTools = sess?.tools ?? teammate?.tools;
     const warning = sess?.warning;
+    // The row's own state word already leads the line; repeating it as a body
+    // field would duplicate the header, and could contradict it when the live
+    // teammate and the inspected snapshot disagree.
     return [
-      ...(status ? [labeled("status", stateWord(status))] : []),
       ...(isWorking && teammate ? [labeled("now", shortTask(runningTeammateActivity(teammate)))] : []),
       ...(work && isWorking ? [labeled("work", work)] : []),
       ...(sessionTools ? [labeled("tools", sessionTools.join(", "))] : []),
@@ -240,11 +242,15 @@ function agentBody(
   const role = roleLine(args, name);
   const resources = strings(args.resources);
   const granted = teammate?.tools ?? resolveWorkerTools(strings(args.definition?.tools).length > 0 ? strings(args.definition?.tools) : resolveAgent(name)?.tools);
+  // The spawn receipt carries the same coordination-only warning as inspection,
+  // so delegate and start rows state the narrow grant they actually produced.
+  const sessionWarning = detailField<string>(detailField(details, "session"), "warning");
   return [
     ...(role ? labeledBlock("role", role) : []),
     ...(args.prompt ? labeledBlock("task", args.prompt) : []),
     labeled("model", teammate?.model ?? args.model ?? args.definition?.model ?? "team default"),
     labeled("tools", granted.join(", ")),
+    ...(sessionWarning ? [labeled("warning", sessionWarning)] : []),
     ...(teammate?.isolation === "worktree" ? [labeled("isolation", "dedicated git worktree")] : []),
     ...(teammate?.context === "fork" || args.fork ? [labeled("context", "forked from this session")] : []),
     ...(resources.length > 0 ? [labeled("resources", resources.join(", "))] : []),

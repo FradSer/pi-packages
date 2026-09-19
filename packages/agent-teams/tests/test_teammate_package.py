@@ -1166,6 +1166,11 @@ def test_console_has_roster_and_board_pages() -> None:
     assert "shutdownFromConsole" in ext
     assert "buildTaskDetail" in ext and "buildTeammateDetail" in ext
     assert "peer mail" in ext
+    # Console names and ids use pi-kit's per-agent accent, so a name can never
+    # read as a status color and every surface shows the same name color.
+    assert "agentColor(" in ext
+    assert "TEAM_COLORS" not in ext
+    assert "colorFor" not in ext
 
 
 def test_widget_shows_only_working_teammates() -> None:
@@ -1174,12 +1179,27 @@ def test_widget_shows_only_working_teammates() -> None:
     assert "createLiveActivityWidget" in ext
     assert 'key: "teammate"' in ext
     assert 'placement: "aboveEditor"' in ext
+    assert 'activityFormat: "markdown"' in ext
+    assert "formatIdentity" not in ext
+    assert "formatActivity" not in ext
     assert "teamActivityWidget.update(ctx, working.map" in widget
     assert "id: teammate.name" in widget
     assert "identity: teammate.name" in widget
     assert "activity: runningTeammateActivity(teammate) + stallSuffix(teammate)" in widget
     assert 'teammate.status === "working" || teammate.status === "starting"' in ext
     assert "listTeammates()" not in widget
+
+
+def test_activity_rows_use_the_shared_pi_kit_markdown_renderer() -> None:
+    activity = source("activity.ts")
+    assert "renderLiveActivityMarkdown" in activity
+    assert "COLORLESS_ACTIVITY_THEME" in activity
+    # The console nests activity inside its own status color, so no local
+    # markdown parse or theme may survive here.
+    assert "new Markdown(" not in activity
+    assert "type { MarkdownTheme }" not in activity
+    assert "buildMarkdownThemeCallbacks" not in activity
+
 
 def test_render_lifecycle_result_survives_class_based_theme() -> None:
     script = f"""
@@ -1755,3 +1775,75 @@ def test_leader_message_creates_direct_work_with_a_single_line_subject(tmp_path:
     )
     assert payload["subject"] == "Rebuild the index"
     assert payload["description"] == "Rebuild the index\n\nKeep the schema stable."
+
+
+def test_snapshots_write_only_what_changed(tmp_path: Path) -> None:
+    payload = run_node(
+        f'''\
+        import {{ initTeamMachine, shutdownTeamMachine, publishStateSnapshot, applyProgress, STATE_SNAPSHOT_MIN_INTERVAL_MS }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, updateTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ stateFilePath, rosterPath, boardFilePath }} from "{(SRC / "statefile.ts").as_uri()}";
+        import fs from "node:fs";
+        const root = {str(tmp_path)!r};
+        initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        resetState();
+        const state = stateFilePath(undefined, root);
+        const roster = rosterPath(state);
+        const board = boardFilePath(undefined, root);
+        const stamp = (file) => {{ const s = fs.statSync(file); return `${{s.size}}:${{s.mtimeMs}}`; }};
+        const missing = (file) => !fs.existsSync(file);
+        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        createTask({{ subject: "tracked work" }});
+        publishStateSnapshot();
+        const afterChange = {{ state: stamp(state), roster: stamp(roster), board: stamp(board) }};
+        // Nothing changed: no artifact is rewritten.
+        publishStateSnapshot();
+        const afterNoop = {{ state: stamp(state), roster: stamp(roster), board: stamp(board) }};
+        // Stream progress only: the debug snapshot follows, roster and board do not.
+        applyProgress("w", "s1", {{ text: "streaming", turns: 3, finalResponse: false }});
+        const beforeProgressFlush = {{ roster: stamp(roster), board: stamp(board) }};
+        await new Promise((resolve) => setTimeout(resolve, STATE_SNAPSHOT_MIN_INTERVAL_MS + 50));
+        publishStateSnapshot();
+        const afterProgress = {{ state: stamp(state), roster: stamp(roster), board: stamp(board), before: beforeProgressFlush }};
+        console.log(JSON.stringify({{
+          wroteOnChange: !missing(state) && !missing(roster) && !missing(board),
+          noopState: afterChange.state === afterNoop.state,
+          noopRoster: afterChange.roster === afterNoop.roster,
+          noopBoard: afterChange.board === afterNoop.board,
+          progressRewroteState: afterProgress.state !== afterChange.state,
+          progressKeptRoster: afterProgress.roster === afterProgress.before.roster,
+          progressKeptBoard: afterProgress.board === afterProgress.before.board,
+        }}));
+        shutdownTeamMachine();
+        ''',
+    )
+    assert payload["wroteOnChange"] is True
+    assert payload["noopState"] is True
+    assert payload["noopRoster"] is True
+    assert payload["noopBoard"] is True
+    assert payload["progressRewroteState"] is True
+    assert payload["progressKeptRoster"] is True
+    assert payload["progressKeptBoard"] is True
+
+
+def test_leader_mailbox_is_bounded_by_bytes_not_only_count() -> None:
+    payload = run_node(
+        f'''\
+        import {{ deliverToLeader, getState, resetState, MAX_LEADER_MAILBOX_BYTES }} from "{(SRC / "state.ts").as_uri()}";
+        resetState();
+        const body = "x".repeat(256 * 1024);
+        for (let index = 0; index < 40; index++) deliverToLeader({{ from: "w", subject: `report ${{index}}`, body }});
+        const mailbox = getState().leaderMailbox;
+        const bytes = mailbox.reduce((total, message) => total + message.body.length + message.subject.length + 64, 0);
+        console.log(JSON.stringify({{
+          retained: mailbox.length,
+          withinBytes: bytes <= MAX_LEADER_MAILBOX_BYTES,
+          keptNewest: mailbox[mailbox.length - 1].subject === "report 39",
+          cap: MAX_LEADER_MAILBOX_BYTES,
+        }}));
+        ''',
+    )
+    assert payload["withinBytes"] is True
+    assert payload["keptNewest"] is True
+    # 40 x 256 KiB is far past the byte cap, so the count must have been trimmed.
+    assert payload["retained"] < 40

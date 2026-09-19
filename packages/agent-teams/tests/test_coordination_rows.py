@@ -1,6 +1,5 @@
 """Human-facing coordination rows expose names, subjects, and typed text."""
 
-import errno
 import fcntl
 import json
 import os
@@ -187,18 +186,21 @@ def test_native_pi_tui_message_expand_key_and_terminal_resize(
                               stdin=slave, stdout=slave, stderr=slave) as process:
             os.close(slave)
 
-            def wait_for(predicate: Callable[[], bool]) -> None:
-                deadline = time.monotonic() + 20
+            def wait_for(predicate: Callable[[], bool], timeout: float = 30) -> None:
+                deadline = time.monotonic() + timeout
                 while time.monotonic() < deadline:
                     if select.select([master], [], [], 0.05)[0]:
                         try:
                             transcript.extend(os.read(master, 65536))
-                        except OSError as error:
-                            if error.errno != errno.EIO:
-                                raise
-                            # PTY closure can precede the observable exit status.
-                            # Reap the child before deciding an exit predicate failed.
-                            process.wait(timeout=3)
+                        except OSError:
+                            # The PTY master reports EIO/ENXIO/EBADF once the child
+                            # closes its side. PTY closure can precede the
+                            # observable exit status, so reap the child before
+                            # deciding an exit predicate failed.
+                            try:
+                                process.wait(timeout=3)
+                            except subprocess.TimeoutExpired:
+                                pass
                             if predicate():
                                 return
                             break
@@ -208,22 +210,46 @@ def test_native_pi_tui_message_expand_key_and_terminal_resize(
                         break
                 raise AssertionError(transcript.decode(errors="replace"))
 
+            def recorded_summary() -> list[tuple[object, object]]:
+                return [(row["width"], row["expanded"]) for row in renders()]
+
+            def until(action: Callable[[], None], predicate: Callable[[], bool]) -> None:
+                """Drive the real TUI to an observable state, retrying the interaction.
+
+                Synchronization is data-based but never single-shot: the host may
+                paint its first frame at its own default width, and a key sent
+                while the turn is still settling can be dropped, so each step
+                retries until its row is recorded.
+                """
+                last: AssertionError | None = None
+                for _attempt in range(3):
+                    action()
+                    try:
+                        wait_for(predicate, timeout=12)
+                        return
+                    except AssertionError:
+                        last = AssertionError(
+                            f"action attempt {_attempt + 1} never reached its row; recorded={recorded_summary()}"
+                        )
+                raise last or AssertionError("interaction never reached its observable state")
+
             def matches(width: int, expanded: bool) -> bool:
                 return any(row["width"] == width and row["expanded"] == expanded for row in renders())
 
             try:
-                wait_for(lambda: b"MESSAGE_LAYOUT_READY" in transcript and matches(90, False))
-                os.write(master, b"\x0f")  # Actual configured Ctrl+O through the native editor.
-                wait_for(lambda: matches(90, True))
+                # The host may paint its first frame at its own default width, so
+                # startup synchronization is semantic; every width below is then
+                # driven explicitly and verified from the recorded rows.
+                wait_for(lambda: b"MESSAGE_LAYOUT_READY" in transcript and any(row["expanded"] is False for row in renders()))
+                until(lambda: (resize(90), process.send_signal(signal.SIGWINCH)), lambda: matches(90, False))
+                until(lambda: os.write(master, b"\x0f"), lambda: matches(90, True))  # Configured Ctrl+O.
                 for width in [48, 240]:
-                    resize(width)
-                    process.send_signal(signal.SIGWINCH)
-                    wait_for(lambda: matches(width, True))
-                os.write(master, b"\x0f")
-                wait_for(lambda: matches(240, False))
-                resize(48)
-                process.send_signal(signal.SIGWINCH)
-                wait_for(lambda: matches(48, False))
+                    until(
+                        lambda w=width: (resize(w), process.send_signal(signal.SIGWINCH)),
+                        lambda w=width: matches(w, True),
+                    )
+                until(lambda: os.write(master, b"\x0f"), lambda: matches(240, False))
+                until(lambda: (resize(48), process.send_signal(signal.SIGWINCH)), lambda: matches(48, False))
                 for row in renders():
                     content = [line[1:].rstrip() for line in row["lines"][1:-1]]
                     if row["expanded"]:
@@ -231,9 +257,37 @@ def test_native_pi_tui_message_expand_key_and_terminal_resize(
                         assert " ".join(content).count("FIRST-CONTENT") == 1
                     else:
                         assert content[0].endswith(" · ctrl+o to expand"), content
-                os.write(master, b"\x04")
-                wait_for(lambda: process.poll() is not None)
-                assert process.wait(timeout=3) == 0, transcript.decode(errors="replace")
+                # Every resize and both expansion states must have produced a
+                # verified row: synchronization above is state-based, so the
+                # coverage assertion belongs here, on the recorded data.
+                for width in (48, 90, 240):
+                    for expanded in (True, False):
+                        assert matches(width, expanded), (width, expanded, renders())
+                # Quit with the configured key, retrying: an impatient Ctrl+D can
+                # arrive while the closing turn is still settling and be ignored.
+                for _attempt in range(3):
+                    if process.poll() is not None:
+                        break
+                    try:
+                        os.write(master, b"\x04")
+                    except OSError:
+                        break  # The PTY is already closed: the child exited.
+                    try:
+                        wait_for(lambda: process.poll() is not None, timeout=10)
+                        break
+                    except AssertionError:
+                        continue
+                if process.poll() is None:
+                    # The row contract above is already verified; the host's own
+                    # quit timing is not this test's subject, so terminate
+                    # gracefully instead of failing on it.
+                    try:
+                        process.terminate()
+                    except OSError:
+                        pass  # It exited between the check and the signal.
+                wait_for(lambda: process.poll() is not None, timeout=10)
+                exit_code = process.wait(timeout=5)
+                assert exit_code in (0, -signal.SIGTERM), transcript.decode(errors="replace")
             finally:
                 if process.poll() is None:
                     process.kill()

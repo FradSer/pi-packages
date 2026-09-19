@@ -1,19 +1,15 @@
-import { Markdown, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import type { MarkdownTheme } from "@earendil-works/pi-tui";
-import { buildMarkdownThemeCallbacks, createPiThemeStyle } from "@fradser/pi-kit";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { renderLiveActivityMarkdown, type PiMarkdownThemeSource } from "@fradser/pi-kit";
 import type { Teammate } from "./types.ts";
 
-const ACTIVITY_THEME: MarkdownTheme = {
-  ...buildMarkdownThemeCallbacks(createPiThemeStyle({
-    fg: (_color, text) => text,
-  })),
-  hr: () => "---",
-};
+/** Console rows paint a whole status line in their own color, so the shared
+ * markdown renderer runs with a passthrough theme: literal markup is still
+ * stripped and the result stays one line, with no competing colors. */
+const COLORLESS_ACTIVITY_THEME: PiMarkdownThemeSource = { fg: (_color, text) => text };
 
-/** Render streamed activity as one compact Markdown line for the widget. */
-export function renderActivityMarkdown(text: string, theme: MarkdownTheme = ACTIVITY_THEME): string {
-  const markdown = new Markdown(text, 0, 0, theme);
-  return markdown.render(Math.max(1, visibleWidth(text) + 1)).join(" ").replace(/\s+/g, " ").trim();
+/** Render streamed activity as one compact Markdown line for a console row. */
+export function renderActivityMarkdown(text: string): string {
+  return renderLiveActivityMarkdown(text, COLORLESS_ACTIVITY_THEME);
 }
 
 function extractLatestLine(text: string | undefined): string | undefined {
@@ -62,9 +58,8 @@ export function formatTeammateLabel(
   spinner: string,
   activity: string,
   maxActivityWidth?: number,
-  markdownTheme: MarkdownTheme = ACTIVITY_THEME,
 ): string {
-  if (maxActivityWidth === undefined) return `${spinner} ${renderActivityMarkdown(activity, markdownTheme)}`;
+  if (maxActivityWidth === undefined) return `${spinner} ${renderActivityMarkdown(activity)}`;
   if (maxActivityWidth <= 0) return spinner;
-  return `${spinner} ${truncateToWidth(renderActivityMarkdown(activity, markdownTheme), maxActivityWidth)}`;
+  return `${spinner} ${truncateToWidth(renderActivityMarkdown(activity), maxActivityWidth)}`;
 }

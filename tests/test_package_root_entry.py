@@ -53,8 +53,14 @@ def test_concise_workspace_directories_link_their_published_packages() -> None:
 
     lockfile = (REPO / "pnpm-lock.yaml").read_text(encoding="utf-8")
     assert "packages/continual-learning:" in lockfile
-    assert "packages/kit: {}" in lockfile
     assert "version: link:../kit" in lockfile
+    # The kit importer records its core peers and no workspace dependency: kit is
+    # a plain runtime library whose only declared peers are host-provided.
+    kit_importer = lockfile.split("  packages/kit:\n", 1)[1].split("\n  packages/", 1)[0]
+    assert "'@earendil-works/pi-tui':" in kit_importer
+    assert "'@earendil-works/pi-coding-agent':" in kit_importer
+    assert "link:../" not in kit_importer
+    assert "dependencies" not in kit
 
 
 def test_git_agent_scopes_cover_the_current_package_layout() -> None:

@@ -10,6 +10,7 @@ import { initTheme, keyHint, type ExtensionAPI, type ToolDefinition } from "@ear
 import { KeybindingsManager, setKeybindings, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from "@earendil-works/pi-tui";
 import agentTeams from "../src/index.ts";
 import { runAgentAction } from "../src/agent-actions.ts";
+import { resolveWorkerTools } from "../src/spawner.ts";
 import { clearSessionAgents, registerSessionAgent } from "../src/agents.ts";
 import { registerLeaderTools } from "../src/tools.ts";
 import { registerWorkerCapabilities } from "../src/worker.ts";
@@ -55,7 +56,9 @@ const runtime = {
     registerTeammate({ ...teammate, assignment: input.prompt ? { id: `direct:${randomUUID()}`, kind: "direct", resources: input.resources ?? [] } : undefined });
     updateTeammate(input.name, {
       model: input.model ?? "anthropic/claude-sonnet-4-5",
-      tools: ["read", "bash", "agent_event", "work"],
+      // Honor the requested grant so a coordination-only spawn renders the same
+      // narrow Tools and Warning lines the real receipt produces.
+      tools: resolveWorkerTools(input.definition?.tools ?? ["read", "bash"]),
       ...(input.prompt ? {} : { assignment: undefined }),
     });
     return { ok: true as const, teammate: getTeammate(input.name)! };
@@ -146,6 +149,19 @@ updateTeammate("ui-auditor", { status: "idle", activeTool: undefined });
 const idleInspected = render("leader:agent", { action: "inspect", name: "ui-auditor", session: handle }, { details: { ...working, sessions: [{ ...working.sessions[0], status: "idle" }] }, expanded: true });
 assert.ok(!idleInspected.includes("now ·"), `idle inspect row must not display a now activity:\n${idleInspected}`);
 assert.ok(!idleInspected.includes("work ·"), `idle inspect row without active work must not dump old work:\n${idleInspected}`);
+assert.ok(!idleInspected.includes("status ·"), `inspect row must not repeat its own header state word:\n${idleInspected}`);
+
+// A coordination-only spawn states its narrow grant on the row that created it.
+const narrowStarted = runAgentAction({
+  action: "delegate",
+  name: "row-check-narrow",
+  prompt: "Answer with one word.",
+  definition: { description: "Minimal probe", prompt: "Answer with one word.", tools: [] },
+}, undefined, runtime);
+const narrowRow = render("leader:agent", { action: "delegate", name: "row-check-narrow", prompt: "Answer with one word.", definition: { description: "Minimal probe", prompt: "Answer with one word.", tools: [] } }, { details: narrowStarted, expanded: true });
+expectReadable(narrowRow, "coordination-only delegate row");
+assert.ok(narrowRow.includes("tools · agent_event, work"), `narrow delegate row missing its grant:\n${narrowRow}`);
+assert.ok(narrowRow.includes("warning · coordination-only"), `narrow delegate row missing the coordination-only warning:\n${narrowRow}`);
 
 const stopped = await runAgentAction({ action: "stop", session: handle }, undefined, runtime);
 const stoppedRow = render("leader:agent", { action: "stop", session: handle }, { details: stopped, expanded: true });

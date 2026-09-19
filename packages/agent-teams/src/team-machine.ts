@@ -20,6 +20,7 @@ import {
   activeAssignmentConflict,
   applyClaimIntent,
   assignTeammate,
+  boardRevision,
   claimableTasks,
   clearWorkerRunEvents,
   completeTask,
@@ -37,9 +38,11 @@ import {
   listTeammates,
   livingTeammates,
   loadBoard,
+  markBoardChanged,
   markPeerDelivered,
   getTask,
   normalizeResources,
+  progressRevision,
   registerTeammate,
   releaseTask,
   releaseTasksOf,
@@ -48,7 +51,9 @@ import {
   receiveWorkerMessage,
   reopenCompletedWork,
   setPeerInboxOffset,
+  rosterRevision,
   setPeerDeliveryState,
+  stateRevision,
   updateTeammate,
   updateTeammateProgress,
 } from "./state.ts";
@@ -154,6 +159,19 @@ let notifyChange: () => void = () => {};
 
 const pendingShutdowns = new Set<string>();
 const confirmedStopTimes = new Map<string, number>();
+/** Confirmed-stop and finish bookkeeping is per incarnation or per assignment
+ *  attempt, so a long session accumulates one entry each. Keep the same bounded
+ *  FIFO shape the peer-delivery dedupe uses instead of growing without limit. */
+const MAX_RUNTIME_BOOKKEEPING_ENTRIES = 512;
+
+function rememberBounded<T>(entries: Map<string, T> | Set<string>, key: string, value?: T): void {
+  if (entries instanceof Map) entries.set(key, value as T);
+  else entries.add(key);
+  for (const oldest of entries.keys()) {
+    if (entries.size <= MAX_RUNTIME_BOOKKEEPING_ENTRIES) break;
+    entries.delete(oldest);
+  }
+}
 const closeFinalizations = new Map<string, Promise<void>>();
 
 export function getConfirmedStopTime(spawnId: string): number | undefined {
@@ -302,6 +320,11 @@ export function shutdownTeamMachine(): void {
   unexpectedExecutionParks.clear();
   announcedFinishKeys.clear();
   snapshotFailure = undefined;
+  writtenStateRevision = -1;
+  writtenRosterRevision = -1;
+  writtenBoardRevision = -1;
+  writtenProgressRevision = -1;
+  lastStateWriteAt = 0;
 }
 
 // ── Spawn model resolution ────────────────────────────────────
@@ -390,6 +413,15 @@ export function runtimeDirPath(): string {
  *  instead of being silently invisible. */
 const SNAPSHOT_FAILURE_REPORT_AFTER = 3;
 let snapshotFailure: { count: number; reported: boolean; detail: string } | undefined;
+/** Revisions already on disk. -1 makes the first flush after a (re)init write
+ *  every artifact. */
+let writtenStateRevision = -1;
+let writtenRosterRevision = -1;
+let writtenBoardRevision = -1;
+let writtenProgressRevision = -1;
+let lastStateWriteAt = 0;
+/** Roughly 2 poll ticks: the debug snapshot follows progress, but not per token. */
+export const STATE_SNAPSHOT_MIN_INTERVAL_MS = 1_000;
 
 /** Runtime dir that holds the leader lease for the current session. */
 function leaderLockPath(stateFile: string): string {
@@ -433,18 +465,41 @@ function claimLeaderLease(): void {
 
 function flushSnapshots(): void {
   const stateFile = requireStateFile();
+  const rosterRev = rosterRevision();
+  const boardRev = boardRevision();
+  const stateRev = stateRevision();
+  const progressRev = progressRevision();
+  const needsRoster = rosterRev !== writtenRosterRevision;
+  const needsBoard = boardRev !== writtenBoardRevision;
+  // The whole-state file exists for forensics; nothing in the runtime reads it
+  // back. It still tracks streamed progress, but at a bounded rate instead of
+  // rewriting the state on every token.
+  const needsState = stateRev !== writtenStateRevision
+    || (progressRev !== writtenProgressRevision && Date.now() - lastStateWriteAt >= STATE_SNAPSHOT_MIN_INTERVAL_MS);
+  if (!needsRoster && !needsBoard && !needsState) return;
   try {
-    writeStateFile(stateFile, getState());
-    writeRoster(rosterPath(stateFile), livingTeammates().map((t) => ({
-      name: t.name,
-      agent: t.agent,
-      spawnId: t.spawnId,
-      status: t.status,
-      tools: t.tools,
-      currentTaskId: t.currentTaskId,
-      assignment: t.assignment,
-    })));
-    if (boardFile) writeBoardFile(boardFile, getState().tasks);
+    if (needsState) writeStateFile(stateFile, getState());
+    if (needsRoster) {
+      writeRoster(rosterPath(stateFile), livingTeammates().map((t) => ({
+        name: t.name,
+        agent: t.agent,
+        spawnId: t.spawnId,
+        status: t.status,
+        tools: t.tools,
+        currentTaskId: t.currentTaskId,
+        assignment: t.assignment,
+      })));
+    }
+    if (needsBoard && boardFile) writeBoardFile(boardFile, getState().tasks);
+    // Only a fully successful flush advances the revisions, so a failed write
+    // stays dirty and the next poll retries it.
+    if (needsState) {
+      writtenStateRevision = stateRev;
+      writtenProgressRevision = progressRev;
+      lastStateWriteAt = Date.now();
+    }
+    if (needsRoster) writtenRosterRevision = rosterRev;
+    if (needsBoard) writtenBoardRevision = boardRev;
     snapshotFailure = undefined;
   } catch (error) {
     // The next poll retries. A transient failure stays quiet, but a persistent
@@ -922,7 +977,7 @@ export function markTeammateFinished(report: FinishIdentity): boolean {
   if (!report.finished) return false;
   const key = finishKey(report);
   if (announcedFinishKeys.has(key)) return false;
-  announcedFinishKeys.add(key);
+  rememberBounded(announcedFinishKeys, key);
   return true;
 }
 
@@ -1002,7 +1057,7 @@ export async function shutdownTeammate(name: string): Promise<{ ok: true; body: 
     return { ok: false, error: `Agent @${name} could not be confirmed closed; shutdown remains pending.` };
   }
   if (terminated.outcome === "missing" && !confirmedStopTimes.has(teammate.spawnId)) {
-    confirmedStopTimes.set(teammate.spawnId, Date.now());
+    rememberBounded(confirmedStopTimes, teammate.spawnId, Date.now());
     // The child was already gone; synthesize the close bookkeeping.
     pendingShutdowns.delete(name);
     const released = releaseTasksOf(name, "Agent was stopped.");
@@ -1031,7 +1086,7 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
   if (!runtimeStateFile) return;
   const teammate = getTeammate(name);
   if (!teammate || teammate.spawnId !== spawnId || teammate.status === "stopped") return;
-  confirmedStopTimes.set(spawnId, Date.now());
+  rememberBounded(confirmedStopTimes, spawnId, Date.now());
   const requested = pendingShutdowns.has(name);
   const crashed = !requested && !isCleanExit(result);
 
@@ -1341,6 +1396,7 @@ function archiveDeferredDeliveries(teammate: Teammate): void {
     task.updatedAt = Date.now();
   }
   for (const delivery of deliveries) setPeerDeliveryState(delivery.id, "routed");
+  markBoardChanged();
 }
 
 function dispatchInboxMessage(teammate: Teammate, message: InboxMessage): void {
@@ -2108,8 +2164,9 @@ function truncated(text: string, cap = 4000): string {
   return text.length <= cap ? text : text.slice(0, Math.max(0, cap - suffix.length)) + suffix;
 }
 
-/** Read-only inspection grant for the gate reviewer: it may run the project's
- *  own checks but cannot edit or write the tree it is judging. */
+/** Inspection grant for the gate reviewer: it may run the project's own checks
+ *  but holds no `edit`/`write` tool. The limit is the tool set, not the file
+ *  system: a shell can still write, so treat this as intent-level, not enforced. */
 export const VERIFY_REVIEW_TOOLS: readonly string[] = ["read", "bash", "grep", "find", "ls"];
 
 /** Complete worker options for one gate review. The reviewer runs as a bare Pi

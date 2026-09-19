@@ -20,6 +20,9 @@ import {
 import { nonEmpty } from "@fradser/pi-kit";
 
 export const MAX_LEADER_MAILBOX_MESSAGES = 4096;
+/** Total mailbox body bytes retained for forensics. A count cap alone lets a few
+ *  long reports blow the snapshot up: this keeps the debug artifact bounded. */
+export const MAX_LEADER_MAILBOX_BYTES = 8 * 1024 * 1024;
 /** FIFO cap of remembered peer message ids per inbox (dedup guard). */
 export const MAX_PEER_DELIVERED_IDS = 512;
 /** Bounded forensic routing history; mailbox files retain the full peer transcript. */
@@ -55,6 +58,47 @@ function emptyTaskMap(): Record<string, BoardTask> {
 
 export function resetState(): void {
   state = emptyState();
+  rosterRevisionCounter++;
+  boardRevisionCounter++;
+  stateRevisionCounter++;
+}
+
+// ── Persistence revisions ────────────────────────────────────────
+// state.ts owns every in-memory mutation, so it is the one place that can say
+// exactly which artifact changed. Stream progress is counted separately: a
+// running teammate must not force the roster, the board, or the debug snapshot
+// to be rewritten on every token. Every persisted mutation in this module bumps
+// one of these counters, so a mutation that forgets to bump would not be written
+// until something else changed — add the bump with any new mutator.
+let stateRevisionCounter = 0;
+let rosterRevisionCounter = 0;
+let boardRevisionCounter = 0;
+let progressRevisionCounter = 0;
+
+/** Revision of the whole snapshot: roster, board, mailbox, and offsets. */
+export function stateRevision(): number {
+  return stateRevisionCounter;
+}
+
+/** Revision of the worker-readable roster. */
+export function rosterRevision(): number {
+  return rosterRevisionCounter;
+}
+
+/** Revision of the persisted board. */
+export function boardRevision(): number {
+  return boardRevisionCounter;
+}
+
+/** Revision of streamed progress only; never persisted on its own. */
+export function progressRevision(): number {
+  return progressRevisionCounter;
+}
+
+/** Record a board change made outside this module's task mutators. */
+export function markBoardChanged(): void {
+  boardRevisionCounter++;
+  stateRevisionCounter++;
 }
 
 // ── Team default model ──────────────────────────────────────
@@ -67,6 +111,7 @@ export function getTeamDefaultModel(): string | undefined {
 /** Set (or clear with undefined) the unified teammate model for later spawns. */
 export function setTeamDefaultModel(ref: string | undefined): void {
   state.defaultModel = nonEmpty(ref);
+  stateRevisionCounter++;
 }
 
 // ── Roster queries ────────────────────────────────────────────────
@@ -101,14 +146,41 @@ export function registerTeammate(teammate: Teammate): { ok: true } | { ok: false
     return { ok: false, error: `A living teammate named "${teammate.name}" already exists.` };
   }
   state.teammates[teammate.name] = teammate;
+  rosterRevisionCounter++;
+  stateRevisionCounter++;
   return { ok: true };
 }
+
+/** Fields whose change is stream progress rather than persisted state. A
+ *  progress tick must not republish the roster or the board. */
+const VOLATILE_TEAMMATE_FIELDS = new Set<string>([
+  "liveText",
+  "liveThinking",
+  "activeTool",
+  "turns",
+  "sequenceEnded",
+  "modelOutputSeen",
+  "usage",
+  "lastOutputAt",
+  "updatedAt",
+  "lastNoticeAt",
+  "noticedTaskIds",
+]);
 
 export function updateTeammate(name: string, patch: Partial<Teammate>): Teammate | undefined {
   const teammate = state.teammates[name];
   if (!teammate) return undefined;
+  const changed = (Object.keys(patch) as Array<keyof Teammate>)
+    .filter((field) => !Object.is(teammate[field], patch[field]));
   Object.assign(teammate, patch, { updatedAt: Date.now() });
   if (patch.status === "stopped") teammate.stoppedAt = Date.now();
+  // Republishing a roster that only streamed progress is pure write churn.
+  if (changed.some((field) => !VOLATILE_TEAMMATE_FIELDS.has(field as string))) {
+    rosterRevisionCounter++;
+    stateRevisionCounter++;
+  } else if (changed.length > 0) {
+    progressRevisionCounter++;
+  }
   return teammate;
 }
 
@@ -138,6 +210,12 @@ export function updateTeammateProgress(
 ): boolean {
   const teammate = state.teammates[name];
   if (!teammate || teammate.spawnId !== spawnId) return false;
+  const changed = teammate.liveText !== progress.liveText
+    || teammate.activeTool !== progress.activeTool
+    || teammate.liveThinking !== progress.liveThinking
+    || teammate.turns !== progress.turns
+    || (progress.sequenceEnded !== undefined && teammate.sequenceEnded !== progress.sequenceEnded)
+    || (progress.modelOutputSeen === true && teammate.modelOutputSeen !== true);
   teammate.liveText = progress.liveText;
   teammate.activeTool = progress.activeTool;
   teammate.liveThinking = progress.liveThinking;
@@ -147,8 +225,12 @@ export function updateTeammateProgress(
   if (progress.usage) teammate.usage = progress.usage;
   if (teammate.status === "starting") {
     teammate.status = progress.sequenceEnded ? "idle" : "working";
+    // A status transition is roster state, not stream noise.
+    rosterRevisionCounter++;
+    stateRevisionCounter++;
   }
   teammate.updatedAt = Date.now();
+  if (changed) progressRevisionCounter++;
   return true;
 }
 
@@ -161,14 +243,26 @@ export function clearWorkerRunEvents(workerName: string, spawnId: string): void 
   }
 }
 
+/** Drop the oldest mailbox entries until both the count and byte caps hold. */
+function trimLeaderMailbox(): void {
+  if (state.leaderMailbox.length > MAX_LEADER_MAILBOX_MESSAGES) {
+    state.leaderMailbox.splice(0, state.leaderMailbox.length - MAX_LEADER_MAILBOX_MESSAGES);
+  }
+  let bytes = 0;
+  for (const message of state.leaderMailbox) bytes += message.body.length + message.subject.length + 64;
+  while (bytes > MAX_LEADER_MAILBOX_BYTES && state.leaderMailbox.length > 1) {
+    const dropped = state.leaderMailbox.shift()!;
+    bytes -= dropped.body.length + dropped.subject.length + 64;
+  }
+}
+
 // ── Leader inbox ──────────────────────────────────────────────────
 
 export function deliverToLeader(msg: Omit<MailboxMessage, "id" | "timestamp">): MailboxMessage {
   const full: MailboxMessage = { ...msg, id: nextMessageId(), timestamp: Date.now() };
   state.leaderMailbox.push(full);
-  if (state.leaderMailbox.length > MAX_LEADER_MAILBOX_MESSAGES) {
-    state.leaderMailbox.splice(0, state.leaderMailbox.length - MAX_LEADER_MAILBOX_MESSAGES);
-  }
+  trimLeaderMailbox();
+  stateRevisionCounter++;
   return full;
 }
 
@@ -190,9 +284,8 @@ export function receiveWorkerMessage(event: WorkerReportEvent, options?: { archi
     // teammate spoke, not when the leader happened to drain the outbox.
     timestamp: event.timestamp ?? Date.now(),
   });
-  if (state.leaderMailbox.length > MAX_LEADER_MAILBOX_MESSAGES) {
-    state.leaderMailbox.splice(0, state.leaderMailbox.length - MAX_LEADER_MAILBOX_MESSAGES);
-  }
+  trimLeaderMailbox();
+  stateRevisionCounter++;
   return true;
 }
 
@@ -207,6 +300,7 @@ export function markPeerDelivered(inboxName: string, messageId: string): void {
   ids.push(messageId);
   while (ids.length > MAX_PEER_DELIVERED_IDS) ids.shift();
   state.peerDeliveredIds[inboxName] = ids;
+  stateRevisionCounter++;
 }
 
 export function getPeerInboxOffset(inboxName: string): number {
@@ -215,6 +309,7 @@ export function getPeerInboxOffset(inboxName: string): number {
 
 export function setPeerInboxOffset(inboxName: string, offset: number): void {
   state.peerInboxOffsets[inboxName] = offset;
+  stateRevisionCounter++;
 }
 
 /** Record only the harness-controlled routing transition, never recipient read. */
@@ -226,6 +321,7 @@ export function setPeerDeliveryState(messageId: string, routing: "queued" | "rou
     if (oldest) delete state.peerDeliveryStates[oldest];
   }
   state.peerDeliveryStates[messageId] = routing;
+  stateRevisionCounter++;
 }
 
 export function getPeerDeliveryState(messageId: string): "queued" | "routed" | "dropped" | undefined {
@@ -395,6 +491,8 @@ export function createTask(input: {
     updatedAt: Date.now(),
   };
   state.tasks[id] = task;
+  boardRevisionCounter++;
+  stateRevisionCounter++;
   const superseded: BoardTask[] = [];
   for (const oldId of supersedes) {
     const old = state.tasks[oldId];
@@ -469,6 +567,8 @@ export function createDirectWork(input: {
   task.status = "claimed";
   task.claimedBy = input.workerName;
   task.updatedAt = Date.now();
+  boardRevisionCounter++;
+  stateRevisionCounter++;
   assignTeammate(input.workerName, input.assignment, task.id);
   return { ok: true, task };
 }
@@ -477,6 +577,8 @@ export function discardDirectWork(taskId: string, workerName: string): boolean {
   const task = state.tasks[taskId];
   if (!task || task.status !== "claimed" || task.claimedBy !== workerName) return false;
   delete state.tasks[taskId];
+  boardRevisionCounter++;
+  stateRevisionCounter++;
   return true;
 }
 
@@ -502,6 +604,8 @@ export function reclaimDirectWork(
   task.errorMessage = undefined;
   task.completedAt = undefined;
   task.updatedAt = Date.now();
+  boardRevisionCounter++;
+  stateRevisionCounter++;
   assignTeammate(workerName, assignment, task.id);
   return { ok: true };
 }
@@ -515,6 +619,8 @@ export function setTaskClaimed(taskId: string, workerName: string): BoardTask | 
   task.status = "claimed";
   task.claimedBy = workerName;
   task.updatedAt = Date.now();
+  boardRevisionCounter++;
+  stateRevisionCounter++;
   assignTeammate(workerName, { id: `board:${randomUUID()}`, kind: "board", resources: task.resources }, task.id);
   return task;
 }
@@ -557,6 +663,8 @@ export function reopenCompletedWork(workId: string): { ok: true; task: BoardTask
   task.errorMessage = undefined;
   task.completedAt = undefined;
   task.updatedAt = Date.now();
+  boardRevisionCounter++;
+  stateRevisionCounter++;
   return { ok: true, task };
 }
 
@@ -568,6 +676,8 @@ export function releaseTask(taskId: string, errorMessage?: string): BoardTask | 
   task.claimedBy = undefined;
   if (errorMessage !== undefined) task.errorMessage = errorMessage;
   task.updatedAt = Date.now();
+  boardRevisionCounter++;
+  stateRevisionCounter++;
   if (holder) assignTeammate(holder, undefined, undefined);
   return task;
 }
@@ -582,6 +692,8 @@ export function completeTask(taskId: string, result?: string): BoardTask | undef
   task.errorMessage = undefined;
   task.completedAt = Date.now();
   task.updatedAt = Date.now();
+  boardRevisionCounter++;
+  stateRevisionCounter++;
   if (holder) assignTeammate(holder, undefined, undefined);
   return task;
 }
@@ -669,6 +781,10 @@ export function loadBoard(tasks: Record<string, BoardTask>): number {
     };
     state.tasks[restored.id] = restored;
     reloaded++;
+  }
+  if (reloaded > 0) {
+    boardRevisionCounter++;
+    stateRevisionCounter++;
   }
   return reloaded;
 }

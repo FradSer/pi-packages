@@ -122,7 +122,7 @@ pi install npm:@fradser/pi-monitor
 
 ### [`@fradser/pi-open-deskos`](packages/open-deskos/)
 
-把本机的 Pi 会话及其运作事件经 package 主动打开的 Desk Link 上报给 Open DeskOS，事件规则与运行时本地采集器完全一致。
+把本机的 Pi 会话及其运作事件经 package 主动打开的 Desk Link 上报给 Open DeskOS，事件规则与运行时本地采集器完全一致。另外持有独立控制凭据时，可作为 Console 列出、启动、进入、改向、取消、结束并读取 desk 托管的 Pi 会话历史。
 
 **命令：** `/open-deskos`
 

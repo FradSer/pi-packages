@@ -3,6 +3,7 @@
 
 import { truncateToWidth, Key, matchesKey, fuzzyFilter } from "@earendil-works/pi-tui";
 import {
+  agentColor,
   createLiveActivityWidget,
   createPiThemeStyle,
   createSearchPicker,
@@ -12,6 +13,7 @@ import {
   PI_SPINNER_INTERVAL_MS,
   notifyPi,
   renderPiPanel,
+  renderLiveActivityIdentity,
   sortModels,
   type SearchPicker,
 } from "@fradser/pi-kit";
@@ -19,7 +21,7 @@ import { type ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import {
   clampConsoleScroll, consoleScrollRange, maxConsoleBody, scrollConsoleDetail, wrapConsoleDetail,
 } from "./console-viewport.ts";
-import { formatTeammateLabel, renderActivityMarkdown, runningTeammateActivity } from "./activity.ts";
+import { formatTeammateLabel, runningTeammateActivity } from "./activity.ts";
 import { MODEL_INHERIT_ALIAS, discoverAgents, resolveAgent, type AgentDefinition } from "./agents.ts";
 import { getPeerDeliveryState, getState, getTeammate, getTeamDefaultModel, listTasks, listTeammates, livingTeammates, setTeamDefaultModel } from "./state.ts";
 import {
@@ -38,7 +40,6 @@ import { inboxPath } from "./statefile.ts";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-const TEAM_COLORS = ["success", "warning", "error", "mdLink"] as const;
 let spinnerTimer: ReturnType<typeof setInterval> | undefined;
 let spinnerFrame = 0;
 
@@ -46,19 +47,8 @@ const teamActivityWidget = createLiveActivityWidget({
   key: "teammate",
   placement: "aboveEditor",
   fit: truncateToWidth,
-  formatIdentity: (identity, theme) => theme.bold(theme.fg(colorFor(identity), identity)),
-  formatActivity: (activity) => renderActivityMarkdown(activity),
+  activityFormat: "markdown",
 });
-
-function hashName(name: string): number {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(0) + i * 7) | 0;
-  return Math.abs(h);
-}
-
-function colorFor(name: string): (typeof TEAM_COLORS)[number] {
-  return TEAM_COLORS[hashName(name) % TEAM_COLORS.length];
-}
 
 function ensureSpinner(): void {
   const working = livingTeammates().some(isWorking);
@@ -503,7 +493,7 @@ export function openTeamConsole(ctx: {
     const teammateRowText = (key: string, selected: boolean): string => {
       const teammate = getTeammate(key)!;
       const marker = selected ? style.accent("❯ ") : "  ";
-      const name = theme.bold(theme.fg(colorFor(teammate.name), `@${teammate.name}`));
+      const name = renderLiveActivityIdentity(teammate.name, theme, "@");
       if (isWorking(teammate)) {
         const prefix = `${marker}${name} `;
         const width = tui.terminal.columns;
@@ -520,7 +510,7 @@ export function openTeamConsole(ctx: {
     const roleRowText = (key: string, selected: boolean): string => {
       const def = getRoles().find((candidate) => candidate.name === key)!;
       const marker = selected ? style.accent("❯ ") : "  ";
-      const name = theme.bold(theme.fg(colorFor(key), `@${key}`));
+      const name = renderLiveActivityIdentity(key, theme, "@");
       const live = livingTeammates().filter((teammate) => teammate.agent === key && teammate.status !== "stopped").length;
       const liveTag = live > 0 ? style.success(`[${live} live]`) : style.dim("[0 live]");
       const provenance = def.scope === "session" ? "in-memory" : displaySource(def.source);
@@ -530,7 +520,7 @@ export function openTeamConsole(ctx: {
     const taskRowText = (key: string, selected: boolean): string => {
       const task = listTasks().find((candidate) => candidate.id === key)!;
       const marker = selected ? style.accent("❯ ") : "  ";
-      const label = theme.fg(colorFor(key), `[${key}]`);
+      const label = theme.fg(agentColor(key), `[${key}]`);
       const holder = task.claimedBy ? style.dim(` @${task.claimedBy}`) : "";
       const statusText = task.status === "completed"
         ? style.success("✓")

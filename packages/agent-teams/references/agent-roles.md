@@ -88,7 +88,9 @@ as long as every invariant below holds.
 Non-negotiable in every generated definition:
 
 - Tool sets match the mutability axis: read-only roles never receive
-  `edit` or `write`.
+  `edit` or `write`. A `bash` grant is not read-only — a shell can still write,
+  so "read-only" here bounds the tools, not the file system, and the completion
+  gate relies on the reviewer's instruction rather than enforcement.
 - Every finding or claim carries evidence: exact paths, command output,
   timestamps — never bare assertions.
 - Scope is bounded: mutating roles state "do not touch files outside the
