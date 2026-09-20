@@ -145,6 +145,45 @@ console.log(JSON.stringify({{
         self.assertLessEqual(len(recap_line) - len("  - **Recap**: "), 240)
         self.assertTrue(file_line.endswith("…"))
 
+    def test_recap_block_stays_bounded_and_keeps_the_most_recent_peer(self) -> None:
+        script = f"""
+import {{ formatCrossSessionRecap }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+
+const peer = (i) => ({{
+  sessionId: `sess-${{i}}`,
+  sessionName: `Peer ${{i}}`,
+  pid: 1000 + i,
+  cwd: "/app/test-project",
+  startedAt: Date.now() - 60000,
+  updatedAt: Date.now() - i * 1000,
+  status: "running",
+  latestGoal: "g".repeat(400),
+  recap: "r".repeat(400),
+  modifiedFiles: ["src/" + "f".repeat(200), "src/" + "h".repeat(200)],
+}});
+
+const formatted = formatCrossSessionRecap([1, 2, 3, 4, 5].map(peer));
+console.log(JSON.stringify({{ formatted, length: formatted.length }}));
+"""
+        result = subprocess.run(
+            ["bun", "run", "-"],
+            cwd=REPO,
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise AssertionError(f"TypeScript execution failed:\n{result.stderr}")
+        data = json.loads(result.stdout)
+        # Bounded fields still add up: the block reports what it dropped instead
+        # of growing with the number of peers or their content.
+        self.assertLessEqual(data["length"], 1500)
+        self.assertIn("Untrusted peer-session text", data["formatted"])
+        self.assertIn("Peer 1", data["formatted"])
+        self.assertIn("omitted to keep this recap bounded", data["formatted"])
+        self.assertNotIn("Peer 5", data["formatted"])
+
     def test_ts_module_logic_via_bun(self) -> None:
         script = f"""
 import {{ getRegistryDir, getSessionFileKey, formatCrossSessionRecap, SessionInfo }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
