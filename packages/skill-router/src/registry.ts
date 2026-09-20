@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync, type Stats } from "node:fs";
 import { dirname } from "node:path";
 import { registryPath } from "./paths";
 
@@ -121,16 +121,37 @@ function parseCollection(value: unknown): RegistryCollection | undefined {
 }
 
 /** Load the registry, dropping structurally invalid entries and duplicate gateways or ids. */
+/**
+ * Parsed registry keyed by the file's own identity. `before_agent_start` reads
+ * the registry on every user turn just to route a prompt, so an unchanged file is
+ * parsed once per session. Any atomic write replaces the inode, and an in-place
+ * edit changes the modification time, so a stale registry is never served.
+ */
+let registryCache: { path: string; mtimeMs: number; size: number; collections: RegistryCollection[] } | undefined;
+
 export function loadCollections(root: string): RegistryCollection[] {
   const path = registryPath(root);
-  if (!existsSync(path)) return [];
+  let stat: Stats;
+  try {
+    stat = statSync(path);
+  } catch {
+    registryCache = undefined;
+    return [];
+  }
+  if (registryCache && registryCache.path === path && registryCache.mtimeMs === stat.mtimeMs && registryCache.size === stat.size) {
+    return registryCache.collections;
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(readFileSync(path, "utf8"));
   } catch {
+    registryCache = undefined;
     return [];
   }
-  if (!isRecord(parsed) || !Array.isArray(parsed.collections)) return [];
+  if (!isRecord(parsed) || !Array.isArray(parsed.collections)) {
+    registryCache = undefined;
+    return [];
+  }
 
   const collections = parsed.collections
     .map(parseCollection)
@@ -147,7 +168,7 @@ export function loadCollections(root: string): RegistryCollection[] {
     const sourceKey = `${collection.source.url}\0${collection.source.ref}`;
     sourceCounts.set(sourceKey, (sourceCounts.get(sourceKey) ?? 0) + 1);
   }
-  return collections.filter((collection) => {
+  const valid = collections.filter((collection) => {
     const sourceKey = `${collection.source.url}\0${collection.source.ref}`;
     return (
       idCounts.get(collection.id) === 1 &&
@@ -156,6 +177,8 @@ export function loadCollections(root: string): RegistryCollection[] {
       sourceCounts.get(sourceKey) === 1
     );
   });
+  registryCache = { path, mtimeMs: stat.mtimeMs, size: stat.size, collections: valid };
+  return valid;
 }
 
 export function saveCollections(root: string, collections: RegistryCollection[]): void {
@@ -164,4 +187,5 @@ export function saveCollections(root: string, collections: RegistryCollection[])
   const temporary = `${path}.tmp-${process.pid}-${randomUUID()}`;
   writeFileSync(temporary, `${JSON.stringify({ collections }, null, 2)}\n`, "utf8");
   renameSync(temporary, path);
+  registryCache = undefined;
 }

@@ -969,3 +969,60 @@ def test_malformed_enabled_and_duplicate_ids_fail_closed(tmp_path: Path, source_
     )
     routed = run_harness(agent_dir, "route", "please diagnose this bug")
     assert routed["systemPrompt"] == "base system prompt"
+
+
+def test_registry_reuse_is_keyed_on_file_identity(tmp_path: Path) -> None:
+    # before_agent_start reads the registry on every user turn, so an unchanged
+    # file is parsed once and only its identity decides reuse: a registry written
+    # through the module, or any real change to the file, is read again.
+    root = tmp_path / "router"
+    result = subprocess.run(
+        [
+            "bun",
+            "-e",
+            f"""
+            import fs from 'node:fs';
+            import {{ loadCollections, saveCollections }} from './packages/skill-router/src/registry.ts';
+            import {{ registryPath }} from './packages/skill-router/src/paths.ts';
+
+            const root = {json.dumps(str(root))};
+            const collection = (id) => ({{
+              id, gateway: id, mode: 'suggest', enabled: true, description: id,
+              source: {{ repo: `owner/${{id}}`, url: `https://github.com/owner/${{id}}.git`, ref: 'main', cacheKey: `owner-${{id}}` }},
+              routes: [{{ skill: `${{id}}-skill`, path: `exposed/collections/${{id}}/leaves/${{id}}-skill/SKILL.md`, terms: ['alpha'] }}],
+            }});
+            const file = registryPath(root);
+
+            saveCollections(root, [collection('one')]);
+            const first = loadCollections(root).map((entry) => entry.id);
+
+            // An unchanged identity must not re-read the file: with reads denied,
+            // a reuse still answers while a re-read cannot.
+            fs.chmodSync(file, 0o000);
+            const withoutReadPermission = loadCollections(root).map((entry) => entry.id);
+            fs.chmodSync(file, 0o644);
+            const afterRestore = loadCollections(root).map((entry) => entry.id);
+
+            // An application write is seen again.
+            saveCollections(root, [collection('one'), collection('two')]);
+            const afterSave = loadCollections(root).map((entry) => entry.id);
+
+            // An in-place edit that changes the file is seen again.
+            fs.writeFileSync(file, JSON.stringify({{ collections: [collection('three')] }}));
+            const afterEdit = loadCollections(root).map((entry) => entry.id);
+
+            console.log(JSON.stringify({{ first, withoutReadPermission, afterRestore, afterSave, afterEdit }}));
+            """,
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    data = json.loads(result.stdout.strip().splitlines()[-1])
+    assert data["first"] == ["one"]
+    assert data["withoutReadPermission"] == ["one"], "an unchanged registry is served without re-reading"
+    assert data["afterRestore"] == ["one"]
+    assert data["afterSave"] == ["one", "two"], "a registry written through the module is seen"
+    assert data["afterEdit"] == ["three"], "an in-place edit is seen"
