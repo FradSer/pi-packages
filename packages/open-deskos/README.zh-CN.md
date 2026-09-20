@@ -38,8 +38,8 @@ export ODK_DESK_LINK_CONTROL_TOKEN="<control credential>"   # 可选：使本机
 - 当前会话的实时身份、目标、activity 与事件，以及本机注册在 `directory-sessions` 元数据中的其他会话（由 `pi-utils` 与 `pi-keyboard` 写入）。UUID 与带时间戳前缀的 UUID 别名会合并为同一会话。
 - 会话状态：元数据表示工作中、Pi 进程存活、时间戳匹配该进程生命周期时才为 `running`；存活的 idle/settled 会话为 `settled`。已结束、无效、被复用、无法核实的 PID 或明确退出的记录为 `exited`。每次扫描只读取一次有界进程表（1 MiB，2 秒超时），同一 PID 只有最新且无歧义的会话可视为存活。当前会话以 Pi 自身的 idle/agent 事件为准。
 - 原始元数据的 start/update 时间、可选会话名、目标与 activity/recap。扫描不会凭空发明新的 activity 时间戳，也不读取会话历史。
-- 有界会话事件：每会话最多保留最新连续的 60 条事件与 262,144 UTF-8 字节（计入正文与工具名）。user、thinking、tool-call、assistant 事件仍为单行摘要，上限 200 字符。
-- 工具结果保留完整的多行 Markdown，包括表格、代码围栏和空白，每条正文最多 65,536 UTF-8 字节。所有文本块以两个换行连接；图片与任意结果元数据不上报。超过字节上限时会带 `truncated: true`，且不会截断 Unicode 码点。可选 `toolName` 为独立的 200 字符摘要，不再作为前缀插入 Markdown 正文。会话 activity 仍为简短的首行摘要。
+- 有界会话事件：每会话最多保留最新连续的 300 条事件与 1,048,576 UTF-8 字节（计入正文与工具名）。正文保留换行并按类型限长：user 8 KiB、thinking 4 KiB、tool-call 4 KiB、assistant 16 KiB、tool result 64 KiB。
+- 工具结果保留完整的多行 Markdown，包括表格、代码围栏和空白，每条正文最多 65,536 UTF-8 字节。所有文本块以两个换行连接；图片与任意结果元数据不上报。任一类型的正文超过自身字节上限时会带 `truncated: true`，且不会截断 Unicode 码点。可选 `toolName` 为独立的 200 字符摘要，不再作为前缀插入 Markdown 正文。会话 activity 仍为简短的首行摘要。
 
 会话开始时以及每次扫描后每 5 秒刷新一次清单，链路离线期间同样刷新。刷新只替换被发现的条目：当前会话的身份与事件不会被陈旧元数据删除或覆盖。关闭/重载会取消刷新调度，并使待处理结果与重连失效。
 
@@ -54,7 +54,7 @@ export ODK_DESK_LINK_CONTROL_TOKEN="<control credential>"   # 可选：使本机
 `/open-deskos` 会打开菜单，其控制台一行列出 desk 托管的 Hosted Pi（含状态、目标、项目与时长），并可启动新的会话、进入已有会话、追加指令（**运行中也可**，此时是改向当前 turn 而不是另起一个）、取消当前 turn、结束会话、按需读取完整历史。
 
 - **一个 Console 同时驱动一个 Hosted Pi。** attach 是替换而非共享，可重复且按会话身份幂等，因此重启后的 Pi 会话可以重新 attach。
-- **不重复、不遗漏。** 事件的位置就是该事件在 Hosted Pi 自己会话日志中的位置。attach 时声明上次生效的位置，从该位置读 history，再从该边界起收实时流。没有重放窗口，也没有需要解释的 resync。
+- **不重复、不遗漏。** 事件位置是其对应完整条目在 Hosted Pi 会话日志中的物理位置；若中间有非消息条目，位置只保证严格递增，不保证连续。首次 attach 发送 `after: null`，从 desk 当前边界开始；旧内容需显式通过 history 获取。恢复 attach 会发送上次已应用位置，先按序接收直到 `caught_up` 边界的补流，再进入实时事件。没有重放窗口，也没有需要解释的 resync。
 - **会话比连接活得久。** 控制连接断开不会结束 Hosted Pi：它继续运行、保留身份、仍可按身份 attach。
 - **进入上下文的只有有界尾部。** 实时事件与终态结果以有界摘要进入你的会话；完整内容通过 history 工具与控制台面板按需获取。
 - **desk 自己说了算。** 本机驱动期间，desk 会在 Pi Sessions 总览标题上标明驱动方，本地触控与键盘始终可用。
@@ -80,7 +80,7 @@ export ODK_DESK_LINK_CONTROL_TOKEN="<control credential>"   # 可选：使本机
 
 ## 链路断开时的行为
 
-上报端以递增等待重连（1s、2s、4s……上限 30s），并始终只保持一条链路。历史与待发事件均受每会话 60 条 / 262,144 字节上限约束。每次新连接都会发送当前会话状态，重放完整的已保留事件尾部，即使离线期间没有新事件也一样，因为服务端可能在最后一条链路关闭后清除机器状态。此连接后续刷新只发送新事件。
+上报端以递增等待重连（1s、2s、4s……上限 30s），并始终只保持一条链路。历史与待发事件均受每会话 300 条 / 1,048,576 字节上限约束。每次新连接都会发送当前会话状态，重放完整的已保留事件尾部，即使离线期间没有新事件也一样，因为服务端可能在最后一条链路关闭后清除机器状态。此连接后续刷新只发送新事件。
 
 控制连接是分开的，不复制这套行为：list / launch / history 用一枪式请求连接，仅在本机 attach 到某个 Hosted Pi 期间才保持一条连接。丢失它不影响上报，也不会结束 desk 上的会话。
 
@@ -88,7 +88,7 @@ export ODK_DESK_LINK_CONTROL_TOKEN="<control credential>"   # 可选：使本机
 
 一条 TCP 连接上的换行分隔 JSON，上报为版本 1。清单发现的会话带 `discovered: true`，当前会话直接观察的记录不带该标记，使服务端优先采用活动中的直接观察，而非其他上报端读取的更晚元数据。上报端写 `hello`、`sessions`、`events`、`bye`；服务端可回 `ack`、`error`。版本 1 预留的 `prompt` 回复仍未实现，且控制不使用它。分帧只按 LF，并容忍尾部 CR。结果事件的 `text` 为原始 Markdown，可带 `toolName` 和 `truncated: true`。追加式 `events` 记录按完整事件拆成每帧最多 1 MiB 的批次，上限包括 JSON 转义和末尾 LF；不会为适应帧大小而拆分、压平正文。替换式 `sessions` 快照仍使用独立的 65,536 字节生产端预算。若完整身份字段导致单条事件无法装入一帧，该事件不会发送，命令会显示帧上限错误。
 
-控制使用版本 2，走同一监听面上的独立连接。握手携带协议版本、本会话身份与机器名，因此同一机器上的两个 Pi 会话是两个可区分的 Console。Console 写 list、launch、attach、prompt、cancel、end、history；desk 回 state、event、ack、error。desk 不接受的版本会被点名拒绝，而不是被丢弃。没有 detach 记录、没有重放窗口、也没有 resync 记录。
+控制使用版本 2，走同一监听面上的独立连接。`control-hello` 携带上报 token、协议版本、机器名与当前 Pi 会话身份，因此同一机器上的两个 Pi 会话是两个可区分的 Console。desk 返回一次性 `hmac-sha256` challenge；证明内容把 `open-deskos-control-v2`、版本 `2`、nonce、机器名与 Console 会话 ID 以换行分隔的 UTF-8 文本绑定起来。独立 Control Credential 只作为 HMAC 密钥，绝不上线。每个请求都有 `requestId`，变更请求另有可用于重试对账的稳定 `mutationId`，保持连接的 attach 流量带 `attachmentId`，会话日志事件带物理 `position`。list / launch / history 为一枪式连接，attach 才保持连接。desk 不接受的版本会先明确报错，不会伪装成凭据错误。规范 fixture 随包位于 `fixtures/control-v2.json`。没有 detach 记录、没有重放窗口、也没有 resync 记录。
 
 ## License
 

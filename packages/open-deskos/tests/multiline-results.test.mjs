@@ -4,7 +4,7 @@ import { eventsFromMessage } from "../src/events.ts";
 import { DeskReporter } from "../src/reporter.ts";
 
 const RESULT_BYTES = 65536;
-const SESSION_BYTES = 262144;
+const SESSION_BYTES = 1048576;
 const FRAME_BYTES = 1024 * 1024;
 const table = "\n| Name | Value |\n| --- | ---: |\n| first | 1 |\n| last | 2 |\n";
 const code = "```ts\r\nfunction example() {\r\n  return 'complete';\r\n}\r\n```\n";
@@ -112,16 +112,18 @@ test("recordEvents keeps Markdown and optional result fields while activity stay
   h.reporter.stop();
 });
 
-test("summary events keep first-line and 200-character rules without body metadata", () => {
+test("non-result events keep multiline bodies within their per-kind byte bounds", () => {
   const h = harness();
   h.open();
-  h.reporter.recordEvents("s1", ["user", "thinking", "tool"].map((kind) => ({
-    kind, text: `\n  ${"x".repeat(250)}  \nignored`, toolName: "ignored", truncated: true,
+  const limits = { user: 8192, thinking: 4096, tool: 4096 };
+  h.reporter.recordEvents("s1", Object.entries(limits).map(([kind, limit]) => ({
+    kind, text: `heading\n${"x".repeat(limit)}`, toolName: "ignored",
   })));
   for (const event of h.wire()[0].events) {
-    assert.equal(event.text.length, 200);
-    assert.equal(event.text.includes("\n"), false);
-    assert.deepEqual(Object.keys(event).sort(), ["kind", "text"]);
+    assert.equal(event.text.startsWith("heading\n"), true);
+    assert.ok(Buffer.byteLength(event.text) <= limits[event.kind]);
+    assert.equal(event.truncated, true);
+    assert.deepEqual(Object.keys(event).sort(), ["kind", "text", "truncated"]);
   }
   h.reporter.stop();
 });
@@ -157,14 +159,14 @@ test("assistant text parts become one reply body after its thinking and tool cal
   ] };
   assert.deepEqual(eventsFromMessage(message), [
     { kind: "thinking", text: "First think." },
-    { kind: "tool", text: "read: a.ts" },
+    { kind: "tool", text: "read: /fixture/a.ts" },
     { kind: "assistant", text: "First part.\n\nSecond part." },
   ]);
 });
 
-test("retained history and pending batches share a 256-KiB text-plus-tool-name tail", () => {
+test("retained history and pending batches share a 1-MiB text-plus-tool-name tail", () => {
   for (const online of [false, true]) {
-    for (const [toolName, count] of [[undefined, 4], ["界".repeat(200), 3]]) {
+    for (const [toolName, count] of [[undefined, 12], ["界".repeat(200), 12]]) {
       const h = harness();
       if (online) h.open();
       const input = results(12, toolName);
@@ -183,17 +185,17 @@ test("retained history and pending batches share a 256-KiB text-plus-tool-name t
   }
 });
 
-test("small events retain only the newest 60 in both history and pending wire batches", () => {
+test("small events retain only the newest 300 in both history and pending wire batches", () => {
   for (const online of [false, true]) {
     const h = harness();
     if (online) h.open();
-    h.reporter.recordEvents("s1", Array.from({ length: 70 }, (_, index) => ({ kind: "result", text: `${index}\nsecond line` })));
-    assert.equal(h.reporter.eventsFor("s1").length, 60);
-    assert.equal(h.reporter.eventsFor("s1")[0].text, "10\nsecond line");
+    h.reporter.recordEvents("s1", Array.from({ length: 340 }, (_, index) => ({ kind: "result", text: `${index}\nsecond line` })));
+    assert.equal(h.reporter.eventsFor("s1").length, 300);
+    assert.equal(h.reporter.eventsFor("s1")[0].text, "40\nsecond line");
     if (!online) h.open();
     const sent = h.wire().flatMap((record) => record.events);
-    assert.equal(sent.length, 60);
-    assert.equal(sent[59].text, "69\nsecond line");
+    assert.equal(sent.length, 300);
+    assert.equal(sent[299].text, "339\nsecond line");
     h.reporter.stop();
   }
 });
@@ -203,7 +205,7 @@ test("JSON escape expansion splits whole ordered events into at-most-1-MiB LF fr
   h.open();
   const input = Array.from({ length: 4 }, (_, index) => ({ kind: "result", text: `${index}${"\u0000".repeat(RESULT_BYTES - 1)}` }));
   h.reporter.recordEvents("s1", input);
-  assert.equal(bytes(h.reporter.eventsFor("s1")), SESSION_BYTES);
+  assert.equal(bytes(h.reporter.eventsFor("s1")), RESULT_BYTES * input.length);
   const wire = h.wire();
   assert.ok(wire.length > 1, "escaped JSON cannot be sent as one oversized frame");
   for (const record of wire) assert.ok(Buffer.byteLength(`${JSON.stringify(record)}\n`) <= FRAME_BYTES);
@@ -239,9 +241,9 @@ test("outages replay one bounded retained tail rather than pending plus duplicat
   h.reporter.recordEvents("s1", all.slice(10));
   h.reconnect();
   const replayed = h.wire(1).flatMap((record) => record.events);
-  assert.equal(replayed.length, 4);
+  assert.equal(replayed.length, 12);
   assert.ok(bytes(replayed) <= SESSION_BYTES);
-  assert.deepEqual(replayed.map((event) => event.text.slice(0, 2)), ["08", "09", "10", "11"]);
-  assert.ok(replayed.every((event, index) => event.text === all[index + 8].text));
+  assert.deepEqual(replayed.map((event) => event.text.slice(0, 2)), Array.from({ length: 12 }, (_, index) => String(index).padStart(2, "0")));
+  assert.ok(replayed.every((event, index) => event.text === all[index].text));
   h.reporter.stop();
 });

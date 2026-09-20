@@ -23,7 +23,7 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
     Given a session produced more activity than the event bound
     When the reporter sends its events
     Then at most the bounded number of events are retained or sent
-    And non-result events remain single-line summaries of at most 200 characters
+    And every event kind preserves multiline content within its own byte bound
     And tool results preserve complete multiline Markdown within the result byte bound
 
   Scenario: A long outage bounds what the reporter retains
@@ -67,9 +67,19 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
 
   Scenario: The control credential is never transmitted
     Given the machine opens a control connection
-    When the desk challenges it with a one-time nonce
-    Then the machine answers with a proof over that nonce
-    And the credential itself never appears in any record the machine writes
+    When the desk challenges it with a one-time nonce and hmac-sha256
+    Then the machine answers with a proof over the fixed domain, version, nonce, machine, and Console session identity
+    And the reporting token appears only in control-hello
+    And the independent control credential never appears in any record the machine writes
+    And an unsupported version is reported explicitly before a credential failure
+
+  Scenario: Requests correlate retries and attachments independently
+    Given the Console lists, launches, reads history, and mutates a Hosted Pi
+    When it writes version 2 control records
+    Then every request carries a request ID
+    And launch, prompt, cancel, and end carry a mutation ID
+    And held attach traffic carries an attachment ID
+    And cancel may carry a turn ID or precondition so a delayed duplicate cannot cancel a later turn
 
   Scenario: A Console holds a connection only while attached
     Given the machine is attached to a Hosted Pi
@@ -78,11 +88,20 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
     And it is closed once the machine is no longer attached
     And losing it ends neither the Hosted Pi nor the reporting link
 
-  Scenario: Attaching continues from the position last applied
-    Given the machine previously applied events up to a position in a Hosted Pi's session log
+  Scenario: Fresh attach starts at the current boundary
+    Given the machine has never attached to a Hosted Pi
+    When it attaches without a saved position
+    Then it sends after null and begins at the desk's current boundary
+    And it does not fetch old history implicitly
+    And old content remains available through an explicit history request
+
+  Scenario: Resumed attach catches up atomically from the last applied position
+    Given the machine previously applied events up to a physical position in a Hosted Pi's session log
     When it attaches again
-    Then it reads history from that position and consumes live events from that boundary
-    And it applies no position twice and skips none
+    Then it sends that position and consumes ordered catch-up through the caught-up boundary on the held connection
+    And it applies no position twice
+    And increasing positions need not be consecutive when non-message log entries intervene
+    And a regressing position is diagnosed
     And it keeps no replay window
 
   Scenario: Only a bounded tail enters the driving session's context

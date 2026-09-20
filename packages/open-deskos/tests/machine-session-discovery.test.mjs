@@ -236,7 +236,7 @@ test("discovered replacements retain live identity, status, events, and current 
   assert.equal(reporter.snapshot().sessions, 64);
   const live = latest().find((s) => s.sessionId === id);
   assert.deepEqual([live.name, live.status, live.cwd, live.startedAt, live.latestGoal, live.updatedAt], ["Live", "settled", "/live", 7, "live goal", 9000]);
-  assert.equal(reporter.eventsFor(id).length, 60);
+  assert.equal(reporter.eventsFor(id).length, 80);
   assert.ok(!latest().some((s) => s.sessionId.includes("2026-01-01_")));
   reporter.replaceDiscoveredSessions([session("s89", "exited", 88)]);
   assert.equal(reporter.snapshot().sessions, 2);

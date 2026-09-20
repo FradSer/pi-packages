@@ -55,6 +55,42 @@ export interface DeskLinkConfig {
   host: string;
   port: number;
   token: string;
+  /** Independent Control Credential. It is used only as an HMAC key. */
+  controlToken?: string;
+}
+
+export type HostedPiStatus = "pending" | "running" | "settled" | "finished" | "failed" | "cancelled" | "interrupted";
+export type HostedPiLifecycle = "launching" | "live" | "ended" | "interrupted";
+export type HostedPiTurnOutcome = "finished" | "failed" | "cancelled" | "interrupted";
+
+export interface HostedPiSession {
+  sessionId: string;
+  status: HostedPiStatus;
+  lifecycle?: HostedPiLifecycle;
+  activityState?: "working" | "idle";
+  turnOutcome?: HostedPiTurnOutcome;
+  project?: string;
+  cwd?: string;
+  workspaceName?: string;
+  goal?: string;
+  latestGoal?: string;
+  activity?: string;
+  startedAt?: number;
+  updatedAt?: number;
+}
+
+export interface PositionedSessionEvent {
+  position: number;
+  /** Every Session Event derived from one complete Pi session-log entry. */
+  events: SessionEvent[];
+}
+
+export interface HistoryPage {
+  sessionId?: string;
+  entries: PositionedSessionEvent[];
+  nextPosition: number | null;
+  boundary?: number;
+  oversized?: boolean;
 }
 
 export interface HelloRecord {

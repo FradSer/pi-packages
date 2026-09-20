@@ -48,12 +48,15 @@ def test_manifest_declares_native_pi_package() -> None:
     assert "pi-package" in manifest["keywords"]
     assert manifest["name"] == "@fradser/pi-open-deskos"
     assert manifest["pi"]["extensions"] == ["./index.ts"]
-    assert set(manifest["files"]) >= {"index.ts", "src", "README.md"}
+    assert set(manifest["files"]) >= {"index.ts", "src", "fixtures", "README.md", "README.zh-CN.md"}
+    fixture = json.loads((PACKAGE / "fixtures" / "control-v2.json").read_text(encoding="utf-8"))
+    assert fixture["handshake"]["transcript"] == "open-deskos-control-v2\n2\nnonce-fixture\ndesk-mac\nconsole-session"
+    assert fixture["requests"]["attachFresh"]["after"] is None
 
 
 def test_extension_entry_points_exist() -> None:
     assert (PACKAGE / "index.ts").is_file(), "Package-root extension entry index.ts is missing"
-    for name in ("index.ts", "types.ts", "events.ts", "reporter.ts", "transport.ts", "config.ts"):
+    for name in ("index.ts", "types.ts", "events.ts", "reporter.ts", "transport.ts", "config.ts", "control-transport.ts", "console-client.ts", "console-extension.ts"):
         assert (SRC / name).is_file(), f"Extension source {name} is missing"
 
 
@@ -104,7 +107,7 @@ def test_every_documented_install_command_can_actually_work() -> None:
                 assert result.returncode == 0, f"{filename}: {result.stdout}{result.stderr}"
                 assert record.read_text().splitlines() == ["install", str(package.resolve())], filename
 
-            for variable in ("ODK_DESK_LINK_ADDRESS", "ODK_DESK_LINK_TOKEN"):
+            for variable in ("ODK_DESK_LINK_ADDRESS", "ODK_DESK_LINK_TOKEN", "ODK_DESK_LINK_CONTROL_TOKEN"):
                 assert variable in readme, f"{filename} must document {variable}"
 
 
@@ -115,12 +118,14 @@ def test_configuration_is_all_or_nothing() -> None:
         r'''
         import { readDeskLinkConfig, defaultMachineName, tokenDigest } from "./packages/open-deskos/src/config.ts";
         const configured = readDeskLinkConfig({ ODK_DESK_LINK_ADDRESS: "10.0.0.5:8765", ODK_DESK_LINK_TOKEN: "t" });
+        const controlled = readDeskLinkConfig({ ODK_DESK_LINK_ADDRESS: "10.0.0.5:8765", ODK_DESK_LINK_TOKEN: "t", ODK_DESK_LINK_CONTROL_TOKEN: "control" });
         const noToken = readDeskLinkConfig({ ODK_DESK_LINK_ADDRESS: "10.0.0.5:8765" });
         const noAddress = readDeskLinkConfig({ ODK_DESK_LINK_TOKEN: "t" });
         const badPort = readDeskLinkConfig({ ODK_DESK_LINK_ADDRESS: "10.0.0.5:", ODK_DESK_LINK_TOKEN: "t" });
         const noPort = readDeskLinkConfig({ ODK_DESK_LINK_ADDRESS: "10.0.0.5", ODK_DESK_LINK_TOKEN: "t" });
         console.log(JSON.stringify({
           configured,
+          controlled,
           unconfigured: [noToken, noAddress, badPort, noPort].map((value) => value === null),
           machine: defaultMachineName("desk-mac.local"),
           digestStable: tokenDigest("secret") === tokenDigest("secret") && tokenDigest("secret") !== tokenDigest("other"),
@@ -129,6 +134,7 @@ def test_configuration_is_all_or_nothing() -> None:
         '''
     )
     assert result["configured"] == {"machine": result["configured"]["machine"], "host": "10.0.0.5", "port": 8765, "token": "t"}
+    assert result["controlled"]["controlToken"] == "control"
     assert result["unconfigured"] == [True, True, True, True], "a partially configured link must be silent"
     assert result["machine"] == "desk-mac"
     assert result["digestStable"] is True
@@ -175,7 +181,7 @@ def test_events_come_from_messages_with_complete_tool_result_bodies() -> None:
     )
     assert result["user"] == [{"kind": "user", "text": "why is the renderer empty"}]
     assert result["userText"] == [{"kind": "user", "text": "plain text prompt"}]
-    assert result["thinking"] == [{"kind": "thinking", "text": "checking the composer"}]
+    assert result["thinking"] == [{"kind": "thinking", "text": "checking the composer\nand more"}]
     assert result["tool"] == [{"kind": "tool", "text": "bash: pnpm test"}]
     assert result["assistant"] == [{"kind": "assistant", "text": "the composer never ran"}]
     assert result["result"] == [{"kind": "result", "text": "first line\nsecond line", "toolName": "bash"}]
@@ -183,7 +189,7 @@ def test_events_come_from_messages_with_complete_tool_result_bodies() -> None:
     assert result["unmapped"] == []
     assert result["goal"] == "read the layout"
     assert result["notGoal"] == ""
-    assert result["readPath"] == "read: index.ts"
+    assert result["readPath"] == "read: /a/b/index.ts"
     assert result["query"] == "search: index"
     assert result["bare"] == "work"
     assert result["bounded"] == 200
@@ -301,12 +307,12 @@ def test_reported_events_obey_the_local_bounds() -> None:
         }));
         '''
     )
-    assert result["retained"] == 60, "only the newest bounded set is retained"
-    assert result["wireMax"] <= 200, "non-result events remain short summaries"
-    assert result["multiline"] is True, "result Markdown preserves newlines"
-    assert result["oldest"] == "step 11", "the oldest events are dropped first"
-    assert result["lastStep"] == "step 69"
-    assert result["newest"].startswith("line one")
+    assert result["retained"] == 71, "all events within the raised count and byte bounds are retained"
+    assert result["wireMax"] <= 4096, "tool events obey their per-kind byte bound"
+    assert result["multiline"] is True, "event Markdown preserves newlines"
+    assert result["oldest"] == "step 0"
+    assert result["lastStep"] == "step 58"
+    assert result["newest"] == "step 59"
     assert result["resultText"] == "line one\nline two\n" + "z" * 500, "the complete bounded result body crosses the wire"
 
 
@@ -338,10 +344,10 @@ def test_an_outage_bounds_what_the_reporter_retains_and_replays() -> None:
     )
     assert result["link"] == "offline"
     assert result["lastError"] == "peer went away"
-    assert result["retained"] == 60, "an outage never grows retained events past the bound"
+    assert result["retained"] == 300, "an outage never grows retained events past the raised bound"
     assert result["sentWhileOffline"] == 2, "nothing is written to a dropped link"
     assert result["replayedBatches"] == 1, "a reconnect replays one bounded batch, not five"
-    assert result["replayedEvents"] == 60
+    assert result["replayedEvents"] == 300
     assert result["snapshotCount"] == 1, "exactly one snapshot is held and sent on reconnect"
 
 

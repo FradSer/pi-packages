@@ -15,11 +15,11 @@ Feature: Preserve complete bounded Pi result Markdown over Desk Link
     Then the body is preserved up to 65,536 bytes without splitting a Unicode code point
     And only a shortened body has truncated true
     And a previously supplied truncated true remains true
-    And user, thinking, tool and assistant events keep their existing 200-character first-line bounds
+    And user, thinking, tool and assistant events preserve multiline bodies within their per-kind byte bounds
 
   Scenario: Retained history and offline pending events share bounded tails
     Given a session has emitted results and ordinary events while offline
-    When their text and tool-name bytes exceed 262,144 bytes or their count exceeds 60
+    When their text and tool-name bytes exceed 1,048,576 bytes or their count exceeds 300
     Then only the newest contiguous event tail fitting both limits is retained
     And pending events obey both limits too
     And tool-name bytes count toward the retained-byte limit

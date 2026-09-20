@@ -52,7 +52,7 @@ export function boundSessionEvent(event: SessionEvent): SessionEvent | null {
     text = bytes.subarray(0, end).toString("utf8");
     truncated = true;
   }
-  const toolName = boundEventText(event.toolName);
+  const toolName = event.kind === "result" ? boundEventText(event.toolName) : "";
   return { kind: event.kind, text, ...(toolName ? { toolName } : {}), ...(truncated ? { truncated: true } : {}) };
 }
 

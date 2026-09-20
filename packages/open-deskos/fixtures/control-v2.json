@@ -1,0 +1,153 @@
+{
+  "protocol": 2,
+  "handshake": {
+    "hello": {
+      "v": 2,
+      "type": "control-hello",
+      "machine": "desk-mac",
+      "sessionId": "console-session",
+      "token": "report-token"
+    },
+    "challenge": {
+      "v": 2,
+      "type": "challenge",
+      "nonce": "nonce-fixture",
+      "algorithm": "hmac-sha256"
+    },
+    "transcript": "open-deskos-control-v2\n2\nnonce-fixture\ndesk-mac\nconsole-session",
+    "credential": "control-secret",
+    "proof": {
+      "v": 2,
+      "type": "control-proof",
+      "proof": "e79db86eb17756f4509691dccfd543f8dd3678fc78ae6a4ec9169503d322530c"
+    },
+    "accepted": {
+      "v": 2,
+      "type": "control-ack"
+    },
+    "unsupportedVersion": {
+      "v": 2,
+      "type": "version-mismatch",
+      "received": 3,
+      "accepted": [2]
+    }
+  },
+  "requests": {
+    "list": { "v": 2, "type": "list", "requestId": "request-list" },
+    "launch": {
+      "v": 2,
+      "type": "launch",
+      "requestId": "request-launch",
+      "mutationId": "mutation-launch",
+      "sessionId": "hosted-session",
+      "project": "/workspace/project",
+      "prompt": "Run the tests"
+    },
+    "history": {
+      "v": 2,
+      "type": "history",
+      "requestId": "request-history",
+      "sessionId": "hosted-session",
+      "after": 4,
+      "limit": 100,
+      "through": 20
+    },
+    "attachFresh": {
+      "v": 2,
+      "type": "attach",
+      "requestId": "request-attach-fresh",
+      "sessionId": "hosted-session",
+      "attachmentId": "attachment-fresh",
+      "after": null
+    },
+    "attachResume": {
+      "v": 2,
+      "type": "attach",
+      "requestId": "request-attach-resume",
+      "sessionId": "hosted-session",
+      "attachmentId": "attachment-resume",
+      "after": 4
+    },
+    "prompt": {
+      "v": 2,
+      "type": "prompt",
+      "requestId": "request-prompt",
+      "mutationId": "mutation-prompt",
+      "sessionId": "hosted-session",
+      "attachmentId": "attachment-resume",
+      "prompt": "Continue carefully"
+    },
+    "cancel": {
+      "v": 2,
+      "type": "cancel",
+      "requestId": "request-cancel",
+      "mutationId": "mutation-cancel",
+      "sessionId": "hosted-session",
+      "attachmentId": "attachment-resume",
+      "turnId": "turn-1",
+      "precondition": "running"
+    },
+    "end": {
+      "v": 2,
+      "type": "end",
+      "requestId": "request-end",
+      "mutationId": "mutation-end",
+      "sessionId": "hosted-session",
+      "attachmentId": "attachment-resume"
+    }
+  },
+  "replies": {
+    "list": {
+      "v": 2,
+      "type": "ack",
+      "requestId": "request-list",
+      "result": { "sessions": [{ "sessionId": "hosted-session", "status": "settled" }] }
+    },
+    "attach": {
+      "v": 2,
+      "type": "ack",
+      "requestId": "request-attach-resume",
+      "result": { "boundary": 20, "caughtUp": true }
+    },
+    "event": {
+      "v": 2,
+      "type": "event",
+      "attachmentId": "attachment-resume",
+      "sessionId": "hosted-session",
+      "position": 12,
+      "events": [
+        { "kind": "thinking", "text": "Checking" },
+        { "kind": "assistant", "text": "Complete log entry" }
+      ]
+    },
+    "caughtUp": {
+      "v": 2,
+      "type": "caught_up",
+      "attachmentId": "attachment-resume",
+      "sessionId": "hosted-session",
+      "boundary": 20
+    },
+    "history": {
+      "v": 2,
+      "type": "ack",
+      "requestId": "request-history",
+      "result": {
+        "sessionId": "hosted-session",
+        "entries": [{
+          "position": 12,
+          "events": [
+            { "kind": "thinking", "text": "Checking" },
+            { "kind": "assistant", "text": "Complete log entry" }
+          ]
+        }],
+        "nextPosition": 12
+      }
+    },
+    "error": {
+      "v": 2,
+      "type": "error",
+      "requestId": "request-prompt",
+      "reason": "host unavailable"
+    }
+  }
+}

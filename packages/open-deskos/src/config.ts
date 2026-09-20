@@ -26,11 +26,13 @@ export function readDeskLinkConfig(env: NodeJS.ProcessEnv = process.env): DeskLi
   const host = address.slice(0, separator).trim();
   const port = readPort(address.slice(separator + 1).trim());
   if (host.length === 0 || port === null) return null;
+  const controlToken = (env.ODK_DESK_LINK_CONTROL_TOKEN ?? "").trim();
   return {
     machine: (env.ODK_DESK_LINK_MACHINE ?? "").trim() || defaultMachineName(),
     host,
     port,
     token,
+    ...(controlToken.length > 0 ? { controlToken } : {}),
   };
 }
 
