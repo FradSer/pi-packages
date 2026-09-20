@@ -3,7 +3,7 @@
 // implementation each. Rendered with a real-ANSI theme so width math is exact.
 import assert from "node:assert/strict";
 import { stripVTControlCharacters } from "node:util";
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { setCapabilities, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
   agentColor,
   createLiveActivityWidget,
@@ -32,6 +32,12 @@ const CODES: Record<string, string> = {
 };
 
 const SGR = (code: string) => `\u001b[${code}m`;
+
+// Link rendering is a terminal capability the host detects from TERM_PROGRAM and
+// friends, so a developer terminal and CI disagree about it. Pin it here: this
+// fixture verifies the shared markdown renderer, not the detector.
+setCapabilities({ images: null, trueColor: true, hyperlinks: true });
+
 const theme = {
   fg: (color: string, text: string) => `${SGR(CODES[color] ?? "0")}${text}${SGR("39")}`,
   bold: (text: string) => `${SGR("1")}${text}${SGR("22")}`,

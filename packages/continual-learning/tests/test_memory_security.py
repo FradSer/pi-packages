@@ -371,16 +371,23 @@ def test_invalid_memory_config_is_reported_without_crashing_or_overwriting() -> 
         assert result["raw"] == "null\n"
 
 
-def test_realpath_aliases_share_scope_for_var_tmp() -> None:
+def test_realpath_aliases_share_scope(tmp_path: Path) -> None:
+    # A symlinked alias is the same project, not a second memory identity. The
+    # macOS /var -> /private/var layout used to cover this; build the alias here
+    # so the contract holds on hosts without that layout.
+    real = tmp_path / "real"
+    real.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(real, target_is_directory=True)
     result = run_bun(
-        """
-        import { resolveMemoryPaths } from './packages/continual-learning/extensions/memory-paths.ts';
-        const left = resolveMemoryPaths('/var/tmp');
-        const right = resolveMemoryPaths('/private/var/tmp');
-        console.log(JSON.stringify({ left, right }));
+        f"""
+        import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+        const left = resolveMemoryPaths({json.dumps(str(real))});
+        const right = resolveMemoryPaths({json.dumps(str(alias))});
+        console.log(JSON.stringify({{ left, right }}));
         """
     )
-    assert result["left"]["cwd"] == result["right"]["cwd"]
+    assert result["left"]["cwd"] == result["right"]["cwd"] == str(real.resolve())
     assert result["left"]["scopeKey"] == result["right"]["scopeKey"]
 
 

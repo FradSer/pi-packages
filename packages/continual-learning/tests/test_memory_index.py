@@ -77,7 +77,11 @@ def test_oversized_description_is_marked_and_root_is_verbatim(tmp_path: Path) ->
 
 def test_final_budget_counts_all_entries_and_discloses_complete_discovery(tmp_path: Path) -> None:
     repo, memory, agent = memory_repo(tmp_path)
-    for index in range(12):
+    # The overhead before the first row carries the absolute memory root, so a
+    # short temporary path fits more rows than a long one. Size the fixture well
+    # past the 1200-character budget so rows are omitted on every host.
+    entries = 24
+    for index in range(entries):
         (memory / f"item_{index:02d}.md").write_text(memory_text(f"Route task {index}"), encoding="utf-8")
     run_bun(
         f"""
@@ -89,12 +93,12 @@ def test_final_budget_counts_all_entries_and_discloses_complete_discovery(tmp_pa
     )
     result = load_and_format(repo, agent, options="{ maxTotalChars: 1200 }")
     loaded = result["loaded"]
-    assert loaded["totalEntries"] == 12
-    assert len(loaded["entries"]) == 12  # No alphabetic filtering before final format.
+    assert loaded["totalEntries"] == entries
+    assert len(loaded["entries"]) == entries  # No alphabetic filtering before final format.
     shown = len(re.findall(r"^- item_", result["block"], re.MULTILINE))
-    assert 0 < shown < 12
-    assert f"{shown} shown, {12 - shown} omitted of 12 total" in result["block"]
-    assert f"budget: {12 - shown}" in result["block"]
+    assert 0 < shown < entries
+    assert f"{shown} shown, {entries - shown} omitted of {entries} total" in result["block"]
+    assert f"budget: {entries - shown}" in result["block"]
     assert str(memory.resolve() / "MEMORY.md") in result["block"]
     assert "offset: 1" in result["block"] and "limit: 100" in result["block"]
     assert "stale" in result["block"] and "authoritative" in result["block"]
