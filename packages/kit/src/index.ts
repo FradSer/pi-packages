@@ -361,11 +361,22 @@ export function renderAgentMessageBand(
   };
 }
 
+/**
+ * Structural mirror of Pi's mouse result so kit never imports Pi runtime types
+ * while remaining assignable to the host's `Component.handleMouse`.
+ */
+export interface PiMouseEventResult {
+  handled?: boolean;
+  capture?: boolean;
+  focus?: boolean;
+  render?: boolean;
+}
+
 /** A structural custom-message component accepted by Pi without importing Pi runtime types. */
 export interface PiMessageComponent {
   render(width: number): string[];
   invalidate(): void;
-  handleMouse?(event: unknown): unknown;
+  handleMouse?(event: unknown): PiMouseEventResult | undefined;
   setExpanded?(expanded: boolean): void;
 }
 
