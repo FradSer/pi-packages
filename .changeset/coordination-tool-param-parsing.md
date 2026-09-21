@@ -1,5 +1,0 @@
----
-"@fradser/pi-agent-teams": patch
----
-
-Accept coordination tool parameters that arrive as JSON strings. A harness that JSON-parses each tool parameter by name reads the root schema's `properties`, but the `agent`, `work`, and worker `work` tools describe their per-action contracts as a root union, which exposes only `anyOf`, so `definition`, `target`, `dependsOn`, `resources`, and `supersedes` reached validation as unparsed strings and every branch rejected the call before its handler ran. Each root schema now mirrors the parameters of its branches as optional string-tolerant properties while every branch keeps its strict per-action contract, handlers parse those parameters back into objects and arrays before branching on them, and a structured parameter that cannot be parsed is rejected explicitly instead of being used as a literal.
