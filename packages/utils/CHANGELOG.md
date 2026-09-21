@@ -1,5 +1,38 @@
 # @fradser/pi-utils
 
+## 0.5.0
+
+### Minor Changes
+
+- 919504f: Add private live-session discovery and replay-safe prompt delivery as an integrated pi-utils capability, with bounded Unix socket transport and explicit submission receipts.
+
+### Patch Changes
+
+- a79d85f: Bound the injected peer-session recap as a whole. Per-field limits still let five peers with long goals, recaps, and file lists add up, so the block now stops adding peers beyond a 1,500-character ceiling, always keeps the most recent one, and reports how many were omitted to keep the recap bounded instead of growing with the number of sessions.
+- 9cabb0d: Bump every package by one patch version.
+- efd5641: Declare the pi core packages these extensions already use as `"*"` peer dependencies instead of resolving them by hoisting, per pi's package guide: `typebox` for pi-kit, impeccable, matt-pocock, and utils; `@earendil-works/pi-ai` for plan-mode, recap, and skill-router; `@earendil-works/pi-tui` for plan-mode, skill-router, and vision; and `@earendil-works/pi-coding-agent` for pi-kit, whose best-effort worker CLI probe resolves it at runtime. `import type` counts because pi packages ship TypeScript source that a consumer's type-checker must resolve. impeccable no longer bundles `typebox` in `dependencies`, since pi provides core packages. A pi-kit check now fails when a package uses a core package without declaring it as a `"*"` peer or when a core package ships as a dependency.
+- cc24fd4: Make `/init` repository-agnostic by removing hardcoded Pi-kit dependency policies and host-specific loading claims. Discover tooling, shared modules, and contribution conventions from the target project, and handle directories without Git metadata.
+- 5b4f51b: Align tool lifecycle TUI styling with Pi native tokens: partial results render on toolPendingBg with warning accents, settled results on toolSuccessBg with success accents, and errors on a symmetrical toolErrorBg band whose subject is the first error line with remaining lines as expandable details (no duplicated subject). Remove the renderError escape hatch so every consumer error renders through the shared band, and style interactive model-picker query input in native blue
+- ac83f4e: Use one canonical, hashed directory-session identity across keyboard, recap, and utils. Verify registry ownership before reading or removing records, preserve per-command keyboard failures through the serial queue, pair recaps with the latest complete answer, and ignore pre-cancelled, auth-cancelled, or late provider responses.
+- 5b4f51b: Make /init audit and simplify scoped contributor instructions, using task-specific references, evidence-based autonomy, and explicit completion boundaries instead of word quotas and mandatory templates.
+- 552a083: Unify every transcript row on one pi-kit mechanism. Kit gains `bindLifecycleRenderers` (geometry bound once per extension: shared expand hint, wrapping, and empty call), `contentDetailLines`, the `label · value` body vocabulary (`fieldLine`/`fieldBlock`), `displayText`, and handle scrubbing (`scrubHandles` with an injectable resolver). All packages render tool and message rows through the bound renderer: no call site can drop the expand hint or wrapping anymore, expanded bodies share one dialect, and runtime handles never reach human text (agent Work/session handles become names and subjects; monitor keeps its functional monitor id). Model-facing tool content is unchanged.
+- 9682969: Label injected peer-session context as untrusted data. The directory recap that reaches the system prompt now states that it is another session's own notes, possibly stale, and that directives inside it are never instructions. Peer goals, recaps, and file entries are bounded in length at the injection point, and a truncation boundary never emits half of a surrogate pair.
+- Updated dependencies [b0231e3]
+- Updated dependencies [ac83f4e]
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [bcb0054]
+- Updated dependencies [efd5641]
+- Updated dependencies [919504f]
+- Updated dependencies [274cc90]
+- Updated dependencies [28bdae2]
+- Updated dependencies [707c4c5]
+- Updated dependencies [5b4f51b]
+- Updated dependencies [b0231e3]
+- Updated dependencies [552a083]
+- Updated dependencies [efd5641]
+  - @fradser/pi-kit@0.5.0
+
 ## 0.4.2
 
 ### Patch Changes
