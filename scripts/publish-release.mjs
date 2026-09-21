@@ -67,6 +67,27 @@ function stderrNpmErrorCodes(error) {
   );
 }
 
+const REGISTRY_CONFLICT_CODES = new Set(["E409", "EPUBLISHCONFLICT"]);
+
+/**
+ * Return true when npm rejected a write because the registry already holds that
+ * version. The main-branch retry runs right after the Changesets step published
+ * the same versions, and npm can still answer the version query from a stale
+ * edge cache, so the conflict means the version landed first, not that the
+ * release failed.
+ */
+export function isRegistryConflict(error) {
+  const explicitCode = errorCode(error);
+  if (explicitCode) return REGISTRY_CONFLICT_CODES.has(explicitCode);
+  const structuredCode = structuredNpmErrorCode(error);
+  if (structuredCode) return REGISTRY_CONFLICT_CODES.has(structuredCode);
+  const stderrCodes = stderrNpmErrorCodes(error);
+  if (stderrCodes.length > 0) return stderrCodes.every((code) => REGISTRY_CONFLICT_CODES.has(code));
+  if (errorStatus(error) === 409) return true;
+  // pnpm reports the registry's own conflict without an npm error code line.
+  return /E409\b|EPUBLISHCONFLICT\b|409 Conflict/i.test(errorStderr(error));
+}
+
 /** Return true only when npm explicitly reports that the requested version is absent. */
 export function isRegistryNotFound(error) {
   const explicitCode = errorCode(error);
@@ -257,19 +278,24 @@ export function publishRelease(options = {}) {
     logger.log(`Verifying packed manifest for ${target.name}...`);
     verify(packageDir);
     logger.log(`Publishing ${target.name}@${target.version}`);
-    execFileSync(
-      "pnpm",
-      [
-        "publish",
-        "--filter",
-        target.name,
-        ...(useProvenance ? ["--provenance"] : []),
-        "--access",
-        "public",
-        "--no-git-checks",
-      ],
-      { cwd: rootDir, stdio: "inherit" },
-    );
+    try {
+      execFileSync(
+        "pnpm",
+        [
+          "publish",
+          "--filter",
+          target.name,
+          ...(useProvenance ? ["--provenance"] : []),
+          "--access",
+          "public",
+          "--no-git-checks",
+        ],
+        { cwd: rootDir, stdio: "inherit" },
+      );
+    } catch (error) {
+      if (!isRegistryConflict(error)) throw error;
+      logger.log(`${target.name}@${target.version} is already published; continuing.`);
+    }
   }
   if (unpublished.length === 0) logger.log("All selected packages are already published.");
   return { checked: targets, published: unpublished, skipped };

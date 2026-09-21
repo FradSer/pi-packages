@@ -144,6 +144,92 @@ def test_release_selection_is_stubbed_and_keeps_kit_first() -> None:
     assert values["published"] == ["@fradser/pi-kit", "pi-b"]
 
 
+def test_published_version_that_wins_the_publish_race_is_not_a_release_failure() -> None:
+    """A version that lands between the registry check and the publish is already published.
+
+    The main-branch retry runs the publisher immediately after the Changesets
+    step published the same versions, and npm can still answer the version
+    query from a stale edge cache, so the write is rejected with 409 Conflict.
+    The documented retry contract skips already published versions safely, so
+    that conflict must not fail the run.
+    """
+    result = run_node(
+        """
+        import { publishRelease } from "./scripts/publish-release.mjs";
+        const conflict = () => {
+          const error = new Error("Command failed: pnpm publish --filter @fradser/pi-kit");
+          error.status = 409;
+          error.stderr = '[E409] 409 Conflict - PUT https://registry.npmjs.org/@fradser%2fpi-kit' +
+            ' - Cannot publish over previously staged version "1.0.0".\\n';
+          return error;
+        };
+        const calls = [];
+        const messages = [];
+        const result = publishRelease({
+          rootDir: "/tmp/release-root",
+          packagesDir: "/tmp/release-root/packages",
+          workspacePackages: new Map([
+            ["@fradser/pi-kit", { directory: "kit", version: "1.0.0" }],
+            ["pi-b", { directory: "b", version: "2.0.0" }],
+          ]),
+          publishScope: ["@fradser/pi-kit", "pi-b"],
+          queryVersion() { return undefined; },
+          verifyPackedManifest() {},
+          execFileSync(file, args) {
+            calls.push(`${file} ${args.join(" ")}`);
+            if (args.includes("@fradser/pi-kit")) throw conflict();
+          },
+          useProvenance: false,
+          logger: { log: (line) => messages.push(line) },
+        });
+        console.log(JSON.stringify({ calls, messages, published: result.published.map(({ name }) => name) }));
+        """,
+    )
+    assert result.returncode == 0, result.stderr
+    values = json.loads(result.stdout)
+    assert len(values["calls"]) == 2, values
+    assert values["published"] == ["@fradser/pi-kit", "pi-b"]
+    assert any("already published" in message for message in values["messages"]), values
+
+
+def test_publish_failure_that_is_not_a_conflict_still_stops_the_release() -> None:
+    result = run_node(
+        """
+        import { publishRelease } from "./scripts/publish-release.mjs";
+        const forbidden = () => {
+          const error = new Error("Command failed: pnpm publish --filter @fradser/pi-kit");
+          error.stderr = "npm error code E403\\nnpm error 403 Forbidden - PUT https://registry.npmjs.org/@fradser%2fpi-kit\\n";
+          return error;
+        };
+        const calls = [];
+        let failure = null;
+        try {
+          publishRelease({
+            rootDir: "/tmp/release-root",
+            packagesDir: "/tmp/release-root/packages",
+            workspacePackages: new Map([
+              ["@fradser/pi-kit", { directory: "kit", version: "1.0.0" }],
+              ["pi-b", { directory: "b", version: "2.0.0" }],
+            ]),
+            publishScope: ["@fradser/pi-kit", "pi-b"],
+            queryVersion() { return undefined; },
+            verifyPackedManifest() {},
+            execFileSync(file, args) { calls.push(`${file} ${args.join(" ")}`); throw forbidden(); },
+            useProvenance: false,
+            logger: { log() {} },
+          });
+        } catch (error) {
+          failure = error.message;
+        }
+        console.log(JSON.stringify({ calls, failure }));
+        """,
+    )
+    assert result.returncode == 0, result.stderr
+    values = json.loads(result.stdout)
+    assert values["failure"] is not None, values
+    assert len(values["calls"]) == 1, values
+
+
 def test_pack_check_mode_covers_workspace_packages_without_registry_or_publish() -> None:
     result = run_node(
         """
