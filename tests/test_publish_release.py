@@ -145,66 +145,69 @@ def test_release_selection_is_stubbed_and_keeps_kit_first() -> None:
 
 
 def test_published_version_that_wins_the_publish_race_is_not_a_release_failure() -> None:
-    """A version that lands between the registry check and the publish is already published.
+    """A version that landed first is already published, whichever stream says so.
 
     The main-branch retry runs the publisher immediately after the Changesets
-    step published the same versions, and npm can still answer the version
-    query from a stale edge cache, so the write is rejected with 409 Conflict.
-    The documented retry contract skips already published versions safely, so
-    that conflict must not fail the run.
+    step published the same versions, and npm answers that version query from a
+    staged record or a stale edge cache, so the write is rejected with 409
+    Conflict. pnpm can report it on either captured stream, so both shapes are
+    covered here; the documented retry contract skips already published versions
+    safely either way.
 
     The failure fixture mirrors the real error shape: execFileSync reports the
-    exit status and the registry text arrives on the child's stderr, so the
-    publisher must capture that stream instead of inheriting it.
+    exit status and the registry text arrives on one captured stream.
     """
     result = run_node(
         """
         import { publishRelease } from "./scripts/publish-release.mjs";
-        const conflict = () => {
-          const error = new Error("Command failed: pnpm publish --filter @fradser/pi-kit");
-          error.status = 1;
-          error.stdout = "";
-          error.stderr = Buffer.from(
-            '[E409] 409 Conflict - PUT https://registry.npmjs.org/@fradser%2fpi-kit' +
-            ' - Cannot publish over previously staged version "1.0.0".\\n',
-          );
-          return error;
+        const conflictText =
+          '[E409] 409 Conflict - PUT https://registry.npmjs.org/@fradser%2fpi-kit' +
+          ' - Cannot publish over previously staged version "1.0.0".\\n';
+        const run = (stream) => {
+          const calls = [];
+          const stdioModes = [];
+          const messages = [];
+          const result = publishRelease({
+            rootDir: "/tmp/release-root",
+            packagesDir: "/tmp/release-root/packages",
+            workspacePackages: new Map([
+              ["@fradser/pi-kit", { directory: "kit", version: "1.0.0" }],
+              ["pi-b", { directory: "b", version: "2.0.0" }],
+            ]),
+            publishScope: ["@fradser/pi-kit", "pi-b"],
+            queryVersion() { return undefined; },
+            verifyPackedManifest() {},
+            execFileSync(file, args, options) {
+              calls.push(`${file} ${args.join(" ")}`);
+              stdioModes.push(options.stdio);
+              if (!args.includes("@fradser/pi-kit")) return "";
+              const error = new Error("Command failed: pnpm publish --filter @fradser/pi-kit");
+              error.status = 1;
+              error.stdout = stream === "stdout" ? conflictText : "";
+              error.stderr = stream === "stderr" ? conflictText : "";
+              throw error;
+            },
+            useProvenance: false,
+            logger: { log: (line) => messages.push(line) },
+          });
+          return { stream, calls, stdioModes, messages, published: result.published.map(({ name }) => name) };
         };
-        const calls = [];
-        const stdioModes = [];
-        const messages = [];
-        const result = publishRelease({
-          rootDir: "/tmp/release-root",
-          packagesDir: "/tmp/release-root/packages",
-          workspacePackages: new Map([
-            ["@fradser/pi-kit", { directory: "kit", version: "1.0.0" }],
-            ["pi-b", { directory: "b", version: "2.0.0" }],
-          ]),
-          publishScope: ["@fradser/pi-kit", "pi-b"],
-          queryVersion() { return undefined; },
-          verifyPackedManifest() {},
-          execFileSync(file, args, options) {
-            calls.push(`${file} ${args.join(" ")}`);
-            stdioModes.push(options.stdio);
-            if (args.includes("@fradser/pi-kit")) throw conflict();
-          },
-          useProvenance: false,
-          logger: { log: (line) => messages.push(line) },
-        });
-        console.log(JSON.stringify({ calls, stdioModes, messages, published: result.published.map(({ name }) => name) }));
+        console.log(JSON.stringify([run("stdout"), run("stderr")]));
         """,
     )
     assert result.returncode == 0, result.stderr
-    values = json.loads(result.stdout)
-    assert len(values["calls"]) == 2, values
-    assert values["published"] == ["@fradser/pi-kit", "pi-b"]
-    for mode in values["stdioModes"]:
-        assert isinstance(mode, list) and mode[2] == "pipe", (
-            "the publish child must pipe stderr, otherwise a registry conflict is unreadable: "
-            f"{mode}"
-        )
-    assert any("409 Conflict" in message for message in values["messages"]), values
-    assert any("already published" in message for message in values["messages"]), values
+    cases = json.loads(result.stdout)
+    assert [case["stream"] for case in cases] == ["stdout", "stderr"]
+    for case in cases:
+        assert len(case["calls"]) == 2, case
+        assert case["published"] == ["@fradser/pi-kit", "pi-b"], case
+        for mode in case["stdioModes"]:
+            assert isinstance(mode, list) and mode[2] == "pipe", (
+                "the publish child must pipe stderr, otherwise a registry conflict is unreadable: "
+                f"{case['stream']} {mode}"
+            )
+        assert any("409 Conflict" in message for message in case["messages"]), case
+        assert any("already published" in message for message in case["messages"]), case
 
 
 def test_publish_failure_that_is_not_a_conflict_still_stops_the_release() -> None:

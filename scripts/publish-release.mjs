@@ -76,6 +76,9 @@ function stderrNpmErrorCodes(error) {
 }
 
 const REGISTRY_CONFLICT_CODES = new Set(["E409", "EPUBLISHCONFLICT"]);
+// "previously staged version" covers npm's staged publish: a trusted publish
+// records the version before a registry read can see it.
+const REGISTRY_CONFLICT_PATTERN = /E409\b|EPUBLISHCONFLICT\b|409 Conflict|previously staged version/i;
 
 /**
  * Return true when npm rejected a write because the registry already holds that
@@ -92,8 +95,9 @@ export function isRegistryConflict(error) {
   const stderrCodes = stderrNpmErrorCodes(error);
   if (stderrCodes.length > 0) return stderrCodes.every((code) => REGISTRY_CONFLICT_CODES.has(code));
   if (errorStatus(error) === 409) return true;
-  // pnpm reports the registry's own conflict without an npm error code line.
-  return /E409\b|EPUBLISHCONFLICT\b|409 Conflict/i.test(errorStderr(error));
+  // pnpm reports the registry's own conflict without an npm error code line, and
+  // it can arrive on either captured stream, so search both.
+  return REGISTRY_CONFLICT_PATTERN.test(`${errorStdout(error)}\n${errorStderr(error)}`);
 }
 
 /** Return true only when npm explicitly reports that the requested version is absent. */

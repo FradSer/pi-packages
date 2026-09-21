@@ -58,7 +58,8 @@ Feature: Release publishing without local provenance assumptions
   Scenario: A version that wins the publish race is skipped safely
     Given the release script found a package version absent from npm
     When npm rejects the publish because that version already exists or is staged
-    Then the release script captures the publish error stream
+    Then the release script captures both publish streams
+    And it recognizes the conflict whatever stream carries it
     And it reports the version as already published
     And it continues with the remaining packages
     And it does not fail the release for that conflict
