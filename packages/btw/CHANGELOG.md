@@ -1,5 +1,27 @@
 # @fradser/pi-btw
 
+## 0.2.9
+
+### Patch Changes
+
+- ac83f4e: Prevent pre-cancelled child workers from spawning, fail closed on bounded worker stream violations, and disable extension discovery for isolated side-question and research children.
+- 9cabb0d: Bump every package by one patch version.
+- Updated dependencies [b0231e3]
+- Updated dependencies [ac83f4e]
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [bcb0054]
+- Updated dependencies [efd5641]
+- Updated dependencies [919504f]
+- Updated dependencies [274cc90]
+- Updated dependencies [28bdae2]
+- Updated dependencies [707c4c5]
+- Updated dependencies [5b4f51b]
+- Updated dependencies [b0231e3]
+- Updated dependencies [552a083]
+- Updated dependencies [efd5641]
+  - @fradser/pi-kit@0.5.0
+
 ## 0.2.8
 
 ### Patch Changes

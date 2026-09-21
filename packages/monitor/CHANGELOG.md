@@ -1,5 +1,39 @@
 # @fradser/pi-monitor
 
+## 2.3.0
+
+### Minor Changes
+
+- 80aef33: Show running monitors as above-editor live activity rows through pi-kit's shared widget instead of a footer status entry. Each running monitor contributes one row (`monitor · <description>`, Pi's native spinner cadence) that appears while the agent is idle waiting for the terminal result and disappears with the last terminal result or stop; the footer below the input no longer carries a monitor waiting count.
+- 7ef0fee: Let `monitor_start` omit `description`: the monitor derives a bounded human label from the command (whitespace collapsed, leading `sh -c` wrapper dropped, 60 characters maximum). Expanding the startup row now shows the success contract and any failure contract beside the command and monitor id, and the tool guideline replaces "declare the terminal result before starting" with explicit field roles so the description stops carrying the sentinel text.
+- e0fd224: Remove the default bash tool-call guardrail. Monitor usage is now guidance-only, so native bash commands are no longer intercepted or required to use an allow-sync suffix.
+
+### Patch Changes
+
+- 9cabb0d: Bump every package by one patch version.
+- 6d21149: Remove prompt text that duplicated each tool's own description. The isolated-research section keeps its trigger and no longer restates the child process mechanics, the monitor section keeps its behavior rules and no longer repeats the result-pattern, buffer, timeout, and notification mechanics, and the workflow gateway description no longer enumerates standalone capabilities that the injected catalog already lists. Agent Teams no longer advertises a template-creation action that does not exist, and its dead leader-tool disclosure hook and call sites are removed.
+- 919504f: Wrap custom transcript lifecycle messages in host ToolExecutionComponent so mouse click toggling works symmetrically with tool result rows.
+- 5b4f51b: Align tool lifecycle TUI styling with Pi native tokens: partial results render on toolPendingBg with warning accents, settled results on toolSuccessBg with success accents, and errors on a symmetrical toolErrorBg band whose subject is the first error line with remaining lines as expandable details (no duplicated subject). Remove the renderError escape hatch so every consumer error renders through the shared band, and style interactive model-picker query input in native blue
+- 552a083: Unify every transcript row on one pi-kit mechanism. Kit gains `bindLifecycleRenderers` (geometry bound once per extension: shared expand hint, wrapping, and empty call), `contentDetailLines`, the `label · value` body vocabulary (`fieldLine`/`fieldBlock`), `displayText`, and handle scrubbing (`scrubHandles` with an injectable resolver). All packages render tool and message rows through the bound renderer: no call site can drop the expand hint or wrapping anymore, expanded bodies share one dialect, and runtime handles never reach human text (agent Work/session handles become names and subjects; monitor keeps its functional monitor id). Model-facing tool content is unchanged.
+- efd5641: Make pi-kit own the whole live-activity status row, so no package can drift. The widget now formats the identity itself — bold in pi-kit's stable per-name accent palette, the same one `@name` segments use in report rows — and replaces the free-form `formatIdentity`/`formatActivity` hooks with one closed vocabulary: `activityFormat: "plain"` (muted, literal, unchanged default) or `"markdown"` (one sanitized line through pi-tui's Markdown with the injected theme's native markdown tokens; foreign ANSI is stripped, a streamed fence line is dropped, activity without visible width leaves an identity-only row, and the widget row truncates with `fit`). `renderLiveActivityIdentity`, `liveActivityMarkdownTheme`, and `renderLiveActivityMarkdown` are exported so console rows render identity and activity the same way instead of reimplementing either one.
+  
+  Context research and agent-teams teammate rows both request markdown activity: identified rows stop being colorless or warning-colored, well-formed markdown renders with the theme's tokens instead of literal markup, and status rows above the editor are now the same language in every package. agent-teams' console delegates to the shared renderer with a passthrough theme instead of keeping a second markdown implementation, and its roster, board, and report rows use the same per-agent accent for names and ids instead of a status-flavored palette. Every package that mounts a live widget is republished so it picks up the new pi-kit.
+- Updated dependencies [b0231e3]
+- Updated dependencies [ac83f4e]
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [bcb0054]
+- Updated dependencies [efd5641]
+- Updated dependencies [919504f]
+- Updated dependencies [274cc90]
+- Updated dependencies [28bdae2]
+- Updated dependencies [707c4c5]
+- Updated dependencies [5b4f51b]
+- Updated dependencies [b0231e3]
+- Updated dependencies [552a083]
+- Updated dependencies [efd5641]
+  - @fradser/pi-kit@0.5.0
+
 ## 2.2.0
 
 ### Minor Changes

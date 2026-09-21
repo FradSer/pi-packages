@@ -1,5 +1,32 @@
 # pi-keyboard
 
+## 0.1.7
+
+### Patch Changes
+
+- 9cabb0d: Bump every package by one patch version.
+- 2033c26: Remove unreachable legacy Agent control, unused internal helpers and constants,
+  and the unused keyboard HID encoder (hardware commands already use via-rgb).
+  Retain active entry points, shared public APIs, configuration compatibility,
+  and behavioral regression coverage. Remove superseded planning documents and
+  checks that only assert documentation wording or recreate implementation in tests.
+- ac83f4e: Use one canonical, hashed directory-session identity across keyboard, recap, and utils. Verify registry ownership before reading or removing records, preserve per-command keyboard failures through the serial queue, pair recaps with the latest complete answer, and ignore pre-cancelled, auth-cancelled, or late provider responses.
+- Updated dependencies [b0231e3]
+- Updated dependencies [ac83f4e]
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [bcb0054]
+- Updated dependencies [efd5641]
+- Updated dependencies [919504f]
+- Updated dependencies [274cc90]
+- Updated dependencies [28bdae2]
+- Updated dependencies [707c4c5]
+- Updated dependencies [5b4f51b]
+- Updated dependencies [b0231e3]
+- Updated dependencies [552a083]
+- Updated dependencies [efd5641]
+  - @fradser/pi-kit@0.5.0
+
 ## 0.1.6
 
 ### Patch Changes

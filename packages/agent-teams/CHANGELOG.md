@@ -1,5 +1,83 @@
 # @fradser/pi-agent-teams
 
+## 0.9.0
+
+### Minor Changes
+
+- f177948: Keep the compact agent and agent_event interface while making new delegations independent Work Sessions. Add optional fork (fresh context by default), exact work and message routing for concurrent assignments, and runtime-owned final-answer reporting after execution settles. Completion evidence and finish announcements now belong to each assignment attempt rather than an entire resident process.
+- 28c908c: Introduce persistent Agent delegation (`agent`) and symmetric shared communication (`agent_event`), transitioning from ephemeral teammates to cross-project persistent Agents.
+
+### Patch Changes
+
+- e614d0d: Close the leader coordination loop after Agent starts, steers, and deliberate presence inspections. Tool results and guidance now state that kickoffs are already delivered, routing acknowledgment does not require confirmation, presence is not a completion signal, and leaders should continue independent work or end the turn for automatic result delivery instead of echoing, polling, or requesting reports.
+- b0231e3: Render coordination message previews against the actual terminal width rather than a fixed character limit, reserving the complete configured expansion hint. Expanded message rows wrap the full message inline after the recipient and outcome exactly once instead of repeating a clipped preview above a duplicate body. Preserve semantic line breaks, native theme bands, and safe display text, including visible labels inside terminal OSC-8 hyperlinks. Keep literal JSON empty strings, punctuation spacing, and quoted newlines intact by separating handle replacement from prose cleanup. Reuse the same pi-kit lifecycle abstraction as context research; native Ctrl+O, mouse expansion, and terminal resizing are covered by isolated Pi integration tests.
+- b0231e3: Deliver explicit and automatic Work outcomes through the same attempt-bound acceptance path after execution settles. Prevent false finalization reminders, duplicate automatic submissions, stale-attempt acceptance, and implicit Work creation from ordinary messages. Expose bounded result evidence in Work lists and clarify push-based result delivery.
+- b0231e3: Await native unassigned-resident readiness in the public start result so immediate exact-session Work assignment succeeds without polling. Surface startup failures and preserve the existing assignment when the same exact owner is assigned its still-claimed Work again. Later autonomous board acquisition remains enabled.
+- b0231e3: Expose effective session tool grants and coordination-only warnings in lifecycle results, clarify canonical minimal capabilities and unknown-Agent recovery, and require explicit failed submissions for blocked work. Clarify ungated acceptance and actionable leader communication without expanding permissions or inferring outcomes from prose.
+- d3180eb: Harden agent lifecycle coordination, durable intent handling, and transcript presentation:
+  - Publish board intents atomically through a fully written temp file that is hard-linked into place, so a consumer can never observe or destroy a partial claim or submission record
+  - Retry an unparseable intent while it is younger than the publish grace instead of deleting it, so an in-flight intent cannot strand its author
+  - Archive and diagnose an unreadable persisted Work snapshot instead of silently continuing with an empty board
+  - Rotate a fully consumed oversized inbox instead of truncating it, so a concurrently appended peer message is never lost
+  - Abort an in-flight gate reviewer when a holding's authority is invalidated by release, stop, supersession, a new claim, or resumed owner execution
+  - Reject a late passing gate while teammate shutdown is pending
+  - Reject completed submissions during an unexpected-execution review park
+  - Report the residual write window when Work is released while its holder is still working
+  - Reconstruct the full brief — subject, description, criteria, and diagnostics — for an authorized verification revision
+  - Route steer and delivery feedback to an active teammate when the leader releases its Work
+  - Keep expanded agent delegate, inspect, and stop rows free of duplicated prompts, stale states, and retired activity
+  - Drop the expanded inspect row's state word, which repeated the row's own header and could contradict it
+  - State the coordination-only warning on delegate and start rows, matching the documented grant disclosure
+  - Write each snapshot artifact only when it changed, and throttle the forensic whole-state file while a teammate streams, instead of rewriting every artifact twice a second
+  - Bound the mailbox by total bytes as well as by message count, so long reports cannot grow the debug snapshot without limit
+  - Bound confirmed-stop and finish bookkeeping per session instead of accumulating one entry per incarnation
+  - Stop claiming the completion gate is read-only: its grant excludes edit and write, but a shell can still write
+  - Carry a single-line Work subject with the complete brief retained as the Work description
+- 43b51c5: Remove leader heartbeat and stall notices. Silence, spawn age, and usage stay as passive console telemetry in `/agent-teams` (roster "stalled" marker at `PI_TEAMMATE_STALL_SILENCE_MS`, default 5 minutes); the leader context is never interrupted by health prompts, and provider hangs surface only through the standard terminal close-path diagnostic. See `docs/adr/0002-no-leader-heartbeat-notices.md`.
+- b0231e3: Start unassigned residents without a fabricated Work ID or an empty-assignment model turn. Establish idle readiness through a native RPC acknowledgement while preserving subsequent autonomous board claims. Clarify recovery by releasing and reassigning the same Work instead of delegating competing duplicate Work.
+- 34c5b62: Start every new Assignment Attempt in a fresh correlated Pi RPC session before delivering its prompt, while preserving working memory for guidance within the same attempt and releasing work when the reset cannot be completed.
+- ac83f4e: Prevent pre-cancelled child workers from spawning, fail closed on bounded worker stream violations, and disable extension discovery for isolated side-question and research children.
+- 9cabb0d: Bump every package by one patch version.
+- b0231e3: Clarify agent orchestration with scoped dependency-aware assignments, one integration verification owner, candidate-bound review evidence, and a finish line that waits for blocking review results. Distinguish review Work completion from an implementation PASS, describe `verify` accurately as a reviewer prompt, and refresh candidate briefs explicitly before bounded rechecks. Review-only assignments finish with their reports rather than implementation repairs; reuse completed Work only with an authoritative current-attempt brief, otherwise create a linked bounded follow-up. Make Matt Pocock reviews proportional and support confirmed conversation requirements plus scoped uncommitted baselines without changing runtime lifecycle or persisted state.
+- d3efa47: Teach leaders to continue independent work or yield the turn while teammates run, relying on automatic result delivery instead of extending the turn with polling or wait commands.
+- c5d658f: Render `agent`, `work`, and `agent_event` transcript rows for people instead of
+  models. A started Agent now shows its name, role, the full kickoff text, granted
+  tools, and model; inspect shows the live status and current activity; Work and
+  message rows lead with the Work subject and show the message that was sent.
+  Session, Work, and assignment handles stay in model-facing tool content and are
+  scrubbed from every rendered line (a Work id becomes its subject, a session route
+  becomes `@name`), while text a person wrote themselves is preserved verbatim.
+- 6d21149: Remove prompt text that duplicated each tool's own description. The isolated-research section keeps its trigger and no longer restates the child process mechanics, the monitor section keeps its behavior rules and no longer repeats the result-pattern, buffer, timeout, and notification mechanics, and the workflow gateway description no longer enumerates standalone capabilities that the injected catalog already lists. Agent Teams no longer advertises a template-creation action that does not exist, and its dead leader-tool disclosure hook and call sites are removed.
+- 919504f: Fix agent presence and work control to use current-session state instead of reporting a fabricated idle result. Deliver leader direction through native priority steering that also starts idle execution, and isolate completion reports by assignment so an earlier PASS cannot close reopened work. Align first-delegation guidance, terminal-report rejection, and transport outcome wording with these contracts.
+- 919504f: Wrap custom transcript lifecycle messages in host ToolExecutionComponent so mouse click toggling works symmetrically with tool result rows.
+- 5b4f51b: Align tool lifecycle TUI styling with Pi native tokens: partial results render on toolPendingBg with warning accents, settled results on toolSuccessBg with success accents, and errors on a symmetrical toolErrorBg band whose subject is the first error line with remaining lines as expandable details (no duplicated subject). Remove the renderError escape hatch so every consumer error renders through the shared band, and style interactive model-picker query input in native blue
+- bc42356: Keep requested Agent names unchanged when starting or delegating, without appending a UUID. Preserve incarnation-bound session handles.
+- 2033c26: Remove unreachable legacy Agent control, unused internal helpers and constants,
+  and the unused keyboard HID encoder (hardware commands already use via-rgb).
+  Retain active entry points, shared public APIs, configuration compatibility,
+  and behavioral regression coverage. Remove superseded planning documents and
+  checks that only assert documentation wording or recreate implementation in tests.
+- 552a083: Unify every transcript row on one pi-kit mechanism. Kit gains `bindLifecycleRenderers` (geometry bound once per extension: shared expand hint, wrapping, and empty call), `contentDetailLines`, the `label · value` body vocabulary (`fieldLine`/`fieldBlock`), `displayText`, and handle scrubbing (`scrubHandles` with an injectable resolver). All packages render tool and message rows through the bound renderer: no call site can drop the expand hint or wrapping anymore, expanded bodies share one dialect, and runtime handles never reach human text (agent Work/session handles become names and subjects; monitor keeps its functional monitor id). Model-facing tool content is unchanged.
+- efd5641: Make pi-kit own the whole live-activity status row, so no package can drift. The widget now formats the identity itself — bold in pi-kit's stable per-name accent palette, the same one `@name` segments use in report rows — and replaces the free-form `formatIdentity`/`formatActivity` hooks with one closed vocabulary: `activityFormat: "plain"` (muted, literal, unchanged default) or `"markdown"` (one sanitized line through pi-tui's Markdown with the injected theme's native markdown tokens; foreign ANSI is stripped, a streamed fence line is dropped, activity without visible width leaves an identity-only row, and the widget row truncates with `fit`). `renderLiveActivityIdentity`, `liveActivityMarkdownTheme`, and `renderLiveActivityMarkdown` are exported so console rows render identity and activity the same way instead of reimplementing either one.
+  
+  Context research and agent-teams teammate rows both request markdown activity: identified rows stop being colorless or warning-colored, well-formed markdown renders with the theme's tokens instead of literal markup, and status rows above the editor are now the same language in every package. agent-teams' console delegates to the shared renderer with a passthrough theme instead of keeping a second markdown implementation, and its roster, board, and report rows use the same per-agent accent for names and ids instead of a status-flavored palette. Every package that mounts a live widget is republished so it picks up the new pi-kit.
+- c5d658f: Run the verification-gate reviewer as a bare Pi child. `buildVerifyReviewWorkerOptions` now supplies the whole worker options with `minimal: true` and the read-only `VERIFY_REVIEW_TOOLS` grant (read, bash, grep, find, ls), so a gate review no longer loads the project's extensions, skills, prompt templates, context files, or themes, cannot trigger another package's automatic memory learning, and leaves no session record behind.
+- Updated dependencies [b0231e3]
+- Updated dependencies [ac83f4e]
+- Updated dependencies [9cabb0d]
+- Updated dependencies [919504f]
+- Updated dependencies [bcb0054]
+- Updated dependencies [efd5641]
+- Updated dependencies [919504f]
+- Updated dependencies [274cc90]
+- Updated dependencies [28bdae2]
+- Updated dependencies [707c4c5]
+- Updated dependencies [5b4f51b]
+- Updated dependencies [b0231e3]
+- Updated dependencies [552a083]
+- Updated dependencies [efd5641]
+  - @fradser/pi-kit@0.5.0
+
 ## 0.8.3
 
 ### Patch Changes
