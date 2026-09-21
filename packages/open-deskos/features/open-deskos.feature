@@ -140,3 +140,10 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
     Given a Desk Link is connected or offline
     When the user opens the open-deskos command's menu or passes its status argument
     Then the reported link state, machine, session count, and event count are shown
+
+  Scenario: The console surface owns its own input
+    Given a Console surface is open in a Pi session
+    When the user types at the terminal
+    Then the surface consumes input through Pi's own custom UI seam
+    And global terminal input is never intercepted
+    And no footer status is added

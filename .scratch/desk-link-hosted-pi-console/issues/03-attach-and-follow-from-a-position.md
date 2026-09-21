@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] Wire events are built from complete SDK messages mapped onto the existing Session Event bounds. Deltas serve the console surface's own liveness locally and do not go on the wire; tool partials are not streamed.
+- [ ] Wire events are built from complete SDK messages mapped onto the existing Session Event bounds. Nothing consumes an SDK delta stream today, so the claim that deltas serve the surface's liveness locally is not made: the surface follows published events, and tool partials are not streamed.
 - [ ] An event's position is the position of the corresponding entry in the Hosted Pi's own session log. Positions therefore survive a host restart without a separate counter, a reset rule, or a persisted sequence store, and history and live events are addressed in the same space.
 - [ ] Attaching states the position the Console last applied, or learns the current boundary on a first attach, reads history from that position, and then consumes live events only from that boundary.
 - [ ] The desk keeps no per-session replay buffer for control, and there is no resync record. The silent-gap failure has no way to occur because the boundary is explicit rather than inferred.

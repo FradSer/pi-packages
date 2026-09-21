@@ -238,7 +238,7 @@ Feature: Hosted Pi control from a Mac Console
     Given a Console attached to a Hosted Pi that produces more events than the injection bound
     When those events arrive
     Then the driving Pi session receives a bounded tail rather than every event
-    And the terminal result is delivered when the Hosted Pi ends
+    And the terminal result is delivered whenever a turn reaches a terminal outcome, not only when the Hosted Pi ends
     And the complete content stays available on demand rather than in context
 
   Scenario: The desk states its Control Attribution
