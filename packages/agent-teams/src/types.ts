@@ -1,4 +1,4 @@
-import type { Static } from "typebox";
+import type { Static, TSchema, TString, TObject, TUnion } from "typebox";
 import { Type } from "typebox";
 import { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
 
@@ -225,10 +225,90 @@ export const InlineAgentDefinitionParams = Type.Object({
   persistScope: Type.Optional(Type.Union([Type.Literal("project"), Type.Literal("project-local")])),
 }, { additionalProperties: false });
 
+/** Some harnesses deliver object/array parameters as JSON strings and Pi
+ * validates arguments exactly as delivered, before any handler runs. Accept the
+ * string at the schema edge and parse it in the handler so a callable payload is
+ * never rejected by validation. */
+function stringTolerant<T extends TSchema>(schema: T): TUnion<[T, TString]> {
+  return Type.Union([schema, Type.String()]);
+}
+
+/** Harnesses that stream tool parameters per name infer JSON parsing from the
+ * root schema `properties`. A bare Type.Union exposes only `anyOf`, so object
+ * and array parameters such as `definition`, `target`, or `dependsOn` reach
+ * validation as unparsed JSON strings and every branch rejects the call before
+ * the handler runs. Mirror every branch property onto the root as an optional
+ * property (unioned when branches disagree) so callers parse structured values,
+ * while each anyOf branch keeps its strict per-action contract. */
+function alternativesOf(sub: any): any[] {
+  return Array.isArray(sub.anyOf) ? sub.anyOf : [sub];
+}
+
+function mergeBranchSubSchemas(pool: any[]): any {
+  if (pool.length === 1) return pool[0];
+  const types = new Set(pool.map((entry) => entry.type));
+  if (types.size === 1) {
+    const [type] = [...types];
+    // Same JSON type: collapse to the shared type so callers can still infer
+    // parsing; literal branches keep an exact enum at the root.
+    if (type === "string" && pool.every((entry) => entry.const !== undefined || Array.isArray(entry.enum))) {
+      const values = pool.flatMap((entry) => (entry.const !== undefined ? [entry.const] : entry.enum));
+      return { type, enum: [...new Set(values)] };
+    }
+    return { type };
+  }
+  return { anyOf: pool };
+}
+
+function actionUnion<T extends TObject[]>(branches: [...T], options?: Record<string, unknown>): TUnion<T> {
+  const pools: Record<string, any[]> = {};
+  for (const branch of branches) {
+    for (const [key, sub] of Object.entries((branch as { properties?: Record<string, any> }).properties ?? {})) {
+      const pool = (pools[key] ??= []);
+      for (const alt of alternativesOf(sub)) {
+        const json = JSON.stringify(alt);
+        if (!pool.some((entry) => JSON.stringify(entry) === json)) pool.push(alt);
+      }
+    }
+  }
+  const properties: Record<string, any> = {};
+  for (const [key, pool] of Object.entries(pools)) properties[key] = mergeBranchSubSchemas(pool);
+  return Type.Union(branches, { ...options, properties } as never) as TUnion<T>;
+}
+
+/** Tolerate harnesses that deliver object or array parameters as JSON strings. */
+export function parseJsonParam<T>(value: T): T {
+  if (typeof value !== "string") return value;
+  const text = value.trim();
+  if (!text.startsWith("{") && !text.startsWith("[")) return value;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return value;
+  }
+}
+
+/** Parse stringified structured parameters before handlers branch on them. */
+export function normalizeCoordinationParams<T extends Record<string, unknown>>(params: T, keys: readonly string[]): T {
+  const next: Record<string, unknown> = { ...params };
+  for (const key of keys) {
+    if (key in next) next[key] = parseJsonParam(next[key]);
+  }
+  return next as T;
+}
+
+/** Reject string parameters that could not be parsed back into structures. */
+export function requireParsedParams<T extends Record<string, unknown>>(params: T, keys: readonly string[]): T {
+  for (const key of keys) {
+    if (typeof params[key] === "string") throw new Error(`Parameter "${key}" must be a JSON object or array, not a string.`);
+  }
+  return params;
+}
+
 /** Legacy overloaded Agent control; replaced by AgentActionParams at final cutover. */
-export const AgentActionParams = Type.Union([
-  Type.Object({ action: Type.Literal("delegate"), name: Type.String({ minLength: 1 }), prompt: Type.String({ minLength: 1 }), definition: Type.Optional(InlineAgentDefinitionParams), resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }))), verify: Type.Optional(Type.String()), model: Type.Optional(Type.String()), fork: Type.Optional(Type.Boolean()) }, { additionalProperties: false }),
-  Type.Object({ action: Type.Literal("start"), name: Type.String({ minLength: 1 }), definition: Type.Optional(InlineAgentDefinitionParams), model: Type.Optional(Type.String()) }, { additionalProperties: false }),
+export const AgentActionParams = actionUnion([
+  Type.Object({ action: Type.Literal("delegate"), name: Type.String({ minLength: 1 }), prompt: Type.String({ minLength: 1 }), definition: Type.Optional(stringTolerant(InlineAgentDefinitionParams)), resources: Type.Optional(stringTolerant(Type.Array(Type.String({ minLength: 1 })))), verify: Type.Optional(Type.String()), model: Type.Optional(Type.String()), fork: Type.Optional(Type.Boolean()) }, { additionalProperties: false }),
+  Type.Object({ action: Type.Literal("start"), name: Type.String({ minLength: 1 }), definition: Type.Optional(stringTolerant(InlineAgentDefinitionParams)), model: Type.Optional(Type.String()) }, { additionalProperties: false }),
   Type.Object({ action: Type.Literal("inspect"), name: Type.String({ minLength: 1 }), session: Type.String({ minLength: 1 }) }, { additionalProperties: false }),
   Type.Object({ action: Type.Literal("stop"), session: Type.String({ minLength: 1 }) }, { additionalProperties: false }),
 ], { description: "Delegate, start, inspect, or stop an Agent session" });
@@ -237,20 +317,20 @@ export const AgentActionParams = Type.Union([
 /** Create a board task (leader-only). */
 /** First public Work interface slice. Work creation reuses the current
  * single-writer task record until every acquisition path shares one lifecycle. */
-export const WorkToolParams = Type.Union([
+export const WorkToolParams = actionUnion([
   Type.Object({
     action: Type.Literal("create"),
     subject: Type.String({ minLength: 1, description: "Work title" }),
     description: Type.Optional(Type.String({ description: "Full Work description" })),
-    dependsOn: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Work IDs that must complete first" })),
+    dependsOn: Type.Optional(stringTolerant(Type.Array(Type.String({ minLength: 1 }), { description: "Work IDs that must complete first" }))),
     verify: Type.Optional(Type.String({ description: "Completion gate for this Work Item" })),
-    resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Resource tags that cannot overlap active Work" })),
+    resources: Type.Optional(stringTolerant(Type.Array(Type.String({ minLength: 1 }), { description: "Resource tags that cannot overlap active Work" }))),
   }, { additionalProperties: false }),
   Type.Object({ action: Type.Literal("list") }, { additionalProperties: false }),
   Type.Object({
     action: Type.Literal("assign"),
     id: Type.String({ minLength: 1, description: "Pending Work Item ID" }),
-    target: Type.Object({ session: Type.String({ minLength: 1, description: "Exact idle session route" }) }, { additionalProperties: false }),
+    target: stringTolerant(Type.Object({ session: Type.String({ minLength: 1, description: "Exact idle session route" }) }, { additionalProperties: false })),
   }, { additionalProperties: false }),
   Type.Object({
     action: Type.Literal("release"),
@@ -266,10 +346,10 @@ export const WorkToolParams = Type.Union([
     action: Type.Literal("supersede"),
     subject: Type.String({ minLength: 1, description: "Replacement Work title" }),
     description: Type.Optional(Type.String({ description: "Full replacement Work description" })),
-    dependsOn: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Replacement Work dependencies" })),
+    dependsOn: Type.Optional(stringTolerant(Type.Array(Type.String({ minLength: 1 }), { description: "Replacement Work dependencies" }))),
     verify: Type.Optional(Type.String({ description: "Replacement completion gate" })),
-    resources: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: "Replacement resource tags" })),
-    supersedes: Type.Array(Type.String({ minLength: 1 }), { minItems: 1, description: "Obsolete Work IDs replaced atomically" }),
+    resources: Type.Optional(stringTolerant(Type.Array(Type.String({ minLength: 1 }), { description: "Replacement resource tags" }))),
+    supersedes: stringTolerant(Type.Array(Type.String({ minLength: 1 }), { minItems: 1, description: "Obsolete Work IDs replaced atomically" })),
   }, { additionalProperties: false }),
 ], { description: "Create, list, assign, release, reopen, or supersede current Work Items" });
 
@@ -289,7 +369,7 @@ export const LEADER_RECIPIENT = "leader";
 /** Self-claim a pending board task. */
 /** Worker-only Work claim operation. It queues an intent; the single-writer
  * harness remains the only authority that can grant ownership. */
-export const WorkerWorkToolParams = Type.Union([
+export const WorkerWorkToolParams = actionUnion([
   Type.Object({ action: Type.Literal("list") }, { additionalProperties: false }),
   Type.Object({
     action: Type.Literal("claim"),

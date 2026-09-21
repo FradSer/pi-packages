@@ -4,7 +4,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isValidTeammateName, listTeammates } from "./state.ts";
 import { resolveAgent } from "./agents.ts";
 import { shutdownTeammateExact, spawnTeammate } from "./team-machine.ts";
-import type { Teammate } from "./types.ts";
+import { normalizeCoordinationParams, requireParsedParams, type Teammate } from "./types.ts";
 import { snapshotWorkContext } from "./work-context.ts";
 import { exactSessionRoute, resolveExactSession } from "./recipient.ts";
 
@@ -48,6 +48,9 @@ export function runAgentAction(
   runtime: AgentActionRuntime,
   sessionManager?: ExtensionContext["sessionManager"],
 ) {
+  // Harnesses that cannot infer object types from union-root schemas deliver
+  // `definition`/`resources` as JSON strings; parse before branching on them.
+  params = requireParsedParams(normalizeCoordinationParams(params as Record<string, unknown>, ["definition", "resources"]), ["definition", "resources"]) as typeof params;
   if (params.action === "inspect") {
     if (!params.name) throw new Error("Agent inspect requires a name.");
     requireName(params.name);
@@ -77,7 +80,7 @@ export function runAgentAction(
   const result = runtime.spawnTeammate({
     name: params.name,
     agent: params.name,
-    ...(params.action === "delegate" ? { workId: `work:${randomUUID()}`, prompt, resources: params.resources, verify: params.verify, context } : {}),
+    ...(params.action === "delegate" ? { workId: `work:${randomUUID()}`, prompt, resources: params.resources as string[] | undefined, verify: params.verify, context } : {}),
     ...(params.model ? { model: params.model } : {}),
     ...(params.definition ? { definition: params.definition } : {}),
   });

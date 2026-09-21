@@ -12,7 +12,7 @@ import {
 } from "./team-machine.ts";
 import { listTasks, livingTeammates } from "./state.ts";
 
-import { AgentActionParams, LEADER_RECIPIENT, AgentEventParams, WorkToolParams } from "./types.ts";
+import { AgentActionParams, LEADER_RECIPIENT, AgentEventParams, WorkToolParams, normalizeCoordinationParams, requireParsedParams } from "./types.ts";
 import { openTeamConsole, refreshTeamUI } from "./ui.ts";
 import { discoverAgents } from "./agents.ts";
 import { agentRow, leaderWorkRow, messageRow, type AgentRowArgs } from "./tool-copy.ts";
@@ -73,7 +73,7 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
       );
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = await runAgentAction(params, ctx.cwd, runtime, ctx.sessionManager);
+      const result = await runAgentAction(params as Parameters<typeof runAgentAction>[0], ctx.cwd, runtime, ctx.sessionManager);
       if (params.action !== "inspect") {
         refreshTeamUI(ctx);
       }
@@ -129,13 +129,15 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
       );
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      // Union-root schema: some harnesses deliver target/arrays as JSON strings.
+      params = requireParsedParams(normalizeCoordinationParams(params as Record<string, unknown>, ["target", "dependsOn", "resources", "supersedes"]), ["target", "dependsOn", "resources", "supersedes"]) as typeof params;
       if (params.action === "supersede") {
         const tasks = listTasks();
-        const referenced = [...(params.dependsOn ?? []), ...params.supersedes];
+        const referenced = [...((params.dependsOn as string[] | undefined) ?? []), ...(params.supersedes as string[])];
         if (referenced.some((id) => !tasks.some((task) => task.id === id))) {
           throw new Error(`Unknown work id in [${referenced.join(", ")}].`);
         }
-        const created = createBoardTask(params);
+        const created = createBoardTask(params as Parameters<typeof createBoardTask>[0]);
         if (!created.ok) throw new Error(created.error);
         const work = listTasks().find((task) => task.id === created.id);
         if (!work) throw new Error(`Replacement Work Item "${created.id}" is unavailable.`);
@@ -171,7 +173,7 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
         };
       }
       if (params.action === "assign") {
-        const assigned = assignExistingWork(params.id, params.target.session);
+        const assigned = assignExistingWork(params.id, (params.target as { session: string }).session);
         if (!assigned.ok) throw new Error(assigned.error);
         const task = listTasks().find((entry) => entry.id === assigned.workId);
         if (!task) throw new Error(`Assigned Work Item "${assigned.workId}" is unavailable.`);
@@ -182,7 +184,7 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
             action: "assign", outcome: "assigned", state: task.status,
             work: { id: task.id, subject: task.subject, resources: task.resources, state: task.status, claimedBy: task.claimedBy },
             assignment: { id: assigned.assignmentId, owner: assigned.owner, kind: "direct" },
-            target: params.target, delivery: "fresh-session-pending",
+            target: params.target as { session: string }, delivery: "fresh-session-pending",
           },
         };
       }
@@ -204,11 +206,11 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
         };
       }
       const tasks = listTasks();
-      const referenced = params.dependsOn ?? [];
+      const referenced = (params.dependsOn as string[] | undefined) ?? [];
       if (referenced.some((id) => !tasks.some((task) => task.id === id))) {
         throw new Error(`Unknown work id in [${referenced.join(", ")}].`);
       }
-      const created = createBoardTask(params);
+      const created = createBoardTask(params as Parameters<typeof createBoardTask>[0]);
       if (!created.ok) throw new Error(created.error);
       const work = listTasks().find((task) => task.id === created.id);
       if (!work) throw new Error(`Created Work Item "${created.id}" is unavailable.`);
