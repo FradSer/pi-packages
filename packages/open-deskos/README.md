@@ -1,4 +1,4 @@
-# @fradser/pi-open-deskos
+# pi-open-deskos
 
 Report this machine's Pi sessions and their operating events to Open DeskOS, and optionally drive a Pi session that Open DeskOS hosts.
 
@@ -10,15 +10,17 @@ A machine may also hold a **Control Credential** and become a **Console**: it op
 
 ## Install
 
-To install from this checkout, run the following from the repository root:
+```bash
+pi install npm:pi-open-deskos
+```
+
+To install from this checkout instead, run the following from the repository root:
 
 ```bash
 pi install "$(pwd -P)/packages/open-deskos"
 ```
 
 The command records an absolute package path, so the checkout can live anywhere, including a directory with spaces. Keep the checkout in place; Pi loads the local files directly.
-
-Once `@fradser/pi-open-deskos` is published, `pi install npm:@fradser/pi-open-deskos` replaces that path.
 
 ## Configure
 

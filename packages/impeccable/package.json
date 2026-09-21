@@ -23,13 +23,9 @@
     "scripts",
     "LICENSE",
     "licenses",
-    "THIRD_PARTY_NOTICES.md",
     "README.md",
-    "UPSTREAM.md",
-    "upstream-selection.json",
     "runtime-provenance.json",
-    "taste-provenance.json",
-    "TODO.md"
+    "taste-provenance.json"
   ],
   "publishConfig": {
     "access": "public"

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import pytest
 import re
 import subprocess
 import tempfile
@@ -46,12 +47,22 @@ def report(script: str) -> dict:
 def test_manifest_declares_native_pi_package() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert "pi-package" in manifest["keywords"]
-    assert manifest["name"] == "@fradser/pi-open-deskos"
+    assert manifest["name"] == "pi-open-deskos"
     assert manifest["pi"]["extensions"] == ["./index.ts"]
     assert set(manifest["files"]) >= {"index.ts", "src", "fixtures", "README.md", "README.zh-CN.md"}
     fixture = json.loads((PACKAGE / "fixtures" / "control-v2.json").read_text(encoding="utf-8"))
     assert fixture["handshake"]["transcript"] == "open-deskos-control-v2\n2\nnonce-fixture\ndesk-mac\nconsole-session"
     assert fixture["requests"]["attachFresh"]["after"] is None
+
+
+def test_control_contract_fixture_matches_the_desk_copy() -> None:
+    """The v2 control contract ships in both repositories; drift must be loud wherever both exist."""
+    desk = PACKAGE.parents[2] / "open-deskos" / "runtime" / "linux" / "tests" / "fixtures" / "control-v2.json"
+    if not desk.is_file():
+        pytest.skip("sibling open-deskos checkout is not present")
+    assert (PACKAGE / "fixtures" / "control-v2.json").read_bytes() == desk.read_bytes(), (
+        "the Console and desk control fixtures must stay byte-identical"
+    )
 
 
 def test_extension_entry_points_exist() -> None:

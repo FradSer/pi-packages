@@ -1,4 +1,4 @@
-# @fradser/pi-open-deskos
+# pi-open-deskos
 
 把本机的 Pi 会话及其运作事件上报给 Open DeskOS；也可选择成为 **Console**，远程驱动 Open DeskOS 上托管的 Pi 会话。
 
@@ -10,15 +10,17 @@ Open DeskOS 通常靠扫描来发现 Pi 会话：本地扫，或经 SSH 扫。�
 
 ## 安装
 
-从仓库根目录执行：
+```bash
+pi install npm:pi-open-deskos
+```
+
+若要从本地 checkout 安装，在仓库根目录执行：
 
 ```bash
 pi install "$(pwd -P)/packages/open-deskos"
 ```
 
 该命令记录 package 的绝对路径，因此 checkout 可以放在任意位置，包括含空格的目录。请保持 checkout 原地不动；Pi 直接加载本地文件。
-
-`@fradser/pi-open-deskos` 发布后，可用 `pi install npm:@fradser/pi-open-deskos` 替代该路径。
 
 ## 配置
 

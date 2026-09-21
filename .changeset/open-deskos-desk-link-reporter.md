@@ -1,5 +1,5 @@
 ---
-"@fradser/pi-open-deskos": minor
+"pi-open-deskos": minor
 ---
 
 Report this machine's Pi sessions and their operating events to Open DeskOS over a

@@ -74,10 +74,10 @@ pi install npm:pi-continual-learning
 
 **命令：** `/impeccable`
 
-从本地仓库安装（需要 Node.js 22.18+）：
+**安装：**
 
 ```bash
-pi install ./packages/impeccable
+pi install npm:@fradser/pi-impeccable
 ```
 
 ### [`pi-keyboard`](packages/keyboard/)
@@ -120,7 +120,7 @@ pi install npm:pi-matt-pocock
 pi install npm:@fradser/pi-monitor
 ```
 
-### [`@fradser/pi-open-deskos`](packages/open-deskos/)
+### [`pi-open-deskos`](packages/open-deskos/)
 
 把本机的 Pi 会话及其运作事件经 package 主动打开的 Desk Link 上报给 Open DeskOS，事件规则与运行时本地采集器完全一致。另外持有独立控制凭据时，可作为 Console 列出、启动、进入、改向、取消、结束并读取 desk 托管的 Pi 会话历史。
 
@@ -129,7 +129,7 @@ pi install npm:@fradser/pi-monitor
 **安装：**
 
 ```bash
-pi install npm:@fradser/pi-open-deskos
+pi install npm:pi-open-deskos
 ```
 
 ### [`@fradser/pi-plan-mode`](packages/plan-mode/)

@@ -72,10 +72,10 @@ Loads design guidance for interface polish, animation, typography, color, layout
 
 **Command:** `/impeccable`
 
-Install from this checkout (Node.js 22.18+):
+**Install:**
 
 ```bash
-pi install ./packages/impeccable
+pi install npm:@fradser/pi-impeccable
 ```
 
 ### [`pi-keyboard`](packages/keyboard/)
@@ -118,7 +118,7 @@ Runs background commands against an explicit result contract and reports one str
 pi install npm:@fradser/pi-monitor
 ```
 
-### [`@fradser/pi-open-deskos`](packages/open-deskos/)
+### [`pi-open-deskos`](packages/open-deskos/)
 
 Reports this machine's Pi sessions and their operating events to Open DeskOS over a package-initiated Desk Link, using the same bounded event rules as the runtime's local collector. With a separate control credential it also becomes a Console that lists, launches, attaches to, steers, cancels, ends, and reads the history of the Pi sessions the desk hosts.
 
@@ -127,7 +127,7 @@ Reports this machine's Pi sessions and their operating events to Open DeskOS ove
 **Install:**
 
 ```bash
-pi install npm:@fradser/pi-open-deskos
+pi install npm:pi-open-deskos
 ```
 
 ### [`@fradser/pi-plan-mode`](packages/plan-mode/)

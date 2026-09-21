@@ -1,5 +1,5 @@
 ---
-"@fradser/pi-open-deskos": patch
+"pi-open-deskos": patch
 ---
 
 Document local installation from any checkout using a quoted absolute package path,
