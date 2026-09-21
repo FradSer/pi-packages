@@ -39,10 +39,18 @@ function errorStatus(error) {
   return error && typeof error === "object" && typeof error.status === "number" ? error.status : undefined;
 }
 
-function errorStderr(error) {
+function errorOutput(error, stream) {
   if (!error || typeof error !== "object") return "";
-  const stderr = error.stderr;
-  return typeof stderr === "string" ? stderr : Buffer.isBuffer(stderr) ? stderr.toString("utf8") : "";
+  const value = error[stream];
+  return typeof value === "string" ? value : Buffer.isBuffer(value) ? value.toString("utf8") : "";
+}
+
+function errorStderr(error) {
+  return errorOutput(error, "stderr");
+}
+
+function errorStdout(error) {
+  return errorOutput(error, "stdout");
 }
 
 function structuredNpmErrorCode(error) {
@@ -279,7 +287,11 @@ export function publishRelease(options = {}) {
     verify(packageDir);
     logger.log(`Publishing ${target.name}@${target.version}`);
     try {
-      execFileSync(
+      // Capture both child streams instead of inheriting them: a registry
+      // conflict is only visible on stderr, and an inherited stdio would send it
+      // straight to the terminal, leaving the thrown error with just an exit
+      // status. The captured text is re-emitted so the log keeps its detail.
+      const stdout = execFileSync(
         "pnpm",
         [
           "publish",
@@ -290,9 +302,13 @@ export function publishRelease(options = {}) {
           "public",
           "--no-git-checks",
         ],
-        { cwd: rootDir, stdio: "inherit" },
+        { cwd: rootDir, stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" },
       );
+      if (typeof stdout === "string" && stdout.trim()) logger.log(stdout.trim());
     } catch (error) {
+      for (const text of [errorStdout(error), errorStderr(error)]) {
+        if (text.trim()) logger.log(text.trim());
+      }
       if (!isRegistryConflict(error)) throw error;
       logger.log(`${target.name}@${target.version} is already published; continuing.`);
     }

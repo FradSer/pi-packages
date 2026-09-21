@@ -152,18 +152,26 @@ def test_published_version_that_wins_the_publish_race_is_not_a_release_failure()
     query from a stale edge cache, so the write is rejected with 409 Conflict.
     The documented retry contract skips already published versions safely, so
     that conflict must not fail the run.
+
+    The failure fixture mirrors the real error shape: execFileSync reports the
+    exit status and the registry text arrives on the child's stderr, so the
+    publisher must capture that stream instead of inheriting it.
     """
     result = run_node(
         """
         import { publishRelease } from "./scripts/publish-release.mjs";
         const conflict = () => {
           const error = new Error("Command failed: pnpm publish --filter @fradser/pi-kit");
-          error.status = 409;
-          error.stderr = '[E409] 409 Conflict - PUT https://registry.npmjs.org/@fradser%2fpi-kit' +
-            ' - Cannot publish over previously staged version "1.0.0".\\n';
+          error.status = 1;
+          error.stdout = "";
+          error.stderr = Buffer.from(
+            '[E409] 409 Conflict - PUT https://registry.npmjs.org/@fradser%2fpi-kit' +
+            ' - Cannot publish over previously staged version "1.0.0".\\n',
+          );
           return error;
         };
         const calls = [];
+        const stdioModes = [];
         const messages = [];
         const result = publishRelease({
           rootDir: "/tmp/release-root",
@@ -175,20 +183,27 @@ def test_published_version_that_wins_the_publish_race_is_not_a_release_failure()
           publishScope: ["@fradser/pi-kit", "pi-b"],
           queryVersion() { return undefined; },
           verifyPackedManifest() {},
-          execFileSync(file, args) {
+          execFileSync(file, args, options) {
             calls.push(`${file} ${args.join(" ")}`);
+            stdioModes.push(options.stdio);
             if (args.includes("@fradser/pi-kit")) throw conflict();
           },
           useProvenance: false,
           logger: { log: (line) => messages.push(line) },
         });
-        console.log(JSON.stringify({ calls, messages, published: result.published.map(({ name }) => name) }));
+        console.log(JSON.stringify({ calls, stdioModes, messages, published: result.published.map(({ name }) => name) }));
         """,
     )
     assert result.returncode == 0, result.stderr
     values = json.loads(result.stdout)
     assert len(values["calls"]) == 2, values
     assert values["published"] == ["@fradser/pi-kit", "pi-b"]
+    for mode in values["stdioModes"]:
+        assert isinstance(mode, list) and mode[2] == "pipe", (
+            "the publish child must pipe stderr, otherwise a registry conflict is unreadable: "
+            f"{mode}"
+        )
+    assert any("409 Conflict" in message for message in values["messages"]), values
     assert any("already published" in message for message in values["messages"]), values
 
 
@@ -198,10 +213,13 @@ def test_publish_failure_that_is_not_a_conflict_still_stops_the_release() -> Non
         import { publishRelease } from "./scripts/publish-release.mjs";
         const forbidden = () => {
           const error = new Error("Command failed: pnpm publish --filter @fradser/pi-kit");
-          error.stderr = "npm error code E403\\nnpm error 403 Forbidden - PUT https://registry.npmjs.org/@fradser%2fpi-kit\\n";
+          error.status = 1;
+          error.stdout = "";
+          error.stderr = Buffer.from("npm error code E403\\nnpm error 403 Forbidden - PUT https://registry.npmjs.org/@fradser%2fpi-kit\\n");
           return error;
         };
         const calls = [];
+        const messages = [];
         let failure = null;
         try {
           publishRelease({
@@ -216,18 +234,19 @@ def test_publish_failure_that_is_not_a_conflict_still_stops_the_release() -> Non
             verifyPackedManifest() {},
             execFileSync(file, args) { calls.push(`${file} ${args.join(" ")}`); throw forbidden(); },
             useProvenance: false,
-            logger: { log() {} },
+            logger: { log: (line) => messages.push(line) },
           });
         } catch (error) {
           failure = error.message;
         }
-        console.log(JSON.stringify({ calls, failure }));
+        console.log(JSON.stringify({ calls, messages, failure }));
         """,
     )
     assert result.returncode == 0, result.stderr
     values = json.loads(result.stdout)
     assert values["failure"] is not None, values
     assert len(values["calls"]) == 1, values
+    assert any("403 Forbidden" in message for message in values["messages"]), values
 
 
 def test_pack_check_mode_covers_workspace_packages_without_registry_or_publish() -> None:
