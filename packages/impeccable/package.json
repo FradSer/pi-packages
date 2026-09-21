@@ -1,7 +1,7 @@
 {
   "type": "module",
   "name": "@fradser/pi-impeccable",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Native Pi design procedures with a unified concern-organized taste library",
   "license": "MIT",
   "keywords": [

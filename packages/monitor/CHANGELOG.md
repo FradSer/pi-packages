@@ -1,5 +1,12 @@
 # @fradser/pi-monitor
 
+## 2.3.1
+
+### Patch Changes
+
+- Updated dependencies [52e25f9]
+  - @fradser/pi-kit@0.5.1
+
 ## 2.3.0
 
 ### Minor Changes

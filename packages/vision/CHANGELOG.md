@@ -1,5 +1,12 @@
 # @fradser/pi-vision
 
+## 0.2.11
+
+### Patch Changes
+
+- Updated dependencies [52e25f9]
+  - @fradser/pi-kit@0.5.1
+
 ## 0.2.10
 
 ### Patch Changes

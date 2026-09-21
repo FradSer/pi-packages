@@ -1,5 +1,12 @@
 # @fradser/pi-context
 
+## 0.6.3
+
+### Patch Changes
+
+- Updated dependencies [52e25f9]
+  - @fradser/pi-kit@0.5.1
+
 ## 0.6.2
 
 ### Patch Changes
