@@ -2,7 +2,7 @@
 
 `pi-skill-router` routes to **externally hosted skill collections**. It clones skill repositories into a user-level managed directory, wraps the skills you select as hidden leaves behind a visible gateway, exposes them to Pi, and provides focused routing suggestions.
 
-**Package version:** 0.2.0
+**Package version:** see [`package.json`](package.json).
 
 The package ships no skill content itself, and routed collections are never npm packages — they are plain Git repositories you add through the `/skill-router` menu.
 

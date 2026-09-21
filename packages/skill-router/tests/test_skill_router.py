@@ -90,7 +90,6 @@ def test_manifest_declares_extension_only_and_no_packaged_skills() -> None:
     assert "skills" not in manifest["pi"]
     assert not (PACKAGE / "leaves").exists()
     assert not (PACKAGE / "tools").exists()
-    assert f"**Package version:** {manifest['version']}" in (PACKAGE / "README.md").read_text(encoding="utf-8")
 
 
 def test_add_collection_materializes_subskills_and_gateway(tmp_path: Path, source_repo: Path) -> None:

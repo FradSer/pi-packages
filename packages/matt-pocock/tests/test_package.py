@@ -44,7 +44,9 @@ def test_capability_mode_targets_are_model_standalone() -> None:
 def test_manifest_declares_one_package_root_extension() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text())
     assert manifest["name"] == "pi-matt-pocock"
-    assert manifest["version"] == "0.1.1"
+    # The released version belongs to package.json alone; pinning it here would
+    # fail the release gate on the version PR that ships it.
+    assert re.fullmatch(r"\d+\.\d+\.\d+", manifest["version"])
     assert manifest["type"] == "module"
     assert manifest["pi"] == {"extensions": ["./index.ts"]}
     assert "@earendil-works/pi-coding-agent" in manifest["peerDependencies"]
