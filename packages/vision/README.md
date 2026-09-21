@@ -150,3 +150,7 @@ npx tsc --noEmit --strict --skipLibCheck --target ES2022 \
   --module ESNext --moduleResolution bundler --types "" \
   packages/vision/src/*.ts
 ```
+
+## License
+
+MIT

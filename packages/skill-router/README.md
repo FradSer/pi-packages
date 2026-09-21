@@ -58,3 +58,7 @@ Routing terms are derived from skill names and stored in `~/.pi/agent/skill-rout
 ## Security
 
 Skills are instructions the model follows and may bundle scripts. Review a repository's skills before adding it — installing a collection means trusting its content at user level across all projects.
+
+## License
+
+MIT

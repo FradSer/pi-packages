@@ -25,6 +25,6 @@ References: `setup`, `principles`, `components`, `motion`, `accessibility`, `typ
 
 `/impeccable live` selects elements in the browser, applies one design action, and hot-swaps three generated HTML+CSS variants through the running dev server's HMR. The helper runtime boots from this package, probes the default URL before spawning a server, bounds every JSON request to 1 MiB with HTTP 413 for oversized bodies, and removes its preview markers during accept or completion.
 
-## Licenses
+## License
 
-The procedures and taste references are Pi adaptations of the upstream Impeccable design skill (Apache-2.0). Upstream license texts, the NOTICE, and the MIT licenses of derived work ship in `licenses/`.
+MIT for this package. The procedures and taste references are Pi adaptations of the upstream Impeccable design skill (Apache-2.0); upstream license texts, the NOTICE, and the MIT licenses of derived work ship in `licenses/`.

@@ -135,3 +135,7 @@ pi install npm:@fradser/pi-agent-teams
 
 Run `/reload` after installation. `/agent-teams` is the human management
 surface for Presence, Work, diagnostics, and exact-session stop controls.
+
+## License
+
+MIT

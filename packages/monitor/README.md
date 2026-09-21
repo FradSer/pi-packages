@@ -329,3 +329,7 @@ The monitor extension does not intercept or modify the native `bash` tool. Use `
 This is guidance rather than a synchronous-execution guardrail: the native `bash` tool remains responsible for running commands synchronously, and no special command suffix or environment variable is required.
 
 Monitor usage guidance is injected through the extension's system prompt hook; no package skill is required.
+
+## License
+
+MIT

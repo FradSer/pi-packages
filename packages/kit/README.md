@@ -79,3 +79,7 @@ Read @features/pi-kit.feature when changing this contract and run `python3 -m py
 - Do not wrap what `@earendil-works/pi-tui` already exports
   (`wrapTextWithAnsi`, `truncateToWidth`, `visibleWidth`, `Key`,
   `matchesKey`, `isKeyRelease`) — consumers import those directly.
+
+## License
+
+MIT

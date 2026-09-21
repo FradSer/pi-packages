@@ -120,3 +120,7 @@ Settings are saved in `~/.pi/agent/keyboard.json`:
   "saveToEeprom": false
 }
 ```
+
+## License
+
+MIT

@@ -317,3 +317,7 @@ configuration, confirms harmless Bash and unrelated writes execute, and confirms
 protected write/batched-edit calls remain blocked while configuration bytes stay
 unchanged. The learning and upgrade scripts copy provider credentials into
 private temporary roots rather than link to writable user files.
+
+## License
+
+MIT
