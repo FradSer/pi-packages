@@ -1,5 +1,12 @@
 # pi-skill-router
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [52e25f9]
+  - @fradser/pi-kit@0.5.1
+
 ## 0.2.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @fradser/pi-agent-teams
 
+## 0.9.1
+
+### Patch Changes
+
+- Updated dependencies [52e25f9]
+  - @fradser/pi-kit@0.5.1
+
 ## 0.9.0
 
 ### Minor Changes
