@@ -15,6 +15,7 @@
     "packages/*/index.ts",
     "packages/*/extensions/**/*.ts",
     "packages/*/src/**/*.ts",
+    "packages/agent-teams/tests/tool-param-schema-fixture.ts",
     "packages/kit/tests/activity-row-fixture.ts",
     "packages/context/tests/context_widget_harness.mts"
   ]
