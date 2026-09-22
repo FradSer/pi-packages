@@ -45,3 +45,7 @@ must prove both unrelated execution and retained blocking in disposable roots.
 Verify changed TUI behavior interactively. Do not ask for intermediate approval
 for safe local fixes or fixture-based checks; publishing and real user-config
 replacement require explicit authorization.
+
+Shared test plumbing lives in `tests/support.py` (Bun subprocess harness, path
+constants, flat-rule fixtures) and `tests/agents_md_fixtures.py`; import from
+them instead of copying a per-file runner or fixture.

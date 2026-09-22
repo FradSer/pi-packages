@@ -5,8 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from test_guardrails_extension import run_bun
-from test_harness_flat_unification import CONSOLIDATION, ENGINE, cases, evidence, rule, snapshot
+from support import CONSOLIDATION, ENGINE, cases, evidence, isolated_run_bun as run_bun, rule, snapshot
 
 
 @pytest.mark.parametrize('change', [{'action': 'confirm'}, {'action': None}, {'bash': '^different$'}, {'enabled': False}, {'skill': 'known', 'instructions': 'changed'}])

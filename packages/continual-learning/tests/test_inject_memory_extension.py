@@ -1,33 +1,10 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 import tempfile
 from pathlib import Path
 
-MEMORY_PKG_DIR = Path(__file__).resolve().parents[1]
-REPO = MEMORY_PKG_DIR.parents[1]
-
-
-def initialize_git_repo(repo: Path) -> None:
-    import subprocess
-
-    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
-
-
-def run_bun(source: str) -> dict[str, object] | list[object]:
-    result = subprocess.run(
-        ["bun", "-e", source],
-        cwd=REPO,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout.strip().splitlines()[-1])
+from support import PKG_DIR as MEMORY_PKG_DIR, initialize_git_repo, run_bun
 
 
 def source() -> str:
@@ -874,23 +851,14 @@ def _memory_repo(tmp: Path) -> tuple[Path, Path]:
 
 
 def _format_block(repo: Path, agent: Path, options: str = "") -> dict[str, object]:
-    result = subprocess.run(
-        [
-            "bun", "-e",
-            f"""
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            const {{ loadAndDeduplicateMemories, formatMemoriesBlock }} = await import('./packages/continual-learning/extensions/memory-files.ts');
-            const memories = await loadAndDeduplicateMemories({json.dumps(str(repo))});
-            console.log(JSON.stringify({{ block: formatMemoriesBlock(memories{options}) }}));
-            """,
-        ],
-        cwd=REPO,
-        capture_output=True,
-        text=True,
-        check=False,
+    return run_bun(
+        f"""
+        process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+        const {{ loadAndDeduplicateMemories, formatMemoriesBlock }} = await import('./packages/continual-learning/extensions/memory-files.ts');
+        const memories = await loadAndDeduplicateMemories({json.dumps(str(repo))});
+        console.log(JSON.stringify({{ block: formatMemoriesBlock(memories{options}) }}));
+        """,
     )
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout.strip().splitlines()[-1])
 
 
 def test_memory_block_is_an_index_without_entry_bodies() -> None:

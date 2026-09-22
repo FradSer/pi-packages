@@ -1,31 +1,17 @@
 from __future__ import annotations
 
-import json
-import os
 from pathlib import Path
-import subprocess
-import tempfile
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[3]
+from support import run_bun_script
+
 HARNESS = Path(__file__).with_name("meaningful_details_harness.ts")
 
 
 @pytest.fixture(scope="module")
 def rendered() -> dict:
-    with tempfile.TemporaryDirectory(prefix="learning-display-agent-") as agent:
-        result = subprocess.run(
-            ["bun", str(HARNESS)],
-            cwd=REPO,
-            env={**os.environ, "PI_CODING_AGENT_DIR": agent},
-            text=True,
-            capture_output=True,
-            timeout=60,
-            check=False,
-        )
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout.strip().splitlines()[-1])
+    return run_bun_script(HARNESS, temp_dirs=("PI_CODING_AGENT_DIR",))
 
 
 @pytest.mark.parametrize(

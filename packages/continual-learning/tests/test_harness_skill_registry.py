@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from test_guardrails_extension import run_bun
+from support import isolated_run_bun as run_bun
 
 
 def test_skill_rules_use_real_names_and_exact_schema() -> None:

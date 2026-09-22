@@ -1,22 +1,13 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 import tempfile
+from functools import partial
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
+from support import REPO, run_bun as _run_bun
 
-
-def run_bun(source: str, extra_env: dict[str, str] | None = None) -> dict:
-    with tempfile.TemporaryDirectory(prefix="automatic-learning-test-") as temporary:
-        result = subprocess.run(
-            ["bun", "-e", source], cwd=REPO, text=True, capture_output=True,
-            env={**os.environ, "TMPDIR": temporary, **(extra_env or {})}, timeout=30,
-        )
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout.strip().splitlines()[-1])
+run_bun = partial(_run_bun, timeout=30, temp_dirs=("TMPDIR",))
 
 
 def test_automatic_pipeline_does_not_request_routine_result_rows() -> None:
@@ -618,13 +609,10 @@ const workerExited = fs.existsSync(path.join(base, 'worker-exited.txt'));
 for (const handler of hooks.get('session_shutdown')??[]) await handler({},ctx);
 console.log(JSON.stringify({workerExited,notices}));
 '''
-        result = subprocess.run(
-            ["bun", "-e", source],
-            cwd=REPO, capture_output=True, text=True, timeout=20,
-            env={**os.environ, "LEARNING_TEST_DIR": temporary,
-                 "PI_CODING_AGENT_DIR": str(base / "agent")},
+        outcome = run_bun(
+            source,
+            {"LEARNING_TEST_DIR": temporary, "PI_CODING_AGENT_DIR": str(base / "agent")},
+            timeout=20,
         )
-        assert result.returncode == 0, result.stderr
-        outcome = json.loads(result.stdout.strip().splitlines()[-1])
         assert outcome["workerExited"], outcome
         assert outcome["notices"] == []

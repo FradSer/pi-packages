@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-PACKAGE = Path(__file__).resolve().parents[1]
-REPO = PACKAGE.parents[1]
+from support import PKG_DIR as PACKAGE, initialize_git_repo, run_bun
+
 SCRIPT = PACKAGE / "scripts" / "validate-consolidate.py"
 
 
@@ -115,23 +114,6 @@ def invoke_plan(root: Path, plan_value: dict[str, object], snapshot_value: dict[
         "--expected-artifact-hash", plan_value["artifactHash"],
         "--expected-selected", json.dumps(plan_value["selected"]),
     ])
-
-
-def run_bun(source: str, env: dict[str, str] | None = None) -> dict[str, object]:
-    result = subprocess.run(
-        ["bun", "-e", source],
-        cwd=REPO,
-        env={**os.environ, **(env or {})},
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout.strip().splitlines()[-1])
-
-
-def initialize_git_repo(path: Path) -> None:
-    subprocess.run(["git", "init", "-q", str(path)], check=True)
 
 
 def test_empty_existing_scope_accepts_user_evidenced_new_memory() -> None:

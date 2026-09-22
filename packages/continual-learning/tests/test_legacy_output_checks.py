@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from test_guardrails_extension import run_bun
+from support import isolated_run_bun as run_bun
 
 
 def test_policy_phases_and_post_execution_checks_are_explicit() -> None:

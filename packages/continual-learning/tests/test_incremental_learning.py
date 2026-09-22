@@ -1,29 +1,13 @@
 from __future__ import annotations
 
 import json
-import os
-from pathlib import Path
-import subprocess
 import tempfile
 
-REPO = Path(__file__).resolve().parents[3]
-
-
-def run_bun(source: str, env: dict[str, str] | None = None) -> dict:
-    result = subprocess.run(
-        ["bun", "-e", source],
-        cwd=REPO,
-        text=True,
-        capture_output=True,
-        env={**os.environ, **(env or {})},
-        timeout=20,
-    )
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout.strip().splitlines()[-1])
+from support import PKG_DIR, run_bun
 
 
 def test_manifest_ships_prompts_instead_of_agent_resources() -> None:
-    manifest = json.loads((REPO / "packages/continual-learning/package.json").read_text(encoding="utf-8"))
+    manifest = json.loads((PKG_DIR / "package.json").read_text(encoding="utf-8"))
     assert "prompts" in manifest["files"]
     assert "agents" not in manifest["files"]
 

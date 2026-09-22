@@ -5,26 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from test_guardrails_extension import run_bun
-
-ENGINE = './packages/continual-learning/extensions/guardrail-engine.ts'
-CONSOLIDATION = './packages/continual-learning/extensions/harness-consolidation.ts'
-
-
-def rule(id: str = 'learned') -> dict:
-    return {'id': id, 'bash': '^dangerous-fixture$', 'action': 'block', 'message': 'Use the safe fixture.'}
-
-
-def cases() -> dict:
-    return {'positive': [{'bash': 'dangerous-fixture', 'expected': 'block'}], 'negative': [{'bash': 'safe-fixture'}]}
-
-
-def snapshot() -> dict:
-    return {'entries': [{'message': {'role': 'user', 'content': 'Block dangerous-fixture; use the safe fixture.'}}]}
-
-
-def evidence() -> list[dict]:
-    return [{'index': 0, 'source': 'user', 'quote': snapshot()['entries'][0]['message']['content'], 'count': 1}]
+from support import CONSOLIDATION, ENGINE, cases, evidence, isolated_run_bun as run_bun, rule, snapshot
 
 
 def test_legacy_layers_have_read_only_adapter_and_non_error_notices() -> None:

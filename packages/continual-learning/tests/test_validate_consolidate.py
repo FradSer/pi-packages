@@ -8,7 +8,6 @@ import os
 import subprocess
 import sys
 import tempfile
-import unittest
 from pathlib import Path
 
 PLUGIN = Path(__file__).resolve().parents[1]
@@ -40,8 +39,8 @@ def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-class ValidatorContractTests(unittest.TestCase):
-    def setUp(self) -> None:
+class TestValidatorContract:
+    def setup_method(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         self.repo = self.root / "repo"
@@ -55,7 +54,7 @@ class ValidatorContractTests(unittest.TestCase):
         self.scope = "b" * 64
         self.artifact = "a" * 64
 
-    def tearDown(self) -> None:
+    def teardown_method(self) -> None:
         self.tmp.cleanup()
 
     def plan(self, names: list[str] | None = None) -> dict[str, object]:
@@ -155,68 +154,68 @@ class ValidatorContractTests(unittest.TestCase):
 
     def test_valid_plan_emits_structured_success(self) -> None:
         result = self.invoke_plan(self.plan())
-        self.assertEqual(result.returncode, 0, result.stderr)
+        assert result.returncode == 0, result.stderr
         output = json.loads(result.stdout)
-        self.assertTrue(output["ok"])
-        self.assertEqual(output["checks"], ["plan"])
+        assert output["ok"]
+        assert output["checks"] == ["plan"]
 
     def test_empty_inventory_is_a_verified_noop(self) -> None:
         plan = self.plan([])
         result = self.invoke_plan(plan)
-        self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertEqual(json.loads(result.stdout)["details"]["inventoryCount"], 0)
+        assert result.returncode == 0, result.stdout
+        assert json.loads(result.stdout)["details"]["inventoryCount"] == 0
 
     def test_inventory_rejects_duplicate_and_path_names(self) -> None:
         plan = self.plan(["project_example.md", "nested/project_other.md"])
         result = self.invoke_plan(plan)
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("artifact_identity", result.stdout)
+        assert result.returncode == 1
+        assert "artifact_identity" in result.stdout
 
         plan = self.plan(["project_example.md", "project_example.md"])
         result = self.invoke_plan(plan)
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("duplicate", result.stdout)
+        assert result.returncode == 1
+        assert "duplicate" in result.stdout
 
     def test_memory_index_is_case_insensitive_and_excluded(self) -> None:
         plan = self.plan(["MEMORY.md", "project_example.md"])
         result = self.invoke_plan(plan)
-        self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertEqual(json.loads(result.stdout)["details"]["inventoryCount"], 1)
+        assert result.returncode == 0, result.stdout
+        assert json.loads(result.stdout)["details"]["inventoryCount"] == 1
 
     def test_legacy_underscore_verdict_is_rejected(self) -> None:
         plan = self.plan()
         plan["staleness"] = [{"name": name, "verdict": "OPS_ONLY"} for name in ["project_example.md", "feedback_preference.md"]]
         result = self.invoke_plan(plan)
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("invalid verdict", result.stdout)
+        assert result.returncode == 1
+        assert "invalid verdict" in result.stdout
 
     def test_canonical_identity_fields_are_required_and_aliases_must_match(self) -> None:
         plan = self.plan()
         del plan["scopeDigest"]
         plan["scopeKey"] = self.scope_key
         result = self.invoke_plan(plan)
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("missing scopeDigest", result.stdout)
+        assert result.returncode == 1
+        assert "missing scopeDigest" in result.stdout
 
         plan = self.plan()
         plan["scopeKey"] = "d" * 64
         result = self.invoke_plan(plan, "--expected-scope-key", self.scope_key)
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("scopeKey does not match parent expectation", result.stdout)
+        assert result.returncode == 1
+        assert "scopeKey does not match parent expectation" in result.stdout
 
     def test_report_outcomes_must_be_non_empty_strings(self) -> None:
         plan = self.plan()
         plan["report"] = [{"name": name, "status": 0} for name in plan["inventory"]]
         result = self.invoke_plan(plan)
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("must be a string", result.stdout)
+        assert result.returncode == 1
+        assert "must be a string" in result.stdout
 
     def test_per_item_records_are_required(self) -> None:
         plan = self.plan()
         plan["report"] = [{"name": "project_example.md", "status": "KEEP"}]
         result = self.invoke_plan(plan)
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("missing per-item record", result.stdout)
+        assert result.returncode == 1
+        assert "missing per-item record" in result.stdout
 
     def test_grounding_paths_must_stay_inside_repo(self) -> None:
         plan = self.plan(["project_example.md"])
@@ -228,15 +227,15 @@ class ValidatorContractTests(unittest.TestCase):
             }
         ]
         result = self.invoke_plan(plan, "--repo-root", str(self.repo))
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("containment", result.stdout)
+        assert result.returncode == 1
+        assert "containment" in result.stdout
 
     def test_cli_parse_errors_are_structured_json(self) -> None:
         result = run(["--unknown-option"])
-        self.assertEqual(result.returncode, 2)
+        assert result.returncode == 2
         output = json.loads(result.stdout)
-        self.assertFalse(output["ok"])
-        self.assertEqual(output["errors"][0]["code"], "usage")
+        assert not output["ok"]
+        assert output["errors"][0]["code"] == "usage"
 
     def test_clean_privacy_split_passes(self) -> None:
         self.memory_layout()
@@ -245,8 +244,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.public),
             "--check=privacy",
         ])
-        self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertTrue(json.loads(result.stdout)["ok"])
+        assert result.returncode == 0, result.stdout
+        assert json.loads(result.stdout)["ok"]
 
     def test_privacy_rejects_same_canonical_roots(self) -> None:
         self.memory_layout()
@@ -255,8 +254,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.harness / ".." / "harness"),
             "--check=privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("distinct canonical", result.stdout)
+        assert result.returncode == 1
+        assert "distinct canonical" in result.stdout
 
     def test_private_only_final_validation_accepts_harness_and_empty_public_hashes(self) -> None:
         self.memory_layout()
@@ -276,10 +275,10 @@ class ValidatorContractTests(unittest.TestCase):
             "--expected-scope-digest", self.scope,
             "--expected-artifact-hash", self.artifact,
         ])
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        assert result.returncode == 0, result.stdout + result.stderr
         output = json.loads(result.stdout)
-        self.assertTrue(output["details"]["receiptVerified"])
-        self.assertEqual(output["details"]["privateCount"], 1)
+        assert output["details"]["receiptVerified"]
+        assert output["details"]["privateCount"] == 1
 
     def test_privacy_rejects_memory_file_count_before_reading(self) -> None:
         self.memory_layout(private=False)
@@ -295,8 +294,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--check=privacy",
             "--max-memory-files", "5",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("memory file count", result.stdout)
+        assert result.returncode == 1
+        assert "memory file count" in result.stdout
 
     def test_privacy_rejects_oversized_memory_file_before_reading(self) -> None:
         self.memory_layout(private=False)
@@ -306,8 +305,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.public),
             "--check=privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("per-file", result.stdout)
+        assert result.returncode == 1
+        assert "per-file" in result.stdout
 
     def test_privacy_rejects_oversized_memory_root_before_reading(self) -> None:
         self.memory_layout(private=False)
@@ -321,8 +320,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--check=privacy",
             "--max-total-bytes", "96000",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("aggregate", result.stdout)
+        assert result.returncode == 1
+        assert "aggregate" in result.stdout
 
     def test_safe_mirror_drift_fails_closed(self) -> None:
         self.memory_layout(private=False)
@@ -332,8 +331,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.public),
             "--check=privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("safe mirror drift", result.stdout)
+        assert result.returncode == 1
+        assert "safe mirror drift" in result.stdout
 
     def test_unindexed_public_file_fails(self) -> None:
         self.memory_layout(private=False)
@@ -343,8 +342,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.public),
             "--check=privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("orphan/unindexed", result.stdout)
+        assert result.returncode == 1
+        assert "orphan/unindexed" in result.stdout
 
     def test_symlinked_memory_child_fails(self) -> None:
         self.memory_layout(private=False)
@@ -356,8 +355,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.public),
             "--check=privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("symlink", result.stdout)
+        assert result.returncode == 1
+        assert "symlink" in result.stdout
 
     def test_receipt_binds_run_scope_hash_and_final_state(self) -> None:
         self.memory_layout()
@@ -375,26 +374,26 @@ class ValidatorContractTests(unittest.TestCase):
             "--expected-scope-digest", self.scope,
             "--expected-artifact-hash", self.artifact,
         ])
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        assert result.returncode == 0, result.stdout + result.stderr
         output = json.loads(result.stdout)
-        self.assertTrue(output["details"]["receiptVerified"])
+        assert output["details"]["receiptVerified"]
 
     def test_plan_accepts_distinct_scope_key_and_digest(self) -> None:
         result = self.invoke_plan(self.plan())
-        self.assertEqual(result.returncode, 0, result.stdout)
+        assert result.returncode == 0, result.stdout
 
     def test_plan_rejects_wrong_scope_key(self) -> None:
         plan = self.plan()
         plan["scopeKey"] = "d" * 64
         result = self.invoke_plan(plan)
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("scopeKey does not match parent expectation", result.stdout)
+        assert result.returncode == 1
+        assert "scopeKey does not match parent expectation" in result.stdout
 
     def test_plan_selected_scope_must_match_parent_expectation(self) -> None:
         plan = self.plan()
         result = self.invoke_plan(plan, "--expected-selected", "project_example.md")
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("selected scope does not match parent expectation", result.stdout)
+        assert result.returncode == 1
+        assert "selected scope does not match parent expectation" in result.stdout
 
     def test_grounding_found_path_must_exist(self) -> None:
         plan = self.plan(["project_example.md"])
@@ -404,8 +403,8 @@ class ValidatorContractTests(unittest.TestCase):
             "observations": [{"path": "src/missing.ts", "status": "found"}],
         }]
         result = self.invoke_plan(plan, "--repo-root", str(self.repo))
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("does not exist", result.stdout)
+        assert result.returncode == 1
+        assert "does not exist" in result.stdout
 
     def test_automatic_plan_accepts_preserved_delete_and_rejects_unpreserved_delete(self) -> None:
         plan = self.plan(["project_example.md"])
@@ -416,13 +415,13 @@ class ValidatorContractTests(unittest.TestCase):
         }]
         write_json(self.root / "plan.json", plan)
         accepted = run(["--plan", str(self.root / "plan.json"), "--repo-root", str(self.repo), "--check", "plan", "--mode", "automatic"])
-        self.assertEqual(accepted.returncode, 0, accepted.stdout)
+        assert accepted.returncode == 0, accepted.stdout
 
         del plan["operations"][0]["preservedIn"]
         write_json(self.root / "plan.json", plan)
         rejected = run(["--plan", str(self.root / "plan.json"), "--repo-root", str(self.repo), "--check", "plan", "--mode", "automatic"])
-        self.assertNotEqual(rejected.returncode, 0)
-        self.assertIn("preservedIn", rejected.stdout)
+        assert rejected.returncode != 0
+        assert "preservedIn" in rejected.stdout
 
     def test_manual_delete_requires_verifiable_preservation_and_staleness(self) -> None:
         plan = self.plan(["project_example.md"])
@@ -433,20 +432,20 @@ class ValidatorContractTests(unittest.TestCase):
         }]
         write_json(self.root / "plan.json", plan)
         accepted = run(["--plan", str(self.root / "plan.json"), "--repo-root", str(self.repo), "--check", "plan", "--mode", "manual"])
-        self.assertEqual(accepted.returncode, 0, accepted.stdout)
+        assert accepted.returncode == 0, accepted.stdout
 
         del plan["operations"][0]["preservedIn"]
         write_json(self.root / "plan.json", plan)
         rejected = run(["--plan", str(self.root / "plan.json"), "--repo-root", str(self.repo), "--check", "plan", "--mode", "manual"])
-        self.assertNotEqual(rejected.returncode, 0)
-        self.assertIn("preservedIn", rejected.stdout)
+        assert rejected.returncode != 0
+        assert "preservedIn" in rejected.stdout
 
         plan["operations"][0]["preservedIn"] = ["src/example.ts"]
         plan["staleness"] = [{"name": "project_example.md", "verdict": "KEEP"}]
         write_json(self.root / "plan.json", plan)
         kept = run(["--plan", str(self.root / "plan.json"), "--repo-root", str(self.repo), "--check", "plan", "--mode", "manual"])
-        self.assertNotEqual(kept.returncode, 0)
-        self.assertIn("KEEP", kept.stdout)
+        assert kept.returncode != 0
+        assert "KEEP" in kept.stdout
 
     def test_receipt_changes_summary_is_bound_to_plan(self) -> None:
         self.memory_layout()
@@ -460,8 +459,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--harness", str(self.harness), "--public", str(self.public),
             "--repo-root", str(self.repo), "--check", "plan,receipt,privacy",
         ])
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("changes summary", result.stdout)
+        assert result.returncode != 0
+        assert "changes summary" in result.stdout
 
     def test_operation_classification_must_match_inventory(self) -> None:
         plan = self.plan()
@@ -472,8 +471,8 @@ class ValidatorContractTests(unittest.TestCase):
             "content": "rewritten\n",
         }]
         result = self.invoke_plan(plan)
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("classification does not match inventory", result.stdout)
+        assert result.returncode == 1
+        assert "classification does not match inventory" in result.stdout
 
     def test_final_validation_ignores_unused_inventory_classification(self) -> None:
         self.memory_layout()
@@ -490,7 +489,7 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.public),
             "--check=plan,receipt,privacy",
         ])
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        assert result.returncode == 0, result.stdout + result.stderr
 
     def test_receipt_path_must_match_post_phase(self) -> None:
         self.memory_layout()
@@ -504,8 +503,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.public),
             "--check=plan,receipt,privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("path must be post-receipt.json", result.stdout)
+        assert result.returncode == 1
+        assert "path must be post-receipt.json" in result.stdout
 
     def test_receipt_path_must_match_plan_run_directory(self) -> None:
         self.memory_layout()
@@ -520,8 +519,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.public),
             "--check=plan,receipt,privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("exact plan run directory", result.stdout)
+        assert result.returncode == 1
+        assert "exact plan run directory" in result.stdout
 
     def test_post_receipt_source_hashes_bind_to_parent_manifest(self) -> None:
         self.memory_layout()
@@ -538,8 +537,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.public),
             "--check=plan,receipt,privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("source hashes", result.stdout)
+        assert result.returncode == 1
+        assert "source hashes" in result.stdout
 
     def test_receipt_rejects_schema_valid_plan_substitution(self) -> None:
         self.memory_layout()
@@ -556,8 +555,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.public),
             "--check=plan,receipt,privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("planDigest", result.stdout)
+        assert result.returncode == 1
+        assert "planDigest" in result.stdout
 
     def test_receipt_requires_phase(self) -> None:
         self.memory_layout()
@@ -573,8 +572,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.public),
             "--check=plan,receipt,privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("phase must be pre or post", result.stdout)
+        assert result.returncode == 1
+        assert "phase must be pre or post" in result.stdout
 
     def test_receipt_requires_canonical_identity_fields(self) -> None:
         self.memory_layout()
@@ -591,8 +590,8 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.public),
             "--check=plan,receipt,privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("receipt: missing scopeDigest", result.stdout)
+        assert result.returncode == 1
+        assert "receipt: missing scopeDigest" in result.stdout
 
     def test_foreign_receipt_is_rejected(self) -> None:
         self.memory_layout()
@@ -608,9 +607,5 @@ class ValidatorContractTests(unittest.TestCase):
             "--public", str(self.public),
             "--check=plan,receipt,privacy",
         ])
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("does not match plan", result.stdout)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert result.returncode == 1
+        assert "does not match plan" in result.stdout

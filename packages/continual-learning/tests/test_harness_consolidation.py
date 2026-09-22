@@ -1,20 +1,11 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
 
-PKG_DIR = Path(__file__).resolve().parents[1]
-REPO = PKG_DIR.parents[1]
-PKG_REL = "packages/continual-learning"
-
-
-def run_bun(source: str):
-    result = subprocess.run(["bun", "-e", source], cwd=REPO, capture_output=True, text=True, check=False, timeout=120)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout.strip().splitlines()[-1])
+from support import PKG_DIR, PKG_REL, run_bun
 
 
 def validate(plan: dict) -> list[str]:
@@ -529,9 +520,7 @@ def test_no_cli_dependency_fails_isolated_without_touching_state(tmp_path: Path)
         );
         console.log(JSON.stringify({{ notes, active: state.active, generation: state.generation }}));
     """
-    result = subprocess.run(["bun", "-e", script], cwd=REPO, capture_output=True, text=True, check=False)
-    assert result.returncode == 0, result.stderr
-    out = json.loads(result.stdout.strip().splitlines()[-1])
+    out = run_bun(script)
     assert any("skipped" in n for n in out["notes"])
     assert out["active"] is False and out["generation"] == 0
     assert target.read_bytes() == before

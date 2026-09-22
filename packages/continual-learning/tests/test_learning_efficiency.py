@@ -1,18 +1,8 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
-from pathlib import Path
-import tempfile
 
-REPO = Path(__file__).resolve().parents[3]
-
-
-def run_bun(source: str) -> dict:
-    result = subprocess.run(["bun", "-e", source], cwd=REPO, text=True, capture_output=True)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
+from support import run_bun
 
 
 def test_automatic_screen_skips_chitchat_and_routes_durable_evidence() -> None:

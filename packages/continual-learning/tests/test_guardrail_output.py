@@ -1,8 +1,4 @@
-from pathlib import Path
-
-from test_guardrails_extension import run_bun
-
-PKG = Path(__file__).resolve().parents[1]
+from support import PKG_DIR as PKG, isolated_run_bun as run_bun
 
 
 def test_postgeneration_compatibility_is_registered_without_new_authoring_selectors() -> None:

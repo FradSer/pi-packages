@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 
 import pytest
-from test_agents_md_consolidation import js, prepare_extraction_roots, extraction_ops, apply_plan_script
+
+from agents_md_fixtures import apply_plan_script, extraction_ops, prepare_extraction_roots
+from support import run_bun as js
 
 MODULE = './packages/continual-learning/extensions/harness-consolidation.ts'
 

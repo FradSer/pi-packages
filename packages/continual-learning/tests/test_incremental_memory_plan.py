@@ -1,24 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
-from pathlib import Path
-import subprocess
 import tempfile
+from functools import partial
 
-REPO = Path(__file__).resolve().parents[3]
+from support import run_bun as _run_bun
 
-
-def run_bun(source: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["bun", "-e", source],
-        cwd=REPO,
-        text=True,
-        capture_output=True,
-        env={**os.environ, **(env or {})},
-        timeout=30,
-        check=False,
-    )
+run_bun = partial(_run_bun, parse=False)
 
 
 def test_expands_delta_to_validator_and_apply_compatible_full_plan() -> None:

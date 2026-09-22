@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import json
-from test_guardrails_extension import run_bun
+from support import isolated_run_bun as run_bun
 
 
 def test_rule_validation_accepts_valid_selectors() -> None:

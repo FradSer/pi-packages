@@ -1,23 +1,11 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
 
-PKG_DIR = Path(__file__).resolve().parents[1]
-REPO = PKG_DIR.parents[1]
-ENGINE = './packages/continual-learning/extensions/guardrail-engine.ts'
-
-
-def run_bun(source: str):
-    with tempfile.TemporaryDirectory(prefix='harness-test-agent-') as agent_dir:
-        result = subprocess.run(['bun', '-e', source], cwd=REPO, env={**os.environ, 'PI_CODING_AGENT_DIR': agent_dir}, capture_output=True, text=True, check=False, timeout=120)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout.strip().splitlines()[-1])
+from support import ENGINE, isolated_run_bun as run_bun
 
 
 def test_default_rules_block_auth_and_otp_but_allow_normal_calls() -> None:

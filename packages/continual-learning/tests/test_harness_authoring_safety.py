@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from test_guardrails_extension import run_bun
+from support import isolated_run_bun as run_bun
 
 
 @pytest.mark.parametrize('rule_request', ['Every project change must preserve semantics', 'Make the popup better', '--local unknown semantic interception'])

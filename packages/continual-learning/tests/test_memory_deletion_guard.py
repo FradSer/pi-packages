@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import json
-import subprocess
-from pathlib import Path
-
-REPO = Path(__file__).resolve().parents[3]
+from support import run_bun
 
 
 def test_builtin_blocks_bulk_memory_deletion_but_allows_unrelated_cleanup() -> None:
@@ -22,9 +18,7 @@ def test_builtin_blocks_bulk_memory_deletion_but_allows_unrelated_cleanup() -> N
         unrelated: decide('rm -rf dist').decision === 'execute',
       }));
     """
-    result = subprocess.run(["bun", "-e", source], cwd=REPO, text=True, capture_output=True)
-    assert result.returncode == 0, result.stderr
-    payload = json.loads(result.stdout)
+    payload = run_bun(source)
     for key in ['directory', 'glob', 'find', 'unlink', 'script', 'privateRoot']:
         assert payload[key]['decision'] == 'block'
     assert payload["unrelated"] is True

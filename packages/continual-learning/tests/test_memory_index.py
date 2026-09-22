@@ -1,35 +1,23 @@
 from __future__ import annotations
 
 import json
-import os
 import re
-import subprocess
 from pathlib import Path
 
 import pytest
 
-PACKAGE = Path(__file__).resolve().parents[1]
-REPO = PACKAGE.parents[1]
+from support import PKG_DIR as PACKAGE, initialize_git_repo, run_bun as _run_bun
 
 
 def run_bun(source: str, agent: Path | None = None) -> dict[str, object]:
-    result = subprocess.run(
-        ["bun", "-e", source],
-        cwd=REPO,
-        env={**os.environ, **({"PI_CODING_AGENT_DIR": str(agent)} if agent else {})},
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout.strip().splitlines()[-1])
+    return _run_bun(source, {"PI_CODING_AGENT_DIR": str(agent)} if agent else None)
 
 
 def memory_repo(tmp_path: Path) -> tuple[Path, Path, Path]:
     repo = tmp_path / "repo"
     memory = repo / ".memory"
     memory.mkdir(parents=True)
-    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    initialize_git_repo(repo)
     return repo, memory, tmp_path / "agent"
 
 

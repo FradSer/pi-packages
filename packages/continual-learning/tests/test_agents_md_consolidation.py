@@ -1,37 +1,16 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 from pathlib import Path
 
-PKG_DIR = Path(__file__).resolve().parents[1]
-REPO = PKG_DIR.parents[1]
-MODULE = "./packages/continual-learning/extensions/agents-md-consolidation.ts"
-
-
-def js(source: str, env: dict[str, str] | None = None) -> dict[str, object] | list[object]:
-    """Run a Bun snippet whose final stdout line is one JSON value."""
-    result = subprocess.run(
-        ["bun", "-e", source],
-        cwd=REPO,
-        env={**os.environ, **(env or {})},
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout.strip().splitlines()[-1])
+from agents_md_fixtures import MODULE, SNAPSHOT, apply_plan_script, evidence, extraction_ops, prepare_extraction_roots
+from support import PKG_DIR, initialize_git_repo, run_bun as js, run_bun_script
 
 
 def call_js(body: str, *imports: str) -> dict[str, object] | list[object]:
     """Run a Bun snippet; `body` may be sync or async and must evaluate to one JSON value."""
     import_lines = "".join(f"import {{ {name} }} from '{MODULE}';\n" for name in imports)
     return js(f"{import_lines}const out = await ({body});\nconsole.log(JSON.stringify(out));\n")
-
-
-def evidence(quote: str, entry_index: int = 0, occurrences: int = 1, kind: str = "gap") -> dict:
-    return {"kind": kind, "quote": quote, "entryIndex": entry_index, "occurrences": occurrences}
 
 
 def add_op(text: str = "- New rule unit", quote: str | None = None, occurrences: int = 2) -> dict:
@@ -187,18 +166,6 @@ def test_skill_extraction_requires_flat_rule_fields_and_rejects_obsolete_targets
 
 
 # ── quote verification ────────────────────────────────────────────────
-
-SNAPSHOT_OBJECT = {
-    "entries": [
-        {"message": {"role": "user", "content": [{"type": "text", "text": "the build failed because\nstale fixtures broke the build again"}]}},
-        {"type": "tool_execution_end", "result": "npm test failed with ERR_PNPM_NO_SCRIPT"},
-        {"message": {"role": "assistant", "content": "assistant invented evidence"}},
-        {"type": "tool_execution_end", "toolName": "write", "policyName": "metadata-only", "result": "ordinary result"},
-        {"message": {"role": "toolResult", "content": [{"type": "text", "text": "SDK tool result evidence"}]}},
-        {"message": {"role": "user", "content": "stale fixtures broke the build again"}},
-    ]
-}
-SNAPSHOT = json.dumps(SNAPSHOT_OBJECT)
 
 
 def test_quote_verification_requires_indexed_user_or_tool_result_content() -> None:
@@ -388,112 +355,6 @@ def test_target_resolution_and_user_level_guard(tmp_path: Path) -> None:
 
 
 # ── transactional application ─────────────────────────────────────────
-
-
-def apply_plan_script(
-    project: Path,
-    agent: Path,
-    run_dir: Path,
-    operations: list[dict],
-    *,
-    cancelled_after: int | None = None,
-    fail_at: str | None = None,
-) -> str:
-    run = {
-        "manifest": {
-            "runId": "run_test",
-            "scopeDigest": "scope",
-            "snapshotDigest": "snapshot",
-            "runDir": str(run_dir),
-            "harnessDir": str(agent / "memory" / "project"),
-            "publicDir": str(project / ".memory"),
-        }
-    }
-    doc = (project / "AGENTS.md").read_text(encoding="utf-8")
-    planning = {
-        "run": run,
-        "targetPath": str(project / "AGENTS.md"),
-        "docBytesBase64": __import__("base64").b64encode(doc.encode()).decode(),
-        "doc": doc,
-        "preBytes": len(doc.encode()),
-        "snapshotText": SNAPSHOT,
-        "rawPlan": {"kind": "agents-md-consolidation-plan", "operations": operations},
-        "operations": operations,
-        "droppedCount": 0,
-        "durationMs": 1,
-    }
-    return f"""
-      import {{ applyAgentsMdConsolidationPlan }} from '{MODULE}';
-      const state = {{ active: true, generation: 1, cancelled: false }};
-      const opts = {{ pkgDir: {json.dumps(str(PKG_DIR))}, cwd: {json.dumps(str(project))}, reason: 'test', budgetBytes: 16384, disabled: false, availableSkills: ['using-open-artifacts'], transactionFault: {json.dumps(fail_at)} }};
-      let checks = 0;
-      const planning = {json.dumps(planning)};
-      planning.docBytes = Buffer.from(planning.docBytesBase64, 'base64');
-      delete planning.docBytesBase64;
-      const result = await applyAgentsMdConsolidationPlan({{ ui: {{ notify() {{}} }} }}, state, opts, planning, 1, {json.dumps(cancelled_after)} === null ? undefined : () => ++checks < {json.dumps(cancelled_after)});
-      const read = async (file) => await Bun.file(file).text().catch(() => null);
-      const exists = async (file) => await Bun.file(file).exists();
-      console.log(JSON.stringify({{
-        result,
-        agents: await read({json.dumps(str(project / 'AGENTS.md'))}),
-        harnessMemory: await read({json.dumps(str(agent / 'memory' / 'project' / 'fixture-regeneration.md'))}),
-        publicMemory: await read({json.dumps(str(project / '.memory' / 'fixture-regeneration.md'))}),
-        harnessIndex: await read({json.dumps(str(agent / 'memory' / 'project' / 'MEMORY.md'))}),
-        publicIndex: await read({json.dumps(str(project / '.memory' / 'MEMORY.md'))}),
-        harnessConfig: await read({json.dumps(str(project / '.pi' / 'harness.json'))}),
-        preReceipt: JSON.parse((await read({json.dumps(str(run_dir / 'agents-pre-receipt.json'))})) ?? 'null'),
-        preReceiptExists: await exists({json.dumps(str(run_dir / 'agents-pre-receipt.json'))}),
-        receiptExists: await exists({json.dumps(str(run_dir / 'agents-post-receipt.json'))}),
-      }}));
-    """
-
-
-def extraction_ops(memory_type: str = "project", classification: str = "safe") -> list[dict]:
-    return [
-        {
-            "op": "extractUnit",
-            "oldText": "- Regenerate fixtures after schema changes",
-            "extraction": {
-                "target": "memory",
-                "memoryName": "fixture-regeneration.md",
-                "description": "Regenerate fixtures after schema changes",
-                "type": memory_type,
-                "classification": classification,
-            },
-            "evidence": [evidence("stale fixtures broke the build again", 0)],
-        },
-        {
-            "op": "extractUnit",
-            "oldText": "- Use coda0.com as the default artifacts host",
-            "extraction": {
-                "target": "skillRule",
-                "ruleId": "artifact-host",
-                "skillName": "using-open-artifacts",
-                "instructions": "Use coda0.com as the default instance.",
-            },
-            "evidence": [evidence("npm test failed with ERR_PNPM_NO_SCRIPT", 1)],
-        },
-    ]
-
-
-def prepare_extraction_roots(tmp_path: Path) -> tuple[Path, Path, Path]:
-    project = tmp_path / "project"
-    agent = tmp_path / "agent"
-    run_dir = tmp_path / "run"
-    (project / ".memory").mkdir(parents=True)
-    (project / ".pi").mkdir()
-    (agent / "memory" / "project").mkdir(parents=True)
-    run_dir.mkdir()
-    (project / "AGENTS.md").write_text(
-        "# Rules\n\n- Regenerate fixtures after schema changes\n- Use coda0.com as the default artifacts host\n",
-        encoding="utf-8",
-    )
-    harness_index = "# Memory Index\n\n- [existing-private.md](existing-private.md) (harness only)\n"
-    public_index = "# Memory Index\n"
-    (agent / "memory" / "project" / "existing-private.md").write_text("private\n", encoding="utf-8")
-    (agent / "memory" / "project" / "MEMORY.md").write_text(harness_index, encoding="utf-8")
-    (project / ".memory" / "MEMORY.md").write_text(public_index, encoding="utf-8")
-    return project, agent, run_dir
 
 
 def test_safe_extraction_updates_both_roots_and_preserves_private_markers(tmp_path: Path) -> None:
@@ -819,7 +680,7 @@ def test_pending_recovery_is_discovered_from_the_project_runs_directory(tmp_path
     project = tmp_path / "project"
     agent = tmp_path / "agent"
     project.mkdir(); agent.mkdir()
-    subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+    initialize_git_repo(project)
     import hashlib
     paths = js(f'''
       import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
@@ -983,12 +844,7 @@ def test_procedure_routes_conditionally_with_compact_authority() -> None:
 
 def test_evidence_harness_requires_parent_completion_not_child_claims() -> None:
     for scenario in ("verified", "empty", "streamed-gates", "gates-in-tool-result"):
-        result = subprocess.run(
-            ["bun", str(PKG_DIR / "tests" / "consolidation_evidence_harness.ts"), scenario],
-            cwd=REPO, capture_output=True, text=True, check=False,
-        )
-        assert result.returncode == 0, result.stderr
-        missing = json.loads(result.stdout.strip().splitlines()[-1])
+        missing = run_bun_script(PKG_DIR / "tests" / "consolidation_evidence_harness.ts", scenario)
         assert missing == ([] if scenario == "verified" else [
             "completed tool work", "exactly one schema-valid consolidation plan", "a parent-owned validation receipt",
         ])

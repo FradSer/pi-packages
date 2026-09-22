@@ -7,24 +7,23 @@ from pathlib import Path
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[3]
+from support import run_bun as _run_bun, run_bun_script
 
-
-def test_harness_apply_rejection_is_reported_with_its_reason() -> None:
-    result = subprocess.run(["bun", str(Path(__file__).with_name("learning-policy-harness.ts")), "harness-rejected"], cwd=REPO, capture_output=True, text=True, timeout=30)
-    assert result.returncode == 0, result.stderr
-    value = json.loads(result.stdout.strip().splitlines()[-1])
-    assert any("rejected" in notice.lower() and "already belongs" in notice for notice in value["notices"]), value
-    assert value["lock"] is False
+POLICY_HARNESS = Path(__file__).with_name("learning-policy-harness.ts")
 
 
 def run_bun(source: str, root: Path) -> dict:
-    result = subprocess.run(
-        ["bun", "-e", source], cwd=REPO, capture_output=True, text=True, timeout=30,
-        env={**os.environ, "CONTROL_TEST_ROOT": str(root), "PI_CODING_AGENT_DIR": str(root / "agent")},
+    return _run_bun(
+        source,
+        {"CONTROL_TEST_ROOT": str(root), "PI_CODING_AGENT_DIR": str(root / "agent")},
+        timeout=30,
     )
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout.strip().splitlines()[-1])
+
+
+def test_harness_apply_rejection_is_reported_with_its_reason() -> None:
+    value = run_bun_script(POLICY_HARNESS, "harness-rejected")
+    assert any("rejected" in notice.lower() and "already belongs" in notice for notice in value["notices"]), value
+    assert value["lock"] is False
 
 
 def test_phase_policies_preserve_defaults_and_manual_behavior(tmp_path: Path) -> None:
@@ -143,8 +142,7 @@ def test_learning_file_rejects_fifo_without_blocking(tmp_path: Path) -> None:
       console.log(JSON.stringify({refused}));
     """
     try:
-        result = subprocess.run(["bun", "-e", source], cwd=REPO, text=True, capture_output=True, timeout=2,
-                                env={**os.environ, "CONTROL_TEST_ROOT": str(tmp_path)})
+        result = _run_bun(source, {"CONTROL_TEST_ROOT": str(tmp_path)}, timeout=2, parse=False)
     except subprocess.TimeoutExpired:
         pytest.fail("Opening a non-regular learning file blocked")
     assert result.returncode == 0, result.stderr
@@ -404,9 +402,7 @@ def test_undo_write_failure_rolls_back_prior_files(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("scenario", ["memory-propose", "harness-propose", "memory-apply", "all-off", "agents-propose", "agents-extraction"])
 def test_automatic_phase_policy_controls_real_pipeline(scenario: str) -> None:
-    result = subprocess.run(["bun", str(Path(__file__).with_name("learning-policy-harness.ts")), scenario], cwd=REPO, capture_output=True, text=True, timeout=30)
-    assert result.returncode == 0, result.stderr
-    value = json.loads(result.stdout.strip().splitlines()[-1])
+    value = run_bun_script(POLICY_HARNESS, scenario)
     assert value["lock"] is False, value
     assert not any("failed" in notice.lower() or "rejected" in notice.lower() for notice in value["notices"]), value
     if scenario == "all-off":
