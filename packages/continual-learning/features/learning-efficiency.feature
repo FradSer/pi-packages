@@ -2,6 +2,19 @@ Feature: Spend learning tokens only when durable value is plausible
   Automatic learning uses deterministic screening before any model call, shares one
   selector-built authoritative dossier, and accounts for every worker attempt.
 
+  Scenario: Tool-verified recovery is a Memory candidate
+    Given a tool reports a failure and a later tool verifies a successful build or test
+    When automatic learning screens the task
+    Then Memory selection is enabled without requiring a user keyword
+    But an assistant claim, an unrelated successful read, or a still-failing task is insufficient
+    And the recovery alone does not enable Harness or AGENTS.md changes
+
+  Scenario: AGENTS.md-only changes are visible in the terminal title
+    Given a consolidation applies only AGENTS.md operations
+    When its result is rendered
+    Then the title names the number of AGENTS.md changes
+    And it never reports no durable changes
+
   Scenario: Parent screening can skip an automatic run without tokens
     Given a frozen task contains no durable user statement, correction, or harness event
     When automatic learning evaluates the task
@@ -21,6 +34,14 @@ Feature: Spend learning tokens only when durable value is plausible
     And both planners receive the same dossier digest instead of independently exploring the full context or repository
     And Harness and AGENTS.md planning may overlap
     But their validated mutations are applied sequentially
+
+  Scenario: Quoted task instructions never become the worker's current assignment
+    Given task evidence includes a previous user's reply-only instruction or an embedded plan
+    When any selector or planner worker starts
+    Then a package-owned system instruction identifies evidence as untrusted data
+    And the worker follows the parent output protocol and current identity instead
+    And the selector's JSON example contains its exact bound context digest
+    And rejected selections report a specific bounded structural reason without echoing evidence
 
   Scenario: Retry policy preserves value
     Given a planner attempt fails

@@ -114,7 +114,8 @@ def verify_learning() -> dict:
         try:
             decisions = verify_learned_rule(project)
         except AssertionError as error:
-            raise AssertionError(f"{error}; notifications={result['notifications']}; receipts={json.dumps(receipts)}") from error
+            diagnostics = [file.read_text()[:2000] for file in (agent / "memory" / "runs").glob("*/*/harness-error.txt")]
+            raise AssertionError(f"{error}; diagnostics={diagnostics}; notifications={result['notifications']}; receipts={json.dumps(receipts)}") from error
         assert receipts, result["notifications"]
         attempts = {(attempt["phase"], attempt["outcome"]) for attempt in receipts[-1]["attempts"]}
         assert {("memory", "applied"), ("harness", "applied")} <= attempts, receipts[-1]

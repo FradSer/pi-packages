@@ -5,7 +5,7 @@ import { runPiWorker, type PiWorkerUsage } from "@fradser/pi-kit";
 import { isMemoryFilename } from "./memory-files";
 import { MAX_MEMORY_BYTES, MAX_MEMORY_FILES, sha256Digest, writeFileAtomic } from "./consolidation-run";
 import { resolveMemoryPaths } from "./memory-paths";
-import { buildMemorySelectorPrompt } from "./planner-prompts";
+import { buildMemorySelectorPrompt, learningPlannerArgs } from "./planner-prompts";
 
 const MAX_TASK_SLICE_ENTRIES = 96;
 const MAX_TASK_SLICE_BYTES = 512_000;
@@ -14,11 +14,14 @@ const MAX_METADATA_DESCRIPTION_CHARS = 300;
 const MAX_METADATA_TYPE_CHARS = 80;
 const MAX_METADATA_PREFIX_BYTES = 8_192;
 const MAX_MEMORY_INDEX_BYTES = 512_000;
+const CONTINUATION_REQUEST = /^(?:(?:please\s+)?(?:continue|go\s+on|go\s+ahead|proceed|retry|try\s+again)(?:\s+please)?|(?:请)?(?:继续(?:执行)?|接着|重试)(?:吧)?)[.!?。！？]*$/iu;
 
 export interface TaskSlice {
   kind: "learning-task-slice";
   version: 1;
   entries: unknown[];
+  /** Whole original entries omitted to keep the serialized evidence bounded. */
+  omittedEntries?: number;
 }
 
 export interface MemoryMetadata {
@@ -93,37 +96,55 @@ function jsonBytes(value: unknown): number {
   return Buffer.byteLength(JSON.stringify(value), "utf8");
 }
 
-/** Extract exactly the newest completed user task from a session snapshot. */
+function isContinuationRequest(entry: unknown): boolean {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
+  const record = entry as Record<string, unknown>;
+  const message = record.message && typeof record.message === "object" && !Array.isArray(record.message)
+    ? record.message as Record<string, unknown> : record;
+  const content = message.content;
+  const text = typeof content === "string" ? content : Array.isArray(content)
+    ? content.flatMap(block => block && typeof block === "object" && block.type === "text" && typeof block.text === "string" ? [block.text] : []).join("\n")
+    : "";
+  return CONTINUATION_REQUEST.test(text.trim());
+}
+
+/** Keep explicit continuation chains, without treating a new substantive request as the same task. */
 export function currentTaskSlice(entries: readonly unknown[]): TaskSlice {
   const userIndexes = entries
     .map((entry, index) => entryRole(entry) === "user" ? index : -1)
     .filter((index) => index >= 0);
   if (userIndexes.length === 0) return { kind: "learning-task-slice", version: 1, entries: [] };
 
-  let start = userIndexes[userIndexes.length - 1];
-  if (start === entries.length - 1 && userIndexes.length > 1) start = userIndexes[userIndexes.length - 2];
-  let end = entries.length;
-  for (let index = start + 1; index < entries.length; index += 1) {
-    if (entryRole(entries[index]) === "user") {
-      end = index;
-      break;
-    }
+  let userPosition = userIndexes.length - 1;
+  if (userIndexes[userPosition] === entries.length - 1 && userPosition > 0) userPosition -= 1;
+  const end = userIndexes[userPosition + 1] ?? entries.length;
+  while (userPosition > 0 && isContinuationRequest(entries[userIndexes[userPosition]])) {
+    userPosition -= 1;
   }
-  const taskEntries = entries.slice(start, end);
-  if (taskEntries.length <= MAX_TASK_SLICE_ENTRIES && jsonBytes(taskEntries) <= MAX_TASK_SLICE_BYTES) {
-    return { kind: "learning-task-slice", version: 1, entries: [...taskEntries] };
+  const taskEntries = entries.slice(userIndexes[userPosition], end);
+  const slice: TaskSlice = { kind: "learning-task-slice", version: 1, entries: taskEntries };
+  if (taskEntries.length <= MAX_TASK_SLICE_ENTRIES && jsonBytes(slice) <= MAX_TASK_SLICE_BYTES) return slice;
+
+  // Reserve the entire JSON envelope, including omission metadata. Preserve
+  // source entries byte-for-byte: clipping their text could alter quote evidence.
+  const envelopeBytes = jsonBytes({ ...slice, entries: [], omittedEntries: taskEntries.length });
+  let bytes = envelopeBytes + jsonBytes(taskEntries[0]);
+  if (bytes > MAX_TASK_SLICE_BYTES) {
+    throw new Error(`Original task request exceeds the ${MAX_TASK_SLICE_BYTES}-byte learning evidence limit.`);
   }
-  const head: unknown[] = [];
-  let totalBytes = 0;
-  const finalEntry = taskEntries.at(-1);
-  const finalBytes = finalEntry === undefined ? 0 : jsonBytes(finalEntry);
-  for (const entry of taskEntries.slice(0, -1)) {
-    const bytes = jsonBytes(entry);
-    if (head.length >= MAX_TASK_SLICE_ENTRIES - 1 || totalBytes + bytes + finalBytes > MAX_TASK_SLICE_BYTES) break;
-    head.push(entry);
-    totalBytes += bytes;
+  const selected = new Set([0]);
+  // Prefer the result and recent verification over early exploratory output.
+  for (let index = taskEntries.length - 1; index > 0 && selected.size < MAX_TASK_SLICE_ENTRIES; index -= 1) {
+    const size = jsonBytes(taskEntries[index]) + 1; // Array separator.
+    if (bytes + size > MAX_TASK_SLICE_BYTES) continue;
+    selected.add(index);
+    bytes += size;
   }
-  return { kind: "learning-task-slice", version: 1, entries: finalEntry === undefined ? head : [...head, finalEntry] };
+  return {
+    ...slice,
+    entries: taskEntries.filter((_entry, index) => selected.has(index)),
+    omittedEntries: taskEntries.length - selected.size,
+  };
 }
 
 function frontmatterValue(content: string, key: string, maxChars: number): string {
@@ -282,40 +303,56 @@ function isExactKeys(value: Record<string, unknown>): boolean {
   return Object.keys(value).sort().join("\0") === expected.join("\0");
 }
 
+type ParsedSelection = { ok: true; selection: MemorySelection } | { ok: false; error: string };
+
 function parseSelectionObject(
   raw: string,
   contextDigest: string,
   available: ReadonlyMap<string, string>,
-): MemorySelection | undefined {
+): ParsedSelection {
   try {
     const value = JSON.parse(raw) as Record<string, unknown>;
-    if (
-      !value || typeof value !== "object" || Array.isArray(value) ||
-      !isExactKeys(value) ||
-      value.kind !== "incremental-memory-selection" ||
-      value.version !== 1 ||
-      value.contextDigest !== contextDigest ||
-      !Array.isArray(value.selected) ||
-      typeof value.memory !== "boolean" ||
-      typeof value.harness !== "boolean" ||
-      typeof value.agents !== "boolean" ||
-      typeof value.reason !== "string" ||
-      value.reason.length > MAX_SELECTOR_REASON_CHARS
-    ) return undefined;
+    if (!value || typeof value !== "object" || Array.isArray(value) || !isExactKeys(value)) {
+      return { ok: false, error: "fields do not match the selection schema" };
+    }
+    if (value.kind !== "incremental-memory-selection" || value.version !== 1) {
+      return { ok: false, error: "kind or version does not match the selection schema" };
+    }
+    if (value.contextDigest !== contextDigest) {
+      return { ok: false, error: "context digest does not match this run" };
+    }
+    if (!Array.isArray(value.selected)) return { ok: false, error: "selected must be an array" };
+    if (typeof value.memory !== "boolean" || typeof value.harness !== "boolean" || typeof value.agents !== "boolean") {
+      return { ok: false, error: "phase routing flags must be booleans" };
+    }
+    if (typeof value.reason !== "string" || value.reason.length > MAX_SELECTOR_REASON_CHARS) {
+      return { ok: false, error: `reason must be a string of at most ${MAX_SELECTOR_REASON_CHARS} characters` };
+    }
 
     const selected: string[] = [];
     const seen = new Set<string>();
     for (const rawName of value.selected) {
-      if (typeof rawName !== "string" || !isMemoryFilename(rawName)) return undefined;
+      if (typeof rawName !== "string" || !isMemoryFilename(rawName)) {
+        return { ok: false, error: "selected contains an invalid Memory filename" };
+      }
       const lower = rawName.toLowerCase();
       const exact = available.get(lower);
-      if (!exact || exact !== rawName || seen.has(lower)) return undefined;
+      if (!exact || exact !== rawName) {
+        return { ok: false, error: "selected filename is not an exact indexed Memory name" };
+      }
+      if (seen.has(lower)) return { ok: false, error: "selected contains a duplicate Memory filename" };
       seen.add(lower);
       selected.push(rawName);
     }
-    return { ...value, selected } as unknown as MemorySelection;
+    return {
+      ok: true,
+      selection: {
+        kind: value.kind, version: value.version, contextDigest, selected,
+        memory: value.memory, harness: value.harness, agents: value.agents, reason: value.reason,
+      },
+    };
   } catch {
-    return undefined;
+    return { ok: false, error: "selection is not valid JSON" };
   }
 }
 
@@ -323,9 +360,9 @@ function parseSelection(
   text: string,
   contextDigest: string,
   available: ReadonlyMap<string, string>,
-): MemorySelection | undefined {
+): ParsedSelection {
   const objects = balancedObjects(text);
-  if (objects.length !== 1) return undefined;
+  if (objects.length !== 1) return { ok: false, error: "expected exactly one JSON object" };
   return parseSelectionObject(objects[0], contextDigest, available);
 }
 
@@ -406,7 +443,7 @@ export async function selectIncrementalLearning(input: {
     "- Do not use tools, read Memory bodies, inspect read paths, or perform repository discovery.",
     "- Return delta-routing selection only; never propose or request full-corpus exploration.",
   ].join("\n");
-  const prompt = buildMemorySelectorPrompt({ task });
+  const prompt = buildMemorySelectorPrompt({ task, contextDigest: input.contextDigest });
   const result = await runPiWorker({
     prompt,
     cwd: input.cwd,
@@ -414,20 +451,22 @@ export async function selectIncrementalLearning(input: {
     model: input.model,
     signal: input.signal,
     minimal: true,
+    extraArgs: learningPlannerArgs(),
   });
   const durationMs = Date.now() - startedAt;
   if (result.cancelled) return { outcome: "cancelled", durationMs, usage: result.usage, error: result.stderr };
   if (result.exitCode !== 0) return { outcome: "failed", durationMs, usage: result.usage, error: result.stderr };
 
-  const selection = parseSelection(result.text, input.contextDigest, available);
-  if (!selection) {
+  const parsed = parseSelection(result.text, input.contextDigest, available);
+  if (!parsed.ok) {
     return {
       outcome: "failed",
       durationMs,
       usage: result.usage,
-      error: "selector returned an invalid or ambiguous incremental selection",
+      error: `selector rejected: ${parsed.error}`,
     };
   }
+  const selection = parsed.selection;
 
   const dossier = await buildDossier(input.contextDigest, input.taskSlice, selection, indexed, input.registeredSkills ?? []);
   if (!dossier) {

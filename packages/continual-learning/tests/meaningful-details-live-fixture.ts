@@ -3,18 +3,35 @@ import assert from "node:assert/strict";
 import { appendFileSync } from "node:fs";
 import { stripVTControlCharacters } from "node:util";
 import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
-import type { EntryRenderer, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { EntryRenderer, ExtensionAPI, MessageRenderer } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import registerGuardrails from "../extensions/guardrails.ts";
 import registerOutputChecks from "../extensions/output-checks.ts";
 import registerHarnessGuidance from "../extensions/harness-guidance.ts";
 import { HARNESS_GUIDANCE_ENTRY_TYPE } from "../extensions/harness-guidance-planner.ts";
+import registerMemory from "../extensions/inject-memory.ts";
+import { buildLearningReceipt } from "../extensions/learning-efficiency.ts";
 
 export default function (pi: ExtensionAPI): void {
   const snapshots = process.env.PI_DETAILS_LIVE_SNAPSHOTS;
   assert.ok(snapshots, "An isolated renderer snapshot path is required");
   const registered: ExtensionAPI = {
     ...pi,
+    registerMessageRenderer<T>(customType: string, renderer: MessageRenderer<T>) {
+      pi.registerMessageRenderer<T>(customType, (message, options, theme) => {
+        const component = renderer(message, options, theme);
+        if (!component) return component;
+        const render = component.render.bind(component);
+        component.render = (width) => {
+          const lines = render(width);
+          assert.ok(lines.every((line) => visibleWidth(line) <= width));
+          appendFileSync(snapshots, JSON.stringify({ kind: "render", customType, data: message.details,
+            expanded: options.expanded, width, lines: lines.map(stripVTControlCharacters) }) + "\n");
+          return lines;
+        };
+        return component;
+      });
+    },
     registerEntryRenderer<T>(customType: string, renderer: EntryRenderer<T>) {
       pi.registerEntryRenderer<T>(customType, (entry, options, theme) => {
         const component = renderer(entry, options, theme);
@@ -36,7 +53,22 @@ export default function (pi: ExtensionAPI): void {
   registerGuardrails(registered);
   registerOutputChecks(registered);
   registerHarnessGuidance(registered);
-  pi.on("session_start", () => {
+  registerMemory(registered);
+  pi.on("session_start", (_event, ctx) => {
+    const select = ctx.ui.select.bind(ctx.ui);
+    ctx.ui.select = async (...args) => {
+      appendFileSync(snapshots, JSON.stringify({ kind: "menu", title: args[0], options: args[1] }) + "\n");
+      return select(...args);
+    };
+    const notify = ctx.ui.notify.bind(ctx.ui);
+    ctx.ui.notify = (message, type) => {
+      appendFileSync(snapshots, JSON.stringify({ kind: "notification", message, type }) + "\n");
+      notify(message, type);
+    };
+    const receipt = buildLearningReceipt("automatic", { memory: false, harness: false, agents: true, reasons: ["instruction-evidence"] },
+      [{ phase: "agents", attempt: 0, outcome: "applied", durationMs: 10, operations: 1 }]);
+    pi.sendMessage({ customType: "continual-learning-result", content: "Learning result", display: true, details: receipt });
+    appendFileSync(snapshots, JSON.stringify({ kind: "entry", customType: "continual-learning-result", data: receipt }) + "\n");
     const entries = [
       { customType: "harness-event", data: {
         kind: "policy-matched", policy: "approved-report", action: "confirm", outcome: "allowed once", tool: "write",

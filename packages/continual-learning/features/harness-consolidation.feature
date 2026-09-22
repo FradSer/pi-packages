@@ -98,6 +98,12 @@ Feature: Harness consolidation alongside memory consolidation
     When the parent extracts the plan
     Then the plan is rejected before any validation of its operations
 
+  Scenario: Later plans tolerate surrounding prose without weakening identity
+    Given the assistant returns one complete Harness or AGENTS.md JSON plan surrounded by prose
+    When the shared parser extracts the plan
+    Then it accepts the complete object with the current parent identity
+    But ambiguous objects and stale identity values remain rejected
+
   Scenario: Application targets only the project layer atomically
     Given a schema-valid harness plan
     When the parent applies it

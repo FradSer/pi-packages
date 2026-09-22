@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "baseline": { "rules": [] },
+  "candidate": {
+    "rules": [
+      { "id": "retired-compiler", "bash": "^retired-compiler\\s", "action": "block", "message": "Use the supported compiler." }
+    ]
+  },
+  "cases": [
+    { "id": "prohibited-build", "bash": "retired-compiler build", "expected": "block" },
+    { "id": "ordinary-test", "bash": "pnpm test", "expected": "execute" },
+    { "id": "quoted-name", "bash": "printf retired-compiler", "expected": "execute" }
+  ]
+}

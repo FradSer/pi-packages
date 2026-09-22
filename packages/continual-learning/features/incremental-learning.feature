@@ -2,6 +2,36 @@ Feature: Select the minimum sufficient scope for incremental learning
   Routine continual learning works from one completed task and bounded Memory
   metadata, then constructs one authoritative dossier without broad discovery.
 
+  Scenario: Explicit continuation retains the original task evidence
+    Given a task has an original request and tool evidence
+    And the user says continue or retry, including a chain of such continuations
+    When the parent constructs the completed Task Slice
+    Then it includes the original request and evidence through the latest result
+    But a new substantive request and an undelivered queued request do not extend that task
+
+  Scenario: Task evidence stays within its serialized byte bound
+    Given one task contains an oversized intermediate or final entry
+    When the parent constructs the Task Slice
+    Then its complete serialized object is at most 512000 UTF-8 bytes and 96 entries
+    And the original request is retained without changing evidence text
+    And omitted entries are explicitly counted
+    And fitting recent evidence and the final result are retained
+    But an original request that cannot fit fails explicitly before learning
+
+  Scenario: Explicit incremental consolidation always reaches selection
+    Given the current task has no automatic screening keywords
+    When the user invokes /consolidate
+    Then one incremental selector is called
+    And its no-op selection starts no delta planner
+    And no full-corpus fallback occurs
+
+  Scenario: Every selector exit releases its run
+    Given incremental selection fails, is cancelled, throws, or selects no phases
+    When that learning pipeline finishes
+    Then its project lock is released
+    And another consolidation in the same process can start
+    And session shutdown leaves no owned lock
+
   Scenario: The current task slice excludes history and a queued later task
     Given a session contains earlier completed tasks, one completed current task, and a queued later user task
     When the parent constructs the current Task Slice

@@ -626,5 +626,5 @@ console.log(JSON.stringify({workerExited,notices}));
         )
         assert result.returncode == 0, result.stderr
         outcome = json.loads(result.stdout.strip().splitlines()[-1])
-        assert outcome["workerExited"]
+        assert outcome["workerExited"], outcome
         assert outcome["notices"] == []

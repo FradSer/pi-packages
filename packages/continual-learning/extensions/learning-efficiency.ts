@@ -4,7 +4,7 @@ import { fieldLine, type PiWorkerUsage } from "@fradser/pi-kit";
 
 export type LearningMode = "automatic" | "manual" | "full";
 export type LearningPhase = "selector" | "memory" | "harness" | "agents";
-export type LearningOutcome = "screened" | "skipped" | "noop" | "applied" | "rejected" | "failed" | "cancelled";
+export type LearningOutcome = "screened" | "skipped" | "noop" | "applied" | "proposed" | "rejected" | "failed" | "cancelled";
 
 export interface LearningScreen {
   memory: boolean;
@@ -27,6 +27,8 @@ const DURABLE_USER_PATTERN = /\b(prefer|always|never|must|should|require|decisio
 const CONSTRAINT_USER_PATTERN = /\b(?:never|do not|don['’]t|must not|should not|prohibit(?:ed|s|ing)?|always\s+block)\b|不要|禁止|不得|严禁|切勿/iu;
 const CORRECTION_PATTERN = /\b(wrong|instead|confirmed|retry)\b|不对|改成|而不是|确认|重试|纠正/iu;
 const AGENTS_PATTERN = /AGENTS\.md|instruction|workflow|process|convention|architecture|指令|流程|规范|架构/iu;
+const TOOL_FAILURE_PATTERN = /(?:^|\n)\s*(?:error|fatal)\s*:|\b(?:build|compilation|tests?|checks?)\b[^\n]{0,80}\bfailed\b|(?:构建|编译|测试|检查)失败/iu;
+const VERIFICATION_SUCCESS_PATTERN = /\b(?:build|compilation|tests?|checks?)\b[^\n]{0,80}\b(?:passed|succeeded|successful)\b|(?:^|\n)\s*\d+ passed\b|(?:构建|编译|测试|检查)(?:成功|通过)/iu;
 
 export function snapshotEntries(ctx: { sessionManager?: { buildContextEntries?: () => readonly unknown[]; getBranch?: () => readonly unknown[] } }): readonly unknown[] {
   const manager = ctx.sessionManager;
@@ -64,6 +66,28 @@ function collectText(value: unknown): string {
   return [record.text, record.content, record.message, record.reason, record.error].map(collectText).join("\n");
 }
 
+/** A recovery is a candidate for review, not proof of a durable lesson. */
+function hasVerifiedToolRecovery(entries: readonly unknown[]): boolean {
+  let failure: { toolName: unknown } | undefined;
+  let recovered = false;
+  for (const entry of entries) {
+    if (entryRole(entry) !== "toolResult") continue;
+    const record = entry as Record<string, unknown>;
+    const message = record.message && typeof record.message === "object" && !Array.isArray(record.message)
+      ? record.message as Record<string, unknown> : record;
+    const details = message.details && typeof message.details === "object"
+      ? message.details as Record<string, unknown> : undefined;
+    const text = collectText(message.content);
+    if (message.isError === true || (typeof details?.exitCode === "number" && details.exitCode !== 0) || TOOL_FAILURE_PATTERN.test(text)) {
+      failure = { toolName: message.toolName };
+      recovered = false;
+    } else if (failure && (!failure.toolName || !message.toolName || failure.toolName === message.toolName) && VERIFICATION_SUCCESS_PATTERN.test(text)) {
+      recovered = true;
+    }
+  }
+  return recovered;
+}
+
 export function screenLearningEntries(entries: readonly unknown[], mode: LearningMode): LearningScreen {
   if (mode === "full") return { memory: true, harness: true, agents: true, reasons: ["manual-full"] };
   if (mode === "manual") return { memory: true, harness: true, agents: true, reasons: ["manual-incremental"] };
@@ -75,11 +99,12 @@ export function screenLearningEntries(entries: readonly unknown[], mode: Learnin
   const harnessEvent = toolTexts.some((text) => /blocked|confirm|violation|policy|harness|isError/iu.test(text));
   const agents = userTexts.some((text) => CORRECTION_PATTERN.test(text) && AGENTS_PATTERN.test(text));
   const harness = constraint || correction || harnessEvent;
+  const recovery = hasVerifiedToolRecovery(entries);
   return {
-    memory: durable,
+    memory: durable || recovery,
     harness,
     agents,
-    reasons: [durable ? "durable-user-evidence" : "no-durable-memory-evidence", harness ? "constraint-evidence" : "no-harness-evidence", agents ? "instruction-evidence" : "no-agents-evidence"],
+    reasons: [durable ? "durable-user-evidence" : recovery ? "verified-tool-recovery" : "no-durable-memory-evidence", harness ? "constraint-evidence" : "no-harness-evidence", agents ? "instruction-evidence" : "no-agents-evidence"],
   };
 }
 
@@ -169,7 +194,7 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
   const receipt = value as Partial<LearningPipelineReceipt>;
   const modes: LearningMode[] = ["automatic", "manual", "full"];
   const phases: LearningPhase[] = ["selector", "memory", "harness", "agents"];
-  const outcomes: LearningOutcome[] = ["screened", "skipped", "noop", "applied", "rejected", "failed", "cancelled"];
+  const outcomes: LearningOutcome[] = ["screened", "skipped", "noop", "applied", "proposed", "rejected", "failed", "cancelled"];
   const screen = receipt.screen as Partial<LearningScreen> | undefined;
   return receipt.kind === "learning-pipeline-receipt" && receipt.version === 1 &&
     typeof receipt.mode === "string" && modes.includes(receipt.mode as LearningMode) &&
@@ -179,7 +204,7 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
     validUsage(receipt.totals) && finiteNumber(receipt.operations) && typeof receipt.retries === "number" && Number.isSafeInteger(receipt.retries) && receipt.retries >= 0 && typeof receipt.costAvailable === "boolean";
 }
 
-function surfaceCount(receipt: LearningPipelineReceipt, phase: "memory" | "harness"): number {
+function surfaceCount(receipt: LearningPipelineReceipt, phase: "memory" | "harness" | "agents"): number {
   return receipt.attempts
     .filter((attempt) => attempt.phase === phase && attempt.outcome === "applied")
     .reduce((total, attempt) => total + attempt.operations, 0);
@@ -192,11 +217,14 @@ function surfaceLabel(count: number, singular: string, plural: string): string {
 export function learningSummarySubject(receipt: LearningPipelineReceipt): string {
   const memory = surfaceCount(receipt, "memory");
   const harness = surfaceCount(receipt, "harness");
+  const agents = surfaceCount(receipt, "agents");
   const surfaces = [
     ...(memory > 0 ? [surfaceLabel(memory, "memory", "memories")] : []),
     ...(harness > 0 ? [surfaceLabel(harness, "harness change", "harness changes")] : []),
+    ...(agents > 0 ? [surfaceLabel(agents, "AGENTS.md change", "AGENTS.md changes")] : []),
   ];
   if (surfaces.length > 0) return `${surfaces.join(" and ")} applied`;
+  if (receipt.attempts.some(attempt => attempt.outcome === "proposed")) return "proposals saved for review";
   if (receipt.attempts.some((attempt) => attempt.outcome === "failed" || attempt.outcome === "rejected")) return "finished with issues";
   return "no durable changes";
 }

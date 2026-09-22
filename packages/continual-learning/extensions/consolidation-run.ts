@@ -734,12 +734,12 @@ export async function normalizeMirrorDrift(memory: MemoryPaths): Promise<MirrorN
   return { repaired: [...repairLog.values()].sort((left, right) => left.name.localeCompare(right.name)), removed: [...removed].sort() };
 }
 
-export async function createConsolidationRun(ctx: ExtensionContext, cwd: string, noContext = false): Promise<ConsolidationRun> {
+export async function createConsolidationRun(ctx: ExtensionContext, cwd: string, noContext = false, normalization: typeof normalizeMirrorDrift | false = normalizeMirrorDrift): Promise<ConsolidationRun> {
   const paths = resolveConsolidationRunPaths(cwd);
   const lock = await acquireConsolidationLock(paths, { runId: paths.runId, cwd });
   try {
     await ensureConsolidationRunDir(paths);
-    const normalization = await normalizeMirrorDrift(paths.memory);
+    const normalized = normalization ? await normalization(paths.memory) : { repaired: [], removed: [] };
     const captured = noContext ? undefined : await captureConsolidationSnapshot(ctx, paths);
     const contextManifest = captured?.manifest ?? await writeNoContextManifest(paths);
     const snapshot = captured?.snapshot ?? {
@@ -764,7 +764,7 @@ export async function createConsolidationRun(ctx: ExtensionContext, cwd: string,
       sourceHashes: { harness: await hashMemoryRoot(paths.memory.harnessDir), public: paths.memory.publicDir ? await hashMemoryRoot(paths.memory.publicDir) : {} },
     };
     await writeJsonAtomic(paths.manifestFile, manifest);
-    return { manifest, paths, lockPath: paths.lockFile, lock, released: false, normalization };
+    return { manifest, paths, lockPath: paths.lockFile, lock, released: false, normalization: normalized };
   } catch (error) {
     await lock.release(); await removeConsolidationRunDir(paths); throw error;
   }
@@ -917,7 +917,7 @@ function parseJsonCandidate(text: string): unknown | undefined {
   const candidates = balancedJsonObjects(trimmed)
     .map(parsedObject)
     .filter((value): value is Record<string, unknown> => Boolean(value))
-    .filter((value) => value.kind === "memory-consolidation-plan" || value.type === "memory-consolidation-plan" || value.kind === "incremental-memory-plan");
+    .filter((value) => value.kind === "memory-consolidation-plan" || value.type === "memory-consolidation-plan" || value.kind === "incremental-memory-plan" || value.kind === "harness-consolidation-plan" || value.kind === "agents-md-consolidation-plan");
   return candidates.length === 1 ? candidates[0] : undefined;
 }
 

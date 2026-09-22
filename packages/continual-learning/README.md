@@ -23,7 +23,11 @@ pi install npm:pi-continual-learning
 
 | Command | Purpose |
 | --- | --- |
-| `/memory` | Manage model, instructions, memory folder, and auto-memory |
+| `/memory` | Manage model, instructions, memory folder, auto-memory, phase policies and history |
+| `/memory policy [memory\|harness\|agents] [apply\|propose\|off]` | Inspect or set automatic learning policy for one phase |
+| `/memory history [change-id]` | Inspect private project change history or a recorded proposal |
+| `/memory undo <change-id> [--yes]` | Restore one applied change after preview and conflict checks; headless use requires `--yes` |
+| `/memory evaluate <suite.json>` | Compare supplied baseline/candidate rules against independent cases, without model calls |
 | `/consolidate` | Learn incrementally from the current completed Task Slice |
 | `/consolidate full` | Explicit full-corpus maintenance |
 | `/consolidate no-context` | Full Memory maintenance without task evidence; skips Harness and AGENTS.md |
@@ -206,6 +210,72 @@ train themselves. Print/JSON sessions await completion and receipts. Turning
 auto-memory off stops learning without disabling Memory retrieval. Receipts count
 every selector/planner attempt, applied operations, duration, input/output tokens,
 cache reads/writes, and provider cost availability.
+
+An explicit `/consolidate` always reaches selection, including tasks without
+automatic-screen keywords. Explicit continuation prompts retain the original
+request and its evidence. Task slices preserve complete entries within their byte
+budget, report omitted entries, and reject an oversized original request rather
+than clipping evidence. A failed tool invocation followed by a successful check
+is eligible for Memory review; the planner still must justify a durable lesson.
+
+### Phase policies and history
+
+All three automatic phases default to `apply`, preserving existing behavior.
+`propose` validates and saves a private plan without changing learned files;
+`off` skips that phase. For example, `/memory policy harness propose` leaves
+automatic Memory and AGENTS.md behavior unchanged. Policies are stored in
+`<agent-dir>/memory/settings.json` under `automaticPhases`, keyed by `memory`,
+`harness` and `agents`. Explicit `/consolidate` and full maintenance still apply
+validated current plans; the existing `agentsMd.disabled` setting remains
+authoritative. AGENTS extraction is saved as a proposal if it would write to
+a Memory or Harness phase configured to propose or off.
+
+Applied mutations and proposals are recorded privately under
+`<agent-dir>/memory/history/<escaped-canonical-cwd>/`. History includes exact
+before/after bytes, including indexes and mirror repairs. `/memory history`
+lists the latest 50 records; passing an id shows a bounded preview. Proposal
+records are inspection artifacts; running `/consolidate` creates a fresh plan
+against current evidence instead of replaying a stale proposal.
+
+Undo requires all affected files to match the recorded successor, validates
+project scope and Memory privacy, and runs under the consolidation lock. It
+refuses later edits, symlinks and invalid records. TUI use confirms a concrete
+preview; headless use requires the id and `--yes`. Interrupted undo is recovered
+to the applied state on the next learning session, unless an unrelated edit
+requires inspection. Pending records from failed mutations cannot be undone.
+If an interrupted mutation leaves bytes or permissions different from its recorded
+predecessors, subsequent learning stops with a history id for inspection. Existing
+AGENTS.md transaction recovery runs first. Reconcile these files to their exact
+predecessors after review to resume; the incomplete record becomes `abandoned`.
+Unknown current bytes are never automatically attributed to learning or overwritten.
+History rejects detected sensitive values in proposals and file snapshots.
+Older changes made before history was installed have no undo record.
+
+### Independent learning evaluation
+
+`/memory evaluate examples/learning-evaluation.json` compares embedded baseline
+and candidate Harness configurations against user-authored held-out cases.
+The report includes accuracy, false blocks, missed protections, regressions and
+configuration/suite digests. Cases support Bash decisions and skill/text matches.
+No commands or models execute. These cases are independent of a planner's own
+validation examples; passing them measures the configured rules, not model quality.
+
+For an explicit paired model-task experiment, run from this package directory:
+
+```bash
+uv run --no-project scripts/evaluate-learning.py examples/learning-task-evaluation.json --validate
+uv run --no-project scripts/evaluate-learning.py examples/learning-task-evaluation.json --model <provider/model> --output /tmp/learning-evaluation.json
+```
+
+Each task runs once per arm in a fresh disposable Git project with supplied Memory
+snapshots, automatic learning disabled, and only the read tool. Authentication is
+copied privately from the configured agent directory; the source is unchanged.
+The report includes literal-answer success, regressions, latency and observed
+token usage/cost; missing prices remain unavailable. Output files are private and
+never overwritten. Without `--model`, the configured `memory.json` model is used.
+The included synthetic example verifies retrieval plumbing; use representative
+held-out tasks for your project. One paired sample per task does not establish
+statistical improvement, and this experiment does not test Bash enforcement.
 
 ## Memory
 

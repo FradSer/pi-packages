@@ -63,13 +63,20 @@ const INCREMENTAL_MEMORY_PROMPT = loadPrompt("incremental-memory-consolidator");
 const MEMORY_PROMPT = loadPrompt("memory-consolidator");
 const HARNESS_PROMPT = loadPrompt("harness-consolidator");
 const AGENTS_MD_PROMPT = loadPrompt("agents-md-consolidator");
+const PLANNER_SYSTEM_PROMPT = loadPrompt("planner-system");
+
+export function learningPlannerArgs(): string[] {
+  return ["--append-system-prompt", PLANNER_SYSTEM_PROMPT];
+}
 
 export interface MemorySelectorPromptBindings {
   task: string;
+  contextDigest: string;
 }
 
 export function buildMemorySelectorPrompt(bindings: MemorySelectorPromptBindings): string {
-  return renderPlannerPromptTemplate(MEMORY_SELECTOR_PROMPT, ["TASK"] as const, {
+  return renderPlannerPromptTemplate(MEMORY_SELECTOR_PROMPT, ["CONTEXT_DIGEST", "TASK"] as const, {
+    CONTEXT_DIGEST: bindings.contextDigest,
     TASK: bindings.task,
   });
 }

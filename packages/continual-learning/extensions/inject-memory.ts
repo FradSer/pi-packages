@@ -64,11 +64,15 @@ import { resolveMemoryPaths } from "./memory-paths";
 import {
   buildIncrementalMemoryConsolidatorPrompt,
   buildMemoryConsolidatorPrompt,
+  learningPlannerArgs,
 } from "./planner-prompts";
 import { registerAutomaticLearning } from "./automatic-learning";
 import { buildLearningReceipt, formatLearningSummary, isLearningPipelineReceipt, learningSummaryDetails, learningSummarySubject, screenLearningEntries, shouldRetryPlanner, snapshotEntries, writeLearningReceipt, type LearningAttempt, type LearningMode, type LearningPipelineReceipt, type LearningScreen } from "./learning-efficiency";
 import { currentTaskSlice, selectIncrementalLearning } from "./incremental-learning";
 import { expandIncrementalMemoryPlan } from "./incremental-memory-plan";
+import { automaticPhasePolicies, type PhasePolicies } from "./learning-controls";
+import { checkPendingLearningMutations, memoryMutationFiles, normalizeTrackedMemory, recordLearningMutation, recordLearningProposal, recoverLearningUndo } from "./learning-history";
+import { handleLearningManagement } from "./learning-management";
 import {
   DEFAULT_AGENTS_MD_BUDGET_BYTES,
   MAX_AGENTS_MD_FILE_BYTES,
@@ -79,7 +83,9 @@ import {
 } from "./agents-md-consolidation";
 import { applyHarnessConsolidationPlan, planHarnessConsolidationPhase, shouldRunHarnessPhase } from "./harness-consolidation";
 import {
+  acquireConsolidationLock,
   applyConsolidationPlan,
+  containsSensitiveMemoryMaterial,
   sha256Digest,
   terminateConsolidationChild,
   createConsolidationReceipt,
@@ -93,6 +99,7 @@ import {
   MAX_STDOUT_BYTES,
   MAX_STDERR_BYTES,
   releaseConsolidationRun,
+  resolveConsolidationRunPaths,
   writeConsolidationReceipt,
   writeFileAtomic,
   snapshotSessionContext,
@@ -108,6 +115,7 @@ export { projectScopeKey, resolveMemoryPaths } from "./memory-paths";
 
 interface MemorySettings {
   autoMemory: boolean;
+  automaticPhases?: Partial<PhasePolicies>;
   /** AGENTS.md consolidation phase controls; absent means defaults (on). */
   agentsMd?: {
     disabled?: boolean;
@@ -146,6 +154,7 @@ async function readSettings(cwd = process.cwd()): Promise<MemorySettings> {
     }
     return {
       autoMemory: parsed.autoMemory === false ? false : true,
+      ...(parsed.automaticPhases !== undefined ? { automaticPhases: parsed.automaticPhases } : {}),
       ...(agentsMd !== undefined ? { agentsMd } : {}),
     };
   } catch {
@@ -652,6 +661,7 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
     model: input.model,
     signal: input.signal,
     minimal: true,
+    extraArgs: learningPlannerArgs(),
   });
   const durationMs = Date.now() - startedAt;
   if (result.cancelled) return { outcome: "cancelled", durationMs, usage: result.usage, error: result.stderr };
@@ -859,6 +869,7 @@ async function spawnAsyncConsolidation(
     dossierPath?: string;
     dossierDigest?: string;
     selectedSourceDigest?: string;
+    applyChanges?: boolean;
   },
 ): Promise<boolean> {
   const attempt = opts.attempt ?? 0;
@@ -881,7 +892,7 @@ async function spawnAsyncConsolidation(
 
   let run: ConsolidationRun;
   try {
-    run = await createConsolidationRun(ctx, opts.cwd, opts.noContext);
+    run = await createConsolidationRun(ctx, opts.cwd, opts.noContext, opts.applyChanges === false ? false : normalizeTrackedMemory);
   } catch (err: unknown) {
     if (isGenerationCurrent()) {
       state.active = false;
@@ -894,24 +905,30 @@ async function spawnAsyncConsolidation(
     await releaseConsolidationRun(run);
     return false;
   }
-  if (incremental) {
-    if (!opts.dossierPath || !opts.dossierDigest || !opts.selectedSourceDigest) {
-      await releaseConsolidationRun(run);
-      throw new Error("incremental Memory run is missing its bound dossier state");
+  try {
+    if (incremental) {
+      if (!opts.dossierPath || !opts.dossierDigest || !opts.selectedSourceDigest) {
+        throw new Error("incremental Memory run is missing its bound dossier state");
+      }
+      const dossierBytes = await fs.readFile(opts.dossierPath);
+      if (sha256Digest(dossierBytes) !== opts.dossierDigest) {
+        throw new Error("incremental dossier changed after selection");
+      }
+      const currentSourceHashes = {
+        harness: await hashMemoryRoot(run.manifest.harnessDir),
+        public: run.manifest.publicDir ? await hashMemoryRoot(run.manifest.publicDir) : {},
+      };
+      if (sha256Digest(JSON.stringify(currentSourceHashes)) !== opts.selectedSourceDigest) {
+        throw new Error("selected Memory changed after incremental selection");
+      }
     }
-    const dossierBytes = await fs.readFile(opts.dossierPath);
-    if (sha256Digest(dossierBytes) !== opts.dossierDigest) {
-      await releaseConsolidationRun(run);
-      throw new Error("incremental dossier changed after selection");
+  } catch (error) {
+    await releaseConsolidationRun(run);
+    if (isGenerationCurrent()) {
+      state.active = false;
+      state.outcome = "failed";
     }
-    const currentSourceHashes = {
-      harness: await hashMemoryRoot(run.manifest.harnessDir),
-      public: run.manifest.publicDir ? await hashMemoryRoot(run.manifest.publicDir) : {},
-    };
-    if (sha256Digest(JSON.stringify(currentSourceHashes)) !== opts.selectedSourceDigest) {
-      await releaseConsolidationRun(run);
-      throw new Error("selected Memory changed after incremental selection");
-    }
+    throw error;
   }
   state.run = run;
   runModeById.set(run.manifest.runId, opts.mode ?? "manual");
@@ -1008,6 +1025,7 @@ async function spawnAsyncConsolidation(
         ...cli.args,
         ...minimalPiWorkerArgs(incremental ? ["read"] : ["read", "grep", "find", "ls"]),
         ...modelArgs,
+        ...learningPlannerArgs(),
         `@${taskFile}`,
       ],
       { cwd: opts.cwd, env: workerEnv, stdio: ["ignore", "pipe", "pipe"] },
@@ -1138,6 +1156,7 @@ async function spawnAsyncConsolidation(
   let failureRecorded = false;
   let mutatedMemory = false;
   let appliedOperationCount = 0;
+  let proposed = false;
   let timedOut = false;
   let repairAttempt: LearningAttempt | undefined;
   /** Full maintenance retains the existing fresh-planner retry. Incremental
@@ -1304,6 +1323,13 @@ async function spawnAsyncConsolidation(
           if (!ownsCurrentRun()) return;
           await runConsolidationValidator(opts.pkgDir, run, planPath, "plan", expectedSelected);
           if (!ownsCurrentRun()) return;
+          if (opts.applyChanges === false) {
+            const candidate = plan as { operations?: unknown[]; newMemories?: unknown[] };
+            proposed = (candidate.operations?.length ?? 0) + (candidate.newMemories?.length ?? 0) > 0;
+            if (proposed) await recordLearningProposal(opts.cwd, "memory", plan);
+            state.outcome = "completed";
+            return;
+          }
           const preReceipt = createPreApplyReceipt({
             runId: run.manifest.runId,
             scopeDigest: run.manifest.scopeDigest,
@@ -1316,7 +1342,9 @@ async function spawnAsyncConsolidation(
           await writeConsolidationReceipt(run, preReceipt, "pre");
           if (!ownsCurrentRun()) return;
           const mutationStartedAt = Date.now();
-          const applied = await applyConsolidationPlan(run, plan, ownsCurrentRun);
+          const memoryPlan = plan as { operations?: Array<{ name: string }>; newMemories?: Array<{ name: string }> };
+          const mutationFiles = memoryMutationFiles(opts.cwd, [...(memoryPlan.operations ?? []), ...(memoryPlan.newMemories ?? [])].map(operation => operation.name));
+          const applied = await recordLearningMutation(opts.cwd, "memory", mutationFiles, () => applyConsolidationPlan(run, plan, ownsCurrentRun), plan);
           mutatedMemory = true;
           const existingOperations = Array.isArray((plan as { operations?: unknown }).operations)
             ? (plan as { operations: unknown[] }).operations.length
@@ -1385,7 +1413,7 @@ async function spawnAsyncConsolidation(
           attempt,
           outcome: repairAttempt
             ? state.cancelled ? "cancelled" : "rejected"
-            : state.cancelled ? "cancelled" : state.outcome === "completed" ? appliedOperationCount > 0 ? "applied" : "noop" : state.outcome === "unverified" ? "rejected" : "failed",
+            : state.cancelled ? "cancelled" : state.outcome === "completed" ? proposed ? "proposed" : appliedOperationCount > 0 ? "applied" : "noop" : state.outcome === "unverified" ? "rejected" : "failed",
           durationMs: Date.now() - attemptStartedAt,
           operations: repairAttempt ? 0 : appliedOperationCount,
           usage: evidence.attemptUsage,
@@ -1394,7 +1422,7 @@ async function spawnAsyncConsolidation(
           repairAttempt.outcome = state.cancelled
             ? "cancelled"
             : state.outcome === "completed"
-              ? appliedOperationCount > 0 ? "applied" : "noop"
+              ? proposed ? "proposed" : appliedOperationCount > 0 ? "applied" : "noop"
               : state.outcome === "unverified" ? "rejected" : "failed";
           repairAttempt.operations = state.outcome === "completed" ? appliedOperationCount : 0;
           state.attempts?.push(repairAttempt);
@@ -1426,9 +1454,17 @@ async function startConsolidationPipeline(
 ): Promise<void> {
   if (state.pipeline) return state.pipeline;
   let pipelineScreen: LearningScreen | undefined;
+  let selectorRun: ConsolidationRun | undefined;
+  let acquiredLaterRun: ConsolidationRun | undefined;
   setDreamingWidget(ctx, opts.mode === "full" || opts.noContext ? "preparing full maintenance" : "selecting current task");
   state.cleanup = () => clearDreamingWidget(ctx);
   const pipeline = (async () => {
+    const recoveryLock = await acquireConsolidationLock(resolveConsolidationRunPaths(opts.cwd));
+    try { await recoverPendingAgentsMdConsolidations(opts.cwd); }
+    finally { await recoveryLock.release(); }
+    await recoverLearningUndo(opts.cwd);
+    await checkPendingLearningMutations(opts.cwd);
+    const policies = automaticPhasePolicies(await readSettings(opts.cwd), opts.mode);
     const fullMode = opts.mode === "full" || Boolean(opts.noContext);
     const completeEntries = snapshotEntries(ctx);
     const taskSlice = currentTaskSlice(completeEntries);
@@ -1436,8 +1472,9 @@ async function startConsolidationPipeline(
     const frozenContext = opts.noContext ? ctx : taskContext;
     const screen: LearningScreen = opts.noContext
       ? { memory: true, harness: false, agents: false, reasons: ["no-context"] }
-      : screenLearningEntries(taskSlice.entries, opts.mode === "full" ? "full" : "automatic");
+      : screenLearningEntries(taskSlice.entries, opts.mode);
     pipelineScreen = screen;
+    for (const phase of ["memory", "harness", "agents"] as const) if (policies[phase] === "off") screen[phase] = false;
     if (!screen.memory && !screen.harness && !screen.agents) {
       const receipt = buildLearningReceipt(opts.mode, screen, []);
       await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt);
@@ -1457,12 +1494,11 @@ async function startConsolidationPipeline(
       reportReceipt(receipt);
     };
     let incrementalSelection: Awaited<ReturnType<typeof selectIncrementalLearning>> | undefined;
-    let selectorRun: ConsolidationRun | undefined;
     let selectedSourceDigest: string | undefined;
     let appliedMemoryChanges = 0;
     if (!fullMode) {
       setDreamingActivity("selecting related memory");
-      selectorRun = await createConsolidationRun(frozenContext, opts.cwd, false);
+      selectorRun = await createConsolidationRun(frozenContext, opts.cwd, false, policies.memory === "apply" ? normalizeTrackedMemory : false);
       selectedSourceDigest = sha256Digest(JSON.stringify(selectorRun.manifest.sourceHashes));
       const selectorReceiptDirectory = resolveMemoryPaths(opts.cwd).runsDir;
       try {
@@ -1491,11 +1527,21 @@ async function startConsolidationPipeline(
         // The deterministic parent screen is authoritative for durable task
         // evidence; the selector may add phases but cannot suppress one the
         // parent already found.
+        if (opts.mode === "manual") {
+          // An explicit request always reaches selection, but does not force
+          // three planners when neither task evidence nor the selector needs them.
+          Object.assign(screen, screenLearningEntries(taskSlice.entries, "automatic"));
+          screen.reasons.unshift("manual-incremental");
+        }
         screen.memory = screen.memory || incrementalSelection.selection.memory;
         screen.harness = screen.harness || incrementalSelection.selection.harness;
         screen.agents = screen.agents || incrementalSelection.selection.agents;
+        for (const phase of ["memory", "harness", "agents"] as const) if (policies[phase] === "off") screen[phase] = false;
         if (screen.memory) {
-          await ensureEmptyIncrementalIndexes(opts.cwd, incrementalSelection.selection.selected);
+          if (policies.memory === "apply") {
+            const selected = incrementalSelection.selection.selected;
+            await recordLearningMutation(opts.cwd, "memory", memoryMutationFiles(opts.cwd, []), () => ensureEmptyIncrementalIndexes(opts.cwd, selected));
+          }
           const memoryPaths = resolveMemoryPaths(opts.cwd);
           const currentSourceHashes = {
             harness: await hashMemoryRoot(memoryPaths.harnessDir),
@@ -1522,6 +1568,7 @@ async function startConsolidationPipeline(
         dossierPath: incrementalSelection?.dossierPath,
         dossierDigest: incrementalSelection?.dossierDigest,
         selectedSourceDigest,
+        applyChanges: policies.memory === "apply",
       });
       if (!started) {
         if (!state.cancelled) {
@@ -1551,7 +1598,7 @@ async function startConsolidationPipeline(
       await writeCurrentReceipt();
       return;
     }
-    if (opts.mode === "automatic" && !screen.harness && !screen.agents) {
+    if (!screen.harness && !screen.agents) {
       await writeCurrentReceipt();
       return;
     }
@@ -1562,7 +1609,8 @@ async function startConsolidationPipeline(
       await releaseConsolidationRun(selectorRun, { keepArtifacts: true });
       selectorRun = undefined;
     }
-    const laterRun = await createConsolidationRun(frozenContext, opts.cwd, false);
+    const laterRun = await createConsolidationRun(frozenContext, opts.cwd, false, policies.memory === "apply" ? normalizeTrackedMemory : false);
+    acquiredLaterRun = laterRun;
     if (incrementalSelection?.dossierPath && incrementalSelection.dossierDigest) {
       const dossierBytes = await fs.readFile(incrementalSelection.dossierPath);
       if (sha256Digest(dossierBytes) !== incrementalSelection.dossierDigest) throw new Error("incremental dossier changed before later planning");
@@ -1606,9 +1654,21 @@ async function startConsolidationPipeline(
         attempts.push({ phase: "harness", attempt: 0, outcome: harnessPlan.ok ? "noop" : "failed", durationMs: harnessPlan.ok ? harnessPlan.value.durationMs : harnessPlan.durationMs, operations: harnessPlan.ok && Array.isArray(harnessPlan.value.plan.operations) ? harnessPlan.value.plan.operations.length : 0, usage: harnessPlan.ok ? harnessPlan.value.usage : harnessPlan.usage });
         if (!harnessPlan.ok && !state.cancelled) notifyPi(ctx.ui, `Harness learning failed: ${harnessPlan.detail.slice(-300)}`, "warning");
         if (harnessPlan.ok) {
-          const applied = await applyHarnessConsolidationPlan(harnessPlan.value, () => !state.cancelled);
-          attempts[attempts.length - 1].outcome = applied.outcome;
-          attempts[attempts.length - 1].operations = applied.outcome === "applied" ? applied.applied.length : 0;
+          if (policies.harness === "propose") {
+            const hasChanges = Array.isArray(harnessPlan.value.plan.operations) && harnessPlan.value.plan.operations.length > 0;
+            if (hasChanges) await recordLearningProposal(opts.cwd, "harness", harnessPlan.value.plan);
+            attempts[attempts.length - 1].outcome = hasChanges ? "proposed" : "noop";
+            attempts[attempts.length - 1].operations = 0;
+          } else {
+            const applied = await applyHarnessConsolidationPlan(harnessPlan.value, () => !state.cancelled);
+            attempts[attempts.length - 1].outcome = applied.outcome;
+            attempts[attempts.length - 1].operations = applied.outcome === "applied" ? applied.applied.length : 0;
+            if (applied.outcome === "rejected" && !state.cancelled) {
+              const detail = containsSensitiveMemoryMaterial(applied.error) ? "Sensitive diagnostic omitted" : applied.error.slice(0, 2000);
+              await writeFileAtomic(path.join(laterRun.manifest.runDir, "harness-error.txt"), detail);
+              notifyPi(ctx.ui, `Harness learning rejected: ${detail}`, "warning");
+            }
+          }
         }
       }
       if (agentsPlan) {
@@ -1625,12 +1685,22 @@ async function startConsolidationPipeline(
           notifyPi(ctx.ui, `AGENTS.md learning ${agentsPlan.outcome}: ${agentsPlan.detail ?? "no validated plan"}`, "warning");
         }
         if (agentsPlan.outcome === "planned") {
-          const applied = await applyAgentsMdConsolidationPlan(frozenContext, agentsState, {
-            pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills,
-            budgetBytes: settings.agentsMd?.budgetBytes ?? DEFAULT_AGENTS_MD_BUDGET_BYTES, disabled: false, ...exploration,
-          }, agentsPlan.planning, laterGeneration, () => !state.cancelled);
-          attempt.outcome = applied.outcome;
-          attempt.operations = applied.applied;
+          const operations = agentsPlan.planning.operations;
+          const memoryNames = operations.flatMap(operation => operation.extraction?.target === "memory" ? [operation.extraction.memoryName] : []);
+          const hasSkillExtraction = operations.some(operation => operation.extraction?.target === "skillRule");
+          const propose = policies.agents === "propose" || (memoryNames.length > 0 && policies.memory !== "apply") || (hasSkillExtraction && policies.harness !== "apply");
+          if (propose) {
+            await recordLearningProposal(opts.cwd, "agents", { ...agentsPlan.planning.rawPlan as object, operations });
+            attempt.outcome = "proposed";
+          } else {
+            const files = [agentsPlan.planning.targetPath, ...(memoryNames.length ? memoryMutationFiles(opts.cwd, memoryNames) : []), ...(hasSkillExtraction ? [path.join(opts.cwd, ".pi", "harness.json")] : [])];
+            const applied = await recordLearningMutation(opts.cwd, "agents", files, () => applyAgentsMdConsolidationPlan(frozenContext, agentsState, {
+              pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills,
+              budgetBytes: settings.agentsMd?.budgetBytes ?? DEFAULT_AGENTS_MD_BUDGET_BYTES, disabled: false, ...exploration,
+            }, agentsPlan.planning, laterGeneration, () => !state.cancelled), agentsPlan.planning.rawPlan);
+            attempt.outcome = applied.outcome;
+            attempt.operations = applied.applied;
+          }
         }
       }
       await writeCurrentReceipt(laterRun.manifest.runDir);
@@ -1638,7 +1708,15 @@ async function startConsolidationPipeline(
       state.laterStates = undefined;
       await releaseConsolidationRun(laterRun, { keepArtifacts: true });
     }
-  })().catch(async (error: unknown) => {
+  })().finally(async () => {
+    // Runs belong to the pipeline, including early selector returns and later
+    // preflight failures before a phase's own try/finally. Release is idempotent.
+    try {
+      if (selectorRun) await releaseConsolidationRun(selectorRun, { keepArtifacts: true });
+    } finally {
+      if (acquiredLaterRun) await releaseConsolidationRun(acquiredLaterRun, { keepArtifacts: true });
+    }
+  }).catch(async (error: unknown) => {
     state.outcome = "failed";
     if (!state.cancelled && pipelineScreen && (state.attempts?.length ?? 0) > 0) {
       const receipt = buildLearningReceipt(opts.mode, pipelineScreen, state.attempts ?? []);
@@ -1749,9 +1827,13 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     await stopPipeline();
     try {
-      await recoverPendingAgentsMdConsolidations(ctx.cwd || process.cwd());
+      const recoveryLock = await acquireConsolidationLock(resolveConsolidationRunPaths(ctx.cwd || process.cwd()));
+      try { await recoverPendingAgentsMdConsolidations(ctx.cwd || process.cwd()); }
+      finally { await recoveryLock.release(); }
+      await recoverLearningUndo(ctx.cwd || process.cwd());
+      await checkPendingLearningMutations(ctx.cwd || process.cwd());
     } catch (error) {
-      notifyPi(ctx.ui, `AGENTS.md recovery failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+      notifyPi(ctx.ui, `Learning recovery failed: ${error instanceof Error ? error.message : String(error)}`, "error");
     }
     memoryConfigState = safelyReadMemoryConfigState();
     memoryConfig = memoryConfigState.config;
@@ -1782,6 +1864,7 @@ export default function (pi: ExtensionAPI) {
     description: "Manage project memory: model, instructions, memory folder, consolidation",
     handler: async (args, ctx) => {
       const command = args.trim();
+      if (await handleLearningManagement(command, ctx, { readSettings, writeSettings, busy: () => Boolean(dreamState.pipeline || dreamState.active) })) return;
       if (command === "model") {
         await chooseMemoryModel(ctx);
         return;
@@ -1809,6 +1892,8 @@ export default function (pi: ExtensionAPI) {
         `Select memory model (current: ${configuredMemoryModel()})`,
         "Enter provider/model manually",
         "Consolidate memory now",
+        "Show automatic phase policies",
+        "Show learning history",
         `Edit user instructions (${path.join(home, "AGENTS.md")})`,
         `Edit project instructions (${projectInstructions.display})`,
         "Open memory folder",
@@ -1851,6 +1936,8 @@ export default function (pi: ExtensionAPI) {
           reportResult: true,
           reportReceipt: reportLearningReceipt,
         });
+      } else if (choice === "Show automatic phase policies" || choice === "Show learning history") {
+        await handleLearningManagement(choice === "Show learning history" ? "history" : "policy", ctx, { readSettings, writeSettings, busy: () => Boolean(dreamState.pipeline || dreamState.active) });
       } else if (choice.startsWith("Edit user instructions")) {
         await editInstructions(ctx, path.join(home, "AGENTS.md"));
       } else if (choice.startsWith("Edit project instructions")) {

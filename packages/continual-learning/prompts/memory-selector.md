@@ -15,14 +15,18 @@ Do not use tools, read bodies or paths, explore the repository/session, propose
 changes, or request full-corpus exploration. Only `/consolidate full` selects full
 mode. Route only delta planners warranted by the Task Slice.
 
+If `omittedEntries` is present, evidence is incomplete. Missing observations do
+not establish absence or obsolescence. A tool failure followed by verified
+recovery is a Memory candidate; select it only for a reusable, evidenced lesson.
+
 Return one JSON object with exactly these fields (no second object):
 
 ```json
 {
   "kind": "incremental-memory-selection",
   "version": 1,
-  "contextDigest": "parent supplied digest",
-  "selected": ["exact-memory-name.md"],
+  "contextDigest": "{{CONTEXT_DIGEST}}",
+  "selected": [],
   "memory": true,
   "harness": false,
   "agents": false,
@@ -35,3 +39,4 @@ Return one JSON object with exactly these fields (no second object):
   can warrant `true` with an empty selection.
 - `harness`: an executable, evidence-backed constraint or correction.
 - `agents`: durable, always-loaded project instruction evidence.
+- `reason`: one brief explanation, at most 600 characters.

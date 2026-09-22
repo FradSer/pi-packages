@@ -422,6 +422,26 @@ def test_child_plan_extraction_handles_markdown_code_fenced_json() -> None:
     assert result["plan"]["runId"] == "r1"
 
 
+def test_later_phase_plans_accept_preambles_but_reject_ambiguity_and_stale_identity() -> None:
+    result = run_bun(r"""
+      import {extractChildPlan} from './packages/continual-learning/extensions/consolidation-run.ts';
+      const options={expectedIdentity:{runId:'current',scopeDigest:'scope',artifactHash:'snapshot'}};
+      const event=content=>JSON.stringify({type:'message_end',message:{role:'assistant',content}})+'\n';
+      console.log(JSON.stringify(['harness-consolidation-plan','agents-md-consolidation-plan'].map(kind=>{
+        const plan={kind,...options.expectedIdentity,operations:[]};
+        const text=JSON.stringify(plan);
+        return {kind,valid:extractChildPlan(event('Checked 2 files. {"count":2}\n```json\n'+text+'\n```'),options),
+          ambiguous:extractChildPlan(event(text+'\n'+text),options),
+          stale:extractChildPlan(event('Proposed: '+JSON.stringify({...plan,runId:'earlier'})),options)};
+      })));
+    """)
+    for row in result:
+        assert row["valid"]["ok"] is True, row
+        assert row["valid"]["plan"]["kind"] == row["kind"]
+        assert row["ambiguous"]["ok"] is False
+        assert row["stale"]["ok"] is False and "identity" in row["stale"]["error"]
+
+
 def test_consolidation_snapshot_handles_large_context_payload() -> None:
     result = run_bun(
         """

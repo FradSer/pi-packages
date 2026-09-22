@@ -21,6 +21,17 @@ def validate(plan: dict) -> list[str]:
     return run_bun(f"import {{validateHarnessPlan}} from './{PKG_REL}/extensions/harness-consolidation.ts';console.log(JSON.stringify(validateHarnessPlan({json.dumps(plan)})));")
 
 
+def test_harness_result_example_copies_the_current_parent_identity() -> None:
+    result = run_bun(r"""
+      import {buildHarnessConsolidatorPrompt} from './packages/continual-learning/extensions/planner-prompts.ts';
+      const bindings={runId:'run_current',scopeDigest:'a'.repeat(64),artifactHash:'b'.repeat(64),snapshotPath:'/fixture/snapshot.json',dossierPath:'/fixture/older-selector/dossier.json',repoRoot:'/fixture'};
+      const prompt=buildHarnessConsolidatorPrompt(bindings);
+      const example=JSON.parse(/```json\n([\s\S]*?)\n```/.exec(prompt)[1]);
+      console.log(JSON.stringify({runId:example.runId,scopeDigest:example.scopeDigest,artifactHash:example.artifactHash}));
+    """)
+    assert result == {"runId": "run_current", "scopeDigest": "a" * 64, "artifactHash": "b" * 64}
+
+
 def validate_against_snapshot(plan: dict, snapshot: dict, **context: object) -> list[str]:
     return run_bun(f"import {{validateHarnessPlan}} from './{PKG_REL}/extensions/harness-consolidation.ts';console.log(JSON.stringify(validateHarnessPlan({json.dumps(plan)},{json.dumps({'snapshot':snapshot,**context})})));")
 

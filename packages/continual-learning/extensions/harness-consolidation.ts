@@ -14,6 +14,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { ChildProcess } from "node:child_process";
 import { withFileMutationQueue, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { recordLearningMutation } from "./learning-history";
 import {
   minimalPiWorkerArgs,
   notifyPi,
@@ -41,7 +42,7 @@ import { assertHarnessTargetContained } from "./guardrails";
 import { assertHarnessConfigContainers, configPaths, loadLayers } from "./guardrail-config";
 import type { RuleLayer } from "./guardrail-types";
 import { legacyReservedNames } from "./legacy-harness";
-import { buildHarnessConsolidatorPrompt } from "./planner-prompts";
+import { buildHarnessConsolidatorPrompt, learningPlannerArgs } from "./planner-prompts";
 
 export const HARNESS_PLAN_KIND = "harness-consolidation-plan";
 export const MAX_HARNESS_OPS = 12;
@@ -764,6 +765,7 @@ export async function planHarnessConsolidationPhase(
     const child = spawnPiChild(cli.command, [
       ...cli.args,
       ...minimalPiWorkerArgs(["read", "grep", "find", "ls"]),
+      ...learningPlannerArgs(),
       `@${taskFile}`,
     ], { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] });
     hooks.onChild?.(child);
@@ -902,20 +904,22 @@ export async function applyHarnessConsolidationPlan(
         evidence: plan.evidence, automatic: true, requireEvidence: true,
       });
       if (!current()) return { outcome: "cancelled" as const, operations: ops.length };
-      const planDigest = sha256Digest(JSON.stringify(plan));
-      const receiptInput = {
-        runId: run.manifest.runId, scopeDigest: run.manifest.scopeDigest,
-        snapshotDigest: run.manifest.snapshotDigest, targetFile: target,
-        digestBefore: prepared.before ? sha256Digest(prepared.before) : null, planDigest,
-      };
-      await writeFileAtomic(path.join(runDir, "harness-pre-receipt.json"), `${JSON.stringify(buildHarnessReceipt({ ...receiptInput, phase: "pre" }), null, 2)}\n`);
-      await writePreparedHarness(target, prepared);
-      const rollback = () => rollbackPreparedHarness(target, prepared);
-      if (!current()) { await rollback(); return { outcome: "cancelled" as const, operations: ops.length }; }
-      const receipt = buildHarnessReceipt({ ...receiptInput, phase: "post", digestAfter: sha256Digest(prepared.next), applied: prepared.applied });
-      try { await writeFileAtomic(path.join(runDir, "harness-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`); }
-      catch (error) { await rollback(); throw error; }
-      return { outcome: "applied" as const, operations: ops.length, applied: prepared.applied };
+      return recordLearningMutation(run.manifest.cwd, "harness", [target], async () => {
+        const planDigest = sha256Digest(JSON.stringify(plan));
+        const receiptInput = {
+          runId: run.manifest.runId, scopeDigest: run.manifest.scopeDigest,
+          snapshotDigest: run.manifest.snapshotDigest, targetFile: target,
+          digestBefore: prepared.before ? sha256Digest(prepared.before) : null, planDigest,
+        };
+        await writeFileAtomic(path.join(runDir, "harness-pre-receipt.json"), `${JSON.stringify(buildHarnessReceipt({ ...receiptInput, phase: "pre" }), null, 2)}\n`);
+        await writePreparedHarness(target, prepared);
+        const rollback = () => rollbackPreparedHarness(target, prepared);
+        if (!current()) { await rollback(); return { outcome: "cancelled" as const, operations: ops.length }; }
+        const receipt = buildHarnessReceipt({ ...receiptInput, phase: "post", digestAfter: sha256Digest(prepared.next), applied: prepared.applied });
+        try { await writeFileAtomic(path.join(runDir, "harness-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`); }
+        catch (error) { await rollback(); throw error; }
+        return { outcome: "applied" as const, operations: ops.length, applied: prepared.applied };
+      }, plan);
     });
   } catch (error) { return { outcome: "rejected", operations: ops.length, error: (error as Error).message }; }
 

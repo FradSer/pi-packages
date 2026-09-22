@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "baseline": { "memories": {} },
+  "candidate": {
+    "memories": {
+      "orbit-preview.md": "---\nname: orbit-preview\ndescription: ORBIT preview deployments use the documented sandbox channel\ntype: project\n---\nFor Project ORBIT preview deployments, the approved sandbox channel is canary-a. This is a synthetic evaluation fact, not a real deployment authorization.\n"
+    }
+  },
+  "cases": [
+    {
+      "id": "orbit-preview-channel",
+      "prompt": "Which sandbox channel does Project ORBIT use for preview deployments? Read available project knowledge if necessary. If it is unknown, say unknown. Reply with only the channel name.",
+      "required": ["canary-a"],
+      "forbidden": []
+    }
+  ]
+}

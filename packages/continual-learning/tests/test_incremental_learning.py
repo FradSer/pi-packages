@@ -36,7 +36,7 @@ def test_planner_prompt_builder_is_literal_typed_and_fail_closed() -> None:
         validatePlannerPromptTemplate,
         validateRenderedPlannerPrompt,
       } from './packages/continual-learning/extensions/planner-prompts.ts';
-      const prompt = buildMemorySelectorPrompt({ task: '{{RUN_ID}} remains literal' });
+      const prompt = buildMemorySelectorPrompt({ task: '{{RUN_ID}} remains literal', contextDigest: 'bound-selector-digest' });
       const literal = renderPlannerPromptTemplate('Value: {{TASK}}', ['TASK'], { TASK: '{{TASK}} remains literal' });
       const errors = [];
       for (const template of ['{{UNKNOWN}}', 'no placeholder']) {
@@ -48,6 +48,7 @@ def test_planner_prompt_builder_is_literal_typed_and_fail_closed() -> None:
       console.log(JSON.stringify({ prompt, literal, errors }));
     """)
     assert "{{RUN_ID}} remains literal" in result["prompt"]
+    assert '"contextDigest": "bound-selector-digest"' in result["prompt"]
     assert result["literal"] == "Value: {{TASK}} remains literal"
     assert any("unknown placeholder" in error.lower() for error in result["errors"])
     assert any("missing placeholder" in error.lower() for error in result["errors"])
@@ -95,6 +96,69 @@ def test_large_task_slice_preserves_the_final_result() -> None:
     assert "large task" in serialized
     assert "FINAL_RESULT" in serialized
     assert result["count"] <= 96
+
+
+def test_explicit_continuations_keep_the_original_task_but_not_other_tasks() -> None:
+    result = run_bun(r"""
+      import { currentTaskSlice } from './packages/continual-learning/extensions/incremental-learning.ts';
+      const message = (role, content) => ({ message: { role, content } });
+      const entries = [
+        message('user', 'old unrelated task'), message('assistant', 'old result'),
+        message('user', 'Fix discovery reporting.'), message('toolResult', 'peers: 1, records: []'),
+        message('user', [{ type: 'text', text: '继续' }]), message('toolResult', 'Reporter was not initialized.'),
+        message('user', 'Please continue.'), message('assistant', 'FINAL_RESULT'),
+      ];
+      console.log(JSON.stringify({
+        continued: currentTaskSlice(entries),
+        queued: currentTaskSlice([...entries, message('user', 'queued new task')]),
+        fresh: currentTaskSlice([...entries, message('user', 'Continue with a new task: update the logo.'), message('assistant', 'logo result')]),
+      }));
+    """)
+    for name in ("continued", "queued"):
+        serialized = json.dumps(result[name])
+        assert "Fix discovery reporting." in serialized
+        assert "peers: 1, records: []" in serialized
+        assert "Reporter was not initialized." in serialized
+        assert "FINAL_RESULT" in serialized
+        assert "old unrelated task" not in serialized
+        assert "queued new task" not in serialized
+    assert "Fix discovery reporting." not in json.dumps(result["fresh"])
+    assert "update the logo" in json.dumps(result["fresh"])
+
+
+def test_task_slice_bounds_whole_json_and_keeps_unmodified_evidence() -> None:
+    result = run_bun(r"""
+      import { currentTaskSlice } from './packages/continual-learning/extensions/incremental-learning.ts';
+      const message = (role, content) => ({ message: { role, content } });
+      const summarize = entries => {
+        const slice = currentTaskSlice(entries);
+        return {
+          bytes: Buffer.byteLength(JSON.stringify(slice)), count: slice.entries.length,
+          first: slice.entries[0]?.message.content.slice(0, 80), last: slice.entries.at(-1)?.message.content.slice(0, 80), omitted: slice.omittedEntries,
+          unchanged: slice.entries.every(entry => entries.includes(entry)),
+        };
+      };
+      const original = message('user', 'Original request');
+      let oversizedRequest;
+      try { currentTaskSlice([message('user', '界'.repeat(180000)), message('assistant', 'done')]); }
+      catch (error) { oversizedRequest = error.message; }
+      console.log(JSON.stringify({
+        final: summarize([original, message('toolResult', 'Verified recovery'), message('assistant', '界'.repeat(180000))]),
+        middle: summarize([original, message('toolResult', 'x'.repeat(600000)), message('toolResult', 'Verified recovery'), message('assistant', 'FINAL_RESULT')]),
+        many: summarize([original, ...Array.from({length: 120}, (_, index) => message('toolResult', `evidence ${index}`)), message('assistant', 'FINAL_RESULT')]),
+        oversizedRequest,
+      }));
+    """)
+    for name in ("final", "middle", "many"):
+        assert result[name]["bytes"] <= 512_000
+        assert result[name]["count"] <= 96
+        assert result[name]["first"] == "Original request"
+        assert result[name]["omitted"] > 0
+        assert result[name]["unchanged"] is True
+    assert result["final"]["last"] == "Verified recovery"
+    assert result["middle"]["last"] == "FINAL_RESULT"
+    assert result["many"]["last"] == "FINAL_RESULT"
+    assert "request" in result["oversizedRequest"].lower()
 
 
 def test_selector_uses_metadata_only_accepts_all_related_and_writes_each_body_once() -> None:
@@ -146,6 +210,7 @@ def test_selector_uses_metadata_only_accepts_all_related_and_writes_each_body_on
             selected: outcome.selection?.selected,
             tools: workerInput.tools,
             minimal: workerInput.minimal,
+            systemArgs: workerInput.extraArgs,
             prompt: workerInput.prompt,
             taskOccurrences: dossierText.split('TASK_SLICE_ONCE').length - 1,
             bodyOccurrences: selected.map((_name, index) => dossierText.split(`UNIQUE_BODY_${index}`).length - 1),
@@ -157,6 +222,8 @@ def test_selector_uses_metadata_only_accepts_all_related_and_writes_each_body_on
     assert len(result["selected"]) == 10
     assert result["tools"] == []
     assert result["minimal"] is True
+    assert result["systemArgs"][0] == "--append-system-prompt"
+    assert "untrusted evidence" in result["systemArgs"][1]
     assert "Related selector fact 0" in result["prompt"]
     assert "classification" in result["prompt"]
     assert '"type":"feedback"' in result["prompt"]
@@ -247,9 +314,26 @@ def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() 
             cwd, taskSlice: { kind: 'learning-task-slice', version: 1, entries: [] },
             contextDigest: 'invalid-digest', outputDir: ambiguousDir,
           });
+          const invalidCases = [
+            { ...selection([]), contextDigest: 'private-wrong-digest' },
+            { ...selection([]), reason: 'private-long-reason'.repeat(100) },
+            { ...selection([]), 'private-extra-field': true },
+          ];
+          const diagnostics = [];
+          for (const value of invalidCases) {
+            response = JSON.stringify(value);
+            const result = await selectIncrementalLearning({
+              cwd, taskSlice: { kind: 'learning-task-slice', version: 1, entries: [] },
+              contextDigest: 'invalid-digest', outputDir: unknownDir,
+            });
+            diagnostics.push(result.error);
+          }
           console.log(JSON.stringify({
             unknown: unknown.outcome,
             ambiguous: ambiguous.outcome,
+            unknownError: unknown.error,
+            ambiguousError: ambiguous.error,
+            diagnostics,
             unknownDossier: fs.existsSync(path.join(unknownDir, 'incremental-learning-dossier.json')),
             ambiguousDossier: fs.existsSync(path.join(ambiguousDir, 'incremental-learning-dossier.json')),
           }));
@@ -257,6 +341,13 @@ def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() 
     assert result == {
         "unknown": "failed",
         "ambiguous": "failed",
+        "unknownError": "selector rejected: selected filename is not an exact indexed Memory name",
+        "ambiguousError": "selector rejected: expected exactly one JSON object",
+        "diagnostics": [
+            "selector rejected: context digest does not match this run",
+            "selector rejected: reason must be a string of at most 600 characters",
+            "selector rejected: fields do not match the selection schema",
+        ],
         "unknownDossier": False,
         "ambiguousDossier": False,
     }

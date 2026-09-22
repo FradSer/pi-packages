@@ -99,15 +99,17 @@ Propose each id once per plan.
 
 At most 12 operations total. Return exactly one JSON object as the final
 assistant message, without Markdown fences, echoing the bound identity fields:
+Copy the three identity values below exactly. The dossier may come from an
+earlier selector run; its identity never replaces this planner's bound identity.
 
 ```json
 {
   "kind": "harness-consolidation-plan",
   "version": 1,
   "schemaVersion": 1,
-  "runId": "parent supplied runId",
-  "scopeDigest": "parent supplied scopeDigest",
-  "artifactHash": "parent supplied artifactHash",
+  "runId": "{{RUN_ID}}",
+  "scopeDigest": "{{SCOPE_DIGEST}}",
+  "artifactHash": "{{ARTIFACT_HASH}}",
   "operations": [
     {
       "op": "addRule",

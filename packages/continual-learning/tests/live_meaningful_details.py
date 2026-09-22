@@ -1,4 +1,4 @@
-"""Offline real-Pi print and keyboard/resize rendering checks in disposable roots.
+"""Offline real-Pi print, management-menu and keyboard/resize checks in disposable roots.
 
 Manual verification: uv run --no-project packages/continual-learning/tests/live_meaningful_details.py
 No user authentication, remote model, built-in tools or project configuration is used.
@@ -24,7 +24,7 @@ import termios
 import time
 
 FIXTURE = Path(__file__).with_name("meaningful-details-live-fixture.ts")
-CUSTOM_TYPES = {"harness-event", "harness-check", "harness-guidance-event"}
+CUSTOM_TYPES = {"harness-event", "harness-check", "harness-guidance-event", "continual-learning-result"}
 
 
 def snapshots(path: Path) -> list[dict]:
@@ -37,6 +37,11 @@ def verify_expanded(row: dict) -> None:
     lines = [line.strip() for line in row["lines"] if line.strip()]
     text = "".join("".join(lines).split())
     data = row["data"]
+    if row["customType"] == "continual-learning-result":
+        assert lines[0].startswith("[learning]"), lines
+        assert "1AGENTS.mdchangeapplied" in text, lines
+        assert "agents" in text and "automatic" in text, lines
+        return
     # Every lifecycle row in this package is delivered by the Harness surface.
     assert lines[0].startswith("[harness]"), lines
     if row["customType"] == "harness-event":
@@ -104,6 +109,23 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
                 verify_expanded(row)
             else:
                 assert "to expand" in " ".join(row["lines"]), row
+        resize(120)
+        process.send_signal(signal.SIGWINCH)
+
+        def has_notice(message: str) -> bool:
+            return any(row["kind"] == "notification" and message in row["message"] for row in snapshots(output))
+
+        for menu_count, (index, notice) in enumerate(((3, "memory: apply"), (4, "No learning history")), start=1):
+            os.write(master, b"/memory\r")
+            wait_for(lambda: sum(row["kind"] == "menu" for row in snapshots(output)) == menu_count)
+            os.write(master, b"\x1b[B" * index + b"\r")
+            wait_for(lambda: has_notice(notice))
+        os.write(master, b"/memory policy harness propose\r")
+        wait_for(lambda: has_notice("Automatic harness: propose"))
+        settings = json.loads((Path(env["PI_CODING_AGENT_DIR"]) / "memory" / "settings.json").read_text())
+        assert settings["automaticPhases"] == {"harness": "propose"}, settings
+        os.write(master, b"/memory policy\r")
+        wait_for(lambda: has_notice("harness: propose"))
         os.write(master, b"/quit\r")
         wait_for(lambda: process.poll() is not None)
         assert process.returncode == 0
@@ -126,6 +148,8 @@ def main() -> None:
         agent = cwd / "agent"
         agent.mkdir()
         (agent / "settings.json").write_text(json.dumps({"theme": "dark", "quietStartup": True, "packages": []}))
+        (agent / "memory").mkdir()
+        (agent / "memory" / "settings.json").write_text(json.dumps({"autoMemory": False}))
         env = {key: value for key, value in os.environ.items() if key in {"PATH", "LANG", "LC_ALL"}}
         env.update({"HOME": str(cwd), "PI_CODING_AGENT_DIR": str(agent), "PI_OFFLINE": "1",
                     "PI_DETAILS_LIVE_AUTH": secrets.token_hex(16), "TERM": "xterm-256color"})
@@ -142,7 +166,8 @@ def main() -> None:
         env["PI_DETAILS_LIVE_SNAPSHOTS"] = str(tui_rows)
         verify_tui(command, env, cwd, tui_rows)
         print(json.dumps({"print": "passed", "tui": "passed", "keyboardExpand": "passed", "resize48": "passed",
-                          "full65LinePrompt": "passed", "remoteRequests": 0}))
+                          "full65LinePrompt": "passed", "agentsSummary": "passed", "managementMenus": "passed",
+                          "phasePolicyPersistence": "passed", "remoteRequests": 0}))
 
 
 if __name__ == "__main__":

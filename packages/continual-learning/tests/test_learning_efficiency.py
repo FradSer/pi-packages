@@ -64,6 +64,51 @@ def test_equivalent_durable_prohibitions_route_to_memory_and_harness() -> None:
         assert result[key]["harness"] is False, key
 
 
+def test_tool_verified_recovery_routes_memory_without_learning_from_claims() -> None:
+    result = run_bun(r"""
+      import { screenLearningEntries } from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const user = { message: { role: 'user', content: '修复这个构建错误。' } };
+      const tool = (content, extra = {}) => ({ message: { role: 'toolResult', toolName: 'bash', content, ...extra } });
+      const failed = tool('Error: unsupported runtime version 18', {isError: true});
+      const passed = tool('Changed runtime to 22; build succeeded.', {isError: false});
+      const screen = entries => screenLearningEntries([user, ...entries], 'automatic');
+      console.log(JSON.stringify({
+        recovered: screen([failed, passed]),
+        unstructured: screen([tool('Error: unsupported runtime version 18'), tool('Build succeeded.')]),
+        chinese: screen([tool('编译失败：运行时版本不兼容'), tool('升级后构建通过')]),
+        unresolved: screen([failed]),
+        backwards: screen([passed, failed]),
+        unrelatedRead: screen([failed, {message:{role:'toolResult', toolName:'read', content:'File read successfully.', isError:false}}]),
+        assistantClaim: screen([failed, {message:{role:'assistant',content:'Build succeeded.'}}]),
+        successOnly: screen([passed]),
+        stillFailed: screen([failed, tool('Tests passed: 3; tests failed: 1', {isError:true})]),
+      }));
+    """)
+    for name in ("recovered", "unstructured", "chinese"):
+        assert result[name]["memory"] is True, name
+        assert result[name]["harness"] is False, name
+        assert result[name]["agents"] is False, name
+        assert "verified-tool-recovery" in result[name]["reasons"]
+    for name in ("unresolved", "backwards", "unrelatedRead", "assistantClaim", "successOnly", "stillFailed"):
+        assert result[name]["memory"] is False, name
+
+
+def test_learning_subject_includes_agents_only_and_mixed_changes() -> None:
+    result = run_bun(r"""
+      import { buildLearningReceipt, learningSummarySubject } from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const attempt = (phase, operations) => ({phase, operations, attempt:0, outcome:'applied', durationMs:1});
+      const subject = attempts => learningSummarySubject(buildLearningReceipt('manual', {memory:true,harness:true,agents:true,reasons:[]}, attempts));
+      console.log(JSON.stringify({
+        single: subject([attempt('agents', 1)]),
+        plural: subject([attempt('agents', 2)]),
+        mixed: subject([attempt('memory', 1), attempt('harness', 1), attempt('agents', 2)]),
+      }));
+    """)
+    assert result["single"] == "1 AGENTS.md change applied"
+    assert result["plural"] == "2 AGENTS.md changes applied"
+    assert result["mixed"] == "1 memory and 1 harness change and 2 AGENTS.md changes applied"
+
+
 def test_current_task_slice_excludes_long_history_and_pending_next_user() -> None:
     result = run_bun("""
       import { currentTaskSlice } from './packages/continual-learning/extensions/incremental-learning.ts';

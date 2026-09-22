@@ -40,7 +40,7 @@ import {
 import { buildMemoryIndexContent, isMemoryFilename } from "./memory-files";
 import { resolveMemoryPaths } from "./memory-paths";
 import type { HarnessOp } from "./harness-consolidation";
-import { buildAgentsMdConsolidatorPrompt } from "./planner-prompts";
+import { buildAgentsMdConsolidatorPrompt, learningPlannerArgs } from "./planner-prompts";
 import { assertHarnessConfigContainers, configPaths, loadLayers } from "./guardrail-config";
 import { legacyReservedNames } from "./legacy-harness";
 import { DEFAULT_RULES, evaluateSkill, mergeLayers, validateRuleDeclaration } from "./guardrail-engine";
@@ -1024,7 +1024,7 @@ async function planAgentsMdConsolidationPhaseInternal(
   await fs.writeFile(taskFile, taskText, { mode: 0o600 });
   const child = spawnPiChild(
     cli.command,
-    [...cli.args, ...minimalPiWorkerArgs(["read", "grep", "find", "ls"]), `@${taskFile}`],
+    [...cli.args, ...minimalPiWorkerArgs(["read", "grep", "find", "ls"]), ...learningPlannerArgs(), `@${taskFile}`],
     { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] },
   );
   if (!current()) {

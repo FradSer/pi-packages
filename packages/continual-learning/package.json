@@ -24,7 +24,7 @@
     "index.ts",
     "extensions",
     "prompts",
-    "scripts",
+    "scripts/*.py",
     "examples",
     "README.md"
   ],
