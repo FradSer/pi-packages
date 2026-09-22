@@ -58,6 +58,8 @@ pi install npm:@fradser/pi-context
 
 **命令：** `/memory`、`/consolidate`、`/harness`
 
+Memory、Harness 和 AGENTS.md 默认仍自动应用通过验证的变更。`/memory policy` 可将各阶段设为应用、仅提案或关闭；`/memory history` 和 `/memory undo <id>` 用于查看和安全撤销已记录变更。`/memory evaluate <suite.json>` 使用独立样例检查规则，包内另提供在临时项目中对照 Memory 快照的真实任务评测脚本。
+
 Harness 编写与自动学习默认写入项目 `.pi/harness.json`；只有明确请求不纳入 Git 的个人配置时，才使用 `.pi/harness.local.json`（`/harness --local`）。全局配置仅支持 `~/.pi/agent/harness.json`。Skill 指导需要已注册的 skill 及其展开后的调用；文件保存成功不等于触发验证通过，更不代表全局语义强制执行。
 
 **安装：**
@@ -134,9 +136,9 @@ pi install npm:pi-open-deskos
 
 ### [`@fradser/pi-plan-mode`](packages/plan-mode/)
 
-在修改代码前于主会话中进行只读探索与规划，支持独立的规划模型。
+通过 pi-kit 启动最小配置的只读 Pi 子代理生成计划，再通过原生 TUI 选择在当前或新会话中执行。
 
-**命令：** `/plan`、`/plan start`、`/plan exit`、`/plan model`、`/plan status`
+**命令：** `/plan <prompt>`、`/plan`、`/plan start`、`/plan exit`、`/plan model [provider/model]`、`/plan review`、`/plan status`
 
 **安装：**
 

@@ -56,6 +56,8 @@ Learns durable memory and scoped rules from completed user tasks. Memory supplie
 
 **Commands:** `/memory`, `/consolidate`, `/harness`
 
+Automatic Memory, Harness and AGENTS.md still default to applying validated changes. `/memory policy` sets each phase to apply, propose or off; `/memory history` and `/memory undo <id>` inspect and safely restore recorded changes. `/memory evaluate <suite.json>` checks independent rule cases, and the package's paired task evaluator measures supplied Memory snapshots in disposable projects.
+
 Harness authoring and automatic learning default to project `.pi/harness.json`; `.pi/harness.local.json` is only for explicitly requested non-Git-tracked personal configuration (`/harness --local`). Global configuration uses only `~/.pi/agent/harness.json`. Skill guidance requires a registered skill and its expanded invocation; persistence is not trigger verification or global semantic enforcement.
 
 **Install:**
@@ -132,9 +134,9 @@ pi install npm:pi-open-deskos
 
 ### [`@fradser/pi-plan-mode`](packages/plan-mode/)
 
-Read-only exploration and planning in the main session before code modifications, with dedicated planning model support.
+Runs one minimal read-only Pi subagent via pi-kit, then uses the native TUI to choose implementation in the current or a new session.
 
-**Command:** `/plan`, `/plan start`, `/plan exit`, `/plan model`, `/plan status`
+**Command:** `/plan <prompt>`, `/plan`, `/plan start`, `/plan exit`, `/plan model [provider/model]`, `/plan review`, `/plan status`
 
 **Install:**
 
