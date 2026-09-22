@@ -36,6 +36,14 @@ test("extension discovers older sessions, periodically refreshes, preserves own 
   process.env.PI_DIRECTORY_SESSIONS_DIR = root;
   const ownId = "a1234567-1234-1234-1234-123456789abc";
   const ownAlias = `2026-01-01T00-00-00_${ownId}`;
+  const history = join(root, "current.jsonl");
+  const forkHistory = join(root, "fork.jsonl");
+  await writeFile(history, [
+    JSON.stringify({ type: "session", id: ownId }),
+    JSON.stringify({ type: "message", message: { role: "user", content: "historical prompt" } }),
+    JSON.stringify({ type: "message", message: { role: "assistant", content: [{ type: "text", text: "historical reply" }] } }),
+  ].join("\n"));
+  await writeFile(forkHistory, `${JSON.stringify({ type: "message", message: { role: "assistant", content: [{ type: "text", text: "forked reply" }] } })}\n`);
   const put = (id, record) => writeFile(join(root, "fixture", `${id}.json`), JSON.stringify(record));
   await put(ownAlias, { sessionId: ownAlias, pid: process.pid, status: "running", updatedAt: 200, sessionName: "stale alias" });
   for (let i = 0; i < 10; i += 1) await put(`old-${i}`, { sessionId: `old-${i}`, pid: 0, status: "running", startedAt: 1, updatedAt: 2 });
@@ -49,23 +57,24 @@ test("extension discovers older sessions, periodically refreshes, preserves own 
       getSessionId: () => ownId,
       getSessionName: () => "Live name",
       getHeader: () => ({ timestamp: "2020-01-01T00:00:00Z" }),
-      getBranch: () => [
-        { type: "message", message: { role: "user", content: "historical prompt" } },
-        { type: "message", message: { role: "assistant", content: [{ type: "text", text: "historical reply" }] } },
-      ],
+      // This intentionally has no history: the reporter must replay the same
+      // durable JSONL file the DeskOS local reader uses, not an optional in-memory branch.
+      getBranch: () => [],
+      getSessionFile: () => history,
     },
   };
   const latest = () => records.filter((r) => r.type === "sessions").at(-1)?.sessions ?? [];
   try {
     assert.equal(peers.length, 0, "extension factory is inert");
-    handlers.get("session_start")({ reason: "resume" }, ctx);
+    await handlers.get("session_start")({ reason: "resume" }, ctx);
     await waitFor(() => latest().length === 11);
     const own = latest().find((s) => s.sessionId === ownId);
     await waitFor(() => records.some((record) => record.type === "events" && record.sessionId === ownId));
     const historical = records.find((record) => record.type === "events" && record.sessionId === ownId)?.events ?? [];
+    // The final assistant record lacks its LF terminator, modelling a writer
+    // still appending it. Replay only the complete user record before it.
     assert.deepEqual(historical.map((event) => [event.kind, event.text]), [
       ["user", "historical prompt"],
-      ["assistant", "historical reply"],
     ]);
     assert.equal(own.status, "settled", "idle Pi starts settled, not working");
     assert.equal(own.name, "Live name");
@@ -98,14 +107,34 @@ test("extension discovers older sessions, periodically refreshes, preserves own 
       sessionManager: {
         ...ctx.sessionManager,
         getSessionId: () => forkId,
-        getBranch: () => [{ type: "message", message: { role: "assistant", content: [{ type: "text", text: "forked reply" }] } }],
+        getBranch: () => [],
+        getSessionFile: () => forkHistory,
       },
     };
-    handlers.get("session_start")({ reason: "fork" }, forkCtx);
+    await handlers.get("session_start")({ reason: "fork" }, forkCtx);
     await waitFor(() => records.some((record) => record.type === "events" && record.sessionId === forkId));
     assert.deepEqual(records.find((record) => record.type === "events" && record.sessionId === forkId)?.events,
       [{ kind: "assistant", text: "forked reply" }]);
     handlers.get("session_shutdown")({}, forkCtx);
+
+    // New/reasonless starts intentionally do not replay their pre-existing
+    // file tail; their first live message is sent once through message_end.
+    for (const [reason, sessionId] of [["new", "n1234567-1234-1234-1234-123456789abc"], [undefined, "r1234567-1234-1234-1234-123456789abc"]]) {
+      const freshHistory = join(root, `${sessionId}.jsonl`);
+      await writeFile(freshHistory, `${JSON.stringify({ type: "message", message: { role: "user", content: "must not replay" } })}\n`);
+      const freshCtx = {
+        ...ctx,
+        sessionManager: { ...ctx.sessionManager, getSessionId: () => sessionId, getBranch: () => [], getSessionFile: () => freshHistory },
+      };
+      handlers.get("session_start")({ ...(reason === undefined ? {} : { reason }) }, freshCtx);
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      assert.equal(records.some((record) => record.type === "events" && record.sessionId === sessionId), false, `${reason ?? "reasonless"} start replayed its tail`);
+      handlers.get("message_end")({ message: { role: "user", content: "first live message" } }, freshCtx);
+      await waitFor(() => records.some((record) => record.type === "events" && record.sessionId === sessionId));
+      assert.deepEqual(records.find((record) => record.type === "events" && record.sessionId === sessionId)?.events,
+        [{ kind: "user", text: "first live message" }]);
+      handlers.get("session_shutdown")({}, freshCtx);
+    }
   } finally {
     handlers.get("session_shutdown")({}, ctx);
     for (const peer of peers) peer.destroy();

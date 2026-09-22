@@ -37,7 +37,7 @@ export ODK_DESK_LINK_CONTROL_TOKEN="<control credential>"   # 可选：使本机
 
 ## 上报内容
 
-- 当前会话的实时身份、目标、activity 与事件，以及本机注册在 `directory-sessions` 元数据中的其他会话（由 `pi-utils` 与 `pi-keyboard` 写入）。resumed、reload 或 fork 后上报端启动时会先回放当前会话已加载的有界 durable message branch，再转发后续实时消息，避免 resumed Pi 被 Desk Link 显示为运行中却没有事件。UUID 与带时间戳前缀的 UUID 别名会合并为同一会话。
+- 当前会话的实时身份、目标、activity 与事件，以及本机注册在 `directory-sessions` 元数据中的其他会话（由 `pi-utils` 与 `pi-keyboard` 写入）。resumed、reload 或 fork 后上报端启动时会先回放当前会话自己的有界 durable JSONL 尾部，再转发后续实时消息，避免 resumed Pi 被 Desk Link 显示为运行中却没有事件。UUID 与带时间戳前缀的 UUID 别名会合并为同一会话。
 - 会话状态：元数据表示工作中、Pi 进程存活、时间戳匹配该进程生命周期时才为 `running`；存活的 idle/settled 会话为 `settled`。已结束、无效、被复用、无法核实的 PID 或明确退出的记录为 `exited`。每次扫描只读取一次有界进程表（1 MiB，2 秒超时），同一 PID 只有最新且无歧义的会话可视为存活。当前会话以 Pi 自身的 idle/agent 事件为准。
 - 原始元数据的 start/update 时间、可选会话名、目标与 activity/recap。扫描不会凭空发明新的 activity 时间戳，也不读取会话历史。
 - 有界会话事件：每会话最多保留最新连续的 300 条事件与 1,048,576 UTF-8 字节（计入正文与工具名）。正文保留换行并按类型限长：user 8 KiB、thinking 4 KiB、tool-call 4 KiB、assistant 16 KiB、tool result 64 KiB。
@@ -69,7 +69,7 @@ export ODK_DESK_LINK_CONTROL_TOKEN="<control credential>"   # 可选：使本机
 - **不管理被上报的会话。** 即使作为 Console，package 也不管理自己上报的那些会话；控制只作用于 desk 托管的 Hosted Pi，那是另一回事。
 - **不能回答 Hosted Pi 的中途请求。** desk 的 Pi host 不加载扩展，SDK 也不提供权限、审批或提问面，因此 Hosted Pi 无法产生需要你回答的请求。这是 host 配置的限制，不是缺失的功能。
 - **无网络发现与配对。** 发现的是本地会话元数据；不知道地址与 token 的机器无法注册，Console 也必须事先知道控制凭据。
-- **不扫描其他会话历史与凭据。** resumed、reload 或 fork 后当前 Pi 启动时只把自己已加载的 durable branch 按同一事件上限回放；不读取其他会话的历史、认证文件或任意额外元数据（其他会话只贡献注册表元数据，不合成事件）。当前会话的工具结果正文**会**在上述上限内上报，其中可能包含文件内容或工具返回的敏感输出；只有在你确实愿意共享时才配置该链路。
+- **不扫描其他会话历史与凭据。** resumed、reload 或 fork 后当前 Pi 启动时只读取 `sessionManager.getSessionFile()` 指向的当前 JSONL 文件有界尾部，并按同一事件上限回放；不读取其他会话的历史、认证文件或任意额外元数据（其他会话只贡献注册表元数据，不合成事件）。当前会话的工具结果正文**会**在上述上限内上报，其中可能包含文件内容或工具返回的敏感输出；只有在你确实愿意共享时才配置该链路。
 - **不加密。** Desk Link 是面向仅局域网监听的明文连接。控制凭据不上线，因此抓包拿不到可复用的执行凭据，但内容本身并未加密。请勿把 Desk Link Service 暴露到局域网之外。
 
 ## 在 Pi 内查看链路
