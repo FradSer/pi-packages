@@ -1,6 +1,6 @@
 // Offline Pi prompt-delivery check. No Agent is spawned and no user storage is used.
 import assert from "node:assert/strict";
-import { createAssistantMessageEventStream, type AssistantMessage, type ToolCall } from "@earendil-works/pi-ai";
+import { createAssistantMessageEventStream, getSystemMessageText, type AssistantMessage, type ToolCall } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import agentTeams from "../src/index.ts";
 import mattPocock from "../../matt-pocock/src/index.ts";
@@ -14,7 +14,10 @@ export default function (pi: ExtensionAPI): void {
     models: [{ id: "deterministic", name: "Orchestration guidance fixture", reasoning: false, input: ["text"],
       contextWindow: 200000, maxTokens: 4096, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
     streamSimple(model, context) {
-      const prompt = context.systemPrompt;
+      // Providers receive a TranscriptContext: the prompt lives in the transcript's
+      // system messages, so replay them in order instead of reading a removed
+      // `context.systemPrompt` field.
+      const prompt = context.messages.filter(message => message.role === "system").map(getSystemMessageText).join("\n\n");
       assert.ok(prompt, "Pi must deliver the composed system prompt");
       assert.ok(prompt.includes("one integration owner"));
       assert.ok(prompt.includes("yield without declaring completion"));

@@ -12,6 +12,12 @@ Feature: Coordination tool parameters survive union-root schemas
     Then each root schema declares properties for every parameter used by any branch
     And object and array parameters keep their structured JSON type at the root
 
+  Scenario: Union-root schemas declare an object type
+    Given the registered agent, work, and worker work tool schemas
+    When a provider requires root properties to be declared on an object type
+    Then each root schema declares type "object"
+    And each root schema keeps its per-action anyOf branches
+
   Scenario: Per-action contracts stay strict
     Given the agent tool schema
     When a delegate payload carries definition as an object

@@ -260,6 +260,10 @@ function mergeBranchSubSchemas(pool: any[]): any {
   return { anyOf: pool };
 }
 
+/** The root also declares `type: "object"`. A schema that carries `properties`
+ * without an explicit object type is rejected by Google's GenerateContent API
+ * ("parameters.properties: only allowed for OBJECT type"), which the Gemini
+ * routes reach through their provider translators. */
 function actionUnion<T extends TObject[]>(branches: [...T], options?: Record<string, unknown>): TUnion<T> {
   const pools: Record<string, any[]> = {};
   for (const branch of branches) {
@@ -273,7 +277,7 @@ function actionUnion<T extends TObject[]>(branches: [...T], options?: Record<str
   }
   const properties: Record<string, any> = {};
   for (const [key, pool] of Object.entries(pools)) properties[key] = mergeBranchSubSchemas(pool);
-  return Type.Union(branches, { ...options, properties } as never) as TUnion<T>;
+  return Type.Union(branches, { type: "object", ...options, properties } as never) as TUnion<T>;
 }
 
 /** Tolerate harnesses that deliver object or array parameters as JSON strings. */
