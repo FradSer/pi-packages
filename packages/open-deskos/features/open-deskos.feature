@@ -19,6 +19,12 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
     And no session is reported
     And no control connection is attempted
 
+  Scenario: A resumed, reloaded, or forked session replays its durable message tail
+    Given a resumed, reloaded, or forked Pi session already has durable user and assistant messages
+    When that session starts its Desk Link reporter
+    Then the reporter sends the bounded durable message tail for that current session
+    And later live messages are sent after the replay without replacing it
+
   Scenario: Reported events obey the local bounds
     Given a session produced more activity than the event bound
     When the reporter sends its events

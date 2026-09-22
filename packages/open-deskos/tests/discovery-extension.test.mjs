@@ -45,14 +45,28 @@ test("extension discovers older sessions, periodically refreshes, preserves own 
   const ctx = {
     cwd: "/fixture/current",
     isIdle: () => true,
-    sessionManager: { getSessionId: () => ownId, getSessionName: () => "Live name", getHeader: () => ({ timestamp: "2020-01-01T00:00:00Z" }) },
+    sessionManager: {
+      getSessionId: () => ownId,
+      getSessionName: () => "Live name",
+      getHeader: () => ({ timestamp: "2020-01-01T00:00:00Z" }),
+      getBranch: () => [
+        { type: "message", message: { role: "user", content: "historical prompt" } },
+        { type: "message", message: { role: "assistant", content: [{ type: "text", text: "historical reply" }] } },
+      ],
+    },
   };
   const latest = () => records.filter((r) => r.type === "sessions").at(-1)?.sessions ?? [];
   try {
     assert.equal(peers.length, 0, "extension factory is inert");
-    handlers.get("session_start")({}, ctx);
+    handlers.get("session_start")({ reason: "resume" }, ctx);
     await waitFor(() => latest().length === 11);
     const own = latest().find((s) => s.sessionId === ownId);
+    await waitFor(() => records.some((record) => record.type === "events" && record.sessionId === ownId));
+    const historical = records.find((record) => record.type === "events" && record.sessionId === ownId)?.events ?? [];
+    assert.deepEqual(historical.map((event) => [event.kind, event.text]), [
+      ["user", "historical prompt"],
+      ["assistant", "historical reply"],
+    ]);
     assert.equal(own.status, "settled", "idle Pi starts settled, not working");
     assert.equal(own.name, "Live name");
     assert.equal(own.startedAt, Date.parse("2020-01-01T00:00:00Z"));
@@ -65,13 +79,33 @@ test("extension discovers older sessions, periodically refreshes, preserves own 
     await waitFor(() => latest().some((s) => s.sessionId === "later"));
     assert.ok(!latest().some((s) => s.sessionId === "old-0"));
     assert.equal(latest().find((s) => s.sessionId === ownId).latestGoal, "synthetic current goal");
-    assert.equal(records.filter((r) => r.type === "events" && r.sessionId === ownId).length, 1);
+    await waitFor(() => records.filter((record) => record.type === "events" && record.sessionId === ownId).length === 2);
+    assert.deepEqual(records.filter((record) => record.type === "events" && record.sessionId === ownId).at(-1)?.events,
+      [{ kind: "user", text: "synthetic current goal" }]);
     handlers.get("session_shutdown")({}, ctx);
     await waitFor(() => peers[0].destroyed);
     const count = records.length;
     await new Promise((resolve) => setTimeout(resolve, 200));
     assert.equal(records.length, count);
     assert.equal(peers.length, 1, "shutdown did not reconnect");
+
+    // Fork is a distinct session_start reason with an already-populated branch.
+    // It must replay that branch just like resume, without relying on a later
+    // live message to make the Desk Link detail useful.
+    const forkId = "f1234567-1234-1234-1234-123456789abc";
+    const forkCtx = {
+      ...ctx,
+      sessionManager: {
+        ...ctx.sessionManager,
+        getSessionId: () => forkId,
+        getBranch: () => [{ type: "message", message: { role: "assistant", content: [{ type: "text", text: "forked reply" }] } }],
+      },
+    };
+    handlers.get("session_start")({ reason: "fork" }, forkCtx);
+    await waitFor(() => records.some((record) => record.type === "events" && record.sessionId === forkId));
+    assert.deepEqual(records.find((record) => record.type === "events" && record.sessionId === forkId)?.events,
+      [{ kind: "assistant", text: "forked reply" }]);
+    handlers.get("session_shutdown")({}, forkCtx);
   } finally {
     handlers.get("session_shutdown")({}, ctx);
     for (const peer of peers) peer.destroy();

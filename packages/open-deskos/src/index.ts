@@ -28,7 +28,7 @@ export default function (pi: ExtensionAPI): void {
   let currentSessionId = "";
 
   if (reporter && discovery) {
-    function beginSession(ctx: Parameters<Parameters<ExtensionAPI["on"]>[1]>[1]): void {
+    function beginSession(ctx: Parameters<Parameters<ExtensionAPI["on"]>[1]>[1], replayBranch: boolean): void {
       if (currentSessionId.length > 0 && currentSessionId !== ctx.sessionManager.getSessionId()) {
         reporter?.markStatus(currentSessionId, "exited");
       }
@@ -44,10 +44,26 @@ export default function (pi: ExtensionAPI): void {
         status: ctx.isIdle() ? "settled" : "running",
         startedAt: Number.isFinite(startedAt) ? startedAt : Date.now(),
       });
+      // A resumed/reloaded Pi already has a durable branch before the reporter
+      // starts. Replay only this current session's bounded message tail so Desk
+      // Link can show its real output before the next live turn finishes;
+      // discovered sessions remain metadata-only. A brand-new session forwards
+      // its first message through message_end instead, preventing a duplicate.
+      if (replayBranch) {
+        const branch = ctx.sessionManager.getBranch?.();
+        if (Array.isArray(branch)) {
+          const retained = branch.flatMap((entry) => {
+            if (typeof entry !== "object" || entry === null || (entry as { type?: unknown }).type !== "message") return [];
+            const message = (entry as { message?: unknown }).message;
+            return message === undefined ? [] : eventsFromMessage(message);
+          });
+          if (retained.length > 0) reporter?.recordEvents(currentSessionId, retained);
+        }
+      }
     }
 
-    pi.on("session_start", (_event, ctx) => {
-      beginSession(ctx);
+    pi.on("session_start", (event, ctx) => {
+      beginSession(ctx, ["resume", "reload", "fork"].includes((event as { reason?: string }).reason ?? ""));
       reporter.start();
       discovery.start();
     });
