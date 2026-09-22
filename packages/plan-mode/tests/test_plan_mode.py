@@ -22,6 +22,7 @@ def run_typescript(script: str) -> dict[str, object]:
     return json.loads(result.stdout)
 
 
+
 def test_notifications_use_pi_kits_portable_helper():
     source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
     assert "notifyPi" in source
@@ -29,29 +30,39 @@ def test_notifications_use_pi_kits_portable_helper():
     assert "newCtx.ui.notify(" not in source
 
 
-def test_plan_completion_does_not_loop_review_messages_to_agent():
-    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    assert 'pi.sendUserMessage("/plan review")' not in source
-    assert 'showPlanReview(ctx, request, job.signal)' in source
+
+def test_model_command_with_argument_does_not_start_planning():
+    run_plan_contract("model-command")
 
 
-def test_readable_plan_path_survives_session_transitions_and_collisions():
-    run_plan_lifecycle("naming")
-    run_plan_lifecycle("fresh")
+
+def test_repeated_plan_entry_restores_the_original_model():
+    run_plan_contract("model-restore")
 
 
-def test_plan_completion_settles_before_review_and_accepts_new_prompt():
-    run_plan_lifecycle("dismiss")
+
+def test_execution_discussion_does_not_release_plan_guards():
+    run_plan_contract("guard-input")
 
 
-def test_obsolete_detached_workers_are_cancelled():
-    for scenario in ("worker-exit", "worker-writer-exit", "worker-new", "worker-replace", "review-exit"):
-        run_plan_lifecycle(scenario)
+
+def test_extension_tools_cannot_bypass_plan_guards():
+    run_plan_contract("guard-tools")
 
 
-def test_manual_review_is_cancelled_with_its_owner():
-    for scenario in ("manual-exit", "manual-new", "manual-menu-replace", "manual-view-exit"):
-        run_plan_lifecycle(scenario)
+
+def test_extension_overrides_of_builtin_names_cannot_bypass_plan_guards():
+    run_plan_contract("guard-collisions")
+
+
+
+def run_plan_contract(scenario: str) -> None:
+    result = subprocess.run(
+        ["node", "--import", "tsx", str(PACKAGE / "tests" / "plan_contracts.mts"), scenario],
+        cwd=REPO, text=True, capture_output=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
 
 
 def run_plan_lifecycle(scenario: str) -> None:
@@ -61,84 +72,6 @@ def run_plan_lifecycle(scenario: str) -> None:
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
-
-def test_plan_mode_prompts_prioritize_exploration_and_mention_builtin_workers():
-    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    feature = (PACKAGE / "features" / "plan-mode.feature").read_text(encoding="utf-8")
-    system_prompt = source[source.index("function buildPlanPrompt"):source.index("// ── State ──")]
-    main_session_prompt = source[
-        source.index("function buildMainSessionPlanPrompt"):
-        source.index("function buildWorkerResearchPrompt")
-    ]
-
-    assert "Your FIRST step is read-only exploration" in system_prompt
-    assert "built-in workers for parallel exploration" in system_prompt
-    assert "Explore FIRST" in system_prompt
-    assert "read-only exploration FIRST" in main_session_prompt
-    assert "built-in workers for parallel exploration" in main_session_prompt
-    assert "Scenario: Plan mode prompts emphasize exploration first and mention built-in workers" in feature
-    assert "system prompt and main-session prompt" in feature
-    assert "system prompt instructs" in feature
-    assert "main-session prompt instructs" in feature
-
-
-def test_plan_mode_indicator_is_persistent_below_editor():
-    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    feature = (PACKAGE / "features" / "plan-mode.feature").read_text(encoding="utf-8")
-    assert "setPlanModeIndicator" in source
-    assert 'placement: "belowEditor"' in source
-    assert 'setWidget("plan-mode-indicator"' in source
-    assert "⏸" in source
-    assert "plan mode on" in source
-    assert "setPlanModeIndicator(ctx, true)" in source
-    assert "setPlanModeIndicator(ctx, false)" in source
-    assert "Scenario: Plan mode shows a persistent indicator below the editor" in feature
-
-
-def test_plan_mode_starts_in_main_session_before_worker_research():
-    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    feature = (PACKAGE / "features" / "plan-mode.feature").read_text(encoding="utf-8")
-    assert 'pi.sendUserMessage(planPrompt, { deliverAs: "followUp" })' in source
-    assert "research-workers" not in source
-    assert "runWorkerResearch" in source
-    assert "runPlanWorker({" in source
-    assert 'placement: "aboveEditor"' in source
-    assert "Scenario: A plan request starts in the main session" in feature
-    assert "Scenario: Worker research is decided by the main-session agent" in feature
-
-
-def test_plan_review_timeout_uses_fresh_session_context():
-    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    assert "PLAN_REVIEW_TIMEOUT_MS" in source
-    assert "implement-fresh" in source
-    assert "newCtx.sendUserMessage" in source
-    assert "pi.sendUserMessage(`Implement this plan" not in source
-    assert "setTimeout(() => finish(\"implement-fresh\")" in source
-
-
-def test_plan_mode_uses_the_shared_live_worker_widget():
-    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    worker = (PACKAGE / "src" / "plan-worker.ts").read_text(encoding="utf-8")
-    assert "createLiveActivityWidget" in source
-    assert 'key: "plan-workers"' in source
-    assert 'placement: "aboveEditor"' in source
-    # Identity and activity formatting belong to pi-kit, so every package's
-    # status row uses the same language.
-    assert "formatIdentity" not in source
-    assert "formatActivity" not in source
-    assert "activePlanWorkerActivities" in source
-    assert "planWorkerWidget.update(planWidgetContext" in source
-    assert "onUpdate" in worker
-    assert "status: \"running\"" in worker
-    assert "status: \"completed\"" in worker
-    assert 'status,' in worker
-
-
-def test_plan_mode_worker_rows_preserve_worker_identity_activity_and_status():
-    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    assert 'identity: `${worker.id} (${worker.label})`' in source
-    assert 'activity: worker.detail ?? "Working..."' in source
-    assert "status: worker.status" in source
 
 
 def bash_decisions(commands: list[str]) -> dict[str, object]:
@@ -156,6 +89,7 @@ def bash_decisions(commands: list[str]) -> dict[str, object]:
     """)
 
 
+
 def test_is_read_only_bash_allows_safe_commands():
     commands = [
         "", "   ", "ls -la", "cat file.txt", "grep -r pattern .",
@@ -167,6 +101,7 @@ def test_is_read_only_bash_allows_safe_commands():
     ]
     result = bash_decisions(commands)
     assert all(result.values()), result
+
 
 
 def test_is_read_only_bash_blocks_unsafe_commands_and_syntax():
@@ -189,146 +124,6 @@ def test_is_read_only_bash_blocks_unsafe_commands_and_syntax():
     result = bash_decisions(commands)
     assert not any(result.values()), result
 
-
-def test_plan_mode_and_pi_kit_do_not_use_wall_clock_worker_timeouts():
-    source = (PACKAGE / "src" / "plan-worker.ts").read_text(encoding="utf-8")
-    kit = (REPO / "packages" / "kit" / "src" / "index.ts").read_text(encoding="utf-8")
-    assert "timeoutMs" not in source
-    assert "timedOut" not in source
-    assert "timeoutMs" not in kit
-    assert "timedOut" not in kit
-
-
-def test_plan_worker_does_not_pass_unsupported_cwd_flag():
-    kit = (REPO / "packages" / "kit" / "src" / "index.ts").read_text(encoding="utf-8")
-    assert '"--cwd", cwd' not in kit
-
-
-def test_plan_worker_uses_named_structured_explore_results():
-    worker = (PACKAGE / "src" / "plan-worker.ts").read_text(encoding="utf-8")
-    assert "status: \"completed\" | \"failed\"" in worker
-    assert "exploreResults" in worker
-    assert "diagnostics: string" in worker
-    assert "--no-extensions" in worker
-
-
-def test_plan_workers_are_restricted_to_read_only_host_capabilities():
-    worker = (PACKAGE / "src" / "plan-worker.ts").read_text(encoding="utf-8")
-    assert 'const EXPLORE_TOOLS = ["read", "grep", "find", "ls"];' in worker
-    assert 'const PLAN_WRITER_TOOLS = ["read", "grep", "find", "ls"];' in worker
-    assert 'extraArgs: ["--no-extensions"]' in worker
-    assert "fs.writeFileSync(planPath" in worker
-    assert "Use the write tool" not in worker
-
-
-def test_pi_kit_retains_finished_tool_activity_until_newer_worker_progress_arrives():
-    kit = (REPO / "packages" / "kit" / "src" / "index.ts").read_text(encoding="utf-8")
-    tool_end = kit[kit.index('case "toolcall_end":'):kit.index("default:", kit.index('case "toolcall_end":'))]
-    assert "state.activity = state.activeTool ?? state.activity;" in tool_end
-
-
-def test_plan_overlay_uses_shared_panel_and_widget_renderers():
-    source = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    overlay = (PACKAGE / "src" / "plan-overlay.ts").read_text(encoding="utf-8")
-    assert "renderPiPanel" in overlay
-    assert "renderPiWidgetRow" in source
-
-
-def test_plan_overlay_reserves_action_menu_space():
-    overlay = (PACKAGE / "src" / "plan-overlay.ts").read_text(encoding="utf-8")
-    assert "return Math.max(3, rows - 14);" in overlay
-    assert "maxBodyHeight" not in overlay
-    index = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    assert 'maxHeight: "80%"' not in index
-    assert 'maxHeight: "90%"' not in index
-
-
-def test_failed_explores_report_status_diagnostics_and_compatible_cli_args():
-    result = run_typescript(f"""
-        import * as fs from "node:fs";
-        import * as os from "node:os";
-        import * as path from "node:path";
-        import {{ runPlanWorker }} from {json.dumps((PACKAGE / "src" / "plan-worker.ts").as_uri())};
-
-        const root = fs.mkdtempSync(path.join(os.tmpdir(), "plan-mode-worker-"));
-        const bin = path.join(root, "bin");
-        const capture = path.join(root, "args.json");
-        const cwd = path.join(root, "workspace");
-        fs.mkdirSync(bin);
-        fs.mkdirSync(cwd);
-        const fakePi = path.join(bin, "pi");
-        fs.writeFileSync(fakePi, `#!/usr/bin/env node
-const fs = require("node:fs");
-fs.writeFileSync(process.env.PI_CAPTURE, JSON.stringify(process.argv.slice(2)));
-process.stderr.write("provider rejected worker request");
-process.exit(7);
-`, {{ mode: 0o755 }});
-        process.env.PATH = `${{bin}}:${{process.env.PATH ?? ""}}`;
-        process.env.PI_CAPTURE = capture;
-
-        const result = await runPlanWorker({{
-          prompt: "inspect the project",
-          cwd,
-          planPath: path.join(root, "plan.md"),
-          exploreTasks: [{{ focus: "tests", instructions: "inspect tests" }}],
-        }});
-        const args = JSON.parse(fs.readFileSync(capture, "utf8"));
-        fs.rmSync(root, {{ recursive: true, force: true }});
-        console.log(JSON.stringify({{
-          result: {{
-            status: result.exploreResults[0].status,
-            diagnostics: result.exploreResults[0].diagnostics,
-
-            exitCode: result.exploreResults[0].exitCode,
-            aggregate: result.stderr,
-          }},
-          args,
-        }}));
-    """)
-    worker = result["result"]
-    assert worker["status"] == "failed"
-    assert worker["diagnostics"] == "provider rejected worker request"
-    assert worker["exitCode"] == 7
-    assert "tests: provider rejected worker request" in worker["aggregate"]
-    assert "--no-extensions" in result["args"]
-    assert "--cwd" not in result["args"]
-
-
-def test_empty_explore_output_reports_actionable_diagnostic():
-    result = run_typescript(f"""
-        import * as fs from "node:fs";
-        import * as os from "node:os";
-        import * as path from "node:path";
-        import {{ runPlanWorker }} from {json.dumps((PACKAGE / "src" / "plan-worker.ts").as_uri())};
-
-        const root = fs.mkdtempSync(path.join(os.tmpdir(), "plan-mode-empty-"));
-        const bin = path.join(root, "bin");
-        const cwd = path.join(root, "workspace");
-        fs.mkdirSync(bin);
-        fs.mkdirSync(cwd);
-        const fakePi = path.join(bin, "pi");
-        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\nprocess.exit(0);\\n", {{ mode: 0o755 }});
-        process.env.PATH = `${{bin}}:${{process.env.PATH ?? ""}}`;
-        const result = await runPlanWorker({{
-          prompt: "inspect the project",
-          cwd,
-          planPath: path.join(root, "plan.md"),
-          exploreTasks: [{{ focus: "structure", instructions: "inspect structure" }}],
-        }});
-        fs.rmSync(root, {{ recursive: true, force: true }});
-        console.log(JSON.stringify({{
-          status: result.exploreResults[0].status,
-          diagnostics: result.exploreResults[0].diagnostics,
-          aggregate: result.stderr,
-        }}));
-    """)
-    assert result["status"] == "failed"
-    assert result["diagnostics"] == "Worker produced no structured result."
-    assert "structure: Worker produced no structured result." in result["aggregate"]
-
-
-def test_plan_review_fresh_session_action_uses_real_runtime():
-    run_plan_lifecycle("fresh")
 
 
 def test_tilde_expansion_in_agent_dir_and_plan_paths():
@@ -375,3 +170,72 @@ def test_tilde_expansion_in_agent_dir_and_plan_paths():
     assert result["leading"] is None
     assert result["trailing"] is None
     assert result["undefined"] is None
+
+
+
+def test_plan_uses_minimal_pi_kit_worker_and_native_review():
+    source = (PACKAGE / "src" / "index.ts").read_text()
+    worker = (PACKAGE / "src" / "plan-worker.ts").read_text()
+    assert "runPlanWorker" in source
+    assert "runPiWorker" in worker
+    assert "minimal: true" in worker
+    assert "ctx.ui.custom" not in source
+    assert "PLAN_REVIEW_TIMEOUT_MS" not in source
+
+
+def test_default_planner_uses_one_read_only_minimal_worker():
+    run_plan_lifecycle("headless")
+
+
+def test_failed_and_empty_headless_plans_preserve_previous_plan_and_report_errors():
+    for scenario, diagnostic in (("headless-failed", "Planner fixture failed"), ("headless-empty", "no structured result")):
+        result = subprocess.run(
+            ["node", "--import", "tsx", str(PACKAGE / "tests" / "plan_lifecycle.mts"), scenario],
+            cwd=REPO, text=True, capture_output=True, timeout=30,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Planning failed:" in result.stderr
+        assert diagnostic in result.stderr
+
+
+def test_obsolete_planners_are_cancelled_before_saving():
+    for scenario in ("worker-exit", "worker-new", "worker-replace"):
+        run_plan_lifecycle(scenario)
+
+
+def test_native_review_runs_in_the_current_session_only_after_selection():
+    run_plan_lifecycle("here")
+
+
+def test_native_review_starts_a_linked_new_session_only_after_selection():
+    run_plan_lifecycle("fresh")
+
+
+def test_dismissing_native_review_keeps_read_only_mode_and_accepts_prompts():
+    run_plan_lifecycle("dismiss")
+
+
+def test_interactive_start_opens_native_review():
+    run_plan_lifecycle("start-review")
+
+
+def test_native_review_is_cancelled_with_its_plan():
+    for scenario in ("review-exit", "review-new", "review-replace", "manual-exit", "manual-new", "manual-replace"):
+        run_plan_lifecycle(scenario)
+
+
+def test_new_session_unavailable_or_cancelled_never_implements_here():
+    for scenario in ("fresh-unavailable", "fresh-cancelled"):
+        run_plan_lifecycle(scenario)
+
+
+def test_plan_path_survives_collisions_and_session_restore():
+    run_plan_lifecycle("naming")
+
+
+def test_explicit_research_preserves_partial_failure_diagnostics():
+    result = subprocess.run(
+        ["node", "--import", "tsx", str(PACKAGE / "tests" / "plan_worker_contracts.mts")],
+        cwd=REPO, text=True, capture_output=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

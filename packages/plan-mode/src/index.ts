@@ -1,11 +1,11 @@
 /**
  * Minimal plan mode for Pi.
  *
- * Inspired by Claude Code's plan mode: toggle read-only planning, explore
- * the codebase, design a plan, then exit to implement. Supports a dedicated
- * planning model that is automatically activated on entry and restored on exit.
+ * Run a minimal read-only child, save its plan, then choose where to implement
+ * through the native TUI. Legacy interactive planning remains available.
  *
  * Commands:
+ *   /plan <prompt>     Plan in a minimal read-only child
  *   /plan              Toggle plan mode (menu)
  *   /plan start        Enter plan mode directly
  *   /plan exit         Leave plan mode
@@ -25,7 +25,6 @@ import { truncateToWidth } from "@earendil-works/pi-tui";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import {
   createLiveActivityWidget,
-  createPiThemeStyle,
   enterModelFromInput,
   modelLabel,
   modelRef,
@@ -40,12 +39,11 @@ import {
   runPlanWorker,
   type PlanWorkerUpdate,
 } from "./plan-worker";
-import { createPlanOverlay, type PlanAction } from "./plan-overlay";
 
 // ── Constants ───────────────────────────────────────────────────────
 
 const CONFIG_DIR_NAME = ".pi";
-const PLAN_REVIEW_TIMEOUT_MS = 30_000;
+const READ_ONLY_TOOLS = new Set(["read", "grep", "find", "ls"]);
 
 function expandTilde(filepath: string): string {
   if (filepath === "~" || filepath.startsWith("~/")) {
@@ -90,6 +88,7 @@ function restorePlanPath(ctx: ExtensionContext): void {
   cancelPlanJob(ctx);
   activePlanPath = undefined;
   activePlanRequest = undefined;
+  awaitingPlanRequest = false;
   for (const entry of ctx.sessionManager.getBranch()) {
     if (entry.type === "custom" && entry.customType === "plan-mode-path") {
       const data = entry.data as { path?: unknown } | undefined;
@@ -109,10 +108,9 @@ You are in plan mode. Your FIRST step is read-only exploration — understand th
 - Use ONLY read-only tools (read, grep, find, ls, and read-only bash commands)
 - DO NOT edit, write, or modify any files (except the plan file below)
 - Ask clarifying questions when requirements are ambiguous
-- You may use plan mode's built-in workers for parallel exploration when the task benefits from it
 
 ## Process
-1. **Explore FIRST**: Before writing any plan, read relevant files, understand existing patterns and architecture. Use workers for parallel exploration when the codebase is large or spans multiple areas.
+1. **Explore FIRST**: Before writing any plan, read relevant files, understand existing patterns and architecture.
 2. **Clarify**: Ask questions about ambiguities before designing
 3. **Design**: Consider multiple approaches, identify trade-offs
 4. **Plan**: Write a concrete implementation plan to ${planPath} with:
@@ -132,6 +130,7 @@ let planModeActive = false;
 let previousModelId: string | undefined;
 let config: PlanModeConfig;
 let activePlanRequest: string | undefined;
+let awaitingPlanRequest = false;
 let activePlanPath: string | undefined;
 let lastCommandCtx: ExtensionCommandContext | undefined;
 let planJob: AbortController | undefined;
@@ -184,7 +183,7 @@ function setPlanModeIndicator(ctx: ExtensionContext, active: boolean): void {
   }
   ctx.ui.setWidget("plan-mode-indicator", (_tui, theme) => ({
     render: (width: number) => {
-      const line = `${theme.fg("warning", "⏸")} ${theme.fg("warning", "plan mode on")}`;
+      const line = theme.fg("warning", "plan mode on");
       return [renderPiWidgetRow(line, width, truncateToWidth)];
     },
     invalidate: () => {},
@@ -192,34 +191,11 @@ function setPlanModeIndicator(ctx: ExtensionContext, active: boolean): void {
 }
 
 function isExecutionRequest(text: string): boolean {
-  return /(?:退出|离开)\s*(?:plan\s*mode|计划模式)|(?:exit|leave)\s+plan\s*mode|(?:开始|继续|确认|直接)执行|执行(?:这个|该)?计划|implement\s+(?:the\s+)?plan/i.test(text);
-}
-
-function buildMainSessionPlanPrompt(planPath: string, request: string): string {
-  return `Plan this request in the current session:
-
-${request}
-
-IMPORTANT: Start with read-only exploration FIRST. Read relevant files, understand the codebase, and identify affected areas before designing a plan. You may use plan mode's built-in workers for parallel exploration when the task spans multiple files or areas. Do not edit project files.
-
-Decide first whether this is simple enough to plan directly or needs additional worker research. Write the final plan to ${planPath}.
-
-When the plan is ready, explain:
-1. The recommended implementation plan.
-2. Which files would change and how.
-3. How it will be verified.
-4. End with exactly one marker: "Worker research: required" or "Worker research: not-needed". Decide this yourself; do not ask the user to start workers.`;
-}
-
-function buildWorkerResearchPrompt(planPath: string, request: string, planContent: string): string {
-  return `Perform additional worker research for this plan request:
-
-${request}
-
-Existing main-session plan:
-${planContent}
-
-Use workers only where they add useful independent research. Do not rewrite the plan unless the research finds a concrete gap. Write any updates to ${planPath}.`;
+  // Only a complete affirmative instruction can release the write guard.
+  // Mentions, questions, quotations, and negated instructions stay in plan mode.
+  const request = text.trim().replace(/[.!。！]+$/, "").trim();
+  return /^(?:please\s+)?(?:(?:exit|leave)\s+plan\s*mode|implement\s+(?:the\s+)?plan)$/i.test(request)
+    || /^(?:请\s*)?(?:(?:退出|离开)\s*(?:plan\s*mode|计划模式)|(?:开始|继续|确认|直接)执行|执行(?:这个|该)?计划)$/i.test(request);
 }
 
 async function reviewCurrentPlan(ctx: ExtensionContext): Promise<void> {
@@ -235,150 +211,100 @@ async function reviewCurrentPlan(ctx: ExtensionContext): Promise<void> {
 
 async function showPlanReview(ctx: ExtensionContext, _request: string, signal: AbortSignal): Promise<void> {
   if (signal.aborted) return;
-  if (!ctx.hasUI) {
-    notifyPi(ctx.ui, `Plan written to ${getPlanPath(ctx)}`, "info");
-    return;
-  }
-
   const planPath = getPlanPath(ctx);
   const planContent = fs.existsSync(planPath) ? fs.readFileSync(planPath, "utf-8") : "";
   if (!planContent.trim()) {
-    notifyPi(ctx.ui, `The main session has not written a plan to ${planPath} yet.`, "warning");
+    notifyPi(ctx.ui, "No completed plan is available yet.", "warning");
     return;
   }
-
-  const action = await ctx.ui.custom<PlanAction | undefined>((tui, theme, _kb, done) => {
-    let finished = false;
-    const finish = (action: PlanAction | undefined) => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timeout);
-      signal?.removeEventListener("abort", cancel);
-      done(action);
-    };
-    const cancel = () => finish(undefined);
-    const timeout = setTimeout(() => finish("implement-fresh"), PLAN_REVIEW_TIMEOUT_MS);
-    signal?.addEventListener("abort", cancel, { once: true });
-    timeout.unref?.();
-    const style = createPiThemeStyle(theme);
-    return createPlanOverlay(tui, style, {
-      planPath,
-      planContent,
-      onClose: () => {
-        finish(undefined);
-      },
-      onAction: (selected) => {
-        finish(selected);
-      },
-    });
-  }, {
-    overlay: true,
-    overlayOptions: {
-      anchor: "bottom-center",
-      width: "100%",
-      margin: { bottom: 0 },
-    },
-  });
-
-  if (signal?.aborted || !action) return;
-  if (action === "stay") return;
-  if (action === "exit") {
+  if (!ctx.hasUI) {
+    notifyPi(ctx.ui, `Plan written to ${planPath}`, "info");
+    if (ctx.mode === "print") process.stderr.write(`Plan written to ${planPath}\n`);
+    return;
+  }
+  const action = await ctx.ui.select(`Plan ready: ${planPath}`, [
+    "Implement in current session", "Implement in new session", "Stay in plan mode",
+  ], { signal });
+  if (signal.aborted) return;
+  if (!action || action === "Stay in plan mode") {
+    notifyPi(ctx.ui, "Plan kept. Use /plan review when ready to implement.", "info");
+    return;
+  }
+  const implementation = `Implement this plan:\nPlan file: ${planPath}\n\n${planContent}`;
+  if (action === "Implement in current session") {
     await exitPlanMode(ctx);
+    pi.sendUserMessage(implementation);
     return;
   }
-  if (action === "view-plan") {
-    await ctx.ui.custom<void>((tui, theme, _kb, done) => {
-      let finished = false;
-      const finish = () => {
-        if (finished) return;
-        finished = true;
-        signal.removeEventListener("abort", finish);
-        done(undefined);
-      };
-      signal.addEventListener("abort", finish, { once: true });
-      const style = createPiThemeStyle(theme);
-      return createPlanOverlay(tui, style, {
-        planPath,
-        planContent,
-        onClose: finish,
-        onAction: finish,
-      });
-    }, {
-      overlay: true,
-      overlayOptions: {
-        anchor: "bottom-center",
-        width: "100%",
-        margin: { bottom: 0 },
-      },
-    });
+  if (action !== "Implement in new session") return;
+  const commandCtx = typeof (ctx as ExtensionCommandContext).newSession === "function"
+    ? ctx as ExtensionCommandContext : lastCommandCtx;
+  if (!commandCtx) {
+    notifyPi(ctx.ui, "New session unavailable. The plan remains ready for review.", "warning");
     return;
   }
-  if (action === "implement-here") {
-    await exitPlanMode(ctx);
-    pi.sendUserMessage(
-      `The plan has been written to ${planPath}. Please implement it now.\n\n${planContent}`,
-    );
-    return;
-  }
-  if (action === "implement-fresh") {
-    await exitPlanMode(ctx);
-    const commandCtx = (typeof (ctx as ExtensionCommandContext).newSession === "function")
-      ? (ctx as ExtensionCommandContext)
-      : lastCommandCtx;
-    if (!commandCtx || typeof commandCtx.newSession !== "function") {
-      notifyPi(ctx.ui, "Fresh session unavailable — implementing in the current session.", "warning");
-      pi.sendUserMessage(`The plan has been written to ${planPath}. Please implement it now.\n\n${planContent}`);
-      return;
-    }
-    const parentSession = ctx.sessionManager.getSessionFile();
-    await commandCtx.newSession({
+  const parentSession = ctx.sessionManager.getSessionFile();
+  await exitPlanMode(ctx);
+  try {
+    const result = await commandCtx.newSession({
       parentSession,
       setup: async (sessionManager) => {
         sessionManager.appendCustomEntry("plan-mode-path", { path: planPath });
       },
       withSession: async (newCtx) => {
-        notifyPi(newCtx.ui, "Fresh implementation session started with plan context.", "info");
-        await newCtx.sendUserMessage(`Implement this plan:\nPlan file: ${planPath}\n\n${planContent}`);
+        await newCtx.sendUserMessage(implementation);
       },
     });
-    return;
+    if (!result.cancelled) return;
+    notifyPi(ctx.ui, "New session cancelled. The plan remains ready for review.", "info");
+  } catch (error) {
+    notifyPi(ctx.ui, `New session unavailable: ${error instanceof Error ? error.message : String(error)}`, "error");
   }
-
+  await enterPlanMode(ctx, false);
+  awaitingPlanRequest = false;
 }
 
-function requiresWorkerResearch(planContent: string): boolean {
-  return /worker research\s*:\s*(?:required|needed|yes)\b/i.test(planContent);
-}
-
-async function runWorkerResearch(ctx: ExtensionContext, request: string, planContent: string, job: AbortController): Promise<void> {
-  const planPath = getPlanPath(ctx);
-  const workerModel = modelRef(config) ?? (ctx.model ? modelLabel(ctx.model) : undefined);
-  notifyPi(ctx.ui, `Starting optional worker research... Plan will be written to ${planPath}`, "info");
-  startPlanWorkerWidget(ctx);
+async function runSubagentPlan(ctx: ExtensionCommandContext, request: string): Promise<void> {
+  cancelPlanJob(ctx);
+  const planPath = ensurePlanPath(request);
+  const job = new AbortController();
+  planJob = job;
   try {
+    await enterPlanMode(ctx, false);
+    if (planJob !== job) return;
+    activePlanRequest = undefined;
+    awaitingPlanRequest = false;
+    startPlanWorkerWidget(ctx);
     const result = await runPlanWorker({
-      prompt: buildWorkerResearchPrompt(planPath, request, planContent),
+      prompt: request,
       cwd: ctx.cwd,
       planPath,
-      model: workerModel,
+      model: modelRef(config) ?? (ctx.model ? modelLabel(ctx.model) : undefined),
       signal: job.signal,
-      onProgress: (message) => { if (planJob === job) notifyPi(ctx.ui, message, "info"); },
       onUpdate: (update) => { if (planJob === job) updatePlanWorkerWidget(update); },
     });
-    if (planJob !== job) return;
+    if (planJob !== job || job.signal.aborted) return;
+    clearPlanWorkerWidget(ctx);
     if (result.exitCode !== 0) {
-      notifyPi(ctx.ui, `Worker research failed: ${result.stderr}`, "error");
+      reportPlanningFailure(ctx, result.stderr);
       return;
     }
-    notifyPi(ctx.ui, "Optional worker research complete.", "info");
     await showPlanReview(ctx, request, job.signal);
   } catch (error) {
-    if (planJob !== job) return;
-    const message = error instanceof Error ? error.message : String(error);
-    notifyPi(ctx.ui, `Worker research error: ${message}`, "error");
+    if (planJob !== job || job.signal.aborted) return;
+    reportPlanningFailure(ctx, error instanceof Error ? error.message : String(error));
   } finally {
-    if (planJob === job) clearPlanWorkerWidget(ctx);
+    if (planJob === job) {
+      clearPlanWorkerWidget(ctx);
+      planJob = undefined;
+    }
   }
+}
+
+function reportPlanningFailure(ctx: ExtensionContext, detail: string): void {
+  const message = `Planning failed: ${detail}`;
+  notifyPi(ctx.ui, message, "error");
+  if (!ctx.hasUI && ctx.mode === "print") process.stderr.write(`${message}\n`);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -604,9 +530,11 @@ function showStatus(ctx: ExtensionContext): void {
 
 // ── Enter / Exit ────────────────────────────────────────────────────
 
-async function enterPlanMode(ctx: ExtensionContext): Promise<void> {
+async function enterPlanMode(ctx: ExtensionContext, switchModel = true): Promise<void> {
+  if (planModeActive) return;
   planModeActive = true;
-  await switchToPlanModel(ctx);
+  awaitingPlanRequest = true;
+  if (switchModel) await switchToPlanModel(ctx);
   setPlanModeIndicator(ctx, true);
   const active = ctx.model ? modelLabel(ctx.model) : "(none)";
   notifyPi(ctx.ui,
@@ -619,6 +547,7 @@ async function exitPlanMode(ctx: ExtensionContext): Promise<void> {
   cancelPlanJob(ctx);
   planModeActive = false;
   activePlanRequest = undefined;
+  awaitingPlanRequest = false;
   setPlanModeIndicator(ctx, false);
   await restoreModel(ctx);
   const active = ctx.model ? modelLabel(ctx.model) : "(none)";
@@ -635,7 +564,7 @@ export default function planMode(extensionApi: ExtensionAPI): void {
   pi.on("session_tree", (_event, ctx) => restorePlanPath(ctx));
 
   pi.on("input", async (event, ctx) => {
-    if (!planModeActive || !isExecutionRequest(event.text)) return;
+    if (!planModeActive || event.source === "extension" || !isExecutionRequest(event.text)) return;
     await exitPlanMode(ctx);
   });
 
@@ -650,9 +579,7 @@ export default function planMode(extensionApi: ExtensionAPI): void {
     const job = new AbortController();
     planJob = job;
     // Review can replace the session, which waits for lifecycle handlers to return.
-    const review = requiresWorkerResearch(planContent)
-      ? runWorkerResearch(ctx, request, planContent, job)
-      : showPlanReview(ctx, request, job.signal);
+    const review = showPlanReview(ctx, request, job.signal);
     void review.catch((error: unknown) => {
       if (planJob !== job) return;
       notifyPi(ctx.ui, `Plan review failed: ${error instanceof Error ? error.message : String(error)}`, "error");
@@ -697,7 +624,7 @@ export default function planMode(extensionApi: ExtensionAPI): void {
         return;
       }
 
-      if (sub === "model") {
+      if (/^model(?:\s|$)/i.test(prompt)) {
         const rest = prompt.slice("model".length).trim();
         if (rest) {
           const ref = parseModelRef(rest);
@@ -723,15 +650,8 @@ export default function planMode(extensionApi: ExtensionAPI): void {
         return;
       }
 
-      // /plan <prompt> starts planning in the main session. Worker research is
-      // deliberately deferred until the user explicitly asks for it.
-      cancelPlanJob(ctx);
-      const planPath = ensurePlanPath(prompt);
-      await enterPlanMode(ctx);
-      activePlanRequest = prompt;
-      const planPrompt = buildMainSessionPlanPrompt(planPath, prompt);
-      pi.sendUserMessage(planPrompt, { deliverAs: "followUp" });
-      return;
+      // Await the child in the command so print mode also owns its lifetime.
+      await runSubagentPlan(ctx, prompt);
 
     },
   });
@@ -739,6 +659,13 @@ export default function planMode(extensionApi: ExtensionAPI): void {
   // Block mutating tools in plan mode (except the plan file)
   pi.on("tool_call", async (event, ctx) => {
     if (!planModeActive) return;
+
+    // Extensions can replace built-ins under the same name. Authorize the
+    // registered source before trusting either the name or plan-file arguments.
+    const tool = pi.getAllTools().find((candidate) => candidate.name === event.toolName);
+    if (tool?.sourceInfo.source !== "builtin") {
+      return { block: true, reason: "Plan mode blocks extension and unknown tools, including overrides of built-in names." };
+    }
 
     const allowedPlanPath = getPlanPath(ctx);
 
@@ -775,6 +702,11 @@ export default function planMode(extensionApi: ExtensionAPI): void {
           reason: `Plan mode blocks this bash command. Only read-only commands are allowed.`,
         };
       }
+      return;
+    }
+
+    if (!READ_ONLY_TOOLS.has(event.toolName)) {
+      return { block: true, reason: "Plan mode blocks extension tools. Use read, grep, find, ls, read-only bash, or write/edit the assigned plan file." };
     }
   });
 
@@ -782,6 +714,8 @@ export default function planMode(extensionApi: ExtensionAPI): void {
     clearPlanWorkerWidget(ctx);
     setPlanModeIndicator(ctx, false);
     activePlanRequest = undefined;
+    awaitingPlanRequest = false;
+    previousModelId = undefined;
     lastCommandCtx = undefined;
     cancelPlanJob(ctx);
     planModeActive = false;
@@ -790,6 +724,10 @@ export default function planMode(extensionApi: ExtensionAPI): void {
   // Inject planning prompt
   pi.on("before_agent_start", async (event, _ctx) => {
     if (!planModeActive) return;
+    if (awaitingPlanRequest) {
+      activePlanRequest ??= event.prompt;
+      awaitingPlanRequest = false;
+    }
     const planPath = ensurePlanPath(event.prompt);
     return { systemPrompt: `${event.systemPrompt}\n\n${buildPlanPrompt(planPath)}` };
   });

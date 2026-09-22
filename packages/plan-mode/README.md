@@ -1,154 +1,106 @@
 # @fradser/pi-plan-mode
 
-Minimal plan mode for Pi. The main session plans first; the agent automatically runs worker research only when the plan requires it.
-
-## Install
+Generate a plan in a minimal read-only Pi subagent, then choose where to implement it through Pi's native TUI.
 
 ```bash
 pi install npm:@fradser/pi-plan-mode
 ```
 
-## Usage
+## Plan and implement
 
-```
-/plan              Toggle plan mode (interactive menu)
-/plan start        Enter plan mode (interactive planning in main session)
-/plan <prompt>     Start read-only planning in the main session
-/plan exit         Leave plan mode
-/plan model        Set the dedicated planning model
-/plan model provider/model   Set model directly
-/plan status       Show current state
-```
+Enter `/plan <prompt>` in Pi. The command starts **one** child through pi-kit's
+`runPiWorker({ minimal: true })`; the parent session does not generate the plan.
+The child explores using only `read`, `grep`, `find`, and `ls`. It has no bash,
+write, edit, or extension tools. Extensions, skills, prompt templates, context
+files, themes, and child session persistence are disabled.
 
-## Architecture
+The child returns the plan as text. After successful, non-empty completion, the
+host saves it to the session's assigned plan file. A passive widget shows worker
+activity while planning. The planning model can be configured separately; the
+parent session keeps its current model.
 
-```
-/plan <prompt>
-      │
-      ▼
-┌─────────────────────────────────────────────┐
-│  Main Session — Plan First                   │
-│                                             │
-│  - Enters read-only plan mode               │
-│  - Explores the codebase directly           │
-│  - Writes plans/<topic>.md                    │
-│  - Decides whether worker research helps    │
-└──────────────────┬──────────────────────────┘
-                   │ optional, explicit choice
-                   ▼
-┌─────────────────────────────────────────────┐
-│  Worker Research                             │
-│                                             │
-│  - Parallel explore workers when useful     │
-│  - Plan writer receives the existing plan   │
-│  - Live status is rendered above the input  │
-└──────────────────┬──────────────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────────────┐
-│  Plan Review                                 │
-│                                             │
-│  > Implement here                           │
-│    Start fresh and implement                │
-│    View plan                                │
-│    Stay in plan mode                        │
-│    Exit plan mode                           │
-└─────────────────────────────────────────────┘
+When the plan is ready, Pi opens its native selection menu:
+
+- **Implement in current session** sends the saved plan to the current session.
+- **Implement in new session** creates a linked session with the same plan path
+  and content, then starts implementation there.
+- **Stay in plan mode**, or Escape, keeps the plan for later review.
+
+There is no automatic selection or implementation timeout. Use `/plan review`
+to reopen the menu. If a new session is unavailable or creation is cancelled,
+implementation does not fall back to the current session.
+
+## Commands
+
+```text
+/plan <prompt>               Generate a plan with a minimal read-only subagent
+/plan                        Open the plan-mode menu
+/plan review                 Choose where to implement the saved plan
+/plan exit                   Cancel planning and leave plan mode
+/plan model                  Choose the dedicated planning model
+/plan model provider/model   Configure the model directly
+/plan status                 Show state, model, and plan path
+/plan start                  Enter the existing interactive main-session mode
 ```
 
-### Main-session planning
+`/plan start` remains available for interactive planning in the current session.
+It waits for the first ordinary planning prompt and opens the same native review
+menu when the plan is ready. Re-entering this mode preserves the original model
+for restoration on exit.
 
-`/plan <prompt>` never starts child workers immediately. It enters read-only mode and sends a follow-up to the current session. The main session decides whether the request is simple enough to plan directly. This avoids unnecessary worker cost and keeps the planning context in the current conversation.
-
-When the main-session plan is ready and Pi has settled, the review menu opens automatically without keeping the agent busy. Dismiss it to continue prompting, or choose an implementation action. You can also use `/plan review` or the plan-mode menu to inspect the plan. The agent decides automatically whether worker research is required; users do not need to invoke a separate research command.
-
-### Read-only bash
-
-Plan mode validates every command in `&&` chains and `|` pipelines, for example:
+Headless planning also awaits the child before returning:
 
 ```bash
-ls -la packages/matt-pocock/ && echo "---" && ls -R packages/matt-pocock/ | head -80
+pi --print "/plan Inspect the project and plan the requested change"
 ```
 
-Quotes preserve spaces and literal operators. Only bare allowlisted command names
-are accepted. Redirects, substitutions, escapes, newlines, background jobs,
-comments, unquoted shell expansions, and other shell operators are blocked.
-An unsafe or malformed stage blocks the entire request.
+It saves the plan and reports its path without starting implementation.
 
-Commands with write or execution modes use restricted option lists: for example,
-`find -exec`/`-delete`, `sort -o`, and Git mutation/output/external-diff options are
-blocked. Git branch, tag, and remote commands are listing-only. Basic `diff`,
-`jq`, ripgrep context options, and Git log formatting remain available.
-Interactive `less` and write-capable `yq` are not allowed; use the read tool or
-simpler inspection commands instead. This is a conservative command guard, not an
-OS sandbox: it assumes trusted executables and local Git configuration.
+## Read-only boundaries and cancellation
 
-### Automatic worker research
+In the parent session, genuine built-in `read`, `grep`, `find`, and `ls` are
+allowed. `write` and `edit` can target only the assigned plan file. Bash uses a
+conservative command guard that validates every chain and pipeline stage;
+redirects, substitutions, unsafe options, and mutating Git operations are blocked.
+Extension tools, including overrides of built-in names, are blocked.
 
-When the plan marks worker research as required, explore workers run automatically. By default, a single explore worker covers the full codebase. For complex tasks, multiple explore workers can be specified with different focus areas:
+The parent bash guard assumes trusted executables and local Git configuration;
+it is not an OS sandbox. The minimal child has no bash tool at all.
 
-| Workers | When to Use |
-|---------|-------------|
-| **1** (default) | Simple tasks, known files, small changes |
-| **2-3** | Complex tasks, multiple areas, uncertain scope |
+Exiting, replacing the planning request, or changing sessions aborts the owning
+child and selector. Late results cannot overwrite the plan or start implementation.
+Workers have no wall-clock timeout. Explicit standalone requests such as
+`implement the plan` or `执行这个计划` can leave the parent planning mode;
+negations, questions, quotations, and extension-generated input cannot.
 
-Each worker runs in isolation (`--no-session`) with read-only tools only. While they are active, the live worker widget is rendered above the input editor, matching the agent-teams worker display.
+## Plan files
 
-### Phase 2: Plan Writer
+Plans live at `~/.pi/agent/plans/<topic>.md`, or under `PI_CODING_AGENT_DIR` when
+set. Filenames preserve Unicode letters and numbers, use hyphens, and limit the
+topic to 60 characters; punctuation-only topics use `plan`.
 
-Receives all explore results as context and updates the same readable plan file as the main session.
+Names are reserved without overwriting existing plans; collisions receive `-2`,
+`-3`, and so on. The exact path is stored in session history and reused on reload,
+resume, and branch navigation. New implementation sessions retain that reference.
+Empty reservations do not count as completed plans. Legacy hash-named plans remain
+untouched. Exiting plan mode preserves the saved file.
 
-### Post-Plan Actions
+## Model configuration
 
-After plan generation, choose what to do:
-
-- **Implement here** — Exit plan mode, send plan as context to current session
-- **Start fresh and implement** — Create a new linked session with plan context
-- **View plan** — Display the plan content
-- **Stay in plan mode** — Continue exploring/refining
-- **Exit plan mode** — Discard and exit
-
-## Plan File
-
-Plans are stored at `~/.pi/agent/plans/<topic>.md`, for example `repair-completion.md`:
-- The first `/plan <prompt>` supplies the topic; `/plan start` waits for the first planning prompt.
-- Filenames preserve Unicode letters and numbers, use hyphens between words, and limit the topic to 60 characters. Punctuation-only topics use `plan`.
-- Existing names are never overwritten during allocation: collisions receive `-2`, `-3`, and so on. An empty file reserves the name but does not trigger review.
-- The exact path is saved in session history and restored on reload, resume, and branch navigation. Further requests in that session retain it; worker research, review, and fresh implementation share that reference.
-- `PI_CODING_AGENT_DIR` overrides the agent directory. Ephemeral sessions retain the reference only for their lifetime.
-
-Existing hash-named files are not renamed or automatically adopted. Conversations may still reference them. To continue an old plan with a readable name, start a new planning request and ask the agent to copy the old plan into the newly assigned path; leave the original intact while other sessions reference it.
-
-## Configuration
-
-Config at `~/.pi/agent/plan-mode.json`:
+Use `/plan model provider/model`, or configure `~/.pi/agent/plan-mode.json`:
 
 ```json
 {
-  "provider": "anthropic",
-  "model": "claude-3-5-haiku"
+  "provider": "your-provider",
+  "model": "your-model"
 }
 ```
 
-Or via environment:
-
-```bash
-export PI_PLAN_MODE_MODEL="anthropic/claude-3-5-haiku"
-```
-
-The plan model is used for the main planning session and, when the agent decides research is required, both explore workers and the plan writer. Worker processes have no wall-clock timeout; they stop when they exit or are aborted. Exiting plan mode, replacing the session, or starting another plan cancels pending research and review. Cancelled workers cannot overwrite the plan or open a stale review.
-
-## Design Comparison
-
-| Feature | Claude Code | This package | narumiruna/pi-plan-mode |
-|---------|-------------|--------------|------------------------|
-| Source lines | ~200 | ~750 | ~4,600 |
-| Parallel explore | yes | **yes** | no |
-| Plan worker | subagent | **child process** | main session |
-| Model switching | no | yes | no |
-| Plan file | scratchpad | `~/.pi/agent/plans/<topic>.md` | in-memory |
-| Post-plan actions | approve/reject | **5-option menu** | complex state machine |
-| Custom tools | 0 | 0 | 2 |
+`PI_PLAN_MODE_MODEL=provider/model` is a fallback when the corresponding saved
+configuration is absent. Without a dedicated model, the child uses the current
+session's model. That provider must be available to a minimal Pi process through
+its normal model configuration and authentication; providers registered only by
+parent extensions are not loaded in the child.
 
 ## License
 

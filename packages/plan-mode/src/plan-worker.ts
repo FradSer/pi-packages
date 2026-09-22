@@ -1,26 +1,6 @@
 /**
- * Plan worker spawner — runs plan generation with parallel explore workers.
- *
- * Architecture (inspired by Claude Code's plan mode):
- *
- *   Phase 1: Parallel Explore Workers
- *   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
- *   │ Explore 1   │ │ Explore 2   │ │ Explore 3   │
- *   │ (structure) │ │ (patterns)  │ │ (tests)     │
- *   └──────┬──────┘ └──────┬──────┘ └──────┬──────┘
- *          │               │               │
- *          └───────────────┼───────────────┘
- *                          │
- *   Phase 2: Plan Writer   ▼
- *                   ┌─────────────┐
- *                   │ Plan Writer │
- *                   │ (writes     │
- *                   │  PLAN.md)   │
- *                   └─────────────┘
- *
- * Each explore worker runs in isolation with --no-session.
- * Explore workers have read-only tool access.
- * Plan writer has write access to the plan file only.
+ * One minimal, read-only Pi planner by default. Explicit research tasks may
+ * precede it; the host alone saves the returned plan after success and abort checks.
  */
 
 import * as fs from "node:fs";
@@ -74,13 +54,13 @@ export interface RunPlanWorkerOptions {
   prompt: string;
   /** Working directory for the child (the current session cwd). */
   cwd: string;
-  /** Path to the plan file the writer should write to. */
+  /** Path where the host saves the returned plan. */
   planPath: string;
   /** Model pattern (e.g. "anthropic/claude-sonnet-4-5"). */
   model?: string;
   /** Abort signal — aborts all child processes. */
   signal?: AbortSignal;
-  /** Explore tasks to run in parallel. If empty, a single explore is generated from the prompt. */
+  /** Optional explicit research tasks. Omit for a single read-only planning child. */
   exploreTasks?: ExploreTask[];
   /** Progress callback for explore/plan status. */
   onProgress?: (message: string) => void;
@@ -100,27 +80,6 @@ function formatWorkerDiagnostics(stderr: string, exitCode: number): string {
 
 /** Plan writer returns content; the host owns the only plan-file write. */
 const PLAN_WRITER_TOOLS = ["read", "grep", "find", "ls"];
-
-/**
- * Generate a single explore task from a user prompt.
- * The main session's plan mode prompt handles multi-agent orchestration;
- * the plan-worker is a single-shot fallback for /plan <prompt>.
- */
-function generateExploreTask(prompt: string): ExploreTask {
-  return {
-    focus: "codebase exploration",
-    instructions: `Explore the codebase to understand what needs to change for: ${prompt}
-
-Focus on:
-- Relevant files and their roles
-- Existing patterns and conventions
-- Similar implementations to reference
-- Test locations and patterns
-- Edge cases and potential issues
-
-Be thorough but concise. Report facts, not recommendations.`,
-  };
-}
 
 /**
  * Run a single explore worker.
@@ -161,7 +120,7 @@ Be thorough but concise. Focus on facts, not recommendations.`;
     tools: EXPLORE_TOOLS,
     model,
     signal,
-    extraArgs: ["--no-extensions"],
+    minimal: true,
     onUpdate: (progress) => onUpdate?.(workerProgress(workerId, "explore", task.focus, progress)),
   });
   const findings = result.text.trim();
@@ -178,7 +137,7 @@ Be thorough but concise. Focus on facts, not recommendations.`;
     focus: task.focus,
     status,
     findings: findings || "(no findings)",
-    diagnostics: formatWorkerDiagnostics(result.stderr, result.exitCode),
+    diagnostics: status === "completed" ? result.stderr.trim() : formatWorkerDiagnostics(result.stderr, result.exitCode),
     usage: result.usage,
     exitCode: result.exitCode,
   };
@@ -206,7 +165,7 @@ async function runPlanWriter(
 
   const prompt = `# Plan Writer
 
-You are a plan writer. Based on the exploration results below, write a concrete implementation plan.
+You are a read-only planning agent. Explore the codebase FIRST with read, grep, find and ls, then write a concrete implementation plan. Do not implement changes. Return the plan as text; never modify files.
 
 ## User Request
 ${userPrompt}
@@ -217,6 +176,7 @@ ${exploreSummary}
 
 ## Instructions
 Return the complete plan content as your final response. The host process will write it to the configured plan path: ${planPath}
+Disclose unresolved research gaps from failed explore results; do not treat unexamined areas as verified.
 
 Use this structure:
 
@@ -245,7 +205,7 @@ Be specific and actionable. The plan should be implementable without additional 
     tools: PLAN_WRITER_TOOLS,
     model,
     signal,
-    extraArgs: ["--no-extensions"],
+    minimal: true,
     onUpdate: (progress) => onUpdate?.(workerProgress("plan-writer", "writer", "plan writer", progress)),
   });
   signal?.throwIfAborted();
@@ -269,9 +229,6 @@ Be specific and actionable. The plan should be implementable without additional 
   };
 }
 
-/**
- * Main entry point: run parallel explore workers, then plan writer.
- */
 function workerProgress(
   id: string,
   phase: PlanWorkerPhase,
@@ -303,7 +260,11 @@ export async function runPlanWorker(options: RunPlanWorkerOptions): Promise<Plan
   // Ensure the plan directory exists
   fs.mkdirSync(path.dirname(planPath), { recursive: true });
 
-  const exploreTasks = userTasks && userTasks.length > 0 ? userTasks : [generateExploreTask(prompt)];
+  if (!userTasks?.length) {
+    const result = await runPlanWriter(prompt, planPath, [], cwd, model, signal, onProgress, onUpdate);
+    return { exploreResults: [], planText: result.planText, totalUsage: result.usage, exitCode: result.exitCode, stderr: result.stderr };
+  }
+  const exploreTasks = userTasks;
 
   // Phase 1: Parallel explore
   onProgress?.(`Starting ${exploreTasks.length} explore workers...`);
@@ -332,7 +293,7 @@ export async function runPlanWorker(options: RunPlanWorkerOptions): Promise<Plan
   const planResult = await runPlanWriter(
     prompt,
     planPath,
-    successfulExplores,
+    exploreResults,
     cwd,
     model,
     signal,

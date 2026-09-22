@@ -1,214 +1,112 @@
-Feature: Readable stable plan filenames
-  Scenario: A topic names a session plan once
-    Given a session starts planning a topic
-    When its first request is available
-    Then a bounded Unicode topic filename is reserved without overwriting another plan
-    And repeated requests, writes, edits, review and worker research retain that path
-    And an empty reservation does not count as a completed plan
+Feature: Minimal read-only subagent planning
+  Scenario: A single plan command starts one minimal child agent
+    Given the user is in a Pi session
+    When the user enters /plan followed by a prompt
+    Then pi-kit starts one minimal Pi child with only read, grep, find and ls
+    And no planning turn is sent to the parent session
+    And only the host writes the returned non-empty plan to its assigned file
+    And project writes, mutating bash, and extension tools remain blocked
 
-  Scenario: Session transitions preserve the correct plan reference
-    Given a session has a persisted readable plan path
-    When it is reloaded or resumed
-    Then its exact plan path is restored
-    And a different session with the same topic receives a numeric collision suffix
-    And fresh implementation receives the original plan path without entering plan mode
+  Scenario: Interactive start waits for the first planning prompt
+    Given the user enters /plan start or selects Start plan mode
+    When the first ordinary planning prompt completes a non-empty plan
+    Then the native implementation selector opens after the agent settles
 
-  Scenario: Interactive start waits for a topic
-    Given plan mode starts without a request
-    When the first user prompt arrives
-    Then its topic names the plan before prompt injection and the read-only gate
-    And existing hash-named files remain untouched
+  Scenario: A ready plan waits for explicit implementation consent
+    Given the subagent completes its plan
+    When Pi shows its native TUI selector
+    Then the user can implement in the current session or a new session
+    And waiting does not choose an action automatically
+    And dismissing the selector keeps plan mode read-only
+    And an unrelated follow-up does not repeatedly reopen review
 
-Feature: Read-only shell composition
-  Scenario: Safe pipelines and conditional chains support exploration
-    Given plan mode is active
-    When bash requests ls -la packages/matt-pocock/ && echo "---" && ls -R packages/matt-pocock/ | head -80
-    Then every command is validated and the request is allowed
-    And quoted arguments preserve spaces and literal operators
-    And basic diff and jq reads, ripgrep context, and Git log formatting remain available
+  Scenario: Headless planning awaits the child
+    Given /plan receives a prompt in print mode
+    When the command completes
+    Then the child has finished and its plan is saved without implementation
 
-  Scenario: Compound commands cannot bypass read-only restrictions
-    Given plan mode is active
-    When any stage mutates files or uses unsafe command options
-    Then the entire bash request is blocked
-    And substitutions, redirects, background jobs, newlines and malformed syntax are blocked
-    And find execution and deletion, sort output, and mutating Git operations are blocked
+  Scenario: Failed or empty planning is visible without a TUI
+    Given an existing saved plan and a headless planning command
+    When the child fails or returns no plan
+    Then stderr explains the failure
+    And the existing plan remains unchanged with no implementation
 
-Feature: Owned manual plan review
-  Scenario Outline: Manual review cannot outlive its plan
-    Given a plan review opened through <entrypoint>
-    When <transition> invalidates the plan
-    Then the review closes before any further input
-    And late input and the expired review timer cannot implement the obsolete plan
+  Scenario: Obsolete planners cannot publish results
+    Given a planning child is running
+    When the user exits, replaces the request, or changes sessions
+    Then the child is aborted
+    And its late result cannot write the plan or open review
+
+  Scenario: Implement in the current session
+    Given the implementation selector is open
+    When the user selects Implement in current session
+    Then plan mode exits and the original model is restored
+    And only the current session receives the plan implementation request
+
+  Scenario: Implement in a new session
+    Given the implementation selector is open
+    When the user selects Implement in new session
+    Then a new session linked to the original receives the plan content and path
+    And the new session starts outside plan mode
+    And the original session receives no implementation request
+    And unavailable or cancelled session creation never falls back to implementing here
+
+  Scenario Outline: Review cannot outlive the plan it belongs to
+    Given review opened through <entrypoint>
+    When the user <transition>
+    Then the native selector is aborted
+    And a late choice cannot implement the obsolete plan
     Examples:
       | entrypoint | transition |
-      | /plan review | exit |
-      | /plan review | new session |
-      | menu Review current plan | replacement plan |
+      | automatic completion | exits plan mode |
+      | automatic completion | starts a new session |
+      | automatic completion | replaces the planning request |
+      | /plan review | exits plan mode |
+      | /plan review | starts a new session |
+      | /plan review | replaces the planning request |
 
-  Scenario: Full plan viewer closes with its owning review
-    Given manual review opened the full plan viewer
-    When plan mode exits
-    Then the viewer closes and ignores late input
+Feature: Stable plan files and model configuration
+  Scenario: Plan paths survive session transitions without overwriting files
+    Given the first planning prompt reserves a bounded Unicode topic filename
+    When the session is reloaded or resumed
+    Then the exact plan-mode-path session entry is restored
+    And another session using the same topic gets a numeric collision suffix
+    And an empty reservation does not open review
+    And legacy hash-named files remain untouched
 
-Feature: Main-session-first plan mode
-  As a user starting /plan
-  I want the main session to plan before any worker starts
-  So that simple tasks do not pay for unnecessary worker processes
+  Scenario: Configure a dedicated planning model
+    Given the provider and model are registered
+    When /plan model provider/model is handled
+    Then configuration is saved without invoking the agent or allocating a plan
+    And invalid model arguments do not start planning
 
-  Scenario: A plan request starts in the main session
-    Given /plan receives a planning prompt
-    When the command handles the prompt
-    Then it enters read-only plan mode
-    And it sends the prompt as a follow-up to the main session
-    And it does not start plan workers immediately
+  Scenario: Repeated entry preserves the original model
+    Given plan mode has switched to a dedicated model
+    When the user enters plan mode again and later exits
+    Then the model from before the first entry is restored
 
-  Scenario: Plan mode prompts emphasize exploration first and mention built-in workers
+Feature: Read-only enforcement
+  Scenario: Discussion is not execution consent
     Given plan mode is active
-    When the system prompt and main-session prompt are rendered
-    Then the system prompt instructs to explore the codebase first before designing
-    And the main-session prompt instructs to explore the codebase first before designing
-    And the system prompt mentions that built-in workers are available for parallel exploration
-    And the main-session prompt mentions that built-in workers are available for parallel exploration
+    When a user negates, quotes, or asks about executing a plan
+    Then project writes remain blocked
+    And extension-generated input cannot authorize leaving plan mode
 
-  Scenario: The main-session plan is shown before optional research
-    Given the main session writes a plan file
-    When the planning turn ends
-    Then the plan review overlay is shown
-    And worker research remains agent-controlled
+  Scenario: Only genuine built-in tools can be allowed
+    Given other extensions are loaded
+    When a custom tool or an override of a built-in name is requested
+    Then the tool is blocked before execution
+    And genuine read, grep, find and ls remain usable
+    And genuine write and edit can target only the assigned plan file
 
-  Scenario: Leaving or replacing a plan cancels detached research
-    Given optional plan research is running after the agent settles
-    When the user exits plan mode, replaces the session, or starts a new plan request
-    Then the obsolete worker is aborted and cannot write its plan or open review
-    And obsolete cleanup cannot clear a newer plan job
-    And cancellation during plan writing prevents the host from writing a late successful result
-    And cancelling an open review prevents its timer or late choice from implementing
-
-  Scenario: Plan completion releases the agent before review and implementation
-    Given a real agent session has written its requested plan
-    When the planning response completes while review awaits a choice
-    Then the agent completion returns and the implementation menu is available
-    And dismissing review lets a new prompt run without a trapped follow-up
-    And selecting fresh implementation does not wait on its own completion event
-
-  Scenario: Plan completion does not loop review commands to the agent
-    Given the main session completes writing a plan
-    When the planning turn ends
-    Then the plan review overlay is displayed directly without sending review messages to the agent
-    And the active plan request is cleared to prevent repeated review triggers
-
-  Scenario: Worker research is decided by the main-session agent
-    Given the main session has written a plan
-    When the plan marks worker research as required
-    Then plan workers start automatically with the existing plan as context
-    And no manual research command or menu action is required
-
-  Scenario: Plan mode shows a persistent indicator below the editor
-    Given the user enters plan mode
-    When the plan mode indicator is rendered
-    Then a "plan mode on" marker is shown below the input editor
-    And the marker is removed when plan mode is exited
-
-Scenario: Plan feedback uses the shared TUI notification abstraction
-  Given a plan-mode command needs to notify the user
-  When it displays information, warnings, or errors
-  Then it uses pi-kit's portable notification helper with the requested level
-
-Feature: Plan worker diagnostics and CLI compatibility
-  As a user running /plan
-  I want plan workers to have the same visible running state as teammates
-  So that I can tell which exploration or writing phase is active and diagnose failures
-
-  Scenario: Plan overlays and widgets use pi-kit's shared TUI renderers
-    Given plan mode displays a review overlay or passive status widget
-    When the TUI is rendered
-    Then its panel frame uses pi-kit's shared panel renderer
-    And its passive rows use pi-kit's shared widget-row renderer
-
-  Scenario: Plan workers render through pi-kit's live activity widget
-    Given /plan starts explore and plan-writer workers
-    When worker progress changes during plan generation
-    Then pi-kit's live activity widget shows each worker phase and running status above the input editor
-    And each row is formatted as worker id, label in parentheses, and current activity
-    And the spinner and task name appear before the separator
-    And a worker without live activity shows "Working..." after the separator
-    And the widget uses the shared pi-kit spinner cadence
-    And the widget is cleared after plan generation finishes
-
-  Scenario: Plan worker failures remain visible until cleanup
-    Given an explore worker reports a failed result
-    When plan generation is still handling the result
-    Then the plan widget marks that worker as failed
-    And cleanup does not happen before the plan result is handled
-
-  Scenario: Explore workers avoid unsupported CLI options
-    Given a plan worker launches an explore child with a working directory
-    When the child Pi command is constructed
-    Then it does not include the unsupported --cwd option
-    And explore workers include --no-extensions
-
-  Scenario: Explore workers cannot mutate the project
-    Given an explore worker is launched
-    When its child tools are configured
-    Then bash and write tools are not available to the explore worker
-    And read-only exploration remains enforced outside the prompt
-
-  Scenario: The plan writer cannot mutate paths outside the plan file
-    Given a plan writer is launched
-    When its child tools are configured
-    Then bash and write tools are not available to the plan writer
-    And the host writes only the returned plan content to the configured plan path
-    And the writer child runs with extensions disabled
-
-  Scenario: Failed explore workers expose status and diagnostics
-    Given an explore child exits without findings and reports an error
-    When the plan worker records the child result
-    Then the explore result status is failed
-    And its diagnostics include the child error
-    And the aggregate failure identifies the affected focus
-
-  Scenario: Empty successful output is not reported as completed
-    Given an explore child exits successfully without structured findings
-    When the plan worker records the child result
-    Then the explore result status is failed
-    And its diagnostics say that no structured result was produced
-
-  Scenario: Manual worker research commands are not exposed
+  Scenario: Safe composed shell commands support exploration
     Given plan mode is active
-    When the user enters /plan research or /plan workers
-    Then the command is not treated as a worker research request
+    When every stage of a bash chain or pipeline is read-only
+    Then the command is allowed
+    And quoted spaces and literal operators are preserved
 
-  Scenario: Plan workers do not use wall-clock timeouts
-    Given a plan worker is launched
-    When the child process is running
-    Then pi-kit does not accept a timeoutMs option
-    And plan-mode does not report a timed-out worker state
-
-  Scenario: Plan writer receives structured explore status
-    Given one or more explore results have status and diagnostics
-    When the plan writer prompt is assembled
-    Then each result includes its status and diagnostics
-
-  Scenario: Plan writer completion requires a fresh non-empty plan
-    Given a writer exits successfully without returning plan content
-    When plan worker generation finishes
-    Then the writer is marked failed
-    And an existing plan is not reported as a newly completed plan
-
-  Scenario: Finished plan worker tool activity does not remain current
-    Given a plan worker has streamed a tool call followed by new thinking or text
-    When the worker progress is rendered
-    Then the widget shows the new thinking or text instead of the finished tool label
-
-  Scenario: Plan review reserves space for its action menu
-    Given the plan review overlay is rendered in a short terminal
-    When its body viewport is calculated
-    Then all plan actions and footer remain within the overlay height
-
-  Scenario: Plan review timeout defaults to a fresh implementation session
-    Given the plan review overlay is waiting for a user choice
-    When the review timeout elapses without a selection
-    Then the overlay selects Start fresh and implement
-    And the plan is sent through the replacement session context
-    And the original session does not receive the implementation request
+  Scenario: One unsafe shell stage blocks the whole request
+    Given plan mode is active
+    When any stage uses mutation, execution options, substitution or redirection
+    Then the entire request is blocked
+    And malformed syntax and mutating Git commands are blocked
