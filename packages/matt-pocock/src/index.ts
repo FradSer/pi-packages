@@ -29,7 +29,7 @@ import {
   workflowDefinitions,
   workflowPlacement,
 } from "./catalog.ts";
-import { resolveAccessibleReference, resolveProcedureBundle, resolveWorkflowContext } from "./resolver.ts";
+import { resolveAccessibleReference, resolveProcedureBundle, resolveProcedureDelta, resolveWorkflowContext } from "./resolver.ts";
 /** Geometry bound once: every Matt Pocock row shares hint and wrapping. */
 const mattPocockRows = bindLifecycleRenderers({
   fit: truncateToWidth,
@@ -49,6 +49,7 @@ import {
   transitionState,
   workflowGuidance,
   workflowRoutes,
+  withDeliveryDefaults,
   WORKFLOW_STATE_ENTRY,
   WORKFLOW_STATE_VERSION,
   type TerminalWorkflowState,
@@ -164,9 +165,29 @@ function userRequestSection(request: string): string {
   return request ? `\n\nUser target/request:\n${request}` : "";
 }
 
-function workflowPrompt(state: WorkflowState, action: string, request = ""): string {
-  const bundle = resolveWorkflowContext(state.procedure, state.loadedReferences);
-  return `# Matt Pocock workflow procedure\n\nRoute: ${state.route}\nPhase: ${state.phase}\nWork item: ${state.workItemId}\n\n${bundle.content}${userRequestSection(request)}${stateContract(state, action)}`;
+/** Delivered when a procedure's body is already in the session, so the prompt is never empty. */
+const ALREADY_DELIVERED = "Its instructions were delivered earlier in this session and are unchanged. Continue against them; do not re-request them.";
+
+/**
+ * The prompt for a workflow step, plus the state that records what it delivered.
+ *
+ * Only procedures this session has not been shown are embedded. A transition re-delivers
+ * the active context every time, and a bundle carries its whole dependency closure, so
+ * re-sending that closure would spend the context the work needs and end a long task early
+ * for want of room rather than for want of work.
+ */
+function deliveryStep(state: WorkflowState, action: string, request = "", full = false): { text: string; state: WorkflowState } {
+  const delta = resolveProcedureDelta(
+    state.procedure,
+    state.loadedReferences,
+    full ? [] : state.deliveredProcedures,
+  );
+  const next: WorkflowState = { ...state, deliveredProcedures: delta.delivered };
+  const body = delta.content ? delta.content : ALREADY_DELIVERED;
+  return {
+    text: `# Matt Pocock workflow procedure\n\nRoute: ${next.route}\nPhase: ${next.phase}\nWork item: ${next.workItemId}\n\n${body}${userRequestSection(request)}${stateContract(next, action)}`,
+    state: next,
+  };
 }
 
 function standalonePrompt(capability: string, request = ""): string {
@@ -198,11 +219,14 @@ function loadActiveReference(reference: string): { state: WorkflowState; content
   if (!activeWorkflow) throw new Error("No active Matt Pocock workflow.");
   const bundle = resolveAccessibleReference(activeWorkflow.procedure, activeWorkflow.loadedReferences, reference);
   const loadedReferences = [...new Set([...activeWorkflow.loadedReferences, ...bundle.loaded])];
-  const state = { ...activeWorkflow, loadedReferences };
+  // The reference's own closure is deduplicated too: a reference whose body is already in
+  // the session does not need to arrive twice.
+  const delta = resolveProcedureDelta(reference, [], activeWorkflow.deliveredProcedures);
+  const state: WorkflowState = { ...activeWorkflow, loadedReferences, deliveredProcedures: delta.delivered };
   persistWorkflow(state);
   return {
     state,
-    content: `# Matt Pocock workflow reference\n\nWork item: ${state.workItemId}\nReference: ${bundle.root}\n\n${bundle.content}${stateContract(state, `loaded reference ${bundle.root}`)}`,
+    content: `# Matt Pocock workflow reference\n\nWork item: ${state.workItemId}\nReference: ${bundle.root}\n\n${delta.content || ALREADY_DELIVERED}${stateContract(state, `loaded reference ${bundle.root}`)}`,
   };
 }
 
@@ -229,7 +253,9 @@ async function chooseRoute(ctx: ExtensionCommandContext): Promise<void> {
   if (!route) return;
   const state = startWorkflow(route);
   clearPiStatus(ctx.ui, "matt-pocock");
-  deliverProcedure(workflowPrompt(state, "started workflow"), { ...state, request: "" });
+  const step = deliveryStep(state, "started workflow");
+  persistWorkflow(step.state);
+  deliverProcedure(step.text, { ...step.state, request: "" });
 }
 
 async function chooseCapability(ctx: ExtensionCommandContext): Promise<void> {
@@ -247,8 +273,9 @@ function applyTransition(ctx: ExtensionCommandContext, target: string): void {
   }
   const state = transitionState(activeWorkflow, target);
   resolveProcedureBundle(state.procedure);
-  persistWorkflow(state);
-  deliverProcedure(workflowPrompt(state, `transitioned to ${state.procedure}`), { ...state, request: "" });
+  const step = deliveryStep(state, `transitioned to ${state.procedure}`);
+  persistWorkflow(step.state);
+  deliverProcedure(step.text, { ...step.state, request: "" });
 }
 
 async function chooseTransition(ctx: ExtensionCommandContext): Promise<void> {
@@ -342,15 +369,21 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       if (!workflowPlacement(record.route, record.procedure)) {
         throw new Error(`Procedure ${record.procedure} is not part of workflow ${record.route}.`);
       }
-      const content = workflowPrompt(record, "restored workflow");
-      activeWorkflow = record;
+      // A restore is a context boundary: this session may have been compacted or restarted,
+      // so the whole active context is re-delivered rather than deduplicated. Delivery
+      // tracking only suppresses repeats inside one continuous session.
+      const restored = withDeliveryDefaults(record);
+      const step = deliveryStep(restored, "restored workflow", "", true);
+      // Not persisted here: session_start must not write to the branch. The next transition
+      // records the delivery set it has actually shown.
+      activeWorkflow = step.state;
       refreshActiveTools(true);
       clearPiStatus(ctx.ui, "matt-pocock");
       pi.sendMessage({
         customType: PROCEDURE_ENTRY,
-        content,
+        content: step.text,
         display: false,
-        details: record,
+        details: step.state,
       }, { deliverAs: "nextTurn" });
     } catch (error) {
       activeWorkflow = record;
@@ -417,9 +450,11 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
           throw new Error(`Workflow ${activeWorkflow.workItemId} is already active. Complete or cancel it before starting another.`);
         }
         const state = startWorkflow(params.route);
+        const step = deliveryStep(state, "started workflow");
+        persistWorkflow(step.state);
         return {
-          content: [{ type: "text", text: workflowPrompt(state, "started workflow") }],
-          details: { mode: "workflow", ...state },
+          content: [{ type: "text", text: step.text }],
+          details: { mode: "workflow", ...step.state },
         };
       }
       if (params.mode === "reference") {
@@ -471,11 +506,12 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       if (params.action === "transition") {
         const state = transitionState(activeWorkflow, params.target);
         resolveProcedureBundle(state.procedure);
-        persistWorkflow(state);
+        const step = deliveryStep(state, `transitioned to ${state.procedure}`);
+        persistWorkflow(step.state);
         clearPiStatus(ctx.ui, "matt-pocock");
         return {
-          content: [{ type: "text", text: workflowPrompt(state, `transitioned to ${state.procedure}`) }],
-          details: { action: "transition", subject: workflowEventSubject("transition", state.phase), state },
+          content: [{ type: "text", text: step.text }],
+          details: { action: "transition", subject: workflowEventSubject("transition", state.phase), state: step.state },
         };
       }
       if (params.action === "load") {
@@ -717,7 +753,9 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         if (activeWorkflow) throw new Error(`Workflow ${activeWorkflow.workItemId} is already active.`);
         const state = startWorkflow(token);
         clearPiStatus(ctx.ui, "matt-pocock");
-        deliverProcedure(workflowPrompt(state, "started workflow", task), { ...state, request: task });
+        const step = deliveryStep(state, "started workflow", task);
+        persistWorkflow(step.state);
+        deliverProcedure(step.text, { ...step.state, request: task });
         return;
       }
       const capability = findProcedure(token);

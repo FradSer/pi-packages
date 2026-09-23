@@ -6,6 +6,38 @@ import pytest
 
 from test_package import run_typescript
 
+
+def test_a_workflow_step_does_not_re_deliver_what_is_already_in_context() -> None:
+    """Re-sending a whole procedure closure every transition is what ended long tasks early."""
+    result = run_typescript('''
+        import { resolveProcedureDelta } from "./packages/matt-pocock/src/resolver.ts";
+        const first = resolveProcedureDelta("implement", [], []);
+        const repeat = resolveProcedureDelta("implement", [], first.delivered);
+        const transition = resolveProcedureDelta("code-review", [], first.delivered);
+        console.log(JSON.stringify({
+          firstIds: first.delivered,
+          firstBytes: first.content.length,
+          repeatContent: repeat.content,
+          repeatIds: repeat.delivered,
+          transitionIds: transition.delivered,
+          transitionBytes: transition.content.length,
+        }));
+    ''')
+
+    # The first delivery carries the whole closure: the procedure and its dependencies.
+    assert "implement" in result["firstIds"]
+    assert "bdd" in result["firstIds"]
+    assert result["firstBytes"] > 0
+
+    # Nothing new is nothing re-sent, and the delivery set does not shrink.
+    assert result["repeatContent"] == ""
+    assert result["repeatIds"] == result["firstIds"]
+
+    # A transition delivers only what that procedure adds, not the shared dependencies again.
+    assert "code-review" in result["transitionIds"]
+    assert result["transitionBytes"] > 0
+    assert result["transitionBytes"] < result["firstBytes"]
+
 HARNESS = """
         import mattPocock from "./packages/matt-pocock/src/index.ts";
         const LF = String.fromCharCode(10);

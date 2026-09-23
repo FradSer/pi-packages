@@ -125,3 +125,33 @@ export function resolveAccessibleReference(
   }
   return resolveProcedureBundle(target.id);
 }
+
+export interface ProcedureDelta {
+  content: string;
+  delivered: string[];
+  availableReferences: string[];
+}
+
+/**
+ * The part of the active context this session has not been shown yet.
+ *
+ * A workflow re-delivers its prompt on every transition, and a procedure's bundle carries
+ * its whole dependency closure -- so re-sending the closure each time spends the context
+ * the work itself needs, and a long task stops partway for lack of room rather than for
+ * lack of work. A procedure already delivered in this session is therefore not sent again:
+ * the instructions the model has already read stay read, and only what is new arrives.
+ */
+export function resolveProcedureDelta(
+  activeProcedure: string,
+  loadedReferences: string[],
+  delivered: string[],
+): ProcedureDelta {
+  const context = resolveWorkflowContext(activeProcedure, loadedReferences);
+  const already = new Set(delivered);
+  const pending = context.loaded.filter((id) => !already.has(id));
+  return {
+    content: pending.map((id) => renderSource(requireDefinition(id))).join("\n\n"),
+    delivered: [...new Set([...delivered, ...context.loaded])],
+    availableReferences: context.availableReferences,
+  };
+}

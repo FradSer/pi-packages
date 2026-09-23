@@ -18,6 +18,8 @@ export interface WorkflowState {
   phase: string;
   status: "active";
   loadedReferences: string[];
+  /** Procedures whose body has already been delivered in this session. */
+  deliveredProcedures: string[];
 }
 
 export interface TerminalWorkflowState {
@@ -54,6 +56,7 @@ export function routeEntryState(route: string, workItemId: string): WorkflowStat
     phase: placement.phase,
     status: "active",
     loadedReferences: [],
+    deliveredProcedures: [],
   };
 }
 
@@ -113,7 +116,17 @@ export function isWorkflowState(value: unknown): value is WorkflowState {
     && typeof candidate.phase === "string"
     && candidate.status === "active"
     && Array.isArray(candidate.loadedReferences)
-    && candidate.loadedReferences.every((reference) => typeof reference === "string");
+    && candidate.loadedReferences.every((reference) => typeof reference === "string")
+    // Absent is tolerated so a workflow persisted before delivery tracking existed still
+    // restores; it simply re-delivers once, which is harmless.
+    && (candidate.deliveredProcedures === undefined
+      || (Array.isArray(candidate.deliveredProcedures)
+        && candidate.deliveredProcedures.every((id) => typeof id === "string")));
+}
+
+/** Backfill delivery tracking on a state persisted before it existed. */
+export function withDeliveryDefaults(state: WorkflowState): WorkflowState {
+  return { ...state, deliveredProcedures: state.deliveredProcedures ?? [] };
 }
 
 export function isTerminalWorkflowState(value: unknown): value is TerminalWorkflowState {
@@ -138,13 +151,19 @@ export function latestWorkflowRecord(entries: unknown[]): WorkflowSessionData | 
 
 export function latestWorkflowState(entries: unknown[]): WorkflowState | undefined {
   const record = latestWorkflowRecord(entries);
-  return record?.status === "active" ? record : undefined;
+  return record?.status === "active" ? withDeliveryDefaults(record) : undefined;
 }
 
 export function workflowGuidance(state: WorkflowState, availableReferences: string[]): string {
   const next = allowedTransitions(state.route, state.procedure);
   return `Matt Pocock workflow active: ${state.route} · ${state.phase}.
-Work item: ${state.workItemId}. Follow the loaded ${state.procedure} procedure. Use matt_pocock_active to transition only to: ${next.join(", ") || "none"}; load an available reference; complete the work; or cancel it with a reason. Available references: ${availableReferences.join(", ") || "none"}. Exact shapes: {"action": "transition", "target": "<allowedNext id>"}; {"action": "load", "reference": "<availableReferences id>"}; {"action": "complete"}; {"action": "cancel", "reason": "<why>"}. Proceed autonomously through non-user-owned work: once the current procedure's deliverables or decisions are ready, transition to the next applicable procedure via matt_pocock_active immediately without stopping to ask permission. Ask only for a genuinely user-owned decision, unavailable fact, or required external action. Use matt_pocock_ask for structured workflow decisions. Complete only after the integrated candidate has applicable verification and all blocking reviews have returned with findings resolved; a completed review assignment is not itself a PASS verdict. Evidence must match that candidate. If only required results remain outstanding, yield with the workflow still active rather than declaring completion. Once these conditions hold, call matt_pocock_active with action complete instead of leaving stale active state.`;
+Work item: ${state.workItemId}. Follow the loaded ${state.procedure} procedure.
+
+Drive the current procedure to its end in this turn. A multi-step deliverable is not finished because one step passed: keep implementing, testing and fixing until every step the procedure covers is done, rather than stopping at the first green slice or handing back a plan for the remainder. Do not end the turn to ask whether to continue.
+
+Use matt_pocock_active to transition only to: ${next.join(", ") || "none"}; load an available reference; complete the work; or cancel it with a reason. Available references: ${availableReferences.join(", ") || "none"}. Exact shapes: {"action": "transition", "target": "<allowedNext id>"}; {"action": "load", "reference": "<availableReferences id>"}; {"action": "complete"}; {"action": "cancel", "reason": "<why>"}. Proceed autonomously through non-user-owned work: transition to the next applicable procedure as soon as this one's deliverables are complete, without stopping to ask permission. Ask only for a genuinely user-owned decision, an unavailable fact, or a required external action, and use matt_pocock_ask for those.
+
+Yield only when the remaining work genuinely depends on an external actor, on a teammate result you cannot produce yourself, or on context you no longer have — and when you yield, state plainly what is unfinished rather than implying completion. Never announce completion early: call matt_pocock_active with action complete only once the integrated candidate has applicable verification and every blocking review has returned with its findings resolved; a completed review assignment is not itself a PASS verdict, and evidence must match that candidate.`;
 }
 
 export function availableWorkflowsGuidance(): string {

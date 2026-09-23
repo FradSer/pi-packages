@@ -24,11 +24,18 @@ def normalized(text: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
-def test_every_active_workflow_has_a_review_aware_finish_line(instructions: dict[str, object]) -> None:
+def test_every_active_workflow_drives_to_completion_and_yields_only_when_blocked(instructions: dict[str, object]) -> None:
     for text in instructions["guidance"]:
         guidance = normalized(text)
-        for rule in ("integrated candidate", "blocking reviews", "findings resolved", "yield", "still active"):
+        for rule in ("integrated candidate", "blocking reviews", "findings resolved"):
             assert rule in guidance
+        # Reaching the end of the work, not the end of one slice, is the finish line.
+        assert "Drive the current procedure to its end" in guidance
+        assert "Do not end the turn to ask whether to continue" in guidance
+        # The old text told the agent to stop whenever only teammate results were out;
+        # that instruction is what ended a long task partway through.
+        assert "yield with the workflow still active" not in guidance
+        assert "Yield only when the remaining work genuinely depends" in guidance
 
 
 def test_implementation_bundle_scopes_checks_and_freezes_a_candidate(instructions: dict[str, object]) -> None:
