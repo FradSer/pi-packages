@@ -170,7 +170,7 @@ pi install npm:pi-skill-router
 
 ### [`@fradser/pi-utils`](packages/utils/)
 
-Adds `/effort`, `/continue`, `/sessions`, `/init`, internal private live-session control, and safe Git worktree isolation.
+Adds `/effort`, `/continue`, `/sessions`, `/init`, internal private live-session control, and safe Git worktree isolation. Requires Pi ≥0.85.1. Worktree entry settles the old tool batch before switching and resumes edits in the replacement cwd; stale foreign `edit`/`write` paths are blocked.
 
 **Tools:** `enter_worktree`, `exit_worktree`, `list_directory_sessions`
 

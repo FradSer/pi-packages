@@ -172,7 +172,7 @@ pi install npm:pi-skill-router
 
 ### [`@fradser/pi-utils`](packages/utils/)
 
-提供 `/effort`、`/continue`、`/sessions`、`/init`、内部私有实时会话控制，以及安全的 Git worktree 隔离。
+提供 `/effort`、`/continue`、`/sessions`、`/init`、内部私有实时会话控制，以及安全的 Git worktree 隔离。需要 Pi ≥0.85.1。进入 worktree 前结束旧工具批次，切换后在新 cwd 继续编辑，并阻止 `edit`／`write` 使用指向其他 worktree 的旧路径。
 
 **工具：** `enter_worktree`、`exit_worktree`、`list_directory_sessions`
 
