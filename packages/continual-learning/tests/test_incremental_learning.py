@@ -432,3 +432,60 @@ def test_selector_rejects_unknown_fields_and_selected_body_drift() -> None:
           console.log(JSON.stringify({ unknownField: unknownField.outcome, drift: drift.outcome }));
         """, {"TEST_ROOT": temporary})
     assert result == {"unknownField": "failed", "drift": "failed"}
+
+
+def test_dossier_harness_events_come_from_harness_owned_entries_only() -> None:
+    with tempfile.TemporaryDirectory(prefix="incremental-harness-events-") as temporary:
+        result = run_bun(r"""
+          import { mock } from 'bun:test';
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import { execFileSync } from 'node:child_process';
+          const cwd = path.join(process.env.TEST_ROOT, 'project');
+          const outputDir = path.join(process.env.TEST_ROOT, 'output');
+          fs.mkdirSync(cwd, { recursive: true });
+          execFileSync('git', ['init', '-q', cwd]);
+          const kit = await import('./packages/kit/src/index.ts');
+          mock.module('./packages/kit/src/index.ts', () => ({
+            ...kit,
+            runPiWorker: async input => ({
+              text: JSON.stringify({
+                kind: 'incremental-memory-selection', version: 1,
+                contextDigest: /Context digest:\s*([^\n]+)/.exec(input.prompt)[1],
+                selected: [], memory: false, harness: true, agents: false,
+                reason: 'Recorded harness decision in this task.',
+              }),
+              exitCode: 0, stderr: '', cancelled: false,
+            }),
+          }));
+          const { selectIncrementalLearning } = await import('./packages/continual-learning/extensions/incremental-learning.ts');
+          const outcome = await selectIncrementalLearning({
+            cwd,
+            contextDigest: 'harness-events-digest',
+            outputDir,
+            taskSlice: {
+              kind: 'learning-task-slice', version: 1,
+              entries: [
+                { message: { role: 'user', content: 'Explain the consolidation pipeline for this package.' } },
+                { message: { role: 'toolResult', toolName: 'bash', content: 'extensions/HARNESS-DESIGN.md\nassert "harness delta" in pipeline\nblocked|confirm|violation\n\ncommand output\n[harness-bash-note]\n[harness:no-npm] Use pnpm for installs.' } },
+                { message: { role: 'assistant', content: 'The harness policy stage is documented in that file.' } },
+                { type: 'custom', customType: 'harness-event', data: {
+                  kind: 'policy-matched', policy: 'no-bulk-memory-deletion', action: 'block', tool: 'bash',
+                  outcome: 'blocked by rule', reason: 'Project memory must not be bulk-deleted through generated shell commands.',
+                  source: 'project', file: '.pi/harness.json',
+                } },
+              ],
+            },
+          });
+          const dossier = JSON.parse(fs.readFileSync(outcome.dossierPath, 'utf8'));
+          console.log(JSON.stringify({ outcome: outcome.outcome, harnessEvents: dossier.harnessEvents, touchedPaths: dossier.touchedPaths }));
+        """, {"TEST_ROOT": temporary})
+    assert result["outcome"] == "selected"
+    events = result["harnessEvents"]
+    recorded = " ".join(events)
+    assert "blocked by rule" in recorded
+    assert "no-bulk-memory-deletion" in recorded
+    assert "Project memory must not be bulk-deleted through generated shell commands." in recorded
+    assert "HARNESS-DESIGN.md" not in recorded
+    assert "harness delta" not in recorded
+    assert "harness policy stage" not in recorded

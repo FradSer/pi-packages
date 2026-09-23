@@ -62,6 +62,19 @@ Feature: Select the minimum sufficient scope for incremental learning
     When the selector omits that phase from its routing flags
     Then the parent keeps the deterministically selected phase enabled
 
+  Scenario: Harness activity means Harness-owned transcript evidence
+    Given a tool result only mentions policies, harness files, or guarded words
+    When the parent screens the Task Slice
+    Then it claims no Harness activity
+    But a guardrail entry, Harness guidance delivery, or Harness note marker is activity
+
+  Scenario: A reviewed selector verdict is not overridden by tool noise
+    Given a manual consolidation reaches selection
+    And the selector declines phases after reviewing this same Task Slice
+    When that slice only carries a verified tool recovery or Harness activity
+    Then the declined phases stay disabled and no planner starts
+    But user-stated durable evidence or a constraint still floors the selector
+
   Scenario: Selector failure is fail-closed
     Given the selector times out, returns ambiguous objects, or names unknown Memory
     When the parent validates the selector result
@@ -102,3 +115,9 @@ Feature: Select the minimum sufficient scope for incremental learning
     Then the Task Slice appears once
     And each selected Memory body appears once
     And unselected Memory bodies do not appear
+
+  Scenario: The dossier records Harness events the Harness surface produced
+    Given the Task Slice contains a recorded guardrail decision or a Harness note
+    When the parent writes the Learning Dossier
+    Then each Harness event appears with its decision and recorded prose
+    But repository or conversation text that merely names the harness is not an event

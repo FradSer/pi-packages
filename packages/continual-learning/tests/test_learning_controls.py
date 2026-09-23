@@ -91,13 +91,15 @@ def test_history_refuses_sensitive_proposals_and_source_snapshots(tmp_path: Path
       import {recordLearningProposal,recordLearningMutation,listLearningHistory} from './packages/continual-learning/extensions/learning-history.ts';
       const cwd=path.join(process.env.CONTROL_TEST_ROOT,'project');fs.mkdirSync(cwd);
       const target=path.join(cwd,'AGENTS.md');fs.writeFileSync(target,'token: sk-test-secret');
-      const refused=[];let called=false;
+      const refused=[];let called=false;let snapshotError='';
       for(const phase of ['memory','harness','agents'])try{await recordLearningProposal(cwd,phase,{report:[{quote:'token: sk-test-secret'}]})}catch{refused.push(phase)}
       try{await recordLearningProposal(cwd,'memory',{grounding:{credential:'synthetic-value'}})}catch{refused.push('nested')}
-      try{await recordLearningMutation(cwd,'agents',[target],async()=>{called=true})}catch{refused.push('snapshot')}
-      console.log(JSON.stringify({refused,called,records:(await listLearningHistory(cwd)).length}));
+      try{await recordLearningMutation(cwd,'agents',[target],async()=>{called=true})}catch(error){refused.push('snapshot');snapshotError=error instanceof Error?error.message:String(error)}
+      console.log(JSON.stringify({refused,called,snapshotError,records:(await listLearningHistory(cwd)).length}));
     """, tmp_path)
-    assert result == {"refused": ["memory", "harness", "agents", "nested", "snapshot"], "called": False, "records": 0}
+    assert result["refused"] == ["memory", "harness", "agents", "nested", "snapshot"]
+    assert result["called"] is False and result["records"] == 0
+    assert "refuses sensitive material" in result["snapshotError"] and "project/AGENTS.md" in result["snapshotError"], result["snapshotError"]
 
 
 def test_history_accepts_ordinary_text_and_still_refuses_credential_shapes(tmp_path: Path) -> None:
@@ -418,6 +420,33 @@ def test_undo_write_failure_rolls_back_prior_files(tmp_path: Path) -> None:
       console.log(JSON.stringify({refused,injected,agents:fs.readFileSync(agents,'utf8'),harness:fs.readFileSync(harness,'utf8'),status:(await listLearningHistory(cwd))[0].status}));
     """, tmp_path)
     assert result == {"refused": True, "injected": True, "agents": "after", "harness": "after", "status": "applied"}
+
+
+@pytest.mark.parametrize("scenario,expected", [
+    ("manual-declined", []),
+    ("manual-constraint", ["memory", "harness"]),
+    ("manual-harness-marker", ["harness"]),
+])
+def test_manual_consolidation_honors_the_reviewed_selector_verdict(scenario: str, expected: list[str]) -> None:
+    value = run_bun_script(POLICY_HARNESS, scenario)
+    assert value["selectors"] == 1, value
+    assert value["planners"] == expected, value
+    assert value["lock"] is False, value
+    for record in value["history"]:
+        assert {change["target"]["name"] for change in record["changes"]} <= {"MEMORY.md"}, record
+    assert not any("failed" in notice.lower() or "rejected" in notice.lower() for notice in value["notices"]), value
+    if scenario == "manual-declined":
+        assert value["registryReceipt"]["screen"]["memory"] is False, value["registryReceipt"]
+        assert value["registryReceipt"]["screen"]["harness"] is False, value["registryReceipt"]
+        assert "selector-declined-memory" in value["registryReceipt"]["screen"]["reasons"], value["registryReceipt"]
+        assert [attempt["phase"] for attempt in value["registryReceipt"]["attempts"]] == ["selector"], value["registryReceipt"]
+
+
+def test_completed_memory_runs_keep_their_plan_for_inspection() -> None:
+    value = run_bun_script(POLICY_HARNESS, "manual-constraint")
+    planned = [run for run in value["runs"] if "plan.json" in run["files"]]
+    assert len(planned) == 1, value["runs"]
+    assert {"plan.json", "task.md", "pre-receipt.json", "post-receipt.json", "manifest.json", "snapshot.json"} <= set(planned[0]["files"]), planned[0]
 
 
 @pytest.mark.parametrize("scenario", ["memory-propose", "harness-propose", "memory-apply", "all-off", "agents-propose", "agents-extraction"])

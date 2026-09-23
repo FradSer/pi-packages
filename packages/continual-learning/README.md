@@ -216,7 +216,12 @@ automatic-screen keywords. Explicit continuation prompts retain the original
 request and its evidence. Task slices preserve complete entries within their byte
 budget, report omitted entries, and reject an oversized original request rather
 than clipping evidence. A failed tool invocation followed by a successful check
-is eligible for Memory review; the planner still must justify a durable lesson.
+is eligible for Memory review; the planner still must justify a durable lesson,
+and a reviewed selector verdict is not overridden by that recovery alone.
+Harness evidence means Harness-owned transcript evidence: guardrail event
+entries, Harness guidance delivery, and the notes Harness attaches to tool
+results. Repository text that merely mentions policies or harness files is not
+evidence, so it starts no planner.
 
 ### Phase policies and history
 
@@ -250,7 +255,10 @@ predecessors after review to resume; the incomplete record becomes `abandoned`.
 Unknown current bytes are never automatically attributed to learning or overwritten.
 History rejects detected credentials in proposals and file snapshots, matching
 assigned values and provider key formats rather than ordinary prose, wiki links
-or workflow permission names.
+or workflow permission names. A refused snapshot names the learned surface to
+clean without echoing the matched bytes. Completed runs keep their run directory
+(identity, task, plan, receipts, snapshot) for inspection, like a failed run keeps
+its diagnostics.
 Older changes made before history was installed have no undo record.
 
 ### Independent learning evaluation

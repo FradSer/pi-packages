@@ -41,7 +41,7 @@ def test_dreaming_widget_and_notifications_use_shared_pi_kit_tui_primitives() ->
     assert 'key: "memory-dreaming"' in content
     assert 'identity: "Dreaming..."' in content
     assert 'placement: "aboveEditor"' in content
-    assert "leadingSpaces: 0" in content
+    assert "leadingSpaces: 1" in content
     assert "dreamingWidget.update(ctx" in content
     assert "dreamingWidget.clear(ctx)" in content
     assert "notifyPi(ctx.ui" in content
@@ -795,7 +795,6 @@ def test_selected_scope_task_lines_render_exact_contract() -> None:
 def test_failed_runs_persist_bounded_diagnostics_and_retain_artifacts() -> None:
     content = source()
     assert "const persistRunDiagnostics = async (): Promise<void>" in content
-    assert "failureRecorded = true;" in content
     assert "const boundedStdout = tailBoundedUtf8Text(`" in content
     assert "writeFileAtomic(run.paths.stdoutFile, completeJsonlSuffix(boundedStdout))" in content
     assert "writeFileAtomic(run.paths.stderrFile, tailBoundedUtf8Text(stderr))" in content
@@ -803,9 +802,10 @@ def test_failed_runs_persist_bounded_diagnostics_and_retain_artifacts() -> None:
     # Late events must not notify or retain: recheck ownership after every await.
     assert content.count("await persistRunDiagnostics();\n        if (!ownsCurrentRun()) return;") == 3
     assert "await persistRunDiagnostics();\n          if (!ownsCurrentRun()) return;" in content
-    # Retention must be decided from ownership captured before state.run clears.
+    # Retention must be decided from ownership captured before state.run clears:
+    # completed, failed, and no-op runs all keep their artifacts for inspection.
     assert "const ownedNow = generation === state.generation && !state.cancelled && state.run === run;" in content
-    assert "releaseConsolidationRun(run, { keepArtifacts: failureRecorded && ownedNow })" in content
+    assert "releaseConsolidationRun(run, { keepArtifacts: ownedNow })" in content
     # Output-limit trips clear the capture before persistence; keep the reason.
     assert "outputLimitReason = reason;" in content
     assert "`\\n[truncated: ${outputLimitReason}]\\n`" in content

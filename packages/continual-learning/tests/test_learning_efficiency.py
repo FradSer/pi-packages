@@ -216,6 +216,52 @@ def test_mixed_priced_and_unavailable_attempts_keep_cost_unavailable() -> None:
     assert "$0.0100" not in result["summary"]
 
 
+def test_harness_activity_comes_from_harness_owned_entries_not_file_text() -> None:
+    result = run_bun(r"""
+      import { screenLearningEntries } from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const user = { message: { role: 'user', content: 'Explain the consolidation pipeline for this package.' } };
+      const tool = (content, extra = {}) => ({ message: { role: 'toolResult', toolName: 'bash', content, ...extra } });
+      const screen = entries => screenLearningEntries(entries, 'automatic');
+      console.log(JSON.stringify({
+        repositoryText: screen([user, tool('grep -n "policy" extensions/harness-consolidation.ts\n"policies" | "skillPrompts" | "harness.json"\nPOLICY_HARNESS = Path(...)\nblocked|confirm|violation')]),
+        failedCommand: screen([user, tool('error: Cannot find module x', { isError: true })]),
+        guardrailEntry: screen([user, { type: 'custom', customType: 'harness-event', data: { kind: 'policy-matched', action: 'block' } }]),
+        guidanceMessage: screen([user, { type: 'custom_message', customType: 'harness-guidance', content: '[harness:no-npm] Use pnpm.' }]),
+        bashNote: screen([user, tool('command output\n[harness-bash-note] Report the actual output.')]),
+        scopedGuidance: screen([user, tool('[harness:no-npm] Only for subjects matching "npm"; use pnpm instead.')]),
+      }));
+    """)
+    assert result["repositoryText"]["harness"] is False, result["repositoryText"]
+    assert result["repositoryText"]["memory"] is False, result["repositoryText"]
+    assert result["failedCommand"]["harness"] is False, result["failedCommand"]
+    for name in ("guardrailEntry", "guidanceMessage", "bashNote", "scopedGuidance"):
+        assert result[name]["harness"] is True, name
+        assert "verified-harness-event" in result[name]["reasons"], name
+
+
+def test_manual_selector_decline_survives_tool_only_signals() -> None:
+    result = run_bun(r"""
+      import { manualIncrementalScreen } from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const tool = (content, extra = {}) => ({ message: { role: 'toolResult', toolName: 'bash', content, ...extra } });
+      const task = { message: { role: 'user', content: 'Fix the failing build.' } };
+      const noise = [tool('grep -n "policy" extensions/harness-consolidation.ts'), tool('Changed the runtime; build succeeded.')];
+      const declined = { memory: false, harness: false, agents: false };
+      console.log(JSON.stringify({
+        noise: manualIncrementalScreen([task, ...noise], declined),
+        recovery: manualIncrementalScreen([task, tool('error: bad runtime', { isError: true }), noise[1]], declined),
+        constraint: manualIncrementalScreen([{ message: { role: 'user', content: 'Never run the retired compiler.' } }], declined),
+        guardrail: manualIncrementalScreen([task, ...noise, { type: 'custom', customType: 'harness-event', data: { kind: 'policy-matched' } }], declined),
+        selected: manualIncrementalScreen([task, ...noise], { memory: true, harness: false, agents: true }),
+      }));
+    """)
+    assert result["noise"] == {"memory": False, "harness": False, "agents": False, "reasons": ["manual-incremental", "no-durable-memory-evidence", "no-harness-evidence", "no-agents-evidence"]}, result["noise"]
+    assert result["recovery"]["memory"] is False, result["recovery"]
+    assert result["recovery"]["reasons"][1] == "selector-declined-memory", result["recovery"]
+    assert result["constraint"]["memory"] is True and result["constraint"]["harness"] is True, result["constraint"]
+    assert result["guardrail"]["harness"] is True and result["guardrail"]["memory"] is False, result["guardrail"]
+    assert result["selected"] == {"memory": True, "harness": False, "agents": True, "reasons": ["manual-incremental", "selector-selected-memory", "no-harness-evidence", "selector-selected-agents"]}, result["selected"]
+
+
 def test_quiet_learning_subjects_and_details_keep_routine_rows_compact() -> None:
     result = run_bun("""
       import { buildLearningReceipt, learningSummaryDetails, learningSummarySubject } from './packages/continual-learning/extensions/learning-efficiency.ts';
@@ -276,3 +322,28 @@ def test_usage_aggregation_includes_every_attempt() -> None:
       ])));
     """)
     assert result == {"input": 45, "output": 12, "cacheRead": 6, "cacheWrite": 3, "totalTokens": 57, "cost": 0.06}
+
+
+def test_harness_owned_event_summaries_name_the_decision_and_ignore_repository_text() -> None:
+    result = run_bun(r"""
+      import { harnessOwnedEventSummary } from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const tool = (content, extra = {}) => ({ message: { role: 'toolResult', toolName: 'bash', content, ...extra } });
+      console.log(JSON.stringify({
+        decision: harnessOwnedEventSummary({ type: 'custom', customType: 'harness-event', data: {
+          kind: 'policy-matched', policy: 'no-bulk-memory-deletion', action: 'block', tool: 'bash',
+          outcome: 'blocked by rule', reason: 'Project memory must not be bulk-deleted.', source: 'project', file: '.pi/harness.json',
+        } }),
+        note: harnessOwnedEventSummary(tool('total 12\n[harness-bash-note]\n[harness:no-npm] Use pnpm for installs.')),
+        guidance: harnessOwnedEventSummary({ type: 'custom_message', customType: 'harness-guidance', content: '[harness:no-npm] Use pnpm for installs.' }),
+        repositoryText: harnessOwnedEventSummary(tool('extensions/HARNESS-DESIGN.md\npolicy blocked confirmation violation')) ?? null,
+        assistantText: harnessOwnedEventSummary({ message: { role: 'assistant', content: 'The harness policy stage is documented.' } }) ?? null,
+      }));
+    """)
+    assert "blocked by rule" in result["decision"]
+    assert "no-bulk-memory-deletion" in result["decision"]
+    assert "Project memory must not be bulk-deleted." in result["decision"]
+    assert "no-npm" in result["note"] and "Use pnpm for installs." in result["note"]
+    assert "total 12" not in result["note"]
+    assert "Use pnpm for installs." in result["guidance"]
+    assert result["repositoryText"] is None
+    assert result["assistantText"] is None

@@ -338,6 +338,8 @@ def test_harness_only_evidence_runs_without_memory_mutation_and_records_receipt(
       const entries = [
         { message: { role: 'user', content: [{ type: 'text', text: 'Please finish the current task.' }] } },
         { message: { role: 'toolResult', content: [{ type: 'text', text: 'Harness policy blocked a generated write.' }] } },
+        // Words in tool output are not evidence; the guardrail entry is.
+        { type: 'custom', customType: 'harness-event', data: { kind: 'policy-matched', action: 'block', tool: 'write' } },
       ];
       const ctx = { cwd, mode: 'json', hasUI: false, ui: { notify: text => notices.push(text), setWidget: () => {} }, sessionManager: { getBranch: () => entries, buildContextEntries: () => entries } };
       for (const handler of hooks.get('session_start') ?? []) await handler({}, ctx);

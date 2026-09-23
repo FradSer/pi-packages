@@ -239,6 +239,12 @@ Feature: Memory management with automatic learning and manual consolidation
     And it writes bounded stderr plus a compact activity summary into the run directory
     And it retains the run directory artifacts while releasing the lock
 
+  Scenario: Completed Memory runs keep their plan for inspection
+    Given an incremental Memory phase finishes as a verified no-op or an applied plan
+    When the child releases its run
+    Then the run directory keeps its task, plan, receipts, manifest, and snapshot
+    But a cancelled or superseded run is discarded instead of being reported as this phase's outcome
+
   Scenario: Identical duplicate plan records collapse before validation
     Given a child plan repeats one per-item record byte-for-byte
     When the parent extracts the plan

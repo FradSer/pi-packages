@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fieldLine, type PiWorkerUsage } from "@fradser/pi-kit";
+import { HARNESS_BASH_NOTE_PREFIX, HARNESS_CONFIG_NOTE_PREFIX } from "./harness-guidance-planner.ts";
 
 export type LearningMode = "automatic" | "manual" | "full";
 export type LearningPhase = "selector" | "memory" | "harness" | "agents";
@@ -29,6 +30,12 @@ const CORRECTION_PATTERN = /\b(wrong|instead|confirmed|retry)\b|不对|改成|�
 const AGENTS_PATTERN = /AGENTS\.md|instruction|workflow|process|convention|architecture|指令|流程|规范|架构/iu;
 const TOOL_FAILURE_PATTERN = /(?:^|\n)\s*(?:error|fatal)\s*:|\b(?:build|compilation|tests?|checks?)\b[^\n]{0,80}\bfailed\b|(?:构建|编译|测试|检查)失败/iu;
 const VERIFICATION_SUCCESS_PATTERN = /\b(?:build|compilation|tests?|checks?)\b[^\n]{0,80}\b(?:passed|succeeded|successful)\b|(?:^|\n)\s*\d+ passed\b|(?:构建|编译|测试|检查)(?:成功|通过)/iu;
+/** The Harness surface owns the `harness-` custom-type namespace and the notes
+ * it attaches to tool results. Repository text that merely mentions policies,
+ * harness files, or guarded words is not Harness activity. */
+const HARNESS_OWNED_CUSTOM_PREFIX = "harness-";
+const HARNESS_TOOL_MARKERS = [HARNESS_BASH_NOTE_PREFIX, HARNESS_CONFIG_NOTE_PREFIX];
+const HARNESS_SCOPED_GUIDANCE_PATTERN = /\[harness:[^\]\r\n]+\]/u;
 
 export function snapshotEntries(ctx: { sessionManager?: { buildContextEntries?: () => readonly unknown[]; getBranch?: () => readonly unknown[] } }): readonly unknown[] {
   const manager = ctx.sessionManager;
@@ -66,6 +73,66 @@ function collectText(value: unknown): string {
   return [record.text, record.content, record.message, record.reason, record.error].map(collectText).join("\n");
 }
 
+function entryCustomType(entry: unknown): string {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return "";
+  const record = entry as Record<string, unknown>;
+  const message = record.message && typeof record.message === "object" && !Array.isArray(record.message) ? record.message as Record<string, unknown> : undefined;
+  const customType = record.customType ?? message?.customType;
+  return typeof customType === "string" ? customType : "";
+}
+
+/** Harness transcript evidence: its own entry/message type, an attached tool
+ * note, or the scoped-guidance prefix it delivers. */
+function harnessOwnedActivity(entry: unknown): boolean {
+  if (entryCustomType(entry).startsWith(HARNESS_OWNED_CUSTOM_PREFIX)) return true;
+  const text = collectText(entry);
+  return HARNESS_TOOL_MARKERS.some((marker) => text.includes(marker)) || HARNESS_SCOPED_GUIDANCE_PATTERN.test(text);
+}
+
+const MAX_HARNESS_EVENT_CHARS = 1_000;
+/** Decision fields first, then the prose the Harness surface recorded. */
+const HARNESS_EVENT_DATA_FIELDS = ["outcome", "tool", "policy", "ruleId", "prompt", "reason", "message", "detail"];
+const HARNESS_EVENT_NOTE_LINES = 12;
+
+function entryData(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const data = (value as Record<string, unknown>).data;
+  return data && typeof data === "object" && !Array.isArray(data) ? data as Record<string, unknown> : {};
+}
+
+/** The marker line and the guidance block it introduces, never the surrounding
+ * command output the note was attached to. */
+function harnessOwnedNoteText(text: string): string[] {
+  const lines = text.split(/\r?\n/u);
+  const notes: string[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!HARNESS_TOOL_MARKERS.some((marker) => line.includes(marker)) && !HARNESS_SCOPED_GUIDANCE_PATTERN.test(line)) continue;
+    const block: string[] = [];
+    for (let cursor = index; cursor < lines.length && block.length < HARNESS_EVENT_NOTE_LINES; cursor += 1) {
+      if (cursor > index && !lines[cursor].trim()) break;
+      block.push(lines[cursor].trim());
+    }
+    notes.push(block.join("\n"));
+    index += block.length - 1;
+  }
+  return notes;
+}
+
+/** One bounded line for a harness-owned activity, in the order a planner reads
+ * it: what the Harness surface decided, and the prose it recorded. Dossiers
+ * carry this instead of repository text that merely names the harness. */
+export function harnessOwnedEventSummary(entry: unknown): string | undefined {
+  if (!harnessOwnedActivity(entry)) return undefined;
+  const data = entryData(entry);
+  const fields = HARNESS_EVENT_DATA_FIELDS
+    .map((field) => typeof data[field] === "string" ? (data[field] as string).replace(/\s+/gu, " ").trim() : "")
+    .filter(Boolean);
+  const prose = harnessOwnedNoteText(collectText(entry));
+  const summary = [...new Set([...fields, ...prose])].join(" · ").slice(0, MAX_HARNESS_EVENT_CHARS).trim();
+  return summary || undefined;
+}
+
 /** A recovery is a candidate for review, not proof of a durable lesson. */
 function hasVerifiedToolRecovery(entries: readonly unknown[]): boolean {
   let failure: { toolName: unknown } | undefined;
@@ -88,23 +155,89 @@ function hasVerifiedToolRecovery(entries: readonly unknown[]): boolean {
   return recovered;
 }
 
+/** Evidence the parent screen can derive from one Task Slice without a model. */
+export interface LearningSignals {
+  /** User text states a preference, decision, or constraint. */
+  durableUser: boolean;
+  /** User text prohibits or requires something. */
+  constraint: boolean;
+  /** User text corrects an earlier answer or instruction. */
+  correction: boolean;
+  /** User text corrects project instructions named by AGENTS_PATTERN. */
+  instructions: boolean;
+  /** A failed tool call was followed by a verified success. */
+  recovery: boolean;
+  /** The Harness surface acted in this task. */
+  harnessActivity: boolean;
+}
+
+export function learningSignals(entries: readonly unknown[]): LearningSignals {
+  const userTexts = entries.filter((entry) => entryRole(entry) === "user").map(collectText).filter(Boolean);
+  const constraint = userTexts.some((text) => CONSTRAINT_USER_PATTERN.test(text));
+  const correction = userTexts.some((text) => CORRECTION_PATTERN.test(text));
+  return {
+    durableUser: constraint || userTexts.some((text) => DURABLE_USER_PATTERN.test(text)),
+    constraint,
+    correction,
+    instructions: userTexts.some((text) => CORRECTION_PATTERN.test(text) && AGENTS_PATTERN.test(text)),
+    recovery: hasVerifiedToolRecovery(entries),
+    harnessActivity: entries.some(harnessOwnedActivity),
+  };
+}
+
+/** Every phase the deterministic screen can back with evidence. */
+function evidenceSignals(signals: LearningSignals): { memory: boolean; harness: boolean; agents: boolean } {
+  return {
+    memory: signals.durableUser || signals.recovery,
+    harness: signals.constraint || signals.correction || signals.harnessActivity,
+    agents: signals.instructions,
+  };
+}
+
 export function screenLearningEntries(entries: readonly unknown[], mode: LearningMode): LearningScreen {
   if (mode === "full") return { memory: true, harness: true, agents: true, reasons: ["manual-full"] };
   if (mode === "manual") return { memory: true, harness: true, agents: true, reasons: ["manual-incremental"] };
-  const userTexts = entries.filter((entry) => entryRole(entry) === "user").map(collectText).filter(Boolean);
-  const toolTexts = entries.filter((entry) => entryRole(entry) === "toolResult" || collectText(entry).includes("tool_execution")).map(collectText);
-  const constraint = userTexts.some((text) => CONSTRAINT_USER_PATTERN.test(text));
-  const durable = constraint || userTexts.some((text) => DURABLE_USER_PATTERN.test(text));
-  const correction = userTexts.some((text) => CORRECTION_PATTERN.test(text));
-  const harnessEvent = toolTexts.some((text) => /blocked|confirm|violation|policy|harness|isError/iu.test(text));
-  const agents = userTexts.some((text) => CORRECTION_PATTERN.test(text) && AGENTS_PATTERN.test(text));
-  const harness = constraint || correction || harnessEvent;
-  const recovery = hasVerifiedToolRecovery(entries);
+  const signals = learningSignals(entries);
+  const evidence = evidenceSignals(signals);
   return {
-    memory: durable || recovery,
+    ...evidence,
+    reasons: [
+      signals.durableUser ? "durable-user-evidence" : signals.recovery ? "verified-tool-recovery" : "no-durable-memory-evidence",
+      signals.constraint || signals.correction ? "constraint-evidence" : signals.harnessActivity ? "verified-harness-event" : "no-harness-evidence",
+      signals.instructions ? "instruction-evidence" : "no-agents-evidence",
+    ],
+  };
+}
+
+/**
+ * An explicit consolidation still honors the selector's reviewed verdict. Only
+ * user-stated evidence (or Harness activity in this task) floors it: a verified
+ * tool recovery is a review candidate, not durable evidence, so it must not
+ * start a planner the selector declined after reading this same slice.
+ */
+export function manualIncrementalScreen(entries: readonly unknown[], selection: { memory: boolean; harness: boolean; agents: boolean }): LearningScreen {
+  const signals = learningSignals(entries);
+  const authoritative = { memory: signals.durableUser, harness: signals.constraint || signals.correction || signals.harnessActivity, agents: signals.instructions };
+  const evidence = evidenceSignals(signals);
+  const memory = selection.memory || authoritative.memory;
+  const harness = selection.harness || authoritative.harness;
+  const agents = selection.agents || authoritative.agents;
+  return {
+    memory,
     harness,
     agents,
-    reasons: [durable ? "durable-user-evidence" : recovery ? "verified-tool-recovery" : "no-durable-memory-evidence", harness ? "constraint-evidence" : "no-harness-evidence", agents ? "instruction-evidence" : "no-agents-evidence"],
+    reasons: [
+      "manual-incremental",
+      memory
+        ? authoritative.memory ? "durable-user-evidence" : "selector-selected-memory"
+        : evidence.memory ? "selector-declined-memory" : "no-durable-memory-evidence",
+      harness
+        ? authoritative.harness ? (signals.constraint || signals.correction ? "constraint-evidence" : "verified-harness-event") : "selector-selected-harness"
+        : authoritative.harness ? "selector-declined-harness" : "no-harness-evidence",
+      agents
+        ? authoritative.agents ? "instruction-evidence" : "selector-selected-agents"
+        : authoritative.agents ? "selector-declined-agents" : "no-agents-evidence",
+    ],
   };
 }
 

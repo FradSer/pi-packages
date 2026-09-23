@@ -67,7 +67,7 @@ import {
   learningPlannerArgs,
 } from "./planner-prompts";
 import { registerAutomaticLearning } from "./automatic-learning";
-import { buildLearningReceipt, formatLearningSummary, isLearningPipelineReceipt, learningSummaryDetails, learningSummarySubject, screenLearningEntries, shouldRetryPlanner, snapshotEntries, writeLearningReceipt, type LearningAttempt, type LearningMode, type LearningPipelineReceipt, type LearningScreen } from "./learning-efficiency";
+import { buildLearningReceipt, formatLearningSummary, isLearningPipelineReceipt, learningSummaryDetails, learningSummarySubject, manualIncrementalScreen, screenLearningEntries, shouldRetryPlanner, snapshotEntries, writeLearningReceipt, type LearningAttempt, type LearningMode, type LearningPipelineReceipt, type LearningScreen } from "./learning-efficiency";
 import { currentTaskSlice, selectIncrementalLearning } from "./incremental-learning";
 import { expandIncrementalMemoryPlan } from "./incremental-memory-plan";
 import { automaticPhasePolicies, type PhasePolicies } from "./learning-controls";
@@ -689,7 +689,7 @@ const dreamingWidget = createLiveActivityWidget({
   key: "memory-dreaming",
   placement: "aboveEditor",
   fit: truncateToWidth,
-  leadingSpaces: 0,
+  leadingSpaces: 1,
 });
 let dreamingActivity = "";
 
@@ -1153,12 +1153,11 @@ async function spawnAsyncConsolidation(
   const completion = new Promise<void>((resolve) => { resolveCompletion = resolve; });
   state.completion = completion;
   let finished = false;
-  let failureRecorded = false;
-  let mutatedMemory = false;
-  let appliedOperationCount = 0;
-  let proposed = false;
   let timedOut = false;
   let repairAttempt: LearningAttempt | undefined;
+  let appliedOperationCount = 0;
+  let proposed = false;
+  let mutatedMemory = false;
   /** Full maintenance retains the existing fresh-planner retry. Incremental
    * runs never replay the dossier or selected Memory bodies. */
   const retryPlanPhase = async (reason: string, failure: "syntax" | "validation" | "model" | "timeout" | "cancelled" | "output-limit" | "stale" | "other" = "validation"): Promise<void> => {
@@ -1178,7 +1177,6 @@ async function spawnAsyncConsolidation(
     );
   };
   const persistRunDiagnostics = async (): Promise<void> => {
-    failureRecorded = true;
     try {
       const marker = outputLimitReason ? `\n[truncated: ${outputLimitReason}]\n` : "";
       const boundedStdout = tailBoundedUtf8Text(`${stdoutCapture}${marker}`);
@@ -1405,7 +1403,10 @@ async function spawnAsyncConsolidation(
         // decision may not depend on a check that just became false.
         const ownedNow = generation === state.generation && !state.cancelled && state.run === run;
         if (ownedNow) state.run = undefined;
-        await releaseConsolidationRun(run, { keepArtifacts: failureRecorded && ownedNow });
+        // A completed Memory phase keeps its plan, task, and diagnostics for the
+        // same inspection path the Harness phase uses; a cancelled or superseded
+        // run is discarded instead of being reported as this phase's outcome.
+        await releaseConsolidationRun(run, { keepArtifacts: ownedNow });
         runModeById.delete(run.manifest.runId);
       } finally {
         state.attempts?.push({
@@ -1526,12 +1527,13 @@ async function startConsolidationPipeline(
         }
         // The deterministic parent screen is authoritative for durable task
         // evidence; the selector may add phases but cannot suppress one the
-        // parent already found.
+        // parent already found. A manual run floors only user-stated evidence
+        // (and real Harness activity), never a tool-only heuristic.
         if (opts.mode === "manual") {
           // An explicit request always reaches selection, but does not force
-          // three planners when neither task evidence nor the selector needs them.
-          Object.assign(screen, screenLearningEntries(taskSlice.entries, "automatic"));
-          screen.reasons.unshift("manual-incremental");
+          // three planners when neither task evidence nor the selector needs
+          // them: only user-stated evidence floors the reviewed verdict.
+          Object.assign(screen, manualIncrementalScreen(taskSlice.entries, incrementalSelection.selection));
         }
         screen.memory = screen.memory || incrementalSelection.selection.memory;
         screen.harness = screen.harness || incrementalSelection.selection.harness;

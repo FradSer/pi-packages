@@ -30,6 +30,7 @@ Feature: Control and inspect learned changes without changing existing defaults
     When a phase snapshots or proposes that text
     Then the record is written and the mutation applies
     But a real credential, private key or provider key format in the same text is still refused
+    And the refusal names the learned surface it came from without echoing the matched bytes
 
   Scenario: Explicit undo preserves later user edits
     Given a user requests undo of one applied history id

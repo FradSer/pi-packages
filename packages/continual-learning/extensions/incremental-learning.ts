@@ -2,6 +2,7 @@ import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { runPiWorker, type PiWorkerUsage } from "@fradser/pi-kit";
+import { harnessOwnedEventSummary } from "./learning-efficiency";
 import { isMemoryFilename } from "./memory-files";
 import { MAX_MEMORY_BYTES, MAX_MEMORY_FILES, sha256Digest, writeFileAtomic } from "./consolidation-run";
 import { resolveMemoryPaths } from "./memory-paths";
@@ -9,6 +10,7 @@ import { buildMemorySelectorPrompt, learningPlannerArgs } from "./planner-prompt
 
 const MAX_TASK_SLICE_ENTRIES = 96;
 const MAX_TASK_SLICE_BYTES = 512_000;
+const MAX_HARNESS_EVENTS = 32;
 const MAX_SELECTOR_REASON_CHARS = 600;
 const MAX_METADATA_DESCRIPTION_CHARS = 300;
 const MAX_METADATA_TYPE_CHARS = 80;
@@ -377,12 +379,8 @@ function parseSelection(
 
 function taskSliceMetadata(taskSlice: TaskSlice): { touchedPaths: string[]; harnessEvents: string[] } {
   const paths = new Set<string>();
-  const harnessEvents: string[] = [];
   const visit = (value: unknown): void => {
-    if (typeof value === "string") {
-      if (/harness|blocked|confirmation|policy|violation/i.test(value) && harnessEvents.length < 32) harnessEvents.push(value.slice(0, 1_000));
-      return;
-    }
+    if (typeof value === "string") return;
     if (Array.isArray(value)) {
       value.forEach(visit);
       return;
@@ -396,6 +394,13 @@ function taskSliceMetadata(taskSlice: TaskSlice): { touchedPaths: string[]; harn
     Object.values(record).forEach(visit);
   };
   taskSlice.entries.forEach(visit);
+  // Only the Harness surface's own entries, notes, and guidance are recorded
+  // Harness events. Repository or conversation text that merely names the
+  // harness, a policy, or a blocked word is not one.
+  const harnessEvents = taskSlice.entries
+    .map(harnessOwnedEventSummary)
+    .filter((summary): summary is string => summary !== undefined)
+    .slice(0, MAX_HARNESS_EVENTS);
   return { touchedPaths: [...paths].slice(0, 64), harnessEvents };
 }
 

@@ -145,7 +145,15 @@ function assertNoSensitiveHistory(value: unknown, depth = 0): void {
 function assertSafeRecord(record: LearningHistory): void {
   assertNoSensitiveHistory(record.proposal);
   for (const change of record.changes) for (const state of [change.before, change.after]) {
-    if (state) assertNoSensitiveHistory(Buffer.from(state.bytes, "base64").toString("utf8"));
+    if (!state) continue;
+    try {
+      assertNoSensitiveHistory(Buffer.from(state.bytes, "base64").toString("utf8"));
+    } catch (error) {
+      // Name the surface without echoing the matched bytes: the user still needs
+      // to know which file to clean before learning can record an undo path.
+      const reason = error instanceof Error ? error.message : "Learning history refuses sensitive material";
+      throw new Error(`${reason} in ${change.target.root}/${change.target.name}. Remove the credential from that file before learning resumes.`);
+    }
   }
 }
 
