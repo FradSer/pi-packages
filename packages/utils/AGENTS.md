@@ -27,8 +27,8 @@ composition-only wiring. Preserve explicit `.ts` relative imports in this
 package; its entry point is exercised through native Node and tsx.
 
 - **Worktree Session Switching (`enter_worktree`, `exit_worktree`)**:
-  - *Session Forking*: Uses `SessionManager.forkFrom` to replace the session with a worktree-rooted one instead of mutating `process.cwd`. Tools execute by queueing `/enter-worktree` or `/exit-worktree` follow-up commands (`expandPromptTemplates: true`).
-  - *Foreign Worktree Protection*: Non-session worktrees are foreign checkouts; `read` blocks access until entered via `enter_worktree`.
+  - *Session Forking*: Uses `SessionManager.forkFrom` to replace the session with a worktree-rooted one instead of mutating `process.cwd`. Tools terminate their batch and dispatch `/enter-worktree` or `/exit-worktree` only at `agent_settled` (`expandPromptTemplates: true`, Pi ≥0.85.1). Block sibling tools and keep the barrier active until dispatch; resume work only through the replacement context.
+  - *Foreign Worktree Protection*: Non-session worktrees are foreign checkouts; `read`, `edit`, and `write` block access until entered via `enter_worktree`.
   - *Progressive Tool Disclosure*: `exit_worktree` is activated via `pi.setActiveTools()` only when currently inside a worktree-created session.
 - **Directory Sessions (`list_directory_sessions`)**:
   - Reads `~/.pi/agent/directory-sessions/`, filters dead PIDs, and collapses multi-writer records by PID.

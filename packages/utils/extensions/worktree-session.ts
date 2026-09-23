@@ -318,14 +318,25 @@ async function switchIntoWorktree(ctx: ExtensionCommandContext, request: EnterWo
 	state.parentSession = sourceSession;
 
 	let replacement: SessionManager;
+	let switchRequested = false;
+	// UI handles are not session-bound getters; never access the old ctx after
+	// switchSession has invalidated it, even when a host callback rejects.
+	let outcomeUI = ctx.ui;
 	try {
 		replacement = SessionManager.forkFrom(sourceSession, state.path);
 		const replacementFile = replacement.getSessionFile();
 		if (!replacementFile) throw new Error("replacement session has no file");
 		replacement.appendCustomEntry(WORKTREE_SESSION_ENTRY, state);
+		switchRequested = true;
 		const result = await ctx.switchSession(replacementFile, {
 			withSession: async (next) => {
+				outcomeUI = next.ui;
 				notifyPi(next.ui, `Entered worktree: ${formatTargetLabel(state)}`, "info");
+				await next.sendMessage({
+					customType: "pi-utils-worktree-applied",
+					content: `Entered worktree. Active cwd: ${state.path}. Continue the pending task here. Resolve all project paths, edits, writes, shell commands and delegated work against this cwd, not paths from the parent conversation. Other tools in the transition batch were not executed; retry needed operations here.`,
+					display: false,
+				}, { triggerTurn: true });
 			},
 		});
 		if (result.cancelled && state.created) {
@@ -333,8 +344,11 @@ async function switchIntoWorktree(ctx: ExtensionCommandContext, request: EnterWo
 			fs.rmSync(replacementFile, { force: true });
 		}
 	} catch (error) {
-		if (state.created) removeWorktree(state);
-		notifyPi(ctx.ui, error instanceof Error ? error.message : String(error), "error");
+		// switchSession may apply the new runtime before host rebinding fails.
+		// Only an explicit cancellation proves rollback is safe after requesting
+		// replacement; ambiguous failures must preserve the checkout and edits.
+		if (!switchRequested && state.created) removeWorktree(state);
+		notifyPi(outcomeUI, error instanceof Error ? error.message : String(error), "error");
 	}
 }
 
@@ -407,6 +421,10 @@ const enterWorktreeParameters = Type.Object({
 });
 
 export default function registerWorktreeSession(pi: ExtensionAPI): void {
+	let transitionCallId: string | undefined;
+	let pendingCommand: string | undefined;
+	let transitionSignal: AbortSignal | undefined;
+
 	function setWorktreeToolActive(name: "enter_worktree" | "exit_worktree", active: boolean): void {
 		if (typeof pi.getActiveTools !== "function") return;
 		const activeTools = pi.getActiveTools();
@@ -420,6 +438,29 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 	}
 
 	if (typeof pi.on === "function") {
+		// Inspect the whole batch before parallel preflight: even tools preceding
+		// enter_worktree in source order must not execute against the old cwd.
+		pi.on("message_end", (event) => {
+			if (event.message.role !== "assistant") return;
+			const transition = event.message.content.find((part) =>
+				part.type === "toolCall" && (part.name === "enter_worktree" || part.name === "exit_worktree"));
+			transitionCallId = transition?.type === "toolCall" ? transition.id : undefined;
+		});
+		pi.on("tool_call", (event) => {
+			if (pendingCommand || (transitionCallId && event.toolCallId !== transitionCallId)) {
+				return { block: true, terminate: true, reason: "Worktree transition pending. This tool was not executed. Retry it only after the replacement session confirms its active cwd." };
+			}
+		});
+		pi.on("agent_settled", () => {
+			const command = transitionSignal?.aborted ? undefined : pendingCommand;
+			pendingCommand = undefined;
+			transitionSignal = undefined;
+			transitionCallId = undefined;
+			// Expanded slash commands dispatch immediately, even with followUp.
+			// Wait for settlement so forkFrom includes all tool results and no
+			// source-session tool execution can race session replacement.
+			if (command) queueTransitionCommand(pi, command);
+		});
 		pi.on("session_start", async (_event, ctx) => {
 			syncWorktreeTools(ctx);
 		});
@@ -463,13 +504,12 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 			return renderWorktreeToolResult(result, options, theme, context, `enter ${safeDisplayText(target)}`);
 		},
 		parameters: enterWorktreeParameters,
-		async execute(_toolCallId, params: EnterWorktreeToolInput) {
-			queueTransitionCommand(
-				pi,
-				`/enter-worktree ${JSON.stringify(params)}`,
-			);
+		async execute(_toolCallId, params: EnterWorktreeToolInput, signal) {
+			transitionSignal = signal;
+			pendingCommand = `/enter-worktree ${JSON.stringify(params)}`;
 			return {
-				content: [{ type: "text", text: "Queued enter_worktree; the session transition is pending." }],
+				terminate: true,
+				content: [{ type: "text", text: "Queued enter_worktree; the session transition is pending. Stop using the old cwd; work resumes after the replacement session confirms its active cwd." }],
 				details: { status: "queued", transition: "enter_worktree", request: params },
 			};
 		},
@@ -486,10 +526,12 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 			return renderWorktreeToolResult(result, options, theme, context, "exit current worktree");
 		},
 		parameters: Type.Object({}),
-		async execute() {
-			queueTransitionCommand(pi, "/exit-worktree");
+		async execute(_toolCallId, _params, signal) {
+			transitionSignal = signal;
+			pendingCommand = "/exit-worktree";
 			return {
-				content: [{ type: "text", text: "Queued exit_worktree; the session transition is pending." }],
+				terminate: true,
+				content: [{ type: "text", text: "Queued exit_worktree; the session transition is pending. Do not run other tools until the parent session is active." }],
 				details: { status: "queued", transition: "exit_worktree" },
 			};
 		},

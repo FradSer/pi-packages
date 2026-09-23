@@ -29,6 +29,8 @@ utils/
 pi install npm:@fradser/pi-utils
 ```
 
+Requires Pi 0.85.1 or newer for command dispatch during session transitions.
+
 ## Commands
 
 ### `init` — repository contributor guides
@@ -142,9 +144,9 @@ partially rewritten.
 Editor file suggestions (`@`) are filtered to the session's own git worktree:
 a session in main never suggests linked worktree contents, and a session
 inside a linked worktree never suggests sibling worktrees or the main
-checkout. The built-in `read` tool also blocks direct reads from a foreign
-worktree and directs the agent to `enter_worktree`; only a replacement session
-rooted in that worktree may read its files. Worktree roots are discovered once per session via
+checkout. The built-in `read`, `edit`, and `write` tools also block direct access to a
+foreign worktree and direct the agent to `enter_worktree`. This prevents stale
+absolute file paths from modifying the parent checkout after switching. Worktree roots are discovered once per session via
 `git worktree list --porcelain`; outside a git repository nothing is filtered.
 Quoted and `@`-prefixed values are resolved (relative, absolute, and `~/`
 forms) before the containment check.
@@ -165,8 +167,13 @@ are all rebound to the selected worktree:
 `pi/worktree/<name>` branch, or enters an existing registered git worktree when
 `path` is supplied. The replacement session preserves the current conversation
 and records the parent session. The LLM-facing `enter_worktree` and
-`exit_worktree` tools queue these commands and report `queued` until the session
-replacement is applied. Their TUI uses the same pi-kit lifecycle style as
+`exit_worktree` tools defer these commands until the current agent run settles
+and report `queued` until session replacement is applied. Other tools in the
+same transition batch are blocked, regardless of their order. After entering,
+Pi resumes the pending task through the replacement context with an explicit
+active-cwd instruction. Relative file operations and shell commands then run
+in the selected worktree. This is not a shell sandbox: explicit shell paths
+must still target the active worktree. Their TUI uses the same pi-kit lifecycle style as
 `monitor_start`: an empty tool-call row followed by one compact event row,
 for example `[worktree] enter · feature-auth` or
 `[worktree] exit · current worktree`.

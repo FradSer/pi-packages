@@ -354,9 +354,11 @@ export default function registerWorktreeCompletion(pi: ExtensionAPI): void {
 		ctx.ui.addAutocompleteProvider(worktreeCompletionProvider);
 	});
 	pi.on("tool_call", (event, ctx) => {
-		if (isToolCallEventType("read", event)) {
+		if (isToolCallEventType("read", event) || isToolCallEventType("edit", event) || isToolCallEventType("write", event)) {
 			if (!isInForeignWorktree(event.input.path, ctx.cwd, getWorktreeRoots(ctx.cwd))) return;
-			return { block: true, reason: foreignWorktreeReadReason(event.input.path) };
+			return { block: true, reason: event.toolName === "read"
+				? foreignWorktreeReadReason(event.input.path)
+				: `Blocked ${event.toolName} of a different git worktree: ${event.input.path}. Active cwd: ${ctx.cwd}. Resolve project paths inside the active worktree, or use enter_worktree to switch sessions first.` };
 		}
 
 		// Inject foreign worktree exclude patterns into search tools

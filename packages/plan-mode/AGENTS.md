@@ -1,7 +1,6 @@
 # Plan Mode Package Guidelines
 
-Applies to `packages/plan-mode/` (`@fradser/pi-plan-mode`) in addition to
-@AGENTS.md at the repository root. All references below are repository-relative.
+Applies to `packages/plan-mode/` (`@fradser/pi-plan-mode`). All references below are repository-relative.
 
 ## Read by Task
 

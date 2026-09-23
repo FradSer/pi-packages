@@ -66,6 +66,37 @@ Feature: EnterWorktree and ExitWorktree session switching
     Then the tool queues the corresponding user command
     And the tool result reports that the transition is queued rather than complete
 
+  Scenario: A transition batch cannot edit the original checkout
+    Given a persisted session in the original checkout
+    When the model calls enter_worktree alongside other tools in either order
+    Then the other tools are blocked before execution
+    And the transition ends the old agent turn
+    And work resumes only through the replacement session context
+    And relative edit, write, and bash operations affect only the selected worktree
+
+  Scenario: Pending transitions survive extra old-session turns without permitting edits
+    Given a transition batch has an invalid sibling or a queued follow-up
+    When Pi requests another response before applying the transition
+    Then all tools remain blocked until the original run settles
+    And edits resume only in the replacement worktree
+
+  Scenario: Cancelling a pending transition does not resume work
+    Given enter_worktree has returned but session replacement has not started
+    When the user aborts the run
+    Then no worktree is created and the original session stays active
+
+  Scenario: A post-switch failure preserves the active worktree
+    Given the replacement session has started and made edits
+    When continuation or the host reports an error
+    Then the active worktree and its edits are kept
+    And error reporting does not access an invalidated session context
+
+  Scenario: Stale absolute file paths cannot modify a foreign checkout
+    Given a session inside the selected worktree
+    When edit or write targets an absolute path in the original checkout
+    Then the operation is blocked and identifies the active worktree
+    And the original checkout remains unchanged
+
   Scenario: Worktree session notifications use the shared Pi-kit notification adapter
     Given EnterWorktree or ExitWorktree has a status or error for the user
     When the command reports that outcome

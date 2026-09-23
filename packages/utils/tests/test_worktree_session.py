@@ -45,6 +45,15 @@ class WorktreeSessionTests(unittest.TestCase):
         self.session_dir.mkdir()
         make_git_repo(self.repo)
 
+    def test_real_runtime_keeps_all_edits_inside_replacement_worktree(self) -> None:
+        for order in ("enter-first", "write-first", "malformed", "follow-up", "abort", "post-switch-error", "rebind-error"):
+            with self.subTest(order=order):
+                result = subprocess.run(
+                    ["pnpm", "exec", "tsx", str(UTILS_PKG_DIR / "tests" / "worktree_lifecycle.mts"), order],
+                    cwd=REPO, capture_output=True, text=True, timeout=30,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_parse_worktree_list_preserves_bare_and_branch_metadata(self) -> None:
         result = run_ts(f"""
 import {{ parseWorktreeList }} from {json.dumps(SESSION_EXTENSION.as_uri())};
@@ -124,7 +133,7 @@ const ctx = {{
   }},
   async switchSession(file, options) {{
     switchedFile = file;
-    await options.withSession({{ ui: {{ notify() {{}} }} }});
+    await options.withSession({{ ui: {{ notify() {{}} }}, async sendMessage() {{}} }});
     return {{ cancelled: false }};
   }},
 }};
@@ -202,14 +211,20 @@ import {{ initTheme }} from "@earendil-works/pi-coding-agent";
 initTheme("dark");
 const tools = {{}};
 const sent = [];
+const handlers = {{}};
 const fakePi = {{
+  on(name, handler) {{ handlers[name] = handler; }},
   registerCommand() {{}},
   registerTool(tool) {{ tools[tool.name] = tool; }},
   sendUserMessage(message, options) {{ sent.push({{ message, options }}); }},
 }};
 registerWorktreeSession(fakePi);
 const enter = await tools.enter_worktree.execute("1", {{ name: "feature-auth" }});
+if (sent.length !== 0) throw new Error("command dispatched before settlement");
+await handlers.agent_settled();
 const exit = await tools.exit_worktree.execute("2", {{}});
+if (sent.length !== 1) throw new Error("exit dispatched before settlement");
+await handlers.agent_settled();
 const theme = {{ fg: (_color, text) => text, bold: (text) => text, bg: (_color, text) => text }};
 const enterRow = tools.enter_worktree.renderResult(
   enter,
@@ -232,6 +247,8 @@ console.log(JSON.stringify({{ sent, enter, exit, enterRow, exitRow }}));
         self.assertTrue(result["sent"][1]["options"]["expandPromptTemplates"])
         self.assertEqual("queued", result["enter"]["details"]["status"])
         self.assertEqual("queued", result["exit"]["details"]["status"])
+        self.assertTrue(result["enter"]["terminate"])
+        self.assertTrue(result["exit"]["terminate"])
         self.assertTrue("[worktree] enter · feature-auth" in result["enterRow"])
         self.assertIn("to expand", result["enterRow"])
         self.assertTrue("[worktree] exit · current worktree" in result["exitRow"])
