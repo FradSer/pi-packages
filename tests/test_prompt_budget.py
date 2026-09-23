@@ -13,8 +13,13 @@ REPO = Path(__file__).resolve().parents[1]
 CEILINGS = {
     "clMemoryIndex": 6_100,
     "tmIdleLeader": 3_600,
-    "tmActiveLeader": 5_150,
-    "tmWorker": 1_950,
+    # Raised for the attempt-bound recovery contract: a Leader must know that
+    # failed Work returns as `pending/recovery-required` and waits for an
+    # explicit `work assign`, so it does not wait for a claim that never comes.
+    "tmActiveLeader": 5_250,
+    # Raised for the same change: a Worker must know its turn is bound to one
+    # Assignment Attempt and must end the turn after a terminal outcome.
+    "tmWorker": 2_150,
     "mpInactiveCatalog": 2_650,
     "utilPeerRecap": 1_550,
     "monitorSection": 800,
@@ -24,7 +29,9 @@ CEILINGS = {
 # Worst-case leader turn: memory index + active leader guidance + catalog + peer
 # recap + monitor + research + one routing suggestion. Measured at ~15.9K, so the
 # ceiling is the governance line, not a claim that no section could be smaller.
-TOTAL_CEILING = 16_000
+# Raised by 100 for the attempt-bound recovery contract, which adds mandatory
+# instruction bytes to the active Leader and Worker sections.
+TOTAL_CEILING = 16_100
 
 
 def measure() -> dict[str, int]:

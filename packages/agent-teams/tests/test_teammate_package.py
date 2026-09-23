@@ -562,7 +562,7 @@ def test_stale_verify_result_cannot_complete_a_new_holding(tmp_path: Path) -> No
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask, reclaimDirectWork }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
         const tick = () => new Promise((resolve) => setTimeout(resolve, 10));
@@ -584,6 +584,7 @@ def test_stale_verify_result_cannot_complete_a_new_holding(tmp_path: Path) -> No
         const staleCompleted = getTask(id).status === "completed";
         let releaseFreshGate;
         setVerifyGateRunner(() => new Promise((resolve) => {{ releaseFreshGate = () => resolve({{ kind: "pass" }}); }}));
+        reclaimDirectWork(id, "w", {{ id: "attempt-2", kind: "direct", resources: [] }}, "pending");
         attemptSubmission("w", "s1", id, "completed");
         processTaskIntents();
         await tick();

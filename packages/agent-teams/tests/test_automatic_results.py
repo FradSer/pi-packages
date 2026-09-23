@@ -315,7 +315,8 @@ def test_agent_event_requires_precise_route_for_concurrent_peer_sessions(tmp_pat
           { name: "reviewer-one", agent: "peer-reviewer", status: "working" },
           { name: "reviewer-two", agent: "peer-reviewer", status: "idle" },
         ];
-        const write = (teammates) => fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify({ teammates }));
+        const self = JSON.parse(fs.readFileSync(fixture.binding.rosterFile, "utf8")).teammates[0];
+        const write = (teammates) => fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify({ teammates: [self, ...teammates] }));
         write(peers);
         await assert.rejects(fixture.call(messageTool, { to: "peer-reviewer", message: "Ambiguous" }),
           /Ambiguous Agent.*reviewer-one.*reviewer-two/);
@@ -323,7 +324,8 @@ def test_agent_event_requires_precise_route_for_concurrent_peer_sessions(tmp_pat
         const exact = await fixture.call(messageTool, { to: "session:reviewer-two", message: "Exact route" });
         write([peers[0], { ...peers[1], status: "stopped" }]);
         const unique = await fixture.call(messageTool, { to: "peer-reviewer", message: "Only living route" });
-        write([{ name: "worker", agent: "self-role", status: "working" }]);
+        self.agent = "self-role";
+        write([]);
         await assert.rejects(fixture.call(messageTool, { to: "self-role", message: "Self alias" }), /yourself/);
         const first = JSON.parse(fs.readFileSync(fixture.binding.inbox.replace("inbox-worker", "inbox-reviewer-one"), "utf8"));
         const second = JSON.parse(fs.readFileSync(fixture.binding.inbox.replace("inbox-worker", "inbox-reviewer-two"), "utf8"));

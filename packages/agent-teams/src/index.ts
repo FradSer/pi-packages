@@ -11,7 +11,7 @@ import { buildIdleLeaderGuidance, buildTeamLeaderGuidance, WORKER_GUIDANCE } fro
 import { clearSessionAgents } from "./agents.ts";
 import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownTeammates } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
-import { livingTeammates, listTasks, resetState } from "./state.ts";
+import { getTask, getTeammate, livingTeammates, listTasks, resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
 import { registerLeaderTools, registerTeamCommand } from "./tools.ts";
 import { registerWorkerCapabilities, workerBinding } from "./worker.ts";
@@ -34,6 +34,45 @@ let leaderPi: ExtensionAPI | undefined;
 let leaderCtx: ExtensionContext | undefined;
 
 export const TEAMMATE_FINISHED_ENTRY_TYPE = "agent-teams-teammate-finished";
+/** Audit entry for a retired attempt's nonterminal report. The evidence stays in the
+ * session while the context projection stops treating it as a current instruction;
+ * without a renderer the retained entry would be invisible in the transcript. */
+export const TEAMMATE_HISTORICAL_ENTRY_TYPE = "agent-teams-historical-report";
+
+/** One entry per retained report, so a re-delivered report cannot multiply its own
+ * audit trail. Bounded the same way the finish announcements are. */
+const HISTORICAL_ENTRY_LIMIT = 512;
+const retainedHistoricalReports = new Set<string>();
+function rememberRetainedReport(report: LeaderReport): boolean {
+  const key = [
+    report.teammate ?? report.agent ?? "",
+    report.spawnId ?? "",
+    report.eventId ?? "",
+    report.timestamp ?? 0,
+  ].join(":");
+  if (retainedHistoricalReports.has(key)) return false;
+  retainedHistoricalReports.add(key);
+  while (retainedHistoricalReports.size > HISTORICAL_ENTRY_LIMIT) {
+    const oldest = retainedHistoricalReports.values().next().value;
+    if (oldest === undefined) break;
+    retainedHistoricalReports.delete(oldest);
+  }
+  return true;
+}
+
+/** Accepted outcomes remain evidence even after their process exits. Only
+ * nonterminal coordination loses current authority when its attempt retires; the
+ * source report stays in the session as the visible audit trail. */
+function isHistoricalReport(report: LeaderReport): boolean {
+  if (report.origin === "harness" || report.harnessEvent || report.finished
+    || report.status === "completed" || report.status === "failed") return false;
+  if (!report.spawnId || !report.teammate) return false;
+  const worker = getTeammate(report.teammate);
+  if (!worker || worker.spawnId !== report.spawnId || worker.status === "stopped") return true;
+  if (report.assignmentId !== worker.assignment?.id || worker.assignment?.closed || worker.reportSequenceEnded) return true;
+  const task = worker.currentTaskId ? getTask(worker.currentTaskId) : undefined;
+  return task?.status === "superseded" || task?.status === "completed";
+}
 
 function sendLeaderReport(report: LeaderReport): void {
   try {
@@ -84,6 +123,11 @@ export default function (pi: ExtensionAPI) {
     const data = entry.data as { teammate?: string; agent?: string } | undefined;
     const name = data?.teammate ?? data?.agent ?? "teammate";
     return new Text(theme.fg("success", `Assignment for @${name} finished.`), 0, 0);
+  });
+  pi.registerEntryRenderer(TEAMMATE_HISTORICAL_ENTRY_TYPE, (entry, _options, theme) => {
+    const data = entry.data as { teammate?: string; agent?: string } | undefined;
+    const name = data?.teammate ?? data?.agent ?? "teammate";
+    return new Text(theme.fg("dim", `Historical report from @${name} retained for audit; it no longer instructs.`), 0, 0);
   });
   pi.registerMessageRenderer(TEAMMATE_HARNESS_MESSAGE_TYPE, (message, { expanded }, theme) => {
     const report = extractHarnessReport(message.details);
@@ -144,6 +188,27 @@ export default function (pi: ExtensionAPI) {
   registerLeaderTools(pi);
   registerTeamCommand(pi);
 
+  // Pi cannot retract one already-queued steer. The persisted record stays for
+  // audit, and this projection keeps a retired attempt's nonterminal text from
+  // acting as a current instruction. Deliberate trade-off: while such a record
+  // exists the projection is recomputed per request, so a session that retires a
+  // report pays a prompt/tool replay each turn. Correctness wins over cache
+  // warmth here; the alternative needs an SDK API to rewrite a stored message.
+  pi.on("context", (event) => {
+    let changed = false;
+    const messages = event.messages.flatMap((message) => {
+      if (message.role !== "custom" || message.customType !== TEAMMATE_REPORT_MESSAGE_TYPE) return [message];
+      const reports = extractReports(message.details);
+      if (reports.length === 0) return [message];
+      const current = reports.filter((report) => !isHistoricalReport(report));
+      if (current.length === reports.length) return [message];
+      changed = true;
+      return current.length === 0 ? [] : [{ ...message, content: formatReports(current),
+        details: current.length === 1 ? current[0] : { reports: current } }];
+    });
+    return changed ? { messages } : undefined;
+  });
+
   pi.on("message_start", (event) => {
     if (event.message.role !== "custom" || event.message.customType !== TEAMMATE_REPORT_MESSAGE_TYPE) return;
     const deliveredAt = Date.now();
@@ -160,6 +225,26 @@ export default function (pi: ExtensionAPI) {
     ));
     if (reports.length === 0) return;
     for (const report of reports) {
+      // A retired attempt's nonterminal report keeps its evidence in the session but must
+      // stop instructing the leader. The context projection already excludes it from
+      // future requests; this entry is what keeps the retained evidence visible rather
+      // than silently dropped, and is appended once per report at the delivery seam.
+      if (isHistoricalReport(report)) {
+        if (rememberRetainedReport(report)) {
+          pi.appendEntry(TEAMMATE_HISTORICAL_ENTRY_TYPE, {
+            teammate: report.teammate ?? report.agent,
+            agent: report.agent,
+            spawnId: report.spawnId,
+            assignmentId: report.assignmentId,
+            workId: report.workId,
+            eventId: report.eventId,
+            status: report.status,
+            timestamp: report.timestamp,
+            body: report.body,
+          });
+        }
+        continue;
+      }
       if (!markTeammateFinished(report)) continue;
       pi.appendEntry(TEAMMATE_FINISHED_ENTRY_TYPE, {
         teammate: report.teammate ?? report.agent,

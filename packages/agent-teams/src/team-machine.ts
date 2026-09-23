@@ -701,7 +701,7 @@ export function spawnTeammate(input: {
     onError: (error) => {
       settleReadiness(`Resident startup readiness failed: ${error.message}`);
       if (getTeammate(input.name)?.spawnId !== spawnId) return;
-      if (input.existingWorkId) releaseTask(input.existingWorkId, `Agent failed to start: ${error.message}`);
+      if (input.existingWorkId) releaseTask(input.existingWorkId, `Agent failed to start: ${error.message}`, false);
       failSpawn(input.name, error.message, input.existingWorkId);
     },
     onExit: (result) => {
@@ -710,7 +710,7 @@ export function spawnTeammate(input: {
     },
   });
   if ("error" in started) {
-    if (input.existingWorkId) releaseTask(input.existingWorkId, `Agent failed to start: ${started.error}`);
+    if (input.existingWorkId) releaseTask(input.existingWorkId, `Agent failed to start: ${started.error}`, false);
     else if (assignment) discardDirectWork(getTeammate(input.name)?.workId ?? `work:${spawnId}`, input.name);
     failSpawn(input.name, started.error, input.existingWorkId);
     return { ok: false, error: started.error };
@@ -1490,7 +1490,7 @@ export function assignExistingWork(workId: string, session: string): AssignExist
       return;
     }
     if (getTeammate(owner)?.assignment?.id === assignment.id) {
-      releaseTask(workId, "Pi session reset failed before the assigned Work started.");
+      releaseTask(workId, "Pi session reset failed before the assigned Work started.", false);
     }
     deliverDiagnostic(owner, "Pi session reset failed; the assigned Work was not delivered.");
   });
@@ -1535,7 +1535,7 @@ export function releaseExistingWork(workId: string, reason: string): ReleaseExis
     // residual window is reported instead of being silently implied safe.
     holderStillRunning = holder.status === "working" ? holder.name : undefined;
   }
-  const released = releaseTask(workId, reason);
+  const released = releaseTask(workId, reason, false);
   if (!released) return { ok: false, error: `Work Item "${workId}" could not be released.` };
   rearmTaskNotice(workId);
   publishStateSnapshot();
@@ -1672,7 +1672,7 @@ export function sendLeaderMessage(
       const current = getTeammate(to);
       const currentTaskId = current?.currentTaskId;
       if (current?.assignment?.id === teammate.assignment?.id && currentTaskId) {
-        releaseTask(currentTaskId, "Pi session reset failed before the new Assignment Attempt started.");
+        releaseTask(currentTaskId, "Pi session reset failed before the new Assignment Attempt started.", false);
       } else if (current?.assignment?.id === teammate.assignment?.id) {
         assignTeammate(to, undefined, undefined);
       }
@@ -1768,7 +1768,7 @@ function applyClaimMarker(intent: import("./types").TaskIntent): void {
     void deliverFreshAssignment(teammate.name, buildFreshAssignmentPrompt(teammate, assignmentId, kickoff)).then((sent) => {
       if (sent) return;
       if (getTeammate(teammate.name)?.assignment?.id === assignmentId) {
-        releaseTask(task.id, "Pi session reset failed before the claimed Assignment Attempt started.");
+        releaseTask(task.id, "Pi session reset failed before the claimed Assignment Attempt started.", false);
       }
       deliverDiagnostic(teammate.name, "Pi session reset failed; the claimed Assignment Attempt was not delivered.");
     });
@@ -1869,7 +1869,7 @@ function authorizeDirectRevision(intent: import("./types").TaskIntent, detail: s
   void deliverFreshAssignment(teammate.name, prompt).then((sent) => {
     if (sent) return;
     if (getTeammate(teammate.name)?.assignment?.id === assignment.id) {
-      releaseTask(intent.taskId, "Pi session reset failed before the verification revision started.");
+      releaseTask(intent.taskId, "Pi session reset failed before the verification revision started.", false);
     }
     deliverDiagnostic(teammate.name, "Pi session reset failed; the verification revision was not delivered.");
   });
@@ -2061,7 +2061,7 @@ function retirePendingSubmission(intent: import("./types").TaskIntent): void {
 
 function releaseSupersededHolding(intent: import("./types").TaskIntent): void {
   retirePendingSubmission(intent);
-  releaseTask(intent.taskId, intent.result?.trim() || "Superseded task cancellation acknowledged.");
+  releaseTask(intent.taskId, intent.result?.trim() || "Superseded task cancellation acknowledged.", false);
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
   invalidateVerifyGate(intent.taskId);
 }
@@ -2071,11 +2071,12 @@ function finishFailure(intent: import("./types").TaskIntent): void {
   const assignmentId = teammate?.assignment?.id;
   if (!teammate || !assignmentId) return;
   retirePendingSubmission(intent);
-  const released = releaseTask(intent.taskId, intent.result?.trim() || "Agent reported failure.");
+  const released = releaseTask(intent.taskId, intent.result?.trim() || "Agent reported failure.", true);
   if (!released) return;
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
   invalidateVerifyGate(intent.taskId);
-  rearmTaskNotice(intent.taskId);
+  // Failure is evidence for deliberate recovery, not a fresh work offer to
+  // every idle resident. Explicit work.assign starts the next attempt.
   announceWorkOutcome(intent, teammate, assignmentId);
 }
 

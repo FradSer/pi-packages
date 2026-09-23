@@ -14,16 +14,16 @@ export function assistant(text: string, stopReason: StopReason = "stop", timesta
   };
 }
 
-export function createWorkerFixture(root: string, kind: "direct" | "board" | "none" = "direct") {
+export function createWorkerFixture(root: string, kind: "direct" | "board" | "none" = "direct", workerName = process.env.PI_TEAMMATE_WORKER_NAME || "worker") {
   Object.assign(process.env, {
-    PI_TEAMMATE_WORKER_NAME: "worker", PI_TEAMMATE_SPAWN_ID: "spawn-1",
-    PI_TEAMMATE_OUTBOX_FILE: `${root}/events.jsonl`, PI_TEAMMATE_INBOX_FILE: `${root}/mail/inbox-worker.jsonl`,
+    PI_TEAMMATE_WORKER_NAME: workerName, PI_TEAMMATE_SPAWN_ID: "spawn-1",
+    PI_TEAMMATE_OUTBOX_FILE: `${root}/events.jsonl`, PI_TEAMMATE_INBOX_FILE: `${root}/mail/inbox-${encodeURIComponent(workerName)}.jsonl`,
     PI_TEAMMATE_ROSTER_FILE: `${root}/roster.json`, PI_TEAMMATE_BOARD_FILE: `${root}/board.json`,
     PI_TEAMMATE_CLAIMS_DIR: `${root}/claims`, PI_TEAMMATE_SUBMISSIONS_DIR: `${root}/submissions`,
   });
   const binding = workerBinding()!;
-  const roster = (assignment?: WorkerAssignment, spawnId = binding.spawnId, status = "working") => {
-    writeRoster(binding.rosterFile, [{ name: binding.worker, agent: "reviewer", spawnId, status, assignment }]);
+  const roster = (assignment?: WorkerAssignment, spawnId = binding.spawnId, status = "working", currentTaskId = "work-1") => {
+    writeRoster(binding.rosterFile, [{ name: binding.worker, agent: "reviewer", spawnId, status, assignment, currentTaskId: assignment ? currentTaskId : undefined }]);
   };
   roster(kind === "none" ? undefined : { id: "attempt-1", kind, resources: [] });
   type Handler = (event: ExtensionEvent, ctx: ExtensionContext) => unknown;

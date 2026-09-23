@@ -527,7 +527,7 @@ export function pendingTasks(): BoardTask[] {
 }
 
 export function claimableTasks(): BoardTask[] {
-  return pendingTasks().filter(taskDependenciesMet);
+  return pendingTasks().filter((task) => !task.recoveryRequired && taskDependenciesMet(task));
 }
 
 export function taskDependenciesMet(task: BoardTask): boolean {
@@ -602,6 +602,7 @@ export function reclaimDirectWork(
   task.claimedBy = workerName;
   task.result = undefined;
   task.errorMessage = undefined;
+  task.recoveryRequired = undefined;
   task.completedAt = undefined;
   task.updatedAt = Date.now();
   boardRevisionCounter++;
@@ -613,7 +614,7 @@ export function reclaimDirectWork(
 export function setTaskClaimed(taskId: string, workerName: string): BoardTask | undefined {
   const task = state.tasks[taskId];
   const teammate = getTeammate(workerName);
-  if (!task || !teammate || task.status !== "pending" || !taskDependenciesMet(task)) return undefined;
+  if (!task || !teammate || task.status !== "pending" || task.recoveryRequired || !taskDependenciesMet(task)) return undefined;
   if (teammate.assignment) return undefined;
   if (activeAssignmentConflict(task.resources, workerName)) return undefined;
   task.status = "claimed";
@@ -626,7 +627,12 @@ export function setTaskClaimed(taskId: string, workerName: string): BoardTask | 
 }
 
 /** Release a claimed task back to pending. A superseded holder instead
- * acknowledges cancellation: the task stays superseded but frees resources. */
+ * acknowledges cancellation: the task stays superseded but frees resources.
+ * `recoveryRequired` marks an attempt that ran and did not succeed (failure,
+ * crash, or stop), so it waits for a deliberate Leader assignment instead of
+ * being re-offered. A harness start failure that happened before the attempt
+ * reached the worker stays ordinarily claimable; a deliberate Leader release
+ * passes `false` for the same reason. */
 export function claimedDependents(workId: string): BoardTask[] {
   const reverse = new Map<string, string[]>();
   for (const task of Object.values(state.tasks)) {
@@ -661,6 +667,7 @@ export function reopenCompletedWork(workId: string): { ok: true; task: BoardTask
   task.result = undefined;
   task.deferredMessages = undefined;
   task.errorMessage = undefined;
+  task.recoveryRequired = undefined;
   task.completedAt = undefined;
   task.updatedAt = Date.now();
   boardRevisionCounter++;
@@ -668,12 +675,13 @@ export function reopenCompletedWork(workId: string): { ok: true; task: BoardTask
   return { ok: true, task };
 }
 
-export function releaseTask(taskId: string, errorMessage?: string): BoardTask | undefined {
+export function releaseTask(taskId: string, errorMessage: string | undefined, recoveryRequired: boolean): BoardTask | undefined {
   const task = state.tasks[taskId];
   if (!task || (task.status !== "claimed" && task.status !== "superseded")) return undefined;
   const holder = task.claimedBy;
   if (task.status === "claimed") task.status = "pending";
   task.claimedBy = undefined;
+  task.recoveryRequired = task.status === "pending" && recoveryRequired ? true : undefined;
   if (errorMessage !== undefined) task.errorMessage = errorMessage;
   task.updatedAt = Date.now();
   boardRevisionCounter++;
@@ -690,6 +698,7 @@ export function completeTask(taskId: string, result?: string): BoardTask | undef
   task.claimedBy = undefined;
   task.result = result;
   task.errorMessage = undefined;
+  task.recoveryRequired = undefined;
   task.completedAt = Date.now();
   task.updatedAt = Date.now();
   boardRevisionCounter++;
@@ -703,7 +712,7 @@ export function releaseTasksOf(workerName: string, reason: string): BoardTask[] 
   const released: BoardTask[] = [];
   for (const task of listTasks()) {
     if ((task.status === "claimed" || task.status === "superseded") && task.claimedBy === workerName) {
-      releaseTask(task.id, reason);
+      releaseTask(task.id, reason, true);
       released.push(task);
     }
   }
@@ -724,6 +733,7 @@ export function applyClaimIntent(intent: TaskIntent): { applied: boolean; reason
   }
   if (task.status === "claimed") return { applied: false, reason: `task "${intent.taskId}" is already claimed` };
   if (task.status === "completed" || task.status === "superseded") return { applied: false, reason: `task "${intent.taskId}" is ${task.status}` };
+  if (task.recoveryRequired) return { applied: false, reason: `task "${intent.taskId}" requires explicit leader Work assignment after failure` };
   if (!taskDependenciesMet(task)) return { applied: false, reason: `task "${intent.taskId}" has unmet dependencies` };
   const conflict = activeAssignmentConflict(task.resources, intent.worker);
   if (conflict) return { applied: false, reason: `resource conflict with @${conflict.name}'s ${conflict.assignment?.kind} assignment "${conflict.assignment?.id}"` };
@@ -752,7 +762,7 @@ export function applySubmissionIntent(intent: TaskIntent): { ok: boolean; error?
     return { ok: false, error: `task "${intent.taskId}" was superseded by "${task.supersededBy ?? "a replacement"}"; submit failed to acknowledge cancellation` };
   }
   if (intent.status === "failed") {
-    releaseTask(intent.taskId, intent.result?.trim() || "Agent reported failure.");
+    releaseTask(intent.taskId, intent.result?.trim() || "Agent reported failure.", true);
     return { ok: true };
   }
   completeTask(intent.taskId, intent.result?.trim() || undefined);
@@ -774,6 +784,7 @@ export function loadBoard(tasks: Record<string, BoardTask>): number {
       ...task,
       resources: normalizeResources(task.resources),
       status: task.status === "claimed" ? "pending" : task.status,
+      recoveryRequired: task.status === "claimed" ? true : task.recoveryRequired,
       // Runtime workers and assignments die with the session. Superseded work
       // remains visible for audit but cannot retain a dead holder/resource lock.
       claimedBy: orphanedHolding ? undefined : task.claimedBy,

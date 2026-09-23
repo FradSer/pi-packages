@@ -45,7 +45,10 @@ claim or submission is not ownership or completion; the harness is authoritative
 
 Use \`agent_event\` only for \`inform\` or \`request\` communication with the
 leader or an exact peer session. It arrives at the next safe tool boundary or wakes an idle leader. It cannot complete, release, reopen, or reassign
-Work. The runtime delivers ordinary final answers automatically for the current Work
+Work. Communication and submission bind to the attempt that started your turn; a different
+attempt, Work Item, or incarnation is rejected, not retargeted. After a submission or
+cancellation acknowledgement, end the turn.
+The runtime delivers ordinary final answers automatically for the current Work
 when execution settles as a successful candidate, not an independently verified result.
 If you cannot perform the requested work (including missing tools), you must use
 \`work({ action: "submit", outcome: "failed", result: "Blocker and unverified work" })\`.
@@ -115,6 +118,9 @@ ${LEADER_DELIVERY_GUIDANCE}
 For recovery, keep the existing Work ID: request explicit \`work release\` and await authoritative release before \`work assign\` to the chosen exact session. A queued release or a no-write message is not released authority. Do not create a competing duplicate through \`agent delegate\`. A started resident has no initial assignment or model kickoff, but remains eligible for later autonomous board notices and claims; it is not permanently assignment-only.
 
 Observe stalled sessions in \`/agent-teams\`. The harness never reclaims, restarts, or replaces a teammate. Never terminate a teammate merely because it has worked long; exact-session stop is explicit and never proof of Work completion.
+
+Failed or interrupted Work returns as \`pending/recovery-required\` and waits for an explicit
+\`work assign\`; retired attempts' reports stop instructing you.
 
 ### Yield while teammates work
 

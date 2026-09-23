@@ -16,7 +16,7 @@ def machine_case(tmp_path: Path, script: str, owned: bool = True) -> dict[str, o
           attemptSubmission, processTaskIntents, drainTeammateOutboxes,
           hasUnfinalizedReport, setVerifyGateRunner }} from "{(SRC / 'team-machine.ts').as_uri()}";
         import {{ resetState, registerTeammate, createTask, setTaskClaimed,
-          getTeammate, getTask, getState, releaseTask }} from "{(SRC / 'state.ts').as_uri()}";
+          getTeammate, getTask, getState, releaseTask, reclaimDirectWork }} from "{(SRC / 'state.ts').as_uri()}";
         import {{ stateFilePath, inboxPath, workerOutboxPath, appendWorkerEvent,
           readJsonlBatch }} from "{(SRC / 'statefile.ts').as_uri()}";
         import {{ registerLeaderTools }} from "{(SRC / 'tools.ts').as_uri()}";
@@ -197,7 +197,7 @@ def test_historical_terminal_record_does_not_announce_acceptance(tmp_path: Path)
 def test_stale_submission_cannot_finish_reassigned_work(tmp_path: Path) -> None:
     payload = machine_case(tmp_path, '''
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Old attempt evidence");
-        releaseTask(task.id, "New attempt requested");
+        releaseTask(task.id, "New attempt requested", false);
         setTaskClaimed(task.id, "reviewer");
         const newAttempt = getTeammate("reviewer").assignment.id;
         processTaskIntents(); settle();
@@ -215,7 +215,7 @@ def test_duplicate_failure_does_not_block_later_attempt(tmp_path: Path) -> None:
         processTaskIntents();
         attemptSubmission("reviewer", "spawn-1", task.id, "failed", "Duplicate failure");
         settle();
-        setTaskClaimed(task.id, "reviewer");
+        reclaimDirectWork(task.id, "reviewer", { id: "attempt-2", kind: "direct", resources: [] }, "pending");
         applyProgress("reviewer", "spawn-1", { text: "", turns: 2, finalResponse: false });
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Recovered result");
         processTaskIntents(); settle();
@@ -256,7 +256,7 @@ def test_ordinary_mail_does_not_unpark_verification(tmp_path: Path, verdict: str
 
 def test_archived_result_is_not_returned_as_accepted_evidence(tmp_path: Path) -> None:
     payload = machine_case(tmp_path, '''
-        releaseTask(task.id, "Released before completion");
+        releaseTask(task.id, "Released before completion", false);
         appendWorkerEvent(workerOutboxPath(stateFile, "reviewer", "spawn-1"), {
           id: "late", type: "message", worker: "reviewer", spawnId: "spawn-1",
           assignmentId: attempt, status: "completed", body: "Unaccepted evidence", timestamp: 3,

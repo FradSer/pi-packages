@@ -1,0 +1,5 @@
+---
+"@fradser/pi-agent-teams": minor
+---
+
+Bind worker communication and submissions to the Assignment Attempt that started the turn, so an old turn can never send or submit as replacement Work, hold the cancellation tool while a superseded lease must be acknowledged, and stop re-sending acknowledged cancellations. Failed, interrupted, or crash-released Work now returns as `pending/recovery-required` and is excluded from autonomous claim notices until the Leader explicitly assigns the next attempt. Nonterminal worker reports from a retired attempt stay in session history but no longer act as current leader instructions, while accepted terminal results and harness diagnostics keep their delivery contract. Leader and Worker guidance gained the two sentences that state the new contract; the governed prompt-budget ceilings for those sections were raised accordingly (5,250 and 2,150 with a 16,100 total).

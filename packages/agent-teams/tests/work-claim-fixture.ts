@@ -53,7 +53,15 @@ Object.assign(process.env, {
 });
 
 const tools = new Map();
-registerWorkerCapabilities({ on() {}, registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools: () => ["read", "work"], setActiveTools() {} });
+const disclosure = registerWorkerCapabilities({
+  on(event, handler) {
+    if (event === "message_start") tools.set("work_message", (message) => handler({ type: "message_start", message }, { isIdle: () => true }));
+  },
+  registerTool(tool) { tools.set(tool.name, tool); },
+  getActiveTools: () => ["read", "work"],
+  setActiveTools() {},
+});
+tools.set("work_disclosure", disclosure);
 const work = tools.get("work");
 assert.ok(work, "worker work must be registered");
 assert.equal(Value.Check(WorkerWorkToolParams, { action: "claim", id: task.id }), true);
@@ -81,7 +89,10 @@ assert.ok(reset, "claim acceptance must request a fresh Pi session");
 child.stdout.write(JSON.stringify({ id: reset.id, type: "response", command: "new_session", success: true, data: { cancelled: false } }) + "\n");
 await new Promise((resolve) => setImmediate(resolve));
 assert.ok(commands.some((command) => command.type === "prompt" && command.message?.includes("Claim storage")));
+const acceptedPrompt = commands.find((command) => command.type === "prompt" && command.message?.includes("Claim storage"))!.message!;
 writeRoster(rosterPath(stateFile), [{ ...worker, status: "working", currentTaskId: task.id, assignment: getState().teammates.worker.assignment }]);
+tools.get("work_disclosure")?.update(acceptedPrompt);
+await tools.get("work_message")?.({ role: "user", content: acceptedPrompt, timestamp: Date.now() });
 const submitted = await work.execute("submit", { action: "submit", outcome: "success", result: "fixed" });
 assert.equal(submitted.details.action, "submit");
 assert.equal(submitted.details.outcome, "queued");
@@ -94,6 +105,9 @@ getState().tasks[directTask.id].claimedBy = worker.name;
 getState().teammates.worker.assignment = { id: "direct:s1", kind: "direct", resources: [] };
 getState().teammates.worker.currentTaskId = directTask.id;
 writeRoster(rosterPath(stateFile), [{ ...worker, status: "working", currentTaskId: directTask.id, assignment: getState().teammates.worker.assignment }]);
+const directPrompt = `[agent-teams-assignment:direct:s1]\nWork Item ${directTask.id}: ${directTask.subject}`;
+tools.get("work_disclosure")?.update(directPrompt);
+await tools.get("work_message")?.({ role: "user", content: directPrompt, timestamp: Date.now() + 10 });
 const directSubmitted = await work.execute("direct-submit", { action: "submit", outcome: "failed", result: "direct failure" });
 assert.equal(directSubmitted.details.action, "submit");
 assert.equal(directSubmitted.details.outcome, "queued");

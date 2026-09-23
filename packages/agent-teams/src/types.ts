@@ -116,6 +116,9 @@ export interface BoardTask {
   /** Deferred mail archived when an accepted result closes its Work Item. */
   deferredMessages?: Array<{ from: string; subject: string; body: string; timestamp: number }>;
   errorMessage?: string;
+  /** Failed/interrupted Work stays pending for inspection but cannot be
+   * autonomously claimed until the Leader deliberately authorizes recovery. */
+  recoveryRequired?: boolean;
   createdAt: number;
   updatedAt: number;
   completedAt?: number;

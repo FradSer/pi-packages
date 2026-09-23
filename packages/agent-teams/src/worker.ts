@@ -44,8 +44,12 @@ function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
         ? readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker)
         : undefined;
       const assignment = rosterEntry?.assignment;
-      if (assignment && !assignment.closed) state = "claimed";
-      else if (!assignment && prompt.includes("=== BOARD NOTICE ===")) state = "notice";
+      // A superseded holder still owns cancellation authority and must be
+      // able to acknowledge it; hiding work here strands its resource lease.
+      if (binding && rosterEntry && rosterEntry.spawnId === binding.spawnId
+        && rosterEntry.status !== "stopped" && assignment) {
+        state = "claimed";
+      } else if (!assignment && prompt.includes("=== BOARD NOTICE ===")) state = "notice";
       else state = "none";
       apply();
     },
@@ -97,7 +101,7 @@ function dependenciesMet(task: BoardTask, tasks: Map<string, BoardTask>): boolea
 function taskCounts(tasks: BoardTask[], byId: Map<string, BoardTask>): string {
   const counts = { pending: 0, claimed: 0, completed: 0, superseded: 0 };
   for (const task of tasks) counts[task.status] += 1;
-  const claimable = tasks.filter((task) => task.status === "pending" && dependenciesMet(task, byId)).length;
+  const claimable = tasks.filter((task) => task.status === "pending" && !task.recoveryRequired && dependenciesMet(task, byId)).length;
   return `tasks=${tasks.length} · pending=${counts.pending} (${claimable} claimable) · claimed=${counts.claimed} · completed=${counts.completed} · superseded=${counts.superseded}`;
 }
 
@@ -121,7 +125,7 @@ function claimRejection(binding: WorkerBinding, task: BoardTask): string | undef
 }
 
 function taskStatusLabel(task: BoardTask, tasks: Map<string, BoardTask>): string {
-  if (task.status === "pending") return dependenciesMet(task, tasks) ? "pending/claimable" : "pending/blocked";
+  if (task.status === "pending") return task.recoveryRequired ? "pending/recovery-required" : dependenciesMet(task, tasks) ? "pending/claimable" : "pending/blocked";
   return task.status;
 }
 
@@ -176,30 +180,43 @@ function automaticResultBody(binding: WorkerBinding, assignmentId: string, body:
 
 function createWorkerReports(pi: ExtensionAPI) {
   const initial = workerBinding();
-  const initialAssignment = initial ? readRoster(initial.rosterFile).find((entry) => entry.name === initial.worker)?.assignment : undefined;
+  const initialSelf = initial ? readRoster(initial.rosterFile).find((entry) => entry.name === initial.worker && entry.spawnId === initial.spawnId) : undefined;
+  const initialAssignment = initialSelf?.assignment;
   let assignmentId = initialAssignment?.id;
+  let taskId = initialSelf?.currentTaskId;
   let reportClosed = initialAssignment?.closed === true;
+  let terminalOutcome: "completed" | "failed" | undefined;
   let pending: { binding: WorkerBinding; assignmentId: string; timestamp: number; awaitingFinal?: boolean; outcome?: AutomaticResult } | undefined;
   const finalizedMessages = new WeakSet<AssistantResponse>();
   const currentAssignment = (binding: WorkerBinding) => {
-    const self = readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker);
+    const self = readRoster(binding.rosterFile)
+      .find((entry) => entry.name === binding.worker && entry.spawnId === binding.spawnId);
     const assignment = self?.assignment;
     return !reportClosed && self?.spawnId === binding.spawnId && self.status !== "stopped"
       && assignment && assignment.id === assignmentId && !assignment.closed ? assignment : undefined;
   };
-  const close = () => {
+  const close = (outcome: "completed" | "failed") => {
     reportClosed = true;
+    terminalOutcome = outcome;
     pending = undefined;
   };
-  const reportAssignment = (binding: WorkerBinding) => {
-    const current = readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker)?.assignment;
-    if (current?.kind === "board" && current.id !== assignmentId) {
-      assignmentId = current.id;
-      reportClosed = false;
-      pending = undefined;
+  const authorize = (binding: WorkerBinding, cancellation = false) => {
+    const sameBinding = initial && binding.worker === initial.worker && binding.spawnId === initial.spawnId
+      && binding.outbox === initial.outbox && binding.rosterFile === initial.rosterFile;
+    const self = readRoster(binding.rosterFile)
+      .find((entry) => entry.name === binding.worker && entry.spawnId === binding.spawnId);
+    if (!sameBinding || !self || self.status === "stopped") {
+      throw new Error("Work authority rejected: this is not the bound living worker incarnation.");
     }
-    if (reportClosed) throw new Error("Leader report rejected: this assignment already has a terminal report. Wait for an explicit leader assignment.");
-    return assignmentId;
+    if (self.assignment?.id !== assignmentId || (taskId !== undefined && self.currentTaskId !== taskId)) {
+      throw new Error("Work authority rejected: this turn belongs to a different assignment. Wait for its fresh assignment marker.");
+    }
+    const cancelled = cancellation && assignmentId && self.currentTaskId
+      && (self.assignment?.closed || loadBoardTasks(binding).some((task) => task.id === self.currentTaskId && task.status === "superseded"));
+    if ((reportClosed || self.assignment?.closed) && !(cancelled && terminalOutcome !== "failed")) {
+      throw new Error("Leader report rejected: this assignment already has a terminal report or is closed. Stop; no repeated acknowledgment is required.");
+    }
+    return { assignmentId, taskId: taskId ?? self.currentTaskId };
   };
   pi.on("message_start", ({ message }) => {
     const binding = workerBinding();
@@ -208,12 +225,27 @@ function createWorkerReports(pi: ExtensionAPI) {
       const content = message.content;
       const text = typeof content === "string" ? content : content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
       const marker = /^\[agent-teams-assignment:([^\n]+)\]\n/.exec(text);
-      const current = readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker)?.assignment;
+      const self = readRoster(binding.rosterFile)
+        .find((entry) => entry.name === binding.worker && entry.spawnId === binding.spawnId);
+      const current = self?.assignment;
       if (marker) {
         const id = marker[1] === "none" ? undefined : marker[1];
         if (id !== current?.id) return;
-        if (id !== assignmentId || current?.kind === "board") reportClosed = current?.closed === true;
+        if (id !== assignmentId) {
+          reportClosed = current?.closed === true;
+          terminalOutcome = undefined;
+        }
         assignmentId = id;
+        taskId = self?.currentTaskId;
+        pending = undefined;
+      } else if (!current) {
+        // The harness retired this attempt without a replacement marker: this is a
+        // fresh unassigned turn (peer mail, board notice, ordinary discussion).
+        // Holding the previous terminal state here would dead-end the worker.
+        assignmentId = undefined;
+        taskId = undefined;
+        reportClosed = false;
+        terminalOutcome = undefined;
         pending = undefined;
       }
       const assignment = currentAssignment(binding);
@@ -249,17 +281,19 @@ function createWorkerReports(pi: ExtensionAPI) {
       assignmentId: pending.assignmentId, timestamp: Date.now(), status: result.status,
       body: automaticResultBody(binding, pending.assignmentId, result.body),
     });
-    close();
+    close(result.status);
   });
   return {
     close,
+    authorize,
     send(binding: WorkerBinding, body: string, status: import("./types.ts").WorkerReportEvent["status"]) {
+      const authority = authorize(binding, status === "failed");
       appendWorkerEvent(binding.outbox, {
-        assignmentId: reportAssignment(binding), id: randomUUID(), type: "message",
+        assignmentId: authority.assignmentId, id: randomUUID(), type: "message",
         worker: binding.worker, spawnId: binding.spawnId, body, status, timestamp: Date.now(),
       });
       const isTerminal = status === "completed" || status === "failed";
-      if (isTerminal) close();
+      if (isTerminal) close(status);
       return isTerminal;
     },
     reset() { pending = undefined; },
@@ -287,9 +321,10 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
     async execute(_toolCallId, params) {
       const binding = workerBinding();
       if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
+      const authority = reports.authorize(binding);
       if (!params.to || params.to === LEADER_RECIPIENT) {
         appendWorkerEvent(binding.outbox, {
-          assignmentId: readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker)?.assignment?.id, id: randomUUID(), type: "message", worker: binding.worker, spawnId: binding.spawnId,
+          assignmentId: authority.assignmentId, id: randomUUID(), type: "message", worker: binding.worker, spawnId: binding.spawnId,
           body: params.message, status: params.intent ?? "inform", timestamp: Date.now(),
         });
         return {
@@ -318,6 +353,9 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
   async function queueWorkClaim(id: string | undefined, presentation: "board" | "work") {
     const binding = workerBinding();
     if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
+    // Claims pass the same attempt authority as sends and submissions: a closed or
+    // terminal attempt must not queue new board work even when work is re-disclosed.
+    reports.authorize(binding);
     const label = presentation === "work" ? "Work Item" : "Task";
     const empty = presentation === "work" ? "No claimable Work Item right now." : "No claimable task right now.";
     const race = presentation === "work" ? "All candidate Work Items were claimed in the race. Check Work again." : "All candidate tasks were claimed in the race. Check the board again.";
@@ -325,11 +363,21 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
     const byId = new Map(tasks.map((task) => [task.id, task]));
     const candidates = id
       ? tasks.filter((task) => task.id === id)
-      : tasks.filter((task) => task.status === "pending" && dependenciesMet(task, byId));
+      : tasks.filter((task) => task.status === "pending" && !task.recoveryRequired && dependenciesMet(task, byId));
     if (candidates.length === 0) {
+      // Say why nothing is claimable: a board whose only pending Work is held for
+      // Leader recovery must not read as an ordinary empty board.
+      const held = loadBoardTasks(binding).filter((task) => task.status === "pending" && task.recoveryRequired);
+      if (!id && held.length > 0) {
+        throw new Error(`No claimable ${label.toLowerCase()} right now. Held for explicit leader recovery: ${held.map((task) => task.id).join(", ")}.`);
+      }
       throw new Error(id ? `${label} "${id}" was not found${presentation === "board" ? " on the board" : ""}.` : empty);
     }
     for (const task of candidates) {
+      if (task.recoveryRequired) {
+        if (id) throw new Error(`Work Item "${task.id}" requires explicit leader Work assignment after failure.`);
+        continue;
+      }
       if (task.status !== "pending" || !dependenciesMet(task, byId)) continue;
       const rejected = claimRejection(binding, task);
       if (rejected) {
@@ -374,7 +422,8 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
       if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
       if (params.action === "list") {
         const tasks = loadBoardTasks(binding);
-        const lines = tasks.map((task) => `- ${task.id} · ${task.status} · ${task.subject}`);
+        const byId = new Map(tasks.map((task) => [task.id, task]));
+        const lines = tasks.map((task) => `- ${task.id} · ${taskStatusLabel(task, byId)} · ${task.subject}`);
         return Promise.resolve({ content: [{ type: "text", text: `WORK · current session\nWORK ITEMS\n${lines.join("\n") || "(none)"}` }], details: { action: "list", outcome: "listed", count: tasks.length } });
       }
       if (params.action === "claim") return queueWorkClaim(params.id, "work");
@@ -390,13 +439,15 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
   async function queueWorkSubmission(input: { taskId: string; status: "completed" | "failed"; result?: string; presentation: "board" | "work" }) {
     const binding = workerBinding();
     if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
-    const assignmentId = readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker)?.assignment?.id;
+    const authority = reports.authorize(binding, input.status === "failed");
+    if (!authority.assignmentId || authority.taskId !== input.taskId) throw new Error("This turn does not own the submitted Work Item.");
+    const assignmentId = authority.assignmentId;
     const won = createTaskIntent(binding.submissionsDir, input.taskId, {
       taskId: input.taskId, worker: binding.worker, spawnId: binding.spawnId, assignmentId,
       status: input.status, result: input.result, timestamp: Date.now(),
     });
     if (!won) throw new Error(`A submission for "${input.taskId}" is already pending.`);
-    reports.close();
+    reports.close(input.status);
     disclosure.reset();
     const task = loadBoardTasks(binding).find((candidate) => candidate.id === input.taskId);
     const roleVerify = process.env.PI_TEAMMATE_VERIFY_DEFAULT?.trim();
@@ -407,7 +458,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
           ? "VERIFY · queued (role gate)"
           : "VERIFY · none configured"
       : "VERIFY · skipped (failed submission)";
-    const next = input.status === "completed" ? "NEXT · wait for the harness result" : input.presentation === "work" ? "NEXT · Work returns to pending" : "NEXT · task returns to pending";
+    const next = "NEXT · End this turn. The harness settles the outcome; do not repeat submission or cancellation acknowledgments.";
     const content = input.presentation === "work"
       ? `WORK · current session\nSUBMISSION INTENT QUEUED · ${input.taskId} · ${input.status === "completed" ? "success" : "failed"}\n${verify}\n${next}`
       : `BOARD · current session\nSUBMITTED · ${input.taskId} · ${input.status}\n${verify}\n${next}`;

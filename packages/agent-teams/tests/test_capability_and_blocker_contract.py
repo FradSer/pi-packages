@@ -83,13 +83,12 @@ def test_public_submit_settlement_keeps_blocked_dependents(tmp_path: Path, outco
       const {{ createWorkerFixture, assistant }} = await import("{(PACKAGE / 'tests' / 'automatic-results-fixture.ts').as_uri()}");
       const {{ boardFilePath, submissionsDir }} = await import("{(SRC / 'statefile.ts').as_uri()}");
       const path = await import("node:path");
-      const fixture = createWorkerFixture(root);
-      process.env.PI_TEAMMATE_WORKER_NAME = "reviewer";
-      process.env.PI_TEAMMATE_SUBMISSIONS_DIR = submissionsDir(path.dirname(boardFilePath(undefined, root)));
-      fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify({{ teammates: [{{
-        name: "reviewer", spawnId: "spawn-1", status: "working", currentTaskId: task.id,
-        assignment: getTeammate("reviewer").assignment,
-      }}] }}));
+      const fixture = createWorkerFixture(root, "direct", "reviewer");
+      const boardSubmissions = submissionsDir(path.dirname(boardFilePath(undefined, root)));
+      fixture.binding.submissionsDir = boardSubmissions;
+      process.env.PI_TEAMMATE_SUBMISSIONS_DIR = boardSubmissions;
+      const teammate = getTeammate("reviewer");
+      fixture.roster(teammate.assignment, teammate.spawnId, "working", task.id);
       const dependent = createTask({{ id: "dependent", subject: "Use verified evidence", dependsOn: [task.id] }}).task;
       getTask(task.id).verify = "Require actual execution evidence";
       setVerifyGateRunner(async () => ({{ kind: "fail", detail: "No execution evidence" }}));

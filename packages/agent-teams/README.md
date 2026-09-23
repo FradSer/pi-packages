@@ -51,6 +51,13 @@ assignment-only scheduling mode.
 `work` owns Work lifecycle. Leaders create/list/assign/release/reopen completed
 Work/supersede; Workers list/claim/submit/release their current Work.
 
+Failed, interrupted, or crash-released Work returns to the board as
+`pending/recovery-required`: the evidence stays available for inspection, and the
+harness deliberately excludes it from autonomous claim notices. Only an explicit
+leader `work assign` opens the next attempt, so a transient failure is never
+silently retried by whichever resident happens to be idle. A retained superseded
+holder keeps `work` disclosed for exactly one failed cancellation acknowledgement.
+
 ```ts
 work({ action: "create", subject: "Fix storage", resources: ["firmware/storage"] })
 work({ action: "assign", id: "fix-storage", target: { session: "session:worker-...:spawn-..." } })
@@ -89,6 +96,10 @@ After delegation, continue independent work or end the turn: results resume the
 session automatically. Use `agent inspect` for deliberate diagnosis, not repeated
 polling or sleep loops. `agent_event` never creates or retries Work; messaging a
 completed assignment returns its recorded result without waking the worker.
+Worker communication and submissions are bound to the Assignment Attempt that
+started the turn, so an old turn cannot report or submit as replacement Work, and
+nonterminal coordination from a retired attempt stays in session history as
+evidence without acting as a current instruction.
 Recovery reuses the existing Work ID. Request explicit `work release` and await
 authoritative release before `work assign` to the chosen exact session; a queued
 release is not yet released authority. Do not create competing recovery Work via
