@@ -325,9 +325,18 @@ function parseSelectionObject(
     if (typeof value.memory !== "boolean" || typeof value.harness !== "boolean" || typeof value.agents !== "boolean") {
       return { ok: false, error: "phase routing flags must be booleans" };
     }
-    if (typeof value.reason !== "string" || value.reason.length > MAX_SELECTOR_REASON_CHARS) {
-      return { ok: false, error: `reason must be a string of at most ${MAX_SELECTOR_REASON_CHARS} characters` };
+    if (typeof value.reason !== "string") {
+      return { ok: false, error: "reason must be a string" };
     }
+    // The reason is diagnostic prose carried inside a bounded artifact, so it is
+    // clipped from the head instead of rejecting an otherwise valid selection:
+    // a model that wrote more than the prompt asked for discarded a whole run
+    // and reported only a formatting complaint. Structural violations — digest,
+    // filenames, phase flags, exact keys, non-string reason — still fail closed.
+    const reason =
+      value.reason.length > MAX_SELECTOR_REASON_CHARS
+        ? `${value.reason.slice(0, MAX_SELECTOR_REASON_CHARS - 1)}…`
+        : value.reason;
 
     const selected: string[] = [];
     const seen = new Set<string>();
@@ -348,7 +357,7 @@ function parseSelectionObject(
       ok: true,
       selection: {
         kind: value.kind, version: value.version, contextDigest, selected,
-        memory: value.memory, harness: value.harness, agents: value.agents, reason: value.reason,
+        memory: value.memory, harness: value.harness, agents: value.agents, reason,
       },
     };
   } catch {

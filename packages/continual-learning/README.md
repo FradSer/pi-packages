@@ -248,7 +248,9 @@ predecessors, subsequent learning stops with a history id for inspection. Existi
 AGENTS.md transaction recovery runs first. Reconcile these files to their exact
 predecessors after review to resume; the incomplete record becomes `abandoned`.
 Unknown current bytes are never automatically attributed to learning or overwritten.
-History rejects detected sensitive values in proposals and file snapshots.
+History rejects detected credentials in proposals and file snapshots, matching
+assigned values and provider key formats rather than ordinary prose, wiki links
+or workflow permission names.
 Older changes made before history was installed have no undo record.
 
 ### Independent learning evaluation

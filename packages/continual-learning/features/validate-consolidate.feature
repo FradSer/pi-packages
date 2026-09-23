@@ -281,3 +281,15 @@ Feature: Consolidate artifact validator
     Given a valid plan creates a new memory
     When the post receipt omits or changes its created names
     Then receipt validation fails with a created scope binding diagnostic
+
+  # --- runtime mode parity ---
+
+  # `full` selects more scope upstream; it must not change what a plan has to
+  # satisfy here. A mode the runtime can report but the CLI rejects fails at
+  # argument parsing, before any artifact is judged.
+  Scenario: Every learning mode the runtime can report is accepted
+    Given a plan that passes the plan check
+    When I validate it with each learning mode the runtime reports
+    Then every mode passes the plan check
+    And a plan rejected under one mode is rejected under the others
+    And the validator's accepted modes match the runtime LearningMode union

@@ -100,6 +100,26 @@ def test_history_refuses_sensitive_proposals_and_source_snapshots(tmp_path: Path
     assert result == {"refused": ["memory", "harness", "agents", "nested", "snapshot"], "called": False, "records": 0}
 
 
+def test_history_accepts_ordinary_text_and_still_refuses_credential_shapes(tmp_path: Path) -> None:
+    corpus = json.loads((Path(__file__).with_name("sensitive_memory_corpus.json")).read_text(encoding="utf-8"))
+    result = run_bun(r"""
+      import fs from 'node:fs';import path from 'node:path';
+      import {containsSensitiveMemoryMaterial} from './packages/continual-learning/extensions/consolidation-run.ts';
+      import {recordLearningMutation,recordLearningProposal,listLearningHistory} from './packages/continual-learning/extensions/learning-history.ts';
+      const corpus=JSON.parse(fs.readFileSync('./packages/continual-learning/tests/sensitive_memory_corpus.json','utf8'));
+      const cwd=path.join(process.env.CONTROL_TEST_ROOT,'project');fs.mkdirSync(cwd);
+      const target=path.join(cwd,'AGENTS.md');fs.writeFileSync(target,corpus.benign.join('\n')+'\n');
+      let applied='',ran=false;
+      try{const result=await recordLearningMutation(cwd,'agents',[target],async()=>{ran=true;fs.appendFileSync(target,'- Recorded during learning.\n');return {outcome:'applied'}});applied=result.outcome}catch(error){applied=`refused: ${error instanceof Error?error.message:String(error)}`}
+      let proposal='recorded';
+      try{await recordLearningProposal(cwd,'memory',{report:corpus.benign.map(quote=>({quote}))})}catch{proposal='refused'}
+      let sensitive='recorded';
+      try{await recordLearningProposal(cwd,'memory',{report:corpus.sensitive.map(quote=>({quote}))})}catch{sensitive='refused'}
+      console.log(JSON.stringify({applied,ran,proposal,sensitive,detected:corpus.sensitive.filter(value=>containsSensitiveMemoryMaterial(value)).length,falsePositives:corpus.benign.filter(value=>containsSensitiveMemoryMaterial(value)).length,recorded:fs.readFileSync(target,'utf8').includes('- Recorded during learning.')}));
+    """, tmp_path)
+    assert result == {"applied": "applied", "ran": True, "proposal": "recorded", "sensitive": "refused", "detected": len(corpus["sensitive"]), "falsePositives": 0, "recorded": True}
+
+
 def test_history_scope_stays_stable_when_agent_root_is_created(tmp_path: Path) -> None:
     result = run_bun(r"""
       import fs from 'node:fs';import os from 'node:os';import path from 'node:path';

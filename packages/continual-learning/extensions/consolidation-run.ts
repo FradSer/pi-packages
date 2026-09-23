@@ -1364,8 +1364,18 @@ export interface NewMemoryProposal {
 
 const SENSITIVE_MEMORY_PATTERNS: readonly RegExp[] = [
   /-----BEGIN [^-\r\n]*PRIVATE KEY-----/i,
-  /(?<![A-Za-z])(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)\s*(?::|=|\bis\b)\s*[^\s,;]+/i,
-  /\b(?:sk|rk|pk|gh[oprsu]|github_pat|xox[baprs]|AIza|npm_|pypi-)[-_A-Za-z0-9]{8,}\b/i,
+  // An assigned value must be long enough to be a credential: prose ("token is
+  // short-lived") assigns nothing, and URLs are not secrets.
+  /(?<![A-Za-z])(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)\s*(?::|=)\s*(?![^\s,;]*\/\/)[^\s,;]{8,}/i,
+  // Provider formats keep their own separator and a body ordinary identifiers
+  // never reach, so names like skills-host-agnostic or gh-pages stay ordinary.
+  /\bsk-[A-Za-z0-9_-]{16,}\b/i,
+  /\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]{16,}\b/i,
+  /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/i,
+  /\bAIza[0-9A-Za-z_-]{20,}\b/i,
+  /\bnpm_[A-Za-z0-9]{30,}\b/i,
+  /\bpypi-[A-Za-z0-9_-]{20,}\b/i,
+  /\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{10,}\b/i,
   /\bbearer\s+[A-Za-z0-9._~+/=-]{16,}\b/i,
   /\bAKIA[0-9A-Z]{16}\b/i,
 ];

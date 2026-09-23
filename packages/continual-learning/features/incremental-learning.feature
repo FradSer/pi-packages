@@ -74,6 +74,15 @@ Feature: Select the minimum sufficient scope for incremental learning
     Then the exact selection is accepted
     But multiple balanced selection objects are rejected as ambiguous
 
+  # The reason is diagnostic prose inside a bounded artifact. An explanation
+  # longer than the bound is a formatting overflow, not a structural violation:
+  # rejecting it discarded a whole valid selection and ended the run.
+  Scenario: An over-long selector explanation is bounded instead of fatal
+    Given the selector returns a valid selection whose reason exceeds the parent bound
+    When the parent validates the selector result
+    Then the selection is accepted with a reason inside the bound
+    And a non-string reason or any structural violation still fails closed
+
   Scenario: Memory management points to the shipped planner
     Given a headless user opens memory management
     When the command reports its consolidation procedure

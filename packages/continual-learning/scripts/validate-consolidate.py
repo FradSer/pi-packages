@@ -38,6 +38,13 @@ VERDICTS = frozenset(
     }
 )
 
+# The modes the runtime can report — `LearningMode` in
+# extensions/learning-efficiency.ts, which no type checker or test bound to this
+# CLI. `full` only widens selection upstream and never changes what a plan must
+# satisfy here, so every runtime mode must parse; otherwise a full-scope run
+# fails as a usage error before any artifact is judged.
+LEARNING_MODES = ("automatic", "manual", "full")
+
 # Memory names are deliberately narrower than arbitrary filesystem names.  A
 # memory is a single Markdown file directly below its memory root.
 MEMORY_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*\.md$")
@@ -59,10 +66,18 @@ MAX_NEW_MEMORY_QUOTE_CHARS = 2_000
 MAX_NEW_MEMORY_TOTAL_BYTES = 256_000
 MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024
 
+# Kept in step with SENSITIVE_MEMORY_PATTERNS in consolidation-run.ts; the shared
+# corpus in tests/sensitive_memory_corpus.json pins both classifications.
 SENSITIVE_MEMORY_PATTERNS = (
     re.compile(r"-----BEGIN [^-\r\n]*PRIVATE KEY-----", re.IGNORECASE),
-    re.compile(r"(?<![A-Za-z])(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)\s*(?::|=|\bis\b)\s*[^\s,;]+", re.IGNORECASE),
-    re.compile(r"\b(?:sk|rk|pk|gh[oprsu]|github_pat|xox[baprs]|AIza|npm_|pypi-)[-_A-Za-z0-9]{8,}\b", re.IGNORECASE),
+    re.compile(r"(?<![A-Za-z])(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)\s*(?::|=)\s*(?![^\s,;]*//)[^\s,;]{8,}", re.IGNORECASE),
+    re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b", re.IGNORECASE),
+    re.compile(r"\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]{16,}\b", re.IGNORECASE),
+    re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}\b", re.IGNORECASE),
+    re.compile(r"\bAIza[0-9A-Za-z_-]{20,}\b", re.IGNORECASE),
+    re.compile(r"\bnpm_[A-Za-z0-9]{30,}\b", re.IGNORECASE),
+    re.compile(r"\bpypi-[A-Za-z0-9_-]{20,}\b", re.IGNORECASE),
+    re.compile(r"\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{10,}\b", re.IGNORECASE),
     re.compile(r"\bbearer\s+[A-Za-z0-9._~+/=-]{16,}\b", re.IGNORECASE),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b", re.IGNORECASE),
 )
@@ -595,7 +610,6 @@ def validate_operations(
     metadata: dict[str, dict[str, Any]],
     staleness: dict[str, dict[str, Any]],
     repo_root: Path | None,
-    mode: str,
 ) -> list[dict[str, Any]]:
     if value is None:
         return []
@@ -690,7 +704,7 @@ def validate_plan(
     staleness = validate_staleness(artifacts["staleness"], inventory)
     grounding = validate_grounding(artifacts["grounding"], inventory, repo_root)
     report = validate_report(artifacts["report"], inventory)
-    operations = validate_operations(plan.get("operations"), inventory, metadata, staleness, repo_root, expected.get("mode", "manual"))
+    operations = validate_operations(plan.get("operations"), inventory, metadata, staleness, repo_root)
     new_memories = normalize_new_memory_proposals(
         new_memory_raw_value(plan),
         selected,
@@ -1241,7 +1255,7 @@ def main(argv: list[str] | None = None) -> int:
         help="parent-selected memory filename; repeat for each selected file",
     )
     parser.add_argument("--expected-receipt-phase", choices=("pre", "post"), default="post")
-    parser.add_argument("--mode", choices=("automatic", "manual"), default="manual")
+    parser.add_argument("--mode", choices=LEARNING_MODES, default="manual")
     parser.add_argument("--check", default="plan,receipt,privacy", help="comma list: plan,receipt,privacy")
     parser.add_argument(
         "--max-total-bytes",

@@ -39,4 +39,4 @@ Return one JSON object with exactly these fields (no second object):
   can warrant `true` with an empty selection.
 - `harness`: an executable, evidence-backed constraint or correction.
 - `agents`: durable, always-loaded project instruction evidence.
-- `reason`: one brief explanation, at most 600 characters.
+- `reason`: one brief explanation, a single sentence; the parent clips anything longer.

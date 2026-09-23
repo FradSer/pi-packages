@@ -300,7 +300,6 @@ def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() 
           });
           const invalidCases = [
             { ...selection([]), contextDigest: 'private-wrong-digest' },
-            { ...selection([]), reason: 'private-long-reason'.repeat(100) },
             { ...selection([]), 'private-extra-field': true },
           ];
           const diagnostics = [];
@@ -312,6 +311,18 @@ def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() 
             });
             diagnostics.push(result.error);
           }
+          // An over-long explanation is a formatting overflow: the valid
+          // selection must survive with a bounded reason instead of ending the run.
+          const clippedDir = path.join(process.env.TEST_ROOT, 'clipped');
+          response = JSON.stringify({ ...selection([]), reason: 'verbose selector explanation '.repeat(70) });
+          const clipped = await selectIncrementalLearning({
+            cwd, taskSlice: { kind: 'learning-task-slice', version: 1, entries: [] },
+            contextDigest: 'invalid-digest', outputDir: clippedDir,
+          });
+          const clippedDossier = path.join(clippedDir, 'incremental-learning-dossier.json');
+          const storedReason = fs.existsSync(clippedDossier)
+            ? JSON.parse(fs.readFileSync(clippedDossier, 'utf8')).selection.reason
+            : null;
           console.log(JSON.stringify({
             unknown: unknown.outcome,
             ambiguous: ambiguous.outcome,
@@ -320,6 +331,11 @@ def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() 
             diagnostics,
             unknownDossier: fs.existsSync(path.join(unknownDir, 'incremental-learning-dossier.json')),
             ambiguousDossier: fs.existsSync(path.join(ambiguousDir, 'incremental-learning-dossier.json')),
+            clipped: clipped.outcome,
+            clippedDossier: fs.existsSync(clippedDossier),
+            clippedLength: storedReason === null ? null : storedReason.length,
+            clippedSuffix: storedReason === null ? null : storedReason.slice(-1),
+            clippedPrefix: storedReason === null ? null : storedReason.slice(0, 24),
           }));
         """, {"TEST_ROOT": temporary})
     assert result == {
@@ -329,11 +345,15 @@ def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() 
         "ambiguousError": "selector rejected: expected exactly one JSON object",
         "diagnostics": [
             "selector rejected: context digest does not match this run",
-            "selector rejected: reason must be a string of at most 600 characters",
             "selector rejected: fields do not match the selection schema",
         ],
         "unknownDossier": False,
         "ambiguousDossier": False,
+        "clipped": "selected",
+        "clippedDossier": True,
+        "clippedLength": 600,
+        "clippedSuffix": "…",
+        "clippedPrefix": "verbose selector explanation"[:24],
     }
 
 

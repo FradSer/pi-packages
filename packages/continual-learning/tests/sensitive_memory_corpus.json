@@ -1,0 +1,36 @@
+{
+  "benign": [
+    "**Related:** [[skills-host-agnostic]] [[pi-package-conventions]]",
+    "name: agents-skills-pool-hygiene",
+    "- Keep `contents: write`, `pull-requests: write`, and `id-token: write` in the release job.",
+    "- Auth is delegated to the gateway; never store secrets in memory.",
+    "The access token is stored in the system keychain and rotated quarterly.",
+    "Auth: https://login.example.com/oauth",
+    "# Cross-host skill pool: `~/.agents/skills/`",
+    "Use `git-agent` with `--no-stage`; the credential helper handles sign-in.",
+    "Token refresh is handled by the provider SDK.",
+    "## Passwords\nUse the 1Password vault.",
+    "Password managers store the shared secret.",
+    "Authorization uses the OAuth device flow.",
+    "Push the docs to the `gh-pages` branch.",
+    "The `pypi-publish-release` workflow runs on tags.",
+    "The lockfile `npm_package_lock.json` is generated.",
+    "`pnpm check` runs skill-lock verification."
+  ],
+  "sensitive": [
+    "token: sk-test-secret",
+    "credential: synthetic-value",
+    "api_key = sk-test-secret",
+    "-----BEGIN OPENSSH PRIVATE KEY-----",
+    "AKIAIOSFODNN7EXAMPLE",
+    "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+    "sk-ant-api03-abcdefghijklmnopqrstuvwxyz012345",
+    "xoxb-SYNTHETIC-SLACK-TOKEN-SAMPLE-0000",
+    "AIzaSyD-1234567890abcdefghijklmnopq",
+    "npm_abcdefghijklmnopqrstuvwxyz0123456789",
+    "pypi-AgEIcHlwaS5vcmcCJDY4ZjZiM2Fi",
+    "sk_live_abcdefgh12345678",
+    "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+    "password = correcthorsebatterystaple"
+  ]
+}

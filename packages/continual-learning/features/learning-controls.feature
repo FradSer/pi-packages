@@ -25,6 +25,12 @@ Feature: Control and inspect learned changes without changing existing defaults
     And project root aliases resolve to the same scope without accepting symlinks inside learned surfaces
     And a rejected Harness mutation reports its bounded non-sensitive reason
 
+  Scenario: Sensitive detection refuses credentials instead of ordinary text
+    Given a learned surface contains ordinary prose, wiki links or workflow permission names
+    When a phase snapshots or proposes that text
+    Then the record is written and the mutation applies
+    But a real credential, private key or provider key format in the same text is still refused
+
   Scenario: Explicit undo preserves later user edits
     Given a user requests undo of one applied history id
     When every target still matches that record and the user approves its preview

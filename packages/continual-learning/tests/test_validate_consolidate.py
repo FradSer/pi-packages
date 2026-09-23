@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -12,6 +14,40 @@ from pathlib import Path
 
 PLUGIN = Path(__file__).resolve().parents[1]
 SCRIPT = PLUGIN / "scripts" / "validate-consolidate.py"
+CORPUS = PLUGIN / "tests" / "sensitive_memory_corpus.json"
+
+
+def test_sensitive_detection_matches_the_shared_corpus() -> None:
+    spec = importlib.util.spec_from_file_location("validate_consolidate", SCRIPT)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    corpus = json.loads(CORPUS.read_text(encoding="utf-8"))
+    false_positives = [value for value in corpus["benign"] if module.contains_sensitive_memory_material(value)]
+    missed = [value for value in corpus["sensitive"] if not module.contains_sensitive_memory_material(value)]
+    assert false_positives == []
+    assert missed == []
+
+
+def test_validator_mode_choices_track_the_runtime_learning_mode_union() -> None:
+    """The CLI must accept every mode the extension can report.
+
+    `full` was added to the runtime union (extensions/learning-efficiency.ts)
+    without extending this script's choices, so every full-scope consolidation
+    died at argument parsing — reported to the user as a rejected plan —
+    before a single artifact was judged.
+    """
+    spec = importlib.util.spec_from_file_location("validate_consolidate_modes", SCRIPT)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    runtime_source = (PLUGIN / "extensions" / "learning-efficiency.ts").read_text(encoding="utf-8")
+    union = re.search(r"export type LearningMode = ([^;]+);", runtime_source)
+    assert union is not None, "LearningMode union not found in learning-efficiency.ts"
+    runtime_modes = set(re.findall(r'"([a-z-]+)"', union.group(1)))
+
+    assert set(module.LEARNING_MODES) == runtime_modes
 
 
 def run(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -446,6 +482,26 @@ class TestValidatorContract:
         kept = run(["--plan", str(self.root / "plan.json"), "--repo-root", str(self.repo), "--check", "plan", "--mode", "manual"])
         assert kept.returncode != 0
         assert "KEEP" in kept.stdout
+
+    def test_full_mode_validates_a_plan_like_every_other_runtime_mode(self) -> None:
+        plan = self.plan(["project_example.md"])
+        plan_path = write_json(self.root / "plan.json", plan)
+        for mode in ("automatic", "manual", "full"):
+            accepted = run(["--plan", str(plan_path), "--repo-root", str(self.repo), "--check", "plan", "--mode", mode])
+            assert accepted.returncode == 0, f"{mode}: {accepted.stdout}"
+
+        # `full` returns the same verdict: it widens selection upstream and must
+        # not become a second rule set for the same artifacts.
+        plan["staleness"] = [{"name": "project_example.md", "verdict": "KEEP"}]
+        plan["operations"] = [{
+            "name": "project_example.md", "kind": "delete", "classification": "safe",
+            "preservedIn": ["src/example.ts"],
+        }]
+        write_json(plan_path, plan)
+        for mode in ("manual", "full"):
+            rejected = run(["--plan", str(plan_path), "--repo-root", str(self.repo), "--check", "plan", "--mode", mode])
+            assert rejected.returncode != 0, f"{mode}: {rejected.stdout}"
+            assert "KEEP" in rejected.stdout
 
     def test_receipt_changes_summary_is_bound_to_plan(self) -> None:
         self.memory_layout()
