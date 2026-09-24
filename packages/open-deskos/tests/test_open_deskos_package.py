@@ -209,6 +209,36 @@ def test_events_come_from_messages_with_complete_tool_result_bodies() -> None:
     assert result["assistantParts"] == "one\n\ntwo"
 
 
+def test_events_carry_the_call_identity_and_error_pi_recorded() -> None:
+    result = report(
+        r'''
+        import { eventsFromMessage, boundSessionEvent } from "./packages/open-deskos/src/events.ts";
+        console.log(JSON.stringify({
+          call: eventsFromMessage({ role: "assistant", content: [{ type: "toolCall", id: "call_1", name: "bash", arguments: { command: "pnpm test" } }] }),
+          callWithoutId: eventsFromMessage({ role: "assistant", content: [{ type: "toolCall", name: "bash", arguments: { command: "pnpm test" } }] }),
+          failed: eventsFromMessage({ role: "toolResult", toolName: "bash", toolCallId: "call_1", isError: true, content: [{ type: "text", text: "exit code 1" }] }),
+          passed: eventsFromMessage({ role: "toolResult", toolName: "bash", toolCallId: "call_1", content: [{ type: "text", text: "ok" }] }),
+          identityOnly: eventsFromMessage({ role: "toolResult", toolCallId: "call_2", content: [{ type: "text", text: "ok" }] }),
+          kept: boundSessionEvent({ kind: "result", text: "body", toolName: "bash", toolCallId: "call_3", isError: true }),
+          notOnOtherKinds: boundSessionEvent({ kind: "assistant", text: "body", toolCallId: "call_4", isError: true }),
+          noErrorFlag: boundSessionEvent({ kind: "result", text: "body", isError: false }),
+        }));
+        '''
+    )
+    # A desk reads one tool box and the outcome Pi recorded from these two fields,
+    # so both travel with the event instead of being inferred from its position.
+    assert result["call"] == [{"kind": "tool", "text": "bash: pnpm test", "toolCallId": "call_1"}]
+    assert result["callWithoutId"] == [{"kind": "tool", "text": "bash: pnpm test"}]
+    assert result["failed"] == [{"kind": "result", "text": "exit code 1", "toolName": "bash", "toolCallId": "call_1", "isError": True}]
+    assert result["passed"] == [{"kind": "result", "text": "ok", "toolName": "bash", "toolCallId": "call_1"}]
+    assert result["identityOnly"] == [{"kind": "result", "text": "ok", "toolCallId": "call_2"}]
+    # The reporter bounds every event, so both fields survive that bound, and
+    # neither is invented for a kind that cannot carry it.
+    assert result["kept"] == {"kind": "result", "text": "body", "toolName": "bash", "toolCallId": "call_3", "isError": True}
+    assert result["notOnOtherKinds"] == {"kind": "assistant", "text": "body"}
+    assert result["noErrorFlag"] == {"kind": "result", "text": "body"}
+
+
 # ─ Reporter contract ───────────────────────────────────────────────
 
 HARNESS = r'''

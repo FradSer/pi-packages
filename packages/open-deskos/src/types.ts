@@ -29,6 +29,10 @@ export interface SessionEvent {
   text: string;
   /** Result-only label, kept outside the Markdown body. */
   toolName?: string;
+  /** Tool and result only: the call identity Pi wrote, which pairs the two. */
+  toolCallId?: string;
+  /** Result only, and only when Pi recorded that result as an error. */
+  isError?: true;
   /** Present only when a result or assistant body was shortened. */
   /** Present only when the event body was shortened by its kind's limit. */
   truncated?: true;
@@ -141,6 +145,8 @@ export interface ThinkingPart {
 
 export interface ToolCallPart {
   type: "toolCall";
+  /** Pi's identity for this call; its result echoes the same value. */
+  id?: string;
   name: string;
   arguments: unknown;
 }

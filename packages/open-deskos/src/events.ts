@@ -53,7 +53,16 @@ export function boundSessionEvent(event: SessionEvent): SessionEvent | null {
     truncated = true;
   }
   const toolName = event.kind === "result" ? boundEventText(event.toolName) : "";
-  return { kind: event.kind, text, ...(toolName ? { toolName } : {}), ...(truncated ? { truncated: true } : {}) };
+  // A call identity is an opaque short line, never a body, so it is bounded as one.
+  const toolCallId = event.kind === "result" || event.kind === "tool" ? boundEventText(event.toolCallId) : "";
+  return {
+    kind: event.kind,
+    text,
+    ...(toolName ? { toolName } : {}),
+    ...(toolCallId ? { toolCallId } : {}),
+    ...(event.kind === "result" && event.isError === true ? { isError: true } : {}),
+    ...(truncated ? { truncated: true } : {}),
+  };
 }
 
 /** Keep a contiguous newest tail within both the event-count and UTF-8 budgets. */
@@ -112,6 +121,8 @@ function isToolCall(part: unknown): part is ToolCallPart {
 interface MessageView {
   role?: string;
   toolName?: string;
+  toolCallId?: string;
+  isError?: boolean;
   content?: unknown;
 }
 
@@ -149,6 +160,10 @@ export function eventsFromMessage(message: unknown): SessionEvent[] {
       kind: "result",
       text: parts.filter(isText).map((part) => part.text).join("\n\n"),
       ...(typeof view.toolName === "string" ? { toolName: view.toolName } : {}),
+      // The call this result answers, and whether Pi recorded it as an error:
+      // a desk reads the outcome from this record instead of guessing one.
+      ...(typeof view.toolCallId === "string" ? { toolCallId: view.toolCallId } : {}),
+      ...(view.isError === true ? { isError: true } : {}),
     });
     return event ? [event] : [];
   }
@@ -167,7 +182,7 @@ export function eventsFromMessage(message: unknown): SessionEvent[] {
       // content. The one-line activity summary is made separately, in the
       // reporter, and never replaces this body.
       const text = summarizeToolCall(part.name, part.arguments).trim();
-      if (text) events.push({ kind: "tool", text });
+      if (text) events.push({ kind: "tool", text, ...(typeof part.id === "string" && part.id ? { toolCallId: part.id } : {}) });
       continue;
     }
     // The reply body is added once, after its thinking and tool calls.

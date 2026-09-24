@@ -41,7 +41,7 @@ export ODK_DESK_LINK_CONTROL_TOKEN="<control credential>"   # 可选：使本机
 - 会话状态：元数据表示工作中、Pi 进程存活、时间戳匹配该进程生命周期时才为 `running`；存活的 idle/settled 会话为 `settled`。已结束、无效、被复用、无法核实的 PID 或明确退出的记录为 `exited`。每次扫描只读取一次有界进程表（1 MiB，2 秒超时），同一 PID 只有最新且无歧义的会话可视为存活。当前会话以 Pi 自身的 idle/agent 事件为准。
 - 原始元数据的 start/update 时间、可选会话名、目标与 activity/recap。扫描不会凭空发明新的 activity 时间戳，也不读取会话历史。
 - 有界会话事件：每会话最多保留最新连续的 300 条事件与 1,048,576 UTF-8 字节（计入正文与工具名）。正文保留换行并按类型限长：user 8 KiB、thinking 4 KiB、tool-call 4 KiB、assistant 16 KiB、tool result 64 KiB。
-- 工具结果保留完整的多行 Markdown，包括表格、代码围栏和空白，每条正文最多 65,536 UTF-8 字节。所有文本块以两个换行连接；图片与任意结果元数据不上报。任一类型的正文超过自身字节上限时会带 `truncated: true`，且不会截断 Unicode 码点。可选 `toolName` 为独立的 200 字符摘要，不再作为前缀插入 Markdown 正文。会话 activity 仍为简短的首行摘要。
+- 工具结果保留完整的多行 Markdown，包括表格、代码围栏和空白，每条正文最多 65,536 UTF-8 字节。所有文本块以两个换行连接；图片与任意结果元数据不上报。任一类型的正文超过自身字节上限时会带 `truncated: true`，且不会截断 Unicode 码点。可选 `toolName` 为独立的 200 字符摘要，不再作为前缀插入 Markdown 正文。工具调用与回应它的结果都携带 Pi 为该次调用写下的可选 `toolCallId`，被 Pi 记为错误的结果携带 `isError: true`，因此消费端能把结果与它自己的调用配对，并从 Pi 的记录而非事件顺序读出结果状态。会话 activity 仍为简短的首行摘要。
 
 会话开始时以及每次扫描后每 5 秒刷新一次清单，链路离线期间同样刷新。刷新只替换被发现的条目：当前会话的身份与事件不会被陈旧元数据删除或覆盖。关闭/重载会取消刷新调度，并使待处理结果与重连失效。
 
@@ -88,7 +88,7 @@ export ODK_DESK_LINK_CONTROL_TOKEN="<control credential>"   # 可选：使本机
 
 ## 线上契约
 
-一条 TCP 连接上的换行分隔 JSON，上报为版本 1。清单发现的会话带 `discovered: true`，当前会话直接观察的记录不带该标记，使服务端优先采用活动中的直接观察，而非其他上报端读取的更晚元数据。上报端写 `hello`、`sessions`、`events`、`bye`；服务端可回 `ack`、`error`。版本 1 预留的 `prompt` 回复仍未实现，且控制不使用它。分帧只按 LF，并容忍尾部 CR。结果事件的 `text` 为原始 Markdown，可带 `toolName` 和 `truncated: true`。追加式 `events` 记录按完整事件拆成每帧最多 1 MiB 的批次，上限包括 JSON 转义和末尾 LF；不会为适应帧大小而拆分、压平正文。替换式 `sessions` 快照仍使用独立的 65,536 字节生产端预算。若完整身份字段导致单条事件无法装入一帧，该事件不会发送，命令会显示帧上限错误。
+一条 TCP 连接上的换行分隔 JSON，上报为版本 1。清单发现的会话带 `discovered: true`，当前会话直接观察的记录不带该标记，使服务端优先采用活动中的直接观察，而非其他上报端读取的更晚元数据。上报端写 `hello`、`sessions`、`events`、`bye`；服务端可回 `ack`、`error`。版本 1 预留的 `prompt` 回复仍未实现，且控制不使用它。分帧只按 LF，并容忍尾部 CR。结果事件的 `text` 为原始 Markdown，可带 `toolName`、`toolCallId`、`isError: true` 和 `truncated: true`；工具调用事件携带与回应它的结果相同的可选 `toolCallId`。追加式 `events` 记录按完整事件拆成每帧最多 1 MiB 的批次，上限包括 JSON 转义和末尾 LF；不会为适应帧大小而拆分、压平正文。替换式 `sessions` 快照仍使用独立的 65,536 字节生产端预算。若完整身份字段导致单条事件无法装入一帧，该事件不会发送，命令会显示帧上限错误。
 
 控制使用版本 2，走同一监听面上的独立连接。`control-hello` 携带上报 token、协议版本、机器名与当前 Pi 会话身份，因此同一机器上的两个 Pi 会话是两个可区分的 Console。desk 返回一次性 `hmac-sha256` challenge；证明内容把 `open-deskos-control-v2`、版本 `2`、nonce、机器名与 Console 会话 ID 以换行分隔的 UTF-8 文本绑定起来。独立 Control Credential 只作为 HMAC 密钥，绝不上线。每个请求都有 `requestId`，变更请求另有可用于重试对账的稳定 `mutationId`，保持连接的 attach 流量带 `attachmentId`，会话日志事件带物理 `position`。list / launch / history 为一枪式连接，attach 才保持连接。desk 不接受的版本会先明确报错，不会伪装成凭据错误。规范 fixture 随包位于 `fixtures/control-v2.json`。没有 detach 记录、没有重放窗口、也没有 resync 记录。
 
