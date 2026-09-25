@@ -159,7 +159,11 @@ def test_restored_procedure_rows_use_recorded_phase(lifecycle_results: dict[str,
     assert phases
     for item in phases:
         assert_phase_block(item["rows"], item["state"]["phase"], route)
-        assert item["restored"]["message"]["details"] == item["state"]
+        # A restore re-delivers the whole active closure, so its message details are
+        # the recorded state plus the delivery set this restore showed.
+        details = item["restored"]["message"]["details"]
+        assert {key: value for key, value in details.items() if key != "deliveredProcedures"} == item["state"]
+        assert item["state"]["procedure"] in details["deliveredProcedures"]
         assert item["restored"]["message"]["display"] is False
         assert item["restored"]["options"] == {"deliverAs": "nextTurn"}
         assert "to expand" not in "\n".join(item["rows"])

@@ -129,7 +129,7 @@ SCRIPT = """
 DELIVERIES = ("routeTask", "routeOnly", "capabilityTask", "capabilityOnly", "menuRoute",
               "menuCapability", "transition", "menuRouting", "freeform")
 
-STATE_KEYS = ("version", "workItemId", "route", "procedure", "phase", "status", "loadedReferences")
+STATE_KEYS = ("version", "workItemId", "route", "procedure", "phase", "status", "loadedReferences", "deliveredProcedures")
 
 LF = "\n"
 

@@ -162,6 +162,9 @@ def test_gateway_starts_workflow_with_versioned_work_item_state() -> None:
         "version": 1, "workItemId": state["workItemId"], "route": "architecture",
         "procedure": "improve-codebase-architecture", "phase": "survey",
         "status": "active", "loadedReferences": [],
+        # The first step's delivery set is part of the persisted state: a restore
+        # reads it to know what this session has already been shown.
+        "deliveredProcedures": ["improve-codebase-architecture", "codebase-design"],
     }
     text = result["execution"]["content"][0]["text"]
     assert 'source="procedure/improve-codebase-architecture"' in text
@@ -317,7 +320,9 @@ def test_latest_record_restores_active_and_respects_terminal_state() -> None:
           terminalState: latestWorkflowState([entry(active), entry(terminal)]) ?? null,
         }));
     """)
-    assert result["activeRecord"] == result["activeState"]
+    # The live state is the record with the delivery default applied, so a record
+    # written before delivery tracking still reads as a complete state.
+    assert result["activeState"] == {**result["activeRecord"], "deliveredProcedures": []}
     assert result["activeState"]["status"] == "active"
     assert result["terminalRecord"]["status"] == "completed"
     assert result["terminalState"] is None

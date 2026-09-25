@@ -206,13 +206,19 @@ function standaloneReferencePrompt(capability: string, reference: string): strin
   return `# Matt Pocock standalone reference\n\nCapability: ${definition.id}\nReference: ${bundle.root}\nPersistent workflow state: none\nAvailable references: ${bundle.availableReferences.join(", ") || "none"}\n\n${bundle.content}`;
 }
 
-function startWorkflow(route: string): WorkflowState {
+/**
+ * Begin a workflow and persist its state exactly once, carrying the delivery set
+ * this first step shows. A second entry would read as two workflows begun, and a
+ * persisted state without the set would re-deliver the whole closure on restore.
+ */
+function startWorkflow(route: string, request = ""): { state: WorkflowState; text: string } {
   if (!findWorkflowRoute(route)) throw new Error(`Unknown Matt Pocock route: ${route}`);
-  const state = routeEntryState(route, randomUUID());
-  if (!state) throw new Error(`Workflow ${route} has no catalog entry procedure.`);
-  resolveProcedureBundle(state.procedure);
-  persistWorkflow(state);
-  return state;
+  const created = routeEntryState(route, randomUUID());
+  if (!created) throw new Error(`Workflow ${route} has no catalog entry procedure.`);
+  resolveProcedureBundle(created.procedure);
+  const step = deliveryStep(created, "started workflow", request);
+  persistWorkflow(step.state);
+  return step;
 }
 
 function loadActiveReference(reference: string): { state: WorkflowState; content: string } {
@@ -251,10 +257,8 @@ async function chooseRoute(ctx: ExtensionCommandContext): Promise<void> {
   if (!choice) return;
   const route = routeFromChoice(choice);
   if (!route) return;
-  const state = startWorkflow(route);
+  const step = startWorkflow(route);
   clearPiStatus(ctx.ui, "matt-pocock");
-  const step = deliveryStep(state, "started workflow");
-  persistWorkflow(step.state);
   deliverProcedure(step.text, { ...step.state, request: "" });
 }
 
@@ -449,9 +453,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         if (activeWorkflow) {
           throw new Error(`Workflow ${activeWorkflow.workItemId} is already active. Complete or cancel it before starting another.`);
         }
-        const state = startWorkflow(params.route);
-        const step = deliveryStep(state, "started workflow");
-        persistWorkflow(step.state);
+        const step = startWorkflow(params.route);
         return {
           content: [{ type: "text", text: step.text }],
           details: { mode: "workflow", ...step.state },
@@ -751,10 +753,8 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
 
       if (findWorkflowRoute(token)) {
         if (activeWorkflow) throw new Error(`Workflow ${activeWorkflow.workItemId} is already active.`);
-        const state = startWorkflow(token);
+        const step = startWorkflow(token, task);
         clearPiStatus(ctx.ui, "matt-pocock");
-        const step = deliveryStep(state, "started workflow", task);
-        persistWorkflow(step.state);
         deliverProcedure(step.text, { ...step.state, request: task });
         return;
       }
