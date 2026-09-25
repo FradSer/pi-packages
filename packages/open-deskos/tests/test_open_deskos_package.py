@@ -19,8 +19,11 @@ def run_typescript(script: str) -> subprocess.CompletedProcess[str]:
     loader = [] if os.environ.get("ODK_TEST_NATIVE_TS") == "1" else ["--import", "tsx"]
     with tempfile.TemporaryDirectory(prefix="desk-test-registry-") as registry:
         env = dict(os.environ, PI_DIRECTORY_SESSIONS_DIR=registry)
-        env.pop("ODK_DESK_LINK_ADDRESS", None)
-        env.pop("ODK_DESK_LINK_TOKEN", None)
+        # A developer machine that runs the Desk Link host exports its own control
+        # credentials; the suite must never inherit them, or it silently tests a
+        # configured control surface instead of the one each script declares.
+        for key in [key for key in env if key.startswith("ODK_") and key != "ODK_TEST_NATIVE_TS"]:
+            env.pop(key, None)
         result = subprocess.run(
             ["node", *loader, "--input-type=module"],
             cwd=REPO,
@@ -476,6 +479,9 @@ def test_an_unconfigured_machine_reports_nothing_but_says_why() -> None:
         const pi = {
           on(name, handler) { hooks.push(name); handlers.set(name, handler); },
           registerCommand(name, options) { commands.set(name, options); },
+          registerMessageRenderer() {},
+          registerEntryRenderer() {},
+          registerTool() {},
           sendMessage() { throw new Error("an unconfigured reporter must not send a message"); },
         };
         mod.default(pi);
@@ -511,6 +517,9 @@ def test_a_configured_machine_registers_the_reporting_hooks() -> None:
         const pi = {
           on(name, handler) { hooks.push(name); },
           registerCommand(name) { commands.push(name); },
+          registerMessageRenderer() {},
+          registerEntryRenderer() {},
+          registerTool() {},
           sendMessage() { throw new Error("the reporter must never send a message"); },
           setActiveTools() { throw new Error("the reporter must never change the active tools"); },
         };
@@ -609,7 +618,7 @@ def test_a_session_switch_keeps_reporting() -> None:
         process.env.ODK_DESK_LINK_MACHINE = "probe";
         const mod = await import("./packages/open-deskos/index.ts?switch=1");
         const handlers = new Map();
-        mod.default({ on(name, handler) { handlers.set(name, handler); }, registerCommand() {} });
+        mod.default({ on(name, handler) { handlers.set(name, handler); }, registerCommand() {}, registerMessageRenderer() {}, registerEntryRenderer() {}, registerTool() {} });
         const statuses = [];
         const contextFor = (id) => ({ cwd: "/w/probe", isIdle: () => false, ui: { setStatus(...args) { statuses.push(args); }, notify() {} }, sessionManager: { getSessionId: () => id, getSessionName: () => undefined, getHeader: () => undefined } });
         handlers.get("session_start")({ type: "session_start" }, contextFor("first"));

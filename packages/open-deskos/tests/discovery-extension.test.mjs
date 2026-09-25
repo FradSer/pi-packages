@@ -30,6 +30,9 @@ test("extension discovers older sessions, periodically refreshes, preserves own 
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const saved = { ...process.env };
+  // A host that runs the Desk Link service exports control credentials; this
+  // fixture declares its own surface and must not inherit a configured one.
+  delete process.env.ODK_DESK_LINK_CONTROL_TOKEN;
   process.env.ODK_DESK_LINK_ADDRESS = `127.0.0.1:${server.address().port}`;
   process.env.ODK_DESK_LINK_TOKEN = "isolated-fixture";
   process.env.ODK_DESK_LINK_MACHINE = "isolated-machine";
@@ -49,7 +52,7 @@ test("extension discovers older sessions, periodically refreshes, preserves own 
   for (let i = 0; i < 10; i += 1) await put(`old-${i}`, { sessionId: `old-${i}`, pid: 0, status: "running", startedAt: 1, updatedAt: 2 });
   const { default: extension } = await import("../index.ts");
   const handlers = new Map();
-  extension({ on(name, fn) { handlers.set(name, fn); }, registerCommand() {} });
+  extension({ on(name, fn) { handlers.set(name, fn); }, registerCommand() {}, registerMessageRenderer() {}, registerEntryRenderer() {}, registerTool() {} });
   const ctx = {
     cwd: "/fixture/current",
     isIdle: () => true,

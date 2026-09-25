@@ -26,6 +26,9 @@ def test_configured_transitions_keep_diagnostics_command_only() -> None:
         extension({
           on(name, handler) { handlers.set(name, handler); },
           registerCommand(name, command) { commands.set(name, command); },
+          registerMessageRenderer() {},
+          registerEntryRenderer() {},
+          registerTool() {},
         });
         const ctx = {
           cwd: "/w/probe",
