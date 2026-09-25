@@ -1,5 +1,24 @@
 # pi-continual-learning
 
+## 0.4.0
+
+### Minor Changes
+
+- a61a89e: Add opt-in per-phase automatic learning policies, private change history with conflict-aware undo, independent rule evaluation and paired Memory task evaluation. Existing automatic apply defaults and explicit consolidation behavior remain intact.
+  
+  Release locks on failed selection and preflight, preserve evidence across explicit continuations, bound complete task slices, run manual selection without automatic-screen keywords, review verified troubleshooting recoveries, and accurately summarize AGENTS.md changes.
+  
+  Accept canonical project-root aliases in learning history without following surface symlinks, and extract unambiguous Harness and AGENTS.md plans surrounded by prose while retaining identity validation.
+  
+  Separate worker assignments from quoted evidence with a package-owned system instruction, bind selector examples to the current digest, and report bounded structural selection errors without echoing rejected content.
+
+### Patch Changes
+
+- 01a46d3: Stop spending learning calls on evidence that is not evidence, and make the results inspectable.
+  
+  Harness activity is now decided by Harness-owned transcript evidence (guardrail event entries, Harness guidance delivery, and the notes Harness attaches to tool results) instead of matching words such as `policy`, `harness`, or `blocked` in repository text, so reading a harness file no longer starts a harness planner. A manual consolidation honors the selector's reviewed verdict unless user-stated evidence or real Harness activity floors it: a verified tool recovery alone no longer starts a Memory planner the selector declined after reading the same slice. Completed Memory runs keep their run directory (task, plan, receipts, manifest, snapshot) for inspection, and a sensitive snapshot refusal now names the learned surface to clean without echoing the matched bytes. Planner dossiers record Harness events from that same Harness-owned evidence instead of transcript fragments that merely mention the harness.
+- ad80757: Stop learning history from refusing ordinary learned text. Credential detection now requires an assigned value long enough to be a credential or a concrete provider key format, so wiki links and names such as `skills-host-agnostic`, workflow permission names such as `id-token: write`, and prose such as `Auth is delegated` no longer fail the whole pipeline with `Learning history refuses sensitive material`. Real assignments, provider keys, private keys and bearer tokens are still refused.
+
 ## 0.3.1
 
 ### Patch Changes
