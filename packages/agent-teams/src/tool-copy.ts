@@ -24,10 +24,6 @@ export interface CoordinationRow {
   body: string[];
 }
 
-const COLLAPSED_TASK_LIMIT = 90;
-/** A kickoff prompt is shown in full up to this size, then clipped. */
-const FIELD_LIMIT = 2000;
-
 /** Package resolver: a known Work handle becomes its subject. Only prefixed
  * handles are machine identifiers; a bare UUID can be a person's own text
  * (a commit, an id under review) and survives verbatim inside kit. */
@@ -55,11 +51,12 @@ function clipLines(value: unknown): string {
   return displayText(value).split("\n").map((line) => plainText(line)).join("\n");
 }
 
-function shortTask(value: unknown): string {
+/** The first non-empty line, on one line: a title. The row's own width fit
+ * bounds it and expansion reveals the whole value, so no character cap here. */
+function headline(value: unknown): string {
   const text = displayText(value);
   const firstLine = text.split("\n").map((l) => plainText(l).trim()).find(Boolean) ?? "";
-  const line = collapse(firstLine);
-  return line.length <= COLLAPSED_TASK_LIMIT ? line : `${line.slice(0, COLLAPSED_TASK_LIMIT - 1).trimEnd()}…`;
+  return collapse(firstLine);
 }
 
 /** Array fields also arrive untyped from a model call. */
@@ -72,8 +69,8 @@ function labeled(label: string, value: unknown): string {
 }
 
 /** Multi-line field: the label heads the first line, the rest follow verbatim. */
-function labeledBlock(label: string, value: unknown, limit = FIELD_LIMIT): string[] {
-  return fieldBlock(label, clipLines(value), limit);
+function labeledBlock(label: string, value: unknown): string[] {
+  return fieldBlock(label, clipLines(value));
 }
 
 function bodyLines(value: unknown): string[] {
@@ -118,7 +115,7 @@ function workOf(teammate: Teammate | undefined, task?: BoardTask): string | unde
   const source = task ?? (teammate?.workId ? getTask(teammate.workId) : undefined);
   if (!source) return undefined;
   const owner = source.claimedBy ? ` · @${source.claimedBy}` : "";
-  return `${shortTask(source.subject)} · ${stateWord(source.status)}${owner}`;
+  return `${headline(source.subject)} · ${stateWord(source.status)}${owner}`;
 }
 
 // ── agent ─────────────────────────────────────────────────────────
@@ -203,7 +200,7 @@ export function agentRow(
       task = getTask(workId)?.subject;
     }
   }
-  const subject = [`@${name}`, agentStateWord(args, teammate, details, flags), task ? shortTask(task) : ""]
+  const subject = [`@${name}`, agentStateWord(args, teammate, details, flags), task ? headline(task) : ""]
     .filter(Boolean)
     .join(" · ");
   return { subject, body: agentBody(args, name, teammate, details, flags) };
@@ -230,7 +227,7 @@ function agentBody(
     // field would duplicate the header, and could contradict it when the live
     // teammate and the inspected snapshot disagree.
     return [
-      ...(isWorking && teammate ? [labeled("now", shortTask(runningTeammateActivity(teammate)))] : []),
+      ...(isWorking && teammate ? [labeled("now", headline(runningTeammateActivity(teammate)))] : []),
       ...(work && isWorking ? [labeled("work", work)] : []),
       ...(sessionTools ? [labeled("tools", sessionTools.join(", "))] : []),
       ...(warning ? [labeled("warning", warning)] : []),
@@ -276,7 +273,7 @@ export function leaderWorkRow(
     const items = Array.isArray(works) ? works : [];
     return {
       subject: `${items.length} work item${items.length === 1 ? "" : "s"}`,
-      body: items.map((item) => `- ${shortTask(item.subject)} · ${stateWord(item.state)}${item.claimedBy ? ` · @${item.claimedBy}` : ""}`),
+      body: items.map((item) => `- ${headline(item.subject)} · ${stateWord(item.state)}${item.claimedBy ? ` · @${item.claimedBy}` : ""}`),
     };
   }
   const work = detailField<{ subject?: string; state?: string; resources?: string[] }>(details, "work");
@@ -293,7 +290,7 @@ export function leaderWorkRow(
   const workResources = strings(detailField<unknown>(work, "resources"));
   const stillRunning = detailField<string>(details, "holderStillRunning");
   return {
-    subject: `${shortTask(subject)} · ${flags.isError ? "failed" : stateWord(outcome)}`,
+    subject: `${headline(subject)} · ${flags.isError ? "failed" : stateWord(outcome)}`,
     body: [
       ...(work?.state ? [labeled("state", stateWord(work.state))] : []),
       ...(stillRunning ? [labeled("risk", `@${stillRunning} was still working; an in-flight batch may still write inside the released scope`)] : []),
@@ -351,7 +348,7 @@ export function workerWorkRow(
       ? "current Work"
       : undefined;
   return {
-    subject: `${shortTask(subject ?? leads ?? "Work")} · ${flags.isError ? "failed" : workerStateWord(action, outcome)}`,
+    subject: `${headline(subject ?? leads ?? "Work")} · ${flags.isError ? "failed" : workerStateWord(action, outcome)}`,
     body: bodyLines(content).slice(1),
   };
 }

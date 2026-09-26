@@ -137,6 +137,14 @@ for (const line of ["role · Audits visible TUI rows · session role", "task · 
 }
 assert.ok(!expanded.includes("work · Fix the spacing"), "expanded delegate row must not duplicate the prompt as a work field");
 
+// A kickoff prompt is the deliverable: expansion reveals every line, so no
+// character cap may drop the tail of a long prompt.
+const longPrompt = `Kickoff headline\n${"evidence ".repeat(400)}TAIL-EVIDENCE`;
+const longPromptRow = render("leader:agent", { action: "delegate", name: "ui-auditor", prompt: longPrompt }, { details: started, expanded: true });
+expectReadable(longPromptRow, "long-prompt delegate row");
+assert.ok(longPromptRow.includes("TAIL-EVIDENCE"), `expanded delegate row clipped a long prompt:\n${longPromptRow.slice(-400)}`);
+assert.ok(longPromptRow.includes("Kickoff headline"), `expanded delegate row dropped the prompt headline:\n${longPromptRow.slice(0, 400)}`);
+
 const handle = started.session.id;
 const working = runAgentAction({ action: "inspect", name: "ui-auditor", session: handle }, undefined, runtime);
 updateTeammate("ui-auditor", { status: "working", activeTool: "file: overlay.ts" });
@@ -199,6 +207,40 @@ const listedRow = render("leader:work", { action: "list" }, {
 expectReadable(listedRow, "work list row");
 assert.ok(listedRow.includes("1 work item"), `work list row missing the count:\n${listedRow}`);
 assert.ok(listedRow.includes("· claimed · @ui-auditor"), `work list row missing state and owner:\n${listedRow}`);
+
+// A long Work subject stays whole: the row fits it to the terminal and
+// expansion reveals it, so no fixed character cap may cut it short.
+const longSubject = `${"keep the widget aligned ".repeat(5)}TAIL-SUBJECT`.trim();
+assert.ok(longSubject.length > 110, "the long-subject regression must exceed the removed 90-character cap");
+const longCreatedRow = render("leader:work", { action: "create", subject: longSubject }, {
+  details: {
+    action: "create", outcome: "created", state: "pending",
+    work: { id: task.ok ? task.task.id : "", subject: longSubject, resources: [], state: "pending" },
+    notifiedTeammates: ["ui-auditor"], claimable: true, supersededWorkIds: [],
+  },
+  text: "WORK · current session",
+});
+expectReadable(longCreatedRow, "long-subject work create row");
+assert.ok(longCreatedRow.includes("TAIL-SUBJECT"), `collapsed work row clipped the subject at a fixed width:\n${longCreatedRow}`);
+const longCreatedExpanded = render("leader:work", { action: "create", subject: longSubject }, {
+  details: {
+    action: "create", outcome: "created", state: "pending",
+    work: { id: task.ok ? task.task.id : "", subject: longSubject, resources: [], state: "pending" },
+    notifiedTeammates: ["ui-auditor"], claimable: true, supersededWorkIds: [],
+  },
+  text: "WORK · current session",
+  expanded: true,
+});
+assert.ok(longCreatedExpanded.includes(longSubject), `expanded work row lost the complete subject:\n${longCreatedExpanded}`);
+const narrowLongRow = stripVTControlCharacters(renderComponent("leader:work", { action: "create", subject: longSubject }, {
+  details: {
+    action: "create", outcome: "created", state: "pending",
+    work: { id: task.ok ? task.task.id : "", subject: longSubject, resources: [], state: "pending" },
+    notifiedTeammates: ["ui-auditor"], claimable: true, supersededWorkIds: [],
+  },
+  text: "WORK · current session",
+}).render(80).join("\n"));
+assert.ok(narrowLongRow.includes("to expand"), `a width-clipped subject must advertise expansion:\n${narrowLongRow}`);
 
 // ── agent_event: the message itself, not the routing record ─────────
 

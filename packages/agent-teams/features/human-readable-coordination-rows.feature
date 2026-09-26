@@ -8,6 +8,7 @@ Feature: Human-readable coordination rows
     When the agent tool row renders
     Then the collapsed row shows the Agent name and its task on one line
     And the expanded row shows the role description, the full task text, its tools, and its model
+    And the full task text survives any length: the collapsed title is fitted to the terminal width and expansion reveals every line
     And no session, Work, or assignment identifier appears in the row
 
   Scenario: Agent action rows use plain state words
@@ -25,6 +26,8 @@ Feature: Human-readable coordination rows
   Scenario: Work rows show the subject instead of the identifier
     When a leader work create, assign, release, reopen, or supersede row renders
     Then the collapsed row leads with the Work subject
+    And a long subject is fitted to the current terminal width with the expand hint instead of a fixed character cap
+    And expansion reveals the complete subject
     And the expanded body lines carry no Work identifier
 
   Scenario: Message rows show one inline copy of the complete message
