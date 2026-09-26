@@ -165,7 +165,7 @@ def test_native_tui_renders_both_canonical_activity_rows(live_command: tuple[lis
     def both_rows_on_screen() -> bool:
         """Both widget rows must be rendered *and* drained from the PTY: the
         snapshot file is written by the fixture, so it can lead the terminal."""
-        if set(latest_rows()) != {"kit-widget-plain", "kit-widget-markdown"}:
+        if not {"kit-widget-plain", "kit-widget-markdown"} <= set(latest_rows()):
             return False
         screen = screen_text()
         return (
@@ -212,6 +212,15 @@ def test_native_tui_renders_both_canonical_activity_rows(live_command: tuple[lis
         assert "**Scanning** `rg` output" in plain, plain
         assert "Scanning rg output" in markdown, markdown
         assert "**" not in markdown and "`" not in markdown, markdown
+        # A row the terminal width cannot hold ends with the host's truncation
+        # marker in the real TUI, not mid-word. Assert on the narrowest snapshot
+        # so a wider startup render cannot make the marker check vacuous.
+        clipped_records = [row for row in rows() if row["key"] == "kit-widget-clipped"]
+        assert clipped_records, "the clipped widget row must render"
+        narrowest = min(clipped_records, key=lambda row: row["width"])
+        clipped_line = narrowest["lines"][0]
+        assert "generated fixture" not in clipped_line, clipped_line
+        assert clipped_line.rstrip().endswith("..."), (narrowest["width"], clipped_line)
         os.write(master, b"/quit\r")
         wait_for(lambda: process.poll() is not None)
         assert process.returncode == 0

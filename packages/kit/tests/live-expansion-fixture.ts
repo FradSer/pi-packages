@@ -78,10 +78,15 @@ export default function (pi: ExtensionAPI): void {
         },
       };
       const activity = "**Scanning** `rg` output";
+      // Longer than the live PTY width, so the host must clip it: this row proves
+      // a clipped pi-kit row says so instead of stopping mid-word.
+      const clippedActivity = "**Scanning** `rg` output for MINIMAL_PI_WORKER_TOOLS in every package, worktree copy, and generated fixture";
       const plain = createLiveActivityWidget({ key: "kit-widget-plain", fit: truncateToWidth, placement: "aboveEditor" });
       const markdown = createLiveActivityWidget({ key: "kit-widget-markdown", fit: truncateToWidth, placement: "aboveEditor", activityFormat: "markdown" });
+      const clipped = createLiveActivityWidget({ key: "kit-widget-clipped", fit: truncateToWidth, placement: "aboveEditor" });
       plain.update({ mode: "tui", ui }, [{ id: "probe", identity: "researcher", activity }]);
       markdown.update({ mode: "tui", ui }, [{ id: "probe", identity: "researcher", activity }]);
+      clipped.update({ mode: "tui", ui }, [{ id: "probe", identity: "researcher", activity: clippedActivity }]);
       console.log("KIT_WIDGET_MOUNTED");
       return;
     }
