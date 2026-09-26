@@ -81,10 +81,9 @@ export default function registerHarnessGuidance(pi: ExtensionAPI): void {
           ? "text guidance incomplete"
           : "skill rule";
     // The full prompt stays visible when expanded: it is the deliverable.
-    const promptFields = fieldBlock("prompt", prompt, Number.POSITIVE_INFINITY);
+    const promptFields = fieldBlock("prompt", prompt);
     return guidanceRows.message(() => eventToolLifecycle("harness", subject, {
       label,
-      detailLimit: "all",
       details: details
         ? [
           fieldLine("source", details.source),
