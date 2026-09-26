@@ -78,7 +78,7 @@ fs.rmSync(cwd, {{ recursive: true, force: true }});
         self.assertIn('renderShell: "self"', content)
         self.assertIn("bindLifecycleRenderers({", content)
         self.assertIn("sessionRows.emptyCall()", content)
-        self.assertIn('eventToolLifecycle("sessions", summary, { label: "listed", details: rows, detailLimit: "all" })', content)
+        self.assertIn('eventToolLifecycle("sessions", summary, { label: "listed", details: rows })', content)
         # Style-free consumer: pi-kit owns the band geometry and styling; no
         # hand-built Box or theme calls remain in the sessions renderer.
         self.assertIn("sessionRows.result(", content)

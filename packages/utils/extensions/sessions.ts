@@ -487,7 +487,7 @@ export default function (pi: ExtensionAPI) {
       // Detail lines are wrapped by pi-kit at the current terminal width, so
       // expanding exposes every session and every available field.
       const rows = sessions.flatMap((session) => buildSessionLines(session));
-      return sessionRows.result(() => eventToolLifecycle("sessions", summary, { label: "listed", details: rows, detailLimit: "all" }))(result, options, theme, context);
+      return sessionRows.result(() => eventToolLifecycle("sessions", summary, { label: "listed", details: rows }))(result, options, theme, context);
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const targetCwd = params.cwd ? path.resolve(params.cwd) : ctx.cwd;
