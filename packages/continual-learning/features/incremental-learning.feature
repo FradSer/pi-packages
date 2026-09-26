@@ -57,6 +57,12 @@ Feature: Select the minimum sufficient scope for incremental learning
     Then the dossier contains the Task Slice and an empty selected Memory list
     And Memory planning remains enabled
 
+  Scenario: An echoed input field does not discard a matched selection
+    Given the selector echoes a Task Slice field such as omittedEntries beside the eight response fields
+    When its digest matches this run and every authoritative field validates
+    Then the parent accepts the selection instead of ending the run with zero operations
+    But a response missing a required field is rejected and the rejection names the missing field
+
   Scenario: Selector routing cannot suppress deterministic durable evidence
     Given the parent screen identifies durable Memory or Harness evidence in the Task Slice
     When the selector omits that phase from its routing flags

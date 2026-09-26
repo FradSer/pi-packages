@@ -300,9 +300,17 @@ function balancedObjects(text: string): string[] {
   return depth === 0 ? objects : [];
 }
 
-function isExactKeys(value: Record<string, unknown>): boolean {
-  const expected = ["agents", "contextDigest", "harness", "kind", "memory", "reason", "selected", "version"];
-  return Object.keys(value).sort().join("\0") === expected.join("\0");
+const SELECTION_REQUIRED_KEYS = ["agents", "contextDigest", "harness", "kind", "memory", "reason", "selected", "version"];
+
+/**
+ * Required fields must all be present; unknown extras are ignored, not fatal.
+ * Every authoritative field is still type- and value-checked below, so an extra
+ * key grants nothing — but a model that echoes an input field such as
+ * `omittedEntries` used to discard a digest-matched selection and end the run
+ * with zero operations, reporting only a formatting complaint.
+ */
+function missingSelectionKeys(value: Record<string, unknown>): string[] {
+  return SELECTION_REQUIRED_KEYS.filter((key) => !(key in value));
 }
 
 type ParsedSelection = { ok: true; selection: MemorySelection } | { ok: false; error: string };
@@ -314,8 +322,15 @@ function parseSelectionObject(
 ): ParsedSelection {
   try {
     const value = JSON.parse(raw) as Record<string, unknown>;
-    if (!value || typeof value !== "object" || Array.isArray(value) || !isExactKeys(value)) {
-      return { ok: false, error: "fields do not match the selection schema" };
+    const structural = !value || typeof value !== "object" || Array.isArray(value);
+    const missing = structural ? SELECTION_REQUIRED_KEYS : missingSelectionKeys(value);
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        error: structural
+          ? "fields do not match the selection schema"
+          : `fields do not match the selection schema (missing: ${missing.join(", ")})`,
+      };
     }
     if (value.kind !== "incremental-memory-selection" || value.version !== 1) {
       return { ok: false, error: "kind or version does not match the selection schema" };

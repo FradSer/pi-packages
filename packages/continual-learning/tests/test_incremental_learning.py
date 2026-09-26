@@ -300,7 +300,7 @@ def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() 
           });
           const invalidCases = [
             { ...selection([]), contextDigest: 'private-wrong-digest' },
-            { ...selection([]), 'private-extra-field': true },
+            (() => { const value = { ...selection([]) }; delete value.agents; return value; })(),
           ];
           const diagnostics = [];
           for (const value of invalidCases) {
@@ -345,7 +345,7 @@ def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() 
         "ambiguousError": "selector rejected: expected exactly one JSON object",
         "diagnostics": [
             "selector rejected: context digest does not match this run",
-            "selector rejected: fields do not match the selection schema",
+            "selector rejected: fields do not match the selection schema (missing: agents)",
         ],
         "unknownDossier": False,
         "ambiguousDossier": False,
@@ -355,6 +355,56 @@ def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() 
         "clippedSuffix": "…",
         "clippedPrefix": "verbose selector explanation"[:24],
     }
+
+
+def test_selector_tolerates_echoed_input_fields_but_names_missing_required_ones() -> None:
+    with tempfile.TemporaryDirectory(prefix="incremental-selector-schema-") as temporary:
+        result = run_bun(r"""
+          import { mock } from 'bun:test';
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import { execFileSync } from 'node:child_process';
+          const cwd = path.join(process.env.TEST_ROOT, 'project');
+          fs.mkdirSync(cwd, { recursive: true });
+          execFileSync('git', ['init', '-q', cwd]);
+          fs.mkdirSync(path.join(cwd, '.memory'), { recursive: true });
+          fs.writeFileSync(path.join(cwd, '.memory', 'known.md'), '---\nname: known\ndescription: Known fact\ntype: project\n---\nKNOWN_BODY\n');
+          let response = '';
+          const kit = await import('./packages/kit/src/index.ts');
+          mock.module('./packages/kit/src/index.ts', () => ({
+            ...kit,
+            runPiWorker: async () => ({ text: response, exitCode: 0, stderr: '', cancelled: false }),
+          }));
+          const { selectIncrementalLearning } = await import('./packages/continual-learning/extensions/incremental-learning.ts');
+          const base = {
+            kind: 'incremental-memory-selection', version: 1, contextDigest: 'digest-1', selected: [],
+            memory: true, harness: false, agents: false, reason: 'echoed input field',
+          };
+          const run = (dir) => selectIncrementalLearning({
+            cwd, taskSlice: { kind: 'learning-task-slice', version: 1, entries: [] },
+            contextDigest: 'digest-1', outputDir: path.join(process.env.TEST_ROOT, dir),
+          });
+          // The Task Slice names omittedEntries as an input fact; a model that echoes
+          // it back must not discard a digest-matched selection.
+          response = JSON.stringify({ ...base, omittedEntries: 2, notes: 'extra prose' });
+          const echoed = await run('echoed');
+          const missing = { ...base };
+          delete missing.agents;
+          response = JSON.stringify(missing);
+          const absent = await run('absent');
+          console.log(JSON.stringify({
+            echoed: echoed.outcome,
+            echoedSelected: echoed.selection ? echoed.selection.selected : null,
+            absent: absent.outcome,
+            absentError: absent.error,
+          }));
+        """, {"TEST_ROOT": temporary})
+        assert result == {
+            "echoed": "selected",
+            "echoedSelected": [],
+            "absent": "failed",
+            "absentError": "selector rejected: fields do not match the selection schema (missing: agents)",
+        }
 
 
 def test_selector_timeout_is_cancelled_without_dossier_or_fallback() -> None:
@@ -391,7 +441,7 @@ def test_selector_timeout_is_cancelled_without_dossier_or_fallback() -> None:
     assert result["dossier"] is False
 
 
-def test_selector_rejects_unknown_fields_and_selected_body_drift() -> None:
+def test_selector_ignores_unknown_fields_and_rejects_selected_body_drift() -> None:
     with tempfile.TemporaryDirectory(prefix="incremental-drift-selector-") as temporary:
         result = run_bun(r"""
           import { mock } from 'bun:test';
@@ -431,7 +481,10 @@ def test_selector_rejects_unknown_fields_and_selected_body_drift() -> None:
           const drift = await run(path.join(process.env.TEST_ROOT, 'drift'));
           console.log(JSON.stringify({ unknownField: unknownField.outcome, drift: drift.outcome }));
         """, {"TEST_ROOT": temporary})
-    assert result == {"unknownField": "failed", "drift": "failed"}
+    # An unknown extra field carries no authority — every authoritative field is
+    # still type- and value-checked — so it must not discard a matched selection;
+    # a body that drifted under a selected name still fails closed.
+    assert result == {"unknownField": "selected", "drift": "failed"}
 
 
 def test_dossier_harness_events_come_from_harness_owned_entries_only() -> None:
