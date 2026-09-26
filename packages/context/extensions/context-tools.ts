@@ -194,7 +194,6 @@ export function registerContextTools(pi: ExtensionAPI): void {
       const spec = eventToolLifecycle("context", subject, {
         label: "researched",
         details: contentDetailLines(result),
-        detailLimit: "all",
       });
       return contextRows.result(() => spec)(result as ToolTextResult, options, theme, context);
     },
