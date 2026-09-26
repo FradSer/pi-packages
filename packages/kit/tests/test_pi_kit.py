@@ -1008,20 +1008,38 @@ def test_result_renderers_own_error_bands_without_render_escape_hatch() -> None:
     assert "renderError" not in source
 
 
-def test_lifecycle_details_default_to_fifty_lines_unless_explicitly_unbounded() -> None:
+def test_lifecycle_details_are_complete_unless_explicitly_bounded() -> None:
     feature = (PACKAGE / "features" / "pi-kit.feature").read_text(encoding="utf-8")
-    assert 'detailLimit="all" preserves every expanded detail line' in feature
+    assert "it reveals every detail line by default" in feature
+    assert "announces every line the limit dropped" in feature
     result = run_typescript(
         f"""
         import {{ eventToolLifecycle, formatToolLifecycleDetails }} from {json.dumps((SRC / "index.ts").as_uri())};
         const details = Array.from({{ length: 51 }}, (_, index) => `line-${{index}}`);
+        const complete = formatToolLifecycleDetails(eventToolLifecycle("message", "report", {{ details }}));
+        const bounded = formatToolLifecycleDetails(eventToolLifecycle("message", "report", {{ details, detailLimit: 4 }}));
+        const single = formatToolLifecycleDetails(eventToolLifecycle("message", "report", {{ details, detailLimit: 50 }}));
         console.log(JSON.stringify({{
-          bounded: formatToolLifecycleDetails(eventToolLifecycle("message", "report", {{ details }})).length,
-          unbounded: formatToolLifecycleDetails(eventToolLifecycle("message", "report", {{ details, detailLimit: "all" }})).length,
+          completeCount: complete.length,
+          completeLast: complete.at(-1),
+          boundedCount: bounded.length,
+          boundedLast: bounded.at(-1),
+          singleLast: single.at(-1),
+          suppressed: formatToolLifecycleDetails(eventToolLifecycle("message", "report", {{ details, detailLimit: 0 }})).length,
+          blankHead: formatToolLifecycleDetails(eventToolLifecycle("message", "report", {{ details: [" ", "real"], detailLimit: 1 }})),
         }}));
         """
     )
-    assert result == {"bounded": 50, "unbounded": 51}
+    assert result == {
+        "completeCount": 51,
+        "completeLast": "line-50",
+        "boundedCount": 5,
+        "boundedLast": "… 47 more detail lines",
+        "singleLast": "… 1 more detail line",
+        "suppressed": 0,
+        # A bound never hides the body behind a blank first line.
+        "blankHead": [" ", "… 1 more detail line"],
+    }
 
 
 def test_tool_lifecycle_band_preserves_class_theme_receiver() -> None:
@@ -1217,7 +1235,7 @@ def test_context_shaped_research_rows_keep_a_distinct_query_and_complete_answer(
         const answer = Array.from({{ length: 61 }}, (_, i) => `research finding ${{i}}`);
         const result = {{ content: [{{ type: "text", text: answer.join("\\n") }}], details: {{ operation: "context-review" }} }};
         const spec = eventToolLifecycle("context", "Research the lifecycle renderer", {{
-          label: "researched", details: contentDetailLines(result), detailLimit: "all",
+          label: "researched", details: contentDetailLines(result),
         }});
         const renderer = rows.result(() => spec);
         const content = (expanded) => renderer(result, {{ expanded }}, theme, {{}}).render(90)
@@ -1568,6 +1586,47 @@ def test_pi_worker_progress_reports_latest_activity_across_stream_kinds(tmp_path
     assert "bash: pnpm check" in result["activities"]
     assert result["activities"][-1] == "final answer"
     assert all(activity not in ("pre-tool answerfinal answer", "older reasoningfinal answer") for activity in result["activities"])
+
+
+def test_pi_worker_progress_keeps_the_full_tool_activity(tmp_path: Path) -> None:
+    # The live widget row owns truncation through its width-aware fit, so a
+    # fixed character cap here would elide most of the command on a wide
+    # terminal and waste the row's remaining columns.
+    command = "for p in \\\n  \"https://cloud.google.com/billing/docs/reference/rest/v1/billingAccounts\" \\\n  \"https://cloud.google.com/billing/docs/how-to/reports\"; do echo \"$p\"; done"
+    query = "how does the billing accounts reports REST resource map to the console report pages"
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as path from "node:path";
+        const root = {json.dumps(str(tmp_path))};
+        const packageDir = path.join(root, "node_modules", "@earendil-works", "pi-coding-agent");
+        fs.mkdirSync(packageDir, {{ recursive: true }});
+        fs.writeFileSync(path.join(packageDir, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const fakePi = path.join(packageDir, "cli.mjs");
+        const command = {json.dumps(command)};
+        const query = {json.dumps(query)};
+        const events = [
+          {{ type: "message_update", assistantMessageEvent: {{ type: "toolcall_delta", delta: JSON.stringify({{ command }}) }} }},
+          {{ type: "message_update", assistantMessageEvent: {{ type: "toolcall_end", toolCall: {{ name: "bash" }} }} }},
+          {{ type: "tool_execution_start", toolCallId: "call-1", toolName: "bash", args: {{ command }} }},
+          {{ type: "tool_execution_end", toolCallId: "call-1", toolName: "bash" }},
+          {{ type: "tool_execution_start", toolCallId: "call-2", toolName: "context_get", args: {{ query }} }},
+        ];
+        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\n" + `const events = ${{JSON.stringify(events)}};\\nfor (const event of events) {{ console.log(JSON.stringify(event)); await new Promise((resolve) => setTimeout(resolve, 5)); }}\\n`, {{ mode: 0o755 }});
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = fakePi;
+        const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const activities = [];
+        await runPiWorker({{ prompt: "inspect", cwd: root, onUpdate: (update) => activities.push(update.activity) }});
+        process.argv[1] = originalArgv1;
+        console.log(JSON.stringify({{ activities }}));
+        """
+    )
+    flattened = " ".join(command.split())
+    assert f"bash: {flattened}" in result["activities"], result["activities"]
+    assert f"search: {query}" in result["activities"], result["activities"]
+    assert all(not activity.endswith(" ...") for activity in result["activities"]), result["activities"]
+    assert all(len(activity.splitlines()) == 1 for activity in result["activities"]), result["activities"]
 
 
 def test_compute_scroll_window_clamps_and_slices() -> None:
@@ -2135,6 +2194,7 @@ def test_human_copy_helpers_share_one_vocabulary() -> None:
           lines: contentDetailLines({{ content: [{{ type: "text", text: "  one\\n\\n two " }}] }}),
           field: fieldLine("model", "qwen3-max"),
           block: fieldBlock("task", "first\\nsecond"),
+          longBlock: fieldBlock("prompt", "x".repeat(5000)),
           dropped: fieldLine("note", {{ nested: true }}),
           session: scrubHandles("see session:reviewer:6d102f1b-cc16-4059-8d86-d5c1192f3776 now"),
           known: scrubHandles("over work:e0cfae81-57dd-4b68-8b67-2103ed825cfd", (h) => h === "work:e0cfae81-57dd-4b68-8b67-2103ed825cfd" ? "Fix spacing" : undefined),
@@ -2146,6 +2206,7 @@ def test_human_copy_helpers_share_one_vocabulary() -> None:
     assert result["lines"] == ["one", "two"]
     assert result["field"] == "model · qwen3-max"
     assert result["block"] == ["task · first", "second"]
+    assert result["longBlock"] == [f"prompt · {'x' * 5000}"]
     assert result["dropped"] == "note · "
     assert result["session"] == "see @reviewer now"
     assert result["known"] == "over Fix spacing"

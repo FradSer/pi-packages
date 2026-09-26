@@ -49,8 +49,15 @@ TypeScript export.
   Omitted labels omit the middle segment; `kind` is layout metadata, not a
   visible generic verb.
 - `startedToolLifecycle` accepts a label; `eventToolLifecycle` also accepts
-  summary/details and `detailLimit`. Expanded details default to 50 lines;
-  reserve `"all"` for explicit full readbacks.
+  summary/details and `detailLimit`. An expanded body reveals every detail line
+  by default, because the row is already collapsed; an explicit numeric
+  `detailLimit` is the only bound and always names the lines it dropped, while
+  `0` suppresses the body outright.
+- pi-kit never pre-truncates content it derives. Bounds come from the row's
+  injected width-aware `fit` or an explicit caller limit, never from a fixed
+  character or line cap: `fieldBlock` returns the whole value, activity carries
+  the tool's full command or query, and a package with a real content budget
+  (prompt injection, memory index) applies and announces it where it owns it.
 - `verbatimSubject` renders an authored subject raw: no `@name` recoloring, one
   band row per authored line, wrapping instead of merging, and no expand hint for
   text that is already visible. `subjectBlock` moves the subject under the head

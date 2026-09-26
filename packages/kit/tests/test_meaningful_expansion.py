@@ -43,7 +43,7 @@ def rendered_cases() -> dict[str, object]:
           blankSummary: eventToolLifecycle('probe', 'done', { summary: [' \n ', '\t'] }),
           explicit: eventToolLifecycle('probe', 'preview', { expandedSubject: 'full\n\n' + 'evidence '.repeat(35).trim() }),
           limited: eventToolLifecycle('probe', 'done', { details: ['hidden'], detailLimit: 0 }),
-          readback: eventToolLifecycle('probe', 'report', { details: Array.from({ length: 65 }, (_, i) => `finding ${i}`), detailLimit: 'all' }),
+          readback: eventToolLifecycle('probe', 'report', { details: Array.from({ length: 65 }, (_, i) => `finding ${i}`) }),
         };
         const rows = {};
         for (const [name, build] of Object.entries(builders)) {

@@ -35,8 +35,9 @@ Feature: Shared pi-kit runtime helpers
     And collapsed teammate-message rows use the same band via renderAgentMessageBand as `[message] from @name · <key> to expand`
     And class-based theme methods retain their receiver when pi-kit applies the background band
     And a long title truncates before the expand hint instead of truncating the hint
-    And when it handles an expanded result it reveals at most 50 detail lines by default
-    And a lifecycle spec with detailLimit="all" preserves every expanded detail line
+    And when it handles an expanded result it reveals every detail line by default
+    And an explicit numeric detailLimit bounds that expanded body and announces every line the limit dropped
+    And detailLimit=0 suppresses the expandable body instead of advertising an empty one
     And an error result is rendered as a symmetrical toolErrorBg lifecycle band with error accents and expandable details
     And a static result renderer keeps model-only result text out of the expandable user-facing row
     And a lifecycle row can show a compact multi-line summary while remaining expandable
@@ -94,7 +95,7 @@ Feature: Shared pi-kit runtime helpers
     When the lifecycle row expands
     Then the shared renderer preserves those details in order rather than guessing semantic duplicates
     And consumer adapters omit facts already expressed by their title or summary
-    And the existing detail limit and explicit unbounded readback contract remain unchanged
+    And no detail line is dropped silently: only an explicit numeric detailLimit shows fewer lines, and its row names how many it left out
 
   Scenario: Low-level host expansion override remains explicit
     Given a legacy host directly calls renderToolLifecycle with an explicit expandable override
@@ -120,6 +121,7 @@ Feature: Shared pi-kit runtime helpers
     Then each snapshot carries only the latest activity regardless of older accumulated fields
     And a completed tool call remains the active status until newer model activity arrives
     And text or thinking from a new activity segment does not concatenate a previous segment
+    And a tool activity carries the tool's whole flattened command or query, because the widget row bounds it with its own width-aware fit rather than a fixed character cap
 
   Scenario: Consumer packages resolve workspace dependency protocols when packed
     Given a workspace package depending on @fradser/pi-kit via workspace:*
@@ -400,6 +402,7 @@ Feature: Shared pi-kit runtime helpers
     When pi-kit formats the field line
     Then the line reads `label · value` on one line
     And a multi-line value keeps the label on its first line only
+    And a multi-line field keeps the whole value unless the caller passes an explicit character limit
     And objects and nullish values never stringify into the transcript
 
   Scenario: Runtime handles are scrubbed from human text

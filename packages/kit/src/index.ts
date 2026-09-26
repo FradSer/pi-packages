@@ -56,9 +56,10 @@ export interface ToolLifecycleSpec {
   summary?: readonly string[];
   /** Supplementary user-facing evidence, not raw result metadata or a title restatement. */
   details?: readonly string[];
-  /** Default bounds expanded details to 50 lines; opt in only when every
-   * line is required for a user-visible readback. */
-  detailLimit?: number | "all";
+  /** Bounds an expanded detail body. A row is collapsed by default, so
+   * omitting this reveals every detail line; `0` suppresses the body entirely.
+   * Any other number announces the lines it dropped on the band. */
+  detailLimit?: number;
   /** Show an authored subject exactly as written: every authored line keeps its
    * own row, long lines wrap, and the subject alone never advertises expansion. */
   verbatimSubject?: boolean;
@@ -109,7 +110,7 @@ export function startedToolLifecycle(
 export function eventToolLifecycle(
   tool: string,
   subject: string,
-  options: { label?: string; expandedSubject?: string; summary?: readonly string[]; details?: readonly string[]; detailLimit?: number | "all" } & ToolLifecycleFlags = {},
+  options: { label?: string; expandedSubject?: string; summary?: readonly string[]; details?: readonly string[]; detailLimit?: number } & ToolLifecycleFlags = {},
 ): ToolLifecycleSpec {
   return {
     kind: "event",
@@ -126,17 +127,24 @@ export function eventToolLifecycle(
   };
 }
 
-/** Return lifecycle details with a safe default bound. An explicit `all` is
- * reserved for user-requested readbacks that would otherwise lose data. */
-export function formatToolLifecycleDetails(spec: ToolLifecycleSpec, maxLines = 50): string[] {
-  const limit = spec.detailLimit === "all"
-    ? undefined
-    : Math.max(0, typeof spec.detailLimit === "number" ? spec.detailLimit : maxLines);
-  const details = spec.details ?? [];
-  const visibleDetails = (limit === undefined ? details : details.slice(0, limit)).map((line) => safeDisplayText(line));
-  // An empty body is not an expansion affordance. Preserve paragraph spacing
-  // and repeated values when the bounded body does contain visible evidence.
-  return visibleDetails.some((line) => line.trim()) ? visibleDetails : [];
+/** Return lifecycle detail lines in full. Pi-kit never drops a line a caller
+ * supplied for an expanded body: the row is collapsed by default, so the only
+ * bound is an explicit numeric `detailLimit`, and a partial body always
+ * announces the lines it left out. `detailLimit: 0` suppresses the body. */
+export function formatToolLifecycleDetails(spec: ToolLifecycleSpec): string[] {
+  const details = (spec.details ?? []).map((line) => safeDisplayText(line));
+  // An empty body is not an expansion affordance; paragraph spacing and
+  // repeated values inside a visible body are preserved as supplied.
+  if (!details.some((line) => line.trim())) return [];
+  const limit = spec.detailLimit === undefined ? undefined : Math.max(0, spec.detailLimit);
+  // `0` is an explicit request for no body at all. Every other bound keeps the
+  // body and names what it left out, so a bounded row never hides lines silently.
+  if (limit === 0) return [];
+  const visible = limit === undefined ? details : details.slice(0, limit);
+  const dropped = details.length - visible.length;
+  return dropped > 0
+    ? [...visible, `… ${dropped} more detail line${dropped === 1 ? "" : "s"}`]
+    : visible;
 }
 
 /** Return the first safe non-empty line from a failed tool result. */
@@ -777,11 +785,11 @@ export function fieldLine(label: string, value: unknown): string {
   return `${safeDisplayText(label)} · ${displayText(value).replace(/\s+/g, " ").trim()}`;
 }
 
-/** A clipped multi-line field: the label heads the first line, the rest follow. */
-export function fieldBlock(label: string, value: unknown, limit = 2000): string[] {
+/** A multi-line field: the label heads the first line, the rest follow in full.
+ * A caller with a real content budget applies it where it also announces it. */
+export function fieldBlock(label: string, value: unknown): string[] {
   const text = displayText(value).split("\n").map((line) => line.trim()).join("\n");
-  const clipped = text.length <= limit ? text : `${text.slice(0, limit).trimEnd()} …`;
-  const [head, ...rest] = clipped.split("\n").filter((line) => line.trim());
+  const [head, ...rest] = text.split("\n").filter((line) => line.trim());
   if (!head) return [];
   return [fieldLine(label, head), ...rest.map((line) => safeDisplayText(line))].filter(Boolean);
 }
@@ -1810,18 +1818,20 @@ function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): bool
 function toolcallLabel(rawArgs: string): string | undefined {
   try {
     const args = JSON.parse(rawArgs) as Record<string, unknown>;
-    if (typeof args.command === "string" && args.command.trim()) return `bash: ${truncateInline(args.command, 40)}`;
+    if (typeof args.command === "string" && args.command.trim()) return `bash: ${inlineActivity(args.command)}`;
     if (typeof args.path === "string" && args.path.trim()) return `file: ${path.basename(args.path.trim())}`;
-    if (typeof args.query === "string" && args.query.trim()) return `search: ${truncateInline(args.query, 40)}`;
+    if (typeof args.query === "string" && args.query.trim()) return `search: ${inlineActivity(args.query)}`;
   } catch {
     // Tool-call arguments are incomplete while they stream.
   }
   return undefined;
 }
 
-function truncateInline(text: string, cap: number): string {
-  const oneLine = text.replace(/\s+/g, " ").trim();
-  return oneLine.length <= cap ? oneLine : `${oneLine.slice(0, cap).trimEnd()} ...`;
+/** Flatten a streaming tool argument onto the row's single line. The widget
+ * row bounds it with its width-aware `fit`; a fixed character cap here would
+ * elide most of a command even on a wide terminal. */
+function inlineActivity(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
 }
 
 function waitForClose(child: ChildProcess, graceMs: number): Promise<boolean> {
