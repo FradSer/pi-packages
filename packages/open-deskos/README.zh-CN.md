@@ -41,7 +41,7 @@ export ODK_DESK_LINK_CONTROL_TOKEN="<control credential>"   # 可选：使本机
 - 会话状态：元数据表示工作中、Pi 进程存活、时间戳匹配该进程生命周期时才为 `running`；存活的 idle/settled 会话为 `settled`。已结束、无效、被复用、无法核实的 PID 或明确退出的记录为 `exited`。每次扫描只读取一次有界进程表（1 MiB，2 秒超时），同一 PID 只有最新且无歧义的会话可视为存活。当前会话以 Pi 自身的 idle/agent 事件为准。
 - 原始元数据的 start/update 时间、可选会话名、目标与 activity/recap。扫描不会凭空发明新的 activity 时间戳，也不读取会话历史。
 - 有界会话事件：每会话最多保留最新连续的 300 条事件与 1,048,576 UTF-8 字节（计入正文与工具名）。正文保留换行并按类型限长：user 8 KiB、thinking 4 KiB、tool-call 4 KiB、assistant 16 KiB、tool result 64 KiB。
-- 工具结果保留完整的多行 Markdown，包括表格、代码围栏和空白，每条正文最多 65,536 UTF-8 字节。所有文本块以两个换行连接；图片与任意结果元数据不上报。任一类型的正文超过自身字节上限时会带 `truncated: true`，且不会截断 Unicode 码点。可选 `toolName` 为独立的 200 字符摘要，不再作为前缀插入 Markdown 正文。工具调用与回应它的结果都携带 Pi 为该次调用写下的可选 `toolCallId`，被 Pi 记为错误的结果携带 `isError: true`，因此消费端能把结果与它自己的调用配对，并从 Pi 的记录而非事件顺序读出结果状态。会话 activity 仍为简短的首行摘要。
+- 工具结果保留完整的多行 Markdown，包括表格、代码围栏和空白，每条正文最多 65,536 UTF-8 字节。所有文本块以两个换行连接；图片与任意结果元数据不上报。任一类型的正文超过自身字节上限时会带 `truncated: true`，且不会截断 Unicode 码点。可选 `toolName` 为独立的 200 字符摘要，不再作为前缀插入 Markdown 正文。工具调用与回应它的结果都携带 Pi 为该次调用写下的可选 `toolCallId`，被 Pi 记为错误的结果携带 `isError: true`，因此消费端能把结果与它自己的调用配对，并从 Pi 的记录而非事件顺序读出结果状态。工具调用事件的文本说明该调用在做什么，而不只是它在哪里查找：`bash: <command>`、内容或文件名搜索的 `search: <pattern>`，其他工具为 `<tool>: <path|query|subject>`。会话 activity 仍为简短的首行摘要。
 
 会话开始时以及每次扫描后每 5 秒刷新一次清单，链路离线期间同样刷新。刷新只替换被发现的条目：当前会话的身份与事件不会被陈旧元数据删除或覆盖。关闭/重载会取消刷新调度，并使待处理结果与重连失效。
 
