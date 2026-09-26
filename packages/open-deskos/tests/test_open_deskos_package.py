@@ -186,6 +186,10 @@ def test_events_come_from_messages_with_complete_tool_result_bodies() -> None:
           notGoal: promptFromMessage({ role: "assistant", content: [{ type: "text", text: "nope" }] }),
           readPath: summarizeToolCall("read", { path: "/a/b/index.ts" }),
           query: summarizeToolCall("ffgrep", { query: "index" }),
+          pattern: summarizeToolCall("grep", { pattern: "MINIMAL_PI_WORKER_TOOLS", path: "/a/b" }),
+          findPattern: summarizeToolCall("find", { pattern: "**/*.feature", path: "/a" }),
+          subject: summarizeToolCall("work", { subject: "Ship the release" }),
+          target: summarizeToolCall("agent_event", { to: "@reviewer", subject: "" }),
           bare: summarizeToolCall("work", {}),
           bounded: boundEventText(long).length,
           assistantBody: eventsFromMessage({ role: "assistant", content: [{ type: "text", text: "a\nb" }] })[0].text,
@@ -205,6 +209,12 @@ def test_events_come_from_messages_with_complete_tool_result_bodies() -> None:
     assert result["notGoal"] == ""
     assert result["readPath"] == "read: /a/b/index.ts"
     assert result["query"] == "search: index"
+    # A search names its pattern: the search root is not the searched file.
+    assert result["pattern"] == "search: MINIMAL_PI_WORKER_TOOLS"
+    assert result["findPattern"] == "search: **/*.feature"
+    assert result["subject"] == "work: Ship the release"
+    # A delivery target names a recipient, not work done, so the row keeps the tool name.
+    assert result["target"] == "agent_event"
     assert result["bare"] == "work"
     assert result["bounded"] == 200
     # An assistant reply keeps its line structure and its text parts are one body.

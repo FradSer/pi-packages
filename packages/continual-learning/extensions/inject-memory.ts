@@ -39,9 +39,11 @@ const learningRows = bindLifecycleRenderers({
 });
 import {
   bindLifecycleRenderers,
+  classifyToolActivity,
   createLiveActivityWidget,
   eventToolLifecycle,
   enterModelFromInput,
+  inlineToolActivity,
   notifyPi,
   modelRef,
   minimalPiWorkerArgs,
@@ -680,6 +682,35 @@ export function missingConsolidationEvidence(evidence: ConsolidationEvidence): s
   return missing;
 }
 
+/** What one tool call is doing, for the dreaming widget row and the run's
+ *  activity log. A search contributes its pattern: the directory it searched is
+ *  only where it looked, not the work the call performs. */
+export function dreamingToolActivity(
+  toolName: string,
+  args: Record<string, unknown> | undefined,
+): { line: string; detail: string } {
+  const detail = dreamingToolDetail(args);
+  return {
+    line: toolName === "bash" ? detail : detail ? `${toolName} ${detail}` : toolName,
+    detail,
+  };
+}
+
+function dreamingToolDetail(args: Record<string, unknown> | undefined): string {
+  const activity = classifyToolActivity(args);
+  if (!activity) return "";
+  switch (activity.kind) {
+    case "command": {
+      const command = inlineToolActivity(activity.value);
+      if (command.includes("validate-consolidate")) return "validate-consolidate.py";
+      return command.length > 32 ? `${command.slice(0, 32)}…` : command;
+    }
+    case "search": return activity.value;
+    case "file": return path.basename(activity.value);
+    default: return "";
+  }
+}
+
 // A full-scope run reads every selected memory file plus repository grounding;
 // a measured 30-file pass took ~11 minutes, so keep headroom above that.
 const DREAM_TIMEOUT_MS = 30 * 60 * 1000;
@@ -1071,22 +1102,9 @@ async function spawnAsyncConsolidation(
       if (event.type !== "tool_execution_start" || !event.toolName) return;
 
       const name = event.toolName;
-      let detail = "";
-      if (event.args) {
-        if (typeof event.args.path === "string") {
-          detail = path.basename(event.args.path);
-        } else if (typeof event.args.command === "string") {
-          const cmd = event.args.command.trim();
-          if (cmd.includes("validate-consolidate")) {
-            detail = "validate-consolidate.py";
-          } else {
-            const compact = cmd.replace(/\s+/g, " ");
-            detail = compact.length > 32 ? `${compact.slice(0, 32)}…` : compact;
-          }
-        }
-      }
-      dreamingActivity = name === "bash" ? detail : detail ? `${name} ${detail}` : name;
-      noteActivity(`tool ${name}${detail ? ` ${detail}` : ""}`);
+      const activity = dreamingToolActivity(name, event.args);
+      dreamingActivity = activity.line;
+      noteActivity(`tool ${name}${activity.detail ? ` ${activity.detail}` : ""}`);
     } catch {
       // ignore non-JSON output
     }

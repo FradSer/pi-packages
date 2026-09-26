@@ -38,11 +38,23 @@ def source(name: str) -> str:
     return (SRC / name).read_text(encoding="utf-8")
 
 
-def run_node(script: str, *args: str, env_overrides: dict[str, str] | None = None) -> dict[str, object]:
+def run_node(
+    script: str,
+    *args: str,
+    env_overrides: dict[str, str] | None = None,
+    module_mocks: bool = False,
+) -> dict[str, object]:
     env = {key: value for key, value in os.environ.items() if not key.startswith("PI_TEAMMATE_")}
     env.update(env_overrides or {})
     result = subprocess.run(
-        ["node", "--input-type=module", "--eval", textwrap.dedent(script), *args],
+        [
+            "node",
+            *(  ["--experimental-test-module-mocks"] if module_mocks else []),
+            "--input-type=module",
+            "--eval",
+            textwrap.dedent(script),
+            *args,
+        ],
         cwd=PACKAGE,
         check=False,
         capture_output=True,
@@ -1848,3 +1860,48 @@ def test_leader_mailbox_is_bounded_by_bytes_not_only_count() -> None:
     assert payload["keptNewest"] is True
     # 40 x 256 KiB is far past the byte cap, so the count must have been trimmed.
     assert payload["retained"] < 40
+
+
+def test_spawner_labels_search_tool_calls_by_their_pattern() -> None:
+    payload = run_node(
+        f'''\
+        import childProcess from "node:child_process";
+        import {{ EventEmitter }} from "node:events";
+        import {{ syncBuiltinESMExports }} from "node:module";
+        import {{ PassThrough, Writable }} from "node:stream";
+        import {{ mock }} from "node:test";
+        const children = [];
+        mock.method(childProcess, "spawn", () => {{
+          const child = Object.assign(new EventEmitter(), {{
+            pid: children.length + 1,
+            stdout: new PassThrough(),
+            stderr: new PassThrough(),
+          }});
+          child.stdin = new Writable({{ write(_chunk, _encoding, done) {{ done(); }} }});
+          children.push(child);
+          return child;
+        }});
+        syncBuiltinESMExports();
+        const {{ spawnResident }} = await import("{(SRC / "spawner.ts").as_uri()}");
+        const activities = [];
+        spawnResident({{ workerName: "searcher", onUpdate: (update) => activities.push(update.activeTool), onExit: () => {{}} }});
+        const stdout = children[0].stdout;
+        // A search names its pattern; its path is only the search root.
+        stdout.write(JSON.stringify({{ type: "tool_execution_start", toolCallId: "grep-1", toolName: "grep", args: {{ pattern: "MINIMAL_PI_WORKER_TOOLS", path: "/repo/packages/context" }} }}) + "\\n");
+        stdout.write(JSON.stringify({{ type: "tool_execution_start", toolCallId: "find-1", toolName: "find", args: {{ pattern: "**/*.feature", path: "/repo/packages" }} }}) + "\\n");
+        stdout.write(JSON.stringify({{ type: "tool_execution_start", toolCallId: "read-1", toolName: "read", args: {{ path: "/repo/packages/context/index.ts" }} }}) + "\\n");
+        stdout.write(JSON.stringify({{ type: "tool_execution_start", toolCallId: "work-1", toolName: "work", args: {{ subject: "Ship the release" }} }}) + "\\n");
+        await new Promise((resolve) => setImmediate(resolve));
+        console.log(JSON.stringify({{ activities: activities.filter((activity) => typeof activity === "string") }}));
+        children.forEach((child) => child.emit("close", 0, null));
+        mock.restoreAll();
+        ''',
+        module_mocks=True,
+    )
+    activities = payload["activities"]
+    assert "search: MINIMAL_PI_WORKER_TOOLS" in activities, activities
+    assert "search: **/*.feature" in activities, activities
+    assert "file: index.ts" in activities, activities
+    # A message subject names what was said, not what the worker is doing.
+    assert "message: Ship the release" in activities, activities
+    assert not any(activity.startswith("file: ") and activity != "file: index.ts" for activity in activities), activities

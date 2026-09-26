@@ -9,6 +9,14 @@ Feature: Preserve complete bounded Pi result Markdown over Desk Link
     And the bounded tool name is a separate optional field
     And non-text parts and arbitrary metadata are not reported
 
+  Scenario: A tool call event names what the call is doing
+    Given a session calls a tool with arguments
+    When the reporter summarizes that tool call
+    Then a shell command is reported as its command
+    And a content or filename search is reported by its pattern, never by the search root it passed
+    And any other tool is reported by its path, query, or subject
+    And a tool call with no recognized argument is reported by its name alone
+
   Scenario: Only oversized results have a truncation marker
     Given a result body is at or beyond the 65,536-byte UTF-8 limit
     When it is extracted or recorded directly

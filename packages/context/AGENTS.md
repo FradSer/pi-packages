@@ -20,7 +20,9 @@ pnpm --dir packages/context pack --dry-run
 
 The one-shot research worker runs through pi-kit's shared `runPiWorker` in the caller's
 working directory with no sandbox, no temporary directory, no wall-clock
-timeout, and no result truncation. It receives only `read` and `bash` through
+timeout, and no result truncation. It receives pi-kit's canonical minimal worker grant
+(`read`, `bash`, `grep`, `find` — Pi's built-in search tools, defined once in
+`@fradser/pi-kit` rather than restated here) through
 an explicit `--tools` allowlist, so `edit` and `write` are unavailable. Public-repository clones stay
 prompt-level guidance only (`git clone --depth=1` under `/tmp`, removed after
 inspection). Preserve abort handling; failed or cancelled children must not

@@ -108,12 +108,17 @@ Feature: Shared pi-kit runtime helpers
     When it uses renderPiPanel
     Then the panel has shared full-width border, padded header and footer lines
     And every emitted line is width-bounded by the supplied ANSI-aware fit helper
+    And a body line wider than the panel ends with the host's truncation marker
 
   Scenario: Minimal Pi workers disable unrelated discovery
     Given a one-shot package worker needs only an explicit tool allowlist
     When a package builds shared minimal worker arguments or runPiWorker starts in minimal mode
     Then Pi receives -ne, -ns, -np, -nc, and --no-themes
-    And only the explicitly supplied tools remain available
+    And only the allowlisted tools remain available
+    And a minimal worker with no supplied allowlist receives pi-kit's canonical read, bash, grep, and find set
+    And a supplied allowlist stays authoritative, including an empty one that grants no tools
+    And a degenerate empty-string allowlist means no allowlist was supplied in both minimal and full mode
+    And that canonical set is defined once in pi-kit rather than repeated as a package-local literal
 
   Scenario: Pi worker progress identifies the latest activity
     Given a print-mode Pi worker streams multiple turns of thinking, text, and tool calls
@@ -122,6 +127,16 @@ Feature: Shared pi-kit runtime helpers
     And a completed tool call remains the active status until newer model activity arrives
     And text or thinking from a new activity segment does not concatenate a previous segment
     And a tool activity carries the tool's whole flattened command or query, because the widget row bounds it with its own width-aware fit rather than a fixed character cap
+    And a content or filename search carries its pattern rather than the directory it searched
+    And every package labels a tool call through pi-kit's single activity classifier rather than its own ordering
+
+  Scenario: Tool-call activity labels share one precedence rule
+    Given a package names what a tool call is doing from its arguments
+    When it classifies the call through pi-kit's shared classifier
+    Then an explicit command wins over every other argument
+    And a search's pattern wins over the path that is only that search's root
+    And a file path, a query, a message subject, and a delivery target follow in that order
+    And streamed arguments that are not yet parseable classify as nothing instead of throwing
 
   Scenario: Consumer packages resolve workspace dependency protocols when packed
     Given a workspace package depending on @fradser/pi-kit via workspace:*
@@ -134,6 +149,7 @@ Feature: Shared pi-kit runtime helpers
     When it uses renderPiWidgetRow
     Then the row has the native one-space leading alignment by default and is width-bounded
     And a caller-supplied leading width overrides the default, including zero for flush-left rows
+    And a row clipped at the terminal width ends with the host's truncation marker
 
   Scenario: Live activity widgets share a lifecycle and row language
     Given a package has one or more background activities to display
@@ -144,7 +160,7 @@ Feature: Shared pi-kit runtime helpers
     And the identity is bold in pi-kit's stable per-name accent so every package shows the same identity language
     And a plain activity is muted and literal while a markdown activity renders through pi-tui's Markdown from the injected theme
     And a markdown activity keeps pi's native markdown element colors and never renders a fence line — plain or nested in a quote or list marker — because a streamed fence carries no content
-    And a markdown activity always stays one sanitized line, and the widget row truncates it with its injected fit
+    And a markdown activity always stays one sanitized line, and the widget row truncates it with its injected fit and the host's truncation marker
     And an activity carrying line breaks or terminal control sequences stays one row without moving the cursor
     And an activity without visible width leaves an identity-only row
     And no package supplies its own identity or activity formatter, so the row language cannot drift

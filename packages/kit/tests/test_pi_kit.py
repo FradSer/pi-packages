@@ -322,6 +322,50 @@ def test_run_pi_worker_minimal_mode_disables_discovery_and_keeps_tool_allowlist(
     assert result["sharedArgs"][result["sharedArgs"].index("--tools") + 1] == "read,bash"
 
 
+def test_minimal_worker_defaults_to_the_canonical_read_only_tool_set() -> None:
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-kit-minimal-default-"));
+        const capture = path.join(root, "args.json");
+        const fakePackage = path.join(root, "fake-package");
+        fs.mkdirSync(fakePackage);
+        fs.writeFileSync(path.join(fakePackage, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const fakePi = path.join(fakePackage, "cli.mjs");
+        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\nimport * as fs from 'node:fs';\\nfs.writeFileSync(process.env.PI_CAPTURE, JSON.stringify(process.argv.slice(2)));\\nconsole.log(JSON.stringify({{ type: 'message_end', message: {{ role: 'assistant', content: [{{ type: 'text', text: 'ok' }}] }} }}));\\n", {{ mode: 0o755 }});
+        process.env.PI_CAPTURE = capture;
+        const originalArgv1 = process.argv[1];
+        process.argv[1] = fakePi;
+        const {{ MINIMAL_PI_WORKER_TOOLS, minimalPiWorkerArgs, runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const sharedArgs = minimalPiWorkerArgs();
+        await runPiWorker({{ prompt: "inspect", cwd: root, minimal: true }});
+        const defaultArgs = JSON.parse(fs.readFileSync(capture, "utf8"));
+        await runPiWorker({{ prompt: "inspect", cwd: root, minimal: true, tools: [] }});
+        const noToolArgs = JSON.parse(fs.readFileSync(capture, "utf8"));
+        await runPiWorker({{ prompt: "inspect", cwd: root, minimal: true, tools: "" }});
+        const minimalEmptyStringArgs = JSON.parse(fs.readFileSync(capture, "utf8"));
+        await runPiWorker({{ prompt: "inspect", cwd: root, tools: "" }});
+        const fullEmptyStringArgs = JSON.parse(fs.readFileSync(capture, "utf8"));
+        process.argv[1] = originalArgv1;
+        console.log(JSON.stringify({{ defaultArgs, noToolArgs, minimalEmptyStringArgs, fullEmptyStringArgs, sharedArgs, canonical: [...MINIMAL_PI_WORKER_TOOLS] }}));
+        """
+    )
+    assert result["canonical"] == ["read", "bash", "grep", "find"]
+    for flag in ("-ne", "-ns", "-np", "-nc", "--no-themes"):
+        assert flag in result["defaultArgs"]
+        assert flag in result["sharedArgs"]
+    assert result["defaultArgs"][result["defaultArgs"].index("--tools") + 1] == "read,bash,grep,find"
+    assert result["sharedArgs"][result["sharedArgs"].index("--tools") + 1] == "read,bash,grep,find"
+    # An explicitly empty allowlist stays authoritative instead of falling back to the default set.
+    assert result["noToolArgs"][result["noToolArgs"].index("--tools") + 1] == ""
+    # A degenerate empty string means "no allowlist supplied" in both modes rather
+    # than granting nothing in one mode and everything in the other.
+    assert result["minimalEmptyStringArgs"][result["minimalEmptyStringArgs"].index("--tools") + 1] == "read,bash,grep,find"
+    assert "--tools" not in result["fullEmptyStringArgs"]
+
+
 def test_parse_pi_worker_output_returns_last_text_and_usage() -> None:
     result = run_typescript(
         f"""
@@ -827,6 +871,30 @@ def test_panel_and_widget_layout_primitives_share_tui_geometry() -> None:
     assert "esc close" in result["panel"][-2]
     assert result["widget"] == " Working... "
     assert result["flushLeft"] == "Working...  "
+
+
+def test_widget_and_panel_rows_keep_the_host_truncation_marker() -> None:
+    result = run_typescript(
+        f"""
+        import {{ renderPiPanel, renderPiWidgetRow }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ truncateToWidth, visibleWidth }} from "@earendil-works/pi-tui";
+        import {{ stripVTControlCharacters }} from "node:util";
+        const style = {{ accent: (text) => text, dim: (text) => text, border: (text) => text }};
+        const command = "⠴ reviewer · bash: cd /Users/FradSer/Developer/FradSer/pi-packages && python3 -m pytest packages/agent-teams/tests/";
+        const widget = renderPiWidgetRow(command, 60, truncateToWidth);
+        const panel = renderPiPanel({{ width: 20, style, fit: truncateToWidth, title: "Context", body: ["x".repeat(60)], footer: "esc close" }});
+        console.log(JSON.stringify({{
+          widget: stripVTControlCharacters(widget),
+          widgetWidth: visibleWidth(widget),
+          panelBody: stripVTControlCharacters(panel[2]),
+          panelWidth: visibleWidth(panel[2]),
+        }}));
+        """
+    )
+    assert result["widget"].rstrip().endswith("..."), result["widget"]
+    assert result["widgetWidth"] == 60, result["widgetWidth"]
+    assert result["panelBody"].rstrip().endswith("..."), result["panelBody"]
+    assert result["panelWidth"] == 20, result["panelWidth"]
 
 
 def test_reusable_message_tool_and_notification_renderers_share_tui_contract() -> None:
@@ -1611,6 +1679,8 @@ def test_pi_worker_progress_keeps_the_full_tool_activity(tmp_path: Path) -> None
           {{ type: "tool_execution_start", toolCallId: "call-1", toolName: "bash", args: {{ command }} }},
           {{ type: "tool_execution_end", toolCallId: "call-1", toolName: "bash" }},
           {{ type: "tool_execution_start", toolCallId: "call-2", toolName: "context_get", args: {{ query }} }},
+          {{ type: "tool_execution_start", toolCallId: "call-3", toolName: "grep", args: {{ pattern: "MINIMAL_PI_WORKER_TOOLS", path: "/repo/packages/context" }} }},
+          {{ type: "tool_execution_start", toolCallId: "call-4", toolName: "find", args: {{ pattern: "**/*.feature", path: "/repo/packages" }} }},
         ];
         fs.writeFileSync(fakePi, "#!/usr/bin/env node\\n" + `const events = ${{JSON.stringify(events)}};\\nfor (const event of events) {{ console.log(JSON.stringify(event)); await new Promise((resolve) => setTimeout(resolve, 5)); }}\\n`, {{ mode: 0o755 }});
         const originalArgv1 = process.argv[1];
@@ -1625,8 +1695,55 @@ def test_pi_worker_progress_keeps_the_full_tool_activity(tmp_path: Path) -> None
     flattened = " ".join(command.split())
     assert f"bash: {flattened}" in result["activities"], result["activities"]
     assert f"search: {query}" in result["activities"], result["activities"]
+    # A content or filename search names its pattern: the searched directory is not
+    # the activity, and reporting it as a file misleads the row's reader.
+    assert "search: MINIMAL_PI_WORKER_TOOLS" in result["activities"], result["activities"]
+    assert "search: **/*.feature" in result["activities"], result["activities"]
+    assert not any(activity.startswith("file: ") for activity in result["activities"]), result["activities"]
     assert all(not activity.endswith(" ...") for activity in result["activities"]), result["activities"]
     assert all(len(activity.splitlines()) == 1 for activity in result["activities"]), result["activities"]
+
+
+def test_tool_activity_classification_prefers_a_search_pattern_over_its_root() -> None:
+    # One precedence rule for every package that labels a tool call from its
+    # arguments: a search names its pattern, never the directory it searched.
+    result = run_typescript(
+        f"""
+        import {{ classifyToolActivity, inlineToolActivity }} from {json.dumps((SRC / "index.ts").as_uri())};
+        const classify = (args) => classifyToolActivity(args) ?? null;
+        console.log(JSON.stringify({{
+          grep: classify({{ pattern: "MINIMAL_PI_WORKER_TOOLS", path: "/repo/packages/context" }}),
+          find: classify({{ pattern: "**/*.feature", path: "/repo/packages" }}),
+          command: classify({{ command: "  pnpm   test  ", pattern: "ignored" }}),
+          read: classify({{ path: "  /repo/packages/context/index.ts  " }}),
+          query: classify({{ query: "context worker" }}),
+          subject: classify({{ subject: "Ship it" }}),
+          emptySubject: classify({{ to: "@reviewer", subject: "" }}),
+          bare: classify({{}}),
+          partial: classify('{{"pattern": "unfin'),
+          array: classify('[1]'),
+          nonObject: classify(undefined),
+          inline: inlineToolActivity("a\\n  b"),
+          inlineEmpty: inlineToolActivity("\\n  "),
+        }}));
+        """
+    )
+    assert result["grep"] == {"kind": "search", "value": "MINIMAL_PI_WORKER_TOOLS"}, result["grep"]
+    assert result["find"] == {"kind": "search", "value": "**/*.feature"}, result["find"]
+    # An explicit command outranks every other argument a call may carry.
+    assert result["command"] == {"kind": "command", "value": "pnpm   test"}, result["command"]
+    assert result["read"] == {"kind": "file", "value": "/repo/packages/context/index.ts"}, result["read"]
+    assert result["query"] == {"kind": "search", "value": "context worker"}, result["query"]
+    assert result["subject"] == {"kind": "message", "value": "Ship it"}, result["subject"]
+    assert result["emptySubject"] == {"kind": "target", "value": ""}, result["emptySubject"]
+    # Streamed arguments are incomplete, so unparseable input classifies as nothing
+    # rather than throwing or inventing an activity.
+    assert result["bare"] is None
+    assert result["partial"] is None
+    assert result["array"] is None
+    assert result["nonObject"] is None
+    assert result["inline"] == "a b"
+    assert result["inlineEmpty"] == ""
 
 
 def test_compute_scroll_window_clamps_and_slices() -> None:

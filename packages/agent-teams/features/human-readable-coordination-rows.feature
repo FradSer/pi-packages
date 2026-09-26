@@ -17,6 +17,13 @@ Feature: Human-readable coordination rows
     Then each row leads with the Agent name and a plain state word
     And an inspect row shows the live status and current activity of that session
 
+  Scenario: A live activity row names what the tool call is doing
+    Given a living session runs a tool call with arguments
+    When its activity row renders
+    Then a shell command is named as its command
+    And a content or filename search is named by its pattern, never by the search root it passed
+    And a file read is named by the file, not by its directory
+
   Scenario: A failed Agent row explains itself without identifiers
     Given an Agent action fails with text containing a Work identifier
     When the failed agent row renders

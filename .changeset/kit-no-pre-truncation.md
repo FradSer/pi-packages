@@ -12,6 +12,7 @@ Pi-kit never pre-truncates the content it derives, and every remaining bound is 
 - `detailLimit` now takes a number only: `"all"` was the same complete readback as the new default, so it is removed rather than left as dead vocabulary. Callers that passed it drop the argument.
 - An explicit numeric `detailLimit` renders a `… N more detail lines` row instead of dropping lines silently, and `0` still suppresses the body instead of advertising an empty one.
 - `fieldBlock` no longer clips a value at 2000 characters: the whole value survives. A package with a real content budget (prompt injection, memory index) applies and announces it where it owns it.
+- `renderPiWidgetRow` and `renderPiPanel` passed an empty ellipsis to the injected `fit`, so a status or panel row clipped at the terminal width stopped mid-word with no sign that text was missing — the `reviewer · bash: …` line the transcript rows already marked was the one that did not. Both now keep the host's truncation marker, so every clipped pi-kit row ends with `...` again.
 - `formatToolLifecycleDetails` no longer accepts a `maxLines` fallback bound, which no caller used.
 
 **@fradser/pi-agent-teams**

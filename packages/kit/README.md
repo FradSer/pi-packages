@@ -57,14 +57,20 @@ Read @features/pi-kit.feature when changing this contract and run `python3 -m py
 
 ### One-shot workers
 
-- `minimalPiWorkerArgs(tools)` — builds the common `--print --mode json --no-session -ne -ns -np -nc --no-themes --tools <allowlist>` arguments for packages that own a one-shot child-process lifecycle.
-- `runPiWorker(options)` — runs a one-shot JSONL worker with pre-cancel checks. Set `minimal: true` to use those shared minimal arguments; combine it with `tools` for an explicit allowlist. It also provides close-observed cancellation and byte limits of 16 MiB for stdout, 8 MiB for
+- `MINIMAL_PI_WORKER_TOOLS` — the canonical minimal worker grant (`read`, `bash`, `grep`, `find`): inspection access plus Pi's built-in discovery tools. `ls` is deliberately absent because `find` and `bash` already cover listing, so the grant stays minimal; a worker needing a narrower or wider grant passes its own allowlist.
+- `minimalPiWorkerArgs(tools)` — builds the common `--print --mode json --no-session -ne -ns -np -nc --no-themes --tools <allowlist>` arguments for packages that own a one-shot child-process lifecycle. Omitting `tools` uses `MINIMAL_PI_WORKER_TOOLS`; a supplied list stays authoritative, including an empty one that grants no tools.
+- `runPiWorker(options)` — runs a one-shot JSONL worker with pre-cancel checks. Set `minimal: true` to use those shared minimal arguments; omit `tools` for the canonical set or pass one for an explicit allowlist. Only an explicit empty array grants no tools: an empty string counts as omitted in every mode. It also provides close-observed cancellation and byte limits of 16 MiB for stdout, 8 MiB for
   stderr, and 8 MiB for each JSONL line. The line bound leaves room for normal
   inline image payloads plus their JSON envelope. Limit failures terminate the
   child and return no assistant text.
 - `getDirectorySessionKey(cwd)` — SHA-256 of the canonical directory path;
   existing paths use realpath and missing paths use an absolute path.
 - `isSameDirectory(left, right)` — compares those canonical directory paths.
+
+### Tool-call activity labels
+
+- `classifyToolActivity(rawArgs)` — the single precedence rule for naming what a tool call is doing: an explicit `command`, then a search's `pattern` (never the `path` that is only that search's root), then a `path`, a `query`, a `subject`, and finally a delivery `to` whose subject carries no message text. It accepts a streamed arguments string or a parsed object, and unparseable input classifies as `undefined`.
+- `inlineToolActivity(text)` — flattens a value onto one row line. Callers own the prefix (`bash:`, `search:`, `file:`) and the row's width-aware `fit` owns the bound; a fixed character cap would elide most of a command on a wide terminal.
 
 ## Rules
 

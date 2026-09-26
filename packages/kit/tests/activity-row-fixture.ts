@@ -149,6 +149,9 @@ const long = row(
 );
 assert.ok(visibleWidth(long) <= 40, long);
 assert.ok(!long.includes("\u001b[2J"), long);
+// A row clipped at the terminal width says so with the host's marker instead of
+// stopping mid-word with nothing to show for the missing text.
+assert.ok(stripVTControlCharacters(long).trimEnd().endsWith("..."), stripVTControlCharacters(long));
 
 // An empty activity after sanitization leaves the identity-only row intact.
 const identityOnly = row({ id: "a", identity: "researcher", activity: "\u001b[2J" }, { activityFormat: "markdown" }, 40);

@@ -18,8 +18,10 @@ import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  classifyToolActivity,
   DEFAULT_TERMINATION_GRACE_MS,
   extractTextContent,
+  inlineToolActivity,
   resolvePiCli,
   spawnPiChild,
   terminateChildProcess,
@@ -365,28 +367,15 @@ function toolExecutionLabel(toolName: string | undefined, args: unknown): string
 
 /** Human-readable label from a partially streamed tool-call argument JSON. */
 function toolcallLabel(rawArgs: string): string | undefined {
-  const trimmed = rawArgs.trim();
-  if (!trimmed.startsWith("{")) return undefined;
-  try {
-    const args = JSON.parse(trimmed) as Record<string, unknown>;
-    const command = args.command;
-    if (typeof command === "string" && command.trim()) return `bash: ${normalizeInline(command)}`;
-    const filePath = args.path;
-    if (typeof filePath === "string" && filePath.trim()) return `file: ${normalizeInline(path.basename(filePath.trim()))}`;
-    const subject = args.subject;
-    if (typeof subject === "string" && subject.trim()) return `message: ${normalizeInline(subject)}`;
-    const query = args.query;
-    if (typeof query === "string" && query.trim()) return `search: ${normalizeInline(query)}`;
-    const to = args.to;
-    if (typeof to === "string" && to.trim() && typeof args.subject === "string") return `send: ${normalizeInline(args.subject)}`;
-  } catch {
-    // Incomplete JSON mid-stream — retry on the next delta.
+  const activity = classifyToolActivity(rawArgs);
+  if (!activity) return undefined;
+  switch (activity.kind) {
+    case "command": return `bash: ${inlineToolActivity(activity.value)}`;
+    case "search": return `search: ${inlineToolActivity(activity.value)}`;
+    case "file": return `file: ${inlineToolActivity(path.basename(activity.value))}`;
+    case "message": return `message: ${inlineToolActivity(activity.value)}`;
+    case "target": return `send: ${inlineToolActivity(activity.value)}`;
   }
-  return undefined;
-}
-
-function normalizeInline(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
 }
 
 function appendTurnText(state: StreamState, field: "text" | "thinking" | "toolcallArgs", delta: string): boolean {

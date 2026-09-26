@@ -75,3 +75,10 @@ TypeScript export.
   renders exactly as pi's own streaming transcript does (same pi-tui `Markdown`,
   same `md*` tokens), so a fragment still arriving mid-markup shows its marker
   until the next update replaces it.
+- One tool-call activity rule: `classifyToolActivity` owns the precedence
+  (command, then a search's pattern, then a path, a query, a subject, and a
+  delivery target) and `inlineToolActivity` owns the single-line flattening.
+  Packages add only their own prefix (`bash:`, `search:`, `file:`, `message:`,
+  `send:`) and their own fallback for a call with no recognized argument; no
+  package re-reads `path` ahead of `pattern`, because a search's root is not what
+  the call is doing.

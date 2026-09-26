@@ -85,7 +85,8 @@ class TestContextPackage(unittest.TestCase):
 
     def test_research_child_uses_prompt_constrained_tools_without_sandbox_limits(self) -> None:
         source = read("extensions/context-tools.ts")
-        self.assertIn('RESEARCH_TOOLS = ["read", "bash"]', source)
+        self.assertIn("tools: MINIMAL_PI_WORKER_TOOLS", source)
+        self.assertNotIn("RESEARCH_TOOLS", source)
         self.assertNotIn("EXCLUDED_TOOLS", source)
         self.assertIn("minimal: true", source)
         self.assertIn("runPiWorker", source)
@@ -110,6 +111,18 @@ class TestContextPackage(unittest.TestCase):
         self.assertIn("runPiWorker", source)
         self.assertNotIn("function parseChildOutput", source)
         self.assertNotIn("parsePiWorkerOutput", source)
+
+    def test_research_child_uses_pi_kit_minimal_tool_set(self) -> None:
+        source = read("extensions/context-tools.ts")
+        self.assertIn("MINIMAL_PI_WORKER_TOOLS", source)
+        for local_literal in ('["read"', '"bash", "grep"', '"edit"', '"write"', '"ls"', '"powershell"'):
+            self.assertNotIn(local_literal, source)
+        for external in ("fffind", "ffgrep", "ff-read", "pi-fff"):
+            self.assertNotIn(external, source)
+
+    def test_research_prompt_names_the_allowlisted_tools(self) -> None:
+        prompt = read("prompts/context-research.md")
+        self.assertIn("read, bash, grep, and find", prompt)
 
     def test_research_child_runs_without_temp_directory_overrides(self) -> None:
         source = read("extensions/context-tools.ts")

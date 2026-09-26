@@ -944,7 +944,9 @@ export interface PiPanelOptions {
 export function renderPiPanel(options: PiPanelOptions): string[] {
   if (options.width <= 0) return [];
   const { width, style, fit } = options;
-  const row = (text: string) => fit(`  ${text}`, width, "", true);
+  // Body lines come from the caller and are already laid out; the injected
+  // fit still owns the truncation marker, so a clipped line says so.
+  const row = (text: string) => fit(`  ${text}`, width, undefined, true);
   const border = style.border("─".repeat(Math.max(1, width)));
   return [
     border,
@@ -956,14 +958,17 @@ export function renderPiPanel(options: PiPanelOptions): string[] {
 }
 
 /** Render a passive widget row aligned with Pi's native leading-space rows.
- * leadingSpaces defaults to one; pass zero for flush-left rows. */
+ * leadingSpaces defaults to one; pass zero for flush-left rows. The injected
+ * `fit` owns the truncation marker — kit never disables it — so a row clipped
+ * at the terminal width ends with the host's ellipsis instead of stopping
+ * mid-word with nothing to show for the missing text. */
 export function renderPiWidgetRow(
   content: string,
   width: number,
   fit: (text: string, width: number, ellipsis?: string, pad?: boolean) => string,
   leadingSpaces = 1,
 ): string {
-  return width <= 0 ? "" : fit(`${" ".repeat(Math.max(0, leadingSpaces))}${content}`, width, "", true);
+  return width <= 0 ? "" : fit(`${" ".repeat(Math.max(0, leadingSpaces))}${content}`, width, undefined, true);
 }
 
 /** One active background activity rendered by a package-owned live status widget. */
@@ -1384,8 +1389,10 @@ export interface RunPiWorkerOptions {
   prompt: string;
   /** Working directory for the child. */
   cwd: string;
-  /** Tools to allow (comma-separated or array). */
-  tools?: string | string[];
+  /** Tools to allow (comma-separated or array). In minimal mode an omitted list
+   *  falls back to MINIMAL_PI_WORKER_TOOLS; only an explicit empty list grants no
+   *  tools. An empty string counts as omitted, not as an empty list. */
+  tools?: string | readonly string[];
   /** Model to use (e.g. "anthropic/claude-3-5-sonnet"). */
   model?: string;
   /** Abort signal to cancel the worker. */
@@ -1480,9 +1487,17 @@ function resolveInstalledPiCli(): PiCliResolution | undefined {
   return undefined;
 }
 
-/** Build the shared minimal one-shot Pi arguments for a strict tool allowlist. */
-export function minimalPiWorkerArgs(tools: string[] | string): string[] {
-  const toolList = Array.isArray(tools) ? tools.join(",") : tools;
+/** Canonical tool set for a minimal one-shot worker: inspection access plus Pi's
+ *  built-in discovery tools. `ls` is not part of it because listing is already
+ *  covered by the `find` and `bash` entries, so the grant stays minimal. A worker
+ *  needing a narrower or wider grant passes its own allowlist instead. */
+export const MINIMAL_PI_WORKER_TOOLS = ["read", "bash", "grep", "find"] as const;
+
+/** Build the shared minimal one-shot Pi arguments for a strict tool allowlist.
+ *  Defaults to MINIMAL_PI_WORKER_TOOLS; an explicitly supplied list stays
+ *  authoritative, including an empty one that grants no tools. */
+export function minimalPiWorkerArgs(tools: readonly string[] | string = MINIMAL_PI_WORKER_TOOLS): string[] {
+  const toolList = typeof tools === "string" ? tools : tools.join(",");
   return ["--print", "--mode", "json", "--no-session", "-ne", "-ns", "-np", "-nc", "--no-themes", "--tools", toolList];
 }
 
@@ -1490,10 +1505,15 @@ export function minimalPiWorkerArgs(tools: string[] | string): string[] {
  * Run a Pi worker child process and return the result.
  *
  * Spawns `pi --print --mode json --no-session` with the given prompt and tools.
+ * In minimal mode an omitted `tools` list becomes MINIMAL_PI_WORKER_TOOLS.
  * Parses the JSONL output to extract the final text and usage stats.
  */
 export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorkerResult> {
-  const { prompt, cwd, tools, model, signal, env, minimal, extraArgs, onUpdate } = options;
+  const { prompt, cwd, model, signal, env, minimal, extraArgs, onUpdate } = options;
+  // An empty string is a degenerate spelling of "no allowlist supplied", so it must
+  // not mean "grant nothing" in minimal mode while meaning "default selection" in
+  // full mode. Only an explicit empty array asks for no tools at all.
+  const tools = options.tools === "" ? undefined : options.tools;
   if (signal?.aborted) {
     return {
       text: "",
@@ -1506,14 +1526,13 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
 
   const args = [
     ...cli.args,
-    ...(minimal && tools
+    ...(minimal
       ? minimalPiWorkerArgs(tools)
       : ["--print", "--mode", "json", "--no-session"]),
   ];
-  if (minimal && !tools) args.push("-ne", "-ns", "-np", "-nc", "--no-themes");
   if (model) args.push("--model", model);
   if (tools && !minimal) {
-    const toolStr = Array.isArray(tools) ? tools.join(",") : tools;
+    const toolStr = typeof tools === "string" ? tools : tools.join(",");
     args.push("--tools", toolStr);
   }
   if (extraArgs) args.push(...extraArgs);
@@ -1815,23 +1834,75 @@ function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): bool
   }
 }
 
-function toolcallLabel(rawArgs: string): string | undefined {
-  try {
-    const args = JSON.parse(rawArgs) as Record<string, unknown>;
-    if (typeof args.command === "string" && args.command.trim()) return `bash: ${inlineActivity(args.command)}`;
-    if (typeof args.path === "string" && args.path.trim()) return `file: ${path.basename(args.path.trim())}`;
-    if (typeof args.query === "string" && args.query.trim()) return `search: ${inlineActivity(args.query)}`;
-  } catch {
-    // Tool-call arguments are incomplete while they stream.
-  }
-  return undefined;
+/** Which tool-call argument carries the activity a row should show. */
+export type PiToolActivityKind = "command" | "search" | "file" | "message" | "target";
+
+/** One classified tool call: the argument that owns the row, and its trimmed value. */
+export interface PiToolActivity {
+  kind: PiToolActivityKind;
+  value: string;
 }
 
 /** Flatten a streaming tool argument onto the row's single line. The widget
  * row bounds it with its width-aware `fit`; a fixed character cap here would
  * elide most of a command even on a wide terminal. */
-function inlineActivity(text: string): string {
+export function inlineToolActivity(text: string): string {
   return text.replace(/\s+/g, " ").trim();
+}
+
+/** Classify a tool call's arguments into the one activity its row shows. The
+ * precedence lives here so no package can drift from it: an explicit command
+ * wins, then a search's own pattern — never the `path` that is only that
+ * search's root — then a file path, a query, a message subject, and finally a
+ * delivery target whose subject carries no message text. Streamed arguments are
+ * incomplete, so unparseable input classifies as undefined instead of throwing. */
+export function classifyToolActivity(
+  rawArgs: string | Record<string, unknown> | undefined,
+): PiToolActivity | undefined {
+  const args = parseToolActivityArgs(rawArgs);
+  if (!args) return undefined;
+  const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+  const command = text(args.command);
+  if (command) return { kind: "command", value: command };
+  const pattern = text(args.pattern);
+  if (pattern) return { kind: "search", value: pattern };
+  const file = text(args.path);
+  if (file) return { kind: "file", value: file };
+  const query = text(args.query);
+  if (query) return { kind: "search", value: query };
+  const subject = text(args.subject);
+  if (subject) return { kind: "message", value: subject };
+  if (text(args.to) && typeof args.subject === "string") return { kind: "target", value: args.subject.trim() };
+  return undefined;
+}
+
+function parseToolActivityArgs(
+  rawArgs: string | Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (typeof rawArgs === "object" && rawArgs !== null) return rawArgs;
+  if (typeof rawArgs !== "string") return undefined;
+  const trimmed = rawArgs.trim();
+  if (!trimmed.startsWith("{")) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : undefined;
+  } catch {
+    // Tool-call arguments are incomplete while they stream.
+    return undefined;
+  }
+}
+
+function toolcallLabel(rawArgs: string): string | undefined {
+  const activity = classifyToolActivity(rawArgs);
+  if (!activity) return undefined;
+  switch (activity.kind) {
+    case "command": return `bash: ${inlineToolActivity(activity.value)}`;
+    case "search": return `search: ${inlineToolActivity(activity.value)}`;
+    case "file": return `file: ${path.basename(activity.value)}`;
+    // A message subject names what was said, not what the worker is doing, so
+    // this row falls back to the tool name instead.
+    default: return undefined;
+  }
 }
 
 function waitForClose(child: ChildProcess, graceMs: number): Promise<boolean> {

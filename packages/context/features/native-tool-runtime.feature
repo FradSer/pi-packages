@@ -1,7 +1,7 @@
 Feature: Isolated Pi research tool
   To research external code without expanding the main Pi tool surface
   As a user of @fradser/pi-context
-  I want one tool that delegates research to an independent prompt-constrained Pi process with read and bash
+  I want one tool that delegates research to an independent prompt-constrained Pi process with a minimal built-in tool allowlist
 
   Scenario: Context registers one research tool
     Given the context package is installed in Pi
@@ -19,8 +19,10 @@ Feature: Isolated Pi research tool
     Given the main session calls context_get with a research question
     When the tool starts its one-shot Pi worker through pi-kit's runPiWorker
     Then the child runs in print JSON mode without a session
-    And its available tools are limited to read and bash
-    And edit and write are unavailable because only read and bash are allowlisted
+    And its available tools are limited to read, bash, grep, and find
+    And edit, write, ls, and powershell are unavailable because only those four built-in tools are allowlisted
+    And grep and find are Pi's built-in tools rather than an installed search extension
+    And the allowlist is pi-kit's canonical minimal worker set rather than a context-local literal
     And extension, skill, prompt-template, context-file, and theme discovery are disabled
     And the context package's typed prompt builder reads its bundled Markdown as a reference protocol rather than using the file as the prompt
     And it builds a task-specific prompt containing the current research request, caller working directory, reference protocol, and completion contract

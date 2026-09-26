@@ -40,7 +40,7 @@ pi install npm:@fradser/pi-btw
 
 ### [`@fradser/pi-context`](packages/context/)
 
-Researches repositories, libraries, and technical questions through an isolated prompt-constrained Pi child process with read and bash tools; its no-modification boundary comes from the research prompt rather than an OS sandbox. Natural-language research requests invoke the tool automatically; the started display wraps the complete query without an ellipsis, while results remain compact and expandable.
+Researches repositories, libraries, and technical questions through an isolated prompt-constrained Pi child process with read, bash, grep, and find tools; its no-modification boundary comes from the research prompt rather than an OS sandbox. Natural-language research requests invoke the tool automatically; the started display wraps the complete query without an ellipsis, while results remain compact and expandable.
 
 **Tool:** `context_get`
 

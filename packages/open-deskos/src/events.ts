@@ -1,3 +1,4 @@
+import { classifyToolActivity } from "@fradser/pi-kit";
 import {
   MAX_EVENT_TEXT,
   MAX_EVENTS_PER_SESSION,
@@ -91,19 +92,18 @@ function readArguments(args: unknown): Record<string, unknown> {
   return typeof args === "object" && args !== null ? (args as Record<string, unknown>) : {};
 }
 
-/** The command, file, or query a tool call names, as Pi issued it. */
+/** The command, path, pattern, or query a tool call names, as Pi issued it. */
 export function summarizeToolCall(name: string, args: unknown): string {
-  const parsed = readArguments(args);
-  const asText = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
-  const command = asText(parsed.command);
-  if (command) return `bash: ${command}`;
-  const file = asText(parsed.path);
-  if (file) return `${name}: ${file}`;
-  const query = asText(parsed.query);
-  if (query) return `search: ${query}`;
-  const subject = asText(parsed.subject);
-  if (subject) return `${name}: ${subject}`;
-  return name;
+  const activity = classifyToolActivity(readArguments(args));
+  if (!activity) return name;
+  switch (activity.kind) {
+    case "command": return `bash: ${activity.value}`;
+    case "search": return `search: ${activity.value}`;
+    // A delivery target names a recipient rather than work done, so the row
+    // falls back to the tool name.
+    case "target": return name;
+    default: return `${name}: ${activity.value}`;
+  }
 }
 
 function isText(part: unknown): part is TextPart {

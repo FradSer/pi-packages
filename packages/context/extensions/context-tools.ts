@@ -5,14 +5,13 @@ import {
   contentDetailLines,
   createLiveActivityWidget,
   eventToolLifecycle,
+  MINIMAL_PI_WORKER_TOOLS,
   runPiWorker,
   type PiLiveWidgetContext,
   type PiWorkerProgressUpdate,
 } from "@fradser/pi-kit";
 import { Type } from "typebox";
 import { buildContextResearchPrompt } from "./context-prompt.ts";
-
-const RESEARCH_TOOLS = ["read", "bash"];
 
 /** Geometry bound once: the research row shares hint and wrapping. */
 const contextRows = bindLifecycleRenderers({
@@ -140,7 +139,10 @@ export function runResearchChild(
   return runPiWorker({
     prompt: buildResearchPrompt(query, finalAnswerRetry),
     cwd: process.cwd(),
-    tools: RESEARCH_TOOLS,
+    // The grant is pi-kit's canonical minimal worker set (read, bash, grep, and
+    // find): inspection access plus Pi's own built-in discovery tools, so one
+    // research question costs fewer model turns and no search extension is added.
+    tools: MINIMAL_PI_WORKER_TOOLS,
     minimal: true,
     signal,
     onUpdate,
@@ -170,10 +172,10 @@ export function registerContextTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "context_get",
     label: "Isolated Pi research",
-    description: "Research a repository, library, codebase, or technical topic in an independent prompt-constrained Pi child process. The child has read and bash available and can inspect or temporarily clone public repositories under /tmp.",
+    description: "Research a repository, library, codebase, or technical topic in an independent prompt-constrained Pi child process. The child has read, bash, grep, and find available and can inspect or temporarily clone public repositories under /tmp.",
     promptSnippet: "Research independently in a prompt-constrained Pi child process",
     promptGuidelines: [
-      "Use context_get when the user needs external context for a repository, library, codebase, or current technical topic. It retrieves that context in an isolated Pi process with a read/bash allowlist and prompt-level no-modification guidance.",
+      "Use context_get when the user needs external context for a repository, library, codebase, or current technical topic. It retrieves that context in an isolated Pi process with a read/bash/grep/find allowlist and prompt-level no-modification guidance.",
     ],
     parameters: ResearchParams,
     executionMode: "sequential",

@@ -35,6 +35,34 @@ def test_dreaming_widget_starts_before_selector_and_survives_memory_phase_comple
     assert 'cleanup?.();' in pipeline[pipeline.index('}).finally(() => {'):]
 
 
+def test_dreaming_activity_labels_a_search_by_its_pattern() -> None:
+    # A consolidation worker holds read, grep, find, and ls, so a content or
+    # filename search is common: its row must name the pattern rather than the
+    # directory the search only looked in.
+    result = run_bun(
+        """
+        import { dreamingToolActivity } from './packages/continual-learning/extensions/inject-memory.ts';
+        const label = (toolName, args) => dreamingToolActivity(toolName, args);
+        console.log(JSON.stringify({
+          grep: label('grep', { pattern: 'MINIMAL_PI_WORKER_TOOLS', path: '/repo/packages/context' }),
+          find: label('find', { pattern: '**/*.feature', path: '/repo/packages' }),
+          read: label('read', { path: '/repo/packages/context/index.ts' }),
+          ls: label('ls', { path: '/repo/packages/context' }),
+          validator: label('bash', { command: 'python3 tools/validate-consolidate.py --run abc' }),
+          command: label('bash', { command: '  pnpm   test  ' }),
+          bare: label('grep', undefined),
+        }));
+        """
+    )
+    assert result["grep"] == {"line": "grep MINIMAL_PI_WORKER_TOOLS", "detail": "MINIMAL_PI_WORKER_TOOLS"}
+    assert result["find"] == {"line": "find **/*.feature", "detail": "**/*.feature"}
+    assert result["read"] == {"line": "read index.ts", "detail": "index.ts"}
+    assert result["ls"] == {"line": "ls context", "detail": "context"}
+    assert result["validator"] == {"line": "validate-consolidate.py", "detail": "validate-consolidate.py"}
+    assert result["command"] == {"line": "pnpm test", "detail": "pnpm test"}
+    assert result["bare"] == {"line": "grep", "detail": ""}
+
+
 def test_dreaming_widget_and_notifications_use_shared_pi_kit_tui_primitives() -> None:
     content = source()
     assert "createLiveActivityWidget" in content
