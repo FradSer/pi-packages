@@ -203,6 +203,23 @@ def test_no_consumer_supplies_its_own_widget_row_formatter() -> None:
                 assert not unknown, f"{path}: createLiveActivityWidget got unsupported options {sorted(unknown)}"
 
 
+def test_no_consumer_labels_a_tool_call_without_the_shared_classifier() -> None:
+    # A consumer that reacts to tool_execution_start and names the call must use
+    # pi-kit's classifier, so the pattern-before-path rule cannot drift back into
+    # a per-package copy. The precedence itself is covered behaviorally by
+    # test_tool_activity_classification_prefers_a_search_pattern_over_its_root.
+    for consumer in CONSUMERS:
+        for path in sorted((REPO / "packages" / consumer).rglob("*.ts")):
+            # Test fixtures legitimately emit raw tool events; this checks the
+            # implementation files that label them.
+            if {"tests", "fixtures"} & set(path.parts):
+                continue
+            text = path.read_text(encoding="utf-8")
+            if "tool_execution_start" not in text:
+                continue
+            assert "classifyToolActivity" in text, f"{path}: tool-call labeling belongs to pi-kit"
+
+
 def widget_option_blocks(text: str) -> list[str]:
     """Return the brace-balanced argument of every createLiveActivityWidget call."""
     blocks: list[str] = []
