@@ -33,6 +33,14 @@ Feature: Session Recap
     Then a concise recap is generated
     And it is displayed above the editor with the format "✦ Recap: <summary>"
 
+  Scenario: A complete recap row is never marked as truncated
+    Given an active session in TUI mode
+    And a recap whose wrapped lines fill the available width
+    When the recap widget renders it
+    Then every rendered row fits within the terminal width
+    And no row carries a truncation marker for content that was never dropped
+    And the rendered rows still carry the whole recap
+
   Scenario: First user prompt starts an immediate in-progress recap
     Given a new TUI session with no previous recap
     When the user submits their first prompt

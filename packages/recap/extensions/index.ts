@@ -22,7 +22,6 @@ import {
   type MarkdownTheme,
   truncateToWidth,
   visibleWidth,
-  wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
 import {
   buildMarkdownThemeCallbacks,
@@ -53,6 +52,9 @@ import {
 } from "./recap";
 
 let config: RecapConfig = readRecapConfig();
+
+/** The single leading space every pi-kit widget row reserves. */
+const WIDGET_LEADING_SPACES = 1;
 
 function configuredModelLabel(): string {
   return modelRef(config) ?? "session default";
@@ -149,7 +151,7 @@ export default function (pi: ExtensionAPI) {
     key: "recap-activity",
     placement: "aboveEditor",
     fit: truncateToWidth,
-    leadingSpaces: 1,
+    leadingSpaces: WIDGET_LEADING_SPACES,
     fallbackActivity: "",
   });
   let shouldRecap = false;
@@ -198,7 +200,10 @@ export default function (pi: ExtensionAPI) {
               const label = theme.fg("dim", "Recap:");
               const firstPrefix = `${icon} ${label} `;
               const prefixWidth = visibleWidth(firstPrefix);
-              const contentWidth = Math.max(15, width - prefixWidth);
+              // The composed row also carries the widget row's leading space, so
+              // the content budget must leave room for both or every full-width
+              // recap line gets clipped and marked as truncated.
+              const contentWidth = Math.max(15, width - prefixWidth - WIDGET_LEADING_SPACES);
               const indent = " ".repeat(prefixWidth);
               const lines: string[] = [];
 
@@ -206,15 +211,18 @@ export default function (pi: ExtensionAPI) {
                 const style = createPiThemeStyle(theme);
                 const mdTheme = buildMarkdownThemeCallbacks(style) as MarkdownTheme;
                 const markdown = new Markdown(currentRecap, 0, 0, mdTheme);
-                void wrapTextWithAnsi(currentRecap, contentWidth);
                 const mdLines = markdown.render(contentWidth);
                 for (let i = 0; i < mdLines.length; i++) {
                   const raw = mdLines[i];
                   const content = raw === "__OVERLAY_SEPARATOR__"
                     ? style.dim("─".repeat(Math.max(1, contentWidth)))
-                    : raw;
+                    // Markdown pads every line to `contentWidth`; keeping that
+                    // padding would make the row wider than the terminal and the
+                    // row fitter would answer with an ellipsis for text it never
+                    // clipped.
+                    : raw.trimEnd();
                   const prefix = i === 0 ? firstPrefix : indent;
-                  lines.push(renderPiWidgetRow(`${prefix}${content}`, width, truncateToWidth, 1));
+                  lines.push(renderPiWidgetRow(`${prefix}${content}`, width, truncateToWidth, WIDGET_LEADING_SPACES));
                 }
               }
 

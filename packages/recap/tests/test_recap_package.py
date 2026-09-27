@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import textwrap
 from pathlib import Path
@@ -904,6 +905,84 @@ def test_extension_restores_recap_from_session_branch_on_startup() -> None:
     assert (PACKAGE / "index.ts").is_file()
 
 
+def test_recap_widget_never_marks_unclipped_content_as_truncated() -> None:
+    """pi-tui's Markdown pads every rendered line to the requested width.
+
+    Keeping that padding makes the composed row wider than the terminal, so the
+    row fitter clips the padding and appends its ellipsis even though no recap
+    content was dropped: the user sees a stray "..." at the end of a complete
+    recap, and a second one mid-line for wide-character text.
+    """
+    recap = (
+        "分析 pi-subagents 源码并对比 agent-teams，方案已写入 "
+        "docs/spec-agent-teams-three-package-split.md，拟拆为 sub agent（含记忆）、task、agent teams"
+    )
+    result = run_typescript(
+        f"""
+        import {{ visibleWidth }} from "@earendil-works/pi-tui";
+        import extensionModule from "{INDEX_URI}";
+        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+
+        const recap = {json.dumps(recap)};
+        const registeredEvents = {{}};
+        let setWidgetCall = null;
+
+        initExtension({{
+          on(event, handler) {{ registeredEvents[event] = handler; }},
+          registerCommand() {{}},
+          appendEntry() {{}},
+        }});
+
+        const fakeCtx = {{
+          mode: "tui",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{
+            getBranch: () => [
+              {{ type: "message", message: {{ role: "user", content: "fix it" }} }},
+              {{ type: "message", message: {{ role: "assistant", content: "fixed" }} }},
+              {{ type: "custom", customType: "recap", data: {{ recap }} }},
+            ],
+            getSessionFile: () => "/tmp/fake-cwd/session-1.jsonl",
+          }},
+          ui: {{
+            setWidget: (name, factory) => {{ setWidgetCall = {{ name, factory }}; }},
+            notify: () => {{}},
+          }},
+          modelRegistry: {{
+            find: () => undefined,
+            getApiKeyAndHeaders: async () => ({{ ok: false }}),
+          }},
+          model: {{ provider: "test", id: "test-model" }},
+        }};
+
+        registeredEvents["session_start"]({{}}, fakeCtx);
+        const fakeTheme = {{ fg: (_name, text) => text }};
+        const widget = setWidgetCall.factory({{ requestRender: () => {{}} }}, fakeTheme);
+
+        const widths = [56, 80, 120, 200];
+        const renderings = widths.map((width) => {{
+          const lines = widget.render(width);
+          const first = lines[0].replace(/^ ✦ Recap: /, "");
+          const rest = lines.slice(1).map((line) => line.replace(/^ {{10}}/, ""));
+          return {{
+            width,
+            rowWidths: lines.map(visibleWidth),
+            renderedContent: [first, ...rest].join("").replace(/ +/g, ""),
+            containsMarker: lines.some((line) => line.includes("...")),
+          }};
+        }});
+
+        console.log(JSON.stringify({{ renderings }}));
+        """
+    )
+    expected = "".join(recap.split())
+    for rendering in result["renderings"]:
+        assert max(rendering["rowWidths"]) <= rendering["width"], rendering
+        content = re.sub(r"\x1b\[[0-9;]*m", "", rendering["renderedContent"])
+        assert content == expected, rendering
+        assert rendering["containsMarker"] is False, rendering
+
+
 def test_extension_declares_peer_dependency() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert "peerDependencies" in manifest
@@ -1287,7 +1366,12 @@ def test_clean_recap_text_caps_length() -> None:
 
 def test_extension_wraps_recap_text_responsively() -> None:
     extension = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
-    assert "wrapTextWithAnsi" in extension
+    # Recaps wrap through pi-tui's Markdown at the width left over by the row
+    # prefix, and that component's own padding is dropped again so the com-
+    # posed row is never clipped into a truncation marker.
+    assert "const contentWidth = Math.max(15, width - prefixWidth - WIDGET_LEADING_SPACES);" in extension
+    assert "markdown.render(contentWidth)" in extension
+    assert "raw.trimEnd()" in extension
 
 
 def test_headless_sessions_skip_recap_widget_and_generation() -> None:
@@ -1307,12 +1391,12 @@ def test_widget_refresh_ignores_disposed_context() -> None:
 def test_recap_marker_matches_shared_live_activity_widget_and_native_recap_indent() -> None:
     extension = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
     assert "createLiveActivityWidget" in extension
-    assert "leadingSpaces: 1" in extension
+    assert "const WIDGET_LEADING_SPACES = 1;" in extension
+    assert "leadingSpaces: WIDGET_LEADING_SPACES" in extension
     assert "const prefix = i === 0 ? firstPrefix : indent;" in extension
     assert 'const icon = theme.fg("accent", "✦");' in extension
     assert 'const firstPrefix = `${icon} ${label} `;' in extension
     assert 'const indent = " ".repeat(prefixWidth);' in extension
-    assert "wrapTextWithAnsi(currentRecap, contentWidth)" in extension
     assert "renderPiWidgetRow" in extension
     assert "continuation lines align with the first recap character rather than the marker" in (PACKAGE / "features" / "recap.feature").read_text(encoding="utf-8")
 
