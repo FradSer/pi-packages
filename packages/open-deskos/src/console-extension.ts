@@ -15,6 +15,10 @@ const TOOL_OUTPUT_BYTES = 48 * 1024;
 export interface ConsoleExtensionOptions {
   pi: ExtensionAPI;
   config: DeskLinkConfig | null;
+  /** Every desk this machine reports to, in configuration order. */
+  desks?: DeskLinkConfig[];
+  /** Entries the configuration stated and this machine refuses to use, with the reason. */
+  refusals?: string[];
   createControlTransport: (config: DeskLinkConfig) => ControlTransport;
   reporterSnapshot: () => DeskLinkSnapshot | null;
   configHint: string;
@@ -105,6 +109,8 @@ export function formatHistory(page: HistoryPage): string {
 
 export function registerConsoleExtension(options: ConsoleExtensionOptions): void {
   const { pi, config, createControlTransport, reporterSnapshot, configHint } = options;
+  const desks = options.desks ?? (config === null ? [] : [config]);
+  const refusals = options.refusals ?? [];
   let currentConsoleSessionId = "";
   let state: PersistedConsoleState = { lastApplied: 0 };
   let client: DeskConsoleClient | null = null;
@@ -273,10 +279,14 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
 
   const showStatus = (ctx: ExtensionContext): void => {
     const snapshot = reporterSnapshot();
-    const endpoint = config !== null ? `${config.host}:${config.port}` : "not configured";
+    const endpoint = desks.length > 0 ? desks.map((desk) => `${desk.host}:${desk.port}`).join(", ") : "not configured";
     const report = snapshot ? `${snapshot.link} · ${snapshot.sessions} session(s) · ${snapshot.events} event(s)` : "reporting inactive";
     const control = controlConfigured() ? `Console ready${state.sessionId ? ` · attached ${state.sessionId} @ ${state.lastApplied}` : ""}` : unavailable();
-    ctx.ui.notify(`[open-deskos] ${snapshot?.link ?? "offline"} · ${config?.machine ?? "machine"} → ${endpoint} · ${report.replace(/^(offline|connecting|connected) · /, "")} · ${control}${snapshot?.lastError ? ` · ${snapshot.lastError}` : ""}`, snapshot?.link === "connected" ? "info" : "warning");
+    // A machine that reports to several desks states each one, so a desk that is down
+    // cannot hide behind a set that is otherwise healthy, and a refused entry is said out loud.
+    const perDesk = snapshot?.desks && snapshot.desks.length > 1 ? ` · ${snapshot.desks.map((desk) => `${desk.endpoint} ${desk.link}`).join(", ")}` : "";
+    const refused = refusals.length > 0 ? ` · ${refusals[0]}` : "";
+    ctx.ui.notify(`[open-deskos] ${snapshot?.link ?? "offline"} · ${desks[0]?.machine ?? config?.machine ?? "machine"} → ${endpoint} · ${report.replace(/^(offline|connecting|connected) · /, "")}${perDesk}${refused} · ${control}${snapshot?.lastError ? ` · ${snapshot.lastError}` : ""}`, snapshot?.link === "connected" ? "info" : "warning");
   };
 
   const chooseSession = async (ctx: ExtensionContext): Promise<string | undefined> => {
@@ -411,7 +421,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
       }
       const rows: SelectItem[] = [
         { value: "console", label: "Console", description: controlConfigured() ? "List, launch, attach, and drive Hosted Pi" : unavailable() },
-        { value: "status", label: "Link status", description: config !== null ? `${config.machine} → ${config.host}:${config.port}` : configHint },
+        { value: "status", label: "Link status", description: desks.length > 0 ? `${desks[0]?.machine ?? "machine"} → ${desks.map((desk) => `${desk.host}:${desk.port}`).join(", ")}${refusals.length > 0 ? ` · ${refusals[0]}` : ""}` : `${configHint}${refusals.length > 0 ? ` · ${refusals[0]}` : ""}` },
         { value: "attach", label: "Attach", description: controlConfigured() ? "Attach to a Hosted Pi" : unavailable() },
         { value: "launch", label: "Launch", description: controlConfigured() ? "Start a Hosted Pi" : unavailable() },
         { value: "cancel", label: "Cancel", description: attachment ? `Cancel ${attachment.sessionId}` : "Attach first" },

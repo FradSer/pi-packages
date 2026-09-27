@@ -143,6 +143,35 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
     Then the same menu opens with the same rows
     And a row that is unavailable names the reason rather than disappearing
 
+  Scenario: One machine reports to every desk it is configured for
+    Given a machine is configured with two desks, each with its own token
+    When its Pi session starts and its sessions change
+    Then it opens one Desk Link for each desk
+    And every desk receives the same session identity and events
+    And one desk being unreachable never stops the other from reporting
+
+  Scenario: A desks file with a bad entry leaves the good desks reporting
+    Given the desks file lists one usable desk and one entry without a token
+    When the machine reads its configuration
+    Then the usable desk is used
+    And the bad entry is refused with a reason naming it instead of being reported to
+
+  Scenario: The single-desk environment form keeps working
+    Given no desks file exists and the machine has an address and token in its environment
+    When the machine reads its configuration
+    Then it reports to that one desk exactly as before
+
+  Scenario: The desks file is the one source of truth when both are present
+    Given a desks file exists and the environment also names a desk
+    When the machine reads its configuration
+    Then only the desks file's desks are used
+
+  Scenario: The console drives one desk and says which
+    Given a machine is configured with two desks and only one has a control credential
+    When the user opens the open-deskos menu
+    Then the console row names the desk the Console will drive
+    And the status row names every configured desk with its own link state
+
   Scenario: Missing configuration is diagnosed on demand
     Given the machine has no Desk Link address or token
     When the user opens the open-deskos command's menu

@@ -1,15 +1,16 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { open } from "node:fs/promises";
-import { readDeskLinkConfig } from "./config.ts";
+import { readDeskLinkConfigs } from "./config.ts";
 import { registerConsoleExtension } from "./console-extension.ts";
 import { createControlTcpTransport } from "./control-transport.ts";
+import { aggregateDeskSnapshots, selectConsoleDesk } from "./desk-set.ts";
 import { eventsFromMessage, promptFromMessage } from "./events.ts";
 import { scanDirectorySessions, SessionDiscovery } from "./discovery.ts";
-import { DeskReporter } from "./reporter.ts";
+import { DeskReporter, type DeskLinkSnapshot } from "./reporter.ts";
 import { CurrentSessionReplay } from "./session-replay.ts";
 import { createTcpTransport } from "./transport.ts";
 
-const CONFIG_HINT = "set ODK_DESK_LINK_ADDRESS and ODK_DESK_LINK_TOKEN to report this machine";
+const CONFIG_HINT = "set ODK_DESK_LINK_ADDRESS and ODK_DESK_LINK_TOKEN, or list desks in ~/.config/open-deskos/desks.json, to report this machine";
 /** Read only a bounded tail before it enters the reporter's own 300-event/1MiB retention pipeline. */
 const MAX_DURABLE_SESSION_BYTES = 4 * 1024 * 1024;
 
@@ -62,38 +63,47 @@ async function durableSessionEvents(sessionFile: string | undefined): Promise<Re
  * Hosted Pi sessions over a separate Desk Link v2 control connection.
  */
 export default function (pi: ExtensionAPI): void {
-  const config = readDeskLinkConfig();
-  const reporter = config === null ? null : new DeskReporter({ config, createTransport: createTcpTransport });
-  const discovery = reporter === null ? null : new SessionDiscovery({
+  const { configs, refusals } = readDeskLinkConfigs();
+  const reporters = configs.map((config) => new DeskReporter({ config, createTransport: createTcpTransport }));
+  const endpoints = configs.map((config) => `${config.host}:${config.port}`);
+  // This is one machine reporting, however many desks listen: discovery runs
+  // once and every desk receives the same session, status, and event updates,
+  // so one desk being unreachable never stops the others.
+  const each = (run: (reporter: DeskReporter) => void): void => {
+    for (const reporter of reporters) run(reporter);
+  };
+  const aggregate = (): DeskLinkSnapshot | null =>
+    aggregateDeskSnapshots(reporters.map((reporter, index) => ({ ...reporter.snapshot(), endpoint: endpoints[index] ?? "desk" })));
+  const discovery = reporters.length === 0 ? null : new SessionDiscovery({
     discover: () => scanDirectorySessions(),
-    onSnapshot: (sessions) => reporter.replaceDiscoveredSessions(sessions),
+    onSnapshot: (sessions) => each((reporter) => reporter.replaceDiscoveredSessions(sessions)),
   });
-  const replay = reporter === null ? null : new CurrentSessionReplay(durableSessionEvents);
+  const replay = reporters.length === 0 ? null : new CurrentSessionReplay(durableSessionEvents);
   let currentSessionId = "";
 
-  if (reporter && discovery) {
+  if (reporters.length > 0 && discovery) {
     function beginSession(ctx: Parameters<Parameters<ExtensionAPI["on"]>[1]>[1]): string {
       if (currentSessionId.length > 0 && currentSessionId !== ctx.sessionManager.getSessionId()) {
-        reporter?.markStatus(currentSessionId, "exited");
+        each((reporter) => reporter.markStatus(currentSessionId, "exited"));
       }
       currentSessionId = ctx.sessionManager.getSessionId();
       const name = ctx.sessionManager.getSessionName();
       const timestamp = ctx.sessionManager.getHeader()?.timestamp;
       const startedAt = timestamp ? Date.parse(timestamp) : Number.NaN;
-      reporter?.recordSession({
+      each((reporter) => reporter.recordSession({
         sessionId: currentSessionId,
         ...(name === undefined ? {} : { name }),
         cwd: ctx.cwd,
         workspaceName: workspaceName(ctx.cwd),
         status: ctx.isIdle() ? "settled" : "running",
         startedAt: Number.isFinite(startedAt) ? startedAt : Date.now(),
-      });
+      }));
       return currentSessionId;
     }
 
     pi.on("session_start", async (event, ctx) => {
       const sessionId = beginSession(ctx);
-      reporter.start();
+      each((reporter) => reporter.start());
       discovery.start();
       // A resumed/reloaded Pi can have a durable JSONL history that is longer
       // than its in-memory branch. Start the gate for every session; only the
@@ -102,33 +112,37 @@ export default function (pi: ExtensionAPI): void {
       const replayFile = ["resume", "reload", "fork"].includes((event as { reason?: string }).reason ?? "")
         ? ctx.sessionManager.getSessionFile?.()
         : undefined;
-      await replay?.start(sessionId, replayFile, (id, events) => reporter?.recordEvents(id, events));
+      await replay?.start(sessionId, replayFile, (id, events) => each((reporter) => reporter.recordEvents(id, events)));
     });
     pi.on("session_info_changed", (event) => {
-      if (currentSessionId.length > 0) reporter.renameSession(currentSessionId, event.name);
+      if (currentSessionId.length > 0) each((reporter) => reporter.renameSession(currentSessionId, event.name));
     });
-    pi.on("agent_start", () => reporter.markStatus(currentSessionId, "running"));
-    pi.on("agent_settled", () => reporter.markStatus(currentSessionId, "settled"));
+    pi.on("agent_start", () => each((reporter) => reporter.markStatus(currentSessionId, "running")));
+    pi.on("agent_settled", () => each((reporter) => reporter.markStatus(currentSessionId, "settled")));
     pi.on("message_end", (event) => {
       if (currentSessionId.length === 0) return;
       const prompt = promptFromMessage(event.message);
-      if (prompt.length > 0) reporter.recordSession({ sessionId: currentSessionId, latestGoal: prompt });
+      if (prompt.length > 0) each((reporter) => reporter.recordSession({ sessionId: currentSessionId, latestGoal: prompt }));
       const events = eventsFromMessage(event.message);
-      replay?.append(currentSessionId, events, (id, fresh) => reporter?.recordEvents(id, fresh));
+      replay?.append(currentSessionId, events, (id, fresh) => each((reporter) => reporter.recordEvents(id, fresh)));
     });
     pi.on("session_shutdown", () => {
       replay?.invalidate();
       discovery.stop();
-      reporter.markStatus(currentSessionId, "exited");
-      reporter.disconnect();
+      each((reporter) => reporter.markStatus(currentSessionId, "exited"));
+      each((reporter) => reporter.disconnect());
     });
   }
 
   registerConsoleExtension({
     pi,
-    config,
+    // The Console drives one desk: the one that issued a control credential,
+    // unless the operator named the desk they mean.
+    config: selectConsoleDesk(configs, process.env.ODK_DESK_LINK_CONSOLE_DESK ?? ""),
+    desks: configs,
+    refusals,
     createControlTransport: createControlTcpTransport,
-    reporterSnapshot: () => reporter?.snapshot() ?? null,
+    reporterSnapshot: aggregate,
     configHint: CONFIG_HINT,
   });
 }

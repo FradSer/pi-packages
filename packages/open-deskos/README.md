@@ -35,6 +35,26 @@ export ODK_DESK_LINK_CONTROL_TOKEN="<control credential>"   # optional: makes th
 
 Put them in the environment Pi runs with (for a desktop session, the same place that starts `pi`). The control credential is never transmitted: the desk challenges with a one-time nonce and this machine answers with a proof over it.
 
+### Report to more than one desk
+
+Each desk has its own token, so a machine that feeds several desks states them in one file: `~/.config/open-deskos/desks.json`, or the file named by `ODK_DESK_LINK_DESKS_FILE`.
+
+```json
+{
+  "desks": [
+    { "address": "cm5.example.ts.net:8765", "token": "<per-link token>", "controlToken": "<control credential>" },
+    { "address": "handheld.example.ts.net:8765", "token": "<per-link token>" }
+  ]
+}
+```
+
+- Discovery runs once. Every desk receives the same sessions, statuses, events, and replayed history.
+- One desk being unreachable never stops the others. The status row names every desk with its own link state, and a set that is only half up is never stated as connected.
+- When this file exists it is the one source of truth: the single-desk environment variables are not read beside it. With no such file the environment form above still works exactly as before.
+- An entry with no token, with an address that is not `host:port`, or listed twice is refused with a reason the `/open-deskos` menu shows, and the other desks still report. A file the operator named but that cannot be read is refused with the same visibility instead of looking like a link that never connects.
+- The Console drives one desk: the first desk with a control credential, or the desk named by `ODK_DESK_LINK_CONSOLE_DESK` (`host:port` or a bare host). A named desk without a credential reports that a credential is needed rather than quietly driving a different desk.
+- `machine` may be stated per desk; it defaults to `ODK_DESK_LINK_MACHINE`, then to the hostname.
+
 ## What is reported
 
 - The current session's live identity, goal, activity, and events, plus other sessions registered on this machine in `directory-sessions` metadata (written by `pi-utils` and `pi-keyboard`). On resumed, reloaded, or forked reporter start, the current session replays its bounded durable JSONL tail before forwarding later live messages, so a resumed Pi does not appear as running with an empty Desk Link stream. UUID and timestamp-prefixed UUID aliases merge into one session.

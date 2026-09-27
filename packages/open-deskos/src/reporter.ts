@@ -30,6 +30,12 @@ export interface DeskLinkSnapshot {
   attempts: number;
   omittedSessions: number;
   lastError?: string;
+  /**
+   * Present when this machine reports to more than one desk: each desk's own
+   * endpoint and link state, so a set that is only half up cannot be stated as
+   * a single healthy link.
+   */
+  desks?: { endpoint: string; link: LinkState; lastError?: string }[];
 }
 
 const RECONNECT_BASE_MS = 1000;

@@ -35,6 +35,26 @@ export ODK_DESK_LINK_CONTROL_TOKEN="<control credential>"   # 可选：使本机
 
 请把它们放进 Pi 运行时的环境（桌面会话中即启动 `pi` 的那处）。控制凭据**不会上线**：desk 下发一次性 nonce，本机对 nonce 做出证明。
 
+### 同时向多台 desk 上报
+
+每台 desk 有自己的 token，所以需要喂多台 desk 的机器用一个文件声明：`~/.config/open-deskos/desks.json`，或由 `ODK_DESK_LINK_DESKS_FILE` 指定的文件。
+
+```json
+{
+  "desks": [
+    { "address": "cm5.example.ts.net:8765", "token": "<per-link token>", "controlToken": "<control credential>" },
+    { "address": "handheld.example.ts.net:8765", "token": "<per-link token>" }
+  ]
+}
+```
+
+- 会话扫描只跑一次，**每台 desk 收到同一份**会话、状态、事件与历史回放。
+- 某台 desk 不可达**不会影响其他 desk**；状态行会逐个列出每台 desk 各自的链路状态，“只有一半连通”绝不会被说成已连接。
+- 该文件存在时它就是唯一来源：单台的环境变量形式不再同时读取（没有该文件时，环境变量形式与以前完全一致）。
+- 缺 token、地址不是 `host:port`、或重复列出的条目会被**拒绝并把原因显示在 `/open-deskos` 菜单里**，其余 desk 照常上报。运维指定了文件却读不到时同样会显式拒绝，而不是看起来像“永远连不上”。
+- Console 只驱动一台 desk：默认是带有控制凭据的那台，也可用 `ODK_DESK_LINK_CONSOLE_DESK`（`host:port` 或裸主机名）指定。被指定但没有凭据的 desk 会如实提示需要凭据，而不是悄悄去驱动另一台。
+- `machine` 可按 desk 单独给出，默认取 `ODK_DESK_LINK_MACHINE`，再退回主机名。
+
 ## 上报内容
 
 - 当前会话的实时身份、目标、activity 与事件，以及本机注册在 `directory-sessions` 元数据中的其他会话（由 `pi-utils` 与 `pi-keyboard` 写入）。resumed、reload 或 fork 后上报端启动时会先回放当前会话自己的有界 durable JSONL 尾部，再转发后续实时消息，避免 resumed Pi 被 Desk Link 显示为运行中却没有事件。UUID 与带时间戳前缀的 UUID 别名会合并为同一会话。
