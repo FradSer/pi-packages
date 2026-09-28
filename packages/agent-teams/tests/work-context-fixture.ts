@@ -75,7 +75,7 @@ function expectedContext(parent: SessionManager): Message[] {
   });
 }
 
-type Snapshot = typeof import("../src/work-context.ts").snapshotWorkContext;
+type Snapshot = typeof import("@fradser/pi-subagents").snapshotWorkContext;
 
 function assertEmptySnapshot(snapshotWorkContext: Snapshot): void {
   const parent = SessionManager.inMemory(root);
@@ -99,7 +99,7 @@ function assertInterleavedSnapshot(snapshotWorkContext: Snapshot): void {
 }
 
 async function snapshotScenario(): Promise<void> {
-  const { snapshotWorkContext } = await import("../src/work-context.ts");
+  const { snapshotWorkContext } = await import("@fradser/pi-subagents");
   if (mode === "snapshot-empty") return assertEmptySnapshot(snapshotWorkContext);
   if (mode === "snapshot-interleaved") return assertInterleavedSnapshot(snapshotWorkContext);
   if (mode === "snapshot-selected-leaf") {
@@ -170,7 +170,7 @@ syncBuiltinESMExports();
 type SpawnFixture = Awaited<ReturnType<typeof spawnFixture>>;
 
 async function spawnFixture() {
-  const { spawnResident, isWorkerCloseObserved } = await import("../src/spawner.ts");
+  const { spawnResident, isWorkerCloseObserved } = await import("@fradser/pi-subagents");
   const parent = parentSession();
   const before = parentState(parent);
   const context = mode === "spawn-empty" ? [] : mode === "spawn-user-only" ? [user("only user")] : expectedContext(parent);

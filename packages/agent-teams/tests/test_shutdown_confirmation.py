@@ -25,7 +25,7 @@ def test_unconfirmed_registered_child_keeps_shutdown_and_ownership_open(tmp_path
     assert result["closeObserved"] is False
     assert result["result"]["ok"] is False, result
     assert result["status"] != "stopped"
-    assert result["task"]["status"] == "claimed"
+    assert result["task"]["status"] == "in_progress"
     assert result["task"]["claimedBy"] == "worker"
 
 

@@ -9,6 +9,11 @@ from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1]
 SRC = PACKAGE / "src"
+REPO = PACKAGE.parents[1]
+# The subagent execution layer moved to its own package during the
+# subagents / task / agent-teams split. Static-source assertions still need a
+# real path; runtime imports go through the package specifier instead.
+SUBAGENTS_SRC = REPO / "packages" / "subagents" / "src"
 
 LEADER_TOOLS = {
     "agent",
@@ -36,6 +41,11 @@ REMOVED_TOOLS = {
 
 def source(name: str) -> str:
     return (SRC / name).read_text(encoding="utf-8")
+
+
+def subagents_source(name: str) -> str:
+    """Read a module that now lives in @fradser/pi-subagents."""
+    return (SUBAGENTS_SRC / name).read_text(encoding="utf-8")
 
 
 def run_node(
@@ -79,6 +89,37 @@ def test_manifest_declares_native_extension_package() -> None:
     assert "references" in manifest["files"] and not (PACKAGE / "agents").exists()
 
 
+def test_the_coordination_contribution_is_declared_and_passed_to_every_spawn() -> None:
+    """The execution layer hardcodes no capability set, so this package must
+    declare what its own worker extension registers and contribute it per spawn.
+
+    The declaration lives in a dependency-free module because both the
+    registration site (worker.ts) and the presentation site (tool-copy.ts) read
+    it, and worker.ts imports tool-copy.ts — declaring it in worker.ts would
+    close a cycle.
+    """
+    capability = source("capability-tools.ts")
+    assert '"agent_event"' in capability and '"work"' in capability
+    assert "WORKER_EXTENSION_PATH" in capability
+    # The declaration must match what worker.ts actually registers, so a spawn
+    # can never advertise a tool id nothing implements.
+    worker = source("worker.ts")
+    for tool in ("agent_event", "work"):
+        assert f'name: "{tool}"' in worker, tool
+    # Every spawn contributes both worker extensions and the union of the two
+    # capability sets. Neither package may hardcode the other's contribution.
+    machine = source("team-machine.ts")
+    assert "spawnResident(" in machine
+    assert "SUBAGENT_WORKER_EXTENSION_PATH" in machine and "WORKER_EXTENSION_PATH" in machine
+    assert "extensions: workerExtensions" in machine
+    assert "...SUBAGENT_CAPABILITY_TOOLS" in machine and "...WORKER_CAPABILITY_TOOLS" in machine
+    assert "capabilityTools," in machine
+    # The two extensions really are combined into one list, not chosen between.
+    assert "const workerExtensions = [SUBAGENT_WORKER_EXTENSION_PATH, WORKER_EXTENSION_PATH];" in machine
+    # And the execution layer stays agnostic about this package's tool names.
+    assert "agent_event" not in subagents_source("spawner.ts")
+
+
 def test_leader_tool_surface_is_exact() -> None:
     ext = source("index.ts") + source("tools.ts") + source("worker.ts")
     for tool in LEADER_TOOLS:
@@ -105,7 +146,7 @@ def test_worker_claim_uses_exclusive_create_marker_files() -> None:
     assert "createTaskIntent" in worker
     payload = run_node(
         f'''\
-        import {{ createTaskIntent, takeTaskIntent }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ createTaskIntent, takeTaskIntent }} from "@fradser/pi-tasks";
         import fs from "node:fs";
         import os from "node:os";
         import path from "node:path";
@@ -132,7 +173,7 @@ def test_worker_claim_uses_exclusive_create_marker_files() -> None:
 def test_task_intent_publishes_complete_records_without_leftover_temporaries() -> None:
     payload = run_node(
         f'''\
-        import {{ createTaskIntent, takeTaskIntent }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ createTaskIntent, takeTaskIntent }} from "@fradser/pi-tasks";
         import fs from "node:fs";
         import os from "node:os";
         import path from "node:path";
@@ -207,7 +248,7 @@ def test_fully_consumed_inbox_rotates_instead_of_destroying_records(tmp_path: Pa
 def test_take_task_intent_skips_malformed_records() -> None:
     payload = run_node(
         f'''\
-        import {{ takeTaskIntent, INTENT_PUBLISH_GRACE_MS }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ takeTaskIntent, INTENT_PUBLISH_GRACE_MS }} from "@fradser/pi-tasks";
         import fs from "node:fs";
         import os from "node:os";
         import path from "node:path";
@@ -243,7 +284,8 @@ def test_take_task_intent_skips_malformed_records() -> None:
 def test_inbox_roundtrip_offsets_and_diagnostics() -> None:
     payload = run_node(
         f'''\
-        import {{ appendInboxMessage, inboxPath, readJsonlBatch, writeRoster, readRoster, rosterPath, stateFilePath, writeStateFile, readBoardFile, writeBoardFile }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ appendInboxMessage, inboxPath, readJsonlBatch, writeRoster, readRoster, rosterPath, stateFilePath, writeStateFile }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ readBoardFile, writeBoardFile }} from "@fradser/pi-tasks";
         import fs from "node:fs";
         import os from "node:os";
         import path from "node:path";
@@ -321,7 +363,7 @@ def test_state_machine_roster_and_board_rules() -> None:
         }};
         // Resume semantics: claimed tasks die with their holders.
         resetState();
-        const reloaded = loadBoard({{ t_9: {{ id: "t_9", subject: "carried over", dependsOn: [], status: "claimed", claimedBy: "dead", createdAt: 1, updatedAt: 1 }}, t_8: {{ id: "t_8", subject: "finished", dependsOn: [], status: "completed", createdAt: 1, updatedAt: 1 }} }});
+        const reloaded = loadBoard({{ t_9: {{ id: "t_9", subject: "carried over", dependsOn: [], status: "in_progress", claimedBy: "dead", createdAt: 1, updatedAt: 1 }}, t_8: {{ id: "t_8", subject: "finished", dependsOn: [], status: "completed", createdAt: 1, updatedAt: 1 }} }});
         console.log(JSON.stringify({{
           badNameOk: badName.ok,
           firstOk: first.ok,
@@ -330,7 +372,7 @@ def test_state_machine_roster_and_board_rules() -> None:
           emptySubjectOk: emptySubject.ok,
           claimBlockedReason: claimBlocked.reason ?? null,
           claimOkApplied: claimOk.applied,
-          doubleClaimReason: (doubleClaim.reason ?? "").includes("already claimed"),
+          doubleClaimReason: (doubleClaim.reason ?? "").includes("already in progress"),
           wrongHolderError: (wrongHolder.error ?? "").includes("claimed by") || (wrongHolder.error ?? "").includes("not currently"),
           submittedOk: submitted.ok,
           ...before,
@@ -677,9 +719,9 @@ def test_verify_review_verdict_protocol() -> None:
 
 
 def test_agent_definitions_are_declarative_files_with_verify() -> None:
-    ext = source("agents.ts") + source("tools.ts")
+    ext = subagents_source("agents.ts") + source("tools.ts")
     assert "discoverAgents" in ext and "resolveAgent" in ext
-    agents_ts = source("agents.ts")
+    agents_ts = subagents_source("agents.ts")
     assert 'LOCAL_DEFINITION_SUFFIX = ".local.md"' in agents_ts
     assert 'gitManaged: scope === "project"' in agents_ts or 'return scope === "project";' in agents_ts
     assert "fields.verify" in agents_ts
@@ -694,7 +736,7 @@ def test_agent_definitions_are_declarative_files_with_verify() -> None:
 def test_generated_agent_roles_can_be_persisted_only_explicitly(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ discoverAgents, persistAgentDefinition, clearSessionAgents }} from "{(SRC / "agents.ts").as_uri()}";
+        import {{ discoverAgents, persistAgentDefinition, clearSessionAgents }} from "@fradser/pi-subagents";
         import fs from "node:fs";
         clearSessionAgents();
         const persisted = persistAgentDefinition({{
@@ -723,7 +765,7 @@ def test_generated_agent_roles_can_be_persisted_only_explicitly(tmp_path: Path) 
 def test_generated_agent_roles_are_session_scoped_and_not_persisted(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ discoverAgents, registerSessionAgent, clearSessionAgents }} from "{(SRC / "agents.ts").as_uri()}";
+        import {{ discoverAgents, registerSessionAgent, clearSessionAgents }} from "@fradser/pi-subagents";
         import fs from "node:fs";
         clearSessionAgents();
         const registered = registerSessionAgent({{
@@ -758,7 +800,7 @@ def test_generated_agent_roles_are_session_scoped_and_not_persisted(tmp_path: Pa
 def test_persistent_definitions_outrank_generated_session_roles(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ discoverAgents, registerSessionAgent, clearSessionAgents }} from "{(SRC / "agents.ts").as_uri()}";
+        import {{ discoverAgents, registerSessionAgent, clearSessionAgents }} from "@fradser/pi-subagents";
         import fs from "node:fs";
         clearSessionAgents();
         const agentsDir = {json.dumps(str(tmp_path / ".pi" / "agents"))};
@@ -804,7 +846,7 @@ def test_inline_definitions_replace_stale_session_roles_but_not_files(tmp_path: 
     payload = run_node(
         f'''\
         import {{ inlineDefinitionApplies }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resolveAgent, registerSessionAgent, clearSessionAgents }} from "{(SRC / "agents.ts").as_uri()}";
+        import {{ resolveAgent, registerSessionAgent, clearSessionAgents }} from "@fradser/pi-subagents";
         import fs from "node:fs";
         const cwd = {json.dumps(str(tmp_path))};
         clearSessionAgents();
@@ -895,7 +937,7 @@ def test_leader_model_and_thinking_switch_apply_to_later_spawns() -> None:
 
 
 def test_spawner_forwards_thinking_flag() -> None:
-    spawner = source("spawner.ts")
+    spawner = subagents_source("spawner.ts")
     assert '"--thinking", options.thinking' in spawner
     assert 'thinking?: string;' in spawner
 
@@ -965,7 +1007,7 @@ def test_agent_frontmatter_parses_tools_model_verify(tmp_path: Path) -> None:
     )
     payload = run_node(
         f'''\
-        import {{ resolveAgent }} from "{(SRC / "agents.ts").as_uri()}";
+        import {{ resolveAgent }} from "@fradser/pi-subagents";
         const agent = resolveAgent("auditor", {json.dumps(str(tmp_path))});
         console.log(JSON.stringify({{
           found: Boolean(agent),
@@ -1006,7 +1048,7 @@ def test_agent_frontmatter_parses_multiline_dash_list_tools(tmp_path: Path) -> N
     )
     payload = run_node(
         f'''\
-        import {{ resolveAgent }} from "{(SRC / "agents.ts").as_uri()}";
+        import {{ resolveAgent }} from "@fradser/pi-subagents";
         const agent = resolveAgent("scribe", {json.dumps(str(tmp_path))});
         console.log(JSON.stringify({{
           found: Boolean(agent),
@@ -1045,7 +1087,7 @@ def test_agent_frontmatter_dash_list_edge_cases(tmp_path: Path) -> None:
     )
     payload = run_node(
         f'''\
-        import {{ resolveAgent }} from "{(SRC / "agents.ts").as_uri()}";
+        import {{ resolveAgent }} from "@fradser/pi-subagents";
         const agent = resolveAgent("edge", {json.dumps(str(tmp_path))});
         console.log(JSON.stringify({{ tools: agent?.tools ?? [], model: agent?.model ?? null }}));
         ''',
@@ -1067,7 +1109,7 @@ def test_project_agent_overrides_user_scope(tmp_path: Path) -> None:
     (project_dir / "personal.local.md").write_text("---\nname: personal\n---\npersonal role\n", encoding="utf-8")
     payload = run_node(
         f'''\
-        import {{ discoverAgents, resolveAgent }} from "{(SRC / "agents.ts").as_uri()}";
+        import {{ discoverAgents, resolveAgent }} from "@fradser/pi-subagents";
         const all = discoverAgents({json.dumps(str(tmp_path))});
         const dup = resolveAgent("dup", {json.dumps(str(tmp_path))});
         const shared = resolveAgent("shared", {json.dumps(str(tmp_path))});
@@ -1135,7 +1177,7 @@ def test_unknown_agent_error_gives_the_complete_inline_spawn_recovery() -> None:
 def test_follow_up_reports_use_wrapped_marker_format() -> None:
     payload = run_node(
         f'''\
-        import {{ formatReports }} from "{(SRC / "leader-reports.ts").as_uri()}";
+        import {{ formatReports }} from "@fradser/pi-subagents";
         const content = formatReports([
           {{ teammate: "security", body: "<b>bold finding</b>" }},
         ]);
@@ -1265,7 +1307,7 @@ def test_activity_priority_tool_then_thinking_then_text(tmp_path: Path) -> None:
 
 
 def test_rpc_control_stream_protocol_lines() -> None:
-    spawner = source("spawner.ts")
+    spawner = subagents_source("spawner.ts")
     assert 'streamingBehavior: "followUp"' in spawner
     assert 'streamingBehavior: "steer"' in spawner
     assert '{ type: "steer", message }' not in spawner
@@ -1282,7 +1324,7 @@ def test_rpc_control_stream_protocol_lines() -> None:
 
 
 def test_resident_stream_limits_are_per_turn_and_fail_closed() -> None:
-    spawner = source("spawner.ts")
+    spawner = subagents_source("spawner.ts")
     assert "MAX_JSONL_LINE_BYTES" in spawner
     assert "MAX_TURN_OUTPUT_BYTES" in spawner
     assert "outputLimitError" in spawner
@@ -1310,12 +1352,15 @@ def test_resident_unterminated_output_is_terminated_without_partial_success() ->
         `, {{ mode: 0o755 }});
         const originalArgv1 = process.argv[1];
         process.argv[1] = child;
-        process.env.PI_LINE_LIMIT = "1048576";
-        const {{ spawnResident, MAX_JSONL_LINE_BYTES }} = await import("{(SRC / "spawner.ts").as_uri()}");
-        process.env.PI_LINE_LIMIT = String(MAX_JSONL_LINE_BYTES);
+        const {{ spawnResident, MAX_JSONL_LINE_BYTES }} = await import("@fradser/pi-subagents");
+        // The limit knob travels through this spawn's own overrides, which the
+        // environment policy always honors. It must not rely on the leader's
+        // ambient environment leaking into the child: that leak is exactly what
+        // the policy closes, so an ambient knob would now silently vanish.
         const outcome = await new Promise((resolve) => spawnResident({{
           workerName: "limit-test",
           cwd: root,
+          env: {{ PI_LINE_LIMIT: String(MAX_JSONL_LINE_BYTES) }},
           onUpdate: () => {{}},
           onExit: (result) => resolve({{ exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }}),
           onError: (error) => resolve({{ error: error.message }}),
@@ -1371,7 +1416,7 @@ def test_peer_traffic_stays_out_of_leader_context() -> None:
 def test_board_path_is_stable_only_for_the_same_session_file(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ boardFilePath, sessionKey }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ boardFilePath, sessionKey }} from "@fradser/pi-tasks";
         const cwd = {str(tmp_path)!r};
         const first = "/sessions/first.jsonl";
         const second = "/sessions/second.jsonl";
@@ -1481,107 +1526,6 @@ def test_terminal_report_closes_reporting_and_suppresses_following_reports(tmp_p
     }
 
 
-def test_worktree_cleanup_preserves_directory_when_commit_fails(tmp_path: Path) -> None:
-    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "t@t"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "t"], check=True)
-    (tmp_path / "f.txt").write_text("one", encoding="utf-8")
-    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "base"], check=True)
-    hooks = tmp_path / "hooks"
-    hooks.mkdir()
-    (hooks / "pre-commit").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
-    (hooks / "pre-commit").chmod(0o755)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "core.hooksPath", str(hooks)], check=True)
-    payload = run_node(
-        f'''\
-        import {{ createWorktree, captureWorktreeDiff, cleanupWorktree }} from "{(SRC / "worktree.ts").as_uri()}";
-        import {{ spawnSync }} from "node:child_process";
-        import * as fs from "node:fs";
-        const cwdUri = "{tmp_path.as_uri()}";
-        const root = cwdUri.startsWith("file://") ? cwdUri.slice(7) : cwdUri;
-        const setup = createWorktree(root, "doomed-commit");
-        if ("error" in setup) throw new Error(setup.error);
-        fs.writeFileSync(setup.path + "/precious.txt", "only copy");
-        captureWorktreeDiff(setup);
-        const cleaned = cleanupWorktree(setup);
-        const workStillOnDisk = fs.existsSync(setup.path + "/precious.txt");
-        // Cleanup must not have force-removed the directory over a failed commit.
-        console.log(JSON.stringify({{
-          failed: !cleaned.ok,
-          namesDirectory: cleaned.error?.includes("worktree left in place") ?? false,
-          workStillOnDisk,
-        }}));
-        '''
-    )
-    assert payload == {
-        "failed": True,
-        "namesDirectory": True,
-        "workStillOnDisk": True,
-    }
-
-
-def test_worktree_cleanup_keeps_branch_and_cleans_failed_spawns(tmp_path: Path) -> None:
-    subprocess.run([
-        "git", "init", "-q", str(tmp_path),
-    ], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "t@t"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "t"], check=True)
-    (tmp_path / "f.txt").write_text("one", encoding="utf-8")
-    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "base"], check=True)
-    payload = run_node(
-        f'''\
-        import {{ createWorktree, captureWorktreeDiff, cleanupWorktree }} from "{(SRC / "worktree.ts").as_uri()}";
-        import {{ spawnSync }} from "node:child_process";
-        const cwdUri = "{tmp_path.as_uri()}";
-        const setup = createWorktree(cwdUri.startsWith("file://") ? cwdUri.slice(7) : cwdUri, "demo");
-        if ("error" in setup) throw new Error(setup.error);
-        const fs = await import("node:fs");
-        fs.writeFileSync(setup.path + "/patched.txt", "work");
-        const captured = captureWorktreeDiff(setup);
-        const kept = cleanupWorktree(setup);
-        const branchAlive = spawnSync("git", ["-C", setup.repoRoot, "rev-parse", "--verify", setup.branch]);
-        const diffWorks = spawnSync("git", ["-C", setup.repoRoot, "diff", setup.baseCommit + ".." + setup.branch]);
-        const fresh = createWorktree(cwdUri.startsWith("file://") ? cwdUri.slice(7) : cwdUri, "doomed");
-        let discardedBranchGone = true;
-        if (!("error" in fresh)) {{
-          cleanupWorktree(fresh, {{ deleteBranch: true }});
-          discardedBranchGone = spawnSync("git", ["-C", fresh.repoRoot, "rev-parse", "--verify", fresh.branch]).status !== 0;
-        }}
-        console.log(JSON.stringify({{
-          capturedOk: captured.ok,
-          cleanupOk: kept.ok,
-          worktreeDirGone: !fs.existsSync(setup.path),
-          branchAlive: branchAlive.status === 0,
-          diffRetrievable: diffWorks.status === 0 && (diffWorks.stdout || "").includes("patched.txt"),
-          discardedBranchGone,
-        }}));
-        '''
-    )
-    assert payload == {
-        "capturedOk": True,
-        "cleanupOk": True,
-        "worktreeDirGone": True,
-        "branchAlive": True,
-        "diffRetrievable": True,
-        "discardedBranchGone": True,
-    }
-
-
-def test_worktree_capture_failure_returns_structured_error(tmp_path: Path) -> None:
-    payload = run_node(
-        f'''\
-        import {{ captureWorktreeDiff, createWorktree }} from "{(SRC / "worktree.ts").as_uri()}";
-        const outside = createWorktree("{tmp_path.as_uri()[7:]}", "nope");
-        console.log(JSON.stringify({{
-          createFailsCleanly: "error" in outside,
-        }}));
-        ''',
-    )
-    assert payload["createFailsCleanly"] is True
-
-
 def test_read_receipts_and_legacy_registry_are_gone() -> None:
     all_sources = "".join(source(name) for name in (
         "types.ts", "state.ts", "statefile.ts", "team-machine.ts", "worker.ts", "tools.ts", "ui.ts",
@@ -1594,7 +1538,7 @@ def test_teammate_report_message_renderer_toggles_with_mouse_click() -> None:
     payload = run_node(
         f'''\
         import extension from "{(PACKAGE / "index.ts").as_uri()}";
-        import {{ TEAMMATE_REPORT_MESSAGE_TYPE }} from "{(SRC / "leader-reports.ts").as_uri()}";
+        import {{ TEAMMATE_REPORT_MESSAGE_TYPE }} from "@fradser/pi-subagents";
         import {{ initTheme }} from "@earendil-works/pi-coding-agent";
 
         initTheme();
@@ -1795,7 +1739,8 @@ def test_snapshots_write_only_what_changed(tmp_path: Path) -> None:
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, publishStateSnapshot, applyProgress, STATE_SNAPSHOT_MIN_INTERVAL_MS }} from "{(SRC / "team-machine.ts").as_uri()}";
         import {{ resetState, registerTeammate, createTask, updateTeammate }} from "{(SRC / "state.ts").as_uri()}";
-        import {{ stateFilePath, rosterPath, boardFilePath }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ stateFilePath, rosterPath }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ boardFilePath }} from "@fradser/pi-tasks";
         import fs from "node:fs";
         const root = {str(tmp_path)!r};
         initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
@@ -1882,7 +1827,7 @@ def test_spawner_labels_search_tool_calls_by_their_pattern() -> None:
           return child;
         }});
         syncBuiltinESMExports();
-        const {{ spawnResident }} = await import("{(SRC / "spawner.ts").as_uri()}");
+        const {{ spawnResident }} = await import("@fradser/pi-subagents");
         const activities = [];
         spawnResident({{ workerName: "searcher", onUpdate: (update) => activities.push(update.activeTool), onExit: () => {{}} }});
         const stdout = children[0].stdout;

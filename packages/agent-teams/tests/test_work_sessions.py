@@ -19,7 +19,7 @@ def test_new_delegations_are_independent_and_work_ids_route_exactly() -> None:
 def test_result_envelope_keeps_work_and_failure_evidence_in_model_context() -> None:
     result = subprocess.run(
         ["node", "--input-type=module", "--eval", '''
-        import { formatReports } from "./src/leader-reports.ts";
+        import { formatReports } from "@fradser/pi-subagents";
         const report = { teammate: "worker", workId: "work:one", assignmentId: "attempt:two", body: "Same response" };
         console.log(JSON.stringify({
           completed: formatReports([{ ...report, status: "completed", finished: true }]),

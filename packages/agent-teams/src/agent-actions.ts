@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
+import { WORKER_BUILTIN_TOOLS } from "@fradser/pi-subagents";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isValidTeammateName, listTeammates } from "./state.ts";
-import { resolveAgent } from "./agents.ts";
+import { resolveAgent } from "@fradser/pi-subagents";
 import { shutdownTeammateExact, spawnTeammate } from "./team-machine.ts";
 import { normalizeCoordinationParams, requireParsedParams, type Teammate } from "./types.ts";
-import { snapshotWorkContext } from "./work-context.ts";
+import { snapshotWorkContext } from "@fradser/pi-subagents";
 import { exactSessionRoute, resolveExactSession } from "./recipient.ts";
 
 export interface AgentActionRuntime {
@@ -90,7 +90,7 @@ export function runAgentAction(
     outcome: "started",
     agent: params.name,
     session: session(teammate),
-    ...(params.action === "delegate" ? { work: { id: teammate.workId, state: "claimed" }, assignment: { id: teammate.assignment?.id } } : {}),
+    ...(params.action === "delegate" ? { work: { id: teammate.workId, state: "in_progress" }, assignment: { id: teammate.assignment?.id } } : {}),
   });
   if (params.action === "start" && result.readiness) {
     return result.readiness.then((error) => {

@@ -25,7 +25,7 @@ mock.module("@fradser/pi-kit", {
   },
 });
 mock.method(Date, "now", () => 1234567890000);
-const { isWorkerCloseObserved } = await import("../src/spawner.ts");
+const { isWorkerCloseObserved } = await import("@fradser/pi-subagents");
 const { initTeamMachine, shutdownTeamMachine, shutdownTeammate, spawnTeammate, sendLeaderMessage, getConfirmedStopTime } = await import("../src/team-machine.ts");
 const { resetState, registerTeammate, getTeammate, createTask, setTaskClaimed, getTask, getState } = await import("../src/state.ts");
 resetState();

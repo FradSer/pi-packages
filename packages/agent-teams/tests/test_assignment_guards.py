@@ -191,7 +191,7 @@ def test_exported_submission_reducer_rejects_invalid_status() -> None:
     )
     assert payload["result"]["ok"] is False
     assert "invalid submission status" in payload["result"]["error"]
-    assert payload["status"] == "claimed"
+    assert payload["status"] == "in_progress"
 
 
 def test_invalid_persisted_supersession_chain_rejects_new_dependency() -> None:
@@ -228,7 +228,7 @@ def test_submission_reducer_rejects_stale_same_name_spawn() -> None:
     )
     assert payload["stale"]["ok"] is False
     assert "not a living current incarnation" in payload["stale"]["error"]
-    assert payload["status"] == "claimed"
+    assert payload["status"] == "in_progress"
     assert payload["holder"] == "w"
 
 
@@ -327,7 +327,7 @@ def test_inconclusive_verify_retries_once_for_each_submission(tmp_path: Path) ->
         processTaskIntents();
         await pause();
         await pause();
-        const stillClaimedAfterExplicitFail = getTask(task.id)?.status === "claimed";
+        const stillClaimedAfterExplicitFail = getTask(task.id)?.status === "in_progress";
         attemptSubmission("w", "s1", task.id, "completed", "second");
         processTaskIntents();
         await pause();
@@ -346,7 +346,7 @@ def test_inconclusive_verify_retries_once_for_each_submission(tmp_path: Path) ->
 def test_task_intent_requires_nonempty_identity_and_finite_timestamp() -> None:
     payload = run_node(
         f'''\
-        import {{ takeTaskIntent }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ takeTaskIntent }} from "@fradser/pi-tasks";
         import fs from "node:fs";
         import os from "node:os";
         import path from "node:path";
@@ -369,7 +369,7 @@ def test_task_intent_requires_nonempty_identity_and_finite_timestamp() -> None:
 def test_invalid_submission_status_is_consumed_before_state_machine() -> None:
     payload = run_node(
         f'''\
-        import {{ takeTaskIntent }} from "{(SRC / "statefile.ts").as_uri()}";
+        import {{ takeTaskIntent }} from "@fradser/pi-tasks";
         import fs from "node:fs";
         import os from "node:os";
         import path from "node:path";
@@ -535,7 +535,7 @@ def test_fresh_reset_requires_the_emitting_child_and_is_single_flight() -> None:
           return child;
         }});
         syncBuiltinESMExports();
-        const {{ deliverFreshAssignment, spawnResident }} = await import("{(SRC / "spawner.ts").as_uri()}");
+        const {{ deliverFreshAssignment, spawnResident }} = await import("@fradser/pi-subagents");
         spawnResident({{ workerName: "pending", onUpdate: () => {{}}, onExit: () => {{}} }});
         spawnResident({{ workerName: "other", onUpdate: () => {{}}, onExit: () => {{}} }});
         const promise = deliverFreshAssignment("pending", "new assignment");
@@ -587,7 +587,7 @@ def test_rejected_cancelled_timed_out_and_closed_fresh_resets_never_prompt_old_s
           return child;
         }});
         syncBuiltinESMExports();
-        const {{ deliverFreshAssignment, sendWorkerSteer, spawnResident }} = await import("{(SRC / "spawner.ts").as_uri()}");
+        const {{ deliverFreshAssignment, sendWorkerSteer, spawnResident }} = await import("@fradser/pi-subagents");
         const outcomes = [];
         for (const mode of ["rejected", "cancelled", "timed-out", "closed"]) {{
           spawnResident({{ workerName: mode, onUpdate: () => {{}}, onExit: () => {{}} }});
@@ -649,7 +649,7 @@ def test_fresh_reset_failure_releases_work_without_delivering_queued_guidance(tm
           return child;
         }});
         syncBuiltinESMExports();
-        const {{ spawnResident }} = await import("{(SRC / "spawner.ts").as_uri()}");
+        const {{ spawnResident }} = await import("@fradser/pi-subagents");
         const {{ initTeamMachine, assignExistingWork, sendLeaderMessage, shutdownTeamMachine }} = await import("{(SRC / "team-machine.ts").as_uri()}");
         const {{ createTask, getTask, getTeammate, registerTeammate, resetState }} = await import("{(SRC / "state.ts").as_uri()}");
         const cwd = {str(tmp_path)!r};
@@ -724,7 +724,7 @@ def test_unexpected_owner_execution_requires_a_fresh_session_before_recovery(tmp
         }});
         mock.method(childProcess, "spawn", () => child);
         syncBuiltinESMExports();
-        const {{ spawnResident }} = await import("{(SRC / "spawner.ts").as_uri()}");
+        const {{ spawnResident }} = await import("@fradser/pi-subagents");
         const {{ applyProgress, initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, sendLeaderMessage, setVerifyGateRunner }} = await import("{(SRC / "team-machine.ts").as_uri()}");
         const {{ resetState, registerTeammate, createDirectWork, getTask, getTeammate }} = await import("{(SRC / "state.ts").as_uri()}");
         spawnResident({{ workerName: "w", onUpdate: () => {{}}, onExit: () => {{}} }});
@@ -757,7 +757,7 @@ def test_unexpected_owner_execution_requires_a_fresh_session_before_recovery(tmp
         console.log(JSON.stringify(payload));
         ''',
     )
-    assert payload == {"status": "claimed", "recovery": True, "resources": ["firmware/direct"], "freshAttempt": True, "reset": True}
+    assert payload == {"status": "in_progress", "recovery": True, "resources": ["firmware/direct"], "freshAttempt": True, "reset": True}
 
 
 def test_superseded_direct_holder_retains_resources_until_cancellation_acknowledgement(tmp_path: Path) -> None:
@@ -841,7 +841,7 @@ def test_unexpected_execution_park_rejects_further_completed_submissions(tmp_pat
         }}));
         ''',
     )
-    assert payload["taskStatus"] == "claimed"
+    assert payload["taskStatus"] == "in_progress"
     assert payload["rejectionFound"] is True
     assert "unexpected execution during verification" in payload["rejectionBody"]
 
@@ -863,7 +863,7 @@ def test_direct_revision_includes_task_details_and_verify_criteria(tmp_path: Pat
         }});
         mock.method(childProcess, "spawn", () => child);
         syncBuiltinESMExports();
-        const {{ spawnResident }} = await import("{(SRC / "spawner.ts").as_uri()}");
+        const {{ spawnResident }} = await import("@fradser/pi-subagents");
         const {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner }} = await import("{(SRC / "team-machine.ts").as_uri()}");
         const {{ resetState, registerTeammate, createDirectWork, createTask, getTask }} = await import("{(SRC / "state.ts").as_uri()}");
         spawnResident({{ workerName: "w", onUpdate: () => {{}}, onExit: () => {{}} }});

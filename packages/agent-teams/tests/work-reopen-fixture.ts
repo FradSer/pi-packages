@@ -28,12 +28,12 @@ assert.equal(getState().tasks[completed.id]?.completedAt, undefined);
 assert.equal(getState().tasks[completed.id]?.deferredMessages, undefined);
 
 const activeDependent = createTask({ subject: "Active dependent", dependsOn: [completed.id] }).task;
-getState().tasks[activeDependent.id].status = "claimed";
+getState().tasks[activeDependent.id].status = "in_progress";
 await assert.rejects(work.execute("blocked", { action: "reopen", id: completed.id, reason: "again" }), /not completed/i);
 getState().tasks[completed.id].status = "completed";
 await assert.rejects(work.execute("dependent", { action: "reopen", id: completed.id, reason: "blocked" }), /active dependent Work/i);
 assert.equal(getState().tasks[completed.id]?.status, "completed");
-assert.equal(getState().tasks[activeDependent.id]?.status, "claimed");
+assert.equal(getState().tasks[activeDependent.id]?.status, "in_progress");
 
 const pending = createTask({ subject: "Pending work" }).task;
 await assert.rejects(work.execute("pending", { action: "reopen", id: pending.id, reason: "not terminal" }), /not completed/i);

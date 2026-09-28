@@ -6,7 +6,7 @@ import agentTeams from "../src/index.ts";
 import { applyProgress, createBoardTask, drainTeammateOutboxes, shutdownTeammate } from "../src/team-machine.ts";
 import { createTask, getTeammate, reclaimDirectWork, registerTeammate, releaseTask, setTaskClaimed } from "../src/state.ts";
 import { appendWorkerEvent, stateFilePath, workerOutboxPath } from "../src/statefile.ts";
-import type { LeaderReport } from "../src/leader-reports.ts";
+import type { LeaderReport } from "@fradser/pi-subagents";
 
 const bodies = ["Scope changed; preserve this evidence.", "A decision is needed about the local fixture."];
 const acceptedBody = "Accepted terminal evidence must survive delayed arrival.";

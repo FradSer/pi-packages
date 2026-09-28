@@ -59,7 +59,7 @@ def test_late_report_label_is_visible_collapsed_and_expanded() -> None:
 
 def test_normal_report_keeps_authored_time_without_after_stop_marker() -> None:
     payload = run_node(f'''
-        import {{ annotateReportDelivery, formatReports }} from "{(SRC / 'leader-reports.ts').as_uri()}";
+        import {{ annotateReportDelivery, formatReports }} from "@fradser/pi-subagents";
         const original = {{ agent: 'role', teammate: 'worker', body: 'Original.', timestamp: 100 }};
         const report = annotateReportDelivery(original, 200);
         console.log(JSON.stringify({{ original, report, content: formatReports([report]) }}));

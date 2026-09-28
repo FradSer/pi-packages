@@ -67,7 +67,7 @@ try {
     }
     assert.equal(getState().tasks[created.details.work.id].status, "pending");
     console.log("UNASSIGNED_START_OK");
-  } else if (mode === "claimed") {
+  } else if (mode === "in_progress") {
     setTaskClaimed(created.details.work.id, "recovery");
     const holding = getState().teammates.recovery.assignment.id;
     const assigned = await tools.get("work").execute("assign", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id } }, undefined, undefined, ctx);
@@ -78,7 +78,7 @@ try {
   } else {
   const assigned = await tools.get("work").execute("assign", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id } }, undefined, undefined, ctx);
   assert.equal(assigned.details.work.id, created.details.work.id);
-  assert.equal(assigned.details.work.state, "claimed");
+  assert.equal(assigned.details.work.state, "in_progress");
   const repeated = await tools.get("work").execute("assign-again", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id } }, undefined, undefined, ctx);
   assert.deepEqual(repeated.details, assigned.details, "same exact holding is an idempotent receipt");
   const reset = commands.find((command) => command.type === "new_session");

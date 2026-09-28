@@ -15,7 +15,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 type LeaderThinkingLevel = NonNullable<ExtensionContext["thinkingLevel"]>;
 const THINKING_LEVELS: readonly LeaderThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 import { modelLabel, runPiWorker, type RunPiWorkerOptions } from "@fradser/pi-kit";
-import { MODEL_INHERIT_ALIAS, discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "./agents.ts";
+import { MODEL_INHERIT_ALIAS, discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "@fradser/pi-subagents";
 import {
   activeAssignmentConflict,
   applyClaimIntent,
@@ -41,7 +41,6 @@ import {
   markBoardChanged,
   markPeerDelivered,
   getTask,
-  normalizeResources,
   progressRevision,
   registerTeammate,
   releaseTask,
@@ -50,6 +49,7 @@ import {
   taskDependenciesMet,
   receiveWorkerMessage,
   reopenCompletedWork,
+  setTaskContext,
   setPeerInboxOffset,
   rosterRevision,
   setPeerDeliveryState,
@@ -58,20 +58,25 @@ import {
   updateTeammateProgress,
 } from "./state.ts";
 import {
-  appendInboxMessage,
   boardFilePath,
+  buildWorkHandoff,
   claimsDir,
   createTaskIntent,
-  inboxPath,
+  formatWorkHandoff,
+  normalizeResources,
   readBoardFile,
+  submissionsDir,
+  takeTaskIntent,
+  writeBoardFile,
+} from "@fradser/pi-tasks";
+import {
+  appendInboxMessage,
+  inboxPath,
   readJsonlBatch,
   removeSessionStateDir,
   removeWorkerOutbox,
   rosterPath,
   stateFilePath,
-  submissionsDir,
-  takeTaskIntent,
-  writeBoardFile,
   writeRoster,
   writeStateFile,
   workerOutboxPath,
@@ -89,14 +94,25 @@ import {
   terminateAllTeammates,
   terminateTeammate,
   unknownWorkerTools,
-  WORKER_TOOL_UNIVERSE,
+  workerToolUniverse,
   type WorkerProcessResult,
   type ResidentSpawnOptions,
-} from "./spawner.ts";
-import { captureWorktreeDiff, cleanupWorktree, createWorktree, discardWorktree } from "./worktree.ts";
+} from "@fradser/pi-subagents";
+import { WORKER_CAPABILITY_TOOLS, WORKER_EXTENSION_PATH } from "./capability-tools.ts";
+import {
+  ensureAgentWorkspace,
+  preserveAgentWorkspace,
+  releaseAgentWorkspace,
+  SUBAGENT_CAPABILITY_TOOLS,
+  SUBAGENT_MEMORY_ENV,
+  SUBAGENT_ROLE_ENV,
+  SUBAGENT_TOOLS_ENV,
+  SUBAGENT_WORKER_EXTENSION_PATH,
+  type AgentWorkspace,
+} from "@fradser/pi-subagents";
 import { messageTitle, type InboxMessage, type Teammate, type WorkerAssignment, type WorkerUsage } from "./types.ts";
 import { exactSessionRoute, resolveExactSession } from "./recipient.ts";
-import type { LeaderReport } from "./leader-reports.ts";
+import type { LeaderReport } from "@fradser/pi-subagents";
 
 /** Harness coordination cadence: outbox drain every tick, notices paced. */
 const LIVE_POLL_MS = 500;
@@ -233,7 +249,11 @@ const verifyFailures = new Map<string, VerifyFailureRecord>();
 /** Self-finalize requests delivered per teammate incarnation before escalating to the leader. */
 const selfFinalizeAttempts = new Set<string>();
 const pendingDeliveries = new Map<string, InboxMessage[]>();
-const liveWorktrees = new Map<string, ReturnType<typeof createWorktree>>();
+/** Durable per-Agent workspaces in use this session. Unlike the disposable
+ *  worktree this replaces, completion preserves the directory: it is the Agent's
+ *  home and its Pi session group, so deleting it would destroy working memory.
+ *  Only an explicit release removes one. */
+const liveWorkspaces = new Map<string, AgentWorkspace>();
 
 // ── Lifecycle ─────────────────────────────────────────────────────
 
@@ -589,7 +609,10 @@ export function spawnTeammate(input: {
   // Reject tool ids the bare child could never grant before any side effect:
   // a silent --tools drop here is how reviewers end up blind mid-audit.
   const requestedTools = input.definition && inlineDefinitionApplies(resolved) ? input.definition.tools : resolved?.tools;
-  const unknownTools = unknownWorkerTools(requestedTools);
+  const unknownTools = unknownWorkerTools(requestedTools, [
+    ...SUBAGENT_CAPABILITY_TOOLS,
+    ...WORKER_CAPABILITY_TOOLS,
+  ]);
   if (unknownTools.length > 0) return { ok: false, error: unknownWorkerToolsError(unknownTools) };
   let agent: AgentDefinition | undefined = resolved;
   if (input.definition && inlineDefinitionApplies(resolved)) {
@@ -613,15 +636,27 @@ export function spawnTeammate(input: {
   }
   if (!agent) return { ok: false, error: unknownAgentError(input.agent, leaderCwd) };
 
-  let isolation: Teammate["isolation"] = "none";
-  let workerCwd = leaderCwd;
-  if (agent.worktree) {
-    const worktree = createWorktree(workerCwd, `${input.name}-${Date.now()}`);
-    if ("error" in worktree) return { ok: false, error: `Cannot isolate teammate: ${worktree.error}` };
-    liveWorktrees.set(input.name, worktree);
-    isolation = "worktree";
-    workerCwd = worktree.cwd;
-  }
+  // Both packages contribute a worker extension to one child. `--extension` is
+  // repeatable and `--no-extensions` still loads explicit paths, so neither
+  // package has to know about the other; each declares its own capability tools.
+  const capabilityTools = [...SUBAGENT_CAPABILITY_TOOLS, ...WORKER_CAPABILITY_TOOLS];
+  const workerExtensions = [SUBAGENT_WORKER_EXTENSION_PATH, WORKER_EXTENSION_PATH];
+  const effectiveTools = resolveWorkerTools(agent.tools, capabilityTools);
+  // agents.ts already forces memory off for a session-scoped (Temporary) Agent.
+  const memoryEnabled = agent.memory;
+
+  // Isolation is the default rather than an opt-in: a durable per-Agent workspace
+  // is what makes Pi's own per-working-directory session storage usable as that
+  // Agent's working memory. Falls back to the leader's tree with a recorded
+  // reason when isolation is impossible, rather than pretending it happened.
+  const workspace = ensureAgentWorkspace({
+    agentName: input.name,
+    cwd: leaderCwd,
+    isolation: agent.isolation,
+  });
+  const isolation: Teammate["isolation"] = workspace.isolation === "worktree" ? "worktree" : "none";
+  const workerCwd = workspace.cwd;
+  if (workspace.isolation === "worktree") liveWorkspaces.set(input.name, workspace);
 
   const spawnId = randomUUID();
   const effectiveKickoff = buildSuccessorHandoff(input.prompt, input.handoffFrom);
@@ -632,12 +667,12 @@ export function spawnTeammate(input: {
       : [];
   const conflict = activeAssignmentConflict(directResources);
   if (conflict) {
-    discardWorktreeQuietly(input.name);
+    discardWorkspaceQuietly(input.name, workspace);
     return { ok: false, error: `Direct assignment resources conflict with @${conflict.name}'s ${conflict.assignment?.kind} assignment "${conflict.assignment?.id}".` };
   }
   const registered = registerTeammate(newTeammate(input, spawnId, isolation, workerCwd));
   if (!registered.ok) {
-    discardWorktreeQuietly(input.name);
+    discardWorkspaceQuietly(input.name, workspace);
     return { ok: false, error: registered.error };
   }
 
@@ -659,14 +694,14 @@ export function spawnTeammate(input: {
       });
     if (!directWork.ok) {
       updateTeammate(input.name, { status: "stopped" });
-      discardWorktreeQuietly(input.name);
+      discardWorkspaceQuietly(input.name, workspace);
       return { ok: false, error: directWork.error };
     }
   }
   updateTeammate(input.name, {
     model: spawnModel.model,
     context: input.context === undefined ? "fresh" : "fork",
-    tools: resolveWorkerTools(agent.tools),
+    tools: effectiveTools,
     ...(assignment ? {} : { assignment }),
   });
   // Flush before the kickoff is written: a fast child must not read a stale
@@ -691,8 +726,18 @@ export function spawnTeammate(input: {
     thinking: currentLeaderThinkingLevel(),
     context: input.context,
     tools: agent.tools,
+    extensions: workerExtensions,
+    capabilityTools,
     cwd: workerCwd,
-    env: teammateEnv(stateFile, input, spawnId, agent.verify),
+    // Session persistence is only safe when the child has its own working path.
+    // Sharing the leader's tree would put the child's turns into the user's own
+    // session group, so a shared workspace passes --no-session.
+    session: isolation === "worktree" ? (workspace.reused ? "resume" : "persist") : "none",
+    // A workspace this harness created is an untrusted directory to Pi, whose
+    // defaultProjectTrust is "ask"; without this the child blocks forever on a
+    // trust prompt RPC mode cannot answer.
+    approveProjectTrust: isolation === "worktree",
+    env: teammateEnv(stateFile, input, spawnId, agent.verify, effectiveTools, memoryEnabled),
     onUpdate: (progress) => {
       applyProgress(input.name, spawnId, progress);
       if (progress.controlError) settleReadiness(progress.controlError);
@@ -715,7 +760,14 @@ export function spawnTeammate(input: {
     failSpawn(input.name, started.error, input.existingWorkId);
     return { ok: false, error: started.error };
   }
-  updateTeammate(input.name, { pid: started.pid });
+  updateTeammate(input.name, { pid: started.pid, envPolicy: started.envPolicy });
+  // The Work Item records where it ran. Pi resolves sessions from that path, so
+  // this is what lets a later attempt resume the working memory of this one;
+  // @fradser/pi-tasks deliberately stores no session identifier.
+  const contextWorkId = getTeammate(input.name)?.workId;
+  if (contextWorkId && isolation === "worktree") {
+    setTaskContext(contextWorkId, { workspacePath: workerCwd });
+  }
   // Keep starting until model activity or the unassigned child's native
   // readiness acknowledgement arrives; spawning alone does not prove idle.
   publishStateSnapshot();
@@ -736,7 +788,7 @@ export function unknownWorkerToolsError(unknown: readonly string[]): string {
   return [
     `Unknown tool id${unknown.length === 1 ? "" : "s"} for a teammate: ${unknown.join(", ")}.`,
     "A teammate child runs a bare pi process (--no-extensions), so only pi built-in tools plus the teammate capability set can be granted.",
-    `Valid ids: ${WORKER_TOOL_UNIVERSE.join(", ")}.`,
+    `Valid ids: ${workerToolUniverse(WORKER_CAPABILITY_TOOLS).join(", ")}.`,
     "MCP or project-extension tools cannot reach a teammate; perform that work in the leader session instead.",
   ].join(" ");
 }
@@ -815,18 +867,28 @@ export function buildSuccessorHandoff(kickoff: string | undefined, handoffFrom: 
   const reports = getState().leaderMailbox
     .filter((message) => message.from === handoffFrom)
     .slice(-3)
-    .map((message) => `- ${message.subject}: ${truncated(message.body, 1000)}`)
-    .join("\n");
+    .map((message) => `${message.subject}: ${truncated(message.body, 1000)}`);
   const assignment = prior?.assignment ?? prior?.lastAssignment;
   const taskId = prior?.currentTaskId ?? prior?.lastTaskId;
-  const handoff = [
+  // A structured brief rather than concatenated prose. @fradser/pi-tasks owns the shape, so
+  // a successor handoff, a recheck, and a standalone board all produce the same
+  // sections, and an oversized brief is clipped and marked instead of silently
+  // truncated. Prior reports go in `priorFindings` deliberately: that is the field
+  // a recheck must not lose when a reopen clears the result.
+  const { handoff } = buildWorkHandoff({
+    candidate: prior?.cwd ? `workspace ${prior.cwd}` : undefined,
+    delta: assignment ? `${assignment.kind} ${assignment.id}` : "assignment unavailable",
+    verification: taskId ? `prior board claim ${taskId}` : "no prior board claim",
+    priorFindings: reports.length > 0 ? reports : undefined,
+    outstanding: [
+      "Verify current files yourself; do not claim the predecessor's board Work unless the leader explicitly assigns it.",
+    ],
+  });
+  const brief = [
     `=== SUCCESSOR HANDOFF FROM @${handoffFrom} ===`,
-    assignment ? `Prior assignment: ${assignment.kind} ${assignment.id}` : "Prior assignment: unavailable",
-    taskId ? `Prior board claim: ${taskId}` : "Prior board claim: none",
-    reports ? `Recent leader reports:\n${reports}` : "Recent leader reports: none",
-    "Verify current files yourself; do not claim the predecessor's board task unless the leader explicitly assigns it.",
-  ].join("\n");
-  return [kickoff?.trim(), handoff].filter(Boolean).join("\n\n");
+    formatWorkHandoff(handoff),
+  ].filter(Boolean).join("\n");
+  return [kickoff?.trim(), brief].filter(Boolean).join("\n\n");
 }
 
 function teammateEnv(
@@ -834,6 +896,8 @@ function teammateEnv(
   input: { name: string; agent: string },
   spawnId: string,
   verify: string | undefined,
+  tools: readonly string[],
+  memoryEnabled: boolean,
 ): Record<string, string | undefined> {
   return {
     PI_TEAMMATE_WORKER_NAME: input.name,
@@ -846,6 +910,12 @@ function teammateEnv(
     PI_TEAMMATE_SUBMISSIONS_DIR: submissionsDir(boardDirectory()),
     PI_TEAMMATE_ROLE_AGENT: input.agent,
     PI_TEAMMATE_VERIFY_DEFAULT: verify ?? "",
+    // The subagent worker extension reads these. Named for that package rather
+    // than reusing PI_TEAMMATE_*, so the execution layer never has to learn this
+    // package's vocabulary.
+    [SUBAGENT_ROLE_ENV]: input.agent,
+    [SUBAGENT_TOOLS_ENV]: tools.join(","),
+    [SUBAGENT_MEMORY_ENV]: memoryEnabled ? "enabled" : "none",
   };
 }
 
@@ -879,12 +949,14 @@ function buildFreshAssignmentPrompt(teammate: Teammate, assignmentId: string, ta
   )}`;
 }
 
-function discardWorktreeQuietly(name: string): void {
-  const handle = liveWorktrees.get(name);
-  if (!handle || "error" in handle) return;
-  liveWorktrees.delete(name);
-  // A failed spawn never produced work; the empty branch goes too.
-  discardWorktree(handle);
+/** Undo a workspace only when this spawn created it and nothing ran in it. A
+ *  reused workspace is the Agent's home: it holds earlier attempts' committed work
+ *  and the Pi session group that is its working memory, so a failed spawn must
+ *  never remove it. */
+function discardWorkspaceQuietly(name: string, workspace: AgentWorkspace | undefined): void {
+  if (!workspace || workspace.isolation !== "worktree" || workspace.reused) return;
+  liveWorkspaces.delete(name);
+  releaseAgentWorkspace({ agentName: name, cwd: workspace.cwd });
 }
 
 function boardDirectory(): string {
@@ -1023,7 +1095,7 @@ function failSpawn(name: string, error: string, existingWorkId?: string): void {
   } else {
     releaseTasksOf(name, `Agent failed to start: ${error}`);
   }
-  discardWorktreeQuietly(name);
+  discardWorkspaceQuietly(name, liveWorkspaces.get(name));
   updateTeammate(name, { status: "stopped", error });
   if (teammate) {
     clearWorkerRunEvents(name, teammate.spawnId);
@@ -1165,69 +1237,48 @@ function summarizeShutdown(
 }
 
 async function finalizeWorktree(name: string): Promise<void> {
-  const handle = liveWorktrees.get(name);
-  if (!handle || "error" in handle) {
-    liveWorktrees.delete(name);
+  const workspace = liveWorkspaces.get(name);
+  if (!workspace || workspace.isolation !== "worktree") {
+    liveWorkspaces.delete(name);
     return;
   }
-  liveWorktrees.delete(name);
-  const captured = captureWorktreeDiff(handle);
-  // Cleanup commits any remaining work onto the kept branch before removing
-  // the directory: staging alone would die with the worktree.
-  const cleaned = cleanupWorktree(handle);
-  if (!captured.ok) {
-    // The branch survives cleanup, so nothing is lost; wake the leader with
-    // the recovery path because this requires a decision.
-    const body = `Capturing @${name}'s worktree diff failed (${captured.error}). The branch ${handle.branch} was kept; inspect it manually.`;
-    deliverToLeader({ from: name, subject: "Worktree diff capture failed", body });
+  // Durable: commit this attempt's output onto the Agent's branch and keep the
+  // directory, so its Pi session group survives as working memory for the next
+  // attempt. Completion never removes a workspace.
+  const preserved = preserveAgentWorkspace({ agentName: name, cwd: workspace.cwd });
+  const branch = workspace.branch ?? `agent/${name}`;
+  if (!preserved.ok) {
+    // Nothing was removed, so the work is still on disk. The leader has to decide:
+    // an uncommitted durable workspace can be disturbed by a later attempt.
+    const body = `Preserving @${name}'s workspace failed (${preserved.error}). The directory was left in place at ${workspace.cwd}; inspect and commit it manually.`;
+    deliverToLeader({ from: name, subject: "Workspace preservation failed", body });
     sendUpdate({
       teammate: name,
       origin: "harness",
-      harnessEvent: { type: "worktree-capture-failed", subject: `@${name} worktree diff capture failed` },
+      harnessEvent: { type: "workspace-preserve-failed", subject: `@${name} workspace preservation failed` },
       body,
       finished: false,
     });
     return;
   }
-  const changed = captured.diff.patch.trim().length > 0;
-  deliverToLeader({
-    from: name,
-    subject: "Worktree diff captured",
-    body: changed
-      ? `Agent @${name}'s worktree diff:\n\n=== Worktree changes ===\n${captured.diff.diffStat}\n\n${captured.diff.patch}`
-      : `Agent @${name}'s worktree diff:\n(no worktree changes)`,
+  // A durable workspace is not torn down, so there is no per-attempt diff to
+  // capture against a base commit: the branch accumulates across attempts and the
+  // directory stays as this Agent's home and Pi session group.
+  const summary = [
+    `Agent @${name}'s workspace was preserved${preserved.committed ? " and this attempt's output committed" : " (no uncommitted changes)"}.`,
+    `Workspace: ${workspace.cwd}`,
+    `Branch: ${branch}`,
+    "The directory is durable and is not removed on completion: it is this Agent's home, and Pi groups its sessions by working directory, so it is also the Agent's working memory.",
+  ].join("\n");
+  deliverToLeader({ from: name, subject: "Workspace preserved", body: summary });
+  sendUpdate({
+    teammate: name,
+    spawnId: getTeammate(name)?.spawnId,
+    origin: "harness",
+    harnessEvent: { type: "workspace-preserved", subject: `@${name} workspace preserved` },
+    body: `Workspace preserved for @${name} on ${branch}.`,
+    finished: false,
   });
-  // Changed work must reach the leader even though the worktree directory is
-  // gone: dispatch a bounded preview plus the branch retrieval command. A
-  // clean worktree carries no information and stays log-only.
-  if (changed) {
-    sendUpdate({
-      teammate: name,
-      spawnId: getTeammate(name)?.spawnId,
-      origin: "harness",
-      harnessEvent: { type: "worktree-changes", subject: `@${name} worktree changes captured` },
-      body: [
-        `Worktree changes captured for @${name} (${captured.diff.diffStat.trim() || "diff"}).`,
-        "",
-        truncated(captured.diff.patch),
-        "",
-        `Full diff: git diff ${handle.baseCommit}..${handle.branch}`,
-      ].join("\n"),
-      finished: false,
-    });
-  }
-  if (!cleaned.ok) {
-    const subject = cleaned.error?.includes("worktree left in place") ? "Worktree cleanup aborted" : "Worktree cleanup issue";
-    const body = `Cleaning up @${name}'s worktree reported problems (${cleaned.error ?? "unknown cleanup failure"}).`;
-    deliverToLeader({ from: name, subject, body });
-    sendUpdate({
-      teammate: name,
-      origin: "harness",
-      harnessEvent: { type: "worktree-cleanup-failed", subject: `@${name} worktree cleanup issue` },
-      body,
-      finished: false,
-    });
-  }
 }
 
 // ── Report outbox draining ────────────────────────────────────────
@@ -1275,7 +1326,7 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
     const taskId = teammate.currentTaskId;
     const task = taskId ? getTask(taskId) : undefined;
     if (teammate.assignment && taskId && task?.claimedBy === teammate.name
-      && (task.status === "claimed" || task.status === "superseded")) {
+      && (task.status === "in_progress" || task.status === "superseded")) {
       applySubmissionMarker({
         taskId, worker: teammate.name, spawnId: teammate.spawnId, assignmentId: teammate.assignment.id,
         status, result: record.body, timestamp: record.timestamp ?? Date.now(),
@@ -1369,7 +1420,7 @@ function submissionPending(teammate: Teammate): boolean {
   if (pending?.spawnId === teammate.spawnId && pending.assignmentId === teammate.assignment?.id) return true;
   const task = teammate.currentTaskId ? getState().tasks[teammate.currentTaskId] : undefined;
   return teammate.assignment?.kind === "direct" && teammate.assignment.closed === true
-    && task?.status === "claimed" && task.claimedBy === teammate.name;
+    && task?.status === "in_progress" && task.claimedBy === teammate.name;
 }
 
 function gateInFlight(teammate: Teammate): boolean {
@@ -1464,7 +1515,7 @@ export function assignExistingWork(workId: string, session: string): AssignExist
   const owner = teammate.name;
   const task = getState().tasks[workId];
   if (!teammate || teammate.status === "stopped") return { ok: false, error: `No living teammate named "${owner}".` };
-  if (task?.status === "claimed" && task.claimedBy === owner
+  if (task?.status === "in_progress" && task.claimedBy === owner
     && teammate.currentTaskId === workId && teammate.assignment && !teammate.assignment.closed) {
     return { ok: true, workId, owner, assignmentId: teammate.assignment.id };
   }
@@ -1520,7 +1571,7 @@ export type ReleaseExistingWorkResult =
  * submission/review authority before the single-writer state release. */
 export function releaseExistingWork(workId: string, reason: string): ReleaseExistingWorkResult {
   const task = getState().tasks[workId];
-  if (!task || task.status !== "claimed") return { ok: false, error: `Work Item "${workId}" is not claimed.` };
+  if (!task || task.status !== "in_progress") return { ok: false, error: `Work Item "${workId}" is not in progress.` };
   const holder = task.claimedBy ? getTeammate(task.claimedBy) : undefined;
   let holderStillRunning: string | undefined;
   if (holder) {
@@ -1620,7 +1671,7 @@ export function sendLeaderMessage(
         selectedWorkId ?? "",
         to,
         assignment,
-        retryReleasedWork ? "pending" : recoveringUnexpectedExecution ? "claimed" : "completed",
+        retryReleasedWork ? "pending" : recoveringUnexpectedExecution ? "in_progress" : "completed",
         recoveringUnexpectedExecution,
       );
       if (!reclaimed.ok) return reclaimed;
@@ -1787,7 +1838,7 @@ function applySubmissionMarker(intent: import("./types").TaskIntent): void {
   const task = getState().tasks[intent.taskId];
   const pending = pendingSubmissions.get(intent.worker);
   if (pending?.spawnId === intent.spawnId && pending.assignmentId === intent.assignmentId) return;
-  if (!task || (task.status !== "claimed" && task.status !== "superseded") || task.claimedBy !== intent.worker) {
+  if (!task || (task.status !== "in_progress" && task.status !== "superseded") || task.claimedBy !== intent.worker) {
     deliverFeedback(intent.worker, "Submission rejected", `Task "${intent.taskId}" is not currently yours.`);
     return;
   }
@@ -1923,7 +1974,7 @@ function resolveGateOutcome(
   if (registered?.submissionId === submissionId) verifyAborts.delete(intent.taskId);
   const current = getState().tasks[intent.taskId];
   const holder = getTeammate(intent.worker);
-  const stillHolds = current?.status === "claimed"
+  const stillHolds = current?.status === "in_progress"
     && current.claimedBy === intent.worker
     && holder?.spawnId === intent.spawnId
     && holder.assignment?.id === active.assignmentId

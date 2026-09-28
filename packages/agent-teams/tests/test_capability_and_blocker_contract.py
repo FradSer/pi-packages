@@ -12,11 +12,12 @@ def test_public_lifecycle_content_discloses_recorded_grant(tmp_path: Path, reque
       import assert from "node:assert/strict";
       import {{ registerLeaderTools }} from "{(SRC / 'tools.ts').as_uri()}";
       import {{ registerTeammate, resetState }} from "{(SRC / 'state.ts').as_uri()}";
-      import {{ resolveWorkerTools }} from "{(SRC / 'spawner.ts').as_uri()}";
+      import {{ resolveWorkerTools }} from "@fradser/pi-subagents";
+      import {{ WORKER_CAPABILITY_TOOLS }} from "{(SRC / 'capability-tools.ts').as_uri()}";
       resetState();
       const tools = new Map();
       const requested = {requested};
-      const grant = resolveWorkerTools(requested);
+      const grant = resolveWorkerTools(requested, WORKER_CAPABILITY_TOOLS);
       const runtime = {{
         spawnTeammate(input) {{
           const teammate = {{ name: input.name, agent: input.name, spawnId: "s1", status: "starting",
@@ -48,7 +49,7 @@ def test_inspect_uses_recorded_grant_not_current_definition(tmp_path: Path, reco
       import assert from "node:assert/strict";
       import {{ registerLeaderTools }} from "{(SRC / 'tools.ts').as_uri()}";
       import {{ registerTeammate, resetState }} from "{(SRC / 'state.ts').as_uri()}";
-      const {{ registerSessionAgent }} = await import("{(SRC / 'agents.ts').as_uri()}");
+      const {{ registerSessionAgent }} = await import("@fradser/pi-subagents");
       resetState();
       registerSessionAgent({{ name: "historical", description: "Changed role", prompt: "Changed role", tools: ["bash"] }});
       const tools = new Map();
@@ -81,7 +82,7 @@ def test_guidance_requires_failed_blockers_and_quiet_leader_handling() -> None:
 def test_public_submit_settlement_keeps_blocked_dependents(tmp_path: Path, outcome: str) -> None:
     payload = machine_case(tmp_path, f'''
       const {{ createWorkerFixture, assistant }} = await import("{(PACKAGE / 'tests' / 'automatic-results-fixture.ts').as_uri()}");
-      const {{ boardFilePath, submissionsDir }} = await import("{(SRC / 'statefile.ts').as_uri()}");
+      const {{ boardFilePath, submissionsDir }} = await import("@fradser/pi-tasks");
       const path = await import("node:path");
       const fixture = createWorkerFixture(root, "direct", "reviewer");
       const boardSubmissions = submissionsDir(path.dirname(boardFilePath(undefined, root)));
@@ -118,7 +119,7 @@ def test_inline_tools_schema_explains_least_privilege() -> None:
     run_node(f'''
       import assert from "node:assert/strict";
       import {{ InlineAgentDefinitionParams }} from "{(SRC / 'types.ts').as_uri()}";
-      import {{ WORKER_BUILTIN_TOOLS }} from "{(SRC / 'spawner.ts').as_uri()}";
+      import {{ WORKER_BUILTIN_TOOLS }} from "@fradser/pi-subagents";
       import {{ buildIdleLeaderGuidance }} from "{(SRC / 'guidance.ts').as_uri()}";
       for (const tool of WORKER_BUILTIN_TOOLS) {{
         assert.ok(InlineAgentDefinitionParams.properties.tools.description.includes(tool), `Schema missing ${{tool}}`);

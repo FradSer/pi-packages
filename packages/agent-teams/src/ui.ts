@@ -22,7 +22,7 @@ import {
   clampConsoleScroll, consoleScrollRange, maxConsoleBody, scrollConsoleDetail, wrapConsoleDetail,
 } from "./console-viewport.ts";
 import { formatTeammateLabel, runningTeammateActivity } from "./activity.ts";
-import { MODEL_INHERIT_ALIAS, discoverAgents, resolveAgent, type AgentDefinition } from "./agents.ts";
+import { MODEL_INHERIT_ALIAS, discoverAgents, resolveAgent, type AgentDefinition } from "@fradser/pi-subagents";
 import { getPeerDeliveryState, getState, getTeammate, getTeamDefaultModel, listTasks, listTeammates, livingTeammates, setTeamDefaultModel } from "./state.ts";
 import {
   currentLeaderModelRef,
@@ -166,6 +166,29 @@ function displaySource(sourcePath: string | undefined): string {
   return relative.startsWith("..") ? sourcePath : `./${relative}`;
 }
 
+/** Passive console telemetry for the spawn environment policy: names and counts
+ *  only, never a withheld value. Per ADR-0002 observation lives here rather than
+ *  in a leader notification, so a routine spawn never interrupts the leader.
+ *  child-env.ts already bounds the name list, so this renders it as given and
+ *  the console cannot drift from the diagnostic. */
+function buildEnvPolicyDetail(policy: Teammate["envPolicy"]): string[] {
+  if (!policy || policy.withheldCount === 0) return [];
+  const extra = policy.withheldSecretCount - policy.withheldSecretNames.length;
+  const names = policy.withheldSecretNames.length > 0
+    ? ` (credential-shaped: ${policy.withheldSecretNames.join(", ")}${extra > 0 ? `, +${extra} more` : ""})`
+    : "";
+  const lines = [
+    `  Env: ${policy.withheldCount} leader variable${policy.withheldCount === 1 ? "" : "s"} withheld${names}`,
+  ];
+  if (policy.missingAllowed.length > 0) {
+    lines.push(`  Env allow: requested but absent from the leader: ${policy.missingAllowed.join(", ")}`);
+  }
+  if (policy.flaggedAllowOverrides.length > 0) {
+    lines.push(`  Env allow: operator passes credential-shaped variables: ${policy.flaggedAllowOverrides.join(", ")}`);
+  }
+  return lines;
+}
+
 function buildTeammateDetail(name: string): string[] {
   const teammate = getTeammate(name);
   if (!teammate) return ["(teammate removed from the roster)"];
@@ -178,6 +201,7 @@ function buildTeammateDetail(name: string): string[] {
     `  Spawn: ${teammate.pid > 0 ? `pid ${teammate.pid}` : "pid unknown"} | Isolation: ${teammate.isolation}`,
     ...(teammate.model ? [`  Launch model: ${teammate.model}`] : []),
     ...(teammate.tools?.length ? [`  Tools: ${teammate.tools.join(", ")}`] : []),
+    ...buildEnvPolicyDetail(teammate.envPolicy),
     `  Created: ${new Date(teammate.createdAt).toLocaleString()}`,
   ];
   if (teammate.stoppedAt) lines.push(`  Stopped: ${new Date(teammate.stoppedAt).toLocaleString()}`);
@@ -481,7 +505,7 @@ export function openTeamConsole(ctx: {
     const headerLine = (): string => {
       const alive = livingTeammates();
       const tasks = listTasks();
-      return `team  ${alive.length} alive · ${alive.filter(isWorking).length} working · ${getRoles().length} roles · board ${tasks.filter((task) => task.status === "pending").length}p/${tasks.filter((task) => task.status === "claimed").length}c/${tasks.filter((task) => task.status === "completed").length}d/${tasks.filter((task) => task.status === "superseded").length}s · model ${getTeamDefaultModel() ?? "auto"} · ${page}`;
+      return `team  ${alive.length} alive · ${alive.filter(isWorking).length} working · ${getRoles().length} roles · board ${tasks.filter((task) => task.status === "pending").length}p/${tasks.filter((task) => task.status === "in_progress").length}c/${tasks.filter((task) => task.status === "completed").length}d/${tasks.filter((task) => task.status === "superseded").length}s · model ${getTeamDefaultModel() ?? "auto"} · ${page}`;
     };
 
     interface ContentLine {
@@ -526,7 +550,7 @@ export function openTeamConsole(ctx: {
         ? style.success("✓")
         : task.status === "superseded"
           ? style.dim("⊘ superseded")
-          : task.status === "claimed"
+          : task.status === "in_progress"
             ? theme.fg("warning", "◐ claimed")
             : style.dim("○ pending");
       return `${marker}${label} ${statusText} ${theme.fg("customMessageText", task.subject)}${holder}`;

@@ -9,11 +9,12 @@
  */
 
 import { contentDetailLines, detailField, displayText, fieldBlock, fieldLine, safeDisplayText, scrubHandles } from "@fradser/pi-kit";
-import { resolveAgent } from "./agents.ts";
+import { resolveAgent } from "@fradser/pi-subagents";
 import { runningTeammateActivity } from "./activity.ts";
 import { parseExactSessionRoute } from "./recipient.ts";
 import { getTask, getTeammate } from "./state.ts";
-import { resolveWorkerTools } from "./spawner.ts";
+import { resolveWorkerTools } from "@fradser/pi-subagents";
+import { WORKER_CAPABILITY_TOOLS } from "./capability-tools.ts";
 import type { BoardTask, Teammate } from "./types.ts";
 
 /** One rendered lifecycle row: the collapsed line plus its expanded body. */
@@ -91,7 +92,7 @@ const STATUS_WORDS: Record<string, string> = {
   idle: "idle",
   stopped: "stopped",
   pending: "pending",
-  claimed: "claimed",
+  in_progress: "in progress",
   completed: "completed",
   superseded: "superseded",
   sent: "sent",
@@ -238,7 +239,7 @@ function agentBody(
   }
   const role = roleLine(args, name);
   const resources = strings(args.resources);
-  const granted = teammate?.tools ?? resolveWorkerTools(strings(args.definition?.tools).length > 0 ? strings(args.definition?.tools) : resolveAgent(name)?.tools);
+  const granted = teammate?.tools ?? resolveWorkerTools(strings(args.definition?.tools).length > 0 ? strings(args.definition?.tools) : resolveAgent(name)?.tools, WORKER_CAPABILITY_TOOLS);
   // The spawn receipt carries the same coordination-only warning as inspection,
   // so delegate and start rows state the narrow grant they actually produced.
   const sessionWarning = detailField<string>(detailField(details, "session"), "warning");

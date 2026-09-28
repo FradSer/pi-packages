@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { runAgentAction } from "../src/agent-actions.ts";
-import { registerSessionAgent } from "../src/agents.ts";
+import { registerSessionAgent } from "@fradser/pi-subagents";
 import { registerTeammate, resetState } from "../src/state.ts";
 
 resetState();

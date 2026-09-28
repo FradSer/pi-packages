@@ -67,7 +67,7 @@ def test_leader_assignment_clears_recovery_and_claim_follows(tmp_path: Path) -> 
     }
     assert payload["recovered"] is True
     assert payload["after"] is None
-    assert payload["status"] == "claimed"
+    assert payload["status"] == "in_progress"
 
 
 def test_unassigned_discussion_and_board_notice_stay_usable(tmp_path: Path) -> None:

@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ExtensionAPI, ExtensionContext, ExtensionEvent, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { assistant } from "./automatic-results-fixture.ts";
-import { readJsonlBatch, readRoster, writeBoardFile, writeRoster } from "../src/statefile.ts";
+import { readJsonlBatch, readRoster, writeRoster } from "../src/statefile.ts";
+        import { writeBoardFile } from "@fradser/pi-tasks";
 import { registerWorkerCapabilities, workerBinding } from "../src/worker.ts";
 
 export { assistant };
@@ -20,11 +21,11 @@ export function createAttemptFixture(root: string, kind: "direct" | "board" | "n
       ...(kind === "none" ? {} : { currentTaskId: "work-1", assignment: { id: "attempt-1", kind, resources: [] } }) },
     { name: "peer", agent: "reader", spawnId: "peer-1", status: "idle" },
   ]);
-  const task = (id: string, status: "claimed" | "pending") => ({
+  const task = (id: string, status: "in_progress" | "pending") => ({
     id, subject: id, status, dependsOn: [], resources: [], createdAt: 1, updatedAt: 1,
-    ...(status === "claimed" ? { claimedBy: "worker" } : {}),
+    ...(status === "in_progress" ? { claimedBy: "worker" } : {}),
   });
-  writeBoardFile(binding.boardFile, { "work-1": task("work-1", "claimed"), "work-2": task("work-2", "pending") });
+  writeBoardFile(binding.boardFile, { "work-1": task("work-1", "in_progress"), "work-2": task("work-2", "pending") });
   type Handler = (event: ExtensionEvent, ctx: ExtensionContext) => unknown;
   const hooks = new Map<string, Handler[]>();
   const tools = new Map<string, ToolDefinition>();

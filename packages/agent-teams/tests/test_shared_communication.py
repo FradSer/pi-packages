@@ -60,10 +60,16 @@ def test_agent_event_registered_on_leader_and_worker():
 
 
 def test_agent_event_registered_on_worker_and_allowed_in_universe():
-    """Verify agent_event is registered on worker capabilities and accepted in WORKER_TOOL_UNIVERSE."""
+    """Verify agent_event is registered by this package's worker capabilities and
+    is grantable once that capability set is contributed to the spawn.
+
+    The universe is no longer a spawner constant: it is built from the capability
+    tools the loaded worker extensions declare, so this asserts the contribution
+    rather than a hardcoded list."""
     script = """
     import { registerWorkerCapabilities } from "./src/worker.ts";
-    import { unknownWorkerTools, WORKER_TOOL_UNIVERSE, resolveWorkerTools } from "./src/spawner.ts";
+    import { unknownWorkerTools, workerToolUniverse, resolveWorkerTools } from "@fradser/pi-subagents";
+    import { WORKER_CAPABILITY_TOOLS } from "./src/capability-tools.ts";
     
     const subscriptions = new Map();
     const registeredTools = new Map();
@@ -79,15 +85,22 @@ def test_agent_event_registered_on_worker_and_allowed_in_universe():
     registerWorkerCapabilities(fakePi);
     
     const hasWorkerEvent = registeredTools.has("agent_event");
-    const unknownWithEvent = unknownWorkerTools(["agent_event", "read"]);
-    const resolvedTools = resolveWorkerTools([]);
+    const unknownWithEvent = unknownWorkerTools(["agent_event", "read"], WORKER_CAPABILITY_TOOLS);
+    const resolvedTools = resolveWorkerTools([], WORKER_CAPABILITY_TOOLS);
+    // Every declared capability tool must be something this extension registers,
+    // otherwise a spawn advertises an id nothing implements.
+    const declaredButUnregistered = WORKER_CAPABILITY_TOOLS.filter((name) => !registeredTools.has(name));
+    // With no contributed capability set, nothing beyond pi built-ins is grantable.
+    const bareUnknown = unknownWorkerTools(["agent_event", "read"], []);
     
     console.log(JSON.stringify({
       hasWorkerEvent,
       lifecycleEvents: [...subscriptions.keys()],
       unknownWithEvent,
       hasInResolved: resolvedTools.includes("agent_event"),
-      universeHasEvent: WORKER_TOOL_UNIVERSE.includes("agent_event")
+      universeHasEvent: workerToolUniverse(WORKER_CAPABILITY_TOOLS).includes("agent_event"),
+      declaredButUnregistered,
+      bareUnknown
     }));
     """
     res = run_node(script)
@@ -98,6 +111,12 @@ def test_agent_event_registered_on_worker_and_allowed_in_universe():
     assert data["unknownWithEvent"] == []
     assert data["hasInResolved"] is True
     assert data["universeHasEvent"] is True
+    # The contributed set must name only tools this extension actually registers,
+    # so no spawn can advertise an id nothing implements.
+    assert data["declaredButUnregistered"] == []
+    # With nothing contributed, the coordination tools are correctly ungrantable:
+    # this is what keeps the execution layer honest when installed alone.
+    assert data["bareUnknown"] == ["agent_event"]
 
 
 def test_model_resolution_defaults_to_session_model_when_unset():

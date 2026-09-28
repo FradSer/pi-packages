@@ -1,6 +1,7 @@
 /**
  * Shared session files for the leader-owned snapshot, teammate outboxes and
- * inboxes, and the persistent task board.
+ * inboxes. The persistent task board lives in @fradser/pi-tasks; `sessionKey` comes from
+ * pi-kit so both packages agree on which session a directory belongs to.
  *
  * Runtime layout (removed at session shutdown):
  *   ~/.pi/agent/teammate/<sessionKey>/state.json      leader-owned snapshot
@@ -8,34 +9,26 @@
  *   ~/.pi/agent/teammate/<sessionKey>/mail/*.jsonl    peer inbox files
  *   ~/.pi/agent/teammate/<sessionKey>/roster.json     living teammates, worker-readable
  *
- * Board layout (persists across restarts, never auto-cleaned):
- *   ~/.pi/agent/tasks/<sessionKey>/board.json         leader-owned board file
- *   ~/.pi/agent/tasks/<sessionKey>/claims/*.json      exclusive-create claim intents
- *   ~/.pi/agent/tasks/<sessionKey>/submissions/*.json exclusive-create submit intents
- *
  * Concurrency: the parent is the sole writer of state.json and board.json
  * (atomic tmp+rename). Teammates append only to their own outbox, append to
  * recipient inboxes, and express board intent through exclusive-create files.
  */
 
-import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { TEAM_RUNTIME_VERSION, type TaskIntent, type TeamState, type WorkerEvent } from "./types.ts";
-
-const MAX_WORKER_EVENT_BYTES = 64 * 1024;
-const MAX_INBOX_MESSAGE_BYTES = 64 * 1024;
-const MAX_OUTBOX_READ_BYTES = 256 * 1024;
-const MAX_INTENT_BYTES = 16 * 1024;
-
-export function sessionKey(sessionFile: string | undefined, cwd: string): string {
-  return crypto
-    .createHash("sha256")
-    .update(sessionFile ?? cwd)
-    .digest("hex")
-    .slice(0, 16);
-}
+import {
+  appendJsonlLine,
+  readJsonlBatch,
+  safeFileName,
+  sessionKey,
+  writeJsonAtomic,
+} from "@fradser/pi-kit";
+// Re-exported so consumers of this module keep one import site for session
+// files. The implementations are pi-kit's: an incremental JSONL read and an
+// atomic replace are not agent-teams concepts.
+export { readJsonlBatch, writeJsonAtomic };
+import type { TeamState, WorkerEvent } from "./types.ts";
 
 export function sessionStateDir(sessionFile: string | undefined, cwd: string): string {
   return path.join(getAgentDir(), "teammate", sessionKey(sessionFile, cwd));
@@ -52,16 +45,12 @@ export function writeStateFile(file: string, state: TeamState): void {
 
 // ── Peer mail ─────────────────────────────────────────────────────
 
-function safeName(name: string): string {
-  return encodeURIComponent(name);
-}
-
 export function mailDir(stateFile: string): string {
   return path.join(path.dirname(stateFile), "mail");
 }
 
 export function inboxPath(stateFile: string, teammateName: string): string {
-  return path.join(mailDir(stateFile), `inbox-${safeName(teammateName)}.jsonl`);
+  return path.join(mailDir(stateFile), `inbox-${safeFileName(teammateName)}.jsonl`);
 }
 
 export function rosterPath(stateFile: string): string {
@@ -70,12 +59,7 @@ export function rosterPath(stateFile: string): string {
 
 /** Append one message to a teammate inbox. Sent means this write succeeded. */
 export function appendInboxMessage(file: string, message: { id: string; from: string; subject: string; body: string }): void {
-  const record = `${JSON.stringify(message)}\n`;
-  if (Buffer.byteLength(record, "utf-8") > MAX_INBOX_MESSAGE_BYTES) {
-    throw new Error(`Message exceeds ${MAX_INBOX_MESSAGE_BYTES} bytes.`);
-  }
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  fs.appendFileSync(file, record, { encoding: "utf-8", mode: 0o600 });
+  appendJsonlLine(file, message, { label: "Message" });
 }
 
 /** Publish the worker-readable roster of living teammates. */
@@ -94,57 +78,11 @@ export function readRoster(file: string): Array<{ name: string; agent: string; s
   }
 }
 
-/** Read complete JSONL records after byteOffset (shared by outboxes and inboxes). */
-export function readJsonlBatch(file: string, byteOffset: number, endOffset = Number.POSITIVE_INFINITY): {
-  records: unknown[];
-  nextOffset: number;
-  diagnostics: string[];
-} {
-  let fd: number | undefined;
-  try {
-    fd = fs.openSync(file, "r");
-    const size = fs.fstatSync(fd).size;
-    // A truncated/recreated file starts at zero; message ids make replay safe.
-    const offset = byteOffset > size ? 0 : Math.max(0, byteOffset);
-    const toRead = Math.max(0, Math.min(MAX_OUTBOX_READ_BYTES, Math.min(size, endOffset) - offset));
-    if (toRead === 0) return { records: [], nextOffset: offset, diagnostics: [] };
-    const raw = Buffer.allocUnsafe(toRead);
-    const bytesRead = fs.readSync(fd, raw, 0, toRead, offset);
-    const unread = raw.subarray(0, bytesRead);
-    const lastNewline = unread.lastIndexOf(0x0a);
-    if (lastNewline < 0) {
-      // A line larger than the batch cap is malformed for this protocol; skip
-      // this chunk so one sender cannot block draining indefinitely.
-      return {
-        records: [],
-        nextOffset: bytesRead === MAX_OUTBOX_READ_BYTES ? offset + bytesRead : offset,
-        diagnostics: ["malformed or unterminated record was consumed"],
-      };
-    }
-    const complete = unread.subarray(0, lastNewline).toString("utf-8");
-    const records: unknown[] = [];
-    const diagnostics: string[] = [];
-    for (const line of complete.split("\n")) {
-      if (!line.trim()) continue;
-      try {
-        records.push(JSON.parse(line));
-      } catch {
-        diagnostics.push("malformed JSON record was consumed");
-      }
-    }
-    return { records, nextOffset: offset + lastNewline + 1, diagnostics };
-  } catch {
-    return { records: [], nextOffset: 0, diagnostics: [] };
-  } finally {
-    if (fd !== undefined) fs.closeSync(fd);
-  }
-}
-
 // ── Report outboxes ───────────────────────────────────────────────
 
 /** Per-teammate append-only report log. Its filename cannot escape the dir. */
 export function workerOutboxPath(stateFile: string, workerName: string, spawnId: string): string {
-  return path.join(path.dirname(stateFile), "events", `${safeName(workerName)}.${safeName(spawnId)}.jsonl`);
+  return path.join(path.dirname(stateFile), "events", `${safeFileName(workerName)}.${safeFileName(spawnId)}.jsonl`);
 }
 
 /** Delete a drained per-spawn outbox after its final snapshot is published. */
@@ -154,161 +92,7 @@ export function removeWorkerOutbox(stateFile: string, workerName: string, spawnI
 
 /** Append one teammate report event. Workers never replace leader state. */
 export function appendWorkerEvent(file: string, event: WorkerEvent): void {
-  const record = `${JSON.stringify(event)}\n`;
-  if (Buffer.byteLength(record, "utf-8") > MAX_WORKER_EVENT_BYTES) {
-    throw new Error(`Worker event exceeds ${MAX_WORKER_EVENT_BYTES} bytes.`);
-  }
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  fs.appendFileSync(file, record, { encoding: "utf-8", mode: 0o600 });
-}
-
-// ── Persistent task board ─────────────────────────────────────────
-
-/** Root of all per-session board dirs (`~/.pi/agent/tasks/`). */
-export function tasksRoot(): string {
-  return path.join(getAgentDir(), "tasks");
-}
-
-export function boardDir(sessionFile: string | undefined, cwd: string): string {
-  return path.join(tasksRoot(), sessionKey(sessionFile, cwd));
-}
-
-export function boardFilePath(sessionFile: string | undefined, cwd: string): string {
-  return path.join(boardDir(sessionFile, cwd), "board.json");
-}
-
-export function claimsDir(boardDirectory: string): string {
-  return path.join(boardDirectory, "claims");
-}
-
-export function submissionsDir(boardDirectory: string): string {
-  return path.join(boardDirectory, "submissions");
-}
-
-export function readBoardFile(file: string): { tasks: Record<string, import("./types").BoardTask> } | undefined {
-  let raw: string;
-  try {
-    raw = fs.readFileSync(file, "utf-8");
-  } catch (error) {
-    // An absent board is a fresh session, not a data-loss event.
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    throw new Error(`Agent Teams Work snapshot at ${file} could not be read: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  let parsed: { runtimeVersion?: number; tasks?: Record<string, import("./types").BoardTask> };
-  try {
-    parsed = JSON.parse(raw) as { runtimeVersion?: number; tasks?: Record<string, import("./types").BoardTask> };
-  } catch {
-    // A present but unreadable board must never be treated as an empty board:
-    // callers archive the preserved file instead of silently losing work.
-    throw new Error(`Agent Teams Work snapshot at ${file} is not valid JSON; refusing to treat it as an empty board.`);
-  }
-  if (parsed.tasks && parsed.runtimeVersion !== TEAM_RUNTIME_VERSION) {
-    throw new Error(`Incompatible Agent Teams runtime snapshot version ${String(parsed.runtimeVersion)}; expected ${TEAM_RUNTIME_VERSION}.`);
-  }
-  return parsed.tasks ? { tasks: parsed.tasks } : undefined;
-}
-
-export function writeBoardFile(file: string, tasks: Record<string, import("./types").BoardTask>): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  writeJsonAtomic(file, { runtimeVersion: TEAM_RUNTIME_VERSION, tasks });
-}
-
-/**
- * Express a board intent through an exclusive-create marker file. Returns
- * true exactly when this caller won the race for the taskId.
- *
- * Publication is atomic: the record is fully written to a private temp file
- * and then hard-linked into place, so `link()` still fails with EEXIST for a
- * loser while a concurrent reader can never observe a partial record.
- */
-export function createTaskIntent(dir: string, taskId: string, intent: TaskIntent): boolean {
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const file = path.join(dir, `${safeName(taskId)}.json`);
-  const payload = JSON.stringify(intent);
-  if (Buffer.byteLength(payload, "utf-8") > MAX_INTENT_BYTES) {
-    throw new Error(`Task intent exceeds ${MAX_INTENT_BYTES} bytes.`);
-  }
-  const tmp = path.join(dir, `.${safeName(taskId)}.${process.pid}.${crypto.randomUUID()}.tmp`);
-  try {
-    fs.writeFileSync(tmp, payload, { encoding: "utf-8", mode: 0o600, flag: "wx" });
-    fs.linkSync(tmp, file);
-    return true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
-    throw error;
-  } finally {
-    fs.rmSync(tmp, { force: true });
-  }
-}
-
-/** An unparseable intent younger than this may still be mid-publish elsewhere. */
-export const INTENT_PUBLISH_GRACE_MS = 30_000;
-
-function olderThan(file: string, milliseconds: number): boolean {
-  try {
-    return Date.now() - fs.statSync(file).mtimeMs > milliseconds;
-  } catch {
-    return true;
-  }
-}
-
-/**
- * Drain one pending intent file. Malformed records are consumed and reported
- * so one broken file can never block the queue — but a record that cannot be
- * parsed yet is retried while it is younger than the publish grace, because a
- * destroyed in-flight intent would leave its author waiting forever.
- */
-export function takeTaskIntent(dir: string): { intent?: TaskIntent; diagnostic?: string } {
-  let entries: string[] = [];
-  try {
-    entries = fs.readdirSync(dir).filter((name) => name.endsWith(".json")).sort();
-  } catch {
-    return {};
-  }
-  for (const name of entries) {
-    const file = path.join(dir, name);
-    let raw: string;
-    try {
-      raw = fs.readFileSync(file, "utf-8");
-    } catch {
-      // Raced with a concurrent publish or removal; the next tick retries.
-      continue;
-    }
-    let parsed: Partial<TaskIntent>;
-    try {
-      parsed = JSON.parse(raw) as Partial<TaskIntent>;
-    } catch {
-      if (!olderThan(file, INTENT_PUBLISH_GRACE_MS)) continue;
-      fs.rmSync(file, { force: true });
-      return { diagnostic: `unreadable task intent "${name}" was consumed` };
-    }
-    fs.rmSync(file, { force: true });
-    if (
-      typeof parsed.taskId !== "string" || parsed.taskId.trim() === ""
-      || typeof parsed.worker !== "string" || parsed.worker.trim() === ""
-      || typeof parsed.spawnId !== "string" || parsed.spawnId.trim() === ""
-      || typeof parsed.timestamp !== "number" || !Number.isFinite(parsed.timestamp)
-    ) {
-      return { diagnostic: `malformed task intent "${name}" was consumed (requires non-empty taskId/worker/spawnId and finite timestamp)` };
-    }
-    if (parsed.status !== undefined && parsed.status !== "completed" && parsed.status !== "failed") {
-      return { diagnostic: `malformed task intent "${name}" was consumed (invalid submission status)` };
-    }
-    if (typeof parsed.result !== "undefined" && typeof parsed.result !== "string") {
-      return { diagnostic: `malformed task intent "${name}" was consumed (invalid submission result)` };
-    }
-    return { intent: parsed as TaskIntent };
-  }
-  return {};
-}
-
-// ── Atomic JSON IO ────────────────────────────────────────────────
-
-function writeJsonAtomic(file: string, value: unknown): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(value), { mode: 0o600 });
-  fs.renameSync(tmp, file);
+  appendJsonlLine(file, event, { label: "Worker event" });
 }
 
 // ── Expired runtime-dir cleanup ───────────────────────────────────

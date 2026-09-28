@@ -1,6 +1,11 @@
 import type { Static, TSchema, TString, TObject, TUnion } from "typebox";
 import { Type } from "typebox";
-import { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
+import { WORKER_BUILTIN_TOOLS, type ChildEnvDiagnostic } from "@fradser/pi-subagents";
+
+/** Spawn telemetry belongs to the execution layer; re-exported because `Teammate`
+ * below references it and a reader of this module should see where it comes from. */
+export type { WorkerUsage } from "@fradser/pi-subagents";
+import type { WorkerUsage } from "@fradser/pi-subagents";
 
 // ── Teammate ──────────────────────────────────────────────────────
 
@@ -72,6 +77,10 @@ export interface Teammate {
   /** Effective tool allowlist granted to the child process (role tools plus
    *  the capability set). Absent only for legacy snapshots. */
   tools?: string[];
+  /** What the spawn environment policy withheld from this child. Names and
+   *  counts only, never values. Console telemetry, never a leader
+   *  notification; absent for legacy snapshots. */
+  envPolicy?: ChildEnvDiagnostic;
   /** True once recognized model/stream activity was observed for this
    * incarnation; console telemetry only, never a leader notification. */
   modelOutputSeen?: boolean;
@@ -83,70 +92,12 @@ export interface Teammate {
 }
 
 // ── Task board ────────────────────────────────────────────────────
+// The Work Item data model lives in @fradser/pi-tasks. Re-exported here because the
+// coordination vocabulary below (Teammate, TeamState) references it and callers
+// read this module as the package's type surface.
 
-export const TaskStatus = Type.Union(
-  [
-    Type.Literal("pending"),
-    Type.Literal("claimed"),
-    Type.Literal("completed"),
-    Type.Literal("superseded"),
-  ],
-  { description: "Board lifecycle of a task" },
-);
-export type TaskStatus = Static<typeof TaskStatus>;
-
-/** One task on the shared board. Only the leader process writes board state. */
-export interface BoardTask {
-  id: string;
-  subject: string;
-  description?: string;
-  /** Task ids that must complete before this task is claimable. */
-  dependsOn: string[];
-  /** Completion gate: a review prompt a fresh one-shot reviewer answers with
-   *  VERDICT: PASS or FAIL; overrides the agent-role default. */
-  verify?: string;
-  /** Mutating work must use stable resource tags such as `firmware/sub-node`.
-   *  A resource conflicts with itself and any slash-prefixed descendant. */
-  resources: string[];
-  status: TaskStatus;
-  claimedBy?: string;
-  /** Replacement task that made this task obsolete. */
-  supersededBy?: string;
-  result?: string;
-  /** Deferred mail archived when an accepted result closes its Work Item. */
-  deferredMessages?: Array<{ from: string; subject: string; body: string; timestamp: number }>;
-  errorMessage?: string;
-  /** Failed/interrupted Work stays pending for inspection but cannot be
-   * autonomously claimed until the Leader deliberately authorizes recovery. */
-  recoveryRequired?: boolean;
-  createdAt: number;
-  updatedAt: number;
-  completedAt?: number;
-}
-
-/** A claim or submission intent expressed by a worker through marker files.
- * Workers never write the board file itself. `status` applies to submissions. */
-export interface TaskIntent {
-  taskId: string;
-  worker: string;
-  spawnId: string;
-  assignmentId?: string;
-  status?: "completed" | "failed";
-  result?: string;
-  timestamp: number;
-}
-
-// ── Spawn ─────────────────────────────────────────────────────────
-
-/** Token/cost usage reported by a teammate (accumulated across sequences). */
-export interface WorkerUsage {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite: number;
-  totalTokens: number;
-  cost: number;
-}
+export type { BoardTask, TaskIntent, TaskStatus } from "@fradser/pi-tasks";
+import type { BoardTask } from "@fradser/pi-tasks";
 
 // ── Mailbox ───────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
-import { AGENT_REFERENCE_PATH, formatAgentGuidance } from "./agents.ts";
-import { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
+import { AGENT_REFERENCE_PATH, formatAgentGuidance } from "@fradser/pi-subagents";
+import { WORKER_BUILTIN_TOOLS } from "@fradser/pi-subagents";
 
 // One delivery contract for both idle and active Leader prompts.
 const LEADER_DELIVERY_GUIDANCE = `

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { LeaderReport } from "../src/leader-reports.ts";
+import type { LeaderReport } from "@fradser/pi-subagents";
 import { getState, getTeammate, resetState } from "../src/state.ts";
 import { initTeamMachine, sendLeaderMessage, shutdownTeamMachine, shutdownTeammate, spawnTeammate } from "../src/team-machine.ts";
 

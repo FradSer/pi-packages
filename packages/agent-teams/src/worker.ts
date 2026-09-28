@@ -8,10 +8,13 @@ import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { truncateTail, type ExtensionAPI, type MessageEndEvent } from "@earendil-works/pi-coding-agent";
+import { setOwnedTools } from "@fradser/pi-kit";
+import { resourcesConflict, type TaskStatus } from "@fradser/pi-tasks";
 import { messageRow, workerWorkRow } from "./tool-copy.ts";
 import { emptyToolCall, renderCoordinationRow, textOf } from "./tool-render.ts";
 import { resolveRecipient } from "./recipient.ts";
-import { appendInboxMessage, appendWorkerEvent, createTaskIntent, readBoardFile, readRoster } from "./statefile.ts";
+import { appendInboxMessage, appendWorkerEvent, readRoster } from "./statefile.ts";
+import { createTaskIntent, readBoardFile } from "@fradser/pi-tasks";
 import {
   AgentEventParams,
   LEADER_RECIPIENT,
@@ -21,7 +24,7 @@ import {
 } from "./types.ts";
 
 const BOARD_DISCLOSURE_TOOLS = ["work"] as const;
-type BoardDisclosure = "none" | "notice" | "claimed";
+type BoardDisclosure = "none" | "notice" | "in_progress";
 
 export interface WorkerToolDisclosure {
   update(prompt: string): void;
@@ -32,10 +35,11 @@ function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
   let state: BoardDisclosure = "none";
   const apply = () => {
     if (typeof pi.getActiveTools !== "function" || typeof pi.setActiveTools !== "function") return;
-    const active = pi.getActiveTools();
-    const withoutBoardControls = active.filter((tool) => !BOARD_DISCLOSURE_TOOLS.includes(tool as typeof BOARD_DISCLOSURE_TOOLS[number]));
-    const revealed = state === "notice" || state === "claimed" ? ["work"] : [];
-    pi.setActiveTools([...withoutBoardControls, ...revealed]);
+    const revealed = state === "notice" || state === "in_progress" ? ["work"] : [];
+    // `work` is re-asserted from the owned set rather than the snapshot, so this
+    // disclosure write cannot deactivate a tool the harness has not published
+    // yet. See setOwnedTools.
+    setOwnedTools(pi, { owned: BOARD_DISCLOSURE_TOOLS, toggled: revealed, enabled: revealed.length > 0 });
   };
   return {
     update(prompt) {
@@ -48,7 +52,7 @@ function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
       // able to acknowledge it; hiding work here strands its resource lease.
       if (binding && rosterEntry && rosterEntry.spawnId === binding.spawnId
         && rosterEntry.status !== "stopped" && assignment) {
-        state = "claimed";
+        state = "in_progress";
       } else if (!assignment && prompt.includes("=== BOARD NOTICE ===")) state = "notice";
       else state = "none";
       apply();
@@ -99,14 +103,10 @@ function dependenciesMet(task: BoardTask, tasks: Map<string, BoardTask>): boolea
 }
 
 function taskCounts(tasks: BoardTask[], byId: Map<string, BoardTask>): string {
-  const counts = { pending: 0, claimed: 0, completed: 0, superseded: 0 };
+  const counts: Record<TaskStatus, number> = { pending: 0, in_progress: 0, completed: 0, superseded: 0 };
   for (const task of tasks) counts[task.status] += 1;
   const claimable = tasks.filter((task) => task.status === "pending" && !task.recoveryRequired && dependenciesMet(task, byId)).length;
-  return `tasks=${tasks.length} · pending=${counts.pending} (${claimable} claimable) · claimed=${counts.claimed} · completed=${counts.completed} · superseded=${counts.superseded}`;
-}
-
-function resourcesConflict(left: readonly string[] | undefined, right: readonly string[] | undefined): boolean {
-  return (left ?? []).some((a) => (right ?? []).some((b) => a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`)));
+  return `tasks=${tasks.length} · pending=${counts.pending} (${claimable} claimable) · in_progress=${counts.in_progress} · completed=${counts.completed} · superseded=${counts.superseded}`;
 }
 
 function claimRejection(binding: WorkerBinding, task: BoardTask): string | undefined {

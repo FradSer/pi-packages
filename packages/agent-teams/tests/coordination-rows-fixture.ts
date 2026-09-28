@@ -10,8 +10,9 @@ import { initTheme, keyHint, type ExtensionAPI, type ToolDefinition } from "@ear
 import { KeybindingsManager, setKeybindings, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from "@earendil-works/pi-tui";
 import agentTeams from "../src/index.ts";
 import { runAgentAction } from "../src/agent-actions.ts";
-import { resolveWorkerTools } from "../src/spawner.ts";
-import { clearSessionAgents, registerSessionAgent } from "../src/agents.ts";
+import { resolveWorkerTools } from "@fradser/pi-subagents";
+import { WORKER_CAPABILITY_TOOLS } from "../src/capability-tools.ts";
+import { clearSessionAgents, registerSessionAgent } from "@fradser/pi-subagents";
 import { registerLeaderTools } from "../src/tools.ts";
 import { registerWorkerCapabilities } from "../src/worker.ts";
 import {
@@ -58,7 +59,7 @@ const runtime = {
       model: input.model ?? "anthropic/claude-sonnet-4-5",
       // Honor the requested grant so a coordination-only spawn renders the same
       // narrow Tools and Warning lines the real receipt produces.
-      tools: resolveWorkerTools(input.definition?.tools ?? ["read", "bash"]),
+      tools: resolveWorkerTools(input.definition?.tools ?? ["read", "bash"], WORKER_CAPABILITY_TOOLS),
       ...(input.prompt ? {} : { assignment: undefined }),
     });
     return { ok: true as const, teammate: getTeammate(input.name)! };
@@ -200,13 +201,13 @@ expectReadable(createdRow, "work create row");
 assert.ok(createdRow.includes("routing · @ui-auditor"), `work create row missing routing:\n${createdRow}`);
 
 const listedRow = render("leader:work", { action: "list" }, {
-  details: { action: "list", outcome: "listed", count: 1, works: [{ id: task.ok ? task.task.id : "", subject: "Fix the spacing under the started row", dependsOn: [], resources: [], state: "claimed", claimedBy: "ui-auditor" }] },
+  details: { action: "list", outcome: "listed", count: 1, works: [{ id: task.ok ? task.task.id : "", subject: "Fix the spacing under the started row", dependsOn: [], resources: [], state: "in_progress", claimedBy: "ui-auditor" }] },
   text: "WORK · current session",
   expanded: true,
 });
 expectReadable(listedRow, "work list row");
 assert.ok(listedRow.includes("1 work item"), `work list row missing the count:\n${listedRow}`);
-assert.ok(listedRow.includes("· claimed · @ui-auditor"), `work list row missing state and owner:\n${listedRow}`);
+assert.ok(listedRow.includes("· in progress · @ui-auditor"), `work list row missing state and owner:\n${listedRow}`);
 
 // A long Work subject stays whole: the row fits it to the terminal and
 // expansion reveals it, so no fixed character cap may cut it short.

@@ -13,7 +13,7 @@ def test_incompatible_snapshot_is_archived_and_initialization_continues(tmp_path
         ["node", "--input-type=module", "--eval", textwrap.dedent(f'''
         import assert from "node:assert/strict";
         import fs from "node:fs";
-        import {{ boardFilePath }} from "./src/statefile.ts";
+        import {{ boardFilePath }} from "@fradser/pi-tasks";
         import {{ initTeamMachine, shutdownTeamMachine }} from "./src/team-machine.ts";
         const cwd = {str(tmp_path)!r};
         const board = boardFilePath(undefined, cwd);
@@ -39,7 +39,7 @@ def test_unreadable_snapshot_is_archived_instead_of_silently_emptied(tmp_path):
         ["node", "--input-type=module", "--eval", textwrap.dedent(f'''
         import assert from "node:assert/strict";
         import fs from "node:fs";
-        import {{ boardFilePath }} from "./src/statefile.ts";
+        import {{ boardFilePath }} from "@fradser/pi-tasks";
         import {{ initTeamMachine, shutdownTeamMachine }} from "./src/team-machine.ts";
         import {{ listTasks }} from "./src/state.ts";
         const cwd = {str(tmp_path)!r};

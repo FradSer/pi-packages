@@ -18,11 +18,12 @@ const child = Object.assign(new EventEmitter(), {
 mock.method(childProcess, "spawn", () => child);
 syncBuiltinESMExports();
 
-const { spawnResident } = await import("../src/spawner.ts");
+const { spawnResident } = await import("@fradser/pi-subagents");
 const { initTeamMachine, processTaskIntents, shutdownTeamMachine } = await import("../src/team-machine.ts");
 const { createTask, getState, registerTeammate, resetState } = await import("../src/state.ts");
 const { registerWorkerCapabilities } = await import("../src/worker.ts");
-const { boardFilePath, claimsDir, inboxPath, rosterPath, stateFilePath, submissionsDir, workerOutboxPath, writeBoardFile, writeRoster } = await import("../src/statefile.ts");
+const { inboxPath, rosterPath, stateFilePath, workerOutboxPath, writeRoster } = await import("../src/statefile.ts");
+        const { boardFilePath, claimsDir, submissionsDir, writeBoardFile } = await import("@fradser/pi-tasks");
 const { WorkerWorkToolParams } = await import("../src/types.ts");
 
 const root = process.env.PI_TEST_DIR;
@@ -80,7 +81,7 @@ assert.equal(queued.details.outcome, "queued");
 assert.equal(getState().tasks[task.id]?.status, "pending");
 assert.equal(getState().tasks[task.id]?.claimedBy, undefined);
 processTaskIntents();
-assert.equal(getState().tasks[task.id]?.status, "claimed");
+assert.equal(getState().tasks[task.id]?.status, "in_progress");
 assert.equal(getState().tasks[task.id]?.claimedBy, worker.name);
 child.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\n");
 await new Promise((resolve) => setImmediate(resolve));
@@ -96,11 +97,11 @@ await tools.get("work_message")?.({ role: "user", content: acceptedPrompt, times
 const submitted = await work.execute("submit", { action: "submit", outcome: "success", result: "fixed" });
 assert.equal(submitted.details.action, "submit");
 assert.equal(submitted.details.outcome, "queued");
-assert.equal(getState().tasks[task.id]?.status, "claimed");
+assert.equal(getState().tasks[task.id]?.status, "in_progress");
 assert.equal(fs.readdirSync(submissionsDir(boardRoot)).length, 1);
 
 const directTask = createTask({ subject: "Direct owned Work" }).task;
-getState().tasks[directTask.id].status = "claimed";
+getState().tasks[directTask.id].status = "in_progress";
 getState().tasks[directTask.id].claimedBy = worker.name;
 getState().teammates.worker.assignment = { id: "direct:s1", kind: "direct", resources: [] };
 getState().teammates.worker.currentTaskId = directTask.id;

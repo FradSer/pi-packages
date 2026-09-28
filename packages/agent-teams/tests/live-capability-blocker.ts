@@ -6,7 +6,7 @@ import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-w
 import { registerLeaderTools } from "../src/tools.ts";
 import { initTeamMachine, shutdownTeamMachine, teardownTeammates } from "../src/team-machine.ts";
 import { getTask, resetState } from "../src/state.ts";
-import type { LeaderReport } from "../src/leader-reports.ts";
+import type { LeaderReport } from "@fradser/pi-subagents";
 
 const model = process.env.LIVE_AGENT_WORK_MODEL;
 assert.ok(model, "Select an authenticated model explicitly for this opt-in test");

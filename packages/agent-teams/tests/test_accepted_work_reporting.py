@@ -133,7 +133,7 @@ def test_failure_settles_before_release_and_reports_once(tmp_path: Path, channel
         console.log(JSON.stringify({{ before, after: getTask(task.id).status, error: getTask(task.id).errorMessage,
           reports: reports.filter(r => r.finished), reminders: reminders(), attempt }}));
     ''')
-    assert payload["before"] == "claimed"
+    assert payload["before"] == "in_progress"
     assert payload["after"] == "pending"
     assert payload["error"] == "Provider unavailable"
     assert payload["reminders"] == []
@@ -204,7 +204,7 @@ def test_stale_submission_cannot_finish_reassigned_work(tmp_path: Path) -> None:
         console.log(JSON.stringify({ state: getTask(task.id).status, attempt: getTeammate("reviewer").assignment?.id,
           newAttempt, reports: reports.filter(r => r.finished) }));
     ''')
-    assert payload["state"] == "claimed"
+    assert payload["state"] == "in_progress"
     assert payload["attempt"] == payload["newAttempt"]
     assert payload["reports"] == []
 
@@ -249,7 +249,7 @@ def test_ordinary_mail_does_not_unpark_verification(tmp_path: Path, verdict: str
           feedback: reminders().map(r => r.body) }}));
     ''')
     feedback = payload.pop("feedback")
-    assert payload == {"reviews": 2, "state": "claimed", "owner": "reviewer"}
+    assert payload == {"reviews": 2, "state": "in_progress", "owner": "reviewer"}
     assert any("Work release and reassignment" in body for body in feedback)
     assert not any("explicit leader steer" in body for body in feedback)
 

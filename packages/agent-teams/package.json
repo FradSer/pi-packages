@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-agent-teams",
   "version": "0.10.0",
-  "description": "Multi-agent team system for Pi \u2014 resident teammates, shared task board, and peer-to-peer messaging",
+  "description": "Multi-agent team system for Pi — resident teammates, shared task board, and peer-to-peer messaging",
   "keywords": [
     "pi-package",
     "teammates",
@@ -39,6 +39,8 @@
     ]
   },
   "dependencies": {
-    "@fradser/pi-kit": "workspace:*"
+    "@fradser/pi-kit": "workspace:*",
+    "@fradser/pi-subagents": "workspace:*",
+    "@fradser/pi-tasks": "workspace:*"
   }
 }

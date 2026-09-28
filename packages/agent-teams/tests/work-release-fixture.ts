@@ -38,7 +38,7 @@ assert.equal(getState().teammates.holder.assignment, undefined);
 const superseded = createTask({ subject: "Superseded held" }).task;
 applyClaimIntent({ taskId: superseded.id, worker: "holder", spawnId: "s1", timestamp: 2 });
 getState().tasks[superseded.id].status = "superseded";
-await assert.rejects(work.execute("superseded", { action: "release", id: superseded.id, reason: "not leader release" }), /not claimed/i);
+await assert.rejects(work.execute("superseded", { action: "release", id: superseded.id, reason: "not leader release" }), /not in progress/i);
 assert.equal(getState().tasks[superseded.id]?.status, "superseded");
 updateTeammate("holder", { assignment: undefined, currentTaskId: undefined });
 getState().tasks[superseded.id].claimedBy = undefined;
@@ -57,9 +57,9 @@ assert.equal(getState().tasks[gated.id]?.status, "pending");
 assert.equal(getState().tasks[gated.id]?.claimedBy, undefined);
 setVerifyGateRunner(undefined);
 
-await assert.rejects(work.execute("pending", { action: "release", id: "held-work", reason: "again" }), /not claimed/i);
+await assert.rejects(work.execute("pending", { action: "release", id: "held-work", reason: "again" }), /not in progress/i);
 getState().tasks["held-work"].status = "completed";
-await assert.rejects(work.execute("completed", { action: "release", id: "held-work", reason: "again" }), /not claimed/i);
+await assert.rejects(work.execute("completed", { action: "release", id: "held-work", reason: "again" }), /not in progress/i);
 
 shutdownTeamMachine();
 console.log("WORK_RELEASE_OK");

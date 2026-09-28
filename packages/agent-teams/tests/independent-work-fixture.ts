@@ -15,7 +15,7 @@ mock.method(childProcess, "spawn", () => {
 syncBuiltinESMExports();
 
 const { registerLeaderTools } = await import("../src/tools.ts");
-const { clearSessionAgents, registerSessionAgent } = await import("../src/agents.ts");
+const { clearSessionAgents, registerSessionAgent } = await import("@fradser/pi-subagents");
 const { getState, resetState } = await import("../src/state.ts");
 const { initTeamMachine, shutdownTeamMachine } = await import("../src/team-machine.ts");
 const { SessionManager } = await import("@earendil-works/pi-coding-agent");

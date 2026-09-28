@@ -13,7 +13,7 @@ child.stderr = new PassThrough();
 child.stdin = new Writable({ write(chunk, _encoding, callback) { commands.push(JSON.parse(String(chunk))); callback(); } });
 mock.method(childProcess, "spawn", () => child);
 syncBuiltinESMExports();
-const { spawnResident, sendWorkerSteer, sendWorkerFollowUp } = await import("../src/spawner.ts");
+const { spawnResident, sendWorkerSteer, sendWorkerFollowUp } = await import("@fradser/pi-subagents");
 const updates: Array<{ finalResponse?: boolean; controlError?: string }> = [];
 spawnResident({ workerName: "fixture", onUpdate: (update) => updates.push(update), onExit: () => {} });
 sendWorkerFollowUp("fixture", "peer");
@@ -47,7 +47,7 @@ try {
   appendWorkerEvent(outbox, { id: "terminal", type: "message", worker: "fixture", spawnId: "s", assignmentId: "old", body: "done", status: "completed" });
   drainTeammateOutboxes();
   assert.equal(getTeammate("fixture")?.status, "working", "Terminal report cannot settle execution");
-  const { deliverFreshAssignment } = await import("../src/spawner.ts");
+  const { deliverFreshAssignment } = await import("@fradser/pi-subagents");
   // Exercise the transport after explicit lifecycle authorization, not a
   // removed message-owned reopen operation.
   const freshDelivery = deliverFreshAssignment("fixture", "[agent-teams-assignment:direct:new]\ndistinct new work");

@@ -125,6 +125,38 @@ Leader guidance uses the same delivery contract before and after a team starts:
 
 Read [the role reference](references/agent-roles.md#assignment-brief) when preparing an assignment brief.
 
+## Child environment
+
+A spawned Agent receives an explicit non-secret environment, never the leader's
+complete one. The allowlist covers runtime and locale, editor and pager, Git and
+`SSH_AUTH_SOCK`, proxy and trust anchors, Node and language toolchain locations,
+and the Pi process markers and configuration. `PI_CODING_AGENT_DIR` passes
+through so the child resolves the same `auth.json` and `models.json` as the
+leader; that is where Pi keeps OAuth credentials and literal `apiKey` values, so
+a child needs the config directory rather than the parent's credential set.
+
+Add an exact name to `PI_TEAMMATE_ENV_ALLOW` (comma-separated) when a provider
+resolves credentials through environment interpolation:
+
+```bash
+export PI_TEAMMATE_ENV_ALLOW="MY_PROVIDER_API_KEY,AWS_PROFILE"
+```
+
+Opting in a credential-shaped name works and is reported, so a widening stays
+visible. The allowlist variable itself does not travel to the child, so a nested
+spawn reaches its own strict default. Spawn bindings the harness supplies always
+win over both the allowlist and the leader environment.
+
+The withheld count, the credential-shaped names, and the recovery instruction
+appear in the `/agent-teams` detail view. That stays passive console telemetry
+and never wakes the leader. Names embedding a private URL — npm's
+`npm_config_//registry.example.com/:_authToken` shape — are redacted to a
+recognizable prefix, and no withheld value is ever rendered.
+
+This is leakage defense, not containment. A child granted `bash` can still read
+`~/.pi/agent/auth.json`, `~/.aws/credentials`, or a project `.env` from disk;
+kernel write and read confinement is a separate layer that does not exist yet.
+
 ## Message display
 
 Collapsed `[message]` rows use the current terminal width for their preview and

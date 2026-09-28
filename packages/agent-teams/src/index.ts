@@ -8,7 +8,7 @@
 import { getMarkdownTheme, keyHint, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildIdleLeaderGuidance, buildTeamLeaderGuidance, WORKER_GUIDANCE } from "./guidance.ts";
-import { clearSessionAgents } from "./agents.ts";
+import { clearSessionAgents } from "@fradser/pi-subagents";
 import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownTeammates } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
 import { getTask, getTeammate, livingTeammates, listTasks, resetState } from "./state.ts";
@@ -17,7 +17,7 @@ import { registerLeaderTools, registerTeamCommand } from "./tools.ts";
 import { registerWorkerCapabilities, workerBinding } from "./worker.ts";
 import { plainText } from "./tool-copy.ts";
 import { agentColor, bindLifecycleRenderers, clearPiStatus, createToolExecutionWrapper, eventToolLifecycle, formatAgentMessagePrefix, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
-import { annotateReportDelivery, formatReports, groupReportsByTeammate, TEAMMATE_HARNESS_MESSAGE_TYPE, TEAMMATE_REPORT_MESSAGE_TYPE, type LeaderReport } from "./leader-reports.ts";
+import { annotateReportDelivery, formatReports, groupReportsByTeammate, TEAMMATE_HARNESS_MESSAGE_TYPE, TEAMMATE_REPORT_MESSAGE_TYPE, type LeaderReport } from "@fradser/pi-subagents";
 import { Box, Markdown, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 /** Geometry bound once: harness event rows share hint and wrapping. */

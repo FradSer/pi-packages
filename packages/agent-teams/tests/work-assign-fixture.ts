@@ -16,10 +16,10 @@ const child = Object.assign(new EventEmitter(), {
 mock.method(childProcess, "spawn", () => child);
 syncBuiltinESMExports();
 
-const { spawnResident } = await import("../src/spawner.ts");
+const { spawnResident } = await import("@fradser/pi-subagents");
 const { registerLeaderTools } = await import("../src/tools.ts");
 const { initTeamMachine, shutdownTeamMachine } = await import("../src/team-machine.ts");
-const { registerSessionAgent } = await import("../src/agents.ts");
+const { registerSessionAgent } = await import("@fradser/pi-subagents");
 const { getState, registerTeammate, resetState } = await import("../src/state.ts");
 const { WorkToolParams } = await import("../src/types.ts");
 const { readRoster, rosterPath, stateFilePath } = await import("../src/statefile.ts");
@@ -47,7 +47,7 @@ const assigned = await work.execute("assign", { action: "assign", id: workId, ta
 assert.equal(assigned.details.action, "assign");
 assert.equal(assigned.details.outcome, "assigned");
 assert.equal(assigned.details.work.id, workId);
-assert.equal(assigned.details.work.state, "claimed");
+assert.equal(assigned.details.work.state, "in_progress");
 assert.equal(assigned.details.work.claimedBy, "resident");
 assert.deepEqual(getState().teammates.resident.assignment?.resources, ["firmware/storage"]);
 assert.equal(getState().teammates.resident.currentTaskId, workId);
