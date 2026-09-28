@@ -1,0 +1,399 @@
+/**
+ * The `agent` tool: child process lifecycle, and nothing else.
+ *
+ * Four actions. `start` spawns, optionally with a prompt; `inspect` and `stop`
+ * address one incarnation by its exact handle; `list` enumerates. There is no
+ * action that records work, and none that talks to a peer — a task belongs to
+ * `@fradser/pi-tasks` and a conversation to `@fradser/pi-agent-teams`.
+ *
+ * **Why `delegate` and `start` are one action.** They were the same operation
+ * dispatched twice, and the only difference was whether a prompt was delivered.
+ * Two names for one operation means the model has to decide which of two
+ * identically-shaped spawn paths it meant, and the wrong one is invisible. One
+ * action with an optional `prompt` makes the choice explicit and local: either
+ * there is something to hand over now, or there is not.
+ *
+ * **Spawning does not create a task.** A prompted child's result arrives in the
+ * caller's transcript. Anything that needs a record — dependencies, a completion
+ * gate, a resource lease, survival across attempts — is a `task` the caller
+ * creates, and a participant takes it. That is why no action here accepts a
+ * verify gate, a resource list, or a subject: there is no task to attach them to.
+ *
+ * **The coordinator is optional.** A richer host (board notices, assignment
+ * authority, a fresh session per assignment) publishes itself through
+ * `setAgentHost` when a team runtime is loaded. Without one, this tool falls back
+ * to the raw spawner, which is what makes `@fradser/pi-subagents` installable and
+ * usable on its own.
+ */
+
+import { randomUUID } from "node:crypto";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { resolveAgent } from "./agents.ts";
+import { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
+import { listTeammates, livingTeammates, registerTeammate, updateTeammate, type Teammate } from "./roster.ts";
+import { exactSessionRoute, parseExactSessionRoute, resolveExactSession } from "./session-route.ts";
+import { spawnResident, terminateTeammate, deliverPrompt } from "./spawner.ts";
+import { snapshotWorkContext } from "./work-context.ts";
+
+/** Tool ids this extension registers. Declared so a spawner can grant it without
+ *  hardcoding a name. */
+export const AGENT_CAPABILITY_TOOLS: readonly string[] = ["agent"];
+
+/** What a caller may ask for when starting an agent. */
+export interface AgentStartRequest {
+  name: string;
+  /** Deliver this immediately. Omit to leave the agent idle. */
+  prompt?: string;
+  /** Inline role for a name that has no persisted definition. */
+  definition?: { description: string; prompt: string; tools?: string[]; model?: string };
+  model?: string;
+  tools?: string[];
+  /** Seed the child with a snapshot of the caller's active context. */
+  fork?: boolean;
+}
+
+/** A richer spawn/close path published by a team runtime. */
+export interface AgentHost {
+  start(request: AgentStartRequest): { ok: true; session: string } | { ok: false; error: string };
+  stop(name: string, spawnId: string): Promise<{ ok: true; body?: string } | { ok: false; error: string }>;
+}
+
+let agentHost: AgentHost | undefined;
+
+/** Publish the coordinator's richer spawn path. Called by a team runtime at
+ *  session start; absent leaves this tool on the raw spawner. */
+export function setAgentHost(host: AgentHost | undefined): void {
+  agentHost = host;
+}
+
+export function resolveAgentHost(): AgentHost | undefined {
+  return agentHost;
+}
+
+const NAME_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/i;
+
+const nameField = {
+  type: "string",
+  minLength: 1,
+  maxLength: 64,
+  pattern: "^[A-Za-z][A-Za-z0-9._-]*$",
+  description: "Agent name: letters first, then letters, digits, dots, dashes, underscores.",
+};
+
+const sessionField = {
+  type: "string",
+  minLength: 1,
+  description: "Exact session handle, as returned by start or list. One incarnation, permanently.",
+};
+
+const toolsField = {
+  type: "array",
+  items: { type: "string" },
+  description: `Explicit minimal tool grant. Canonical built-ins: ${WORKER_BUILTIN_TOOLS.join(", ")}. Omit for the role's own grant, or pass [] for a child with no file or shell access.`,
+};
+
+/** A flat schema. The only nesting is the inline role definition, which is
+ *  genuinely structured rather than a string that has to be re-parsed. */
+export const AGENT_TOOL_PARAMS = {
+  type: "object",
+  properties: {
+    action: {
+      type: "string",
+      enum: ["start", "inspect", "list", "stop"],
+      description: "start spawns a child; inspect reports one incarnation; list enumerates children; stop terminates one incarnation.",
+    },
+    name: { ...nameField, description: "start: the new agent's name. inspect: unused; use session." },
+    prompt: {
+      type: "string",
+      description: "start: hand the agent something to do now. Omit to leave it idle, waiting for work assigned to it.",
+    },
+    session: sessionField,
+    description: { type: "string", description: "start: what the role is for, when no persisted definition matches the name." },
+    role_prompt: { type: "string", description: "start: the role's standing instructions." },
+    tools: { ...toolsField, description: "start: minimal grant for an inline role." },
+    model: { type: "string", description: "start: provider/model pin, or omit to inherit." },
+    fork: {
+      type: "boolean",
+      description: "start: seed the child with a snapshot of this session's active context. Legal with or without a prompt.",
+    },
+  },
+  required: ["action"],
+  additionalProperties: false,
+} as const;
+
+interface AgentToolResult {
+  content: Array<{ type: "text"; text: string }>;
+  details: Record<string, unknown>;
+  isError?: boolean;
+}
+
+function fail(message: string): AgentToolResult {
+  return { content: [{ type: "text", text: message }], details: { ok: false, error: message }, isError: true };
+}
+
+function ok(body: string, details: Record<string, unknown>): AgentToolResult {
+  return { content: [{ type: "text", text: body }], details: { ...details, ok: true } };
+}
+
+/** The projected view of one child. `tools` is included because the effective
+ *  grant is the one thing a caller routinely gets wrong by assumption. */
+function project(teammate: Teammate) {
+  return {
+    name: teammate.name,
+    session: teammate.spawnId ? exactSessionRoute(teammate.name, teammate.spawnId) : undefined,
+    status: teammate.status,
+    role: teammate.agent,
+    ...(teammate.currentTaskId ? { currentTaskId: teammate.currentTaskId } : {}),
+    ...(teammate.assignment ? { assignment: teammate.assignment } : {}),
+    ...(teammate.tools ? { tools: teammate.tools } : {}),
+    ...(teammate.model ? { model: teammate.model } : {}),
+    ...(teammate.pid ? { pid: teammate.pid } : {}),
+    ...(teammate.error ? { error: teammate.error } : {}),
+  };
+}
+
+export interface AgentToolOptions {
+  cwd?: string;
+  /** Injectable so the surface is testable without a real child process. */
+  spawn?: typeof spawnResident;
+  terminate?: typeof terminateTeammate;
+  deliver?: typeof deliverPrompt;
+  contextMessages?: () => unknown;
+}
+
+/** The parameter names the schema declares. A caller that invents one is either
+ *  confused about the surface or coming from an older version of it, and both are
+ *  worth a refusal rather than a silent drop. */
+const KNOWN_PARAMS = new Set(Object.keys(AGENT_TOOL_PARAMS.properties));
+
+export async function executeAgentAction(
+  params: Record<string, unknown>,
+  options: AgentToolOptions = {},
+): Promise<AgentToolResult> {
+  const unknownFields = Object.keys(params).filter((key) => !KNOWN_PARAMS.has(key));
+  if (unknownFields.length > 0) {
+    return fail(
+      `Unknown agent parameter${unknownFields.length === 1 ? "" : "s"}: ${unknownFields.join(", ")}. `
+      + `This tool takes: ${[...KNOWN_PARAMS].sort().join(", ")}.`,
+    );
+  }
+  const action = typeof params.action === "string" ? params.action : "";
+  const str = (key: string): string | undefined => {
+    const value = params[key];
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  };
+  const strArray = (key: string): string[] | undefined => {
+    const value = params[key];
+    if (value === undefined) return undefined;
+    if (!Array.isArray(value)) throw new Error(`Parameter "${key}" must be an array of strings.`);
+    return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+  };
+
+  if (action === "start") {
+    const name = str("name");
+    if (!name) return fail("Starting an agent requires a name.");
+    if (!NAME_PATTERN.test(name)) {
+      return fail(`Invalid agent name "${name}". Use letters, digits, dots, dashes, underscores.`);
+    }
+    const description = str("description");
+    const rolePrompt = str("role_prompt");
+    if ((description === undefined) !== (rolePrompt === undefined)) {
+      return fail("An inline role needs both description and role_prompt, or neither. Omit both to use a persisted definition.");
+    }
+    const resolved = resolveAgent(name, options.cwd);
+    // No definition is not an error, and neither is no prompt. `start` with only
+    // a name is the idle-resident case: a child that will take work assigned to
+    // it. Demanding a role or a prompt first would make the two normal spawn
+    // shapes — do this one thing, or sit ready for work — the exceptional ones.
+    // The effective grant is reported back so the caller can see what it got.
+    const request: AgentStartRequest = {
+      name,
+      ...(str("prompt") ? { prompt: str("prompt") } : {}),
+      ...(description && rolePrompt
+        ? {
+          definition: {
+            description,
+            prompt: rolePrompt,
+            ...(strArray("tools") ? { tools: strArray("tools") } : {}),
+            ...(str("model") ? { model: str("model") } : {}),
+          },
+        }
+        : {}),
+      ...(resolved ? { agent: resolved } as never : {}),
+      ...(str("model") ? { model: str("model") } : {}),
+      ...(strArray("tools") ? { tools: strArray("tools") } : {}),
+      ...(params.fork === true ? { fork: true } : {}),
+    };
+
+    // Prefer the coordinator when one is loaded: it owns assignment authority,
+    // board notices, and the fresh-session rule a team depends on.
+    const host = resolveAgentHost();
+    if (host) {
+      const started = host.start(request);
+      if (!started.ok) return fail(started.error);
+      return ok(
+        [
+          `AGENT · ${name} · started · ${started.session}`,
+          ...(request.prompt ? ["WORKING · a prompt was delivered"] : ["IDLE · no prompt; it will take work assigned to it"]),
+        ].join("\n"),
+        { action: "start", outcome: "started", name, session: started.session, prompted: Boolean(request.prompt) },
+      );
+    }
+
+    // Standalone: the raw spawner, with the roster as the only coordination.
+    const spawn = options.spawn ?? spawnResident;
+    const definition = resolved ?? {
+      name,
+      description: description ?? name,
+      prompt: rolePrompt ?? "",
+      tools: strArray("tools") ?? [],
+    } as never;
+    const synthesised = !resolved;
+
+    // Claim the name *before* spawning. The roster is the only thing standing
+    // between two same-named children, and checking after the spawn would leave
+    // an orphan process running with no roster entry to stop it by.
+    const spawnId = randomUUID();
+    const now = Date.now();
+    const reservation = registerTeammate({
+      name,
+      agent: definition.name,
+      spawnId,
+      pid: 0,
+      status: "starting",
+      isolation: "none",
+      ...(strArray("tools") ? { tools: strArray("tools") } : {}),
+      ...(request.fork ? { context: "fork" as const } : {}),
+      createdAt: now,
+      updatedAt: now,
+    });
+    if (!reservation.ok) return fail(reservation.error);
+
+    const spawned = spawn({
+      workerName: name,
+      ...(request.prompt ? { description: request.prompt } : {}),
+      ...(str("model") ? { model: str("model") } : {}),
+      ...(strArray("tools") ? { tools: strArray("tools") } : {}),
+      ...(params.fork === true && options.contextMessages
+        ? { context: options.contextMessages() as never }
+        : {}),
+      agent: definition,
+    } as never);
+    if ("error" in spawned) {
+      // Release the reservation. A name that stays reserved by a child which
+      // never started is the worst outcome: the name looks taken and nothing is
+      // running under it.
+      updateTeammate(name, { status: "stopped" });
+      return fail(`${spawned.error} @${name} was not started.`);
+    }
+    updateTeammate(name, { pid: spawned.pid, ...(spawned.envPolicy ? { envPolicy: spawned.envPolicy } : {}) });
+    if (!request.prompt) updateTeammate(name, { status: "idle" });
+    if (request.prompt) {
+      const deliver = options.deliver ?? deliverPrompt;
+      deliver(name, request.prompt);
+    }
+    const session = exactSessionRoute(name, spawnId);
+    const grant = strArray("tools") ?? [];
+    return ok(
+      [
+        `AGENT · ${name} · started · ${session}`,
+        ...(request.prompt ? ["WORKING · a prompt was delivered"] : ["IDLE · no prompt; it will take work assigned to it"]),
+        `GRANT · ${grant.length > 0 ? grant.join(", ") : "coordination only"}`,
+        // Say so plainly when the child has no standing instructions, so a
+        // later turn is not spent explaining the same thing again.
+        ...(synthesised && !rolePrompt ? ["ROLE · none given; this child has only its prompt"] : []),
+      ].join("\n"),
+      {
+        action: "start", outcome: "started", name, session,
+        prompted: Boolean(request.prompt), standalone: true,
+        role: definition.name, grant, synthesisedRole: synthesised,
+      },
+    );
+  }
+
+  if (action === "inspect") {
+    const session = str("session");
+    if (!session) {
+      const named = str("name");
+      const live = named ? livingTeammates().find((t) => t.name === named) : undefined;
+      const living = livingTeammates();
+      return fail(
+        "Inspecting an agent requires its exact session handle, so a retired incarnation cannot be "
+        + `mistaken for its replacement.${live ? ` @${live.name} is ${exactSessionRoute(live.name, live.spawnId!)}.` : ""}`
+        + (living.length > 0 ? ` Run agent action=list to see the current handles.` : ""),
+      );
+    }
+    const matched = resolveExactSession(session, listTeammates());
+    if (!matched) {
+      const parsed = parseExactSessionRoute(session);
+      const replacement = parsed ? livingTeammates().find((t) => t.name === parsed.name) : undefined;
+      return fail(
+        replacement
+          ? `No living session "${session}". @${replacement.name} is now ${exactSessionRoute(replacement.name, replacement.spawnId!)}.`
+          : `No living session "${session}".`,
+      );
+    }
+    return ok(`AGENT · ${matched.name} · ${matched.status} · ${session}`, { action: "inspect", outcome: "inspected", agent: matched.name, sessions: [project(matched)] });
+  }
+
+  if (action === "list") {
+    const all = listTeammates();
+    return ok(
+      all.length === 0
+        ? "AGENT · none"
+        : all.map((t) => `- @${t.name} · ${t.status} · ${t.spawnId ? exactSessionRoute(t.name, t.spawnId) : "(no incarnation)"}`).join("\n"),
+      { action: "list", outcome: "listed", count: all.length, agents: all.map(project) },
+    );
+  }
+
+  if (action === "stop") {
+    const session = str("session");
+    if (!session) return fail("Stopping an agent requires its exact session handle. Run agent action=list to see the current handles.");
+    const matched = resolveExactSession(session, listTeammates());
+    if (!matched) return fail(`No living session named "${session}".`);
+    const host = resolveAgentHost();
+    let closed: { ok: true; body?: string } | { ok: false; error: string };
+    if (host) {
+      closed = await host.stop(matched.name, matched.spawnId);
+    } else {
+      // A missing process is reported rather than treated as success: the caller
+      // asked to stop a specific incarnation and nothing confirmed it closed.
+      const outcome = await (options.terminate ?? terminateTeammate)(matched.name);
+      closed = outcome.outcome === "missing"
+        ? { ok: false, error: `No child process named "${matched.name}" is running.` }
+        : outcome.outcome === "unconfirmed"
+          ? { ok: false, error: `@${matched.name} did not confirm it closed. Inspect the process before assuming it stopped.` }
+          : { ok: true };
+    }
+    if (!closed.ok) return fail(closed.error);
+    updateTeammate(matched.name, { status: "stopped" });
+    return ok(
+      `AGENT · @${matched.name} · stopped`,
+      // A stopped process is not a completed task. Saying so here is cheaper
+      // than the model inferring completion from a silent process exit.
+      { action: "stop", outcome: "stopped", session, name: matched.name, evidence: "Process terminated. This is not evidence the work completed; check the task board." },
+    );
+  }
+
+  return fail(`Unknown agent action "${action}". Use start, inspect, list, or stop.`);
+}
+
+/** The single registrant of `agent`. */
+export function registerAgentTool(pi: ExtensionAPI, options: AgentToolOptions = {}): void {
+  pi.registerTool({
+    name: "agent",
+    label: "Agent",
+    promptSnippet: "Start, inspect, list, or stop a child agent process",
+    description: "Child process lifecycle. start spawns an agent; pass a prompt and it works immediately, omit it and it stays idle waiting for work assigned to it. inspect and stop take an exact session handle and address one incarnation. Results arrive automatically: continue your own work or end the turn rather than waiting on a child.",
+    parameters: AGENT_TOOL_PARAMS as never,
+    renderShell: "self",
+    renderCall: () => undefined as never,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      return executeAgentAction(params as Record<string, unknown>, {
+        ...options,
+        cwd: options.cwd ?? ctx?.cwd,
+        contextMessages: options.contextMessages ?? (() => snapshotWorkContext(ctx?.sessionManager)),
+      });
+    },
+  });
+}

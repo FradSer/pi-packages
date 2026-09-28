@@ -1,5 +1,7 @@
 export * from "./src/agents.ts";
 export * from "./src/roster.ts";
+export * from "./src/session-route.ts";
+export * from "./src/agent-tool.ts";
 export * from "./src/child-env.ts";
 export * from "./src/leader-reports.ts";
 export * from "./src/spawner.ts";

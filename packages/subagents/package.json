@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-subagents",
   "version": "0.1.0",
-  "description": "Subagent execution layer for Pi packages \u2014 agent definitions, child spawn and lifecycle, workspace isolation, child environment policy, context forking, and the worker report channel. Internal workspace dependency, not yet a Pi extension package.",
+  "description": "Subagent execution layer for Pi packages \u2014 child process spawn and lifecycle, the child roster, session routes, environment policy, workspace isolation, Agent Memory, and the `agent` tool. Registers one tool and no other.",
   "keywords": [
     "pi-subagents",
     "pi-packages",
@@ -22,6 +22,7 @@
   },
   "files": [
     "index.ts",
+    "extension.ts",
     "src",
     "README.md"
   ],
@@ -31,5 +32,10 @@
   "dependencies": {
     "@fradser/pi-kit": "workspace:*",
     "@fradser/pi-tasks": "workspace:*"
+  },
+  "pi": {
+    "extensions": [
+      "./extension.ts"
+    ]
   }
 }
