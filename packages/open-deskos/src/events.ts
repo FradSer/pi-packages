@@ -25,6 +25,37 @@ export function boundEventText(value: unknown, max = MAX_EVENT_TEXT): string {
   return "";
 }
 
+/** How many lines a prompt or a content line may arrive with. */
+export const MAX_EVENT_LINES = 4;
+
+/**
+ * A prompt or a content line as the desk reads it: the lines the person wrote,
+ * up to a budget, then an ellipsis. Returning only the first non-empty line threw
+ * away everything pasted after it, which is the report the desk owner made: a card
+ * showed 提交。 for a message that carried much more. Blank lines separate rather
+ * than count, and each line is collapsed, so a wrapped paste does not arrive with
+ * a terminal's own line breaks in it.
+ */
+export function boundEventLines(value: unknown, maxLines = MAX_EVENT_LINES, max = MAX_EVENT_TEXT): string {
+  if (typeof value !== "string") return "";
+  const budget = Math.max(1, maxLines);
+  const lines: string[] = [];
+  let truncated = false;
+  for (const raw of value.split(/\r?\n/)) {
+    const line = raw.replace(/\s+/g, " ").trim();
+    if (line.length === 0) continue;
+    if (lines.length >= budget) {
+      truncated = true;
+      break;
+    }
+    lines.push(line);
+  }
+  if (lines.length === 0) return "";
+  const joined = lines.join("\n");
+  if (joined.length > max) return `${joined.slice(0, Math.max(1, max - 1))}…`;
+  return truncated ? `${joined}\n…` : joined;
+}
+
 /** The bound each kind's body is held to. */
 const BODY_BYTES: Record<SessionEvent["kind"], number> = {
   result: MAX_RESULT_BYTES,

@@ -179,3 +179,27 @@ test("the console drives the desk that has a control credential, and says which"
   assert.equal(selectConsoleDesk([report, control], "a:8765")?.host, "a");
   assert.equal(selectConsoleDesk([report, control], "a:8765")?.controlToken, undefined);
 });
+test('a keyboard-pasted multi-line prompt survives as lines, not as its first line', async () => {
+  const { boundEventLines } = await import('../src/events.ts')
+
+  // The desk shows the prompt a person typed. Taking only its first non-empty
+  // line threw away everything they pasted after it, which is the report the
+  // owner made: a card showed 提交。 for a message that carried much more.
+  assert.equal(boundEventLines('提交。\n\n然后看截图\n再优化字号'), '提交。\n然后看截图\n再优化字号')
+
+  // Blank lines are separators, not content: they do not consume a line of budget.
+  assert.equal(boundEventLines('one\n\n\ntwo'), 'one\ntwo')
+
+  // Beyond the line budget the text stops with an ellipsis instead of growing
+  // without bound, which is what keeps a card from outgrowing its lane.
+  assert.equal(boundEventLines('a\nb\nc\nd\ne', 4), 'a\nb\nc\nd\n…')
+  assert.equal(boundEventLines('a\nb\nc\nd\ne', 2), 'a\nb\n…')
+
+  // A single long line is still bounded, and a line is still whitespace-collapsed.
+  const long = boundEventLines('x'.repeat(50), 4, 20)
+  assert.equal(long.endsWith('…'), true)
+  assert.equal(long.length <= 20, true)
+  assert.equal(boundEventLines('  spaced   out  '), 'spaced out')
+  assert.equal(boundEventLines(''), '')
+  assert.equal(boundEventLines(undefined), '')
+})

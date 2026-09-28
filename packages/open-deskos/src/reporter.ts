@@ -6,7 +6,7 @@ import {
   type SessionEvent,
   type SessionStatus,
 } from "./types.ts";
-import { boundEventText, boundSessionEvent, retainEvents } from "./events.ts";
+import { boundEventLines, boundEventText, boundSessionEvent, MAX_EVENT_LINES, retainEvents } from "./events.ts";
 import { normalizeSessionId } from "./session-identity.ts";
 import { type DeskTransport } from "./transport.ts";
 
@@ -337,10 +337,15 @@ export class DeskReporter {
       record.sessions = record.sessions.map((session) => {
         if (!session.discovered) return session;
         const short = (text: string): string => max === 0 ? "" : boundEventText(text, max);
+        // The prompt keeps its lines up to the card's own reading budget: a person
+        // who pastes several lines expects the desk to show the lines rather than
+        // the first one and nothing else. The activity stays the single short line
+        // it is for, because it answers what the session is doing right now.
+        const prompt = (text: string): string => max === 0 ? "" : boundEventLines(text, MAX_EVENT_LINES, max);
         return {
           ...session,
           ...(session.name === undefined ? {} : { name: short(session.name) }),
-          ...(session.latestGoal === undefined ? {} : { latestGoal: short(session.latestGoal) }),
+          ...(session.latestGoal === undefined ? {} : { latestGoal: prompt(session.latestGoal) }),
           ...(session.activity === undefined ? {} : { activity: short(session.activity) }),
         };
       });
