@@ -11,3 +11,6 @@ export * from "./src/worker-tools.ts";
 export * from "./src/memory.ts";
 export * from "./src/workspace.ts";
 export * from "./src/worker-extension.ts";
+// The Pi extension entry. Re-exported as the default so one file is both the
+// library surface and the extension Pi loads.
+export { default } from "./src/extension.ts";

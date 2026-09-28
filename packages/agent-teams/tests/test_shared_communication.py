@@ -25,7 +25,7 @@ def run_node(script: str) -> subprocess.CompletedProcess[str]:
 def test_message_registered_on_leader_and_worker():
     """Verify message tool exists with (message, to?, intent?) schema on leader tools."""
     script = """
-    import { registerLeaderTools } from "./src/tools.ts";
+    import { registerComposedTools } from "./tests/composed-tools.ts";
     
     const registeredTools = new Map();
     const fakePi = {
@@ -36,7 +36,7 @@ def test_message_registered_on_leader_and_worker():
       setActiveTools() {}
     };
 
-    registerLeaderTools(fakePi);
+    registerComposedTools(fakePi);
     
     if (!registeredTools.has("message")) {
       console.error("FAIL: 'message' tool was not registered on leader");

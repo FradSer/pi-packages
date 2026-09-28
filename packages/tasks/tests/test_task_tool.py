@@ -15,7 +15,7 @@ from pathlib import Path
 
 from task_helpers import PACKAGE, run_node
 
-EXTENSION = (PACKAGE / "extension.ts").as_uri()
+EXTENSION = (PACKAGE / "index.ts").as_uri()
 MANIFEST = PACKAGE / "package.json"
 
 
@@ -55,22 +55,29 @@ def run(script: str, tmp_path: Path) -> dict[str, object]:
 def test_the_manifest_declares_a_loadable_extension_entry() -> None:
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     declared = manifest["pi"]["extensions"]
-    assert declared == ["./extension.ts"]
+    assert declared == ["./index.ts"]
     for relative in declared:
         assert (PACKAGE / relative.removeprefix("./")).is_file()
-    assert "extension.ts" in manifest["files"]
+    assert "index.ts" in manifest["files"]
 
 
 def test_the_extension_registers_exactly_one_tool_and_nothing_else() -> None:
-    entry = (PACKAGE / "extension.ts").read_text(encoding="utf-8")
-    barrel = (PACKAGE / "index.ts").read_text(encoding="utf-8")
-    assert "default function" in entry
-    # The barrel must stay a barrel: if it grew a default export, a manifest
-    # pointing at either file would stop proving which one Pi loads.
-    assert "export default" not in barrel
-    assert entry.count("registerTaskTool(") == 1
-    assert "message" not in entry
-    assert "agent" not in entry
+    """The root index is both the library surface and the extension Pi loads.
+
+    That is why it carries a default export. One file per package means the
+    manifest names one path, and a bundle references a dependency's root index
+    rather than reaching into its source — which would break whenever that
+    dependency's layout or packing changed.
+    """
+    index = (PACKAGE / "index.ts").read_text(encoding="utf-8")
+    body = (PACKAGE / "src" / "extension.ts").read_text(encoding="utf-8")
+    assert 'export { default } from "./src/extension.ts"' in index
+    assert "default function" in body
+    assert body.count("registerTaskTool(") == 1
+    # No other tool's name may appear in a package that registers one tool: that
+    # would be a second registrant for a tool it does not own.
+    assert '"message"' not in body
+    assert '"agent"' not in body
 
 
 # ── The action set is closed ──

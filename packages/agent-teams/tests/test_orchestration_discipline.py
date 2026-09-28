@@ -81,11 +81,11 @@ def test_work_recheck_needs_explicit_refreshed_context(tmp_path: Path) -> None:
       const priorReport = "Spec REWORK: reviewer scope and stale candidate brief";
       assert.ok(completeTask(task.id, priorReport));
       const before = await call("task", { action: "list" });
-      const saved = before.details.works.find(entry => entry.id === task.id);
+      const saved = before.details.tasks.find(entry => entry.id === task.id);
       assert.equal(saved.result, priorReport);
-      await call("task", { action: "reopen", id: task.id, reason: "Inspect candidate v2 instead" });
+      await call("task", { action: "update", id: task.id, status: "pending", reason: "Inspect candidate v2 instead" });
       const after = await call("task", { action: "list" });
-      const reopened = after.details.works.find(entry => entry.id === task.id);
+      const reopened = after.details.tasks.find(entry => entry.id === task.id);
       assert.equal(reopened.description, "Inspect candidate v1 against baseline B0");
       assert.equal(reopened.result, undefined);
       // This synthetic original is completed again only to exercise a linked follow-up.
@@ -94,9 +94,11 @@ def test_work_recheck_needs_explicit_refreshed_context(tmp_path: Path) -> None:
       const description = `Bounded recheck: baseline B0; candidate v2; delta fixes two findings. Prior findings: ${saved.result}. Safe checks: prompt contract only.`;
       const followUp = await call("task", { action: "create", subject: "Recheck review corrections",
         description, dependsOn: [task.id], resources: ["review:scope"] });
-      assert.equal(followUp.details.claimable, true);
+      // A created task is pending; whether it can be taken right now is a board
+      // question answered by `list claimable`, not a property of the creation.
+      assert.equal(followUp.details.status, "pending");
       console.log(JSON.stringify({ oldDescription: reopened.description, clearedResult: reopened.result ?? null,
-        followUp: followUp.details.work }));
+        followUp: followUp.details.task }));
     ''')
     assert payload["clearedResult"] is None
     assert payload["oldDescription"].startswith("Inspect candidate v1")

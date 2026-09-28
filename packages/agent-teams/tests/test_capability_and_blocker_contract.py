@@ -10,7 +10,7 @@ from test_accepted_work_reporting import machine_case
 def test_public_lifecycle_content_discloses_recorded_grant(tmp_path: Path, requested: str) -> None:
     run_node(f'''
       import assert from "node:assert/strict";
-      import {{ registerLeaderTools }} from "{(SRC / 'tools.ts').as_uri()}";
+      import {{ publishTeamHost, registerComposedTools }} from "./tests/composed-tools.ts";
       import {{ registerTeammate, resetState }} from "{(SRC / 'state.ts').as_uri()}";
       import {{ resolveWorkerTools }} from "@fradser/pi-subagents";
       import {{ WORKER_CAPABILITY_TOOLS }} from "{(SRC / 'capability-tools.ts').as_uri()}";
@@ -26,41 +26,62 @@ def test_public_lifecycle_content_discloses_recorded_grant(tmp_path: Path, reque
           return {{ ok: true, teammate }};
         }},
       }};
-      registerLeaderTools({{ registerTool: t => tools.set(t.name, t) }}, runtime);
+      registerComposedTools({{ registerTool: t => tools.set(t.name, t) }}, runtime);
+      publishTeamHost(runtime);
       const call = p => tools.get("agent").execute("test", p, undefined, undefined, {{ cwd: {str(tmp_path)!r} }});
-      for (const action of ["delegate", "start"]) {{
+      {{
         resetState();
-        const result = await call({{ action, name: "capability-test", prompt: "Check evidence",
-          definition: {{ description: "Check", prompt: "Check", tools: requested }} }});
-        const content = JSON.parse(result.content[0].text);
-        assert.deepEqual(content.session.tools, grant);
-        assert.equal(Boolean(content.session.warning?.includes("coordination-only")), grant.length === 2);
-        const inspected = JSON.parse((await call({{ action: "inspect", name: "capability-test", session: content.session.id }})).content[0].text);
-        assert.deepEqual(inspected.sessions[0], content.session);
+        const result = await call({{ action: "start", name: "capability-test", prompt: "Check evidence",
+          description: "Check", role_prompt: "Check", tools: requested }});
+        // The tool now answers with a structured result, and a handle rather than
+        // a projection, so the projection is read back through `inspect`.
+        assert.equal(result.details.ok, true, result.content[0].text);
+        assert.match(result.details.session, /^session:capability-test:/);
+        const inspected = await call({{ action: "inspect", session: result.details.session }});
+        // The effective grant is the one thing a caller routinely gets wrong by
+        // assumption, so it is reported on the roster entry rather than inferred.
+        assert.deepEqual(inspected.details.sessions[0].tools, grant);
+        if (grant.length === 2) {{
+          assert.deepEqual(grant, ["message", "task"],
+            "an empty request is coordination-only: the two coordination tools and nothing else");
+        }}
       }}
-      await assert.rejects(call({{ action: "delegate", name: "unknown-capability-test", prompt: "Check" }}), /definition.*tools.*read.*powershell/);
+      // A name with no definition, no prompt and no grant is the idle-resident
+      // case: a child that waits for work assigned to it. It succeeds, and reports
+      // the grant the roster actually recorded rather than the empty one asked
+      // for — a caller that assumed file access it did not get is the failure
+      // this prevents.
+      const idle = await call({{ action: "start", name: "unknown-capability-test" }});
+      assert.equal(idle.details.ok, true, idle.content[0].text);
+      assert.equal(idle.details.prompted, false);
+      assert.deepEqual(idle.details.grant, grant, "the reported grant is the recorded one");
+      assert.match(idle.content[0].text, /ROLE · none/);
+      // Half a role is the case worth refusing: the missing half would produce a
+      // child that silently has no instructions.
+      const halfRole = await call({{ action: "start", name: "half-role", description: "only one half" }});
+      assert.equal(halfRole.details.ok, false);
+      assert.match(halfRole.content[0].text, /both/);
       console.log(JSON.stringify({{ ok: true }}));
     ''', env_overrides={"PI_CODING_AGENT_DIR": str(tmp_path / "agent")})
 
 
-@pytest.mark.parametrize("recorded", ["undefined", '["read", "work", "agent_event"]'])
+@pytest.mark.parametrize("recorded", ["undefined", '["read", "task", "message"]'])
 def test_inspect_uses_recorded_grant_not_current_definition(tmp_path: Path, recorded: str) -> None:
     run_node(f'''
       import assert from "node:assert/strict";
-      import {{ registerLeaderTools }} from "{(SRC / 'tools.ts').as_uri()}";
+      import {{ publishTeamHost, registerComposedTools }} from "./tests/composed-tools.ts";
       import {{ registerTeammate, resetState }} from "{(SRC / 'state.ts').as_uri()}";
       const {{ registerSessionAgent }} = await import("@fradser/pi-subagents");
       resetState();
       registerSessionAgent({{ name: "historical", description: "Changed role", prompt: "Changed role", tools: ["bash"] }});
       const tools = new Map();
-      registerLeaderTools({{ registerTool: t => tools.set(t.name, t) }});
+      registerComposedTools({{ registerTool: t => tools.set(t.name, t) }});
       registerTeammate({{ name: "historical", agent: "historical", spawnId: "s1", status: "idle",
         tools: {recorded}, pid: 0, isolation: "none", createdAt: 1, updatedAt: 1 }});
       const result = await tools.get("agent").execute("test", {{ action: "inspect", name: "historical",
         session: "session:historical:s1" }}, undefined, undefined, {{ cwd: {str(tmp_path)!r} }});
-      const session = JSON.parse(result.content[0].text).sessions[0];
+      const session = result.details.sessions[0];
       assert.deepEqual(session.tools, {recorded});
-      assert.equal(session.warning, undefined);
       console.log(JSON.stringify({{ ok: true }}));
     ''', env_overrides={"PI_CODING_AGENT_DIR": str(tmp_path / "agent")})
 

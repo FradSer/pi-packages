@@ -24,7 +24,10 @@ import {
 } from "./types.ts";
 
 const BOARD_DISCLOSURE_TOOLS = ["task"] as const;
-type BoardDisclosure = "none" | "notice" | "claimed";
+/** Why the board tool is shown to this worker. `held` means it already
+ *  owns an assignment, which is a fact about this worker rather than a task
+ *  status — the two were never the same state and must not share a word. */
+type BoardDisclosure = "none" | "notice" | "held";
 
 export interface WorkerToolDisclosure {
   update(prompt: string): void;
@@ -35,7 +38,7 @@ function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
   let state: BoardDisclosure = "none";
   const apply = () => {
     if (typeof pi.getActiveTools !== "function" || typeof pi.setActiveTools !== "function") return;
-    const revealed = state === "notice" || state === "claimed" ? ["task"] : [];
+    const revealed = state === "notice" || state === "held" ? ["task"] : [];
     // `work` is re-asserted from the owned set rather than the snapshot, so this
     // disclosure write cannot deactivate a tool the harness has not published
     // yet. See setOwnedTools.
@@ -52,7 +55,7 @@ function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
       // able to acknowledge it; hiding work here strands its resource lease.
       if (binding && rosterEntry && rosterEntry.spawnId === binding.spawnId
         && rosterEntry.status !== "stopped" && assignment) {
-        state = "claimed";
+        state = "held";
       } else if (!assignment && prompt.includes("=== BOARD NOTICE ===")) state = "notice";
       else state = "none";
       apply();
@@ -307,7 +310,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
     name: "message",
     promptSnippet: "Send an event or message to a participant",
     label: "Agent Event",
-    description: "Communication-only interface across Leader, Worker, and Peers. Work completion is reported automatically after settlement or uses work action=submit.",
+    description: "Communication-only interface across Leader, Worker, and Peers. Task completion is reported automatically after settlement or delivered with task action=complete.",
     parameters: AgentEventParams,
     renderShell: "self",
     renderCall: emptyToolCall,

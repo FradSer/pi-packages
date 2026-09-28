@@ -22,6 +22,20 @@ export type { BoardTask, TaskIntent, TaskStatus } from "@fradser/pi-tasks";
 export type { WorkAssignment as WorkerAssignment } from "@fradser/pi-tasks";
 import type { BoardTask } from "@fradser/pi-tasks";
 
+/**
+ * The result shape every coordination tool returns.
+ *
+ * Declared because `additionalProperties: false` and a single `required` on a
+ * flat schema cannot express per-action requirements, so refusals are reported
+ * here rather than thrown. Every tool reports failure this way, and a caller
+ * reads one shape whatever went wrong.
+ */
+export interface CoordinationToolResult {
+  content: Array<{ type: "text"; text: string }>;
+  details: Record<string, unknown>;
+  isError?: boolean;
+}
+
 // ── Mailbox ───────────────────────────────────────────────────────
 
 export interface MailboxMessage {

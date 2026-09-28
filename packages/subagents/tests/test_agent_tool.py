@@ -15,7 +15,7 @@ from pathlib import Path
 
 from subagents_helpers import PACKAGE, SRC, run_node
 
-EXTENSION = (PACKAGE / "extension.ts").as_uri()
+EXTENSION = (PACKAGE / "index.ts").as_uri()
 BARREL = (PACKAGE / "index.ts").as_uri()
 MANIFEST = PACKAGE / "package.json"
 
@@ -71,12 +71,12 @@ def run(script: str) -> dict[str, object]:
 
 def test_the_manifest_declares_a_loadable_extension_entry() -> None:
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    assert manifest["pi"]["extensions"] == ["./extension.ts"]
-    assert "extension.ts" in manifest["files"]
-    assert "export default" in (PACKAGE / "extension.ts").read_text(encoding="utf-8")
-    # The barrel must stay a barrel, or the manifest would stop proving which
-    # file Pi loads.
-    assert "export default" not in (PACKAGE / "index.ts").read_text(encoding="utf-8")
+    assert manifest["pi"]["extensions"] == ["./index.ts"]
+    assert "index.ts" in manifest["files"]
+    # One file is both the library surface and the extension Pi loads, so the
+    # root index carries a default export. That is what lets a manifest name one
+    # path instead of two.
+    assert "export { default }" in (PACKAGE / "index.ts").read_text(encoding="utf-8")
 
 
 def test_it_registers_exactly_one_tool_and_nothing_else() -> None:

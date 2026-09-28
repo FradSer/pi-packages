@@ -39,19 +39,20 @@ is not a new broad review; broaden only when scope or risk changes.
 export const WORKER_GUIDANCE = `
 ## Agent Teams Worker Protocol
 
-You execute one current Work Item at a time. Use \`work\` to list available Work,
-claim pending Work, submit its outcome, or release it when appropriate. A queued
-claim or submission is not ownership or completion; the harness is authoritative.
+You execute one current Task at a time. Use \`task\` to list what is available, take
+what you will do with \`update status=in_progress\`, and deliver the outcome with
+\`complete\`. A queued request is not ownership or completion; the harness is
+authoritative.
 
-Use \`agent_event\` only for \`inform\` or \`request\` communication with the
-leader or an exact peer session. It arrives at the next safe tool boundary or wakes an idle leader. It cannot complete, release, reopen, or reassign
-Work. Communication and submission bind to the attempt that started your turn; a different
+Use \`message\` only for \`inform\` or \`request\` communication with the
+leader or an exact peer session. It arrives at the next safe tool boundary or wakes an idle recipient. It cannot take, complete, reopen, or reassign
+a Task. Communication and submission bind to the attempt that started your turn; a different
 attempt, Work Item, or incarnation is rejected, not retargeted. After a submission or
 cancellation acknowledgement, end the turn.
 The runtime delivers ordinary final answers automatically for the current Work
 when execution settles as a successful candidate, not an independently verified result.
 If you cannot perform the requested work (including missing tools), you must use
-\`work({ action: "submit", outcome: "failed", result: "Blocker and unverified work" })\`.
+\`task({ action: "complete", outcome: "failed", result: "Blocker and unverified work" })\`.
 Do not substitute an ordinary final answer describing the blocker: prose is not classified
 as failure. Ungated acceptance is not independently verified. Send intermediate events only for blockers needing a decision, changed
 constraint, or decision request; never bare
@@ -72,9 +73,9 @@ completion or repeat unchanged findings.
 export function buildIdleLeaderGuidance(cwd?: string): string {
   return `## Agent Teams
 
-Use \`agent\` with an explicit action: \`delegate\` for new independent Work,
-\`start\` for an unassigned resident, \`inspect\` for Presence, and \`stop\` with
-an exact returned session handle. Delegate an unknown role with an inline
+Use \`agent\` with an explicit action: \`start\` for a new child, with a
+\`prompt\` to hand it work now or without one to leave it idle waiting for a Task,
+\`inspect\` and \`list\` for Presence, and \`stop\` with an exact session handle. Delegate an unknown role with an inline
 \`definition\` based on \`${AGENT_REFERENCE_PATH}\`; definitions are resolved live at spawn time and persist only when explicitly requested.
 
 Choose explicit minimal tools: ${WORKER_BUILTIN_TOOLS.join(", ")} are canonical built-ins.
@@ -83,7 +84,7 @@ Delegate concrete acceptance criteria and an explicit verification gate where ap
 ungated completion is not independently verified. An inform needs no acknowledgment unless
 a decision or action changes. Do not narrate repeated reports.
 
-Use \`work\` for the Work lifecycle (create, list, assign, release, reopen, supersede) and \`agent_event\` for communication. Claim and submit belong to the worker Work interface, not the leader one.
+Use \`task\` for the Task lifecycle (create, list, update, complete, reopen) and \`message\` for communication. A Task never names who must do it: record what must be done, and a participant takes it with \`update status=in_progress\`.
 ${LEADER_DELIVERY_GUIDANCE}
 Available agents:
 ${formatAgentGuidance(cwd)}`;
@@ -93,34 +94,39 @@ export function buildTeamLeaderGuidance(cwd?: string): string {
   return `## Agent Teams Orchestration
 
 The current session coordinates through three tools only:
-- \`agent\`: strict \`delegate\`, \`start\`, \`inspect\`, and exact-session \`stop\` actions.
-- \`work\`: create (subject), list, assign (id, target.session), release (id, reason), reopen completed Work (id, reason), and supersede (subject, supersedes). Worker-only claim and submit are not leader actions.
-- \`agent_event\`: communication-only \`inform\` or \`request\` messages.
+- \`agent\`: \`start\` (with a \`prompt\` to hand it work now, or without one to leave it idle), \`inspect\`, \`list\`, and exact-session \`stop\`. It never records a task and never dispatches work to a named participant.
+- \`task\`: create (subject, optional dependsOn, resources, verify, supersedes), list, update (id, status=in_progress|pending, or content), complete (id, outcome, result), and reopen (id). One vocabulary for every participant.
+- \`message\`: communication-only \`inform\` or \`request\` messages.
 
 Delegate independent Work once with concrete acceptance criteria and an explicit verification gate
 where appropriate. Ungated completion is not independently verified. Check the returned effective
 tool grant: omitted tools or [] are coordination-only, with no default bash or file access.
 An inform needs no acknowledgment unless a decision or action changes; do not narrate repeated reports.
-Send a current Work Session new information that
-changes the worker's assignment. Do not ask for progress reports or repeat instructions.
+Send a Work Session new information that changes its assignment. Do not ask for progress reports
+or repeat instructions.
 The worker autonomously completes its assignment. Results, verification outcomes, and actionable failures arrive automatically; continue independent work or yield rather than
 polling, status requests, or repeated guidance.
 
-Agent session handles are incarnation-bound. Work IDs are stable; Work assignment,
-release, completed-only reopen, and supersession are explicit leader \`work\` actions,
-while claim and submit belong to the worker \`work\` interface. Automatic final answers
-and worker \`work\` submit share the same Work acceptance pipeline. Use \`agent_event\`
-for peer and Leader communication; it does not grant lifecycle authority.
+Agent session handles are incarnation-bound. Task IDs are stable, and a Task names
+no owner: whoever acts on it holds it, and holding ends at \`complete\`, at process
+exit, or at \`agent stop\` — there is no release verb. Automatic final answers and
+\`task complete\` share one acceptance pipeline. \`message\` carries peer and Leader
+talk and grants no lifecycle authority.
 
 ${LEADER_DELIVERY_GUIDANCE}
 ### Teammates are autonomous: recover, never punish
 
-For recovery, keep the existing Work ID: request explicit \`work release\` and await authoritative release before \`work assign\` to the chosen exact session. A queued release or a no-write message is not released authority. Do not create a competing duplicate through \`agent delegate\`. A started resident has no initial assignment or model kickoff, but remains eligible for later autonomous board notices and claims; it is not permanently assignment-only.
+For recovery, keep the existing Task ID. Nothing is released by request: stop the
+stale session, or wait for the attempt to end, and its lease is released with it. Do
+not create a competing duplicate through \`agent start\` with a prompt. A started
+resident with no prompt has no initial work and no model kickoff, but remains
+eligible for later board notices and takes work itself; it is not permanently idle.
 
 Observe stalled sessions in \`/agent-teams\`. The harness never reclaims, restarts, or replaces a teammate. Never terminate a teammate merely because it has worked long; exact-session stop is explicit and never proof of Work completion.
 
-Failed or interrupted Work returns as \`pending/recovery-required\` and waits for an explicit
-\`work assign\`; retired attempts' reports stop instructing you.
+A failed Task returns to pending under a recovery hold and waits: it cannot be taken
+until somebody proceeds with a stated reason. Retired attempts' reports stop
+instructing you.
 
 ### Yield while teammates work
 

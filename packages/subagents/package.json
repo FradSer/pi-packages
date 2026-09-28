@@ -22,7 +22,6 @@
   },
   "files": [
     "index.ts",
-    "extension.ts",
     "src",
     "README.md"
   ],
@@ -35,7 +34,7 @@
   },
   "pi": {
     "extensions": [
-      "./extension.ts"
+      "./index.ts"
     ]
   }
 }

@@ -26,6 +26,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
 import {
   completeTaskWithOutcome,
   createTask,
@@ -106,6 +107,20 @@ const emptyCall = () => undefined as never;
 /** Bounded so a long-lived board cannot make one tool result the whole context. */
 export const MAX_LISTED_TASKS = 40;
 
+/** Channels a board transition is announced on.
+ *
+ * A coordinator subscribes to these instead of being called, so this package
+ * never has to know what a resident is. With nobody listening the emit is a
+ * no-op, which is the correct degradation: a standalone board records the change
+ * and nobody is notified, rather than failing because a host is absent. */
+export const TASK_EVENTS = {
+  created: "pi-tasks:task-created",
+  taken: "pi-tasks:task-taken",
+  completed: "pi-tasks:task-completed",
+  reopened: "pi-tasks:task-reopened",
+  updated: "pi-tasks:task-updated",
+} as const;
+
 /** Per-task projection. Every field here is something a model would otherwise
  *  have to infer and get wrong; `recoveryRequired` in particular is the reason
  *  a pending task can be untakeable. */
@@ -154,7 +169,7 @@ export function callerIdentity(env: NodeJS.ProcessEnv = process.env): string {
 
 export async function executeTaskTool(
   params: Record<string, unknown>,
-  options: { env?: NodeJS.ProcessEnv; limit?: number } = {},
+  options: { env?: NodeJS.ProcessEnv; limit?: number; emit?: (channel: string, payload: unknown) => void } = {},
 ): Promise<TaskToolResult> {
   const me = callerIdentity(options.env);
   const limit = Math.min(options.limit ?? MAX_LISTED_TASKS, MAX_LISTED_TASKS);
@@ -190,6 +205,12 @@ export async function executeTaskTool(
     });
     if (!created.ok) return fail(created.error);
     const replaced = created.superseded.map((task) => task.id);
+    options.emit?.(TASK_EVENTS.created, {
+      id: created.task.id,
+      resources: created.task.resources,
+      status: created.task.status,
+      replaced,
+    });
     return ok(
       [
         `TASK · ${created.task.id} · ${created.task.status} · ${created.task.subject}`,
@@ -237,11 +258,13 @@ export async function executeTaskTool(
     if (status === "in_progress") {
       const taken = takeTask(id, me, { ...(str("reason") ? { reason: str("reason") } : {}) });
       if (!taken.ok) return fail(taken.reason);
+      options.emit?.(TASK_EVENTS.taken, { id, holder: me, resources: taken.task.resources });
       return ok(`TASK · ${id} · in_progress · @${me}`, { action: "take", id, status: taken.task.status, task: project(taken.task) });
     }
     if (status === "pending") {
       const reopened = reopenTask(id);
       if (!reopened.ok) return fail(reopened.reason);
+      options.emit?.(TASK_EVENTS.reopened, { id });
       return ok(`TASK · ${id} · pending · reopened`, { action: "reopen", id, status: reopened.task.status, task: project(reopened.task) });
     }
     const patch: Parameters<typeof updateTask>[1] = {
@@ -255,6 +278,7 @@ export async function executeTaskTool(
     }
     const updated = updateTask(id, patch);
     if (!updated.ok) return fail(updated.reason);
+    options.emit?.(TASK_EVENTS.updated, { id });
     return ok(`TASK · ${id} · updated`, { action: "update", id, status: updated.task.status, task: project(updated.task) });
   }
 
@@ -268,6 +292,7 @@ export async function executeTaskTool(
     const delivered = completeTaskWithOutcome(id, me, outcome, str("result"));
     if (!delivered.ok) return fail(delivered.reason);
     const task = delivered.task;
+    options.emit?.(TASK_EVENTS.completed, { id, outcome, holder: me, status: task.status });
     return ok(
       outcome === "success"
         ? `TASK · ${id} · completed`
@@ -281,6 +306,7 @@ export async function executeTaskTool(
     if (!id) return fail("Reopening a task requires its id.");
     const reopened = reopenTask(id);
     if (!reopened.ok) return fail(reopened.reason);
+    options.emit?.(TASK_EVENTS.reopened, { id });
     return ok(`TASK · ${id} · pending · reopened`, { action: "reopen", id, status: reopened.task.status, task: project(reopened.task) });
   }
 
@@ -290,19 +316,72 @@ export async function executeTaskTool(
 /** The single registrant of `task`. Registers unconditionally and owns no other
  *  tool; a collaborator that wants to be told about board changes subscribes to
  *  `pi.events` rather than being called from here. */
-export function registerTaskTool(pi: ExtensionAPI, options: { env?: NodeJS.ProcessEnv } = {}): void {
+export function registerTaskTool(
+  pi: ExtensionAPI,
+  options: { env?: NodeJS.ProcessEnv } = {},
+): void {
+  // Resolved once, defensively. Announcing a transition is optional, so a host
+  // without an event bus must degrade to the same no-op as a host with nobody
+  // subscribed — never to a failed board action.
+  const emit = typeof pi.events?.emit === "function"
+    ? (channel: string, payload: unknown) => { pi.events.emit(channel, payload); }
+    : undefined;
   pi.registerTool({
     name: "task",
     label: "Task",
     promptSnippet: "Record, take, and deliver work on the shared task board",
-    description: "The shared task board. Record what must be done with create, find work with list, take it with update status=in_progress, deliver it with complete outcome=success, and report a blocker with complete outcome=failed. This tool never starts or stops an agent and never dispatches work to a named participant: it states what must be done, and a participant takes it.",
+    description: "The shared task board. Record what must be done with create, replace an obsolete task with create supersedes, find work with list, take it with update status=in_progress, return a completed one with reopen, deliver it with complete outcome=success, and report a blocker with complete outcome=failed. This tool never starts or stops an agent and never dispatches work to a named participant: it states what must be done, and a participant takes it.",
     parameters: TASK_TOOL_PARAMS as never,
     renderShell: "self",
-    // A task row is a plain summary line, so the default shell already shows
-    // everything; rendering it again would only duplicate the text.
     renderCall: emptyCall,
+    // Every tool in this repository draws a row rather than dumping its text. The
+    // board row leads with what must be done and keeps the id, the dependencies
+    // and the holder for expansion — a row that shows an id is noise, but a row
+    // that shows no subject is useless.
+    renderResult: createStaticToolLifecycleResultRenderer({
+      createSpec: (result) => {
+        const details = (result.details ?? {}) as {
+          id?: string;
+          status?: string;
+          outcome?: string;
+          count?: number;
+          task?: { subject?: string; dependsOn?: string[]; resources?: string[]; holder?: string; recoveryRequired?: boolean };
+          tasks?: Array<{ id: string; subject: string; status: string; holder?: string; dependsOn?: string[]; recoveryRequired?: boolean }>;
+        };
+        const content = (result.content ?? []) as Array<{ type: string; text?: string }>;
+        const text = content.map((part) => part.text ?? "").join("\n");
+        const state = details.status ?? details.outcome;
+        // The subject is the work, not the id: a reader looking at a row asks what
+        // is being done, and the id is what they look up when they act on it.
+        const subject = details.task?.subject
+          ?? (details.tasks?.length ? `${details.count ?? details.tasks.length} task(s)` : "task");
+        const summary = details.tasks
+          ? details.tasks.flatMap((task) => [
+            `- ${task.subject} · ${task.status}${task.holder ? ` · @${task.holder}` : ""}${task.recoveryRequired ? " · recovery hold" : ""}`,
+          ])
+          : text.split("\n").filter(Boolean).filter((line) => !/^TASK · /.test(line));
+        return {
+          kind: "started",
+          tool: "task",
+          subject: state ? `${subject} · ${state}` : subject,
+          ...(details.outcome && !state ? { label: details.outcome } : {}),
+          summary,
+          details: [
+            ...(details.task?.dependsOn?.length ? [`depends · ${details.task.dependsOn.join(", ")}`] : []),
+            ...(details.task?.resources?.length ? [`resources · ${details.task.resources.join(", ")}`] : []),
+            ...(details.task?.holder ? [`holder · @${details.task.holder}`] : []),
+            ...(details.task?.recoveryRequired ? ["hold · the last attempt failed; take it with a reason"] : []),
+            ...(details.outcome === "failed" ? ["note · a recorded failure returns the task to pending under a recovery hold"] : []),
+            ...(details.outcome === "success" ? ["note · acceptance is a judgement against the task's requirements, not the act of recording"] : []),
+          ],
+        };
+      },
+      fit: (text) => text,
+      visibleWidth: () => 80,
+      wrapDetail: (line) => [line],
+    }) as never,
     async execute(_toolCallId, params) {
-      return executeTaskTool(params as Record<string, unknown>, { env: options.env });
+      return executeTaskTool(params as Record<string, unknown>, { env: options.env, ...(emit ? { emit } : {}) });
     },
   });
 }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import tempfile
 import textwrap
@@ -80,13 +81,53 @@ def agent_dir_env(tmp: Path) -> dict[str, str]:
     return {"PI_CODING_AGENT_DIR": str(tmp)}
 
 
-def test_manifest_declares_native_extension_package() -> None:
+def test_manifest_declares_a_bundle_of_three_extension_packages() -> None:
+    """This package is a bundle. It registers `message` and loads the extension
+    entries of the two packages that own `agent` and `task`, so installing it
+    gives all three tools with one registrant each.
+
+    The dependency entries are node_modules paths, which is what Pi sanctions for
+    a bundled package: "Other Pi packages used as dependencies must be included in
+    the published tarball and referenced through their node_modules resource
+    paths." What is forbidden is naming the other package's *source*, which would
+    break whenever its layout or packing changed.
+    """
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert manifest["name"] == "@fradser/pi-agent-teams"
     assert "pi-package" in manifest["keywords"]
-    assert manifest["pi"] == {"extensions": ["./index.ts"]}
+    assert manifest["pi"] == {
+        "extensions": [
+            "./index.ts",
+            "./node_modules/@fradser/pi-subagents/index.ts",
+            "./node_modules/@fradser/pi-tasks/index.ts",
+        ]
+    }
     assert "skills" not in manifest["files"]
     assert "references" in manifest["files"] and not (PACKAGE / "agents").exists()
+    # The two bundled packages must be real runtime dependencies, not peers: a
+    # peer is supplied by the host and would be absent in a plain install.
+    for dependency in ("@fradser/pi-subagents", "@fradser/pi-tasks"):
+        assert dependency in manifest["dependencies"], dependency
+        assert dependency not in manifest.get("peerDependencies", {}), dependency
+
+
+def test_every_bundled_extension_entry_exists_and_is_loadable() -> None:
+    """Each listed path must resolve to a real file that provides a default
+    export. A library barrel would have none, and pointing at one fails at load
+    time with nothing to suggest why.
+
+    Both spellings count: a direct `export default function`, and a package entry
+    that re-exports its implementation module's default.
+    """
+    manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
+    for relative in manifest["pi"]["extensions"]:
+        resolved = (PACKAGE / relative.removeprefix("./")).resolve()
+        assert resolved.is_file(), f"{relative} is declared but missing"
+        text = resolved.read_text(encoding="utf-8")
+        provides_default = "export default" in text or re.search(
+            r"export\s*\{\s*default\s*\}", text
+        )
+        assert provides_default, f"{relative} provides no default export"
 
 
 def test_the_coordination_contribution_is_declared_and_passed_to_every_spawn() -> None:
@@ -121,13 +162,52 @@ def test_the_coordination_contribution_is_declared_and_passed_to_every_spawn() -
 
 
 def test_leader_tool_surface_is_exact() -> None:
-    ext = source("index.ts") + source("tools.ts") + source("worker.ts")
-    for tool in LEADER_TOOLS:
-        assert f'name: "{tool}"' in ext, tool
+    """Each tool has exactly one registrant *per process*.
+
+    The board is single-writer, so a spawned child cannot take a task by writing
+    the board; it queues an intent and the leader applies it. That means `task`
+    has two registrations by necessity — pi-tasks' in the leader, the worker
+    slice's in the child — and they never load into the same process. Asserting
+    one registrant per *file* would be asserting something false, and asserting
+    nothing would let a second leader-side registrant in unnoticed, which is the
+    failure that actually collides.
+
+    So the leader side is enumerated exactly, and the worker side is enumerated
+    separately.
+    """
+    leader_owners = {
+        "agent": REPO / "packages" / "subagents" / "src" / "agent-tool.ts",
+        "task": REPO / "packages" / "tasks" / "src" / "tool.ts",
+        "message": PACKAGE / "src" / "tools.ts",
+    }
+    worker_owners = {
+        "message": PACKAGE / "src" / "worker.ts",
+        "task": PACKAGE / "src" / "worker.ts",
+    }
+    shipped = [
+        path
+        for package in ("agent-teams", "subagents", "tasks")
+        for path in (REPO / "packages" / package).rglob("*.ts")
+        if "node_modules" not in path.parts and "tests" not in path.parts
+        and path != PACKAGE / "src" / "worker.ts"
+    ]
+    for tool, owner in leader_owners.items():
+        registrants = [
+            str(path.relative_to(REPO))
+            for path in shipped
+            if f'name: "{tool}"' in path.read_text(encoding="utf-8")
+        ]
+        assert registrants == [str(owner.relative_to(REPO))], f"leader {tool} has {registrants}"
+    worker_text = (PACKAGE / "src" / "worker.ts").read_text(encoding="utf-8")
+    for tool, owner in worker_owners.items():
+        assert f'name: "{tool}"' in worker_text, f"worker {tool}"
+        assert owner.name == "worker.ts"
+    # The child never gets the leader's `agent` tool: nesting is bounded by the
+    # depth guard, not by the tool being absent from a file.
+    assert 'name: "agent"' not in worker_text
     for tool in REMOVED_TOOLS:
-        assert f'name: "{tool}"' not in ext, tool
-    assert source("tools.ts").count('name: "task_list"') == 0
-    assert source("worker.ts").count('name: "task_list"') == 0
+        for path in shipped + [PACKAGE / "src" / "worker.ts"]:
+            assert f'name: "{tool}"' not in path.read_text(encoding="utf-8"), tool
 
 
 def test_worker_surface_is_capability_bound() -> None:
@@ -418,7 +498,7 @@ def test_wake_prompt_composes_deliveries_and_paced_notice() -> None:
           hasSender: prompt.includes("From security · challenge"),
           hasBody: prompt.includes("your finding misses X"),
           hasNotice: prompt.includes("Unclaimed tasks: t_3 (verify hotfix)"),
-          suggestsClaim: prompt.includes("action=claim"),
+          suggestsTaking: prompt.includes("task update status=in_progress"),
           quietEmpty: quiet === "",
           paceMs: NOTICE_PACE_MS,
         }}));
@@ -428,7 +508,7 @@ def test_wake_prompt_composes_deliveries_and_paced_notice() -> None:
     assert payload["hasSender"] is True
     assert payload["hasBody"] is True
     assert payload["hasNotice"] is True
-    assert payload["suggestsClaim"] is True
+    assert payload["suggestsTaking"] is True
     assert payload["quietEmpty"] is True
     assert payload["paceMs"] == 5 * 60 * 1000
 

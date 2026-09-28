@@ -26,12 +26,44 @@ def read_manifest(package: str) -> dict[str, object]:
 
 
 def test_all_runtime_packages_use_root_index_entry() -> None:
+    """Every runtime package loads its own root `index.ts`.
+
+    A bundle additionally lists its dependencies' root index entries, because that
+    is the entry Pi loads for a package. The rule that matters is unchanged: the
+    first entry is the package's own root, and anything extra is a dependency's
+    root under node_modules — never another package's source path, which would
+    break whenever that dependency's layout or packing changed.
+    """
     for package in sorted(RUNTIME_PACKAGES):
         package_dir = PACKAGES / package
         manifest = read_manifest(package)
-        assert manifest["pi"]["extensions"] == ["./index.ts"]
+        declared = manifest["pi"]["extensions"]
+        assert declared[0] == "./index.ts", package
         assert (package_dir / "index.ts").is_file()
         assert "index.ts" in manifest["files"]
+        for extra in declared[1:]:
+            assert extra.startswith("./node_modules/"), f"{package} names a non-bundled path: {extra}"
+            assert extra.endswith("/index.ts"), f"{package} must bundle a dependency's root index: {extra}"
+            # A bundled entry must exist in the installed tree, or Pi fails at load
+            # with nothing that names the cause.
+            assert (package_dir / extra.removeprefix("./")).is_file(), f"{package}: {extra} is missing"
+
+
+def test_the_bundle_declares_its_two_dependencies() -> None:
+    """agent-teams is the bundle: it registers `message` and loads the packages
+    that own `agent` and `task`, so one install gives all three tools with one
+    registrant each."""
+    manifest = read_manifest("agent-teams")
+    assert manifest["pi"]["extensions"] == [
+        "./index.ts",
+        "./node_modules/@fradser/pi-subagents/index.ts",
+        "./node_modules/@fradser/pi-tasks/index.ts",
+    ]
+    for dependency in ("@fradser/pi-subagents", "@fradser/pi-tasks"):
+        assert manifest["dependencies"][dependency].startswith("workspace:")
+        # A peer is supplied by the host, so a bundled peer would be absent in a
+        # plain install and the bundle would load two of its three tools.
+        assert dependency not in manifest.get("peerDependencies", {})
 
 
 def test_kit_uses_root_export_without_becoming_a_pi_extension() -> None:

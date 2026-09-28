@@ -1,16 +1,17 @@
 /**
- * `@fradser/pi-subagents` as a Pi extension.
+ * The Pi extension body for `@fradser/pi-subagents`.
  *
- * Separate from `index.ts` because that file is the library barrel and Pi's
- * extension loader requires a `default` export function, which a barrel does not
- * have. Anything bundling this package must reference this file, never the barrel.
+ * Lives in `src/` so `index.ts` can re-export it as the package's default export,
+ * which is what lets one file serve as both the library entry and the extension
+ * entry. A separate top-level extension file would split that, and the root
+ * `index.ts` is what every other runtime package here loads.
  *
  * It registers exactly one tool and owns no other surface. A team runtime
  * publishes a richer spawn path through `setAgentHost`; without one, `agent`
  * falls back to the raw spawner, which is what makes this package usable alone.
  */
 
-import { registerAgentTool } from "./src/agent-tool.ts";
+import { registerAgentTool } from "./agent-tool.ts";
 
 export default function piSubagents(pi: Parameters<typeof registerAgentTool>[0]): void {
   registerAgentTool(pi);

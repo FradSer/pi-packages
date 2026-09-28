@@ -6,7 +6,7 @@ import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-w
 import { registerLeaderTools } from "../src/tools.ts";
 import { initTeamMachine, shutdownTeamMachine, teardownTeammates } from "../src/team-machine.ts";
 import { getTask, resetState } from "../src/state.ts";
-import type { LeaderReport } from "@fradser/pi-subagents";
+import { registerAgentTool, type LeaderReport } from "@fradser/pi-subagents";
 
 const model = process.env.LIVE_AGENT_WORK_MODEL;
 assert.ok(model, "Select an authenticated model explicitly for this opt-in test");
@@ -22,6 +22,8 @@ try {
     if (report.finished) { reports.push(report); done.resolve(report); }
   } });
   registerLeaderTools({ registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools: () => [], setActiveTools() {} } as unknown as ExtensionAPI);
+  registerAgentTool({ registerTool(tool) { tools.set(tool.name);
+  registerTaskTool({ registerTool(tool) { tools.set(tool.name);
   const result = await tools.get("agent")!.execute("live", {
     action: "delegate", name: "capability-blocker", model,
     prompt: "Read the local file evidence.txt using a file tool and report its content. Do not invent evidence. If required tools are absent, follow your Worker Protocol and explicitly submit failed with the missing capabilities. Do not send an agent_event or ordinary final instead of failed submission.",

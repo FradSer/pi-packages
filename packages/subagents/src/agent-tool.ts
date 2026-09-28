@@ -28,9 +28,10 @@
 
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
 import { resolveAgent } from "./agents.ts";
 import { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
-import { listTeammates, livingTeammates, registerTeammate, updateTeammate, type Teammate } from "./roster.ts";
+import { getTeammate, listTeammates, livingTeammates, registerTeammate, updateTeammate, type Teammate } from "./roster.ts";
 import { exactSessionRoute, parseExactSessionRoute, resolveExactSession } from "./session-route.ts";
 import { spawnResident, terminateTeammate, deliverPrompt } from "./spawner.ts";
 import { snapshotWorkContext } from "./work-context.ts";
@@ -52,9 +53,19 @@ export interface AgentStartRequest {
   fork?: boolean;
 }
 
-/** A richer spawn/close path published by a team runtime. */
+/** A richer spawn/close path published by a team runtime.
+ *
+ * `start` may return a promise, and this tool awaits it. That is deliberate: a
+ * team spawn has to prove the child is actually up before it reports a handle,
+ * because "started" is the caller's only evidence that anything exists. The host
+ * owns whatever waiting that requires — an RPC readiness probe, a session reset,
+ * a worktree provision — and this tool owns none of it, which is why the
+ * standalone path can return immediately and still be honest about it. */
 export interface AgentHost {
-  start(request: AgentStartRequest): { ok: true; session: string } | { ok: false; error: string };
+  start(request: AgentStartRequest):
+  | { ok: true; session: string }
+  | { ok: false; error: string }
+  | Promise<{ ok: true; session: string } | { ok: false; error: string }>;
   stop(name: string, spawnId: string): Promise<{ ok: true; body?: string } | { ok: false; error: string }>;
 }
 
@@ -71,6 +82,13 @@ export function resolveAgentHost(): AgentHost | undefined {
 }
 
 const NAME_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/i;
+
+/** The first line of a prompt, for a one-line row. A prompt is the deliverable
+ *  of a start, so naming it matters more than its length. */
+function firstLine(text: string): string {
+  const line = text.trim().split("\n")[0] ?? "";
+  return line.length > 120 ? `${line.slice(0, 117)}…` : line;
+}
 
 const nameField = {
   type: "string",
@@ -147,6 +165,7 @@ function project(teammate: Teammate) {
     ...(teammate.assignment ? { assignment: teammate.assignment } : {}),
     ...(teammate.tools ? { tools: teammate.tools } : {}),
     ...(teammate.model ? { model: teammate.model } : {}),
+    ...(teammate.activeTool ? { activeTool: teammate.activeTool } : {}),
     ...(teammate.pid ? { pid: teammate.pid } : {}),
     ...(teammate.error ? { error: teammate.error } : {}),
   };
@@ -206,6 +225,7 @@ export async function executeAgentAction(
     // it. Demanding a role or a prompt first would make the two normal spawn
     // shapes — do this one thing, or sit ready for work — the exceptional ones.
     // The effective grant is reported back so the caller can see what it got.
+    const synthesised = !resolved;
     const request: AgentStartRequest = {
       name,
       ...(str("prompt") ? { prompt: str("prompt") } : {}),
@@ -229,14 +249,31 @@ export async function executeAgentAction(
     // board notices, and the fresh-session rule a team depends on.
     const host = resolveAgentHost();
     if (host) {
-      const started = host.start(request);
+      const started = await host.start(request);
       if (!started.ok) return fail(started.error);
+      // Report the grant the roster recorded, not the one that was asked for.
+      // The two can differ when a coordinator narrows a request, and a caller
+      // that assumed a tool it did not get is the failure this prevents — so
+      // this is read back rather than echoed.
+      const recorded = getTeammate(name);
+      const grant = recorded?.tools ?? [];
       return ok(
         [
           `AGENT · ${name} · started · ${started.session}`,
-          ...(request.prompt ? ["WORKING · a prompt was delivered"] : ["IDLE · no prompt; it will take work assigned to it"]),
+          ...(request.prompt ? [`WORKING · ${firstLine(request.prompt)}`] : ["IDLE · no prompt; it will take work assigned to it"]),
+          `GRANT · ${grant.length > 0 ? grant.join(", ") : "coordination only"}`,
+          // Say so plainly when the child has no standing instructions, on this
+          // path too. It is the caller's only signal, and a later turn spent
+          // re-explaining it is a turn wasted.
+          ...(synthesised && !rolePrompt ? ["ROLE · none given; this child has only its prompt"] : []),
         ].join("\n"),
-        { action: "start", outcome: "started", name, session: started.session, prompted: Boolean(request.prompt) },
+        {
+          action: "start", outcome: "started", name, session: started.session,
+          prompted: Boolean(request.prompt), role: recorded?.agent,
+          ...(request.prompt ? { prompt: request.prompt } : {}),
+          ...(recorded?.model ? { model: recorded.model } : {}),
+          grant, synthesisedRole: synthesised,
+        },
       );
     }
 
@@ -248,7 +285,6 @@ export async function executeAgentAction(
       prompt: rolePrompt ?? "",
       tools: strArray("tools") ?? [],
     } as never;
-    const synthesised = !resolved;
 
     // Claim the name *before* spawning. The roster is the only thing standing
     // between two same-named children, and checking after the spawn would leave
@@ -297,7 +333,7 @@ export async function executeAgentAction(
     return ok(
       [
         `AGENT · ${name} · started · ${session}`,
-        ...(request.prompt ? ["WORKING · a prompt was delivered"] : ["IDLE · no prompt; it will take work assigned to it"]),
+        ...(request.prompt ? [`WORKING · ${firstLine(request.prompt)}`] : ["IDLE · no prompt; it will take work assigned to it"]),
         `GRANT · ${grant.length > 0 ? grant.join(", ") : "coordination only"}`,
         // Say so plainly when the child has no standing instructions, so a
         // later turn is not spent explaining the same thing again.
@@ -306,7 +342,10 @@ export async function executeAgentAction(
       {
         action: "start", outcome: "started", name, session,
         prompted: Boolean(request.prompt), standalone: true,
-        role: definition.name, grant, synthesisedRole: synthesised,
+        ...(request.prompt ? { prompt: request.prompt } : {}),
+        role: definition.name,
+        ...(str("model") ? { model: str("model") } : {}),
+        grant, synthesisedRole: synthesised,
       },
     );
   }
@@ -371,7 +410,8 @@ export async function executeAgentAction(
       `AGENT · @${matched.name} · stopped`,
       // A stopped process is not a completed task. Saying so here is cheaper
       // than the model inferring completion from a silent process exit.
-      { action: "stop", outcome: "stopped", session, name: matched.name, evidence: "Process terminated. This is not evidence the work completed; check the task board." },
+      { action: "stop", outcome: "stopped", session, name: matched.name, agent: matched.name,
+        ...(closed.body ? { body: closed.body } : {}), evidence: "Process terminated. This is not evidence the work completed; check the task board." },
     );
   }
 
@@ -384,10 +424,105 @@ export function registerAgentTool(pi: ExtensionAPI, options: AgentToolOptions = 
     name: "agent",
     label: "Agent",
     promptSnippet: "Start, inspect, list, or stop a child agent process",
-    description: "Child process lifecycle. start spawns an agent; pass a prompt and it works immediately, omit it and it stays idle waiting for work assigned to it. inspect and stop take an exact session handle and address one incarnation. Results arrive automatically: continue your own work or end the turn rather than waiting on a child.",
+    description: "Child process lifecycle. start spawns an agent; pass a prompt and it works immediately, omit it and it stays idle waiting for work assigned to it. inspect and stop take an exact session handle and address one incarnation. Results arrive automatically: continue your own work or end the turn rather than polling, sleeping, or repeatedly inspecting a child to learn what was already delivered.",
     parameters: AGENT_TOOL_PARAMS as never,
     renderShell: "self",
+    // A start can take a while, and a stopped child is a state change worth one
+    // line. Rendering through the shared lifecycle renderer keeps the row shape
+    // identical to the other coordination tools instead of inventing a fourth.
     renderCall: () => undefined as never,
+    renderResult: createStaticToolLifecycleResultRenderer({
+      createSpec: (result) => {
+        const details = (result.details ?? {}) as {
+          name?: string;
+          agent?: string;
+          session?: string;
+          status?: string;
+          outcome?: string;
+          error?: string;
+          role?: string;
+          prompt?: string;
+          model?: string;
+          grant?: string[];
+          body?: string;
+          prompted?: boolean;
+          count?: number;
+          agents?: Array<{ name: string; status: string; activeTool?: string }>;
+          sessions?: Array<{ name: string; status: string; activeTool?: string }>;
+        };
+        // Projected from the structured result, never from the result text. The
+        // text carries the exact session handle, and a collapsed row that shows
+        // a handle is noise: the handle is what you look up, not what you read.
+        // It belongs in the expanded body.
+        const content = (result.content ?? []) as Array<{ type: string; text?: string }>;
+        const text = content.map((part) => part.text ?? "").join("\n");
+        // `WORKING · <first line>` is the content, not a receipt: it is the work
+        // the child was handed. The rest are receipts, and a collapsed row that
+        // lists its own receipts is noise. A handle never appears collapsed.
+        // A stop names its resulting state; an inspect names it per session.
+        const stateWord = details.outcome === "stopped" ? "stopped" : undefined;
+        const carried = text
+          .split("\n")
+          .filter(Boolean)
+          .filter((line) => !/session:[^\s]+/.test(line))
+          .map((line) => line.replace(/^WORKING · /, ""))
+          .filter((line) => !/^(AGENT|IDLE|GRANT|ROLE) ·/.test(line));
+        // A presence row leads with who is what, then what they are doing right
+        // now. The activity line is the whole point of `inspect`: it is how a
+        // leader sees progress without spending a turn asking.
+        const described = (agent: { name: string; status: string; activeTool?: string }) =>
+          [`- @${agent.name} · ${agent.status}`, ...(agent.activeTool ? [`now · ${agent.activeTool}`] : [])];
+        const summary = details.agents
+          ? details.agents.flatMap(described)
+          : details.sessions
+            ? details.sessions.flatMap(described)
+            : carried;
+        return {
+          kind: "started",
+          tool: "agent",
+          // Name then state, in one subject line: `@reviewer · stopped`. The
+          // renderer puts a label before the subject, so splitting them would
+          // read `stopped · @reviewer` — the reverse of how a row is read
+          // everywhere else in the coordination vocabulary.
+          subject: details.name || details.agent
+            ? `@${details.name ?? details.agent}${stateWord ? ` · ${stateWord}` : ""}`
+            : (details.count !== undefined ? `${details.count} agent(s)` : "agent"),
+          ...(details.outcome && !stateWord ? { label: details.outcome } : {}),
+          summary,
+          details: [
+            ...(details.role ? [`role · ${details.role}`] : []),
+            ...(details.model ? [`model · ${details.model}`] : []),
+            ...(details.grant?.length ? [`tools · ${details.grant.join(", ")}`] : []),
+            // The exact handle is deliberately absent from the row, expanded
+            // included. It is in the structured result and in the transcript, and
+            // a row that shows an identifier is noise: nobody reads a handle off a
+            // row to use it.
+            ...(details.prompted === false ? ["idle · no prompt; it will take work assigned to it"] : []),
+            // The shutdown summary, and the caveat that a stopped process is not
+            // a completed task. Both belong on the row: the summary is what the
+            // runtime reported, and the caveat is the mistake a reader would
+            // otherwise make from a silently dead process.
+            ...(details.body ? [details.body] : []),
+            ...(details.outcome === "stopped"
+              ? ["note · a stopped process is not evidence the work completed; check the task board"]
+              : []),
+            // A child with no file or shell access cannot do implementation
+            // work. Saying so on the row is the difference between a caller
+            // noticing and a child that quietly cannot read anything.
+            ...(details.grant && !details.grant.some((tool) => WORKER_BUILTIN_TOOLS.includes(tool as never))
+              ? ["warning · coordination-only: no file or shell tools granted. Delegate execution work with explicit canonical tools; no bash is granted by default."]
+              : []),
+            // Expansion reveals the whole prompt. The collapsed row shows its
+            // first line, which is the deliverable; dropping the tail on
+            // expansion would mean the row could never show what was asked.
+            ...(details.prompt ? details.prompt.trim().split("\n").slice(1) : []),
+          ],
+        };
+      },
+      fit: (text) => text,
+      visibleWidth: () => 80,
+      wrapDetail: (line) => [line],
+    }) as never,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       return executeAgentAction(params as Record<string, unknown>, {
         ...options,

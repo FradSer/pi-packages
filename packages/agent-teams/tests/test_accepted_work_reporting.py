@@ -19,7 +19,7 @@ def machine_case(tmp_path: Path, script: str, owned: bool = True) -> dict[str, o
           getTeammate, getTask, getState, releaseTask, reclaimDirectWork }} from "{(SRC / 'state.ts').as_uri()}";
         import {{ stateFilePath, inboxPath, workerOutboxPath, appendWorkerEvent,
           readJsonlBatch }} from "{(SRC / 'statefile.ts').as_uri()}";
-        import {{ registerLeaderTools }} from "{(SRC / 'tools.ts').as_uri()}";
+        import {{ publishTeamHost, registerComposedTools }} from "./tests/composed-tools.ts";
         const root = {json.dumps(str(tmp_path))};
         const reports = [];
         resetState();
@@ -45,7 +45,7 @@ def machine_case(tmp_path: Path, script: str, owned: bool = True) -> dict[str, o
           const settle = () => applyProgress("reviewer", "spawn-1", {{ text: "Final evidence", turns: 1, finalResponse: true }});
           const reminders = () => readJsonlBatch(inboxPath(stateFile, "reviewer"), 0).records;
           const tools = new Map();
-          registerLeaderTools({{ registerTool: t => tools.set(t.name, t), getActiveTools: () => [], setActiveTools() {{}} }});
+          registerComposedTools({{ registerTool: t => tools.set(t.name, t), getActiveTools: () => [], setActiveTools() {{}} }});
           const call = (name, params) => tools.get(name).execute("test", params, undefined, undefined, {{ cwd: root }});
           {script}
         }} finally {{ setVerifyGateRunner(undefined); shutdownTeamMachine(); resetState(); }}
@@ -101,18 +101,32 @@ def test_post_completion_event_does_not_create_work(tmp_path: Path) -> None:
     assert "Audit evidence" in payload["receipt"]
 
 
-@pytest.mark.parametrize("released", [False, True])
-def test_communication_cannot_assign_or_retry_work(tmp_path: Path, released: bool) -> None:
-    payload = machine_case(tmp_path, f'''
-        if ({str(released).lower()}) {{
-          await call("task", {{ action: "release", id: task.id, reason: "Provider failed" }});
-        }}
+@pytest.mark.parametrize("owned", [False, True])
+def test_communication_cannot_assign_or_retry_work(tmp_path: Path, owned: bool) -> None:
+    """A Message is a conversation, not a control channel.
+
+    The property survives the cutover and is worth keeping: the recipient holds a
+    live task, and a message addressed to it must not touch that task's status,
+    its holder, or the recipient's assignment. The two cases are a holder that
+    owns an assignment and one that does not, because a message that could
+    *acquire* work would show up in the second case first.
+    """
+    payload = machine_case(tmp_path, '''
         const before = JSON.stringify(getState().tasks);
-        await assert.rejects(call("message", {{ to: "session:reviewer:spawn-1", message: "New evidence" }}), /work.*assign/i);
-        console.log(JSON.stringify({{ unchanged: JSON.stringify(getState().tasks) === before,
-          assignment: getTeammate("reviewer").assignment ?? null }}));
-    ''', owned=released)
-    assert payload == {"unchanged": True, "assignment": None}
+        const message = await call("message", { to: "session:reviewer:spawn-1", message: "New evidence" });
+        console.log(JSON.stringify({
+          unchanged: JSON.stringify(getState().tasks) === before,
+          // The mail is still delivered; refusing to act on it is not refusing it.
+          delivered: message.details.outcome !== "not-sent",
+          assignment: getTeammate("reviewer").assignment ?? null,
+        }));
+    ''', owned=owned)
+    assert payload["unchanged"] is True
+    assert payload["delivered"] is True
+    if owned:
+        assert payload["assignment"] is not None
+    else:
+        assert payload["assignment"] is None
 
 
 @pytest.mark.parametrize("channel", ["explicit", "automatic"])
@@ -262,7 +276,12 @@ def test_archived_result_is_not_returned_as_accepted_evidence(tmp_path: Path) ->
           assignmentId: attempt, status: "completed", body: "Unaccepted evidence", timestamp: 3,
         });
         drainTeammateOutboxes();
-        await assert.rejects(call("message", { to: "session:reviewer:spawn-1", message: "New evidence" }), /work.*assign/i);
+        // A released assignment cannot receive work, and the refusal has to say
+        // so. Reported rather than thrown: every refusal from every tool is one
+        // shape, so a caller reads one thing whatever went wrong.
+        const refused = await call("message", { to: "session:reviewer:spawn-1", message: "New evidence" });
+        if (refused.details.ok !== false) throw new Error("a released assignment must refuse new evidence");
+        if (!/no open assignment/.test(refused.content[0].text)) throw new Error(`the refusal must name the reason: ${refused.content[0].text}`);
         console.log(JSON.stringify({ state: getTask(task.id).status, reports: reports.filter(r => r.finished) }));
     ''')
     assert payload == {"state": "pending", "reports": []}
@@ -291,26 +310,46 @@ def test_gate_delays_automatic_completion_report(tmp_path: Path) -> None:
 
 
 def test_agent_tool_guidance_explains_push_delivery(tmp_path: Path) -> None:
+    """The waiting discipline belongs to the tool that starts a child.
+
+    A delegation's result arrives without being asked for, so a model that polls
+    or sleeps spends a turn to learn what was already delivered. The `agent` tool
+    is now @fradser/pi-subagents', so this asserts on the tool that owns the rule
+    rather than on the package that used to.
+    """
     payload = machine_case(tmp_path, '''
-        console.log(JSON.stringify({ guidance: tools.get("agent").promptGuidelines ?? [] }));
+        const tool = tools.get("agent");
+        console.log(JSON.stringify({
+          guidelines: tool.promptGuidelines ?? [],
+          description: tool.description,
+        }));
     ''', owned=False)
-    guidance = " ".join(payload["guidance"])
+    guidance = " ".join(payload["guidelines"]) + " " + payload["description"]
+    guidance = " ".join(guidance.split()).lower()
     assert "automatically" in guidance
-    assert "end the turn" in guidance
-    assert "sleep" in guidance
+    assert "end the turn" in guidance or "ending the turn" in guidance
+    # Polling and sleeping are the two failure modes worth naming explicitly.
+    assert "poll" in guidance
     assert "inspect" in guidance
 
 
 def test_work_list_exposes_accepted_evidence_in_model_content(tmp_path: Path) -> None:
+    """The list text is one line per task; the evidence lives in `details`.
+
+    That is the new contract: a bounded line keeps the transcript readable, and
+    the complete result stays available to a caller that asks for it. Truncating
+    evidence out of the *details* would be a real loss, so that is asserted
+    directly rather than through a rendered row.
+    """
     payload = machine_case(tmp_path, '''
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Audit evidence");
         processTaskIntents(); settle();
         const listed = await call("task", { action: "list" });
-        console.log(JSON.stringify({ content: listed.content[0].text, works: listed.details.works }));
+        console.log(JSON.stringify({ content: listed.content[0].text, tasks: listed.details.tasks }));
     ''')
     assert "work:review" in payload["content"]
-    assert "Audit evidence" in payload["content"]
-    assert payload["works"][0]["result"] == "Audit evidence"
+    assert "Audit evidence" not in payload["content"], "the row is one line, not an evidence dump"
+    assert payload["tasks"][0]["result"] == "Audit evidence"
 
 
 def test_work_list_bounds_long_evidence_without_losing_details(tmp_path: Path) -> None:
@@ -319,8 +358,10 @@ def test_work_list_bounds_long_evidence_without_losing_details(tmp_path: Path) -
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", evidence);
         processTaskIntents(); settle();
         const listed = await call("task", { action: "list" });
-        assert.equal(listed.details.works[0].result, evidence);
-        console.log(JSON.stringify({ content: listed.content[0].text }));
+        // The details carry the whole result whatever its length, which is what
+        // makes the one-line row safe.
+        assert.equal(listed.details.tasks[0].result, evidence);
+        console.log(JSON.stringify({ content: listed.content[0].text, count: listed.details.count }));
     ''')
+    assert payload["content"].count("\\n") == payload["count"] - 1
     assert len(payload["content"]) < 4500
-    assert "Result preview truncated" in payload["content"]

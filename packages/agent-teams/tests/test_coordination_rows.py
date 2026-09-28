@@ -52,7 +52,7 @@ import { stripVTControlCharacters } from "node:util";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 import { initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager, setKeybindings, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { registerLeaderTools } from "__TOOLS__";
+import { registerComposedTools } from "__COMPOSED__";
 import { registerWorkerCapabilities } from "__WORKER__";
 
 const message = "FIRST-CONTENT " + Array.from({ length: 28 }, (_, i) => `evidence-${i}`).join(" ") + " LAST-CONTENT";
@@ -63,7 +63,7 @@ const result = { content: [{ type: "text", text: "EVENT ROUTING · steered" }], 
 const expected = `[message] to @${args.to} · steered · ${message} LINK-LABEL${literal}`;
 const tools = new Map();
 const capture = (prefix) => ({ registerTool: (tool) => tools.set(`${prefix}:${tool.name}`, tool), on() {} });
-registerLeaderTools(capture("leader"));
+registerComposedTools(capture("leader"));
 registerWorkerCapabilities(capture("worker"));
 
 export default function (pi) {
@@ -134,8 +134,9 @@ export default function (pi) {
   });
 }
 '''
-    fixture.write_text(source.replace("__TOOLS__", (Path(PACKAGE) / "src/tools.ts").as_uri())
-                       .replace("__WORKER__", (Path(PACKAGE) / "src/worker.ts").as_uri()))
+    fixture.write_text(source
+                       .replace("__COMPOSED__", Path(PACKAGE, "tests", "composed-tools.ts").as_uri())
+                       .replace("__WORKER__", Path(PACKAGE, "src", "worker.ts").as_uri()))
     agent_dir = tmp_path / "agent"
     agent_dir.mkdir()
     (agent_dir / "settings.json").write_text(json.dumps({"theme": "dark", "quietStartup": True}))

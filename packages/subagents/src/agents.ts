@@ -312,7 +312,7 @@ export function resolveAgent(name: string, cwd?: string): AgentDefinition | unde
  */
 export function formatAgentGuidance(cwd?: string): string {
   const agents = discoverAgents(cwd);
-  if (agents.size === 0) return "(none defined; pass an inline definition when delegating)";
+  if (agents.size === 0) return "(none defined; pass description and role_prompt to define one inline)";
   const lines: string[] = [];
   for (const agent of agents.values()) {
     const extras = [

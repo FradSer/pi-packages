@@ -4,9 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { registerLeaderTools } from "../src/tools.ts";
+import { registerTaskTool } from "@fradser/pi-tasks";
 import { initTeamMachine, shutdownTeamMachine, teardownTeammates } from "../src/team-machine.ts";
 import { getState, resetState } from "../src/state.ts";
-import type { LeaderReport } from "@fradser/pi-subagents";
+import { registerAgentTool, type LeaderReport } from "@fradser/pi-subagents";
 
 const model = process.env.LIVE_AGENT_WORK_MODEL;
 assert.ok(model, "Select an authenticated model explicitly");
@@ -23,7 +24,10 @@ try {
     notifyChange() {},
     sendUpdate(report) { if (report.finished) done.resolve(report); },
   });
-  registerLeaderTools({ registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools: () => [], setActiveTools() {} } as unknown as ExtensionAPI);
+  const host = { registerTool(tool: { name: string }) { tools.set(tool.name, tool); }, getActiveTools: () => [], setActiveTools() {} };
+  registerLeaderTools(host as unknown as ExtensionAPI);
+  registerAgentTool(host as unknown as ExtensionAPI));
+  registerTaskTool(host as unknown as ExtensionAPI);
   const created = await tools.get("task")!.execute("create", { action: "create", subject: "Return exactly NATIVE_UNASSIGNED_ASSIGNED_OK without calling tools." }, undefined, undefined, ctx);
   const work = (created.details as { work: { id: string } }).work;
   const start = await tools.get("agent")!.execute("start", { action: "start", name: "native-start", model,

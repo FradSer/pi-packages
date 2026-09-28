@@ -68,6 +68,7 @@ import {
   submissionsDir,
   takeTaskIntent,
   writeBoardFile,
+  type BoardTask,
 } from "@fradser/pi-tasks";
 import {
   appendInboxMessage,
@@ -935,7 +936,7 @@ export function buildKickoffPrompt(
   const roleSection = `=== ROLE PROMPT (${agentName}) ===\n${rolePrompt}`;
   const taskSection = kickoff?.trim()
     ? `=== KICKOFF TASK ===\n${kickoff.trim()}\n\nExecute this assigned task directly. Do not call work action=list or check the task board unless this task explicitly instructs you to do so.`
-    : "=== KICKOFF TASK ===\n(none yet — inspect Work with action=list and claim suitable Work with action=claim)";
+    : "=== KICKOFF TASK ===\n(none yet — list the board with task action=list and take one with task update status=in_progress)";
   return `${header}\n\n${roleSection}\n\n${taskSection}`;
 }
 
@@ -1626,7 +1627,7 @@ export function sendLeaderMessage(
   if (options?.reopen === undefined && (!teammate.assignment || teammate.assignment.closed)) {
     const prior = recordedTerminalReportBody(to);
     if (prior) return { ok: true, outcome: "not-sent", terminalReport: prior };
-    return { ok: false, error: `@${to} has no open assignment. Use work action=assign for pending Work, or work action=reopen then assign for completed Work.` };
+    return { ok: false, error: `@${to} has no open assignment. Take pending work with task update status=in_progress, or move a completed task back with task update status=pending first.` };
   }
   const retryReleasedWork = selectedExistingWork?.status === "pending" && teammate.assignment === undefined;
   if (teammate.assignment?.kind === "direct" && teammate.assignment.closed && !reopen && !retryReleasedWork) {
@@ -1641,7 +1642,7 @@ export function sendLeaderMessage(
   if (teammate.reportSequenceEnded && !reopen && !retryReleasedWork && !activeBoardHolder) {
     const prior = recordedTerminalReportBody(to);
     if (prior) return { ok: true, outcome: "not-sent", terminalReport: prior };
-    return { ok: false, error: `@${to} already sent a terminal report. Use work action=reopen followed by work action=assign for another Work attempt.` };
+    return { ok: false, error: `@${to} already sent a terminal report. Move the task back with task update status=pending before another attempt.` };
   }
   const priorTerminalReport = teammate.reportSequenceEnded ? recordedTerminalReportBody(to) : undefined;
   const boardParkKey = teammate.currentTaskId ? `${teammate.currentTaskId}:${teammate.spawnId}` : undefined;
@@ -1650,7 +1651,7 @@ export function sendLeaderMessage(
   }
   if (reopen && teammate.assignment && !teammate.assignment.closed && !recoveringUnexpectedExecution) {
     const action = teammate.assignment.kind === "board"
-      ? `work action=submit or be released/superseded`
+      ? `task complete, or be superseded`
       : "send a terminal report or be explicitly released";
     return { ok: false, error: `@${to} still owns active ${teammate.assignment.kind} assignment "${teammate.assignment.id}". It must ${action} before a direct assignment can open.` };
   }
@@ -1812,7 +1813,7 @@ function applyClaimMarker(intent: import("./types").TaskIntent): void {
     const kickoff = [
       `Claim accepted for Work Item ${task.id}: ${task.subject}`,
       task.description,
-      "Complete this assignment with work action=submit.",
+      "Complete this task with task action=complete outcome=success.",
     ].filter(Boolean).join("\n\n");
     const assignmentId = teammate.assignment.id;
     flushSnapshots();
@@ -2023,7 +2024,7 @@ function resolveGateOutcome(
           [
             `The completion gate for "${subject}" failed.`,
             detail,
-            "Fix the issues and resubmit with work action=submit.",
+            "Fix the issues and redeliver with task action=complete outcome=success.",
           ].join("\n"),
         );
       }
@@ -2379,7 +2380,7 @@ export function buildWakePrompt(
   }
   if (includeNotice && claimable.length > 0) {
     const listed = claimable.slice(0, 10).map((task) => `${task.id} (${task.subject})`).join(", ");
-    sections.push(`=== BOARD NOTICE ===\nUnclaimed tasks: ${listed}\nUse work action=list for details and work action=claim to take one if appropriate for your role.`);
+    sections.push(`=== BOARD NOTICE ===\nUnclaimed tasks: ${listed}\nUse task action=list for details and task update status=in_progress to take one if it suits your role.`);
   }
   if (sections.length === 0) return "";
   const leader = deliveries.find((message) => message.from === "leader" && message.body.startsWith("[agent-teams-assignment:"));
@@ -2405,6 +2406,72 @@ export interface BoardTaskCreationResult {
   supersededTaskIds: string[];
 }
 
+/** Run the coordination side effects of superseding work.
+ *
+ * Split out because the board transition itself belongs to @fradser/pi-tasks
+ * now, and this package hears about it on `pi-tasks:task-created` rather than
+ * performing it. A superseded holder keeps its assignment and resource lease
+ * until it acknowledges cancellation, so its feedback has to be routable before
+ * the replacement is announced.
+ *
+ * @returns the ids that were superseded, for the caller's report.
+ */
+export function settleSupersededWork(replaced: readonly BoardTask[], replacementId: string): string[] {
+  for (const task of replaced) {
+    const holder = task.claimedBy ? getTeammate(task.claimedBy) : undefined;
+    invalidateVerifyGate(task.id);
+    if (holder) unexpectedExecutionParks.delete(`${task.id}:${holder.spawnId}`);
+    for (const [name, pending] of pendingSubmissions) {
+      if (pending.taskId === task.id) pendingSubmissions.delete(name);
+    }
+    if (holder) {
+      archiveDeferredDeliveries(holder);
+      const holding = `${task.id}:${holder.spawnId}`;
+      verifyFailureParks.delete(holding);
+      inconclusiveParks.delete(holding);
+      deliverFeedback(
+        holder.name,
+        `Task superseded: ${task.id}`,
+        `Task "${task.id}" was superseded by "${replacementId}". Stop work immediately and acknowledge the cancellation with task complete outcome="failed" so its resources are released.`,
+      );
+    }
+    for (const key of [...verifyFailures.keys()]) {
+      if (key.startsWith(`${task.id}:`)) verifyFailures.delete(key);
+    }
+    for (const key of [...inconclusiveVerifications.keys()]) {
+      if (key.startsWith(`${task.id}:`)) inconclusiveVerifications.delete(key);
+    }
+    rearmTaskNotice(task.id);
+  }
+  return replaced.map((task) => task.id);
+}
+
+/** A task was created by @fradser/pi-tasks' own `task` tool.
+ *
+ * This is the whole of the leader's response to a board transition: settle what
+ * the supersession displaced, offer the new task to idle residents, and refresh
+ * what the console shows. It arrives as an event rather than a call so
+ * `@fradser/pi-tasks` never has to know a resident exists, and so a standalone
+ * board with nobody listening still works.
+ */
+export function onBoardTaskCreated(input: { id: string; replaced?: string[] }): void {
+  const replaced = (input.replaced ?? []).map((id) => getState().tasks[id]).filter(Boolean) as BoardTask[];
+  if (replaced.length > 0) settleSupersededWork(replaced, input.id);
+  publishStateSnapshot();
+  // Creation is a user-visible boundary: an idle resident should not have to
+  // wait for a later poll tick to see new work.
+  wakeIdleTeammates(input.id);
+  publishStateSnapshot();
+  notifyChange();
+}
+
+/** Any other board transition: no resident needs waking, but the snapshot and the
+ *  console both show the board, so both are refreshed. */
+export function onBoardTaskChanged(): void {
+  publishStateSnapshot();
+  notifyChange();
+}
+
 /** Create a task and synchronously offer it to currently-idle teammates.
  *
  * The normal poll loop still handles later dependency unlocks and queued mail,
@@ -2421,35 +2488,7 @@ export function createBoardTask(input: {
 }): BoardTaskCreationResult | { ok: false; error: string } {
   const created = createTask(input);
   if (!created.ok) return created;
-  for (const task of created.superseded) {
-    // A superseded holder intentionally retains its assignment/resource until
-    // it submits failed or stops; cancellation is lifecycle control, so it
-    // must unpark the holder before its feedback can be routed.
-    const holder = task.claimedBy ? getTeammate(task.claimedBy) : undefined;
-    invalidateVerifyGate(task.id);
-    if (holder) unexpectedExecutionParks.delete(`${task.id}:${holder.spawnId}`);
-    for (const [name, pending] of pendingSubmissions) {
-      if (pending.taskId === task.id) pendingSubmissions.delete(name);
-    }
-    if (holder) {
-      archiveDeferredDeliveries(holder);
-      const holding = `${task.id}:${holder.spawnId}`;
-      verifyFailureParks.delete(holding);
-      inconclusiveParks.delete(holding);
-      deliverFeedback(
-        holder.name,
-        `Task superseded: ${task.id}`,
-        `Work Item "${task.id}" was superseded by "${created.task.id}". Stop work immediately and use work action=submit with outcome="failed" to acknowledge cancellation and release its resources.`,
-      );
-    }
-    for (const key of [...verifyFailures.keys()]) {
-      if (key.startsWith(`${task.id}:`)) verifyFailures.delete(key);
-    }
-    for (const key of [...inconclusiveVerifications.keys()]) {
-      if (key.startsWith(`${task.id}:`)) inconclusiveVerifications.delete(key);
-    }
-    rearmTaskNotice(task.id);
-  }
+  const supersededTaskIds = settleSupersededWork(created.superseded, created.task.id);
   publishStateSnapshot();
   const resourceBlocked = activeAssignmentConflict(created.task.resources) !== undefined;
   const notifiedTeammates = wakeIdleTeammates(created.task.id);
@@ -2462,7 +2501,7 @@ export function createBoardTask(input: {
     livingTeammates: livingTeammates().length,
     claimable: claimableTasks().some((task) => task.id === created.task.id) && !resourceBlocked,
     resourceBlocked,
-    supersededTaskIds: created.superseded.map((task) => task.id),
+    supersededTaskIds,
   };
 }
 

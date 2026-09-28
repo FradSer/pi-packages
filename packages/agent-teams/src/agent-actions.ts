@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { WORKER_BUILTIN_TOOLS } from "@fradser/pi-subagents";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isValidTeammateName, listTeammates } from "./state.ts";
@@ -34,12 +33,10 @@ function requireName(name: string): void {
 
 export function runAgentAction(
   params: {
-    action: "delegate" | "start" | "inspect" | "stop";
+    action: "start" | "inspect" | "stop";
     name?: string;
     prompt?: string;
     definition?: Definition;
-    resources?: string[];
-    verify?: string;
     model?: string;
     fork?: boolean;
     session?: string;
@@ -65,34 +62,63 @@ export function runAgentAction(
     if (!matched) throw new Error(`No living session named "${params.session}".`);
     return runtime.shutdownTeammateExact(matched.name, matched.spawnId).then((result) => {
       if (!result.ok) throw new Error(result.error);
-      return { action: "stop", outcome: "stopped", session: params.session, body: result.body };
+      // The name comes from the resolved session, not from the request: a stop
+      // carries only a handle, so a receipt keyed on the request would be unnamed
+      // and a row drawn from it would have nothing to show.
+      return { action: "stop", outcome: "stopped", agent: matched.name, session: params.session, body: result.body };
     });
   }
-  if (!params.name) throw new Error(`Agent ${params.action} requires a name.`);
+  if (!params.name) throw new Error("Agent start requires a name.");
   requireName(params.name);
-  if (!params.definition && !resolveAgent(params.name, _cwd)) {
-    throw new Error(`Unknown Agent @${params.name}. Define it inline through agent action=delegate or start; for example definition: { description: "Read evidence", prompt: "Read the assigned file and report evidence", tools: ["read"] }. Choose only needed canonical tools: ${WORKER_BUILTIN_TOOLS.join(", ")}. Omitted tools or [] grant coordination-only access.`);
+  if (params.definition !== undefined) {
+    const role = params.definition as { description?: string; prompt?: string };
+    const hasDescription = typeof role.description === "string" && role.description.trim().length > 0;
+    const hasPrompt = typeof role.prompt === "string" && role.prompt.trim().length > 0;
+    // Both halves or neither. Half a role produces a child that reports a result
+    // nobody asked for, because it has no instructions and nothing told it to
+    // wait.
+    if (hasDescription !== hasPrompt) {
+      throw new Error("An inline role needs both description and role_prompt, or neither.");
+    }
   }
-  const prompt = params.action === "delegate" ? params.prompt?.trim() : undefined;
-  if (params.action === "delegate" && !prompt) throw new Error("Agent delegate requires a prompt.");
-  if (params.action === "start" && params.fork !== undefined) throw new Error("Agent start cannot fork context.");
+  // A prompt needs a role; an idle resident does not. A prompted child with no
+  // role would run without instructions and report a result nobody asked for,
+  // which is worse than refusing. A child started with no prompt is waiting for
+  // work, and requiring a role up front would make the normal two spawn shapes —
+  // do this one thing, or sit ready — behave differently from the tool.
+  if (params.prompt && !params.definition && !resolveAgent(params.name, _cwd)) {
+    throw new Error(`A prompt needs a role. @${params.name} has no definition: pass description and role_prompt, or use a name that already has one. Choose only needed canonical tools: ${WORKER_BUILTIN_TOOLS.join(", ")}. Omitted tools or [] grant coordination-only access.`);
+  }
+  // One spawn verb with an optional prompt. `delegate` and `start` were the same
+  // operation dispatched twice, and the only difference was whether a prompt was
+  // delivered; two names meant a caller had to pick between two identically
+  // shaped paths and the wrong pick was invisible.
+  const prompt = params.prompt?.trim();
+  if (params.prompt !== undefined && !prompt) throw new Error("An empty prompt is not a task. Omit it to leave the agent idle.");
   const context = params.fork ? snapshotWorkContext(sessionManager) : undefined;
   const result = runtime.spawnTeammate({
     name: params.name,
     agent: params.name,
-    ...(params.action === "delegate" ? { workId: `work:${randomUUID()}`, prompt, resources: params.resources as string[] | undefined, verify: params.verify, context } : {}),
+    // A prompt is delivered, not recorded: spawning creates no task, so there is
+    // no work id, no resource lease, and no verify gate to attach. Anything that
+    // needs a record is a task the caller creates and the participant takes.
+    ...(prompt ? { prompt } : {}),
     ...(params.model ? { model: params.model } : {}),
     ...(params.definition ? { definition: params.definition } : {}),
+    ...(context ? { context } : {}),
   });
   if (!result.ok) throw new Error(result.error);
   const receipt = (teammate: Teammate) => ({
-    action: params.action,
+    action: "start",
     outcome: "started",
     agent: params.name,
+    prompted: Boolean(prompt),
     session: session(teammate),
-    ...(params.action === "delegate" ? { work: { id: teammate.workId, state: "in_progress" }, assignment: { id: teammate.assignment?.id } } : {}),
   });
-  if (params.action === "start" && result.readiness) {
+  // Readiness is awaited whenever the host offers it. A handle is the caller's
+  // only evidence that anything exists, and a child that answered proves more than
+  // one that was forked off.
+  if (result.readiness) {
     return result.readiness.then((error) => {
       if (error) throw new Error(error);
       const current = resolveExactSession(exactSessionRoute(result.teammate.name, result.teammate.spawnId), listTeammates());

@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-agent-teams",
   "version": "0.10.0",
-  "description": "Multi-agent team system for Pi — resident teammates, shared task board, and peer-to-peer messaging",
+  "description": "Agent-to-Agent communication for Pi \u2014 point-to-point messaging, notices, Agent Presence, and the Team Console. A bundle: it registers `message` and loads the pi-subagents and pi-tasks extensions, so installing it gives `agent` + `task` + `message` with one registrant per tool.",
   "keywords": [
     "pi-package",
     "teammates",
@@ -35,7 +35,9 @@
   },
   "pi": {
     "extensions": [
-      "./index.ts"
+      "./index.ts",
+      "./node_modules/@fradser/pi-subagents/index.ts",
+      "./node_modules/@fradser/pi-tasks/index.ts"
     ]
   },
   "dependencies": {

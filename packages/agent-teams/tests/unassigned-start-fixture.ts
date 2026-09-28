@@ -24,27 +24,71 @@ const child = Object.assign(new EventEmitter(), {
 mock.method(childProcess, "spawn", () => child);
 syncBuiltinESMExports();
 const { registerLeaderTools } = await import("../src/tools.ts");
-const { initTeamMachine, shutdownTeamMachine, wakeIdleTeammates, deliverFeedback, routePeerInboxes } = await import("../src/team-machine.ts");
+const { registerTaskTool } = await import("@fradser/pi-tasks");
+const { registerAgentTool } = await import("@fradser/pi-subagents");
+const { exactSessionRoute, setAgentHost } = await import("@fradser/pi-subagents");
+const { initTeamMachine, shutdownTeamMachine, wakeIdleTeammates, deliverFeedback, routePeerInboxes, spawnTeammate, shutdownTeammateExact } = await import("../src/team-machine.ts");
 const { getState, resetState, setTaskClaimed } = await import("../src/state.ts");
 const root = process.env.PI_TEST_DIR;
 assert.ok(root);
 resetState();
 initTeamMachine({ sessionManager: undefined, cwd: root }, { sendUpdate() {}, notifyChange() {} });
 const tools = new Map();
-registerLeaderTools({ registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools: () => [], setActiveTools() {} });
+const host = { registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools: () => [], setActiveTools() {} };
+registerLeaderTools(host);
+registerAgentTool(host);
+registerTaskTool(host);
+// The `agent` tool belongs to @fradser/pi-subagents, so the team spawn path
+// reaches it the only way it can: by publishing itself as the coordinator. These
+// assertions are about the team behaviour, so they have to drive the real host
+// rather than the raw spawner underneath it.
+setAgentHost({
+  async start(request) {
+    const definition = request.definition ?? { description: request.name, prompt: "" };
+    const spawned = spawnTeammate({
+      name: request.name,
+      agent: request.name,
+      ...(request.model ? { model: request.model } : {}),
+      ...(request.prompt ? { prompt: request.prompt } : {}),
+      ...(request.definition ? { definition: { ...definition, ...(request.tools ? { tools: request.tools } : {}) } } : {}),
+    });
+    if (!spawned.ok) return spawned;
+    // Readiness is the host's job: a handle is only evidence of anything once
+    // the child has answered, so the host awaits its own probe before returning.
+    if (spawned.readiness) {
+      const failure = await spawned.readiness;
+      if (failure) return { ok: false, error: failure };
+    }
+    return { ok: true, session: exactSessionRoute(spawned.teammate.name, spawned.teammate.spawnId) };
+  },
+  stop: shutdownTeammateExact,
+});
 const ctx = { cwd: root };
 try {
   const created = await tools.get("task").execute("create", { action: "create", subject: "Recover existing work" }, undefined, undefined, ctx);
-  const starting = tools.get("agent").execute("start", { action: "start", name: "recovery", definition: { description: "Recovery", prompt: "Read assigned evidence", tools: ["read"] } }, undefined, undefined, ctx);
+  const starting = tools.get("agent").execute("start", { action: "start", name: "recovery", description: "Recovery", role_prompt: "Read assigned evidence", tools: ["read"] }, undefined, undefined, ctx);
   const mode = process.env.PI_TEST_MODE;
   if (["timeout", "exit", "not-ready", "rejected"].includes(mode ?? "")) {
-    await assert.rejects(starting, /readiness|exited/i);
+    // A refused action is reported, not thrown. The tool returns an error result
+    // for every refusal, so a caller reads one shape whether the refusal came
+    // from validation, a conflict, or a child that never came up.
+    const refused = await starting;
+    assert.equal(refused.details.ok, false, "a child that never became ready must not report a handle");
+    assert.equal(refused.details.session, undefined);
+    assert.match(refused.content[0].text, /readiness|exited|closed/i, refused.content[0].text);
     console.log("UNASSIGNED_START_OK");
   } else {
   const started = await starting;
-  assert.equal(started.details.session.status, "idle", "awaited public start must resolve native readiness");
-  assert.equal(started.details.session.workId, undefined, "unassigned start must not fabricate Work identity");
-  assert.equal(started.details.session.assignmentId, undefined);
+  // `start` returns a handle, not a projection. The readiness property is
+  // therefore read back through `inspect`, which is the surviving way to ask.
+  const session = started.details.session;
+  assert.match(session, /^session:recovery:/, "start must return an exact handle");
+  const inspected = await tools.get("agent").execute("inspect", { action: "inspect", session }, undefined, undefined, ctx);
+  assert.equal(inspected.details.sessions[0].status, "idle", "awaited public start must resolve native readiness");
+  // An unassigned resident must not acquire a task by being started: the board
+  // states what must be done, and a participant takes it.
+  assert.equal(inspected.details.sessions[0].currentTaskId, undefined, "unassigned start must not fabricate Work identity");
+  assert.equal(inspected.details.sessions[0].assignment, undefined, "unassigned start must not fabricate an assignment");
   assert.equal(commands.some((command) => command.type === "prompt"), false, "unassigned start must not execute a model kickoff");
   assert.equal(getState().teammates.recovery.status, "idle");
   const ready = commands.find((command) => command.type === "get_state");
@@ -53,7 +97,7 @@ try {
   if (mode === "notice" || mode === "inbox") {
     if (mode === "inbox") {
       // Prevent a board notice from masking the ordinary first-wake path.
-      getState().teammates.recovery.noticedTaskIds = [created.details.work.id];
+      getState().teammates.recovery.noticedTaskIds = [created.details.id];
       deliverFeedback("recovery", "Context", "Read-only context, no new assignment");
       routePeerInboxes();
     }
@@ -65,28 +109,27 @@ try {
       assert.match(wake?.message ?? "", /Read-only context/);
       assert.doesNotMatch(wake?.message ?? "", /=== BOARD NOTICE ===/);
     }
-    assert.equal(getState().tasks[created.details.work.id].status, "pending");
+    assert.equal(getState().tasks[created.details.id].status, "pending");
     console.log("UNASSIGNED_START_OK");
   } else if (mode === "in_progress") {
-    setTaskClaimed(created.details.work.id, "recovery");
-    const holding = getState().teammates.recovery.assignment.id;
-    const assigned = await tools.get("task").execute("assign", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id } }, undefined, undefined, ctx);
-    assert.equal(assigned.details.assignment.id, holding);
-    assert.equal(commands.some((command) => command.type === "new_session" || command.type === "prompt"), false);
-    await assert.rejects(tools.get("task").execute("stale", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id + "-stale" } }, undefined, undefined, ctx));
+    setTaskClaimed(created.details.id, "recovery");
+    assert.equal(getState().teammates.recovery.currentTaskId, created.details.id);
+    // Nothing may direct the assignment at a named participant any more. The
+    // board states what must be done; the participant raises a hand.
+    const directed = await tools.get("task").execute("assign", { action: "assign", id: created.details.id, target: { session: "session:recovery" } }, undefined, undefined, ctx);
+    assert.equal(directed.details.ok, false, "assign must be refused");
+    assert.match(directed.content[0].text, /update/);
+    assert.equal(getState().tasks[created.details.id].status, "in_progress", "a refused assign changes nothing");
     console.log("UNASSIGNED_START_OK");
   } else {
-  const assigned = await tools.get("task").execute("assign", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id } }, undefined, undefined, ctx);
-  assert.equal(assigned.details.work.id, created.details.work.id);
-  assert.equal(assigned.details.work.state, "in_progress");
-  const repeated = await tools.get("task").execute("assign-again", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id } }, undefined, undefined, ctx);
-  assert.deepEqual(repeated.details, assigned.details, "same exact holding is an idempotent receipt");
-  const reset = commands.find((command) => command.type === "new_session");
-  assert.ok(reset, "ready resident accepts fresh assignment without waiting for a nonexistent turn");
-  child.stdout.write(JSON.stringify({ type: "response", command: "new_session", id: reset.id, success: true, data: { cancelled: false } }) + "\n");
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.ok(commands.some((command) => command.type === "prompt" && command.message?.includes("Recover existing work")));
-  console.log("UNASSIGNED_START_OK");
+    // The same rule in the plain case: the resident takes the task itself, and
+    // there is no leader-side verb that can hand it over.
+    const directed = await tools.get("task").execute("assign", { action: "assign", id: created.details.id, target: { session: "session:recovery" } }, undefined, undefined, ctx);
+    assert.equal(directed.details.ok, false);
+    assert.equal(getState().tasks[created.details.id].status, "pending");
+    assert.equal(getState().teammates.recovery.currentTaskId, undefined, "an unstarted resident holds nothing");
+    assert.equal(commands.some((command) => command.type === "new_session"), false, "no fresh session is created by a refused assignment");
+    console.log("UNASSIGNED_START_OK");
   }
   }
 } finally {

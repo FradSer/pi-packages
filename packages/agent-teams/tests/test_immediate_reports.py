@@ -86,7 +86,7 @@ def test_leader_guidance_limits_steering_to_new_information() -> None:
         '''
     )
     guidance = str(payload["guidance"])
-    assert "new information that changes the worker's assignment" in guidance
+    assert "new information that changes its assignment" in guidance
     assert "Do not ask for progress reports or repeat instructions" in guidance
     assert "The worker autonomously completes its assignment" in guidance
     assert "continue independent work or yield" in guidance

@@ -12,8 +12,9 @@ import agentTeams from "../src/index.ts";
 import { runAgentAction } from "../src/agent-actions.ts";
 import { resolveWorkerTools } from "@fradser/pi-subagents";
 import { WORKER_CAPABILITY_TOOLS } from "../src/capability-tools.ts";
-import { clearSessionAgents, registerSessionAgent } from "@fradser/pi-subagents";
+import { clearSessionAgents, exactSessionRoute, registerAgentTool, registerSessionAgent, setAgentHost } from "@fradser/pi-subagents";
 import { registerLeaderTools } from "../src/tools.ts";
+import { registerTaskTool } from "@fradser/pi-tasks";
 import { registerWorkerCapabilities } from "../src/worker.ts";
 import {
   createTask,
@@ -70,6 +71,31 @@ const runtime = {
   sendLeaderMessage: () => ({ ok: true as const, outcome: "sent" }),
 };
 registerLeaderTools(capture("leader") as unknown as ExtensionAPI, runtime as never);
+// The `agent` tool is @fradser/pi-subagents'. It reaches the team spawn path by
+// the coordinator publishing itself, so the row under test is the real tool's.
+setAgentHost({
+  // `runAgentAction` throws on refusal and returns a receipt carrying the exact
+  // handle, so the host translates rather than reshaping.
+  async start(request) {
+    try {
+      const receipt = await runAgentAction({
+        action: "start",
+        name: request.name,
+        ...(request.prompt ? { prompt: request.prompt } : {}),
+        ...(request.definition ? { definition: { ...request.definition, tools: request.definition.tools ?? ["read", "bash"] } } : {}),
+        model: "anthropic/claude-sonnet-4-5",
+      }, undefined, runtime as never) as unknown as { session: { id?: string } & Record<string, unknown> };
+      const session = receipt.session?.id ?? receipt.session;
+      if (!session) return { ok: false, error: "the team spawn returned no handle" };
+      return { ok: true, session: String(session) };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+  stop: (name, spawnId) => runtime.shutdownTeammateExact(name, spawnId),
+});
+registerAgentTool(capture("leader") as unknown as ExtensionAPI);
+registerTaskTool(capture("leader") as unknown as ExtensionAPI);
 registerWorkerCapabilities(capture("worker") as unknown as ExtensionAPI);
 
 interface RenderPayload {
@@ -115,59 +141,91 @@ function expectReadable(row: string, label: string): void {
 // ── agent: delegate, inspect, stop, failure ───────────────────────
 
 registerSessionAgent({ name: "ui-auditor", description: "Audits visible TUI rows", prompt: "Audit TUI rows.", tools: ["read", "bash"] });
-const started = runAgentAction({
-  action: "delegate",
-  name: "ui-auditor",
-  prompt: "Fix the spacing under the started row.\nCheck the widget too.",
-  resources: ["packages/context"],
-  model: "anthropic/claude-sonnet-4-5",
-}, undefined, runtime);
-assert.equal(started.action, "delegate");
-const task = createTask({ id: started.work.id, subject: "Fix the spacing under the started row", resources: ["packages/context"] });
-assert.ok(task.ok);
+// A real receipt from the real tool, so the row is rendered from what the tool
+// actually returns rather than from a hand-built object.
+const started = await tools.get("leader:agent").execute(
+  "row",
+  { action: "start", name: "ui-auditor", prompt: "Fix the spacing under the started row.\nCheck the widget too." },
+  undefined,
+  undefined,
+  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
+);
+assert.equal(started.details.outcome, "started", started.content[0].text);
 
-const collapsed = render("leader:agent", { action: "delegate", name: "ui-auditor", prompt: "Fix the spacing under the started row.\nCheck the widget too." }, { details: started });
-expectReadable(collapsed, "delegate row");
-assert.match(collapsed, /@ui-auditor · started · Fix the spacing under the started row/);
-assert.ok(!collapsed.includes("role ·"), `collapsed delegate row must stay one line:\n${collapsed}`);
+const collapsed = render("leader:agent", { action: "start", name: "ui-auditor", prompt: "Fix the spacing under the started row.\nCheck the widget too." }, { details: started.details, text: started.content[0].text });
+expectReadable(collapsed, "start row");
+assert.match(collapsed, /Fix the spacing under the started row/);
+assert.ok(!collapsed.includes("role ·"), `collapsed start row must stay one line:\n${collapsed}`);
 
-const expanded = render("leader:agent", { action: "delegate", name: "ui-auditor", prompt: "Fix the spacing under the started row.\nCheck the widget too.", resources: ["packages/context"] }, { details: started, expanded: true });
-expectReadable(expanded, "expanded delegate row");
-for (const line of ["role · Audits visible TUI rows · session role", "task · Fix the spacing under the started row.", "Check the widget too.", "model · anthropic/claude-sonnet-4-5", "tools · read, bash, message, task", "resources · packages/context"]) {
-  assert.ok(expanded.includes(line), `expanded delegate row missing "${line}":\n${expanded}`);
+const expanded = render("leader:agent", { action: "start", name: "ui-auditor", prompt: "Fix the spacing under the started row.\nCheck the widget too." }, { details: started.details, text: started.content[0].text, expanded: true });
+expectReadable(expanded, "expanded start row");
+for (const line of ["role · ui-auditor", "Check the widget too.", "model · anthropic/claude-sonnet-4-5", "tools · read, bash, message, task"]) {
+  assert.ok(expanded.includes(line), `expanded start row missing "${line}":\n${expanded}`);
 }
-assert.ok(!expanded.includes("work · Fix the spacing"), "expanded delegate row must not duplicate the prompt as a work field");
+// A spawned child records no task and no resources: there is no task to hold a
+// resource lease for. The row must not imply otherwise.
+assert.ok(!expanded.includes("resources ·"), "a spawned child has no resource lease");
+assert.ok(!expanded.includes("work ·"), "a spawn is not a work item");
 
 // A kickoff prompt is the deliverable: expansion reveals every line, so no
-// character cap may drop the tail of a long prompt.
+// character cap may drop the tail of a long prompt. Driven through a real call,
+// because the row projects from the result and cannot see the arguments.
 const longPrompt = `Kickoff headline\n${"evidence ".repeat(400)}TAIL-EVIDENCE`;
-const longPromptRow = render("leader:agent", { action: "delegate", name: "ui-auditor", prompt: longPrompt }, { details: started, expanded: true });
-expectReadable(longPromptRow, "long-prompt delegate row");
-assert.ok(longPromptRow.includes("TAIL-EVIDENCE"), `expanded delegate row clipped a long prompt:\n${longPromptRow.slice(-400)}`);
-assert.ok(longPromptRow.includes("Kickoff headline"), `expanded delegate row dropped the prompt headline:\n${longPromptRow.slice(0, 400)}`);
+resetState();
+const longStart = await tools.get("leader:agent").execute(
+  "row",
+  { action: "start", name: "ui-auditor", prompt: longPrompt },
+  undefined,
+  undefined,
+  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
+);
+assert.equal(longStart.details.outcome, "started", longStart.content[0].text);
+const longPromptRow = render("leader:agent", { action: "start", name: "ui-auditor", prompt: longPrompt }, { details: longStart.details, text: longStart.content[0].text, expanded: true });
+expectReadable(longPromptRow, "long-prompt start row");
+assert.ok(longPromptRow.includes("TAIL-EVIDENCE"), `expanded start row clipped a long prompt:\n${longPromptRow.slice(-400)}`);
+assert.ok(longPromptRow.includes("Kickoff headline"), `expanded start row dropped the prompt headline:\n${longPromptRow.slice(0, 400)}`);
 
-const handle = started.session.id;
-const working = runAgentAction({ action: "inspect", name: "ui-auditor", session: handle }, undefined, runtime);
+const handle = exactSessionRoute("ui-auditor", getTeammate("ui-auditor")!.spawnId);
+// The status change comes first: a row renders the snapshot it was handed, so
+// updating the roster afterwards would leave the row describing the previous
+// state.
 updateTeammate("ui-auditor", { status: "working", activeTool: "file: overlay.ts" });
-const inspected = render("leader:agent", { action: "inspect", name: "ui-auditor", session: handle }, { details: working, expanded: true });
-expectReadable(inspected, "inspect row");
-assert.match(inspected, /@ui-auditor · working/);
-assert.ok(inspected.includes("now · file: overlay.ts"), `inspect row missing live activity:\n${inspected}`);
+const inspected = await tools.get("leader:agent").execute(
+  "row",
+  { action: "inspect", session: handle },
+  undefined,
+  undefined,
+  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
+);
+const inspectedRow = render("leader:agent", { action: "inspect", session: handle }, { details: inspected.details, text: inspected.content[0].text, expanded: true });
+expectReadable(inspectedRow, "inspect row");
+assert.match(inspectedRow, /@ui-auditor · working/);
+assert.ok(inspectedRow.includes("now · file: overlay.ts"), `inspect row missing live activity:\n${inspectedRow}`);
 
 updateTeammate("ui-auditor", { status: "idle", activeTool: undefined });
-const idleInspected = render("leader:agent", { action: "inspect", name: "ui-auditor", session: handle }, { details: { ...working, sessions: [{ ...working.sessions[0], status: "idle" }] }, expanded: true });
-assert.ok(!idleInspected.includes("now ·"), `idle inspect row must not display a now activity:\n${idleInspected}`);
-assert.ok(!idleInspected.includes("work ·"), `idle inspect row without active work must not dump old work:\n${idleInspected}`);
-assert.ok(!idleInspected.includes("status ·"), `inspect row must not repeat its own header state word:\n${idleInspected}`);
+const idleInspected = await tools.get("leader:agent").execute(
+  "row",
+  { action: "inspect", session: handle },
+  undefined,
+  undefined,
+  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
+);
+const idleRow = render("leader:agent", { action: "inspect", session: handle }, { details: idleInspected.details, text: idleInspected.content[0].text, expanded: true });
+assert.ok(!idleRow.includes("now ·"), `idle inspect row must not display a now activity:\n${idleRow}`);
+assert.ok(!idleRow.includes("work ·"), `idle inspect row must not dump old work:\n${idleRow}`);
+assert.ok(!idleRow.includes("status ·"), `inspect row must not repeat its own header state word:\n${idleRow}`);
 
 // A coordination-only spawn states its narrow grant on the row that created it.
-const narrowStarted = runAgentAction({
-  action: "delegate",
-  name: "row-check-narrow",
-  prompt: "Answer with one word.",
-  definition: { description: "Minimal probe", prompt: "Answer with one word.", tools: [] },
-}, undefined, runtime);
-const narrowRow = render("leader:agent", { action: "delegate", name: "row-check-narrow", prompt: "Answer with one word.", definition: { description: "Minimal probe", prompt: "Answer with one word.", tools: [] } }, { details: narrowStarted, expanded: true });
+const narrowStarted = await tools.get("leader:agent").execute(
+  "row",
+  { action: "start", name: "row-check-narrow", prompt: "Answer with one word.",
+    description: "Minimal probe", role_prompt: "Answer with one word.", tools: [] },
+  undefined,
+  undefined,
+  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
+);
+assert.equal(narrowStarted.details.outcome, "started", narrowStarted.content[0].text);
+const narrowRow = render("leader:agent", { action: "start", name: "row-check-narrow", prompt: "Answer with one word." }, { details: narrowStarted.details, text: narrowStarted.content[0].text, expanded: true });
 expectReadable(narrowRow, "coordination-only delegate row");
 assert.ok(narrowRow.includes("tools · message, task"), `narrow delegate row missing its grant:\n${narrowRow}`);
 assert.ok(narrowRow.includes("warning · coordination-only"), `narrow delegate row missing the coordination-only warning:\n${narrowRow}`);
@@ -179,67 +237,94 @@ assert.ok(stoppedRow.includes("@ui-auditor · stopped"), `stop row missing plain
 assert.ok(stoppedRow.includes("Agent @ui-auditor stopped."), `stop row missing the shutdown summary:\n${stoppedRow}`);
 assert.ok(!stoppedRow.includes("work ·"), `stop row must not duplicate previous work:\n${stoppedRow}`);
 
-const failure = `Agent "ghost" not found. Direct assignment resources conflict with @ui-auditor's direct assignment "${started.assignment.id}" over ${started.work.id}.`;
-const failureRow = render("leader:agent", { action: "delegate", name: "ghost" }, { text: failure, details: undefined, isError: true, expanded: true });
+// A real refusal, not a fabricated one. The old version cited a direct
+// assignment and its work id, which is the capability that moved to the board
+// with the work item; a spawn no longer creates either, so a row citing them
+// would be testing a failure the tool cannot produce.
+const refusedStart = await tools.get("leader:agent").execute(
+  "row",
+  { action: "start", name: "../escape" },
+  undefined,
+  undefined,
+  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
+);
+assert.equal(refusedStart.details.ok, false);
+const failureRow = render("leader:agent", { action: "start", name: "../escape" }, { text: refusedStart.content[0].text, details: refusedStart.details, isError: true, expanded: true });
 assert.ok(failureRow.includes("failed"), `failed row missing the plain state:\n${failureRow}`);
-assert.ok(failureRow.includes('Agent "ghost" not found'), `failed row dropped the reason:\n${failureRow}`);
-assert.ok(failureRow.includes("Fix the spacing under the started row"), `failed row kept a Work identifier:\n${failureRow}`);
+assert.ok(failureRow.includes("Invalid agent name"), `failed row dropped the reason:\n${failureRow}`);
 expectReadable(failureRow, "failed row");
 
 // ── work: subjects lead, identifiers stay model-facing ─────────────
+const taskCreated = await tools.get("leader:task").execute(
+  "row",
+  { action: "create", subject: "Fix the spacing under the started row", resources: ["packages/context"] },
+  undefined,
+  undefined,
+  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
+);
+assert.equal(taskCreated.details.ok, true, taskCreated.content[0].text);
 const createdRow = render("leader:task", { action: "create", subject: "Fix the spacing under the started row" }, {
-  details: {
-    action: "create", outcome: "created", state: "pending",
-    work: { id: task.ok ? task.task.id : "", subject: "Fix the spacing under the started row", resources: ["packages/context"], state: "pending" },
-    notifiedTeammates: ["ui-auditor"], claimable: true, supersededWorkIds: [],
-  },
-  text: `WORK · current session\nCREATED · ${task.ok ? task.task.id : ""} · pending/claimable · Fix the spacing\nROUTING · eligible residents notified: @ui-auditor`,
+  details: taskCreated.details,
+  text: taskCreated.content[0].text,
   expanded: true,
 });
-assert.ok(createdRow.includes("Fix the spacing under the started row · created"), `work create row missing the subject:\n${createdRow}`);
-expectReadable(createdRow, "work create row");
-assert.ok(createdRow.includes("routing · @ui-auditor"), `work create row missing routing:\n${createdRow}`);
+assert.ok(createdRow.includes("Fix the spacing under the started row"), `task create row missing the subject:\n${createdRow}`);
+// The old row carried a ROUTING line naming the residents that were notified.
+// The board tool cannot know a resident exists, so it reports the next step
+// instead; who was woken is the coordinator's business and is visible in the
+// console. Asserting the guidance rather than a notification list keeps the
+// boundary honest.
+assert.ok(createdRow.includes("take it with update status=in_progress"),
+  `task create row must state the next step rather than a routing list:\n${createdRow}`);
+assert.ok(!/eligible residents notified/.test(createdRow),
+  "the board tool must not claim to know which residents exist");
+expectReadable(createdRow, "task create row");
 
-const listedRow = render("leader:task", { action: "list" }, {
-  details: { action: "list", outcome: "listed", count: 1, works: [{ id: task.ok ? task.task.id : "", subject: "Fix the spacing under the started row", dependsOn: [], resources: [], state: "in_progress", claimedBy: "ui-auditor" }] },
-  text: "WORK · current session",
-  expanded: true,
-});
-expectReadable(listedRow, "work list row");
-assert.ok(listedRow.includes("1 work item"), `work list row missing the count:\n${listedRow}`);
-assert.ok(listedRow.includes("· in progress · @ui-auditor"), `work list row missing state and owner:\n${listedRow}`);
+// A held task, so the row has a holder to show. Taken by this session, which is
+// the same thing any participant does.
+await tools.get("leader:task").execute(
+  "row",
+  { action: "update", id: taskCreated.details.id, status: "in_progress" },
+  undefined,
+  undefined,
+  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
+);
+const taskListed = await tools.get("leader:task").execute(
+  "row",
+  { action: "list" },
+  undefined,
+  undefined,
+  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
+);
+const listedRow = render("leader:task", { action: "list" }, { details: taskListed.details, text: taskListed.content[0].text, expanded: true });
+expectReadable(listedRow, "task list row");
+assert.ok(listedRow.includes("Fix the spacing under the started row"), `task list row missing the subject:\n${listedRow}`);
+assert.ok(listedRow.includes("· in_progress · @main"), `task list row missing state and holder:\n${listedRow}`);
 
 // A long Work subject stays whole: the row fits it to the terminal and
 // expansion reveals it, so no fixed character cap may cut it short.
 const longSubject = `${"keep the widget aligned ".repeat(5)}TAIL-SUBJECT`.trim();
 assert.ok(longSubject.length > 110, "the long-subject regression must exceed the removed 90-character cap");
-const longCreatedRow = render("leader:task", { action: "create", subject: longSubject }, {
-  details: {
-    action: "create", outcome: "created", state: "pending",
-    work: { id: task.ok ? task.task.id : "", subject: longSubject, resources: [], state: "pending" },
-    notifiedTeammates: ["ui-auditor"], claimable: true, supersededWorkIds: [],
-  },
-  text: "WORK · current session",
-});
-expectReadable(longCreatedRow, "long-subject work create row");
+const longCreated = await tools.get("leader:task").execute(
+  "row",
+  { action: "create", subject: longSubject },
+  undefined,
+  undefined,
+  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
+);
+assert.equal(longCreated.details.ok, true, longCreated.content[0].text);
+const longCreatedRow = render("leader:task", { action: "create", subject: longSubject }, { details: longCreated.details, text: longCreated.content[0].text });
+expectReadable(longCreatedRow, "long-subject task create row");
 assert.ok(longCreatedRow.includes("TAIL-SUBJECT"), `collapsed work row clipped the subject at a fixed width:\n${longCreatedRow}`);
 const longCreatedExpanded = render("leader:task", { action: "create", subject: longSubject }, {
-  details: {
-    action: "create", outcome: "created", state: "pending",
-    work: { id: task.ok ? task.task.id : "", subject: longSubject, resources: [], state: "pending" },
-    notifiedTeammates: ["ui-auditor"], claimable: true, supersededWorkIds: [],
-  },
-  text: "WORK · current session",
+  details: longCreated.details,
+  text: longCreated.content[0].text,
   expanded: true,
 });
 assert.ok(longCreatedExpanded.includes(longSubject), `expanded work row lost the complete subject:\n${longCreatedExpanded}`);
 const narrowLongRow = stripVTControlCharacters(renderComponent("leader:task", { action: "create", subject: longSubject }, {
-  details: {
-    action: "create", outcome: "created", state: "pending",
-    work: { id: task.ok ? task.task.id : "", subject: longSubject, resources: [], state: "pending" },
-    notifiedTeammates: ["ui-auditor"], claimable: true, supersededWorkIds: [],
-  },
-  text: "WORK · current session",
+  details: longCreated.details,
+  text: longCreated.content[0].text,
 }).render(80).join("\n"));
 assert.ok(narrowLongRow.includes("to expand"), `a width-clipped subject must advertise expansion:\n${narrowLongRow}`);
 
@@ -265,17 +350,17 @@ assert.ok(workerMessageRow.includes("Done: spacing fixed and tests pass."), `wor
 
 // ── worker work rows name the task, not the id ─────────────────────
 
-const claimRow = render("worker:task", { action: "claim", id: task.ok ? task.task.id : "" }, {
-  details: { action: "claim", outcome: "queued", id: task.ok ? task.task.id : "", subject: "Fix the spacing under the started row", worker: "ui-auditor" },
-  text: `WORK · current session\nCLAIM INTENT QUEUED · ${task.ok ? task.task.id : ""} · Fix the spacing under the started row\nREQUESTER · @ui-auditor\nNEXT · wait for harness claim acceptance`,
+const claimRow = render("worker:task", { action: "claim", id: taskCreated.details.id }, {
+  details: { action: "claim", outcome: "queued", id: taskCreated.details.id, subject: "Fix the spacing under the started row", worker: "ui-auditor" },
+  text: `WORK · current session\nCLAIM INTENT QUEUED · ${taskCreated.details.id} · Fix the spacing under the started row\nREQUESTER · @ui-auditor\nNEXT · wait for harness claim acceptance`,
   expanded: true,
 });
 expectReadable(claimRow, "worker claim row");
 assert.ok(claimRow.includes("Fix the spacing under the started row · claim queued"), `worker claim row missing the subject:\n${claimRow}`);
 
 const submitRow = render("worker:task", { action: "submit", outcome: "success" }, {
-  details: { action: "submit", outcome: "queued", id: task.ok ? task.task.id : "", subject: "Fix the spacing under the started row", status: "success", verify: false },
-  text: `WORK · current session\nSUBMISSION INTENT QUEUED · ${task.ok ? task.task.id : ""} · success\nVERIFY · none configured\nNEXT · wait for the harness result`,
+  details: { action: "submit", outcome: "queued", id: taskCreated.details.id, subject: "Fix the spacing under the started row", status: "success", verify: false },
+  text: `WORK · current session\nSUBMISSION INTENT QUEUED · ${taskCreated.details.id} · success\nVERIFY · none configured\nNEXT · wait for the harness result`,
   expanded: true,
 });
 expectReadable(submitRow, "worker submit row");
@@ -365,16 +450,26 @@ for (const surface of ["leader:message", "worker:message"]) {
       `${surface}: expanded literal syntax must survive without prose cleanup at ${width}`);
   }
 
-  const decorated = "\u001b]0;bad-title\u0007\u001b[31m检查终端宽度\u001b[0m cafe\u0301 界界界 ".repeat(18) + `session:reader:spawn-1 ${started.work.id} direct:6d102f1b-cc16-4059-8d86-d5c1192f3776`;
-  const readable = "检查终端宽度 cafe\u0301 界界界 ".repeat(18) + "@reader Fix the spacing under the started row its assignment";
+  // A hostile message: an OSC title, colour, a combining accent, and identifier
+  // shapes. The property is that none of it survives into the row as an
+  // identifier, and that the text still wraps. Pinning the exact replacement
+  // wording would test the sanitiser's phrasing rather than its guarantee, and
+  // an unknown identifier resolving to a subject is a detail that moves when the
+  // board's id shape does.
+  const decorated = "\u001b]0;bad-title\u0007\u001b[31m检查终端宽度\u001b[0m cafe\u0301 界界界 ".repeat(18)
+    + "session:reader:spawn-1 work:9f1b7c22-0a4d-4f1e-9c33-2f0a5d7b1e64 direct:6d102f1b-cc16-4059-8d86-d5c1192f3776 its assignment";
   for (const width of [48, 90, 240]) {
     const unicodeRows = contentRows(renderComponent(surface, { ...args, message: decorated }, { ...payload, expanded: true }), width);
-    assert.deepEqual(unicodeRows, wrapTextWithAnsi(prefix + readable, width - 2).map((line) => line.trimEnd()));
-    expectReadable(unicodeRows.join("\n"), `${surface}: Unicode message`);
-    assert.ok(!unicodeRows.join("\n").includes("bad-title"));
-    assert.deepEqual(contentRows(renderComponent(surface, { ...args, message: decorated }, payload), width), [
-      stripVTControlCharacters(truncateToWidth(prefix + readable, width - 2 - visibleWidth(hint))) + hint,
-    ]);
+    const joined = unicodeRows.join("\n");
+    expectReadable(joined, `${surface}: Unicode message`);
+    assert.ok(!joined.includes("bad-title"), "an OSC title must not survive into the row");
+    assert.ok(!NO_IDENTIFIER.test(joined), `identifiers must not survive: ${joined}`);
+    // The prose itself is preserved, so the row is still readable as a message.
+    assert.ok(joined.includes("its assignment"), `the message text was dropped: ${joined}`);
+    // A clipped row advertises expansion rather than silently truncating.
+    const collapsedRows = contentRows(renderComponent(surface, { ...args, message: decorated }, payload), width);
+    assert.equal(collapsedRows.length, 1, `collapsed row must be one line: ${collapsedRows.join("\n")}`);
+    assert.ok(collapsedRows[0].includes("to expand"), `a clipped message must advertise expansion: ${collapsedRows[0]}`);
   }
 
   const hyperlink = "Open \u001b]8;;https://example.test\u001b\\LINK-LABEL\u001b]8;;\u001b\\ after.";

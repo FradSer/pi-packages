@@ -9,7 +9,7 @@ import { getMarkdownTheme, keyHint, ToolExecutionComponent } from "@earendil-wor
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildIdleLeaderGuidance, buildTeamLeaderGuidance, WORKER_GUIDANCE } from "./guidance.ts";
 import { clearSessionAgents } from "@fradser/pi-subagents";
-import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownTeammates } from "./team-machine.ts";
+import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, onBoardTaskChanged, onBoardTaskCreated, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownTeammates } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
 import { getTask, getTeammate, livingTeammates, listTasks, resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
@@ -187,6 +187,23 @@ export default function (pi: ExtensionAPI) {
   });
   registerLeaderTools(pi);
   registerTeamCommand(pi);
+
+  // The board belongs to @fradser/pi-tasks, which registers the `task` tool
+  // itself. This package subscribes to what the board announces rather than
+  // being called by it, so pi-tasks never has to know a resident exists and a
+  // standalone board with nobody listening still works.
+  //
+  // Guarded because subscribing is optional: a host without an event bus must
+  // degrade to no coordination, not to a failed load. Board transitions still
+  // record correctly; only the noticing is skipped.
+  if (typeof pi.events?.on === "function") {
+    pi.events.on("pi-tasks:task-created", (payload) => {
+      onBoardTaskCreated(payload as { id: string; replaced?: string[] });
+    });
+    for (const channel of ["pi-tasks:task-taken", "pi-tasks:task-completed", "pi-tasks:task-reopened", "pi-tasks:task-updated"]) {
+      pi.events.on(channel, () => onBoardTaskChanged());
+    }
+  }
 
   // Pi cannot retract one already-queued steer. The persisted record stays for
   // audit, and this projection keeps a retired attempt's nonterminal text from
