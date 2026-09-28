@@ -249,11 +249,18 @@ export const WorkToolParams = actionUnion([
 ], { description: "Create, list, assign, release, reopen, or supersede current Work Items" });
 
 /** Shared leader/worker read-only board view. */
-/** Shared communication event parameters across Leader, Worker, and Peers. */
+/** The one communication primitive, across Leader, Worker, and Peers.
+ *
+ * `body` rather than `message`: the field is the text of a message, and a
+ * parameter named after the tool is a small way of making every caller write
+ * `message: { message: ... }`. `kind` rather than `intent`: the two values are
+ * what the recipient owes the sender — nothing, or a decision — and that is a
+ * kind of message, not an intent the tool acts on.
+ */
 export const AgentEventParams = Type.Object({
-  message: Type.String({ description: "Message content" }),
+  body: Type.String({ description: "Message content" }),
   to: Type.Optional(Type.String({ minLength: 1, description: "Recipient Agent, leader, or exact session route" })),
-  intent: Type.Optional(Type.Union([Type.Literal("inform"), Type.Literal("request")])),
+  kind: Type.Optional(Type.Union([Type.Literal("inform"), Type.Literal("request")])),
 }, { additionalProperties: false });
 
 /** The reserved recipient name for reports to the team leader. */

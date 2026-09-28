@@ -328,11 +328,11 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
       if (!params.to || params.to === LEADER_RECIPIENT) {
         appendWorkerEvent(binding.outbox, {
           assignmentId: authority.assignmentId, id: randomUUID(), type: "message", worker: binding.worker, spawnId: binding.spawnId,
-          body: params.message, status: params.intent ?? "inform", timestamp: Date.now(),
+          body: params.body, status: params.kind ?? "inform", timestamp: Date.now(),
         });
         return {
-          content: [{ type: "text", text: `MESSAGING\nREPORT · to=leader · intent=${params.intent ?? "inform"}\nNEXT · harness will deliver this message; Work completion is automatic or uses work submit` }],
-          details: { to: LEADER_RECIPIENT, intent: params.intent ?? "inform", outcome: "queued" },
+          content: [{ type: "text", text: `MESSAGING\nREPORT · to=leader · kind=${params.kind ?? "inform"}\nNEXT · harness will deliver this message; Task completion is automatic or uses task complete` }],
+          details: { to: LEADER_RECIPIENT, kind: params.kind ?? "inform", outcome: "queued" },
         };
       }
       const recipient = resolveRecipient(params.to, readRoster(binding.rosterFile));
@@ -342,13 +342,13 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
       appendInboxMessage(recipientInbox, {
         id: randomUUID(),
         from: binding.worker,
-        subject: messageTitle(params.message),
-        body: params.message,
+        subject: messageTitle(params.body),
+        body: params.body,
         ...(recipient.spawnId ? { toSpawnId: recipient.spawnId } : {}),
       });
       return {
         content: [{ type: "text", text: `MESSAGING\nQUEUED · to=@${to}\nNEXT · harness will route the inbox message into a recipient turn` }],
-        details: { to, outcome: "queued", intent: params.intent ?? "inform" },
+        details: { to, outcome: "queued", kind: params.kind ?? "inform" },
       };
     },
   });

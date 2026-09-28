@@ -312,7 +312,7 @@ export function leaderWorkRow(
 
 /** One `agent_event` row: who receives it and what was actually said. */
 export function messageRow(
-  args: { to?: string; message?: string; intent?: string },
+  args: { to?: string; body?: string; kind?: string },
   details: unknown,
   options: { isError?: boolean } = {},
 ): CoordinationRow {
@@ -320,7 +320,7 @@ export function messageRow(
   const outcome = detailField<string>(details, "outcome");
   // Messages are literal readbacks, not prose to clean up. Only terminal
   // controls and runtime handles change; the shared renderer owns truncation.
-  const message = scrubHandles(safeDisplayText(displayText(args.message)), workHandle);
+  const message = scrubHandles(safeDisplayText(displayText(args.body)), workHandle);
   const prefix = [`to @${to}`, options.isError ? "failed" : outcome ? stateWord(outcome) : undefined]
     .filter(Boolean).join(" · ");
   return {

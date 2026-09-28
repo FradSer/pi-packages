@@ -330,8 +330,8 @@ assert.ok(narrowLongRow.includes("to expand"), `a width-clipped subject must adv
 
 // ── agent_event: the message itself, not the routing record ─────────
 
-const messageRow = render("leader:message", { to: "@ui-auditor", message: "Also check the widget spacing, then report.", intent: "request" }, {
-  details: { to: "ui-auditor", outcome: "sent", intent: "request" },
+const messageRow = render("leader:message", { to: "@ui-auditor", body: "Also check the widget spacing, then report.", kind: "request" }, {
+  details: { to: "ui-auditor", outcome: "sent", kind: "request" },
   text: `EVENT ROUTING · sent · to=@ui-auditor\nINTENT · request`,
   expanded: true,
 });
@@ -340,8 +340,8 @@ assert.ok(messageRow.includes("to @ui-auditor"), `message row missing the recipi
 assert.ok(messageRow.includes("Also check the widget spacing, then report."), `message row missing the message text:\n${messageRow}`);
 assert.ok(!messageRow.includes("EVENT ROUTING"), `message row still shows the routing record:\n${messageRow}`);
 
-const workerMessageRow = render("worker:message", { message: "Done: spacing fixed and tests pass." }, {
-  details: { to: "leader", outcome: "queued", intent: "inform" },
+const workerMessageRow = render("worker:message", { body: "Done: spacing fixed and tests pass." }, {
+  details: { to: "leader", outcome: "queued", kind: "inform" },
   text: "MESSAGING\nREPORT · to=leader · intent=inform",
   expanded: true,
 });
@@ -375,8 +375,8 @@ for (const hostile of [{ to: 5, message: { text: "hi" } }, {}, { action: "create
 }
 
 // A person's own identifier text is content, not a runtime handle: it survives.
-const literal = render("leader:message", { to: "@ui-auditor", message: "Compare with 6d102f1b-cc16-4059-8d86-d5c1192f3776 in the log." }, {
-  details: { to: "ui-auditor", outcome: "sent", intent: "inform" },
+const literal = render("leader:message", { to: "@ui-auditor", body: "Compare with 6d102f1b-cc16-4059-8d86-d5c1192f3776 in the log." }, {
+  details: { to: "ui-auditor", outcome: "sent", kind: "inform" },
   text: "EVENT ROUTING · sent",
   expanded: true,
 });
@@ -388,7 +388,7 @@ ${literal}`);
 for (const surface of ["leader:message", "worker:message"]) {
   const prefix = "[message] to @continual-audit-close · steered · ";
   const message = `Start marker: ${Array.from({ length: 32 }, (_, i) => `evidence-${i}`).join(" ")} END-MARKER`;
-  const args = { to: "continual-audit-close", message };
+  const args = { to: "continual-audit-close", body: message };
   const payload = { details: { to: "continual-audit-close", outcome: "steered" }, text: "EVENT ROUTING · steered" };
   const hint = stripVTControlCharacters(` · ${keyHint("app.tools.expand", "to expand")}`);
   const collapsed = renderComponent(surface, args, payload);
@@ -421,31 +421,31 @@ for (const surface of ["leader:message", "worker:message"]) {
       `${surface}: drop padding only when needed to retain hint text on tiny terminals`);
   }
 
-  const exactRecipient = renderComponent(surface, { to: "session:reader:spawn-1", message: "Brief update." }, {});
+  const exactRecipient = renderComponent(surface, { to: "session:reader:spawn-1", body: "Brief update." }, {});
   assert.deepEqual(contentRows(exactRecipient, 200), ["[message] to @reader · Brief update."], `${surface}: exact recipient route must remain model-only`);
-  const prefixedRecipient = renderComponent(surface, { to: "@reader", message: "Brief update." }, {});
+  const prefixedRecipient = renderComponent(surface, { to: "@reader", body: "Brief update." }, {});
   assert.deepEqual(contentRows(prefixedRecipient, 200), ["[message] to @reader · Brief update."]);
 
   const shortMessage = "Brief update.";
-  const short = renderComponent(surface, { ...args, message: shortMessage }, payload);
+  const short = renderComponent(surface, { ...args, body: shortMessage }, payload);
   assert.deepEqual(contentRows(short, 200), [prefix + shortMessage]);
   const notedPayload = { ...payload, details: { ...payload.details, terminalReport: "recorded result" } };
-  const noted = renderComponent(surface, { ...args, message: shortMessage }, notedPayload);
+  const noted = renderComponent(surface, { ...args, body: shortMessage }, notedPayload);
   assert.deepEqual(contentRows(noted, 200), [prefix + shortMessage + hint]);
-  const notedExpanded = renderComponent(surface, { ...args, message: shortMessage }, { ...notedPayload, expanded: true });
+  const notedExpanded = renderComponent(surface, { ...args, body: shortMessage }, { ...notedPayload, expanded: true });
   assert.deepEqual(contentRows(notedExpanded, 200), [prefix + shortMessage, "note · terminal report recorded for this Work"]);
 
   // Full readback bypasses both the generic fifty-detail-line and field-size caps.
   const longMessage = Array.from({ length: 61 }, (_, index) => `line-${index}: ${"complete-message ".repeat(8)}`).join("\n") + "\n\nLAST-PARAGRAPH";
-  const longExpanded = renderComponent(surface, { ...args, message: longMessage }, { ...payload, expanded: true });
+  const longExpanded = renderComponent(surface, { ...args, body: longMessage }, { ...payload, expanded: true });
   assert.deepEqual(contentRows(longExpanded, 90), wrapTextWithAnsi(prefix + longMessage, 88).map((line) => line.trimEnd()));
   const semanticMessage = "First line\n\nSecond line\n  indented third line";
-  assert.deepEqual(contentRows(renderComponent(surface, { ...args, message: semanticMessage }, { ...payload, expanded: true }), 200),
+  assert.deepEqual(contentRows(renderComponent(surface, { ...args, body: semanticMessage }, { ...payload, expanded: true }), 200),
     [prefix + "First line", "", "Second line", "  indented third line"]);
 
   const literalMessage = 'Preserve this JSON: {"value":""}\nLiteral spacing: alpha ; beta !\nTwo quoted lines: "\n"';
   for (const width of [48, 90, 240]) {
-    const literalRows = contentRows(renderComponent(surface, { ...args, message: literalMessage }, { ...payload, expanded: true }), width);
+    const literalRows = contentRows(renderComponent(surface, { ...args, body: literalMessage }, { ...payload, expanded: true }), width);
     assert.deepEqual(literalRows, wrapTextWithAnsi(prefix + literalMessage, width - 2).map((line) => line.trimEnd()),
       `${surface}: expanded literal syntax must survive without prose cleanup at ${width}`);
   }
@@ -459,7 +459,7 @@ for (const surface of ["leader:message", "worker:message"]) {
   const decorated = "\u001b]0;bad-title\u0007\u001b[31m检查终端宽度\u001b[0m cafe\u0301 界界界 ".repeat(18)
     + "session:reader:spawn-1 work:9f1b7c22-0a4d-4f1e-9c33-2f0a5d7b1e64 direct:6d102f1b-cc16-4059-8d86-d5c1192f3776 its assignment";
   for (const width of [48, 90, 240]) {
-    const unicodeRows = contentRows(renderComponent(surface, { ...args, message: decorated }, { ...payload, expanded: true }), width);
+    const unicodeRows = contentRows(renderComponent(surface, { ...args, body: decorated }, { ...payload, expanded: true }), width);
     const joined = unicodeRows.join("\n");
     expectReadable(joined, `${surface}: Unicode message`);
     assert.ok(!joined.includes("bad-title"), "an OSC title must not survive into the row");
@@ -467,14 +467,14 @@ for (const surface of ["leader:message", "worker:message"]) {
     // The prose itself is preserved, so the row is still readable as a message.
     assert.ok(joined.includes("its assignment"), `the message text was dropped: ${joined}`);
     // A clipped row advertises expansion rather than silently truncating.
-    const collapsedRows = contentRows(renderComponent(surface, { ...args, message: decorated }, payload), width);
+    const collapsedRows = contentRows(renderComponent(surface, { ...args, body: decorated }, payload), width);
     assert.equal(collapsedRows.length, 1, `collapsed row must be one line: ${collapsedRows.join("\n")}`);
     assert.ok(collapsedRows[0].includes("to expand"), `a clipped message must advertise expansion: ${collapsedRows[0]}`);
   }
 
   const hyperlink = "Open \u001b]8;;https://example.test\u001b\\LINK-LABEL\u001b]8;;\u001b\\ after.";
   for (const width of [48, 90, 240]) {
-    const linkedRows = contentRows(renderComponent(surface, { ...args, message: hyperlink }, { ...payload, expanded: true }), width);
+    const linkedRows = contentRows(renderComponent(surface, { ...args, body: hyperlink }, { ...payload, expanded: true }), width);
     assert.deepEqual(linkedRows, wrapTextWithAnsi(prefix + "Open LINK-LABEL after.", width - 2).map((line) => line.trimEnd()));
   }
 
@@ -494,7 +494,7 @@ for (const surface of ["leader:message", "worker:message"]) {
 
 // A real configured host keybinding, not a renderer-hardcoded ctrl+o string.
 setKeybindings(new KeybindingsManager({ "app.tools.expand": { defaultKeys: "ctrl+o" } }, { "app.tools.expand": "ctrl+shift+e" }));
-const remapped = renderComponent("leader:message", { to: "reader", message: "Hidden message ".repeat(30) }, { details: { to: "reader", outcome: "steered" } });
+const remapped = renderComponent("leader:message", { to: "reader", body: "Hidden message ".repeat(30) }, { details: { to: "reader", outcome: "steered" } });
 assert.ok(contentRows(remapped, 90)[0].endsWith(" · ctrl+shift+e to expand"));
 assert.ok(!contentRows(remapped, 90)[0].includes("ctrl+o"));
 

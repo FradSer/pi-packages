@@ -58,7 +58,7 @@ import { registerWorkerCapabilities } from "__WORKER__";
 const message = "FIRST-CONTENT " + Array.from({ length: 28 }, (_, i) => `evidence-${i}`).join(" ") + " LAST-CONTENT";
 const hyperlink = "\u001b]8;;https://example.test\u001b\\LINK-LABEL\u001b]8;;\u001b\\";
 const literal = '\nPreserve this JSON: {"value":""}\nLiteral spacing: alpha ; beta !\nTwo quoted lines: "\n"';
-const args = { to: "continual-audit-close", message: message + " " + hyperlink + literal };
+const args = { to: "continual-audit-close", body: message + " " + hyperlink + literal };
 const result = { content: [{ type: "text", text: "EVENT ROUTING · steered" }], details: { to: args.to, outcome: "steered" }, isError: false };
 const expected = `[message] to @${args.to} · steered · ${message} LINK-LABEL${literal}`;
 const tools = new Map();

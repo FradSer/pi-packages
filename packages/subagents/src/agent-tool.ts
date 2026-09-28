@@ -29,7 +29,8 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
-import { resolveAgent } from "./agents.ts";
+import { registerSessionAgent, resolveAgent } from "./agents.ts";
+import { configureBoardStoreIfUnset, resourcesConflict, type WorkAssignment } from "@fradser/pi-tasks";
 import { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
 import { getTeammate, listTeammates, livingTeammates, registerTeammate, updateTeammate, type Teammate } from "./roster.ts";
 import { exactSessionRoute, parseExactSessionRoute, resolveExactSession } from "./session-route.ts";
@@ -82,6 +83,16 @@ export function resolveAgentHost(): AgentHost | undefined {
 }
 
 const NAME_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/i;
+
+/** One line describing how a child ended, for the roster entry it leaves behind. */
+function describeExit(result: { exitCode?: number | null; signal?: string | null; stderr?: string }): string {
+  if (result.signal) return `Child process ended on ${result.signal}.`;
+  const code = result.exitCode ?? 0;
+  const detail = result.stderr?.trim();
+  return detail
+    ? `Child process exited with ${code}: ${detail}`
+    : `Child process exited with ${code}.`;
+}
 
 /** The first line of a prompt, for a one-line row. A prompt is the deliverable
  *  of a start, so naming it matters more than its length. */
@@ -284,7 +295,31 @@ export async function executeAgentAction(
       description: description ?? name,
       prompt: rolePrompt ?? "",
       tools: strArray("tools") ?? [],
-    } as never;
+    };
+    // The role reaches the child by *name*: it is registered as a session agent,
+    // which is what the child's own worker extension resolves. Handing it to the
+    // spawner instead would be silently dropped, because the spawner has no such
+    // parameter, and the child would start with no role at all.
+    // Only when there is a role to register. An idle resident started with no
+    // prompt and no definition has none, and registering a placeholder with an
+    // empty prompt would be refused — and would be wrong if it were not: a child
+    // that resolved a role with no instructions would report a result nobody
+    // asked for. The receipt already says so with `ROLE · none given`.
+    if (definition.prompt.trim()) {
+      try {
+        registerSessionAgent({
+          name,
+          description: definition.description,
+          prompt: definition.prompt,
+          tools: definition.tools,
+          ...(str("model") || request.definition?.model
+            ? { model: str("model") ?? request.definition?.model }
+            : {}),
+        });
+      } catch (error) {
+        return fail(error instanceof Error ? error.message : String(error));
+      }
+    }
 
     // Claim the name *before* spawning. The roster is the only thing standing
     // between two same-named children, and checking after the spawn would leave
@@ -313,8 +348,16 @@ export async function executeAgentAction(
       ...(params.fork === true && options.contextMessages
         ? { context: options.contextMessages() as never }
         : {}),
-      agent: definition,
-    } as never);
+      // A child that exits leaves the roster. Without this the name stays held by a
+      // process that no longer exists, and a later start of the same name is
+      // refused against a dead entry.
+      onExit: (result) => {
+        updateTeammate(name, { status: "stopped", error: describeExit(result) });
+      },
+      onError: (error) => {
+        updateTeammate(name, { status: "stopped", error: error.message });
+      },
+    });
     if ("error" in spawned) {
       // Release the reservation. A name that stays reserved by a child which
       // never started is the worst outcome: the name looks taken and nothing is
@@ -335,15 +378,16 @@ export async function executeAgentAction(
         `AGENT · ${name} · started · ${session}`,
         ...(request.prompt ? [`WORKING · ${firstLine(request.prompt)}`] : ["IDLE · no prompt; it will take work assigned to it"]),
         `GRANT · ${grant.length > 0 ? grant.join(", ") : "coordination only"}`,
-        // Say so plainly when the child has no standing instructions, so a
-        // later turn is not spent explaining the same thing again.
+        // Say so plainly when the child has no standing instructions, on this
+        // path too. It is the caller's only signal, and a later turn spent
+        // re-explaining it is a turn wasted.
         ...(synthesised && !rolePrompt ? ["ROLE · none given; this child has only its prompt"] : []),
       ].join("\n"),
       {
         action: "start", outcome: "started", name, session,
         prompted: Boolean(request.prompt), standalone: true,
         ...(request.prompt ? { prompt: request.prompt } : {}),
-        role: definition.name,
+        role: name,
         ...(str("model") ? { model: str("model") } : {}),
         grant, synthesisedRole: synthesised,
       },
@@ -418,8 +462,45 @@ export async function executeAgentAction(
   return fail(`Unknown agent action "${action}". Use start, inspect, list, or stop.`);
 }
 
+/** Publish the roster as the board's participant registry.
+ *
+ * Only when no coordinator has claimed the store, so a team runtime that counts
+ * board revisions keeps its own policy. Without this, installing the execution
+ * layer and the board together would leave the board with no conflict oracle and
+ * it would degrade to single-session, which is the wrong degradation: a roster
+ * exists, so there is something to check against.
+ */
+function publishRosterAsBoardStore(): void {
+  configureBoardStoreIfUnset({
+    get: (holder) => {
+      const entry = getTeammate(holder);
+      return entry ? { name: entry.name, spawnId: entry.spawnId, status: entry.status } : undefined;
+    },
+    conflicting: (resources, except) => {
+      for (const entry of livingTeammates()) {
+        if (entry.name === except) continue;
+        const assignment = entry.assignment as WorkAssignment | undefined;
+        if (assignment && !assignment.closed && resourcesConflict(resources, assignment.resources)) {
+          return { name: entry.name, spawnId: entry.spawnId, status: entry.status };
+        }
+      }
+      return undefined;
+    },
+    sync: (holder, assignment, taskId) => {
+      updateTeammate(holder, {
+        ...(assignment ? { assignment } : { assignment: undefined }),
+        ...(taskId ? { currentTaskId: taskId } : { currentTaskId: undefined }),
+      });
+    },
+    // A library has no snapshot writer, so there is nothing to mark changed.
+    changed: () => {},
+  });
+}
+
 /** The single registrant of `agent`. */
 export function registerAgentTool(pi: ExtensionAPI, options: AgentToolOptions = {}): void {
+  publishRosterAsBoardStore();
+  publishRosterAsBoardStore();
   pi.registerTool({
     name: "agent",
     label: "Agent",

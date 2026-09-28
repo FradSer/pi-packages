@@ -52,7 +52,7 @@ def test_old_turn_cannot_send_as_reassigned_work(tmp_path: Path) -> None:
         roster.teammates[0].currentTaskId = "work-2";
         fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify(roster));
         let rejection;
-        try { await fixture.call("message", { to: "leader", message: "Old cancellation acknowledgement" }); }
+        try { await fixture.call("message", { to: "leader", body: "Old cancellation acknowledgement" }); }
         catch (error) { rejection = error.message; }
         console.log(JSON.stringify({ records: fixture.records(), rejection }));
     ''')
@@ -85,7 +85,7 @@ def test_submission_does_not_leave_a_communication_loop(tmp_path: Path) -> None:
         await fixture.start();
         const result = await fixture.call("task", { action: "submit", outcome: "failed", result: "Cancelled" });
         let rejection;
-        try { await fixture.call("message", { to: "leader", message: "Please settle cancellation again" }); }
+        try { await fixture.call("message", { to: "leader", body: "Please settle cancellation again" }); }
         catch (error) { rejection = error.message; }
         console.log(JSON.stringify({ terminate: result.terminate, records: fixture.records(), rejection }));
     ''')

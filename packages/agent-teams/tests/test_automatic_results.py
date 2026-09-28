@@ -119,7 +119,7 @@ def test_communication_event_does_not_require_completion_bookkeeping(tmp_path: P
     tool = "message"
     payload = run_worker(tmp_path, f'''
         await fixture.start();
-        const result = await fixture.call({tool!r}, {{ to: "leader", message: "New evidence" }});
+        const result = await fixture.call({tool!r}, {{ to: "leader", body: "New evidence" }});
         assert.notEqual(result.terminate, true);
         await fixture.answer(assistant("Final answer"));
         await fixture.emit({{ type: "agent_settled" }});
@@ -318,15 +318,15 @@ def test_agent_event_requires_precise_route_for_concurrent_peer_sessions(tmp_pat
         const self = JSON.parse(fs.readFileSync(fixture.binding.rosterFile, "utf8")).teammates[0];
         const write = (teammates) => fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify({ teammates: [self, ...teammates] }));
         write(peers);
-        await assert.rejects(fixture.call(messageTool, { to: "peer-reviewer", message: "Ambiguous" }),
+        await assert.rejects(fixture.call(messageTool, { to: "peer-reviewer", body: "Ambiguous" }),
           /Ambiguous Agent.*reviewer-one.*reviewer-two/);
         assert.equal(fs.existsSync(fixture.binding.inbox.replace("inbox-worker", "inbox-reviewer-one")), false);
-        const exact = await fixture.call(messageTool, { to: "session:reviewer-two", message: "Exact route" });
+        const exact = await fixture.call(messageTool, { to: "session:reviewer-two", body: "Exact route" });
         write([peers[0], { ...peers[1], status: "stopped" }]);
-        const unique = await fixture.call(messageTool, { to: "peer-reviewer", message: "Only living route" });
+        const unique = await fixture.call(messageTool, { to: "peer-reviewer", body: "Only living route" });
         self.agent = "self-role";
         write([]);
-        await assert.rejects(fixture.call(messageTool, { to: "self-role", message: "Self alias" }), /yourself/);
+        await assert.rejects(fixture.call(messageTool, { to: "self-role", body: "Self alias" }), /yourself/);
         const first = JSON.parse(fs.readFileSync(fixture.binding.inbox.replace("inbox-worker", "inbox-reviewer-one"), "utf8"));
         const second = JSON.parse(fs.readFileSync(fixture.binding.inbox.replace("inbox-worker", "inbox-reviewer-two"), "utf8"));
         console.log(JSON.stringify({ exact: exact.details.to, unique: unique.details.to, first: first.body, second: second.body }));

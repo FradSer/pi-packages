@@ -91,7 +91,7 @@ def test_post_completion_event_does_not_create_work(tmp_path: Path) -> None:
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Audit evidence");
         processTaskIntents(); settle();
         const before = JSON.stringify(getState().tasks);
-        const receipt = await call("message", { to: "session:reviewer:spawn-1", message: "Acceptance recorded", intent: "inform" });
+        const receipt = await call("message", { to: "session:reviewer:spawn-1", body: "Acceptance recorded", kind: "inform" });
         assert.equal(JSON.stringify(getState().tasks), before);
         console.log(JSON.stringify({ receipt: receipt.content[0].text, outcome: receipt.details.outcome,
           assignment: getTeammate("reviewer").assignment ?? null }));
@@ -113,7 +113,7 @@ def test_communication_cannot_assign_or_retry_work(tmp_path: Path, owned: bool) 
     """
     payload = machine_case(tmp_path, '''
         const before = JSON.stringify(getState().tasks);
-        const message = await call("message", { to: "session:reviewer:spawn-1", message: "New evidence" });
+        const message = await call("message", { to: "session:reviewer:spawn-1", body: "New evidence" });
         console.log(JSON.stringify({
           unchanged: JSON.stringify(getState().tasks) === before,
           // The mail is still delivered; refusing to act on it is not refusing it.
@@ -263,7 +263,7 @@ def test_ordinary_mail_does_not_unpark_verification(tmp_path: Path, verdict: str
         // Ordinary mail cannot unblock work. It used to be delivered and merely
         // not authorize a resubmission; now the worker holds no assignment, so the
         // message is refused and there is nothing it could have done.
-        const steer = await call("message", {{ to: "session:reviewer:spawn-1", message: "New information, not recovery authorization" }});
+        const steer = await call("message", {{ to: "session:reviewer:spawn-1", body: "New information, not recovery authorization" }});
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Unauthorized revision");
         processTaskIntents(); await tick();
         console.log(JSON.stringify({{
@@ -300,7 +300,7 @@ def test_archived_result_is_not_returned_as_accepted_evidence(tmp_path: Path) ->
         // A released assignment cannot receive work, and the refusal has to say
         // so. Reported rather than thrown: every refusal from every tool is one
         // shape, so a caller reads one thing whatever went wrong.
-        const refused = await call("message", { to: "session:reviewer:spawn-1", message: "New evidence" });
+        const refused = await call("message", { to: "session:reviewer:spawn-1", body: "New evidence" });
         if (refused.details.ok !== false) throw new Error("a released assignment must refuse new evidence");
         if (!/no open assignment/.test(refused.content[0].text)) throw new Error(`the refusal must name the reason: ${refused.content[0].text}`);
         console.log(JSON.stringify({ state: getTask(task.id).status, reports: reports.filter(r => r.finished) }));

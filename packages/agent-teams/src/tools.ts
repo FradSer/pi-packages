@@ -31,7 +31,7 @@ export function registerMessageTool(pi: ExtensionAPI, runtime: { sendLeaderMessa
       return renderCoordinationRow(
         result, options, theme, context,
         "message",
-        messageRow(context.args as { to?: string; message?: string }, result.details, { isError: context.isError }),
+        messageRow(context.args as { to?: string; body?: string }, result.details, { isError: context.isError }),
       );
     },
     async execute(_toolCallId, params) {
@@ -54,12 +54,12 @@ export function registerMessageTool(pi: ExtensionAPI, runtime: { sendLeaderMessa
       } catch (error) {
         return refuse(error instanceof Error ? error.message : String(error));
       }
-      const result = runtime.sendLeaderMessage(to, params.message, {});
+      const result = runtime.sendLeaderMessage(to, params.body, {});
       if (!result.ok) return refuse(result.error);
       const recorded = result.outcome === "not-sent" ? `\nRECORDED TERMINAL REPORT · ${result.terminalReport}` : "";
       return {
-        content: [{ type: "text", text: `MESSAGE ROUTING · ${result.outcome} · to=@${to}\nKIND · ${params.intent ?? "inform"}${recorded}` }],
-        details: { to, outcome: result.outcome, intent: params.intent ?? "inform", ok: true },
+        content: [{ type: "text", text: `MESSAGE ROUTING · ${result.outcome} · to=@${to}\nKIND · ${params.kind ?? "inform"}${recorded}` }],
+        details: { to, outcome: result.outcome, kind: params.kind ?? "inform", ok: true },
       };
     },
   });

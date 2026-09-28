@@ -67,6 +67,22 @@ export function configureBoardStore(next: BoardStoreHooks): void {
   coordinated = true;
 }
 
+/** Configure the store only if no coordinator has claimed it.
+ *
+ * Two packages installed together must integrate without either importing the
+ * other's internals. `pi-subagents` owns the roster and already depends on this
+ * package, so it can publish the roster-backed policy; a team runtime can then
+ * replace it with one that also counts board revisions. Whichever loads first
+ * wins here, which is why this is separate from `configureBoardStore`: an
+ * unconditional call from the later load would silently drop the earlier
+ * coordinator's behaviour, and which loads first is not something a caller should
+ * have to know.
+ */
+export function configureBoardStoreIfUnset(next: BoardStoreHooks): void {
+  if (coordinated) return;
+  configureBoardStore(next);
+}
+
 export function createTask(input: {
     id?: string;
     subject: string;

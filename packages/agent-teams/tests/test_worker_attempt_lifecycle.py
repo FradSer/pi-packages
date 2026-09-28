@@ -73,7 +73,7 @@ def test_leader_assignment_clears_recovery_and_claim_follows(tmp_path: Path) -> 
 def test_unassigned_discussion_and_board_notice_stay_usable(tmp_path: Path) -> None:
     payload = attempt_case(tmp_path, '''
         await fixture.prompt("Unassigned discussion about scope");
-        const discussion = await fixture.call("message", { to: "leader", message: "Context question before claiming" });
+        const discussion = await fixture.call("message", { to: "leader", body: "Context question before claiming" });
         const hidden = fixture.active();
         await fixture.prompt("Wake up. New activity for you:\\n\\n=== BOARD NOTICE ===\\nUnclaimed tasks: work-2\\nUse work action=claim to take one.");
         const disclosed = fixture.active();
@@ -95,7 +95,7 @@ def test_released_attempt_does_not_dead_end_following_unassigned_turns(tmp_path:
         // wake is an ordinary unassigned turn and must still be able to talk.
         fixture.patch({ assignment: undefined, currentTaskId: undefined });
         await fixture.prompt("Wake up. New activity for you:\\n\\n=== INBOX (1 new) ===\\nFrom leader · Context question");
-        const message = await fixture.call("message", { to: "leader", message: "Answer after release" });
+        const message = await fixture.call("message", { to: "leader", body: "Answer after release" });
         console.log(JSON.stringify({ outcome: message.details.outcome, intents: fixture.intents(fixture.binding.submissionsDir) }));
     ''')
     assert payload["outcome"] == "queued", "A retired attempt must not block a fresh unassigned turn"
@@ -122,7 +122,7 @@ def test_explicit_outcome_closes_worker_side_effects_once(tmp_path: Path) -> Non
         await fixture.call("task", { action: "submit", outcome: "failed", result: "Cancellation acknowledged" });
         const after = { active: fixture.active() };
         for (const [name, params] of [
-          ["agent_event", { to: "leader", message: "Repeating the acknowledgement" }],
+          ["agent_event", { to: "leader", body: "Repeating the acknowledgement" }],
           ["work", { action: "submit", outcome: "failed", result: "Repeating the acknowledgement" }],
           ["work", { action: "claim" }],
         ]) {

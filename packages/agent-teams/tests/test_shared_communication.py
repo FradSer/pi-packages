@@ -53,10 +53,12 @@ def test_message_registered_on_leader_and_worker():
     assert res.returncode == 0, f"Script failed: {res.stderr}\n{res.stdout}"
     data = json.loads(res.stdout)
     assert data["name"] == "message"
-    assert "message" in data["params"]["properties"]
+    assert "body" in data["params"]["properties"]
     assert "to" in data["params"]["properties"]
-    assert "intent" in data["params"]["properties"]
-    assert "status" not in data["params"]["properties"]
+    assert "kind" in data["params"]["properties"]
+    # The removed pre-rename spellings, and a thread reference, must not come back.
+    for absent in ("message", "intent", "in_reply_to", "reply_to"):
+        assert absent not in data["params"]["properties"], absent
 
 
 def test_message_registered_on_worker_and_allowed_in_universe():
