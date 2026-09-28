@@ -15,6 +15,7 @@
  */
 
 import { createAssistantMessageEventStream, type AssistantMessage, type Message } from "@earendil-works/pi-ai";
+import * as nodeFs from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 /** One turn of the script: a tool call, or the terminal report. */
@@ -28,6 +29,10 @@ export interface ScriptedOptions {
   /** The tool that reports the tool surface the host actually registered. */
   probe: string;
   turns: ScriptedTurn[];
+  /** When set, the live tool list is written here on the first probe call.
+   *  Used by the install-wiring check, which needs the surface a real configured
+   *  install produced rather than the surface this harness chose. */
+  dumpPath?: string;
   /** Fills a scripted argument from an earlier tool result, so a task id a create
    *  call returned is the same id a later call acts on. Given every result so far,
    *  because a script usually reads a list in between. */
@@ -89,7 +94,7 @@ function reportFrom(messages: Message[], probe: string): E2EReport {
  * registerTool worked" from "Pi accepted my tool".
  */
 export function installScriptedProvider(pi: ExtensionAPI, options: ScriptedOptions): void {
-  const { provider, probe, turns, resolve } = options;
+  const { provider, probe, turns, resolve, dumpPath } = options;
   let surface: string[] = [];
   const observed: E2EReport["calls"] = [];
 
@@ -104,6 +109,13 @@ export function installScriptedProvider(pi: ExtensionAPI, options: ScriptedOptio
       surface = typeof pi.getAllTools === "function"
         ? pi.getAllTools().map((tool) => tool.name).sort()
         : [];
+      if (dumpPath && surface.length > 0) {
+        // Synchronous on purpose: the host may tear the extension module down as
+        // soon as the turn settles, and a pending write would be lost exactly when
+        // the answer was the thing being looked for.
+        const { writeFileSync } = nodeFs;
+        writeFileSync(dumpPath, JSON.stringify(surface));
+      }
       return {
         content: [{ type: "text", text: JSON.stringify({ tools: surface }) }],
         details: { tools: surface },
