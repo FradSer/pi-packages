@@ -1,0 +1,34 @@
+{
+  "name": "@fradser/pi-tasks",
+  "version": "0.1.0",
+  "description": "Work Item domain for Pi packages — the data model, dependency-graph and resource-conflict rules, durable board persistence, and single-writer claim/submit intents. Internal workspace dependency, not yet a Pi extension package.",
+  "keywords": [
+    "pi-tasks",
+    "pi-packages",
+    "shared-runtime"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./index.ts"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "dependencies": {
+    "@fradser/pi-kit": "workspace:*"
+  }
+}
