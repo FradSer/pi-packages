@@ -3,3 +3,4 @@ export * from "./src/graph.ts";
 export * from "./src/persist.ts";
 export * from "./src/types.ts";
 export * from "./src/store.ts";
+export * from "./src/tool.ts";

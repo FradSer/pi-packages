@@ -26,6 +26,16 @@ export interface BoardStoreHooks {
 
 export const MAX_TASK_DEPENDENCIES = 32;
 
+/** The main session's board identity: the process that owns the board when no
+ *  agent is bound to it.
+ *
+ * It is exempt from the participant check below because that check exists to
+ *  stop a *dead agent* from taking work, and the main session is not an agent —
+ *  it cannot stop or be replaced. A single-session install has no roster at all,
+ *  so without this exemption every take would be refused and the standalone
+ *  board would be unusable. */
+export const MAIN_SESSION = "main";
+
 export const tasks: Record<string, BoardTask> = Object.create(null);
 
 const NO_HOOKS: BoardStoreHooks = {
@@ -38,8 +48,23 @@ const NO_HOOKS: BoardStoreHooks = {
 export let hooks:
  BoardStoreHooks = NO_HOOKS;
 
+/** True once a coordinator has published a roster and a conflict oracle.
+ *
+ * This is what separates a board with participants from a single-session board.
+ * Without it, `hooks.get` returns undefined for everybody — including the main
+ * session, which by definition is not on a roster of spawned agents — and every
+ * take would be refused, making a standalone install unusable. */
+let coordinated = false;
+
+/** Whether a coordinator is present. Exported so a tool can report which mode
+ *  it is in rather than guessing from an empty roster. */
+export function isCoordinated(): boolean {
+  return coordinated;
+}
+
 export function configureBoardStore(next: BoardStoreHooks): void {
   hooks = next;
+  coordinated = true;
 }
 
 export function createTask(input: {
@@ -490,11 +515,15 @@ export function takeTask(
   if (task.recoveryRequired && !options.reason?.trim()) {
     return { ok: false, refusal: "recovery-hold-needs-reason", reason: takeRefusalReason(taskId, "recovery-hold-needs-reason") };
   }
-  const participant = hooks.get(holder);
-  if (!participant || participant.status === "stopped") {
-    return { ok: false, refusal: "participant-unavailable", reason: takeRefusalReason(taskId, "participant-unavailable") };
+  // Only meaningful with a coordinator. Standalone, the single participant is
+  // the caller by construction, so there is nothing to check them against.
+  if (coordinated && holder !== MAIN_SESSION) {
+    const participant = hooks.get(holder);
+    if (!participant || participant.status === "stopped") {
+      return { ok: false, refusal: "participant-unavailable", reason: takeRefusalReason(taskId, "participant-unavailable") };
+    }
   }
-  const conflict = hooks.conflicting(task.resources, holder);
+  const conflict = coordinated ? hooks.conflicting(task.resources, holder) : undefined;
   if (conflict) {
     return { ok: false, refusal: "resource-conflict", detail: conflict.name, reason: takeRefusalReason(taskId, "resource-conflict", conflict.name) };
   }

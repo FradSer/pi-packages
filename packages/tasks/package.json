@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-tasks",
   "version": "0.1.0",
-  "description": "Work Item domain for Pi packages — the data model, dependency-graph and resource-conflict rules, durable board persistence, and single-writer claim/submit intents. Internal workspace dependency, not yet a Pi extension package.",
+  "description": "Task board for Pi packages \u2014 the task data model, status machine, dependency-graph and resource-conflict rules, durable board persistence, per-task context, and the `task` tool. Registers one tool and no other.",
   "keywords": [
     "pi-tasks",
     "pi-packages",
@@ -22,6 +22,7 @@
   },
   "files": [
     "index.ts",
+    "extension.ts",
     "src",
     "README.md"
   ],
@@ -30,5 +31,10 @@
   },
   "dependencies": {
     "@fradser/pi-kit": "workspace:*"
+  },
+  "pi": {
+    "extensions": [
+      "./extension.ts"
+    ]
   }
 }
