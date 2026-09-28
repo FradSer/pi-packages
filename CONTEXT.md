@@ -2,6 +2,18 @@
 
 Agent Teams models durable AI Agents that can work across projects, develop their own capabilities, and execute project work through isolated replaceable sessions.
 
+## Packages
+
+The vocabulary below is split by owning package. Each term is implemented by exactly one package, and no package names a participant it does not own.
+
+| Package | Owns | Model-facing surface |
+| --- | --- | --- |
+| `@fradser/pi-subagents` | Agent, Work Session, Assignment Attempt, Agent Memory, Computer Lease | `agent` |
+| `@fradser/pi-tasks` | Task, Task Board, Task Status, Recovery Hold, Submission, Task Acceptance | `task` |
+| `@fradser/pi-agent-teams` | Message, Coordination Event, Agent Presence, Team Console | `message` |
+
+`@fradser/pi-agent-teams` is a bundle: installing it loads all three. Each package is also complete on its own.
+
 ## Language
 
 **Agent**:
@@ -38,31 +50,40 @@ _Avoid_: Project archive, per-project subfolder, shared memory folder, complete 
 A versioned, evidence-backed candidate for Agent Memory that describes a reusable capability or abstracted lesson with its applicability and limits. Its learning source may be a project, but its content does not carry that project's concrete facts, decisions, or history.
 _Avoid_: Direct memory write, project fact, unqualified generalization, self-reflection log
 
-**Work Item**:
-One durable piece of work created by a person, Routine, external event, or Agent handoff. All work follows the same ownership, resource, verification, and completion language.
-_Avoid_: Direct assignment, Board Task, prompt-only task
+**Task**:
+One durable unit of work recorded on the Task Board by a person, Routine, external event, or Agent handoff. A Task states what must be done and under which completion requirements; it never states who must do it. Ownership is derived from action and never declared, so a Task carries no assignee and any Agent or the main session may take it.
+_Avoid_: Work Item, Direct assignment, Board Task, prompt-only task, assignee field
+
+**Task Status**:
+The lifecycle position of a Task: pending, in progress, completed, or superseded. Moving a Task into progress is the act of taking it, and completion is the only terminal transition for work someone actually did.
+_Avoid_: Claimed, state, phase
+
+**Recovery Hold**:
+A flag on a Task whose last attempt ended in failure, withholding it from automatic taking until a participant proceeds with a stated reason. It keeps one transient failure from being silently retried by whichever participant happens to be idle, and it is not a Task Status.
+_Avoid_: Blocked status, failed status, automatic retry
 
 **Assignment Attempt**:
-One authorization for an Agent Work Session to perform or hold a Work Item. It is distinct from Agent identity and the Work Item. Each new assignment has a new attempt; reopening or releasing work retires the old authority before another attempt can acquire it.
+One authorization for an Agent Work Session to perform or hold a Task, acquired by taking the Task rather than by being named as its owner. It is distinct from Agent identity and from the Task. Each new assignment has a new attempt; completing, reopening, process exit, or stopping retires the old authority before another attempt can acquire it.
+_Avoid_: Assignee, pre-declared owner, role grant
 
-**Work Board**:
-A view of Work Items and their availability for assignment or autonomous claiming. It is not a separate kind of work with different ownership or completion rules.
-_Avoid_: Second work lifecycle, independent task store
+**Task Board**:
+The shared register of Tasks and their availability, readable and writable by every Agent and by the main session through one interface. It is not a separate kind of work with different completion rules, and it does not dispatch work to a named Agent.
+_Avoid_: Work Board, Second work lifecycle, independent task store, dispatch queue
 
 **Submission**:
-One candidate result supplied by the current Assignment Attempt. An ordinary final answer and an explicit submission represent the same kind of evidence. A revised result is a new submission, not acceptance of the previous one.
-_Avoid_: Completed Work Item, message status, process exit
+One candidate result supplied by the current Assignment Attempt, recorded as a success or a failure together with its evidence. An ordinary final answer and an explicit submission represent the same kind of evidence; a blocker reported as prose rather than recorded as a failure is not a failure. A revised result is a new submission, not acceptance of the previous one.
+_Avoid_: Completed Task, message status, process exit, prose blocker report
 
-**Work Acceptance**:
-The decision that a current submission satisfies its Work Item's completion requirements, including any verification gate. Acceptance is distinct from execution ending, submitting a result, or integrating changes into another workspace.
-_Avoid_: Final answer, report receipt, successful shutdown
+**Task Acceptance**:
+The decision that a current submission satisfies its Task's completion requirements, including any verification gate. Acceptance is distinct from execution ending, submitting a result, or integrating changes into another workspace.
+_Avoid_: Work Acceptance, Final answer, report receipt, successful shutdown
 
 **Handoff**:
-An offered transfer of a Work Item between Agent Work Sessions. The source remains owner and keeps its resource authority until the target accepts and ownership changes atomically.
-_Avoid_: Peer message, copied task, immediate reassignment
+An offered transfer of a Task between Agent Work Sessions, expressed as a Message to the target and finished by the current holder releasing it. The source keeps its resource authority until it releases, so the target cannot begin before then.
+_Avoid_: Copy, immediate reassignment, pre-declared owner
 
 **Routine**:
-A standing trigger that creates a Work Item for an Agent from a schedule, external event, or Agent signal while the current Agent Teams runtime is available. Cross-session background execution is outside the current redesign.
+A standing trigger that creates a Task for an Agent from a schedule, external event, or Agent signal while the current Agent Teams runtime is available. Cross-session background execution is outside the current redesign.
 _Avoid_: Repeated prompt, polling turn, promised background daemon
 
 **Attention Request**:
@@ -70,7 +91,7 @@ A bounded request for human judgment or authorization containing the decision, e
 _Avoid_: Status update, full transcript, generic stall notice
 
 **Capability Grant**:
-A user- or project-policy authorization that lets one Work Session use a requested external tool or computer capability. Grants may differ by Agent and Work Item, and become visible progressively as the Work Session needs them.
+A user- or project-policy authorization that lets one Work Session use a requested external tool or computer capability. Grants may differ by Agent and Task, and become visible progressively as the Work Session needs them.
 _Avoid_: Tool name in a prompt, shared credential, automatic role permission
 
 **Computer Lease**:
@@ -105,15 +126,15 @@ _Avoid_: Ephemeral process inbox, broadcast transcript, background-daemon promis
 The leader-visible state of an Agent and its Work Sessions, including whether work is queued, starting, active, waiting, blocked, or complete. Presence reports state without requiring a model turn.
 _Avoid_: Status polling prompt, raw process telemetry
 
-**Agent Event**:
-A shared communication sent by a Leader or Worker to report information, contact another participant, or request a decision. Sender identity and work context come from the runtime. Communication itself does not submit results or change work ownership, acceptance, or lifecycle state.
-_Avoid_: Worker-only report, role-specific messaging, caller-supplied sender identity, free-form inferred completion
+**Message**:
+One point-to-point communication from a participant to a named participant, carrying either an information notice or a request that needs a decision. Sender identity comes from the runtime, and a recipient is addressed by name or by an exact session rather than by a thread or reply reference. A Message is not evidence, is not a broadcast, and does not submit results or change work ownership, acceptance, or lifecycle state.
+_Avoid_: Agent Event, thread, reply chain, broadcast, attachment, worker-only report, caller-supplied sender identity
 
 **Coordination Event**:
-An asynchronous Agent Event, work intent, verification result, or lifecycle marker that may propose a shared-state transition. Its authority depends on its source and the addressed state; an ordinary Leader message does not require a Worker Assignment Attempt.
+An asynchronous Message, work intent, verification result, or lifecycle marker that may propose a shared-state transition. Its authority depends on its source and the addressed state; an ordinary Message does not require an Assignment Attempt.
 
 **Historical Evidence**:
-A Coordination Event from an Assignment Attempt that is no longer current. It remains in Work Item history and may support capability-focused Memory Proposals, but cannot propose a current shared-state transition.
+A Coordination Event from an Assignment Attempt that is no longer current. It remains in Task history and may support capability-focused Memory Proposals, but cannot propose a current shared-state transition.
 
 **Team Console**:
-The interactive surface through which a leader views cross-project Agents, project Work Items, Work Sessions, and coordination history. It presents richer detail without adding model-facing tool parameters.
+The interactive surface through which a leader views cross-project Agents, project Tasks, Work Sessions, and coordination history. It presents richer detail without adding model-facing tool parameters.
