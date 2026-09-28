@@ -9,7 +9,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { fileURLToPath } from "node:url";
 // Pi reifies its core packages for every extension module it loads (jiti
@@ -1115,6 +1115,9 @@ export function createLiveActivityWidget(options: PiLiveActivityWidgetOptions): 
   };
 }
 
+/** Columns guaranteed to the activity whenever one is present. */
+const MIN_ACTIVITY_COLUMNS = 12;
+
 function renderLiveActivityRow(
   entry: PiLiveActivity,
   frame: number,
@@ -1122,7 +1125,7 @@ function renderLiveActivityRow(
   theme: PiThemeLike & { bold(text: string): string },
   options: PiLiveActivityWidgetOptions,
 ): string {
-  const identity = renderLiveActivityIdentity(entry.identity, theme);
+  const marker = liveActivityMarker(entry.status, frame, theme);
   // An activity with no visible content (whitespace, an ANSI-only string, or
   // zero-width characters) leaves an identity-only row rather than a bare
   // separator. `fallbackActivity: ""` is an explicit opt-out of the suffix.
@@ -1130,11 +1133,27 @@ function renderLiveActivityRow(
   const activityText = safeDisplayText(
     configuredActivity === undefined ? "Working..." : configuredActivity,
   );
-  const activity = visibleWidth(activityText) > 0
-    ? renderLiveActivityText(activityText, theme, options.activityFormat)
+  const hasActivity = visibleWidth(activityText) > 0;
+  const leading = Math.max(0, options.leadingSpaces ?? 1);
+  const chrome = leading + visibleWidth(marker) + 1 + (hasActivity ? 3 : 0);
+  const maxIdentity = Math.max(1, width - chrome - (hasActivity ? MIN_ACTIVITY_COLUMNS : 0));
+  const identity = renderLiveActivityIdentity(entry.identity, theme);
+  const fittedIdentity = visibleWidth(identity) > maxIdentity
+    ? options.fit(identity, maxIdentity, undefined, false)
+    : identity;
+  const remaining = Math.max(
+    0,
+    width - leading - visibleWidth(marker) - 1 - visibleWidth(fittedIdentity) - 3,
+  );
+  const activity = hasActivity
+    ? options.fit(
+        renderLiveActivityText(activityText, theme, options.activityFormat),
+        remaining,
+        undefined,
+        false,
+      )
     : "";
-  const marker = liveActivityMarker(entry.status, frame, theme);
-  const label = activity ? `${marker} ${identity} · ${activity}` : `${marker} ${identity}`;
+  const label = activity ? `${marker} ${fittedIdentity} · ${activity}` : `${marker} ${fittedIdentity}`;
   return renderPiWidgetRow(label, width, options.fit, options.leadingSpaces);
 }
 
@@ -2352,4 +2371,346 @@ export async function enterModelFromInput(
     return undefined;
   }
   return ref;
+}
+
+// ── Worker runtime primitives ─────────────────────────────────────
+// File and environment mechanics shared by packages that spawn a child Pi
+// process or run inside one: incremental bounded JSONL reads for mailboxes and
+// outboxes, capped atomic appends, atomic JSON replacement, the single-writer
+// intent race, and an all-or-nothing required-environment binding. Domain
+// validation, path layout, and coordination authority stay with the consumer.
+//
+// Wording is parameterized through `label` so a consumer can adopt these without
+// changing diagnostics its own tests and operators already read.
+
+/** Default cap on one incremental JSONL batch read. */
+export const DEFAULT_JSONL_BATCH_BYTES = 256 * 1024;
+/** Default cap on one appended JSONL record. */
+export const DEFAULT_JSONL_RECORD_BYTES = 64 * 1024;
+/** Default cap on one single-writer intent payload. */
+export const DEFAULT_INTENT_BYTES = 16 * 1024;
+/** An unparseable intent younger than this may still be mid-publish elsewhere. */
+export const DEFAULT_INTENT_PUBLISH_GRACE_MS = 30_000;
+
+/** Escape one caller-supplied path segment so it cannot escape its directory.
+ * `encodeURIComponent` encodes `/` and `\`, neutralizing traversal and absolute
+ * paths; callers still own the directory they join the result into. */
+export function safeFileName(name: string): string {
+  return encodeURIComponent(name);
+}
+
+/**
+ * Scope key for per-session state on disk.
+ *
+ * Two leader processes holding the same session must share one state directory,
+ * and two different sessions in the same project must not, so the key derives
+ * from the session file when there is one and falls back to the working
+ * directory. Shared because more than one package keeps per-session state and
+ * they must agree on which session a directory belongs to.
+ */
+export function sessionKey(sessionFile: string | undefined, cwd: string): string {
+  return createHash("sha256")
+    .update(sessionFile ?? cwd)
+    .digest("hex")
+    .slice(0, 16);
+}
+
+export interface JsonlBatch {
+  records: unknown[];
+  /** Byte offset to resume from. Never advances past an unterminated record
+   * unless that record exceeds the batch cap. */
+  nextOffset: number;
+  /** Consumed-but-unusable records, so one broken sender cannot block a drain
+   * silently. */
+  diagnostics: string[];
+}
+
+/**
+ * Read complete JSONL records after a byte offset.
+ *
+ * A truncated or recreated file restarts from zero; callers deduplicate by
+ * record id rather than trusting the offset. A record larger than the batch cap
+ * is malformed for this protocol and is skipped so one sender cannot block
+ * draining indefinitely.
+ */
+export function readJsonlBatch(
+  file: string,
+  byteOffset: number,
+  endOffset = Number.POSITIVE_INFINITY,
+  maxBytes = DEFAULT_JSONL_BATCH_BYTES,
+): JsonlBatch {
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(file, "r");
+    const size = fs.fstatSync(fd).size;
+    const offset = byteOffset > size ? 0 : Math.max(0, byteOffset);
+    const toRead = Math.max(0, Math.min(maxBytes, Math.min(size, endOffset) - offset));
+    if (toRead === 0) return { records: [], nextOffset: offset, diagnostics: [] };
+    const raw = Buffer.allocUnsafe(toRead);
+    const bytesRead = fs.readSync(fd, raw, 0, toRead, offset);
+    const unread = raw.subarray(0, bytesRead);
+    const lastNewline = unread.lastIndexOf(0x0a);
+    if (lastNewline < 0) {
+      return {
+        records: [],
+        nextOffset: bytesRead === maxBytes ? offset + bytesRead : offset,
+        diagnostics: ["malformed or unterminated record was consumed"],
+      };
+    }
+    const complete = unread.subarray(0, lastNewline).toString("utf-8");
+    const records: unknown[] = [];
+    const diagnostics: string[] = [];
+    for (const line of complete.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        records.push(JSON.parse(line));
+      } catch {
+        diagnostics.push("malformed JSON record was consumed");
+      }
+    }
+    return { records, nextOffset: offset + lastNewline + 1, diagnostics };
+  } catch {
+    return { records: [], nextOffset: 0, diagnostics: [] };
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
+export interface JsonlAppendOptions {
+  maxBytes?: number;
+  /** Noun used in the oversize error; defaults to "JSONL record". */
+  label?: string;
+}
+
+/** Append one JSON line, refusing a record larger than the cap. The directory
+ * is created private and the file written owner-only, because these records
+ * carry coordination content between processes of the same user. */
+export function appendJsonlLine(file: string, value: unknown, options: JsonlAppendOptions = {}): void {
+  const maxBytes = options.maxBytes ?? DEFAULT_JSONL_RECORD_BYTES;
+  const label = options.label ?? "JSONL record";
+  const record = `${JSON.stringify(value)}\n`;
+  if (Buffer.byteLength(record, "utf-8") > maxBytes) {
+    throw new Error(`${label} exceeds ${maxBytes} bytes.`);
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  fs.appendFileSync(file, record, { encoding: "utf-8", mode: 0o600 });
+}
+
+/** Replace one JSON file atomically. A reader never observes a partial write,
+ * and a crash mid-write leaves the previous content intact. */
+export function writeJsonAtomic(file: string, value: unknown): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(value), { mode: 0o600 });
+  fs.renameSync(tmp, file);
+}
+
+export interface ExclusiveJsonOptions {
+  maxBytes?: number;
+  /** Noun used in diagnostics and the oversize error; defaults to "intent". */
+  label?: string;
+}
+
+/**
+ * Claim the right to publish one intent by winning an exclusive create.
+ *
+ * `wx` makes the temporary file unique to this process and `linkSync` fails with
+ * EEXIST when the destination already exists, so exactly one racer among any
+ * number of concurrent processes returns true. The temporary file is always
+ * removed: on success the link already carries the content, on failure it was
+ * never published.
+ */
+export function createExclusiveJsonFile(
+  dir: string,
+  name: string,
+  value: unknown,
+  options: ExclusiveJsonOptions = {},
+): boolean {
+  const maxBytes = options.maxBytes ?? DEFAULT_INTENT_BYTES;
+  const label = options.label ?? "Intent";
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const safe = safeFileName(name);
+  const file = path.join(dir, `${safe}.json`);
+  const payload = JSON.stringify(value);
+  if (Buffer.byteLength(payload, "utf-8") > maxBytes) {
+    throw new Error(`${label} exceeds ${maxBytes} bytes.`);
+  }
+  const tmp = path.join(dir, `.${safe}.${process.pid}.${randomUUID()}.tmp`);
+  try {
+    fs.writeFileSync(tmp, payload, { encoding: "utf-8", mode: 0o600, flag: "wx" });
+    fs.linkSync(tmp, file);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw error;
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+}
+
+/** The consumer's own shape check. `reason` completes the diagnostic
+ * `malformed <label> "<name>" was consumed (<reason>)`. */
+export type IntentValidation<T> =
+  | { ok: true; value: T }
+  | { ok: false; reason: string };
+
+export interface TakeIntentOptions extends ExclusiveJsonOptions {
+  graceMs?: number;
+}
+
+/**
+ * Drain one pending intent file, lowest name first.
+ *
+ * Malformed records are consumed and reported so one broken file can never block
+ * the queue — but a record that cannot be parsed *yet* is retried while it is
+ * younger than the publish grace, because destroying an in-flight intent would
+ * leave its author waiting forever.
+ */
+export function takeJsonIntent<T>(
+  dir: string,
+  validate: (parsed: unknown) => IntentValidation<T>,
+  options: TakeIntentOptions = {},
+): { intent?: T; diagnostic?: string } {
+  const graceMs = options.graceMs ?? DEFAULT_INTENT_PUBLISH_GRACE_MS;
+  const label = options.label ?? "intent";
+  let entries: string[] = [];
+  try {
+    entries = fs.readdirSync(dir).filter((name) => name.endsWith(".json")).sort();
+  } catch {
+    return {};
+  }
+  for (const name of entries) {
+    const file = path.join(dir, name);
+    let raw: string;
+    try {
+      raw = fs.readFileSync(file, "utf-8");
+    } catch {
+      // Raced with a concurrent publish or removal; the next tick retries.
+      continue;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      if (!intentOlderThan(file, graceMs)) continue;
+      fs.rmSync(file, { force: true });
+      return { diagnostic: `unreadable ${label} "${name}" was consumed` };
+    }
+    fs.rmSync(file, { force: true });
+    const checked = validate(parsed);
+    if (!checked.ok) {
+      return { diagnostic: `malformed ${label} "${name}" was consumed (${checked.reason})` };
+    }
+    return { intent: checked.value };
+  }
+  return {};
+}
+
+function intentOlderThan(file: string, milliseconds: number): boolean {
+  try {
+    return Date.now() - fs.statSync(file).mtimeMs > milliseconds;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Read an all-or-nothing environment binding.
+ *
+ * Returns undefined when any required name is absent or empty, so a partially
+ * configured child is treated as "not a worker" rather than as a worker with
+ * missing fields. An empty string counts as missing: it is how a spawner clears
+ * an optional binding, and treating it as present would yield a binding whose
+ * paths silently resolve against the current directory.
+ */
+export function readRequiredEnvBinding(
+  names: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+): Record<string, string> | undefined {
+  const binding: Record<string, string> = {};
+  for (const name of names) {
+    const value = env[name];
+    if (!value) return undefined;
+    binding[name] = value;
+  }
+  return binding;
+}
+
+/** Minimal structural view of Pi's tool-disclosure controls. */
+export interface PiToolDisclosure {
+  getActiveTools(): string[];
+  setActiveTools(toolNames: string[]): void;
+}
+
+/** Which of an extension's own registered tools should be exposed. */
+export interface OwnedToolDisclosure {
+  /** Tools this extension owns. Declared explicitly because the snapshot
+   *  cannot be trusted to report them. */
+  owned: readonly string[];
+  /** Owned tools that stay exposed regardless of `enabled`. */
+  always?: readonly string[];
+  /** Owned tools exposed only while `enabled` is true. */
+  toggled?: readonly string[];
+  enabled: boolean;
+}
+
+/**
+ * Re-assert an extension's own tool set without trusting the active-tool snapshot.
+ *
+ * `setActiveTools` is an allowlist write: the caller must pass the complete list
+ * the model may call, and anything absent from it is deactivated for the rest of
+ * the session. The obvious "read the snapshot, adjust it, write it back" toggle
+ * therefore has a failure mode that no error reports — if the snapshot does not
+ * yet contain this extension's own registrations (a real possibility at
+ * `session_start`, before the harness has published them), the write erases
+ * them and the session silently runs without the tools the extension registers
+ * and instructs the model to call.
+ *
+ * The invariant is that an extension never writes back a tool set derived purely
+ * from the snapshot. Every tool it owns is re-asserted from `owned`, so the
+ * result is correct regardless of when it runs or what the snapshot reported.
+ * Foreign tools are preserved as reported.
+ */
+export function setOwnedTools(host: PiToolDisclosure, disclosure: OwnedToolDisclosure): void {
+  if (typeof host.getActiveTools !== "function" || typeof host.setActiveTools !== "function") return;
+  const owned = new Set<string>(disclosure.owned);
+  const foreign = host.getActiveTools().filter((tool) => !owned.has(tool));
+  const always = disclosure.always ?? [];
+  const toggled = disclosure.enabled ? disclosure.toggled ?? [] : [];
+  host.setActiveTools([...foreign, ...always, ...toggled]);
+}
+
+// ── Runtime coordination registry ────────────────────────────────────────────
+//
+// Lets separately-loaded Pi extensions hand each other capabilities at runtime
+// without importing one another. Pi gives every package its own module root, so
+// a shared mutable object is the only channel that survives loading order.
+//
+// Values are stored as `unknown` on purpose. A typed registry would force this
+// module to name its consumers' types, which is the exact dependency
+// `test_kit_has_no_consumer_imports` forbids. Each consumer narrows at its own
+// resolution site, so a wrong guess is a local type error rather than a wrong
+// import.
+//
+// Absent keys resolve to `undefined` rather than throwing: a package installed
+// alone is a supported configuration, and its tools must degrade to a
+// single-participant mode instead of failing.
+
+const coordination = new Map<string, unknown>();
+
+/** Publish one capability. Re-publishing replaces the previous value, so a
+ *  session restart cannot leave a stale holder behind. */
+export function registerCoordination(key: string, value: unknown): void {
+  coordination.set(key, value);
+}
+
+/** Resolve one capability, or `undefined` when its owning package is not loaded. */
+export function resolveCoordination<T>(key: string): T | undefined {
+  return coordination.get(key) as T | undefined;
+}
+
+/** Drop every registration. Called at session start so one session's roster can
+ *  never be read by the next one. */
+export function clearCoordination(): void {
+  coordination.clear();
 }
