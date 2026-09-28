@@ -94,7 +94,7 @@ def test_public_submit_settlement_keeps_blocked_dependents(tmp_path: Path, outco
       getTask(task.id).verify = "Require actual execution evidence";
       setVerifyGateRunner(async () => ({{ kind: "fail", detail: "No execution evidence" }}));
       await fixture.start(attempt);
-      const submitted = await fixture.call("work", {{ action: "submit", outcome: {outcome!r}, result: "Missing required tools" }});
+      const submitted = await fixture.call("task", {{ action: "submit", outcome: {outcome!r}, result: "Missing required tools" }});
       assert.equal(submitted.terminate, true);
       await fixture.answer(assistant("Blocked: cannot perform requested work"));
       await fixture.emit({{ type: "agent_settled" }});

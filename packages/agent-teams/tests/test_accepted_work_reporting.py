@@ -91,7 +91,7 @@ def test_post_completion_event_does_not_create_work(tmp_path: Path) -> None:
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Audit evidence");
         processTaskIntents(); settle();
         const before = JSON.stringify(getState().tasks);
-        const receipt = await call("agent_event", { to: "session:reviewer:spawn-1", message: "Acceptance recorded", intent: "inform" });
+        const receipt = await call("message", { to: "session:reviewer:spawn-1", message: "Acceptance recorded", intent: "inform" });
         assert.equal(JSON.stringify(getState().tasks), before);
         console.log(JSON.stringify({ receipt: receipt.content[0].text, outcome: receipt.details.outcome,
           assignment: getTeammate("reviewer").assignment ?? null }));
@@ -105,10 +105,10 @@ def test_post_completion_event_does_not_create_work(tmp_path: Path) -> None:
 def test_communication_cannot_assign_or_retry_work(tmp_path: Path, released: bool) -> None:
     payload = machine_case(tmp_path, f'''
         if ({str(released).lower()}) {{
-          await call("work", {{ action: "release", id: task.id, reason: "Provider failed" }});
+          await call("task", {{ action: "release", id: task.id, reason: "Provider failed" }});
         }}
         const before = JSON.stringify(getState().tasks);
-        await assert.rejects(call("agent_event", {{ to: "session:reviewer:spawn-1", message: "New evidence" }}), /work.*assign/i);
+        await assert.rejects(call("message", {{ to: "session:reviewer:spawn-1", message: "New evidence" }}), /work.*assign/i);
         console.log(JSON.stringify({{ unchanged: JSON.stringify(getState().tasks) === before,
           assignment: getTeammate("reviewer").assignment ?? null }}));
     ''', owned=released)
@@ -242,7 +242,7 @@ def test_ordinary_mail_does_not_unpark_verification(tmp_path: Path, verdict: str
           processTaskIntents(); await tick();
         }}
         assert.equal(reviews, 2);
-        await call("agent_event", {{ to: "session:reviewer:spawn-1", message: "New information, not recovery authorization" }});
+        await call("message", {{ to: "session:reviewer:spawn-1", message: "New information, not recovery authorization" }});
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Unauthorized revision");
         processTaskIntents(); await tick();
         console.log(JSON.stringify({{ reviews, state: getTask(task.id).status, owner: getTask(task.id).claimedBy,
@@ -262,7 +262,7 @@ def test_archived_result_is_not_returned_as_accepted_evidence(tmp_path: Path) ->
           assignmentId: attempt, status: "completed", body: "Unaccepted evidence", timestamp: 3,
         });
         drainTeammateOutboxes();
-        await assert.rejects(call("agent_event", { to: "session:reviewer:spawn-1", message: "New evidence" }), /work.*assign/i);
+        await assert.rejects(call("message", { to: "session:reviewer:spawn-1", message: "New evidence" }), /work.*assign/i);
         console.log(JSON.stringify({ state: getTask(task.id).status, reports: reports.filter(r => r.finished) }));
     ''')
     assert payload == {"state": "pending", "reports": []}
@@ -305,7 +305,7 @@ def test_work_list_exposes_accepted_evidence_in_model_content(tmp_path: Path) ->
     payload = machine_case(tmp_path, '''
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Audit evidence");
         processTaskIntents(); settle();
-        const listed = await call("work", { action: "list" });
+        const listed = await call("task", { action: "list" });
         console.log(JSON.stringify({ content: listed.content[0].text, works: listed.details.works }));
     ''')
     assert "work:review" in payload["content"]
@@ -318,7 +318,7 @@ def test_work_list_bounds_long_evidence_without_losing_details(tmp_path: Path) -
         const evidence = "Result evidence\\n".repeat(600);
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", evidence);
         processTaskIntents(); settle();
-        const listed = await call("work", { action: "list" });
+        const listed = await call("task", { action: "list" });
         assert.equal(listed.details.works[0].result, evidence);
         console.log(JSON.stringify({ content: listed.content[0].text }));
     ''')

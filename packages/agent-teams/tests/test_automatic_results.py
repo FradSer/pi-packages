@@ -116,7 +116,7 @@ def test_tools_retries_and_nonidle_settlement_do_not_close_assignment(tmp_path: 
 
 
 def test_communication_event_does_not_require_completion_bookkeeping(tmp_path: Path) -> None:
-    tool = "agent_event"
+    tool = "message"
     payload = run_worker(tmp_path, f'''
         await fixture.start();
         const result = await fixture.call({tool!r}, {{ to: "leader", message: "New evidence" }});
@@ -166,7 +166,7 @@ def test_explicit_submission_suppresses_automatic_duplicate(tmp_path: Path, kind
         roster.teammates[0].currentTaskId = "work-1";
         fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify(roster));
         await fixture.start();
-        const submitted = await fixture.call("work", {{ action: "submit", outcome: {json.dumps(outcome)}, result: "Explicit evidence" }});
+        const submitted = await fixture.call("task", {{ action: "submit", outcome: {json.dumps(outcome)}, result: "Explicit evidence" }});
         await fixture.answer(assistant("Do not duplicate the submission"));
         await fixture.emit({{ type: "agent_settled" }});
         await fixture.emit({{ type: "agent_settled" }});
@@ -309,7 +309,7 @@ def test_retry_start_clears_stale_success_before_any_new_response(tmp_path: Path
 
 
 def test_agent_event_requires_precise_route_for_concurrent_peer_sessions(tmp_path: Path) -> None:
-    tool = "agent_event"
+    tool = "message"
     payload = run_worker(tmp_path, f'const messageTool = {json.dumps(tool)};' + '''
         const peers = [
           { name: "reviewer-one", agent: "peer-reviewer", status: "working" },

@@ -22,7 +22,7 @@ def _work_tool() -> dict[str, object]:
         import {{ registerLeaderTools }} from "{(SRC / "tools.ts").as_uri()}";
         const tools = new Map();
         registerLeaderTools({{ registerTool(tool) {{ tools.set(tool.name, tool); }}, getActiveTools() {{ return []; }}, setActiveTools() {{}} }});
-        const work = tools.get("work");
+        const work = tools.get("task");
         console.log(JSON.stringify({{ description: work.description, promptSnippet: work.promptSnippet }}));
         '''
     )

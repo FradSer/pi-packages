@@ -32,7 +32,7 @@ registerSessionAgent({ name: "reviewer", description: "Review", prompt: "Review 
 
 const tools = new Map();
 registerLeaderTools({ registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools: () => [], setActiveTools() {} });
-const work = tools.get("work");
+const work = tools.get("task");
 assert.ok(work, "work must be registered");
 const assignSchema = work.parameters.anyOf.find((variant) => variant.properties.action.const === "assign");
 assert.equal(Value.Check(WorkToolParams, { action: "assign", id: "work", target: { session: "session:resident:s1" } }), true);

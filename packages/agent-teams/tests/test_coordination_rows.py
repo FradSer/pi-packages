@@ -72,7 +72,7 @@ export default function (pi) {
     initTheme("dark", false);
     setKeybindings(new KeybindingsManager({ "app.tools.expand": { defaultKeys: "ctrl+o" } }));
     for (const surface of ["leader", "worker"]) {
-      const component = new ToolExecutionComponent("agent_event", "native-layout", args, {}, tools.get(`${surface}:agent_event`), { requestRender() {} }, ctx.cwd);
+      const component = new ToolExecutionComponent("message", "native-layout", args, {}, tools.get(`${surface}:message`), { requestRender() {} }, ctx.cwd);
       component.updateResult(result);
       const content = (width) => {
         const lines = component.render(width);
@@ -90,7 +90,7 @@ export default function (pi) {
     }
     console.log("NATIVE_MESSAGE_LAYOUT_OK");
   });
-  const tool = tools.get("leader:agent_event");
+  const tool = tools.get("leader:message");
   pi.registerTool({
     ...tool,
     // The original routing execute is never invoked: no peers or team writes.
@@ -119,7 +119,7 @@ export default function (pi) {
       const first = ++calls === 1;
       const output = {
         role: "assistant", api: model.api, provider: model.provider, model: model.id, timestamp: Date.now(),
-        content: first ? [{ type: "toolCall", id: "message-row", name: "agent_event", arguments: args }]
+        content: first ? [{ type: "toolCall", id: "message-row", name: "message", arguments: args }]
           : [{ type: "text", text: "MESSAGE_LAYOUT_READY" }],
         stopReason: first ? "toolUse" : "stop",
         usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,

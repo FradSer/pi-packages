@@ -10,7 +10,7 @@ resetState();
 initTeamMachine({ sessionManager: undefined, cwd: root }, { sendUpdate() {}, notifyChange() {} });
 const tools = new Map();
 registerLeaderTools({ registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools: () => [], setActiveTools() {} });
-const work = tools.get("work");
+const work = tools.get("task");
 assert.ok(work, "work must be registered");
 registerTeammate({ name: "holder", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 });
 createDirectWork({ id: "held-work", subject: "Held Work", resources: ["firmware/storage"], workerName: "holder", assignment: { id: "direct:s1", kind: "direct", resources: ["firmware/storage"] } });

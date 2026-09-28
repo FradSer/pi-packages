@@ -24,7 +24,7 @@ try {
     sendUpdate(report) { if (report.finished) done.resolve(report); },
   });
   registerLeaderTools({ registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools: () => [], setActiveTools() {} } as unknown as ExtensionAPI);
-  const created = await tools.get("work")!.execute("create", { action: "create", subject: "Return exactly NATIVE_UNASSIGNED_ASSIGNED_OK without calling tools." }, undefined, undefined, ctx);
+  const created = await tools.get("task")!.execute("create", { action: "create", subject: "Return exactly NATIVE_UNASSIGNED_ASSIGNED_OK without calling tools." }, undefined, undefined, ctx);
   const work = (created.details as { work: { id: string } }).work;
   const start = await tools.get("agent")!.execute("start", { action: "start", name: "native-start", model,
     definition: { description: "Startup probe", prompt: "Follow the assigned task exactly.", tools: [] } }, undefined, undefined, ctx);
@@ -33,7 +33,7 @@ try {
   assert.equal(receipt.session.status, "idle");
   assert.equal(getState().teammates["native-start"].turns, 0);
   assert.equal(getState().teammates["native-start"].assignment, undefined);
-  await tools.get("work")!.execute("assign", { action: "assign", id: work.id, target: { session: receipt.session.id } }, undefined, undefined, ctx);
+  await tools.get("task")!.execute("assign", { action: "assign", id: work.id, target: { session: receipt.session.id } }, undefined, undefined, ctx);
   const report = await done.promise;
   assert.equal(report.status, "completed");
   assert.equal(getState().tasks[work.id].status, "completed");

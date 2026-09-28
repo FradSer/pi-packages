@@ -10,7 +10,7 @@ registerLeaderTools({
   setActiveTools() {},
 });
 
-const work = tools.get("work");
+const work = tools.get("task");
 assert.ok(work, "work must be registered for the leader");
 const variants = work.parameters.anyOf ?? work.parameters.anyOf ?? [];
 assert.deepEqual(variants.map((variant) => variant.properties.action.const).sort(), ["assign", "create", "list", "release", "reopen", "supersede"]);

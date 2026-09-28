@@ -86,7 +86,7 @@ export function registerAgentTool(pi: ExtensionAPI, runtime: AgentActionRuntime 
 /** Point-to-point communication. Stays with @fradser/pi-agent-teams. */
 export function registerMessageTool(pi: ExtensionAPI, runtime: { sendLeaderMessage: typeof sendLeaderMessage } = { sendLeaderMessage }): void {
   pi.registerTool({
-    name: "agent_event",
+    name: "message",
     promptSnippet: "Send an event or message to a participant",
     label: "Agent Event",
     description: "Shared communication interface across Leader, Worker, and Peers. Leader-to-Agent messages carry only new evidence, changed constraints, or decisions — never kickoff echoes, progress requests, completion requests, or confirmation probes.",
@@ -121,7 +121,7 @@ export function registerMessageTool(pi: ExtensionAPI, runtime: { sendLeaderMessa
 /** Task board. Moves to @fradser/pi-tasks' leader extension. */
 export function registerTaskTool(pi: ExtensionAPI): void {
   pi.registerTool({
-    name: "work",
+    name: "task",
     promptSnippet: "Create, list, assign, release, reopen, or supersede Work Items",
     label: "Work",
     description: "Manage Work Items: create (subject), list, assign (id, target.session), release (id, reason), reopen (id, reason), or supersede (subject, supersedes). Creation uses the session's single-writer Work state and never starts a resident.",

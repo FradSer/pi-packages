@@ -52,7 +52,7 @@ def test_old_turn_cannot_send_as_reassigned_work(tmp_path: Path) -> None:
         roster.teammates[0].currentTaskId = "work-2";
         fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify(roster));
         let rejection;
-        try { await fixture.call("agent_event", { to: "leader", message: "Old cancellation acknowledgement" }); }
+        try { await fixture.call("message", { to: "leader", message: "Old cancellation acknowledgement" }); }
         catch (error) { rejection = error.message; }
         console.log(JSON.stringify({ records: fixture.records(), rejection }));
     ''')
@@ -69,7 +69,7 @@ def test_old_turn_cannot_submit_new_roster_work(tmp_path: Path) -> None:
         roster.teammates[0].currentTaskId = "work-2";
         fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify(roster));
         let rejection;
-        try { await fixture.call("work", { action: "submit", outcome: "failed", result: "Old task was cancelled" }); }
+        try { await fixture.call("task", { action: "submit", outcome: "failed", result: "Old task was cancelled" }); }
         catch (error) { rejection = error.message; }
         const markerPath = fixture.binding.submissionsDir + "/work-2.json";
         console.log(JSON.stringify({ rejection, marker: fs.existsSync(markerPath) ? JSON.parse(fs.readFileSync(markerPath, "utf8")) : null }));
@@ -83,9 +83,9 @@ def test_submission_does_not_leave_a_communication_loop(tmp_path: Path) -> None:
         roster.teammates[0].currentTaskId = "work-1";
         fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify(roster));
         await fixture.start();
-        const result = await fixture.call("work", { action: "submit", outcome: "failed", result: "Cancelled" });
+        const result = await fixture.call("task", { action: "submit", outcome: "failed", result: "Cancelled" });
         let rejection;
-        try { await fixture.call("agent_event", { to: "leader", message: "Please settle cancellation again" }); }
+        try { await fixture.call("message", { to: "leader", message: "Please settle cancellation again" }); }
         catch (error) { rejection = error.message; }
         console.log(JSON.stringify({ terminate: result.terminate, records: fixture.records(), rejection }));
     ''')

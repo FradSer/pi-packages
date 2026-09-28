@@ -34,7 +34,7 @@ const tools = new Map();
 registerLeaderTools({ registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools: () => [], setActiveTools() {} });
 const ctx = { cwd: root };
 try {
-  const created = await tools.get("work").execute("create", { action: "create", subject: "Recover existing work" }, undefined, undefined, ctx);
+  const created = await tools.get("task").execute("create", { action: "create", subject: "Recover existing work" }, undefined, undefined, ctx);
   const starting = tools.get("agent").execute("start", { action: "start", name: "recovery", definition: { description: "Recovery", prompt: "Read assigned evidence", tools: ["read"] } }, undefined, undefined, ctx);
   const mode = process.env.PI_TEST_MODE;
   if (["timeout", "exit", "not-ready", "rejected"].includes(mode ?? "")) {
@@ -70,16 +70,16 @@ try {
   } else if (mode === "in_progress") {
     setTaskClaimed(created.details.work.id, "recovery");
     const holding = getState().teammates.recovery.assignment.id;
-    const assigned = await tools.get("work").execute("assign", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id } }, undefined, undefined, ctx);
+    const assigned = await tools.get("task").execute("assign", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id } }, undefined, undefined, ctx);
     assert.equal(assigned.details.assignment.id, holding);
     assert.equal(commands.some((command) => command.type === "new_session" || command.type === "prompt"), false);
-    await assert.rejects(tools.get("work").execute("stale", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id + "-stale" } }, undefined, undefined, ctx));
+    await assert.rejects(tools.get("task").execute("stale", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id + "-stale" } }, undefined, undefined, ctx));
     console.log("UNASSIGNED_START_OK");
   } else {
-  const assigned = await tools.get("work").execute("assign", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id } }, undefined, undefined, ctx);
+  const assigned = await tools.get("task").execute("assign", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id } }, undefined, undefined, ctx);
   assert.equal(assigned.details.work.id, created.details.work.id);
   assert.equal(assigned.details.work.state, "in_progress");
-  const repeated = await tools.get("work").execute("assign-again", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id } }, undefined, undefined, ctx);
+  const repeated = await tools.get("task").execute("assign-again", { action: "assign", id: created.details.work.id, target: { session: started.details.session.id } }, undefined, undefined, ctx);
   assert.deepEqual(repeated.details, assigned.details, "same exact holding is an idempotent receipt");
   const reset = commands.find((command) => command.type === "new_session");
   assert.ok(reset, "ready resident accepts fresh assignment without waiting for a nonexistent turn");

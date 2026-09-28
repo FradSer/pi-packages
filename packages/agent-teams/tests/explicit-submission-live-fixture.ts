@@ -18,7 +18,7 @@ export default function (pi: ExtensionAPI): void {
       calls++;
       assert.equal(calls, 1, "Explicit submission must terminate before another model request");
       const message = assistant("", "toolUse", Date.now());
-      message.content = [{ type: "toolCall", id: "submit-1", name: "work",
+      message.content = [{ type: "toolCall", id: "submit-1", name: "task",
         arguments: { action: "submit", outcome: process.env.PI_SUBMISSION_OUTCOME ?? "success", result: "Native submission evidence" } }];
       const stream = createAssistantMessageEventStream();
       stream.push({ type: "start", partial: message });

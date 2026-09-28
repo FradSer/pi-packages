@@ -17,7 +17,7 @@ type Definition = Parameters<typeof spawnTeammate>[0]["definition"];
 
 function session(teammate: Teammate) {
   const tools = teammate.tools;
-  const coordinationOnly = tools !== undefined && tools.every((tool) => tool === "agent_event" || tool === "work");
+  const coordinationOnly = tools !== undefined && tools.every((tool) => tool === "message" || tool === "task");
   return {
     tools,
     ...(coordinationOnly ? { warning: "coordination-only: no file or shell tools granted. Delegate execution work with explicit canonical tools; no bash is granted by default." } : {}),

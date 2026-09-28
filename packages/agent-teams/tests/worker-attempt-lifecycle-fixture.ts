@@ -29,7 +29,7 @@ export function createAttemptFixture(root: string, kind: "direct" | "board" | "n
   type Handler = (event: ExtensionEvent, ctx: ExtensionContext) => unknown;
   const hooks = new Map<string, Handler[]>();
   const tools = new Map<string, ToolDefinition>();
-  let active = ["read", "work", "agent_event"];
+  let active = ["read", "task", "message"];
   const pi: Pick<ExtensionAPI, "on" | "registerTool" | "getActiveTools" | "setActiveTools"> = {
     on(event, handler) { hooks.set(event, [...(hooks.get(event) ?? []), handler as Handler]); },
     registerTool(tool) { tools.set(tool.name, tool as unknown as ToolDefinition); },

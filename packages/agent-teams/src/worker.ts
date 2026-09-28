@@ -23,8 +23,8 @@ import {
   type BoardTask,
 } from "./types.ts";
 
-const BOARD_DISCLOSURE_TOOLS = ["work"] as const;
-type BoardDisclosure = "none" | "notice" | "in_progress";
+const BOARD_DISCLOSURE_TOOLS = ["task"] as const;
+type BoardDisclosure = "none" | "notice" | "claimed";
 
 export interface WorkerToolDisclosure {
   update(prompt: string): void;
@@ -35,7 +35,7 @@ function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
   let state: BoardDisclosure = "none";
   const apply = () => {
     if (typeof pi.getActiveTools !== "function" || typeof pi.setActiveTools !== "function") return;
-    const revealed = state === "notice" || state === "in_progress" ? ["work"] : [];
+    const revealed = state === "notice" || state === "claimed" ? ["task"] : [];
     // `work` is re-asserted from the owned set rather than the snapshot, so this
     // disclosure write cannot deactivate a tool the harness has not published
     // yet. See setOwnedTools.
@@ -52,7 +52,7 @@ function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
       // able to acknowledge it; hiding work here strands its resource lease.
       if (binding && rosterEntry && rosterEntry.spawnId === binding.spawnId
         && rosterEntry.status !== "stopped" && assignment) {
-        state = "in_progress";
+        state = "claimed";
       } else if (!assignment && prompt.includes("=== BOARD NOTICE ===")) state = "notice";
       else state = "none";
       apply();
@@ -304,7 +304,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
   const disclosure = createWorkerToolDisclosure(pi);
   const reports = createWorkerReports(pi);
   pi.registerTool({
-    name: "agent_event",
+    name: "message",
     promptSnippet: "Send an event or message to a participant",
     label: "Agent Event",
     description: "Communication-only interface across Leader, Worker, and Peers. Work completion is reported automatically after settlement or uses work action=submit.",
@@ -402,7 +402,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
   }
 
   pi.registerTool({
-    name: "work",
+    name: "task",
     renderShell: "self",
     renderCall: emptyToolCall,
     renderResult(result, options, theme, context) {

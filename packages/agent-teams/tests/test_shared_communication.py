@@ -1,7 +1,7 @@
 """
-Tests for communication-only shared Agent Event (agent_event({ message, to?, intent? })).
+Tests for communication-only shared Agent Event (message({ message, to?, intent? })).
 Verifies that:
-1. agent_event tool is registered and available for both leader and worker.
+1. message tool is registered and available for both leader and worker.
 2. Leader can send messages to a specific worker without an Assignment Attempt.
 3. Message parameters are strictly (message, to?, status?).
 """
@@ -22,8 +22,8 @@ def run_node(script: str) -> subprocess.CompletedProcess[str]:
         text=True,
     )
 
-def test_agent_event_registered_on_leader_and_worker():
-    """Verify agent_event tool exists with (message, to?, intent?) schema on leader tools."""
+def test_message_registered_on_leader_and_worker():
+    """Verify message tool exists with (message, to?, intent?) schema on leader tools."""
     script = """
     import { registerLeaderTools } from "./src/tools.ts";
     
@@ -38,12 +38,12 @@ def test_agent_event_registered_on_leader_and_worker():
 
     registerLeaderTools(fakePi);
     
-    if (!registeredTools.has("agent_event")) {
-      console.error("FAIL: 'agent_event' tool was not registered on leader");
+    if (!registeredTools.has("message")) {
+      console.error("FAIL: 'message' tool was not registered on leader");
       process.exit(1);
     }
     
-    const eventTool = registeredTools.get("agent_event");
+    const eventTool = registeredTools.get("message");
     console.log(JSON.stringify({
       name: eventTool.name,
       params: eventTool.parameters
@@ -52,15 +52,15 @@ def test_agent_event_registered_on_leader_and_worker():
     res = run_node(script)
     assert res.returncode == 0, f"Script failed: {res.stderr}\n{res.stdout}"
     data = json.loads(res.stdout)
-    assert data["name"] == "agent_event"
+    assert data["name"] == "message"
     assert "message" in data["params"]["properties"]
     assert "to" in data["params"]["properties"]
     assert "intent" in data["params"]["properties"]
     assert "status" not in data["params"]["properties"]
 
 
-def test_agent_event_registered_on_worker_and_allowed_in_universe():
-    """Verify agent_event is registered by this package's worker capabilities and
+def test_message_registered_on_worker_and_allowed_in_universe():
+    """Verify message is registered by this package's worker capabilities and
     is grantable once that capability set is contributed to the spawn.
 
     The universe is no longer a spawner constant: it is built from the capability
@@ -84,21 +84,21 @@ def test_agent_event_registered_on_worker_and_allowed_in_universe():
     fakePi.on = (event, handler) => subscriptions.set(event, handler);
     registerWorkerCapabilities(fakePi);
     
-    const hasWorkerEvent = registeredTools.has("agent_event");
-    const unknownWithEvent = unknownWorkerTools(["agent_event", "read"], WORKER_CAPABILITY_TOOLS);
+    const hasWorkerEvent = registeredTools.has("message");
+    const unknownWithEvent = unknownWorkerTools(["message", "read"], WORKER_CAPABILITY_TOOLS);
     const resolvedTools = resolveWorkerTools([], WORKER_CAPABILITY_TOOLS);
     // Every declared capability tool must be something this extension registers,
     // otherwise a spawn advertises an id nothing implements.
     const declaredButUnregistered = WORKER_CAPABILITY_TOOLS.filter((name) => !registeredTools.has(name));
     // With no contributed capability set, nothing beyond pi built-ins is grantable.
-    const bareUnknown = unknownWorkerTools(["agent_event", "read"], []);
+    const bareUnknown = unknownWorkerTools(["message", "read"], []);
     
     console.log(JSON.stringify({
       hasWorkerEvent,
       lifecycleEvents: [...subscriptions.keys()],
       unknownWithEvent,
-      hasInResolved: resolvedTools.includes("agent_event"),
-      universeHasEvent: workerToolUniverse(WORKER_CAPABILITY_TOOLS).includes("agent_event"),
+      hasInResolved: resolvedTools.includes("message"),
+      universeHasEvent: workerToolUniverse(WORKER_CAPABILITY_TOOLS).includes("message"),
       declaredButUnregistered,
       bareUnknown
     }));
@@ -116,7 +116,7 @@ def test_agent_event_registered_on_worker_and_allowed_in_universe():
     assert data["declaredButUnregistered"] == []
     # With nothing contributed, the coordination tools are correctly ungrantable:
     # this is what keeps the execution layer honest when installed alone.
-    assert data["bareUnknown"] == ["agent_event"]
+    assert data["bareUnknown"] == ["message"]
 
 
 def test_model_resolution_defaults_to_session_model_when_unset():

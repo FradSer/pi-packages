@@ -63,7 +63,7 @@ const disclosure = registerWorkerCapabilities({
   setActiveTools() {},
 });
 tools.set("work_disclosure", disclosure);
-const work = tools.get("work");
+const work = tools.get("task");
 assert.ok(work, "worker work must be registered");
 assert.equal(Value.Check(WorkerWorkToolParams, { action: "claim", id: task.id }), true);
 assert.equal(Value.Check(WorkerWorkToolParams, { action: "submit", outcome: "success", result: "done" }), true);

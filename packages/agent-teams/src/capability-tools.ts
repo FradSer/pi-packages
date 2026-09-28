@@ -20,8 +20,8 @@ import { fileURLToPath } from "node:url";
 /** Tool ids registered by this package's worker extension inside a child.
  *  Kept in sync with the `registerTool` calls in `worker.ts`. */
 export const WORKER_CAPABILITY_TOOLS: readonly string[] = [
-  "agent_event",
-  "work",
+  "message",
+  "task",
 ];
 
 /** This package's worker extension entry, passed to a spawned child with `-e`.

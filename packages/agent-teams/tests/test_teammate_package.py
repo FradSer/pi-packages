@@ -17,12 +17,12 @@ SUBAGENTS_SRC = REPO / "packages" / "subagents" / "src"
 
 LEADER_TOOLS = {
     "agent",
-    "agent_event",
-    "work",
+    "message",
+    "task",
 }
 WORKER_TOOLS = {
-    "agent_event",
-    "work",
+    "message",
+    "task",
 }
 REMOVED_TOOLS = {
     "teammate_message",
@@ -99,12 +99,12 @@ def test_the_coordination_contribution_is_declared_and_passed_to_every_spawn() -
     close a cycle.
     """
     capability = source("capability-tools.ts")
-    assert '"agent_event"' in capability and '"work"' in capability
+    assert '"message"' in capability and '"task"' in capability
     assert "WORKER_EXTENSION_PATH" in capability
     # The declaration must match what worker.ts actually registers, so a spawn
     # can never advertise a tool id nothing implements.
     worker = source("worker.ts")
-    for tool in ("agent_event", "work"):
+    for tool in ("message", "task"):
         assert f'name: "{tool}"' in worker, tool
     # Every spawn contributes both worker extensions and the union of the two
     # capability sets. Neither package may hardcode the other's contribution.
@@ -1835,7 +1835,7 @@ def test_spawner_labels_search_tool_calls_by_their_pattern() -> None:
         stdout.write(JSON.stringify({{ type: "tool_execution_start", toolCallId: "grep-1", toolName: "grep", args: {{ pattern: "MINIMAL_PI_WORKER_TOOLS", path: "/repo/packages/context" }} }}) + "\\n");
         stdout.write(JSON.stringify({{ type: "tool_execution_start", toolCallId: "find-1", toolName: "find", args: {{ pattern: "**/*.feature", path: "/repo/packages" }} }}) + "\\n");
         stdout.write(JSON.stringify({{ type: "tool_execution_start", toolCallId: "read-1", toolName: "read", args: {{ path: "/repo/packages/context/index.ts" }} }}) + "\\n");
-        stdout.write(JSON.stringify({{ type: "tool_execution_start", toolCallId: "work-1", toolName: "work", args: {{ subject: "Ship the release" }} }}) + "\\n");
+        stdout.write(JSON.stringify({{ type: "tool_execution_start", toolCallId: "work-1", toolName: "task", args: {{ subject: "Ship the release" }} }}) + "\\n");
         await new Promise((resolve) => setImmediate(resolve));
         console.log(JSON.stringify({{ activities: activities.filter((activity) => typeof activity === "string") }}));
         children.forEach((child) => child.emit("close", 0, null));

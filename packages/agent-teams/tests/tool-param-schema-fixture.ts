@@ -25,8 +25,8 @@ type SchemaLike = { type?: string; properties?: Record<string, any>; anyOf?: unk
 
 const expectations: Array<[string, SchemaLike, string[]]> = [
   ["agent", AgentActionParams as SchemaLike, ["action", "name", "prompt", "definition", "resources", "verify", "model", "fork", "session"]],
-  ["work", WorkToolParams as SchemaLike, ["action", "subject", "description", "dependsOn", "verify", "resources", "id", "target", "reason", "supersedes"]],
-  ["worker work", WorkerWorkToolParams as SchemaLike, ["action", "id", "result", "outcome"]],
+  ["task", WorkToolParams as SchemaLike, ["action", "subject", "description", "dependsOn", "verify", "resources", "id", "target", "reason", "supersedes"]],
+  ["worker task", WorkerWorkToolParams as SchemaLike, ["action", "id", "result", "outcome"]],
 ];
 
 for (const [name, schema, keys] of expectations) {
@@ -47,13 +47,13 @@ function acceptsJsonType(prop: any, type: string): boolean {
 const agentProps = (AgentActionParams as SchemaLike).properties!;
 const workProps = (WorkToolParams as SchemaLike).properties!;
 if (!acceptsJsonType(agentProps.definition, "object")) throw new Error("agent root definition does not accept objects");
-if (!acceptsJsonType(workProps.target, "object")) throw new Error("work root target does not accept objects");
-if (!acceptsJsonType(workProps.dependsOn, "array")) throw new Error("work root dependsOn does not accept arrays");
-if (!acceptsJsonType(workProps.supersedes, "array")) throw new Error("work root supersedes does not accept arrays");
+if (!acceptsJsonType(workProps.target, "object")) throw new Error("task root target does not accept objects");
+if (!acceptsJsonType(workProps.dependsOn, "array")) throw new Error("task root dependsOn does not accept arrays");
+if (!acceptsJsonType(workProps.supersedes, "array")) throw new Error("task root supersedes does not accept arrays");
 // String-tolerant edge: harnesses that deliver JSON strings must pass validation
 // and reach the handler normalization instead of dying in schema validation.
 if (!acceptsJsonType(agentProps.definition, "string")) throw new Error("agent root definition does not tolerate JSON strings");
-if (!acceptsJsonType(workProps.target, "string")) throw new Error("work root target does not tolerate JSON strings");
+if (!acceptsJsonType(workProps.target, "string")) throw new Error("task root target does not tolerate JSON strings");
 
 const delegate = {
   action: "delegate",
@@ -71,13 +71,13 @@ if (Value.Check(AgentActionParams, { action: "inspect", name: "reviewer" })) {
   throw new Error("inspect payload without session accepted");
 }
 if (!Value.Check(WorkToolParams, { action: "assign", id: "w1", target: { session: "s1" } })) {
-  throw new Error("work assign payload with object target rejected");
+  throw new Error("task assign payload with object target rejected");
 }
 if (!Value.Check(AgentActionParams, { action: "delegate", name: "reviewer", prompt: "p", definition: JSON.stringify(delegate.definition) })) {
   throw new Error("delegate payload with stringified definition rejected by validation");
 }
 if (!Value.Check(WorkToolParams, { action: "assign", id: "w1", target: JSON.stringify({ session: "s1" }) })) {
-  throw new Error("work assign payload with stringified target rejected by validation");
+  throw new Error("task assign payload with stringified target rejected by validation");
 }
 
 const normalizedAgent = normalizeCoordinationParams(
@@ -120,8 +120,8 @@ registerWorkerCapabilities(pi);
 const workerTools = registered.splice(0);
 const targets = [
   { role: "leader", tools: leaderTools, name: "agent", schema: AgentActionParams },
-  { role: "leader", tools: leaderTools, name: "work", schema: WorkToolParams },
-  { role: "worker", tools: workerTools, name: "work", schema: WorkerWorkToolParams },
+  { role: "leader", tools: leaderTools, name: "task", schema: WorkToolParams },
+  { role: "worker", tools: workerTools, name: "task", schema: WorkerWorkToolParams },
 ];
 for (const { role, tools, name, schema } of targets) {
   const matches = tools.filter(tool => tool.name === name);

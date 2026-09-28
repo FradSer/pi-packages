@@ -9,7 +9,7 @@ resetState();
 initTeamMachine({ sessionManager: undefined, cwd: root }, { sendUpdate() {}, notifyChange() {} });
 const tools = new Map();
 registerLeaderTools({ registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools: () => [], setActiveTools() {} });
-const work = tools.get("work");
+const work = tools.get("task");
 assert.ok(work, "work must be registered");
 
 const original = createTask({ subject: "Original Work", resources: ["firmware/storage"] }).task;

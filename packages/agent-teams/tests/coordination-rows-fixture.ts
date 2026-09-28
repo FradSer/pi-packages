@@ -133,7 +133,7 @@ assert.ok(!collapsed.includes("role ·"), `collapsed delegate row must stay one 
 
 const expanded = render("leader:agent", { action: "delegate", name: "ui-auditor", prompt: "Fix the spacing under the started row.\nCheck the widget too.", resources: ["packages/context"] }, { details: started, expanded: true });
 expectReadable(expanded, "expanded delegate row");
-for (const line of ["role · Audits visible TUI rows · session role", "task · Fix the spacing under the started row.", "Check the widget too.", "model · anthropic/claude-sonnet-4-5", "tools · read, bash, agent_event, work", "resources · packages/context"]) {
+for (const line of ["role · Audits visible TUI rows · session role", "task · Fix the spacing under the started row.", "Check the widget too.", "model · anthropic/claude-sonnet-4-5", "tools · read, bash, message, task", "resources · packages/context"]) {
   assert.ok(expanded.includes(line), `expanded delegate row missing "${line}":\n${expanded}`);
 }
 assert.ok(!expanded.includes("work · Fix the spacing"), "expanded delegate row must not duplicate the prompt as a work field");
@@ -169,7 +169,7 @@ const narrowStarted = runAgentAction({
 }, undefined, runtime);
 const narrowRow = render("leader:agent", { action: "delegate", name: "row-check-narrow", prompt: "Answer with one word.", definition: { description: "Minimal probe", prompt: "Answer with one word.", tools: [] } }, { details: narrowStarted, expanded: true });
 expectReadable(narrowRow, "coordination-only delegate row");
-assert.ok(narrowRow.includes("tools · agent_event, work"), `narrow delegate row missing its grant:\n${narrowRow}`);
+assert.ok(narrowRow.includes("tools · message, task"), `narrow delegate row missing its grant:\n${narrowRow}`);
 assert.ok(narrowRow.includes("warning · coordination-only"), `narrow delegate row missing the coordination-only warning:\n${narrowRow}`);
 
 const stopped = await runAgentAction({ action: "stop", session: handle }, undefined, runtime);
@@ -187,7 +187,7 @@ assert.ok(failureRow.includes("Fix the spacing under the started row"), `failed 
 expectReadable(failureRow, "failed row");
 
 // ── work: subjects lead, identifiers stay model-facing ─────────────
-const createdRow = render("leader:work", { action: "create", subject: "Fix the spacing under the started row" }, {
+const createdRow = render("leader:task", { action: "create", subject: "Fix the spacing under the started row" }, {
   details: {
     action: "create", outcome: "created", state: "pending",
     work: { id: task.ok ? task.task.id : "", subject: "Fix the spacing under the started row", resources: ["packages/context"], state: "pending" },
@@ -200,7 +200,7 @@ assert.ok(createdRow.includes("Fix the spacing under the started row · created"
 expectReadable(createdRow, "work create row");
 assert.ok(createdRow.includes("routing · @ui-auditor"), `work create row missing routing:\n${createdRow}`);
 
-const listedRow = render("leader:work", { action: "list" }, {
+const listedRow = render("leader:task", { action: "list" }, {
   details: { action: "list", outcome: "listed", count: 1, works: [{ id: task.ok ? task.task.id : "", subject: "Fix the spacing under the started row", dependsOn: [], resources: [], state: "in_progress", claimedBy: "ui-auditor" }] },
   text: "WORK · current session",
   expanded: true,
@@ -213,7 +213,7 @@ assert.ok(listedRow.includes("· in progress · @ui-auditor"), `work list row mi
 // expansion reveals it, so no fixed character cap may cut it short.
 const longSubject = `${"keep the widget aligned ".repeat(5)}TAIL-SUBJECT`.trim();
 assert.ok(longSubject.length > 110, "the long-subject regression must exceed the removed 90-character cap");
-const longCreatedRow = render("leader:work", { action: "create", subject: longSubject }, {
+const longCreatedRow = render("leader:task", { action: "create", subject: longSubject }, {
   details: {
     action: "create", outcome: "created", state: "pending",
     work: { id: task.ok ? task.task.id : "", subject: longSubject, resources: [], state: "pending" },
@@ -223,7 +223,7 @@ const longCreatedRow = render("leader:work", { action: "create", subject: longSu
 });
 expectReadable(longCreatedRow, "long-subject work create row");
 assert.ok(longCreatedRow.includes("TAIL-SUBJECT"), `collapsed work row clipped the subject at a fixed width:\n${longCreatedRow}`);
-const longCreatedExpanded = render("leader:work", { action: "create", subject: longSubject }, {
+const longCreatedExpanded = render("leader:task", { action: "create", subject: longSubject }, {
   details: {
     action: "create", outcome: "created", state: "pending",
     work: { id: task.ok ? task.task.id : "", subject: longSubject, resources: [], state: "pending" },
@@ -233,7 +233,7 @@ const longCreatedExpanded = render("leader:work", { action: "create", subject: l
   expanded: true,
 });
 assert.ok(longCreatedExpanded.includes(longSubject), `expanded work row lost the complete subject:\n${longCreatedExpanded}`);
-const narrowLongRow = stripVTControlCharacters(renderComponent("leader:work", { action: "create", subject: longSubject }, {
+const narrowLongRow = stripVTControlCharacters(renderComponent("leader:task", { action: "create", subject: longSubject }, {
   details: {
     action: "create", outcome: "created", state: "pending",
     work: { id: task.ok ? task.task.id : "", subject: longSubject, resources: [], state: "pending" },
@@ -245,7 +245,7 @@ assert.ok(narrowLongRow.includes("to expand"), `a width-clipped subject must adv
 
 // ── agent_event: the message itself, not the routing record ─────────
 
-const messageRow = render("leader:agent_event", { to: "@ui-auditor", message: "Also check the widget spacing, then report.", intent: "request" }, {
+const messageRow = render("leader:message", { to: "@ui-auditor", message: "Also check the widget spacing, then report.", intent: "request" }, {
   details: { to: "ui-auditor", outcome: "sent", intent: "request" },
   text: `EVENT ROUTING · sent · to=@ui-auditor\nINTENT · request`,
   expanded: true,
@@ -255,7 +255,7 @@ assert.ok(messageRow.includes("to @ui-auditor"), `message row missing the recipi
 assert.ok(messageRow.includes("Also check the widget spacing, then report."), `message row missing the message text:\n${messageRow}`);
 assert.ok(!messageRow.includes("EVENT ROUTING"), `message row still shows the routing record:\n${messageRow}`);
 
-const workerMessageRow = render("worker:agent_event", { message: "Done: spacing fixed and tests pass." }, {
+const workerMessageRow = render("worker:message", { message: "Done: spacing fixed and tests pass." }, {
   details: { to: "leader", outcome: "queued", intent: "inform" },
   text: "MESSAGING\nREPORT · to=leader · intent=inform",
   expanded: true,
@@ -265,7 +265,7 @@ assert.ok(workerMessageRow.includes("Done: spacing fixed and tests pass."), `wor
 
 // ── worker work rows name the task, not the id ─────────────────────
 
-const claimRow = render("worker:work", { action: "claim", id: task.ok ? task.task.id : "" }, {
+const claimRow = render("worker:task", { action: "claim", id: task.ok ? task.task.id : "" }, {
   details: { action: "claim", outcome: "queued", id: task.ok ? task.task.id : "", subject: "Fix the spacing under the started row", worker: "ui-auditor" },
   text: `WORK · current session\nCLAIM INTENT QUEUED · ${task.ok ? task.task.id : ""} · Fix the spacing under the started row\nREQUESTER · @ui-auditor\nNEXT · wait for harness claim acceptance`,
   expanded: true,
@@ -273,7 +273,7 @@ const claimRow = render("worker:work", { action: "claim", id: task.ok ? task.tas
 expectReadable(claimRow, "worker claim row");
 assert.ok(claimRow.includes("Fix the spacing under the started row · claim queued"), `worker claim row missing the subject:\n${claimRow}`);
 
-const submitRow = render("worker:work", { action: "submit", outcome: "success" }, {
+const submitRow = render("worker:task", { action: "submit", outcome: "success" }, {
   details: { action: "submit", outcome: "queued", id: task.ok ? task.task.id : "", subject: "Fix the spacing under the started row", status: "success", verify: false },
   text: `WORK · current session\nSUBMISSION INTENT QUEUED · ${task.ok ? task.task.id : ""} · success\nVERIFY · none configured\nNEXT · wait for the harness result`,
   expanded: true,
@@ -286,11 +286,11 @@ for (const hostile of [{ action: "delegate", name: "ui-auditor", prompt: 42 }, {
   expectReadable(render("leader:agent", hostile, { details: started, expanded: true }), `row for ${JSON.stringify(hostile)}`);
 }
 for (const hostile of [{ to: 5, message: { text: "hi" } }, {}, { action: "create", subject: { a: 1 }, dependsOn: "work:x" }, { action: "list" }]) {
-  expectReadable(render("leader:agent_event", hostile, { details: { to: "ui-auditor", outcome: "sent" }, expanded: true }), `row for ${JSON.stringify(hostile)}`);
+  expectReadable(render("leader:message", hostile, { details: { to: "ui-auditor", outcome: "sent" }, expanded: true }), `row for ${JSON.stringify(hostile)}`);
 }
 
 // A person's own identifier text is content, not a runtime handle: it survives.
-const literal = render("leader:agent_event", { to: "@ui-auditor", message: "Compare with 6d102f1b-cc16-4059-8d86-d5c1192f3776 in the log." }, {
+const literal = render("leader:message", { to: "@ui-auditor", message: "Compare with 6d102f1b-cc16-4059-8d86-d5c1192f3776 in the log." }, {
   details: { to: "ui-auditor", outcome: "sent", intent: "inform" },
   text: "EVENT ROUTING · sent",
   expanded: true,
@@ -300,7 +300,7 @@ ${literal}`);
 
 // ── registered message surfaces: terminal-width preview and inline expansion ──
 
-for (const surface of ["leader:agent_event", "worker:agent_event"]) {
+for (const surface of ["leader:message", "worker:message"]) {
   const prefix = "[message] to @continual-audit-close · steered · ";
   const message = `Start marker: ${Array.from({ length: 32 }, (_, i) => `evidence-${i}`).join(" ")} END-MARKER`;
   const args = { to: "continual-audit-close", message };
@@ -399,7 +399,7 @@ for (const surface of ["leader:agent_event", "worker:agent_event"]) {
 
 // A real configured host keybinding, not a renderer-hardcoded ctrl+o string.
 setKeybindings(new KeybindingsManager({ "app.tools.expand": { defaultKeys: "ctrl+o" } }, { "app.tools.expand": "ctrl+shift+e" }));
-const remapped = renderComponent("leader:agent_event", { to: "reader", message: "Hidden message ".repeat(30) }, { details: { to: "reader", outcome: "steered" } });
+const remapped = renderComponent("leader:message", { to: "reader", message: "Hidden message ".repeat(30) }, { details: { to: "reader", outcome: "steered" } });
 assert.ok(contentRows(remapped, 90)[0].endsWith(" · ctrl+shift+e to expand"));
 assert.ok(!contentRows(remapped, 90)[0].includes("ctrl+o"));
 
