@@ -414,3 +414,197 @@ export function loadBoard(persisted: Record<string, BoardTask>): number {
     }
     return reloaded;
   }
+// ── Public task surface ──────────────────────────────────────────────────────
+//
+// The four actions a task board exposes to every process: create, list, update,
+// complete, reopen. They are here rather than in a tool layer so the same
+// transitions back a single-session board, a spawned agent, and a caller's
+// direct use, and so no caller can reach a transition the tool does not name.
+//
+// Two properties are deliberate and load-bearing:
+//
+// **Ownership is derived, never declared.** There is no parameter anywhere in
+// this section through which a caller could name who takes a task. The holder is
+// the `holder` argument, which the tool layer fills from the caller's own
+// runtime identity, so naming somebody else is not expressible rather than merely
+// rejected. That is why `takeTask` takes a name while no action takes an
+// assignee.
+//
+// **A task with no live holder is a fallback acceptance, not a takeover.**
+// `completeTaskWithOutcome` refuses when someone else is actively holding it, so
+// a leader cannot close work that a running agent is still doing, and cannot
+// forge completion either.
+
+/** Why a take was refused. A caller turns this into user-facing text. */
+export type TakeRefusal =
+  | "unknown"
+  | "not-pending"
+  | "held-by-other"
+  | "unmet-dependencies"
+  | "recovery-hold-needs-reason"
+  | "resource-conflict"
+  | "participant-unavailable";
+
+/** Reason text for a refused take, naming the blocker where one exists. */
+export function takeRefusalReason(taskId: string, refusal: TakeRefusal, detail?: string): string {
+  switch (refusal) {
+    case "unknown": return `Task "${taskId}" does not exist.`;
+    case "not-pending": return `Task "${taskId}" is not pending.`;
+    case "held-by-other": return `Task "${taskId}" is in progress${detail ? ` by @${detail}` : ""}.`;
+    case "unmet-dependencies": return `Task "${taskId}" has unmet dependencies.`;
+    case "recovery-hold-needs-reason": return `Task "${taskId}" failed its last attempt. Take it with a reason stating how the blocker was addressed.`;
+    case "resource-conflict": return `Task "${taskId}" conflicts with active work${detail ? ` held by @${detail}` : ""}.`;
+    case "participant-unavailable": return `Task "${taskId}" cannot be taken: no current participant.`;
+  }
+}
+
+/**
+ * Take a task, deriving the holder from the caller's own identity.
+ *
+ * Exactly one of two concurrent callers wins. The loser is told who holds the
+ * task rather than receiving a second copy, so a race cannot produce two
+ * participants both believing they own the same resources.
+ *
+ * `reason` is required only while a recovery hold is set. That is a stated
+ * justification rather than a role check on purpose: a role check would put
+ * participant identity back into the task, which is exactly what deriving the
+ * holder removed.
+ */
+export function takeTask(
+  taskId: string,
+  holder: string,
+  options: { reason?: string } = {},
+): { ok: true; task: BoardTask } | { ok: false; refusal: TakeRefusal; detail?: string; reason: string } {
+  const task = tasks[taskId];
+  if (!task) return { ok: false, refusal: "unknown", reason: takeRefusalReason(taskId, "unknown") };
+  if (task.status === "in_progress") {
+    const other = task.claimedBy && task.claimedBy !== holder ? task.claimedBy : undefined;
+    return { ok: false, refusal: "held-by-other", detail: other, reason: takeRefusalReason(taskId, "held-by-other", other) };
+  }
+  if (task.status !== "pending") {
+    return { ok: false, refusal: "not-pending", reason: takeRefusalReason(taskId, "not-pending") };
+  }
+  if (!task.dependsOn.every((dep) => tasks[dep]?.status === "completed")) {
+    return { ok: false, refusal: "unmet-dependencies", reason: takeRefusalReason(taskId, "unmet-dependencies") };
+  }
+  if (task.recoveryRequired && !options.reason?.trim()) {
+    return { ok: false, refusal: "recovery-hold-needs-reason", reason: takeRefusalReason(taskId, "recovery-hold-needs-reason") };
+  }
+  const participant = hooks.get(holder);
+  if (!participant || participant.status === "stopped") {
+    return { ok: false, refusal: "participant-unavailable", reason: takeRefusalReason(taskId, "participant-unavailable") };
+  }
+  const conflict = hooks.conflicting(task.resources, holder);
+  if (conflict) {
+    return { ok: false, refusal: "resource-conflict", detail: conflict.name, reason: takeRefusalReason(taskId, "resource-conflict", conflict.name) };
+  }
+  task.status = "in_progress";
+  task.claimedBy = holder;
+  task.recoveryRequired = undefined;
+  if (options.reason?.trim()) task.recoveryNote = options.reason.trim();
+  task.updatedAt = Date.now();
+  hooks.changed();
+  hooks.sync(holder, { id: `board:${randomUUID()}`, kind: "board", resources: task.resources }, task.id);
+  return { ok: true, task };
+}
+
+/** Fields a caller may change on a task it is not taking. */
+export interface TaskUpdate {
+  description?: string;
+  verify?: string;
+  resources?: string[];
+  context?: BoardTask["context"];
+}
+
+/**
+ * Change a task's content without changing who holds it.
+ *
+ * Deliberately accepts no status: a status transition goes through `takeTask`,
+ * `completeTaskWithOutcome`, or `reopenTask`, so every position in the lifecycle
+ * is reachable by exactly one named operation. An open `status` field here would
+ * let a caller bypass the preconditions those operations enforce, which is the
+ * same reason `supersede` was folded into `create(supersedes)` rather than kept
+ * as a verb.
+ */
+export function updateTask(taskId: string, patch: TaskUpdate): { ok: true; task: BoardTask } | { ok: false; reason: string } {
+  const task = tasks[taskId];
+  if (!task) return { ok: false, reason: `Task "${taskId}" does not exist.` };
+  if (patch.description !== undefined) task.description = patch.description.trim() || undefined;
+  if (patch.verify !== undefined) task.verify = patch.verify.trim() || undefined;
+  if (patch.resources !== undefined) task.resources = normalizeResources(patch.resources);
+  if (patch.context !== undefined) task.context = { ...(task.context ?? {}), ...patch.context };
+  task.updatedAt = Date.now();
+  hooks.changed();
+  return { ok: true, task };
+}
+
+/**
+ * Deliver a task's outcome. `failed` returns it to pending under a recovery hold
+ * with the blocker retained as evidence.
+ *
+ * The holder check is the whole point. When somebody else holds the task the
+ * call is refused, so a stale attempt, a different agent, or the leader cannot
+ * report a result for work it is not doing. With no live holder any participant
+ * may close the task, which is the fallback path when an agent died mid-task.
+ */
+export function completeTaskWithOutcome(
+  taskId: string,
+  holder: string,
+  outcome: "success" | "failed",
+  result?: string,
+): { ok: true; task: BoardTask } | { ok: false; reason: string } {
+  const task = tasks[taskId];
+  if (!task) return { ok: false, reason: `Task "${taskId}" does not exist.` };
+  if (outcome !== "success" && outcome !== "failed") {
+    return { ok: false, reason: `Task "${taskId}" has invalid submission outcome` };
+  }
+  if (task.claimedBy && task.claimedBy !== holder) {
+    return { ok: false, reason: `Task "${taskId}" is in progress by @${task.claimedBy}; only its holder may deliver the outcome.` };
+  }
+  const previous = task.claimedBy;
+  task.result = result?.trim() || undefined;
+  if (outcome === "failed") {
+    task.status = "pending";
+    task.claimedBy = undefined;
+    task.recoveryRequired = true;
+    task.completedAt = undefined;
+  } else {
+    task.status = "completed";
+    task.claimedBy = undefined;
+    task.recoveryRequired = undefined;
+    task.completedAt = Date.now();
+  }
+  task.updatedAt = Date.now();
+  hooks.changed();
+  if (previous) hooks.sync(previous, undefined, undefined);
+  return { ok: true, task };
+}
+
+/**
+ * Return a completed task to pending.
+ *
+ * Refused while a dependent is in progress, naming it, because reopening a task
+ * its successor is already building against would silently invalidate that
+ * successor's premise.
+ */
+export function reopenTask(taskId: string): { ok: true; task: BoardTask } | { ok: false; reason: string } {
+  const task = tasks[taskId];
+  if (!task) return { ok: false, reason: `Task "${taskId}" does not exist.` };
+  if (task.status !== "completed") {
+    return { ok: false, reason: `Task "${taskId}" is not completed.` };
+  }
+  const blockers = claimedDependents(taskId);
+  if (blockers.length > 0) {
+    return { ok: false, reason: `Task "${taskId}" has a dependent in progress: ${blockers.map((blocker) => blocker.id).join(", ")}.` };
+  }
+  task.status = "pending";
+  task.claimedBy = undefined;
+  task.result = undefined;
+  task.deferredMessages = undefined;
+  task.errorMessage = undefined;
+  task.recoveryRequired = undefined;
+  task.completedAt = undefined;
+  task.updatedAt = Date.now();
+  hooks.changed();
+  return { ok: true, task };
+}

@@ -48,6 +48,9 @@ export interface BoardTask {
   /** Failed or interrupted Work stays pending for inspection but cannot be
    * autonomously claimed until the leader deliberately authorizes recovery. */
   recoveryRequired?: boolean;
+  /** Why a recovery hold was cleared, kept so an operator can see what was
+   *  done about the failure rather than only that it was dismissed. */
+  recoveryNote?: string;
   /** Per-Work context: the workspace path it ran in, a structured successor
    *  brief, what it builds on, and its byte budget. See `./context.ts`. */
   context?: import("./context.ts").WorkContext;
