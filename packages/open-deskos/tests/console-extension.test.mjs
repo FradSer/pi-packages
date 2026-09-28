@@ -1,12 +1,27 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import extension from "../index.ts";
 import { formatHistory } from "../src/console-extension.ts";
 
 function harness(env) {
   const previous = { ...process.env };
-  Object.assign(process.env, env);
+  // The extension reads the machine's desk list when one exists, and that default
+  // path is computed once when this package is imported, before a fixture can set
+  // HOME. A fixture therefore states its own list: otherwise the host's real desks
+  // are what the extension reports to, and the fixture proves nothing about itself.
+  const desksFile = join(mkdtempSync(join(tmpdir(), "odk-console-fixture-")), "desks.json");
+  writeFileSync(desksFile, JSON.stringify({
+    desks: env.ODK_DESK_LINK_ADDRESS === undefined ? [] : [{
+      address: env.ODK_DESK_LINK_ADDRESS,
+      token: env.ODK_DESK_LINK_TOKEN ?? "",
+      ...(env.ODK_DESK_LINK_CONTROL_TOKEN ? { controlToken: env.ODK_DESK_LINK_CONTROL_TOKEN } : {}),
+    }],
+  }));
+  Object.assign(process.env, { ODK_DESK_LINK_DESKS_FILE: desksFile, ...env });
   const hooks = new Map();
   const commands = new Map();
   const tools = new Map();

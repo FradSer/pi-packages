@@ -33,6 +33,13 @@ test("extension discovers older sessions, periodically refreshes, preserves own 
   // A host that runs the Desk Link service exports control credentials; this
   // fixture declares its own surface and must not inherit a configured one.
   delete process.env.ODK_DESK_LINK_CONTROL_TOKEN;
+  // The extension reads the machine's desk list when one exists, and that default
+  // path is computed when this package is imported, before a fixture can isolate
+  // HOME. The fixture states its own list so the host's real desks cannot be what
+  // it reports to.
+  const desksFile = join(root, "desks.json");
+  await writeFile(desksFile, JSON.stringify({ desks: [{ address: `127.0.0.1:${server.address().port}`, token: "isolated-fixture" }] }));
+  process.env.ODK_DESK_LINK_DESKS_FILE = desksFile;
   process.env.ODK_DESK_LINK_ADDRESS = `127.0.0.1:${server.address().port}`;
   process.env.ODK_DESK_LINK_TOKEN = "isolated-fixture";
   process.env.ODK_DESK_LINK_MACHINE = "isolated-machine";
@@ -142,7 +149,7 @@ test("extension discovers older sessions, periodically refreshes, preserves own 
     handlers.get("session_shutdown")({}, ctx);
     for (const peer of peers) peer.destroy();
     await new Promise((resolve) => server.close(resolve));
-    for (const key of ["ODK_DESK_LINK_ADDRESS", "ODK_DESK_LINK_TOKEN", "ODK_DESK_LINK_MACHINE", "PI_DIRECTORY_SESSIONS_DIR"]) {
+    for (const key of ["ODK_DESK_LINK_DESKS_FILE", "ODK_DESK_LINK_ADDRESS", "ODK_DESK_LINK_TOKEN", "ODK_DESK_LINK_MACHINE", "PI_DIRECTORY_SESSIONS_DIR"]) {
       if (saved[key] === undefined) delete process.env[key];
       else process.env[key] = saved[key];
     }

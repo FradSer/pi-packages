@@ -630,7 +630,7 @@ def test_a_session_switch_keeps_reporting() -> None:
         const handlers = new Map();
         mod.default({ on(name, handler) { handlers.set(name, handler); }, registerCommand() {}, registerMessageRenderer() {}, registerEntryRenderer() {}, registerTool() {} });
         const statuses = [];
-        const contextFor = (id) => ({ cwd: "/w/probe", isIdle: () => false, ui: { setStatus(...args) { statuses.push(args); }, notify() {} }, sessionManager: { getSessionId: () => id, getSessionName: () => undefined, getHeader: () => undefined } });
+        const contextFor = (id) => ({ cwd: "/w/probe", isIdle: () => false, ui: { setStatus(...args) { statuses.push(args); }, notify() {} }, sessionManager: { getSessionId: () => id, getSessionName: () => undefined, getHeader: () => undefined, getBranch: () => [] } });
         handlers.get("session_start")({ type: "session_start" }, contextFor("first"));
         await new Promise((resolve) => setTimeout(resolve, 200));
         handlers.get("session_shutdown")({ type: "session_shutdown" }, contextFor("first"));

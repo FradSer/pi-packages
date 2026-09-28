@@ -20,6 +20,21 @@ function workspaceName(cwd: string): string {
 }
 
 /**
+ * What a running session is doing, in the card's own vocabulary: the tool and the
+ * one argument that says what it is working on, as `read: src/example.js` does.
+ * A tool whose arguments carry no such line is named and nothing more, so no
+ * argument is echoed beyond the summary the desk shows.
+ */
+function toolSummary(event: { toolName?: unknown; args?: unknown }): string {
+  const name = typeof event.toolName === "string" && event.toolName.length > 0 ? event.toolName : "tool";
+  const args = (event.args ?? {}) as Record<string, unknown>;
+  const hint = ["command", "path", "file", "pattern", "url", "query"]
+    .map((key) => args[key])
+    .find((value): value is string => typeof value === "string" && value.trim().length > 0);
+  return hint === undefined ? name : `${name}: ${hint.trim()}`;
+}
+
+/**
  * The current session manager points at its own trusted durable log. Read its
  * bounded tail in chronological order; other sessions never enter this path.
  */
@@ -119,6 +134,14 @@ export default function (pi: ExtensionAPI): void {
     });
     pi.on("agent_start", () => each((reporter) => reporter.markStatus(currentSessionId, "running")));
     pi.on("agent_settled", () => each((reporter) => reporter.markStatus(currentSessionId, "settled")));
+    // A turn runs several tools before its message ends, and until that message
+    // the card would keep showing the prompt that started the turn. The tool that
+    // is running now is the newest thing the session is doing, so it is what the
+    // card states.
+    pi.on("tool_execution_start", (event) => {
+      if (currentSessionId.length === 0) return;
+      each((reporter) => reporter.recordActivity(currentSessionId, toolSummary(event)));
+    });
     pi.on("message_end", (event) => {
       if (currentSessionId.length === 0) return;
       const prompt = promptFromMessage(event.message);

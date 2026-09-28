@@ -240,6 +240,22 @@ export class DeskReporter {
     this.#flush();
   }
 
+  /**
+   * What the session is doing right now, as the desk's card shows it. A running
+   * session executes several tools inside one turn, and until that turn ends its
+   * last message is still the prompt that started it: without this the card showed
+   * that prompt for the whole turn, which is what the desk owner reported.
+   */
+  recordActivity(sessionId: string, text: string): void {
+    const entry = this.#sessions.get(sessionId);
+    if (entry === undefined) return;
+    const activity = boundEventText(text);
+    if (activity.length === 0 || activity === entry.session.activity) return;
+    entry.session = { ...entry.session, activity, updatedAt: this.#now() };
+    this.#sessionsDirty = true;
+    this.#flush();
+  }
+
   markStatus(sessionId: string, status: SessionStatus): void {
     const entry = this.#sessions.get(sessionId);
     if (entry === undefined) return;
