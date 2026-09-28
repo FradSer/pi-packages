@@ -4,17 +4,29 @@
  * is the sole writer of this snapshot and of board.json.
  */
 
+import { nonEmpty } from "@fradser/pi-kit";
 import {
   messageTitle,
   TEAM_RUNTIME_VERSION,
-  type WorkerAssignment,
   type MailboxMessage,
-  type Teammate,
   type TeamState,
   type WorkerReportEvent,
-  type WorkerUsage,
 } from "./types.ts";
-import { nonEmpty } from "@fradser/pi-kit";
+// The roster — one child process per entry, its lifecycle, and the revisions that
+// say when it changed — is an execution fact, so it lives in @fradser/pi-subagents
+// with the spawner that creates those processes. This module keeps the snapshot,
+// the leader inbox, and the board callback, and points `teammates` at the roster's
+// own map by identity so no snapshot schema changes and no version bump is needed.
+import {
+  assignTeammate,
+  getTeammate,
+  livingTeammates,
+  teammates as roster,
+  progressRevision as rosterProgressRevision,
+  resetRoster,
+  rosterRevision as currentRosterRevision,
+  type Teammate,
+} from "@fradser/pi-subagents";
 // The Work Item graph and resource rules are pure and live in @fradser/pi-tasks, so the
 // leader, the worker, and any board-only consumer share one implementation.
 // `activeAssignmentConflict` below is the roster-backed policy on top of
@@ -38,7 +50,7 @@ export const MAX_TASK_DEPENDENCIES = 32;
 function emptyState(): TeamState {
   return {
     runtimeVersion: TEAM_RUNTIME_VERSION,
-    teammates: {},
+    teammates: roster,
     tasks: boardTasks,
     leaderMailbox: [],
     messageCounter: 0,
@@ -58,8 +70,8 @@ function nextMessageId(): string {
 
 export function resetState(): void {
   for (const id of Object.keys(boardTasks)) delete boardTasks[id];
+  resetRoster();
   state = emptyState();
-  rosterRevisionCounter++;
   boardRevisionCounter++;
   stateRevisionCounter++;
 }
@@ -72,19 +84,20 @@ export function resetState(): void {
 // one of these counters, so a mutation that forgets to bump would not be written
 // until something else changed — add the bump with any new mutator.
 let stateRevisionCounter = 0;
-let rosterRevisionCounter = 0;
 let boardRevisionCounter = 0;
-let progressRevisionCounter = 0;
 
-/** Revision of the whole snapshot: roster, board, mailbox, and offsets. */
+/** Revision of the whole snapshot: roster, board, mailbox, and offsets.
+ *
+ * Composed rather than single-sourced, because the roster now has its own counter
+ * in another package. Every input is monotonic, so the sum changes whenever any
+ * of them does, which is the only property the snapshot writer relies on: it
+ * compares against the last written value and rewrites on inequality. */
 export function stateRevision(): number {
-  return stateRevisionCounter;
+  return stateRevisionCounter + currentRosterRevision() + boardRevisionCounter;
 }
 
-/** Revision of the worker-readable roster. */
-export function rosterRevision(): number {
-  return rosterRevisionCounter;
-}
+/** Revision of the worker-readable roster, owned by @fradser/pi-subagents. */
+export { currentRosterRevision as rosterRevision };
 
 /** Revision of the persisted board. */
 export function boardRevision(): number {
@@ -92,9 +105,7 @@ export function boardRevision(): number {
 }
 
 /** Revision of streamed progress only; never persisted on its own. */
-export function progressRevision(): number {
-  return progressRevisionCounter;
-}
+export { rosterProgressRevision as progressRevision };
 
 /** Record a board change made outside this module's task mutators. */
 export function markBoardChanged(): void {
@@ -102,140 +113,9 @@ export function markBoardChanged(): void {
   stateRevisionCounter++;
 }
 
-// ── Team default model ──────────────────────────────────────
-
-/** The unified teammate model for this session, or undefined when Pi picks. */
-export function getTeamDefaultModel(): string | undefined {
-  return state.defaultModel;
-}
-
-/** Set (or clear with undefined) the unified teammate model for later spawns. */
-export function setTeamDefaultModel(ref: string | undefined): void {
-  state.defaultModel = nonEmpty(ref);
-  stateRevisionCounter++;
-}
-
-// ── Roster queries ────────────────────────────────────────────────
-
-const NAME_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/i;
-
-export function isValidTeammateName(name: string): boolean {
-  return NAME_PATTERN.test(name);
-}
-
-export function getTeammate(name: string): Teammate | undefined {
-  return state.teammates[name];
-}
-
-export function listTeammates(): Teammate[] {
-  return Object.values(state.teammates).sort((a, b) => a.createdAt - b.createdAt);
-}
-
-export function livingTeammates(): Teammate[] {
-  return listTeammates().filter((t) => t.status !== "stopped");
-}
-
-export function idleTeammates(): Teammate[] {
-  return livingTeammates().filter((t) => t.status === "idle");
-}
-
-export function registerTeammate(teammate: Teammate): { ok: true } | { ok: false; error: string } {
-  if (!isValidTeammateName(teammate.name)) {
-    return { ok: false, error: `Invalid teammate name "${teammate.name}". Use letters, digits, dots, dashes, underscores.` };
-  }
-  if (livingTeammates().some((t) => t.name === teammate.name)) {
-    return { ok: false, error: `A living teammate named "${teammate.name}" already exists.` };
-  }
-  state.teammates[teammate.name] = teammate;
-  rosterRevisionCounter++;
-  stateRevisionCounter++;
-  return { ok: true };
-}
-
-/** Fields whose change is stream progress rather than persisted state. A
- *  progress tick must not republish the roster or the board. */
-const VOLATILE_TEAMMATE_FIELDS = new Set<string>([
-  "liveText",
-  "liveThinking",
-  "activeTool",
-  "turns",
-  "sequenceEnded",
-  "modelOutputSeen",
-  "usage",
-  "lastOutputAt",
-  "updatedAt",
-  "lastNoticeAt",
-  "noticedTaskIds",
-]);
-
-export function updateTeammate(name: string, patch: Partial<Teammate>): Teammate | undefined {
-  const teammate = state.teammates[name];
-  if (!teammate) return undefined;
-  const changed = (Object.keys(patch) as Array<keyof Teammate>)
-    .filter((field) => !Object.is(teammate[field], patch[field]));
-  Object.assign(teammate, patch, { updatedAt: Date.now() });
-  if (patch.status === "stopped") teammate.stoppedAt = Date.now();
-  // Republishing a roster that only streamed progress is pure write churn.
-  if (changed.some((field) => !VOLATILE_TEAMMATE_FIELDS.has(field as string))) {
-    rosterRevisionCounter++;
-    stateRevisionCounter++;
-  } else if (changed.length > 0) {
-    progressRevisionCounter++;
-  }
-  return teammate;
-}
-
-/** Merge streaming child-process progress into a living teammate. */
-export function assignTeammate(
-  name: string,
-  assignment: WorkerAssignment | undefined,
-  currentTaskId?: string,
-): Teammate | undefined {
-  const teammate = getTeammate(name);
-  if (!teammate) return undefined;
-  const lastAssignment = assignment ?? teammate.assignment ?? teammate.lastAssignment;
-  const lastTaskId = currentTaskId ?? teammate.currentTaskId ?? teammate.lastTaskId;
-  return updateTeammate(name, { assignment, currentTaskId, lastAssignment, lastTaskId,
-    ...(assignment && assignment.id !== teammate.assignment?.id ? { reportSequenceEnded: false } : {}),
-  });
-}
-
-export function updateTeammateProgress(
-  name: string,
-  spawnId: string,
-  progress: Pick<Teammate, "liveText" | "activeTool" | "liveThinking" | "turns"> & {
-    sequenceEnded?: boolean;
-    modelOutputSeen?: boolean;
-    usage?: WorkerUsage;
-  },
-): boolean {
-  const teammate = state.teammates[name];
-  if (!teammate || teammate.spawnId !== spawnId) return false;
-  const changed = teammate.liveText !== progress.liveText
-    || teammate.activeTool !== progress.activeTool
-    || teammate.liveThinking !== progress.liveThinking
-    || teammate.turns !== progress.turns
-    || (progress.sequenceEnded !== undefined && teammate.sequenceEnded !== progress.sequenceEnded)
-    || (progress.modelOutputSeen === true && teammate.modelOutputSeen !== true);
-  teammate.liveText = progress.liveText;
-  teammate.activeTool = progress.activeTool;
-  teammate.liveThinking = progress.liveThinking;
-  teammate.turns = progress.turns;
-  if (progress.sequenceEnded !== undefined) teammate.sequenceEnded = progress.sequenceEnded;
-  if (progress.modelOutputSeen) teammate.modelOutputSeen = true;
-  if (progress.usage) teammate.usage = progress.usage;
-  if (teammate.status === "starting") {
-    teammate.status = progress.sequenceEnded ? "idle" : "working";
-    // A status transition is roster state, not stream noise.
-    rosterRevisionCounter++;
-    stateRevisionCounter++;
-  }
-  teammate.updatedAt = Date.now();
-  if (changed) progressRevisionCounter++;
-  return true;
-}
-
-/** Drop per-spawn replay metadata once its final snapshot was persisted. */
+/** Drop per-spawn replay metadata once its final snapshot was persisted.
+ *  Snapshot bookkeeping rather than roster state, so it stays here even though
+ *  the roster itself moved. */
 export function clearWorkerRunEvents(workerName: string, spawnId: string): void {
   const outboxKey = `${workerName}:${spawnId}`;
   delete state.workerEventOffsets[outboxKey];
@@ -243,6 +123,43 @@ export function clearWorkerRunEvents(workerName: string, spawnId: string): void 
     if (id.startsWith(`${spawnId}:`)) delete state.workerEventIds[id];
   }
 }
+
+// ── Session settings ─────────────────────────────────────────────
+
+/** The unified model for later spawns, or undefined when Pi picks.
+ *
+ * Deliberately session state rather than roster state: it is a setting the
+ * snapshot persists for forensics and resume, so moving it with the roster would
+ * have given the roster a second source of truth that no snapshot records. The
+ * spawner reads it through the re-export below. */
+export function getTeamDefaultModel(): string | undefined {
+  return state.defaultModel;
+}
+
+/** Set (or clear with undefined) the unified model for later spawns. */
+export function setTeamDefaultModel(ref: string | undefined): void {
+  state.defaultModel = nonEmpty(ref);
+  stateRevisionCounter++;
+}
+
+// ── Roster (owned by @fradser/pi-subagents) ───────────────────────
+//
+// A child process is an execution fact, so the roster lives with the spawner.
+// Re-exported here because the coordination vocabulary reads this module as its
+// entry point, and every existing consumer imports it from here.
+
+export {
+  assignTeammate,
+  getTeammate,
+  idleTeammates,
+  isValidTeammateName,
+  listTeammates,
+  livingTeammates,
+  registerTeammate,
+  updateTeammate,
+  updateTeammateProgress,
+  teammates,
+} from "@fradser/pi-subagents";
 
 /** Drop the oldest mailbox entries until both the count and byte caps hold. */
 function trimLeaderMailbox(): void {

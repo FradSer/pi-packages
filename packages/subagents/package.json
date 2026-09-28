@@ -1,0 +1,35 @@
+{
+  "name": "@fradser/pi-subagents",
+  "version": "0.1.0",
+  "description": "Subagent execution layer for Pi packages \u2014 agent definitions, child spawn and lifecycle, workspace isolation, child environment policy, context forking, and the worker report channel. Internal workspace dependency, not yet a Pi extension package.",
+  "keywords": [
+    "pi-subagents",
+    "pi-packages",
+    "shared-runtime"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./index.ts"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "dependencies": {
+    "@fradser/pi-kit": "workspace:*",
+    "@fradser/pi-tasks": "workspace:*"
+  }
+}

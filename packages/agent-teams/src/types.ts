@@ -1,95 +1,15 @@
-import type { Static, TSchema, TString, TObject, TUnion } from "typebox";
+import type { TSchema, TString, TObject, TUnion } from "typebox";
 import { Type } from "typebox";
-import { WORKER_BUILTIN_TOOLS, type ChildEnvDiagnostic } from "@fradser/pi-subagents";
+import { WORKER_BUILTIN_TOOLS } from "@fradser/pi-subagents";
 
-/** Spawn telemetry belongs to the execution layer; re-exported because `Teammate`
- * below references it and a reader of this module should see where it comes from. */
-export type { WorkerUsage } from "@fradser/pi-subagents";
-import type { WorkerUsage } from "@fradser/pi-subagents";
+// ── Roster ───────────────────────────────────────────────────────
+// A child process on the roster is an execution fact, so the type lives in
+// @fradser/pi-subagents with the code that manages it. Re-exported here because
+// the coordination vocabulary below (TeamState) references it and callers read
+// this module as the package's type surface.
 
-// ── Teammate ──────────────────────────────────────────────────────
-
-export const TeammateStatus = Type.Union(
-  [
-    Type.Literal("starting"),
-    Type.Literal("idle"),
-    Type.Literal("working"),
-    Type.Literal("stopped"),
-  ],
-  { description: "Lifecycle of a resident teammate" },
-);
-export type TeammateStatus = Static<typeof TeammateStatus>;
-
-export interface WorkerAssignment {
-  id: string;
-  kind: "direct" | "board";
-  /** Resource tags prevent concurrent mutating assignments from overlapping. */
-  resources: string[];
-  /** A terminal direct assignment is closed until the leader explicitly reopens it. */
-  closed?: boolean;
-}
-
-/** A named, long-lived child Pi process on the team roster. */
-export interface Teammate {
-  /** Unique among living teammates; also the mailbox and roster key. */
-  name: string;
-  /** Resolved agent definition name. */
-  agent: string;
-  /** Per-spawn capability identity, regenerated for every process. */
-  spawnId: string;
-  /** Stable Work Item selected by agent; each reopen creates a new assignment attempt. */
-  workId?: string;
-  context?: "fresh" | "fork";
-  pid: number;
-  status: TeammateStatus;
-  /** Working directory (the worktree root when isolated). */
-  cwd?: string;
-  /** Whether this teammate owns a dedicated Git worktree. */
-  isolation: "worktree" | "none";
-  /** Board task currently claimed by this teammate, if any. */
-  currentTaskId?: string;
-  /** The one assignment this worker is allowed to execute. Direct assignments
-   * and board claims are mutually exclusive until the leader opens another. */
-  assignment?: WorkerAssignment;
-  /** Most recent assignment retained for successor handoff after release or shutdown. */
-  lastAssignment?: WorkerAssignment;
-  lastTaskId?: string;
-  /** Effective launch model reference ("provider/model"); absent when Pi picks its default. */
-  model?: string;
-  /** Live assistant text assembled from the RPC stream. */
-  liveText?: string;
-  /** Current child tool name, if a tool is executing. */
-  activeTool?: string;
-  /** Live assistant reasoning streamed while no tool runs. */
-  liveThinking?: string;
-  /** Assistant turns observed in the current wake-up sequence. */
-  turns?: number;
-  /** The child finished its current sequence and awaits the next prompt. */
-  sequenceEnded?: boolean;
-  /** Leader reports are closed until a new prompt starts after a terminal report. */
-  reportSequenceEnded?: boolean;
-  /** When the harness last sent a claimable-task notice to this teammate. */
-  lastNoticeAt?: number;
-  /** Claimable task ids already announced to this teammate; one notice per id until it re-arms. */
-  noticedTaskIds?: string[];
-  usage?: WorkerUsage;
-  error?: string;
-  /** Effective tool allowlist granted to the child process (role tools plus
-   *  the capability set). Absent only for legacy snapshots. */
-  tools?: string[];
-  /** What the spawn environment policy withheld from this child. Names and
-   *  counts only, never values. Console telemetry, never a leader
-   *  notification; absent for legacy snapshots. */
-  envPolicy?: ChildEnvDiagnostic;
-  /** True once recognized model/stream activity was observed for this
-   * incarnation; console telemetry only, never a leader notification. */
-  modelOutputSeen?: boolean;
-  createdAt: number;
-  updatedAt: number;
-  stoppedAt?: number;
-  /** Last wall-clock time output was observed (any stream event or prompt delivery). */
-  lastOutputAt?: number;
-}
+export type { Teammate, TeammateStatus, WorkerUsage } from "@fradser/pi-subagents";
+import type { Teammate } from "@fradser/pi-subagents";
 
 // ── Task board ────────────────────────────────────────────────────
 // The Work Item data model lives in @fradser/pi-tasks. Re-exported here because the
@@ -97,6 +17,9 @@ export interface Teammate {
 // read this module as the package's type surface.
 
 export type { BoardTask, TaskIntent, TaskStatus } from "@fradser/pi-tasks";
+// The assignment a teammate holds is the task domain's own shape. Re-exported
+// under the historical name so the coordination vocabulary stays readable.
+export type { WorkAssignment as WorkerAssignment } from "@fradser/pi-tasks";
 import type { BoardTask } from "@fradser/pi-tasks";
 
 // ── Mailbox ───────────────────────────────────────────────────────
@@ -170,7 +93,7 @@ export interface InboxMessage {
 
 export const InlineAgentDefinitionParams = Type.Object({
   description: Type.String({ minLength: 1, description: "Routing contract for the generated Agent" }),
-  tools: Type.Optional(Type.Array(Type.String(), { description: `Explicit minimal tool grant. Canonical built-ins: ${WORKER_BUILTIN_TOOLS.join(", ")}. Omitted or [] means coordination-only (agent_event and work), with no file or shell access. No aliases or inherited leader extension tools.` })),
+  tools: Type.Optional(Type.Array(Type.String(), { description: `Explicit minimal tool grant. Canonical built-ins: ${WORKER_BUILTIN_TOOLS.join(", ")}. Omitted or [] means coordination-only (message and task), with no file or shell access. No aliases or inherited leader extension tools.` })),
   model: Type.Optional(Type.String({ description: "Provider/model pin or inherit" })),
   verify: Type.Optional(Type.String({ description: "Default Work verification gate" })),
   worktree: Type.Optional(Type.Boolean({ description: "Dedicated Git worktree" })),
