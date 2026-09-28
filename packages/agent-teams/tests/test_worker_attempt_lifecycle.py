@@ -44,17 +44,17 @@ def test_leader_assignment_clears_recovery_and_claim_follows(tmp_path: Path) -> 
         import assert from "node:assert/strict";
         import fs from "node:fs";
         import {{ initTeamMachine, shutdownTeamMachine, processTaskIntents, attemptSubmission }} from "{(SRC / 'team-machine.ts').as_uri()}";
-        import {{ resetState, registerTeammate, createTask, setTaskClaimed, getTask, reclaimDirectWork }} from "{(SRC / 'state.ts').as_uri()}";
+        import {{ resetState, registerTeammate, createTask, takeTask, getTask, reclaimDirectWork }} from "{(SRC / 'state.ts').as_uri()}";
         const reports = [];
         resetState();
         initTeamMachine({{ cwd: {str(tmp_path)!r} }}, {{ sendUpdate: r => reports.push(r), notifyChange() {{}} }});
         registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 0, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const task = createTask({{ subject: "recoverable work" }}).task;
-        setTaskClaimed(task.id, "w");
+        takeTask(task.id, "w");
         attemptSubmission("w", "s1", task.id, "failed", "External parser rejected every authorized attempt");
         processTaskIntents();
         const held = {{ status: getTask(task.id).status, recoveryRequired: getTask(task.id).recoveryRequired,
-          error: getTask(task.id).errorMessage }};
+          evidence: getTask(task.id).result }};
         const recovered = reclaimDirectWork(task.id, "w", {{ id: "attempt-2", kind: "direct", resources: [] }}, "pending");
         console.log(JSON.stringify({{ held, recovered: recovered.ok, after: getTask(task.id).recoveryRequired ?? null,
           status: getTask(task.id).status }}));
@@ -63,7 +63,7 @@ def test_leader_assignment_clears_recovery_and_claim_follows(tmp_path: Path) -> 
     assert payload["held"] == {
         "status": "pending",
         "recoveryRequired": True,
-        "error": "External parser rejected every authorized attempt",
+        "evidence": "External parser rejected every authorized attempt",
     }
     assert payload["recovered"] is True
     assert payload["after"] is None

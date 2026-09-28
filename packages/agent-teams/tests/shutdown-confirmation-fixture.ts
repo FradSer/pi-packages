@@ -27,7 +27,7 @@ mock.module("@fradser/pi-kit", {
 mock.method(Date, "now", () => 1234567890000);
 const { isWorkerCloseObserved } = await import("@fradser/pi-subagents");
 const { initTeamMachine, shutdownTeamMachine, shutdownTeammate, spawnTeammate, sendLeaderMessage, getConfirmedStopTime } = await import("../src/team-machine.ts");
-const { resetState, registerTeammate, getTeammate, createTask, setTaskClaimed, getTask, getState } = await import("../src/state.ts");
+const { resetState, registerTeammate, getTeammate, createTask, takeTask, getTask, getState } = await import("../src/state.ts");
 resetState();
 initTeamMachine({ cwd: process.env.HOME! }, { sendUpdate: () => {}, notifyChange: () => {} });
 try {
@@ -35,7 +35,7 @@ try {
   if (!spawned.ok) throw new Error(spawned.error);
   const spawnId = spawned.teammate.spawnId;
   const task = createTask({ subject: "owned work", resources: ["src/owned"] }).task!;
-  setTaskClaimed(task.id, "worker");
+  takeTask(task.id, "worker");
   const result = await shutdownTeammate("worker");
   const initial = { result, terminationCalls, closeObserved: isWorkerCloseObserved("worker"), status: getTeammate("worker")?.status, task: { ...getTask(task.id) }, stopTime: getConfirmedStopTime(spawnId) ?? null, stoppedSummaries: getState().leaderMailbox.filter((message) => message.subject === "Agent stopped").length };
   const rejected = sendLeaderMessage("worker", "new work", { reopen: true });

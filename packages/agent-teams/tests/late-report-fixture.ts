@@ -4,7 +4,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import agentTeams from "../src/index.ts";
 import { applyProgress, drainTeammateOutboxes, getConfirmedStopTime, shutdownTeammate } from "../src/team-machine.ts";
-import { createTask, getTeammate, registerTeammate, setTaskClaimed } from "../src/state.ts";
+import { createTask, getTeammate, registerTeammate, takeTask } from "../src/state.ts";
 import { appendWorkerEvent, stateFilePath, workerOutboxPath } from "../src/statefile.ts";
 
 const reportBody = "Completed work before the process was stopped.";
@@ -52,7 +52,7 @@ export default function (pi: ExtensionAPI): void {
         status: "working", isolation: "none", createdAt: 1, updatedAt: 1 });
       const created = createTask({ subject: "Fixture work" });
       assert.ok(created.ok);
-      setTaskClaimed(created.task.id, "fixture-worker");
+      assert.ok(takeTask(created.task.id, "fixture-worker").ok);
       const assignmentId = getTeammate("fixture-worker")!.assignment!.id;
       applyProgress("fixture-worker", "fixture-spawn", { text: "", turns: 1, finalResponse: false });
       const outbox = workerOutboxPath(stateFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd), "fixture-worker", "fixture-spawn");

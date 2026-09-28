@@ -15,8 +15,8 @@ def machine_case(tmp_path: Path, script: str, owned: bool = True) -> dict[str, o
         import {{ initTeamMachine, shutdownTeamMachine, applyProgress,
           attemptSubmission, processTaskIntents, drainTeammateOutboxes,
           hasUnfinalizedReport, setVerifyGateRunner }} from "{(SRC / 'team-machine.ts').as_uri()}";
-        import {{ resetState, registerTeammate, createTask, setTaskClaimed,
-          getTeammate, getTask, getState, releaseTask, reclaimDirectWork }} from "{(SRC / 'state.ts').as_uri()}";
+        import {{ resetState, registerTeammate, createTask, takeTask,
+          getTeammate, getTask, getState, revertInFlightAttempt, reclaimDirectWork }} from "{(SRC / 'state.ts').as_uri()}";
         import {{ stateFilePath, inboxPath, workerOutboxPath, appendWorkerEvent,
           readJsonlBatch }} from "{(SRC / 'statefile.ts').as_uri()}";
         import {{ publishTeamHost, registerComposedTools }} from "./tests/composed-tools.ts";
@@ -33,7 +33,7 @@ def machine_case(tmp_path: Path, script: str, owned: bool = True) -> dict[str, o
             const created = createTask({{ id: "work:review", subject: "Review guidance" }});
             assert.equal(created.ok, true);
             task = created.task;
-            setTaskClaimed(task.id, "reviewer");
+            takeTask(task.id, "reviewer");
             attempt = getTeammate("reviewer").assignment.id;
           }}
           const stateFile = stateFilePath(undefined, root);
@@ -144,12 +144,16 @@ def test_failure_settles_before_release_and_reports_once(tmp_path: Path, channel
         }}
         const before = getTask(task.id).status;
         settle(); processTaskIntents(); settle();
-        console.log(JSON.stringify({{ before, after: getTask(task.id).status, error: getTask(task.id).errorMessage,
+        console.log(JSON.stringify({{ before, after: getTask(task.id).status, evidence: getTask(task.id).result,
+          held: getTask(task.id).recoveryRequired === true,
           reports: reports.filter(r => r.finished), reminders: reminders(), attempt }}));
     ''')
     assert payload["before"] == "in_progress"
     assert payload["after"] == "pending"
-    assert payload["error"] == "Provider unavailable"
+    # The failure is retained as evidence in `result`, the field the board reads and
+    # shows. It used to be written to `errorMessage`, which nothing ever read.
+    assert payload["evidence"] == "Provider unavailable"
+    assert payload["held"] is True
     assert payload["reminders"] == []
     assert len(payload["reports"]) == 1
     assert payload["reports"][0]["status"] == "failed"
@@ -211,8 +215,8 @@ def test_historical_terminal_record_does_not_announce_acceptance(tmp_path: Path)
 def test_stale_submission_cannot_finish_reassigned_work(tmp_path: Path) -> None:
     payload = machine_case(tmp_path, '''
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Old attempt evidence");
-        releaseTask(task.id, "New attempt requested", false);
-        setTaskClaimed(task.id, "reviewer");
+        revertInFlightAttempt(task.id, "New attempt requested");
+        takeTask(task.id, "reviewer");
         const newAttempt = getTeammate("reviewer").assignment.id;
         processTaskIntents(); settle();
         console.log(JSON.stringify({ state: getTask(task.id).status, attempt: getTeammate("reviewer").assignment?.id,
@@ -256,21 +260,38 @@ def test_ordinary_mail_does_not_unpark_verification(tmp_path: Path, verdict: str
           processTaskIntents(); await tick();
         }}
         assert.equal(reviews, 2);
-        await call("message", {{ to: "session:reviewer:spawn-1", message: "New information, not recovery authorization" }});
+        // Ordinary mail cannot unblock work. It used to be delivered and merely
+        // not authorize a resubmission; now the worker holds no assignment, so the
+        // message is refused and there is nothing it could have done.
+        const steer = await call("message", {{ to: "session:reviewer:spawn-1", message: "New information, not recovery authorization" }});
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Unauthorized revision");
         processTaskIntents(); await tick();
-        console.log(JSON.stringify({{ reviews, state: getTask(task.id).status, owner: getTask(task.id).claimedBy,
-          feedback: reminders().map(r => r.body) }}));
+        console.log(JSON.stringify({{
+          reviews,
+          steerRefused: steer.details.ok === false,
+          state: getTask(task.id).status,
+          owner: getTask(task.id).claimedBy ?? null,
+          held: getTask(task.id).recoveryRequired === true,
+          feedback: reminders().map(r => r.body),
+        }}));
     ''')
     feedback = payload.pop("feedback")
-    assert payload == {"reviews": 2, "state": "in_progress", "owner": "reviewer"}
-    assert any("Work release and reassignment" in body for body in feedback)
+    assert payload == {
+        "reviews": 2,
+        "steerRefused": True,
+        "state": "pending",
+        "owner": None,
+        "held": True,
+    }
+    # The gate told the worker what it would take to retry, and an ordinary message
+    # is not it.
+    assert any("stated reason" in body for body in feedback)
     assert not any("explicit leader steer" in body for body in feedback)
 
 
 def test_archived_result_is_not_returned_as_accepted_evidence(tmp_path: Path) -> None:
     payload = machine_case(tmp_path, '''
-        releaseTask(task.id, "Released before completion", false);
+        revertInFlightAttempt(task.id, "Released before completion");
         appendWorkerEvent(workerOutboxPath(stateFile, "reviewer", "spawn-1"), {
           id: "late", type: "message", worker: "reviewer", spawnId: "spawn-1",
           assignmentId: attempt, status: "completed", body: "Unaccepted evidence", timestamp: 3,

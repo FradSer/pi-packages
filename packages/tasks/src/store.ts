@@ -249,7 +249,13 @@ export function reclaimDirectWork(
     return { ok: true };
   }
 
-export function setTaskClaimed(taskId: string, workerName: string): BoardTask | undefined {
+/** The claim-intent path's take.
+ *
+ * Not exported: `takeTask` is the one public take, and a second exported take
+ * under another name is how a caller ends up bypassing the recovery hold without
+ * intending to. This one runs only after `applyClaimIntent` has already checked
+ * the hold, the dependencies and the conflicts, so it needs no re-check. */
+function setTaskClaimed(taskId: string, workerName: string): BoardTask | undefined {
     const task = tasks[taskId];
     const holder = hooks.get(workerName);
     if (!task || !holder || task.status !== "pending" || task.recoveryRequired || !taskDependenciesMet(task)) return undefined;
@@ -311,19 +317,50 @@ export function reopenCompletedWork(workId: string): { ok: true; task: BoardTask
     return { ok: true, task };
   }
 
-export function releaseTask(taskId: string, errorMessage: string | undefined, recoveryRequired: boolean): BoardTask | undefined {
-    const task = tasks[taskId];
-    if (!task || (task.status !== "in_progress" && task.status !== "superseded")) return undefined;
-    const holder = task.claimedBy;
-    if (task.status === "in_progress") task.status = "pending";
-    task.claimedBy = undefined;
-    task.recoveryRequired = task.status === "pending" && recoveryRequired ? true : undefined;
-    if (errorMessage !== undefined) task.errorMessage = errorMessage;
-    task.updatedAt = Date.now();
-    hooks.changed();
-    if (holder) hooks.sync(holder, undefined, undefined);
-    return task;
-  }
+/** Undo a transition the runtime itself just started.
+ *
+ * This is not a work-lifecycle action and nothing in the tool surface reaches it.
+ * It exists because starting work is several steps — spawn, readiness, session
+ * reset — and any of them can fail after the task has been taken. Returning the
+ * task to pending here is a *revert*, not a failure report, and that is why it
+ * differs from a recorded failure in exactly one way: it sets no recovery hold.
+ *
+ * A hold would be wrong here. The hold exists so a failure nobody looked at is
+ * not silently retried by whichever participant is idle; an attempt that never
+ * began has no failure to look at, and holding it would park the task until
+ * somebody explained a start that never happened.
+ */
+export function revertInFlightAttempt(taskId: string, reason: string): BoardTask | undefined {
+  const task = tasks[taskId];
+  if (!task || task.status !== "in_progress") return undefined;
+  const holder = task.claimedBy;
+  task.status = "pending";
+  task.claimedBy = undefined;
+  task.recoveryRequired = undefined;
+  task.result = reason;
+  task.updatedAt = Date.now();
+  hooks.changed();
+  if (holder) hooks.sync(holder, undefined, undefined);
+  return task;
+}
+
+/** A holder releasing its resources while the task stays superseded.
+ *
+ * Distinct from a failure report because the task's *status* is not the holder's
+ * to change: it was replaced, and the replacement stands. What the holder owns is
+ * its resource lease, and acknowledging the cancellation gives that back.
+ */
+export function acknowledgeSupersession(taskId: string, holder: string, reason: string): BoardTask | undefined {
+  const task = tasks[taskId];
+  if (!task || task.status !== "superseded" || task.claimedBy !== holder) return undefined;
+  task.claimedBy = undefined;
+  task.recoveryRequired = undefined;
+  task.result = reason;
+  task.updatedAt = Date.now();
+  hooks.changed();
+  hooks.sync(holder, undefined, undefined);
+  return task;
+}
 
   /** Attach per-Work context. Additive: an existing field is only replaced when the
    * caller supplies a new value, so recording a workspace path cannot erase a
@@ -339,33 +376,26 @@ export function setTaskContext(
     return task;
   }
 
-export function completeTask(taskId: string, result?: string): BoardTask | undefined {
-    const task = tasks[taskId];
-    if (!task || task.status !== "in_progress") return undefined;
-    const holder = task.claimedBy;
-    task.status = "completed";
-    task.claimedBy = undefined;
-    task.result = result;
-    task.errorMessage = undefined;
-    task.recoveryRequired = undefined;
-    task.completedAt = Date.now();
-    task.updatedAt = Date.now();
-    hooks.changed();
-    if (holder) hooks.sync(holder, undefined, undefined);
-    return task;
-  }
-
-  /** Release every task held by a named agent (crash or shutdown). */
+  /** Release every task held by a named agent (crash or shutdown).
+   *
+   * Recorded as a failure rather than a revert, because the attempt did run: a
+   * crashed or stopping agent may have written anything, and the hold is what
+   * stops the wreckage from being silently picked up by the next idle
+   * participant. */
 export function releaseTasksOf(workerName: string, reason: string): BoardTask[] {
-    const released: BoardTask[] = [];
-    for (const task of listTasks()) {
-      if ((task.status === "in_progress" || task.status === "superseded") && task.claimedBy === workerName) {
-        releaseTask(task.id, reason, true);
-        released.push(task);
-      }
+  const released: BoardTask[] = [];
+  for (const task of listTasks()) {
+    if (task.status === "in_progress" && task.claimedBy === workerName) {
+      completeTaskWithOutcome(task.id, workerName, "failed", reason);
+      released.push(task);
+    } else if (task.status === "superseded" && task.claimedBy === workerName) {
+      // A superseded task stays superseded; only the lease comes back.
+      acknowledgeSupersession(task.id, workerName, reason);
+      released.push(task);
     }
-    return released;
   }
+  return released;
+}
 
   /** Apply a validated claim intent from a marker file. */
 export function applyClaimIntent(intent: TaskIntent): { applied: boolean; reason?: string } {
@@ -410,10 +440,17 @@ export function applySubmissionIntent(intent: TaskIntent): { ok: boolean; error?
       return { ok: false, error: `task "${intent.taskId}" was superseded by "${task.supersededBy ?? "a replacement"}"; submit failed to acknowledge cancellation` };
     }
     if (intent.status === "failed") {
-      releaseTask(intent.taskId, intent.result?.trim() || "Agent reported failure.", true);
+      // A superseded task stays superseded: its replacement stands, and only the
+      // holder's lease comes back. Anything else is a recorded failure, which
+      // returns the task to pending under a recovery hold.
+      if (task.status === "superseded") {
+        acknowledgeSupersession(intent.taskId, intent.worker, intent.result?.trim() || "Cancellation acknowledged.");
+      } else {
+        completeTaskWithOutcome(intent.taskId, intent.worker, "failed", intent.result?.trim() || "Agent reported failure.");
+      }
       return { ok: true };
     }
-    completeTask(intent.taskId, intent.result?.trim() || undefined);
+    completeTaskWithOutcome(intent.taskId, intent.worker, "success", intent.result?.trim() || undefined);
     return { ok: true };
   }
 
@@ -587,11 +624,25 @@ export function completeTaskWithOutcome(
   if (outcome !== "success" && outcome !== "failed") {
     return { ok: false, reason: `Task "${taskId}" has invalid submission outcome` };
   }
+  // Two statuses are refused before the holder check, because neither is
+  // completable and the holder check cannot see the difference: a completed task
+  // is already terminal, and a superseded one has been replaced — completing it
+  // would leave the board claiming both the original and its replacement are
+  // done, which is the one outcome a supersession exists to prevent.
+  if (task.status === "completed") {
+    return { ok: false, reason: `Task "${taskId}" is already completed.` };
+  }
+  if (task.status === "superseded") {
+    return { ok: false, reason: `Task "${taskId}" was superseded by "${task.supersededBy ?? "a replacement"}"; deliver the outcome against the replacement.` };
+  }
   if (task.claimedBy && task.claimedBy !== holder) {
     return { ok: false, reason: `Task "${taskId}" is in progress by @${task.claimedBy}; only its holder may deliver the outcome.` };
   }
   const previous = task.claimedBy;
-  task.result = result?.trim() || undefined;
+  // Retained evidence round-trips byte-for-byte. Trimming decides only whether
+  // there is evidence at all, so a whitespace-only result records nothing while a
+  // real one keeps whatever the caller supplied, trailing newline included.
+  task.result = result?.trim() ? result : undefined;
   if (outcome === "failed") {
     task.status = "pending";
     task.claimedBy = undefined;

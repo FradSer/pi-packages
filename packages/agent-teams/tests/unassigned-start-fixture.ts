@@ -28,7 +28,7 @@ const { registerTaskTool } = await import("@fradser/pi-tasks");
 const { registerAgentTool } = await import("@fradser/pi-subagents");
 const { exactSessionRoute, setAgentHost } = await import("@fradser/pi-subagents");
 const { initTeamMachine, shutdownTeamMachine, wakeIdleTeammates, deliverFeedback, routePeerInboxes, spawnTeammate, shutdownTeammateExact } = await import("../src/team-machine.ts");
-const { getState, resetState, setTaskClaimed } = await import("../src/state.ts");
+const { getState, resetState, takeTask } = await import("../src/state.ts");
 const root = process.env.PI_TEST_DIR;
 assert.ok(root);
 resetState();
@@ -112,7 +112,7 @@ try {
     assert.equal(getState().tasks[created.details.id].status, "pending");
     console.log("UNASSIGNED_START_OK");
   } else if (mode === "in_progress") {
-    setTaskClaimed(created.details.id, "recovery");
+    takeTask(created.details.id, "recovery");
     assert.equal(getState().teammates.recovery.currentTaskId, created.details.id);
     // Nothing may direct the assignment at a named participant any more. The
     // board states what must be done; the participant raises a hand.

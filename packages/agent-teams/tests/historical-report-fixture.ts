@@ -4,7 +4,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import agentTeams from "../src/index.ts";
 import { applyProgress, createBoardTask, drainTeammateOutboxes, shutdownTeammate } from "../src/team-machine.ts";
-import { createTask, getTeammate, reclaimDirectWork, registerTeammate, releaseTask, setTaskClaimed } from "../src/state.ts";
+import { createTask, getTeammate, reclaimDirectWork, registerTeammate, revertInFlightAttempt, takeTask } from "../src/state.ts";
 import { appendWorkerEvent, stateFilePath, workerOutboxPath } from "../src/statefile.ts";
 import type { LeaderReport } from "@fradser/pi-subagents";
 
@@ -73,7 +73,7 @@ export default function (pi: ExtensionAPI): void {
       assert.ok(registerTeammate(worker).ok);
       const created = createTask({ subject: "Historical fixture work" });
       assert.ok(created.ok);
-      assert.ok(setTaskClaimed(created.task.id, worker.name));
+      assert.ok(takeTask(created.task.id, worker.name).ok);
       const assignmentId = getTeammate(worker.name)!.assignment!.id;
       applyProgress(worker.name, worker.spawnId, { text: "", turns: 1, finalResponse: false });
       const outbox = workerOutboxPath(stateFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd), worker.name, worker.spawnId);
@@ -90,7 +90,7 @@ export default function (pi: ExtensionAPI): void {
             { id: "replacement-attempt", kind: "direct", resources: [] }, "pending").ok);
         }
       } else if (transition === "released") {
-        assert.ok(releaseTask(created.task.id, "Fixture release", false));
+        assert.ok(revertInFlightAttempt(created.task.id, "Fixture release"));
       } else if (transition === "superseded") {
         assert.equal(createBoardTask({ subject: "Replacement fixture work", supersedes: [created.task.id] }).ok, true);
       } else if (transition === "completed") {

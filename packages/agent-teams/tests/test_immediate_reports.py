@@ -17,7 +17,7 @@ def test_reports_are_handed_off_without_waiting(tmp_path: Path, leader_idle: boo
         f'''\
         import extension from "{(SRC / 'index.ts').as_uri()}";
         import {{ drainTeammateOutboxes, shutdownTeamMachine, applyProgress }} from "{(SRC / 'team-machine.ts').as_uri()}";
-        import {{ registerTeammate, createTask, setTaskClaimed, getTeammate }} from "{(SRC / 'state.ts').as_uri()}";
+        import {{ registerTeammate, createTask, takeTask, getTeammate }} from "{(SRC / 'state.ts').as_uri()}";
         import {{ appendWorkerEvent, stateFilePath, workerOutboxPath }} from "{(SRC / 'statefile.ts').as_uri()}";
         const hooks = new Map();
         const sent = [];
@@ -39,7 +39,7 @@ def test_reports_are_handed_off_without_waiting(tmp_path: Path, leader_idle: boo
           registerTeammate({{ name: 'author', agent: 'worker', spawnId: 's1', pid: 0,
             status: 'working', isolation: 'none', createdAt: 1, updatedAt: 1 }});
           const task = createTask({{ subject: 'Validate work' }}).task;
-          setTaskClaimed(task.id, 'author');
+          takeTask(task.id, 'author');
           const assignmentId = getTeammate('author').assignment.id;
           applyProgress('author', 's1', {{ text: '', turns: 1, finalResponse: false }});
           const outbox = workerOutboxPath(stateFilePath(undefined, cwd), 'author', 's1');

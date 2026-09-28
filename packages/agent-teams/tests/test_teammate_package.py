@@ -406,7 +406,7 @@ def test_state_machine_roster_and_board_rules() -> None:
         f'''\
         import {{ resetState, registerTeammate, getTeammate, livingTeammates, idleTeammates,
                  releaseTasksOf, loadBoard, updateTeammate, isValidTeammateName,
-                 createTask, applyClaimIntent, applySubmissionIntent, completeTask,
+                 createTask, applyClaimIntent, applySubmissionIntent,
                  getTask, listTasks, pendingTasks, deliverToLeader, receiveWorkerMessage }} from "{(SRC / "state.ts").as_uri()}";
         function snapshot() {{
           const t = (id) => getTask(id)?.status ?? null;

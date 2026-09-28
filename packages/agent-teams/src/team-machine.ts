@@ -18,12 +18,13 @@ import { modelLabel, runPiWorker, type RunPiWorkerOptions } from "@fradser/pi-ki
 import { MODEL_INHERIT_ALIAS, discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "@fradser/pi-subagents";
 import {
   activeAssignmentConflict,
+  acknowledgeSupersession,
   applyClaimIntent,
   assignTeammate,
+  completeTaskWithOutcome,
   boardRevision,
   claimableTasks,
   clearWorkerRunEvents,
-  completeTask,
   createTask,
   createDirectWork,
   discardDirectWork,
@@ -43,8 +44,8 @@ import {
   getTask,
   progressRevision,
   registerTeammate,
-  releaseTask,
   releaseTasksOf,
+  revertInFlightAttempt,
   reclaimDirectWork,
   taskDependenciesMet,
   receiveWorkerMessage,
@@ -747,7 +748,7 @@ export function spawnTeammate(input: {
     onError: (error) => {
       settleReadiness(`Resident startup readiness failed: ${error.message}`);
       if (getTeammate(input.name)?.spawnId !== spawnId) return;
-      if (input.existingWorkId) releaseTask(input.existingWorkId, `Agent failed to start: ${error.message}`, false);
+      if (input.existingWorkId) revertInFlightAttempt(input.existingWorkId, `Agent failed to start: ${error.message}`);
       failSpawn(input.name, error.message, input.existingWorkId);
     },
     onExit: (result) => {
@@ -756,7 +757,7 @@ export function spawnTeammate(input: {
     },
   });
   if ("error" in started) {
-    if (input.existingWorkId) releaseTask(input.existingWorkId, `Agent failed to start: ${started.error}`, false);
+    if (input.existingWorkId) revertInFlightAttempt(input.existingWorkId, `Agent failed to start: ${started.error}`);
     else if (assignment) discardDirectWork(getTeammate(input.name)?.workId ?? `work:${spawnId}`, input.name);
     failSpawn(input.name, started.error, input.existingWorkId);
     return { ok: false, error: started.error };
@@ -1542,7 +1543,7 @@ export function assignExistingWork(workId: string, session: string): AssignExist
       return;
     }
     if (getTeammate(owner)?.assignment?.id === assignment.id) {
-      releaseTask(workId, "Pi session reset failed before the assigned Work started.", false);
+      revertInFlightAttempt(workId, "Pi session reset failed before the assigned Work started.");
     }
     deliverDiagnostic(owner, "Pi session reset failed; the assigned Work was not delivered.");
   });
@@ -1564,37 +1565,6 @@ export function reopenExistingWork(workId: string): ReopenExistingWorkResult {
   return { ok: true, workId: reopened.task.id, subject: reopened.task.subject, resources: reopened.task.resources };
 }
 
-export type ReleaseExistingWorkResult =
-  | { ok: true; workId: string; subject: string; resources: string[]; holderStillRunning?: string }
-  | { ok: false; error: string };
-
-/** Return one claimed Work Item to pending. This invalidates all in-memory
- * submission/review authority before the single-writer state release. */
-export function releaseExistingWork(workId: string, reason: string): ReleaseExistingWorkResult {
-  const task = getState().tasks[workId];
-  if (!task || task.status !== "in_progress") return { ok: false, error: `Work Item "${workId}" is not in progress.` };
-  const holder = task.claimedBy ? getTeammate(task.claimedBy) : undefined;
-  let holderStillRunning: string | undefined;
-  if (holder) {
-    pendingSubmissions.delete(holder.name);
-    invalidateVerifyGate(workId);
-    clearInconclusiveForHolding(workId, holder.spawnId);
-    archiveDeferredDeliveries(holder);
-    sendWorkerSteer(holder.name, `Work Item "${workId}" was released by the leader: ${reason}. Stop work on this assignment.`);
-    deliverFeedback(holder.name, `Work Item "${workId}" released`, `Work Item "${workId}" was released by the leader: ${reason}.`);
-    // Release frees the resource immediately by contract. When the holder is
-    // still working, its in-flight tool batch may still be writing, so the
-    // residual window is reported instead of being silently implied safe.
-    holderStillRunning = holder.status === "working" ? holder.name : undefined;
-  }
-  const released = releaseTask(workId, reason, false);
-  if (!released) return { ok: false, error: `Work Item "${workId}" could not be released.` };
-  rearmTaskNotice(workId);
-  publishStateSnapshot();
-  ensureLivePoll();
-  notifyChange();
-  return { ok: true, workId: released.id, subject: released.subject, resources: released.resources, ...(holderStillRunning ? { holderStillRunning } : {}) };
-}
 
 export function sendLeaderMessage(
   to: string,
@@ -1724,7 +1694,7 @@ export function sendLeaderMessage(
       const current = getTeammate(to);
       const currentTaskId = current?.currentTaskId;
       if (current?.assignment?.id === teammate.assignment?.id && currentTaskId) {
-        releaseTask(currentTaskId, "Pi session reset failed before the new Assignment Attempt started.", false);
+        revertInFlightAttempt(currentTaskId, "Pi session reset failed before the new Assignment Attempt started.");
       } else if (current?.assignment?.id === teammate.assignment?.id) {
         assignTeammate(to, undefined, undefined);
       }
@@ -1820,7 +1790,7 @@ function applyClaimMarker(intent: import("./types").TaskIntent): void {
     void deliverFreshAssignment(teammate.name, buildFreshAssignmentPrompt(teammate, assignmentId, kickoff)).then((sent) => {
       if (sent) return;
       if (getTeammate(teammate.name)?.assignment?.id === assignmentId) {
-        releaseTask(task.id, "Pi session reset failed before the claimed Assignment Attempt started.", false);
+        revertInFlightAttempt(task.id, "Pi session reset failed before the claimed Assignment Attempt started.");
       }
       deliverDiagnostic(teammate.name, "Pi session reset failed; the claimed Assignment Attempt was not delivered.");
     });
@@ -1856,12 +1826,10 @@ function applySubmissionMarker(intent: import("./types").TaskIntent): void {
     return;
   }
   const parkKey = `${intent.taskId}:${intent.spawnId}`;
-  if (intent.status === "completed" && (inconclusiveParks.has(parkKey) || verifyFailureParks.has(parkKey) || unexpectedExecutionParks.has(parkKey))) {
+  if (intent.status === "completed" && (verifyFailureParks.has(parkKey) || unexpectedExecutionParks.has(parkKey))) {
     const reason = unexpectedExecutionParks.has(parkKey)
       ? "unexpected execution during verification"
-      : inconclusiveParks.has(parkKey)
-        ? "two inconclusive reviews"
-        : "two explicit verification failures";
+      : "two explicit verification failures";
     deliverFeedback(
       intent.worker,
       "Submission rejected while verification is parked",
@@ -1921,7 +1889,7 @@ function authorizeDirectRevision(intent: import("./types").TaskIntent, detail: s
   void deliverFreshAssignment(teammate.name, prompt).then((sent) => {
     if (sent) return;
     if (getTeammate(teammate.name)?.assignment?.id === assignment.id) {
-      releaseTask(intent.taskId, "Pi session reset failed before the verification revision started.", false);
+      revertInFlightAttempt(intent.taskId, "Pi session reset failed before the verification revision started.");
     }
     deliverDiagnostic(teammate.name, "Pi session reset failed; the verification revision was not delivered.");
   });
@@ -1995,25 +1963,43 @@ function resolveGateOutcome(
     verifyFailures.set(key, reaction);
     const detail = outcome.detail ?? "(no review output)";
     if (reaction.count >= VERIFY_FAILURE_ESCALATE_AFTER) {
-      // An unfixable gate parks the task with its holder instead of
-      // looping: no further resubmit invitations, one leader escalation.
-      verifyFailureParks.set(`${intent.taskId}:${intent.spawnId}`, { worker: intent.worker, spawnId: intent.spawnId });
+      // An unfixable gate stops the loop. It used to park the task with its
+      // holder, which left a runtime state only a leader-side release action could
+      // clear, and that action no longer exists.
+      //
+      // So it becomes what it factually is: the attempt ran and did not deliver
+      // an accepted result. The task returns to pending under a recovery hold, and
+      // whoever retries has to say what changed — which is the only thing that
+      // could possibly make a third attempt worth running.
+      const parked = completeTaskWithOutcome(
+        intent.taskId,
+        intent.worker,
+        "failed",
+        `The completion gate failed ${reaction.count} consecutive times: ${detail}`,
+      );
+      if (parked.ok) {
+        verifyFailureParks.delete(`${intent.taskId}:${intent.spawnId}`);
+        clearInconclusiveForHolding(intent.taskId, intent.spawnId);
+        freeTeammateFromTask(intent.worker, intent.taskId);
+        rearmTaskNotice(intent.taskId);
+        publishStateSnapshot();
+      }
       if (reaction.escalateToLeader) {
         notifyTaskOutcome(subject, `verify failed ${reaction.count} times for ${intent.taskId}: manual attention needed`, detail);
-        // The holder is parked and will not narrate further; the parked task
-        // reaches the leader through the delivery channel itself.
+        // The holder is out of the task, so the leader is the only route left; the
+        // task itself is now pending and will not be retried unattended.
         sendUpdate({
           teammate: "task-board",
           origin: "harness",
           harnessEvent: { type: "verify-escalation", subject: `Verify gate failed · ${subject}` },
-          body: `Verify gate for "${subject}" (${intent.taskId}) failed ${reaction.count} consecutive times.\n\n${detail}\n\nThe task stays claimed by @${intent.worker}; decide how to proceed.`,
+          body: `Verify gate for "${subject}" (${intent.taskId}) failed ${reaction.count} consecutive times.\n\n${detail}\n\nThe attempt is recorded as not delivered and the task is pending under a recovery hold. It will not be retried until somebody takes it with a stated reason.`,
           finished: false,
         });
       }
       deliverFeedback(
         intent.worker,
         `Verify still failing for ${intent.taskId}`,
-        [`The completion gate for "${subject}" failed again (${reaction.count} consecutive failures).`, detail, "The task stays claimed by you. Do not resubmit or reclaim it; the leader has been notified and will decide next steps."].join("\n"),
+        [`The completion gate for "${subject}" failed again (${reaction.count} consecutive failures).`, detail, "This attempt is recorded as not delivered, so the task is pending under a recovery hold. Retrying requires a stated reason describing what changed; ordinary messages do not authorize another submission."].join("\n"),
       );
     } else {
       const directRevision = authorizeDirectRevision(intent, detail);
@@ -2059,18 +2045,40 @@ function requestVerifyVerdict(
     runVerifyGate(intent, subject, submissionId, token, input);
     return;
   }
-  inconclusiveParks.set(`${intent.taskId}:${intent.spawnId}`, { worker: intent.worker, spawnId: intent.spawnId });
-  notifyTaskOutcome(subject, `verify inconclusive for ${intent.taskId}: manual verdict needed`, detail);
+  // The park used to be a distinct state: the task stayed in progress, held, with
+  // the runtime refusing further submissions, and a leader-side action was the only
+  // way out. That action no longer exists, and inventing a runtime state nothing
+  // can clear is worse than using the one that can.
+  //
+  // So an inconclusive verdict is recorded as what it is — the attempt did not
+  // deliver an accepted result — and the task returns to pending under a recovery
+  // hold. Any participant may then take it with a stated reason, and the hold's
+  // purpose is exactly this: one inconclusive reviewer must not be retried
+  // unattended by whichever participant happens to be idle.
+  inconclusiveParks.delete(`${intent.taskId}:${intent.spawnId}`);
+  const parked = completeTaskWithOutcome(
+    intent.taskId,
+    intent.worker,
+    "failed",
+    `Verification was inconclusive twice for ${intent.taskId}: ${detail}`,
+  );
+  if (!parked.ok) return;
+  clearInconclusiveForHolding(intent.taskId, intent.spawnId);
+  invalidateVerifyGate(intent.taskId);
+  freeTeammateFromTask(intent.worker, intent.taskId);
+  rearmTaskNotice(intent.taskId);
+  publishStateSnapshot();
+  notifyTaskOutcome(subject, `verify inconclusive for ${intent.taskId}: a stated reason is needed to retry`, detail);
   deliverFeedback(
     intent.worker,
     `Verification inconclusive for ${intent.taskId}`,
-    `The reviewer twice omitted a machine-readable verdict. Your task remains claimed without a verify failure. Wait for explicit Work release and reassignment; ordinary messages do not authorize another submission.\n\n${detail}`,
+    `The reviewer twice omitted a machine-readable verdict, so this attempt did not deliver an accepted result. The task is pending under a recovery hold. Take it again with a stated reason, or change the task's verification.\n\n${detail}`,
   );
   sendUpdate({
     teammate: "task-board",
     origin: "harness",
     harnessEvent: { type: "verify-inconclusive", subject: `Verify verdict missing · ${subject}` },
-    body: `Verification for "${subject}" (${intent.taskId}) was inconclusive twice. It remains claimed by @${intent.worker} without counting as a verify failure.\n\n${detail}`,
+    body: `Verification for "${subject}" (${intent.taskId}) was inconclusive twice, so the attempt is recorded as not delivered and the task is pending under a recovery hold.\n\n${detail}`,
     finished: false,
   });
 }
@@ -2097,7 +2105,7 @@ function finishCompletion(intent: import("./types").TaskIntent): void {
   const assignmentId = teammate?.assignment?.id;
   if (!teammate || !assignmentId) return;
   retirePendingSubmission(intent);
-  const completed = completeTask(intent.taskId, intent.result);
+  const completed = completeTaskWithOutcome(intent.taskId, intent.worker, "success", intent.result);
   if (!completed) return;
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
   freeTeammateFromTask(intent.worker, intent.taskId);
@@ -2113,7 +2121,7 @@ function retirePendingSubmission(intent: import("./types").TaskIntent): void {
 
 function releaseSupersededHolding(intent: import("./types").TaskIntent): void {
   retirePendingSubmission(intent);
-  releaseTask(intent.taskId, intent.result?.trim() || "Superseded task cancellation acknowledged.", false);
+  acknowledgeSupersession(intent.taskId, intent.worker, intent.result?.trim() || "Superseded task cancellation acknowledged.");
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
   invalidateVerifyGate(intent.taskId);
 }
@@ -2123,7 +2131,7 @@ function finishFailure(intent: import("./types").TaskIntent): void {
   const assignmentId = teammate?.assignment?.id;
   if (!teammate || !assignmentId) return;
   retirePendingSubmission(intent);
-  const released = releaseTask(intent.taskId, intent.result?.trim() || "Agent reported failure.", true);
+  const released = completeTaskWithOutcome(intent.taskId, intent.worker, "failed", intent.result?.trim() || "Agent reported failure.");
   if (!released) return;
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
   invalidateVerifyGate(intent.taskId);
@@ -2463,6 +2471,21 @@ export function onBoardTaskCreated(input: { id: string; replaced?: string[] }): 
   wakeIdleTeammates(input.id);
   publishStateSnapshot();
   notifyChange();
+}
+
+/** A task was taken.
+ *
+ * This is where a re-take invalidates a verification gate left over from the
+ * previous attempt. That work used to sit in the leader-side release action, which
+ * no longer exists: a task returns to pending because a participant failed it,
+ * because the runtime reverted a half-finished start, or because its holder
+ * exited. Whichever route brought it back, a reviewer still judging the old
+ * candidate must not be able to accept the new one.
+ */
+export function onBoardTaskTaken(input: { id: string }): void {
+  invalidateVerifyGate(input.id);
+  rearmTaskNotice(input.id);
+  onBoardTaskChanged();
 }
 
 /** Any other board transition: no resident needs waking, but the snapshot and the

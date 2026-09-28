@@ -240,31 +240,42 @@ def test_update_accepts_no_status() -> None:
 
 
 def test_no_verb_releases_work_explicitly(tmp_path: Path) -> None:
-    """Release is automatic on completion, process exit, and stop, so the new
-    surface must expose no way to free a task at all.
+    """Release is automatic on completion, process exit, and stop, and nothing in
+    the surface can free a task on demand.
 
-    `releaseTask` is a known exception, not an oversight: it is the pre-existing
-    leader-side reclaim, still called from ten sites in `team-machine.ts` and
-    scheduled for removal with the action-set collapse. It is pinned here by
-    name so that a *second* legacy release verb cannot be added unnoticed, and
-    so the test fails once the collapse lands and the empty check is restored.
+    The three runtime transitions that *do* give a lease back are named for what
+    happened rather than for the act: a holder reporting failure goes through
+    `completeTaskWithOutcome`, the runtime undoing its own half-finished start
+    through `revertInFlightAttempt`, and a holder freeing a lease on superseded
+    work through `acknowledgeSupersession`. None of them is a general release, and
+    two of the three are unreachable from the tool surface at all.
     """
     result = run(
         """
         const names = Object.keys(task);
-        const explicit = names.filter((name) => /^(release|abandon|reclaim|assign|claim)Task$/i.test(name));
-        const surface = ["createTask", "listTasks", "updateTask", "takeTask", "completeTaskWithOutcome", "reopenTask"];
+        const explicit = names.filter((name) => /^(release|abandon|reclaim|assign|claim|complete)Task$/i.test(name));
+        const surface = [
+          "createTask", "listTasks", "updateTask", "takeTask",
+          "completeTaskWithOutcome", "reopenTask", "releaseTasksOf",
+          "revertInFlightAttempt", "acknowledgeSupersession",
+        ];
         console.log(JSON.stringify({
           legacyRemainder: explicit,
           automaticRelease: names.includes("releaseTasksOf"),
           surfaceComplete: surface.every((name) => names.includes(name)),
+          // The two runtime-only transitions must exist, or the paths that need
+          // them have nowhere to go.
+          revert: typeof task.revertInFlightAttempt === "function",
+          acknowledge: typeof task.acknowledgeSupersession === "function",
         }));
         """,
         tmp_path,
     )
-    assert result["legacyRemainder"] == ["releaseTask"]
+    assert result["legacyRemainder"] == []
     assert result["automaticRelease"] is True
     assert result["surfaceComplete"] is True
+    assert result["revert"] is True
+    assert result["acknowledge"] is True
 
 
 def test_the_store_has_no_assignee_field_on_its_data_model() -> None:

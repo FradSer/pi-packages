@@ -29,7 +29,7 @@ def test_handoff_requires_stopped_predecessor(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, spawnTeammate }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, updateTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, updateTeammate, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
         registerTeammate({{ name: "old", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
@@ -50,7 +50,7 @@ def test_handoff_requires_stopped_predecessor(tmp_path: Path) -> None:
 def test_direct_assignment_blocks_board_claim_after_terminal_close() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, updateTeammate, assignTeammate, createTask, applyClaimIntent }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, updateTeammate, assignTeammate, createTask, applyClaimIntent, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
         registerTeammate({{ name: "writer", agent: "executor", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
         assignTeammate("writer", {{ id: "direct:s1", kind: "direct", resources: ["firmware/sub-node"], closed: true }});
@@ -66,7 +66,7 @@ def test_direct_assignment_blocks_board_claim_after_terminal_close() -> None:
 def test_resource_overlap_rejects_and_unrelated_resource_claims() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, assignTeammate, createTask, applyClaimIntent }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, assignTeammate, createTask, applyClaimIntent, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
         registerTeammate({{ name: "main", agent: "executor", spawnId: "m1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         registerTeammate({{ name: "sub", agent: "executor", spawnId: "s1", pid: 2, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
@@ -86,7 +86,7 @@ def test_resource_overlap_rejects_and_unrelated_resource_claims() -> None:
 def test_superseding_claimed_work_keeps_holder_locked_until_cancellation_acknowledgment() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, applySubmissionIntent, getTask, getTeammate, completeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, applyClaimIntent, applySubmissionIntent, getTask, getTeammate, completeTaskWithOutcome, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
         registerTeammate({{ name: "worker", agent: "executor", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const old = createTask({{ subject: "obsolete" }}).task;
@@ -101,7 +101,7 @@ def test_superseding_claimed_work_keeps_holder_locked_until_cancellation_acknowl
           holdingId,
           lastTaskId: getTeammate("worker")?.lastTaskId,
           assignmentAfterAck: getTeammate("worker")?.assignment ?? null,
-          completeObsolete: completeTask(old.id, "late") ?? null,
+          completeObsolete: completeTaskWithOutcome(old.id, "w", "success", "late").task ?? null,
           cancellation,
           replacementId: replacement.task.id,
         }}));
@@ -120,7 +120,7 @@ def test_superseding_claimed_work_keeps_holder_locked_until_cancellation_acknowl
 def test_supersede_migrates_pending_downstream_dependencies() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, createTask, getTask, completeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, createTask, getTask, completeTaskWithOutcome, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
         const old = createTask({{ subject: "old" }}).task;
         const downstream = createTask({{ subject: "downstream", dependsOn: [old.id] }}).task;
@@ -180,7 +180,7 @@ def test_supersede_migrates_pending_downstream_dependencies() -> None:
 def test_exported_submission_reducer_rejects_invalid_status() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, applySubmissionIntent, getTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, applyClaimIntent, applySubmissionIntent, getTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
         registerTeammate({{ name: "w", agent: "executor", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const task = createTask({{ subject: "task" }}).task;
@@ -197,7 +197,7 @@ def test_exported_submission_reducer_rejects_invalid_status() -> None:
 def test_invalid_persisted_supersession_chain_rejects_new_dependency() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, loadBoard, createTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, loadBoard, createTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
         loadBoard({{ bad: {{ id: "bad", subject: "bad", dependsOn: [], resources: [], status: "superseded", createdAt: 1, updatedAt: 1 }} }});
         const created = createTask({{ subject: "dependent", dependsOn: ["bad"] }});
@@ -211,7 +211,7 @@ def test_invalid_persisted_supersession_chain_rejects_new_dependency() -> None:
 def test_submission_reducer_rejects_stale_same_name_spawn() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, updateTeammate, createTask, applyClaimIntent, applySubmissionIntent, getTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, updateTeammate, createTask, applyClaimIntent, applySubmissionIntent, getTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
         registerTeammate({{ name: "w", agent: "executor", spawnId: "old", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const task = createTask({{ subject: "task" }}).task;
@@ -235,7 +235,7 @@ def test_submission_reducer_rejects_stale_same_name_spawn() -> None:
 def test_resume_clears_dead_holder_from_superseded_task() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask, loadBoard }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask, loadBoard, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
         registerTeammate({{ name: "w", agent: "executor", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const old = createTask({{ subject: "old", resources: ["firmware/sub-node"] }}).task;
@@ -255,7 +255,7 @@ def test_active_verify_rejects_replacement_submission(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask, takeTask, completeTaskWithOutcome }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
         registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
@@ -285,7 +285,7 @@ def test_reopen_cannot_replace_active_direct_assignment(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, sendLeaderMessage }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, assignTeammate, getTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, assignTeammate, getTeammate, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
         registerTeammate({{ name: "w", agent: "executor", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
@@ -308,7 +308,7 @@ def test_inconclusive_verify_retries_once_for_each_submission(tmp_path: Path) ->
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask, takeTask, completeTaskWithOutcome }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
         registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
@@ -387,7 +387,7 @@ def test_two_explicit_verify_failures_require_release_and_reassignment(tmp_path:
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner, sendLeaderMessage }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask, takeTask, completeTaskWithOutcome }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
         registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
@@ -408,9 +408,11 @@ def test_two_explicit_verify_failures_require_release_and_reassignment(tmp_path:
         await pause();
         const callsWhileParked = calls;
         const steer = sendLeaderMessage("w", "New information without recovery authorization");
-        const {{ releaseExistingWork }} = await import("{(SRC / "team-machine.ts").as_uri()}");
-        releaseExistingWork(task.id, "Authorize another attempt");
-        applyClaimIntent({{ taskId: task.id, worker: "w", spawnId: "s1", timestamp: 2 }});
+        // A parked task is not restarted by a message or a plain retry: the
+        // recovery hold refuses a take without a stated reason.
+        const silent = takeTask(task.id, "w");
+        const authorized = takeTask(task.id, "w", {{ reason: "Authorize another attempt" }});
+        if (silent.ok || !authorized.ok) throw new Error("the recovery hold must gate a re-take on a reason");
         attemptSubmission("w", "s1", task.id, "completed", "after-reassignment");
         processTaskIntents();
         await pause();
@@ -418,14 +420,17 @@ def test_two_explicit_verify_failures_require_release_and_reassignment(tmp_path:
         shutdownTeamMachine();
         '''
     )
-    assert payload == {"callsWhileParked": 2, "steer": True, "finalStatus": "completed", "calls": 3}
+    # The steer is refused: after the escalation the worker holds no assignment,
+    # so there is nothing a message could authorize. It used to be delivered and
+    # merely not unblock work, which is the weaker version of the same property.
+    assert payload == {"callsWhileParked": 2, "steer": False, "finalStatus": "completed", "calls": 3}
 
 
 def test_twice_inconclusive_park_requires_release_and_reassignment(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner, sendLeaderMessage }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, updateTeammate, createTask, applyClaimIntent, getTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, updateTeammate, createTask, applyClaimIntent, getTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
         registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
@@ -443,28 +448,46 @@ def test_twice_inconclusive_park_requires_release_and_reassignment(tmp_path: Pat
         processTaskIntents();
         await pause();
         const callsWhileParked = calls;
-        const {{ reopenExistingWork, releaseExistingWork }} = await import("{(SRC / "team-machine.ts").as_uri()}");
-        const rejectedReopen = reopenExistingWork(task.id);
+        // Two inconclusive reviews record the attempt as not delivered, so the task
+        // is pending under a recovery hold and the worker holds no assignment.
+        const rejectedTake = takeTask(task.id, "w");
         attemptSubmission("w", "s1", task.id, "completed", "still-blocked");
         processTaskIntents();
         await pause();
-        const callsAfterRejectedReopen = calls;
+        const callsAfterRejectedTake = calls;
         updateTeammate("w", {{ reportSequenceEnded: true }});
+        // A message is now refused too, which is a stronger version of the old
+        // property. It used to be delivered and merely not authorize anything;
+        // with no assignment to write about, there is nothing it could do.
         const terminalSteer = sendLeaderMessage("w", "New information without recovery authorization");
-        releaseExistingWork(task.id, "Authorize another attempt");
-        applyClaimIntent({{ taskId: task.id, worker: "w", spawnId: "s1", timestamp: 2 }});
+        const silentTake = takeTask(task.id, "w");
+        const authorized = takeTask(task.id, "w", {{ reason: "Authorize another attempt" }});
+        const unauthorized = {{
+          plainTakeRefused: !silentTake.ok,
+          authorizedOk: authorized.ok,
+          steerRefused: terminalSteer.ok === false,
+        }};
         attemptSubmission("w", "s1", task.id, "completed", "after-reassignment");
         processTaskIntents();
         await pause();
-        console.log(JSON.stringify({{ callsWhileParked, rejectedReopen: rejectedReopen.ok, callsAfterRejectedReopen, terminalSteer: terminalSteer.ok, finalStatus: getTask(task.id)?.status, calls }}));
+        console.log(JSON.stringify({{
+        callsWhileParked,
+        rejectedTake: rejectedTake.ok,
+        callsAfterRejectedTake,
+        terminalSteer: terminalSteer.ok,
+        unauthorized,
+        finalStatus: getTask(task.id)?.status,
+        calls,
+      }}));
         shutdownTeamMachine();
         '''
     )
     assert payload == {
         "callsWhileParked": 2,
-        "rejectedReopen": False,
-        "callsAfterRejectedReopen": 2,
-        "terminalSteer": True,
+        "rejectedTake": False,
+        "callsAfterRejectedTake": 2,
+        "terminalSteer": False,
+        "unauthorized": {"plainTakeRefused": True, "authorizedOk": True, "steerRefused": True},
         "finalStatus": "completed",
         "calls": 3,
     }
@@ -489,7 +512,7 @@ def test_missing_verdict_is_inconclusive() -> None:
 def test_successor_handoff_uses_archived_assignment_and_reports() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, assignTeammate, receiveWorkerMessage }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, assignTeammate, receiveWorkerMessage, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         import {{ buildSuccessorHandoff, directAssignment, resolveDirectResources }} from "{(SRC / "team-machine.ts").as_uri()}";
         resetState();
         registerTeammate({{ name: "stalled", agent: "executor", spawnId: "s1", pid: 1, status: "stopped", isolation: "none", createdAt: 1, updatedAt: 1 }});
@@ -683,7 +706,7 @@ def test_fresh_reset_failure_releases_work_without_delivering_queued_guidance(tm
             opened: opened.ok,
             guidance: guidance.ok ? guidance.outcome : "rejected",
             taskStatus: getTask(workId)?.status,
-            taskError: getTask(workId)?.errorMessage,
+            taskReason: getTask(workId)?.result,
             assignmentReleased: getTeammate(name)?.assignment === undefined,
             promptCount: child.commands.filter((command) => command.type === "prompt").length,
           }});
@@ -701,7 +724,7 @@ def test_fresh_reset_failure_releases_work_without_delivering_queued_guidance(tm
             "opened": True,
             "guidance": "steered",
             "taskStatus": "pending",
-            "taskError": "Pi session reset failed before the assigned Work started.",
+            "taskReason": "Pi session reset failed before the assigned Work started.",
             "assignmentReleased": True,
             "promptCount": 0,
         }
@@ -764,7 +787,7 @@ def test_superseded_direct_holder_retains_resources_until_cancellation_acknowled
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, createBoardTask }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createDirectWork, activeAssignmentConflict, updateTeammate }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createDirectWork, activeAssignmentConflict, updateTeammate, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
         registerTeammate({{ name: "direct", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
@@ -783,7 +806,7 @@ def test_superseding_a_verifying_holder_routes_cancellation_without_waiting_for_
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, createBoardTask, attemptSubmission, processTaskIntents, routePeerInboxes, setVerifyGateRunner }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, applyClaimIntent, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         import {{ inboxPath, stateFilePath, readJsonlBatch }} from "{(SRC / "statefile.ts").as_uri()}";
         const root = {str(tmp_path)!r};
         initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
@@ -813,7 +836,7 @@ def test_unexpected_execution_park_rejects_further_completed_submissions(tmp_pat
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, routePeerInboxes, setVerifyGateRunner, applyProgress }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createDirectWork, getTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createDirectWork, getTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         import {{ inboxPath, stateFilePath, readJsonlBatch }} from "{(SRC / "statefile.ts").as_uri()}";
         const root = {str(tmp_path)!r};
         initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
@@ -936,13 +959,13 @@ def test_pending_shutdown_rejects_late_passing_gate_completion(tmp_path: Path) -
           }},
         }});
         const {{ initTeamMachine, shutdownTeamMachine, shutdownTeammate, spawnTeammate, attemptSubmission, processTaskIntents, setVerifyGateRunner }} = await import("{(SRC / "team-machine.ts").as_uri()}");
-        const {{ resetState, getTask, createTask, setTaskClaimed }} = await import("{(SRC / "state.ts").as_uri()}");
+        const {{ resetState, getTask, createTask, takeTask }} = await import("{(SRC / "state.ts").as_uri()}");
         const root = {str(tmp_path)!r};
         resetState();
         initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         const spawned = spawnTeammate({{ name: "w", agent: "test-agent", definition: {{ description: "test", prompt: "prompt", tools: [] }} }});
         const task = createTask({{ subject: "shutdown work", resources: ["src/work"], verify: "must pass" }}).task;
-        setTaskClaimed(task.id, "w");
+        takeTask(task.id, "w");
         let gateResolve;
         setVerifyGateRunner(() => new Promise((resolve) => {{ gateResolve = resolve; }}));
         attemptSubmission("w", spawned.teammate.spawnId, task.id, "completed", "result");
@@ -969,8 +992,8 @@ def test_pending_shutdown_rejects_late_passing_gate_completion(tmp_path: Path) -
 def test_invalidated_holding_aborts_its_in_flight_reviewer(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, releaseExistingWork, setVerifyGateRunner }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner, onBoardTaskTaken }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask, takeTask, completeTaskWithOutcome }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
         registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
@@ -983,9 +1006,22 @@ def test_invalidated_holding_aborts_its_in_flight_reviewer(tmp_path: Path) -> No
         processTaskIntents();
         await new Promise((resolve) => setImmediate(resolve));
         const beforeRelease = signal ? signal.aborted : null;
-        const released = releaseExistingWork(task.id, "scope changed");
+        // The attempt ends without delivering, which is what a stale reviewer has
+        // to be invalidated against. Driven through the submission path, because
+        // that is where the gate is aborted: the store records the outcome, and the
+        // coordinator reacts to it. Calling the store directly would leave the
+        // reviewer live, which is exactly the bug this test exists to catch.
+        attemptSubmission("w", "s1", task.id, "failed", "scope changed");
+        processTaskIntents();
+        await new Promise((resolve) => setImmediate(resolve));
         const afterRelease = signal ? signal.aborted : null;
-        // A late verdict from the aborted reviewer must not resurrect the task.
+        const failed = {{ ok: getTask(task.id)?.status === "pending" }};
+        // Retrying needs a stated reason, and the re-take is what the coordinator
+        // reacts to on `pi-tasks:task-taken`.
+        const silent = takeTask(task.id, "w");
+        const released = takeTask(task.id, "w", {{ reason: "scope changed" }});
+        onBoardTaskTaken({{ id: task.id }});
+        // A late verdict from the aborted reviewer must not complete the task.
         settle({{ kind: "pass" }});
         await new Promise((resolve) => setImmediate(resolve));
         const status = getTask(task.id)?.status;
@@ -995,15 +1031,25 @@ def test_invalidated_holding_aborts_its_in_flight_reviewer(tmp_path: Path) -> No
           runnerGotSignal: signal !== undefined,
           beforeRelease,
           afterRelease,
+          failed: failed.ok,
+          silentRefused: silent.ok === false,
           released: released.ok,
           status,
         }}));
         ''',
     )
     assert payload["runnerGotSignal"] is True
+    # The gate is live until the task is taken again.
     assert payload["beforeRelease"] is False
     assert payload["afterRelease"] is True
+    assert payload["failed"] is True
+    # The hold gates the retry, so a stale reviewer cannot be refreshed by a
+    # participant that has not said what changed.
+    assert payload["silentRefused"] is True
     assert payload["released"] is True
-    assert payload["status"] == "pending"
+    # The late verdict from the aborted reviewer must not complete the task. It is
+    # in progress again because the re-take was deliberate; what must not happen is
+    # the stale reviewer accepting the new attempt's outcome.
+    assert payload["status"] == "in_progress"
 
 

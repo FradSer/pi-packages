@@ -9,7 +9,7 @@ import { getMarkdownTheme, keyHint, ToolExecutionComponent } from "@earendil-wor
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildIdleLeaderGuidance, buildTeamLeaderGuidance, WORKER_GUIDANCE } from "./guidance.ts";
 import { clearSessionAgents } from "@fradser/pi-subagents";
-import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, onBoardTaskChanged, onBoardTaskCreated, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownTeammates } from "./team-machine.ts";
+import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, onBoardTaskChanged, onBoardTaskCreated, onBoardTaskTaken, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownTeammates } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
 import { getTask, getTeammate, livingTeammates, listTasks, resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
@@ -200,7 +200,10 @@ export default function (pi: ExtensionAPI) {
     pi.events.on("pi-tasks:task-created", (payload) => {
       onBoardTaskCreated(payload as { id: string; replaced?: string[] });
     });
-    for (const channel of ["pi-tasks:task-taken", "pi-tasks:task-completed", "pi-tasks:task-reopened", "pi-tasks:task-updated"]) {
+    pi.events.on("pi-tasks:task-taken", (payload) => {
+      onBoardTaskTaken(payload as { id: string });
+    });
+    for (const channel of ["pi-tasks:task-completed", "pi-tasks:task-reopened", "pi-tasks:task-updated"]) {
       pi.events.on(channel, () => onBoardTaskChanged());
     }
   }

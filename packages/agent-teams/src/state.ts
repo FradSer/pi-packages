@@ -266,10 +266,17 @@ export function activeAssignmentConflict(
 }
 
 // ── Board (delegated to pi-tasks) ────────────────────────────────
+//
+// There is deliberately no `release` here. A lease is given back on completion,
+// on process exit, and on stop; the runtime's own half-start reverts go through
+// `revertInFlightAttempt`, and a holder that must free a lease it is not giving
+// up uses `acknowledgeSupersession`. Those name what happened instead of offering
+// one verb that can take any task from anyone.
 export {
   createTask, getTask, listTasks, pendingTasks, claimableTasks, taskDependenciesMet,
-  createDirectWork, discardDirectWork, reclaimDirectWork, setTaskClaimed, claimedDependents,
-  reopenCompletedWork, releaseTask, completeTask, releaseTasksOf, applyClaimIntent,
+  createDirectWork, discardDirectWork, reclaimDirectWork, takeTask, claimedDependents,
+  reopenCompletedWork, releaseTasksOf, applyClaimIntent, revertInFlightAttempt,
+  acknowledgeSupersession, completeTaskWithOutcome,
   applySubmissionIntent, loadBoard, setTaskContext,
 } from "@fradser/pi-tasks";
 export type { WorkAssignment as WorkerAssignment } from "@fradser/pi-tasks";
