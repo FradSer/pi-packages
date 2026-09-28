@@ -14,7 +14,7 @@ import { listTasks, livingTeammates } from "./state.ts";
 
 import { AgentActionParams, LEADER_RECIPIENT, AgentEventParams, WorkToolParams, normalizeCoordinationParams, requireParsedParams } from "./types.ts";
 import { openTeamConsole, refreshTeamUI } from "./ui.ts";
-import { discoverAgents } from "./agents.ts";
+import { discoverAgents } from "@fradser/pi-subagents";
 import { agentRow, leaderWorkRow, messageRow, type AgentRowArgs } from "./tool-copy.ts";
 import { emptyToolCall, renderCoordinationRow } from "./tool-render.ts";
 import { runAgentAction, type AgentActionRuntime } from "./agent-actions.ts";
@@ -55,7 +55,8 @@ function formatWorkCreation(subject: string, created: {
   ].join("\n");
 }
 
-export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntime & { sendLeaderMessage: typeof sendLeaderMessage } = { spawnTeammate, shutdownTeammateExact, sendLeaderMessage }): void {
+/** Process lifecycle. Moves to @fradser/pi-subagents' leader extension. */
+export function registerAgentTool(pi: ExtensionAPI, runtime: AgentActionRuntime = { spawnTeammate, shutdownTeammateExact }): void {
   pi.registerTool({
     name: "agent",
     promptSnippet: "Delegate, start, inspect, or stop an Agent session",
@@ -80,7 +81,10 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
       return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
     },
   });
+}
 
+/** Point-to-point communication. Stays with @fradser/pi-agent-teams. */
+export function registerMessageTool(pi: ExtensionAPI, runtime: { sendLeaderMessage: typeof sendLeaderMessage } = { sendLeaderMessage }): void {
   pi.registerTool({
     name: "agent_event",
     promptSnippet: "Send an event or message to a participant",
@@ -112,7 +116,10 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
       };
     },
   });
+}
 
+/** Task board. Moves to @fradser/pi-tasks' leader extension. */
+export function registerTaskTool(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "work",
     promptSnippet: "Create, list, assign, release, reopen, or supersede Work Items",
@@ -237,8 +244,14 @@ export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntim
       };
     },
   });
+}
 
-
+/** Temporary seam. Each registrar moves to its owning package; this keeps the
+ *  existing entry point and its test fixtures intact until that lands. */
+export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntime & { sendLeaderMessage: typeof sendLeaderMessage } = { spawnTeammate, shutdownTeammateExact, sendLeaderMessage }): void {
+  registerAgentTool(pi, runtime);
+  registerMessageTool(pi, runtime);
+  registerTaskTool(pi);
 }
 
 function teamStatusSummary(): string {
