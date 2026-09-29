@@ -7,12 +7,25 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { stripVTControlCharacters } from "node:util";
 import { initTheme, keyHint, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
 import { KeybindingsManager, setKeybindings, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from "@earendil-works/pi-tui";
 import agentTeams from "../src/index.ts";
 import { runAgentAction } from "../src/agent-actions.ts";
 import { resolveWorkerTools } from "@fradser/pi-subagents";
 import { WORKER_CAPABILITY_TOOLS } from "../src/capability-tools.ts";
 import { clearSessionAgents, exactSessionRoute, registerAgentTool, registerSessionAgent, setAgentHost } from "@fradser/pi-subagents";
+
+// Real geometry, supplied here because this fixture is the one that paints rows.
+// The extension entries cannot: they are loaded by headless tests too, and
+// importing pi-tui there executes theme code that throws outside a rendered
+// session. Identity functions would render here and take the terminal down on a
+// real repaint.
+const rowRenderer = (spec: { createSpec: Parameters<typeof createStaticToolLifecycleResultRenderer>[0]["createSpec"] }) =>
+  createStaticToolLifecycleResultRenderer({
+    ...spec, fit: truncateToWidth, visibleWidth,
+    wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
+    expandHint: keyHint("app.tools.expand", "to expand"),
+  });
 import { registerLeaderTools } from "../src/tools.ts";
 import { registerTaskTool } from "@fradser/pi-tasks";
 import { registerWorkerCapabilities } from "../src/worker.ts";
@@ -94,8 +107,8 @@ setAgentHost({
   },
   stop: (name, spawnId) => runtime.shutdownTeammateExact(name, spawnId),
 });
-registerAgentTool(capture("leader") as unknown as ExtensionAPI);
-registerTaskTool(capture("leader") as unknown as ExtensionAPI);
+registerAgentTool(capture("leader") as unknown as ExtensionAPI, { renderResult: rowRenderer } as never);
+registerTaskTool(capture("leader") as unknown as ExtensionAPI, { renderResult: rowRenderer } as never);
 registerWorkerCapabilities(capture("worker") as unknown as ExtensionAPI);
 
 interface RenderPayload {
