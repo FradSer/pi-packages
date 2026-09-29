@@ -6,7 +6,11 @@ scopes:
     - name: kit
       description: Shared runtime, process lifecycles, and tool interfaces in packages/kit/; does not cover consumer package behavior.
     - name: tm
-      description: Agent coordination, worker spawning, task-board state, and UI rendering in packages/agent-teams/; does not cover shared kit internals.
+      description: Agent team composition, peer messaging, task-board state, and UI rendering in packages/agent-teams/; does not cover the subagent execution layer or shared kit internals.
+    - name: sa
+      description: Subagent execution — definitions, child spawn and lifecycle, workspace isolation, child environment policy, and report channel in packages/subagents/; does not cover task-board or team coordination.
+    - name: tasks
+      description: Task domain — data model, status machine, dependency-graph and resource-conflict rules, durable board persistence, and the `task` tool in packages/tasks/; does not cover processes, rosters, or messaging.
     - name: btw
       description: Read-only side-question overlay and child-session behavior in packages/btw/; does not cover other package runtimes.
     - name: key
