@@ -89,6 +89,7 @@ try {
   register({ on: (name, fn) => hooks.set(name, [...(hooks.get(name) ?? []), fn]),
     registerCommand: (name, definition) => commands.set(name, definition.handler),
     sendMessage: () => {}, appendEntry: () => {}, getCommands: () => [],
+    registerEntryRenderer: () => {},
     exec: async () => ({ stdout: "", stderr: "", code: 0 }) } as unknown as Parameters<typeof register>[0]);
   const tool = (content: string, extra: Record<string, unknown> = {}) => ({ message: { role: "toolResult", toolName: "bash", content, ...extra } });
   // Repository text that merely mentions policies, harness files, or guardrail

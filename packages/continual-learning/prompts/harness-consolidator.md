@@ -85,6 +85,12 @@ never by running the command. A prose claim is not a test result. Controlled
 fixtures, not dangerous real commands, may verify actual invocation paths;
 readback proves persistence only, not delivery or compliance.
 
+A case is always a JSON object carrying the selector fixture, never a bare
+string. A negative case must be an input the rule genuinely must not catch:
+reusing the positive command with a different `expected` is the most common way
+to propose a plan that cannot validate, because the rule matches both. Choose a
+negative that a person would agree is out of scope.
+
 Automatic additions cannot reuse an id from any layer or entrypoint, including
 disabled/invalid declarations and the supplied reservedLegacyNames. Updates require a single project-owned entry
 whose current revision matches parent-owned `learnedRules` provenance. Never

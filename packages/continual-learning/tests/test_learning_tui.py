@@ -13,6 +13,8 @@ def test_learning_renderer_and_explicit_delivery_are_compact_and_single() -> Non
         on: (name, handler) => hooks.set(name, [...(hooks.get(name) ?? []), handler]),
         registerCommand: (name, command) => commands.set(name, command),
         registerMessageRenderer: (name, renderer) => renderers.set(name, renderer),
+        registerEntryRenderer: () => {},
+        appendEntry: () => {},
         sendMessage: (message, options) => messages.push({ message, options }),
         getCommands: () => [],
       };

@@ -688,6 +688,10 @@ export interface HarnessConsolidationPhaseOptions {
   explorationDigest?: string;
   /** Test seam for the bounded planner deadline; production defaults to 15 minutes. */
   timeoutMs?: number;
+  /** The configured consolidation model, as `provider/model`. The package header
+   *  promises consolidation runs on the separately selected model; without this
+   *  the Harness phase silently inherited the session default instead. */
+  model?: string;
 }
 
 export interface HarnessConsolidationPlanningResult {
@@ -712,6 +716,147 @@ export type HarnessConsolidationApplyResult =
 /** Run the read-only child planner and validate its output. This function never
  * mutates the harness target; its result retains the run and validation inputs
  * required for a later, separately scheduled apply. */
+/**
+ * One read-only harness planner child, shared by the initial plan and its repair
+ * so the two cannot drift on tools, timeout, or output bounds.
+ */
+async function runHarnessPlannerChild(
+  cli: { command: string; args: readonly string[] },
+  taskFile: string,
+  cwd: string,
+  options: {
+    timeoutMs: number;
+    current: () => boolean;
+    model?: string;
+    onChild?: (child: ChildProcess) => void;
+    onUsage?: (usage: PiWorkerUsage | undefined) => void;
+  },
+): Promise<{ ok: true; stdout: string } | { ok: false; detail: string }> {
+  const child = spawnPiChild(cli.command, [
+    ...cli.args,
+    ...minimalPiWorkerArgs(["read", "grep", "find", "ls"]),
+    ...learningPlannerArgs(),
+    ...(options.model ? ["--model", options.model] : []),
+    `@${taskFile}`,
+  ], { cwd, stdio: ["ignore", "pipe", "pipe"] });
+  options.onChild?.(child);
+  if (!options.current()) {
+    await terminateConsolidationChild(child, 5_000);
+    return { ok: false, detail: "harness planner cancelled" };
+  }
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let done = false;
+    const finish = (value: { ok: true; stdout: string } | { ok: false; detail: string }) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const terminateAndFinish = async (detail: string): Promise<void> => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      await terminateConsolidationChild(child, 5_000).catch(() => false);
+      resolve({ ok: false, detail });
+    };
+    const timer = setTimeout(() => {
+      void terminateAndFinish("harness planner timed out");
+    }, options.timeoutMs);
+    timer.unref?.();
+    child.stdout?.on("data", (chunk: Buffer) => {
+      if (done) return;
+      stdout += chunk.toString("utf8");
+      if (Buffer.byteLength(stdout, "utf8") > MAX_STDOUT_BYTES) {
+        void terminateAndFinish(`child stdout exceeded ${MAX_STDOUT_BYTES} bytes`);
+      }
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      if (done) return;
+      stderr = (stderr + chunk.toString("utf8")).slice(-64_000);
+    });
+    child.on("error", (error) => finish({ ok: false, detail: error.message }));
+    child.on("close", (code) => {
+      if (done) return;
+      options.onUsage?.(parsePiWorkerOutput(stdout).usage);
+      if (stdout.split("\n").filter((line) => line.trim()).length > MAX_JSONL_LINES) {
+        finish({ ok: false, detail: `child JSONL exceeded ${MAX_JSONL_LINES} records` });
+      } else if (code !== 0) {
+        finish({ ok: false, detail: stderr.trim() || `exit code ${code}` });
+      } else {
+        finish({ ok: true, stdout });
+      }
+    });
+  });
+}
+
+/**
+ * One bounded repair of a rejected Harness plan.
+ *
+ * The repair child gets the same read-only tools, the same protocol, the same
+ * frozen evidence — and the exact validation errors. It is not asked to plan
+ * again: re-planning would let it drift onto different evidence, which is
+ * exactly what a repair must not do.
+ */
+async function repairHarnessPlan(input: {
+  cli: { command: string; args: readonly string[] };
+  cwd: string;
+  run: ConsolidationRun;
+  rejected: unknown;
+  errors: readonly string[];
+  taskText: string;
+  timeoutMs: number;
+  current: () => boolean;
+  model?: string;
+  onChild?: (child: ChildProcess) => void;
+  onUsage?: (usage: PiWorkerUsage | undefined) => void;
+}): Promise<{ ok: true; plan: HarnessConsolidationPlan } | { ok: false; detail: string }> {
+  const taskFile = path.join(input.run.manifest.runDir, "harness-repair.md");
+  const taskText = [
+    input.taskText,
+    "",
+    "Task: repair ONE rejected harness consolidation plan.",
+    "Return exactly one JSON object and no prose. Preserve the supplied identity and every cited evidence quote.",
+    "Change only the fields needed to resolve the validation errors below.",
+    "Use only the supplied JSON; do not request additional context, do not plan again, and do not re-run exploration.",
+    JSON.stringify({
+      identity: {
+        runId: input.run.manifest.runId,
+        scopeDigest: input.run.manifest.scopeDigest,
+        artifactHash: input.run.manifest.snapshotDigest,
+      },
+      errors: input.errors.map((error) => error.slice(0, 400)).slice(0, 24),
+      rejectedPlan: input.rejected,
+    }),
+  ].join("\n");
+  try {
+    await fs.writeFile(taskFile, taskText, { mode: 0o600 });
+  } catch (error) {
+    return { ok: false, detail: `harness repair task could not be written: ${(error as Error).message}` };
+  }
+  const child = await runHarnessPlannerChild(input.cli, taskFile, input.cwd, {
+    timeoutMs: input.timeoutMs,
+    current: input.current,
+    onChild: input.onChild,
+    onUsage: input.onUsage,
+  });
+  if (!child.ok) return child;
+  const extracted = extractChildPlan<HarnessConsolidationPlan>(child.stdout, {
+    expectedIdentity: {
+      runId: input.run.manifest.runId,
+      scopeDigest: input.run.manifest.scopeDigest,
+      artifactHash: input.run.manifest.snapshotDigest,
+    },
+    maxOutputBytes: MAX_STDOUT_BYTES,
+    maxLines: MAX_JSONL_LINES,
+    maxLineBytes: MAX_JSONL_LINE_BYTES,
+    maxPlanBytes: MAX_PLAN_BYTES,
+  });
+  if (!extracted.ok) return { ok: false, detail: extracted.error };
+  return { ok: true, plan: extracted.plan };
+}
+
 export async function planHarnessConsolidationPhase(
   ctx: ExtensionContext,
   opts: HarnessConsolidationPhaseOptions,
@@ -762,65 +907,16 @@ export async function planHarnessConsolidationPhase(
     ].join("\n");
     const taskFile = path.join(run.manifest.runDir, "harness-task.md");
     await fs.writeFile(taskFile, taskText, { mode: 0o600 });
-    const child = spawnPiChild(cli.command, [
-      ...cli.args,
-      ...minimalPiWorkerArgs(["read", "grep", "find", "ls"]),
-      ...learningPlannerArgs(),
-      `@${taskFile}`,
-    ], { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] });
-    hooks.onChild?.(child);
-    if (!current()) {
-      await terminateConsolidationChild(child, 5_000);
-      return fail("harness planner cancelled");
-    }
-
     const configuredTimeout = opts.timeoutMs ?? HARNESS_PHASE_TIMEOUT_MS;
     const timeoutMs = Number.isFinite(configuredTimeout)
       ? Math.min(HARNESS_PHASE_TIMEOUT_MS, Math.max(1, configuredTimeout))
       : HARNESS_PHASE_TIMEOUT_MS;
-    const childResult = await new Promise<{ ok: true; stdout: string } | { ok: false; detail: string }>((resolve) => {
-      let stdout = "";
-      let stderr = "";
-      let done = false;
-      const finish = (value: { ok: true; stdout: string } | { ok: false; detail: string }) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        resolve(value);
-      };
-      const terminateAndFinish = async (detail: string): Promise<void> => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        await terminateConsolidationChild(child, 5_000).catch(() => false);
-        resolve({ ok: false, detail });
-      };
-      const timer = setTimeout(() => {
-        void terminateAndFinish("harness planner timed out");
-      }, timeoutMs);
-      timer.unref?.();
-      child.stdout?.on("data", (chunk: Buffer) => {
-        if (done) return;
-        stdout += chunk.toString("utf8");
-        if (Buffer.byteLength(stdout, "utf8") > MAX_STDOUT_BYTES) {
-          void terminateAndFinish(`child stdout exceeded ${MAX_STDOUT_BYTES} bytes`);
-        }
-      });
-      child.stderr?.on("data", (chunk: Buffer) => {
-        if (!done) stderr = (stderr + chunk.toString("utf8")).slice(-64_000);
-      });
-      child.on("error", (error) => finish({ ok: false, detail: error.message }));
-      child.on("close", (code) => {
-        if (done) return;
-        usage = parsePiWorkerOutput(stdout).usage;
-        if (stdout.split("\n").filter((line) => line.trim()).length > MAX_JSONL_LINES) {
-          finish({ ok: false, detail: `child JSONL exceeded ${MAX_JSONL_LINES} records` });
-        } else if (code !== 0) {
-          finish({ ok: false, detail: stderr.trim() || `exit code ${code}` });
-        } else {
-          finish({ ok: true, stdout });
-        }
-      });
+    const childResult = await runHarnessPlannerChild(cli, taskFile, opts.cwd, {
+      timeoutMs,
+      current,
+      ...(opts.model ? { model: opts.model } : {}),
+      onChild: hooks.onChild,
+      onUsage: (value) => { usage = value; },
     });
     if (!childResult.ok) return fail(childResult.detail);
     if (!current()) return fail("harness planner cancelled");
@@ -862,7 +958,31 @@ export async function planHarnessConsolidationPhase(
       automatic: true,
     };
     const errors = validateHarnessPlan(extracted.plan, validationOptions);
-    if (errors.length) return fail(errors.join("; ").slice(-600));
+    if (errors.length) {
+      // One bounded repair, mirroring the Memory delta path. A planner that emits
+      // a structurally valid but unusable rule — a case list of strings, a
+      // negative case that matches its own rule — is a recoverable authoring
+      // mistake, not a reason to lose the phase. The repair is handed the exact
+      // errors and the rejected plan, and may change nothing else: identity,
+      // evidence, and the authoritative selected scope still have to survive.
+      if (!current()) return fail("harness planner cancelled");
+      const repair = await repairHarnessPlan({
+        cli,
+        cwd: opts.cwd,
+        run,
+        rejected: extracted.plan,
+        errors,
+        taskText,
+        timeoutMs,
+        current,
+        onChild: hooks.onChild,
+        onUsage: (value) => { usage = value; },
+      });
+      if (!repair.ok) return fail(`${repair.detail} (after repair attempt)`);
+      const repairedErrors = validateHarnessPlan(repair.plan, validationOptions);
+      if (repairedErrors.length) return fail(repairedErrors.join("; ").slice(-600));
+      extracted.plan = repair.plan;
+    }
     return {
       ok: true,
       value: {

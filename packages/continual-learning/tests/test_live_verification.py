@@ -37,7 +37,10 @@ def test_live_prepare_isolates_authentication(
 
 
 def test_live_learning_requires_actual_project_rule(monkeypatch: pytest.MonkeyPatch) -> None:
-    def prepare(base: Path, auto_memory: bool) -> tuple[Path, Path, Path]:
+    # The signature has to track the real one: verify_learning now asks for
+    # seeded Memory and an enabled AGENTS.md phase, and a test double with the
+    # old signature fails on the call rather than on what it is meant to test.
+    def prepare(base: Path, auto_memory: bool, *, seed_memory: bool = False, agents_md: bool = False) -> tuple[Path, Path, Path]:
         project, agent = base / "project", base / "agent"
         project.mkdir()
         memory = agent / "memory" / "scope"

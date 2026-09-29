@@ -263,6 +263,18 @@ export function shouldRetryPlanner(input: PlannerRetryInput): boolean {
   return classifyPlannerRetry(input) !== "none";
 }
 
+export interface JudgmentReceiptSummary {
+  model: string | null;
+  /** One bounded promotion-status line, or absent when nothing is implemented. */
+  gate?: string;
+  observations: number;
+  agreementRate: number | null;
+  proposalsJudged: number;
+  reusable: number;
+  oneOff: number;
+  surfaces: string[];
+}
+
 export interface LearningPipelineReceipt {
   kind: "learning-pipeline-receipt";
   version: 1;
@@ -273,6 +285,8 @@ export interface LearningPipelineReceipt {
   costAvailable: boolean;
   operations: number;
   retries: number;
+  /** Present only when Judgment is configured. Never authoritative. */
+  judgment?: JudgmentReceiptSummary;
 }
 
 export function buildLearningReceipt(mode: LearningMode, screen: LearningScreen, attempts: LearningAttempt[]): LearningPipelineReceipt {
@@ -370,12 +384,28 @@ export function learningSummaryDetails(receipt: LearningPipelineReceipt): string
     fieldLine("calls", receipt.attempts.length),
     fieldLine("usage", formatLearningUsage(receipt.totals)),
     fieldLine("cost", formatLearningCost(receipt.totals, receipt.costAvailable)),
+    ...(receipt.judgment ? [fieldLine("shadow", judgmentSummaryClause(receipt.judgment))] : []),
     ...phaseLines,
   ];
 }
 
+export function judgmentSummaryClause(summary: JudgmentReceiptSummary): string {
+  const agreement = summary.agreementRate === null
+    ? "agreement not yet measured"
+    : `agreement ${Math.round(summary.agreementRate * 100)}%`;
+  const parts = [
+    `judgment ${summary.model ?? "unknown"}`,
+    `${summary.observations} observation${summary.observations === 1 ? "" : "s"}`,
+    agreement,
+    `proposals ${summary.reusable} reusable / ${summary.oneOff} one-off`,
+  ];
+  if (summary.surfaces.length) parts.push(`surfaces ${summary.surfaces.join(",")}`);
+  return `shadow ${parts.join(" · ")}`;
+}
+
 export function formatLearningSummary(receipt: LearningPipelineReceipt): string {
-  return `Learning ${learningSummarySubject(receipt)} · ${formatLearningUsage(receipt.totals)} · ${formatLearningCost(receipt.totals, receipt.costAvailable)}`;
+  const base = `Learning ${learningSummarySubject(receipt)} · ${formatLearningUsage(receipt.totals)} · ${formatLearningCost(receipt.totals, receipt.costAvailable)}`;
+  return receipt.judgment ? `${base} · ${judgmentSummaryClause(receipt.judgment)}` : base;
 }
 
 export function totalLearningUsage(attempts: readonly LearningAttempt[]): PiWorkerUsage {

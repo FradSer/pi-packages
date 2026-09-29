@@ -49,6 +49,8 @@ try {
   register({
     on: (name, fn) => hooks.set(name, [...(hooks.get(name) ?? []), fn]),
     registerCommand: (name, command) => commands.set(name, command),
+    registerEntryRenderer: () => {},
+    appendEntry: () => {},
     getCommands: () => [], registerMessageRenderer: () => {},
     sendMessage: message => receipts.push(message.details),
   } as Parameters<typeof register>[0]);

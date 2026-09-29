@@ -217,8 +217,7 @@ request and its evidence. Task slices preserve complete entries within their byt
 budget, report omitted entries, and reject an oversized original request rather
 than clipping evidence. A failed tool invocation followed by a successful check
 is eligible for Memory review; the planner still must justify a durable lesson,
-and a reviewed selector verdict is not overridden by that recovery alone.
-Harness evidence means Harness-owned transcript evidence: guardrail event
+and a reviewed selector verdict is not overridden by that recovery alone.Harness evidence means Harness-owned transcript evidence: guardrail event
 entries, Harness guidance delivery, and the notes Harness attaches to tool
 results. Repository text that merely mentions policies or harness files is not
 evidence, so it starts no planner.
@@ -286,6 +285,137 @@ never overwritten. Without `--model`, the configured `memory.json` model is used
 The included synthetic example verifies retrieval plumbing; use representative
 held-out tasks for your project. One paired sample per task does not establish
 statistical improvement, and this experiment does not test Bash enforcement.
+
+## Judgment shadow mode
+
+Judgment is an optional decision surface that observes the selector's routing
+and selection. It answers bounded questions with typed answers and
+probabilities; it never authors Memory, Harness, or AGENTS.md content, and that
+is structural rather than advisory — a decision answer has no representation for
+a body of text.
+
+It is **opt-in and off by default**. It activates only when an API key resolves
+from the environment or from the persistent package configuration:
+
+```bash
+# environment
+export TYPESAFE_API_KEY=...            # optional: TYPESAFE_MODEL, TYPESAFE_BASE_URL
+```
+
+```json
+// ~/.pi/agent/continual-learning.json
+{ "api": { "apiKey": "...", "model": "jev-1.13.0", "baseUrl": "https://api.typesafe.ai" } }
+```
+
+The environment takes precedence, so one run can be pointed elsewhere without
+editing persisted state. An unreadable file, malformed JSON, an unsupported
+field, or a configuration without a key all fail closed to inactive: a
+configuration fault never changes what a run produces. The model is pinned to a
+versioned id rather than a moving alias, and the version that answered is
+recorded, so a threshold tuned against one release is not silently applied to
+another.
+
+**In shadow mode Judgment changes nothing.** The selector's selection is the one
+that reaches the parent, always. Every run appends one observation record
+holding the run's context digest, each verdict and its confidence, the selector's
+own answer, and whether the two agreed. Refused connections, throttling,
+malformed answers, and cancellation are recorded and otherwise inert: an
+observer failing must not stop the observed work.
+
+An observation is a judgment record, not a content record. It carries no
+request text and no tool output. It is written beneath the private agent directory, per
+project, and **outside both Memory roots** — a Memory root admits only regular
+`.md` children, so a sibling log there fails consolidation's privacy validation
+and aborts learning. The log is capped and rotated, dropping the oldest
+records.
+
+Judgment receives a bounded, code-derived projection — clipped request text, the
+regex-classified harness event summaries, repository-relative touched paths,
+registered skills, and Memory metadata. Raw tool-result content is never sent.
+Candidates carry opaque index-derived identifiers, so an answer can never name
+a Memory file: invalid names, wrong casing, and duplicates leave parent-side
+validation rather than gaining checks.
+
+**Memory proposals are judged too.** When a validated Memory plan is about to be
+applied, Judgment is asked whether each proposal is durable, how far it
+generalizes, and which indexed entry it restates if any. **The parent still
+applies every proposal exactly as it does today** — nothing is dropped, narrowed,
+or reordered. What is recorded is the baseline: how good is a *single* proposal?
+That question has to have an answer before anyone can ask whether a planner
+should produce several candidates and pick one.
+
+These questions deliberately mix primitives. `noul` alone would leave every
+answer without a confidence, and the confidence axis of the observation record is
+what distinguishes a settled judgment from a coin flip — so generality is a
+`score` and duplication is a `choice`, both of which carry one. Measured against
+the live service, a reusable build-command lesson scores 0.62 durable / 1.26
+general, a one-off CI flake scores 0.19 / 0.09 at **0.91 confidence**, and a
+proposal restating an indexed entry is matched to it with 1.00 confidence.
+
+**One generative model, one judgment model.** Every generative phase — the
+Memory planner, the Harness planner, and the AGENTS.md extractor — runs on the
+model selected in `memory.json` (`provider/model`). Judgment resolves its own
+model separately (`TYPESAFE_MODEL`, or the `api.model` block), so configuring
+one never silently substitutes the other. Judgment cannot generate: its request
+builder admits only `noul`, `choice`, and `score` questions, so a generative
+answer is unrepresentable rather than discouraged, and nothing it returns is
+ever passed to an apply or write path.
+
+**Promotion is configuration, not code.** Judgment is shadow-only by default
+and stays that way until a surface is named in the configuration:
+
+```json
+{
+  "api": { "apiKey": "...", "model": "jev-1.13.0" },
+  "judgment": {
+    "surfaces": { "proposals": "authoritative" },
+    "thresholds": { "durability": 0.5, "generality": 1 }
+  }
+}
+```
+
+A threshold compiled into the package would mean turning authority on required a
+release and turning it off required a second one — a rollback cost high enough
+that nobody would start. Only `proposals` can be turned on, because it is the
+only surface whose authoritative behavior is implemented; asking for another is
+refused rather than silently accepted, because a switch that changes nothing
+would read as authoritative while doing exactly what shadow mode did.
+
+When it is on, Judgment's verdict arrives **before** the parent's validator, and
+it can only narrow: the names the parent applies always come from the plan, never
+from the model. A failed, throttled, or unanswered judgment **drops nothing** —
+a service outage must not become a reason to discard real knowledge. Durability
+is a probability (0..1) and generality is a score level (0..3); they are
+validated on their own scales.
+
+The receipt's `gate` clause reports what shadow mode has measured, per surface,
+and proposes no threshold. The number that matters is not accuracy but how much
+real knowledge a wrong judgment would cost: the share of parent-applied
+proposals Judgment would have dropped.
+
+**Reading the measurement.** `/consolidate` already reports what a run did, so
+the shadow measurement rides that same receipt rather than a second command:
+
+```text
+Learning 2 memories applied · input 4415 · cost unavailable
+  · shadow judgment jev-1.13.0 · 42 observations · agreement 78%
+  · proposals 9 reusable / 3 one-off · surfaces harness-operations
+```
+
+An unmeasured rate reads as *agreement not yet measured*, never as `0%` — a zero
+would claim the two surfaces never agree, which is a claim nobody has evidence
+for. Proposals are reported as a **distribution** (reusable versus a record of
+one occurrence) rather than a single verdict, so no one threshold can imply more
+than the data supports. A user who has not configured Judgment sees exactly the
+line they see today.
+
+Promotion out of shadow mode is measured, not assumed. Committed adversarial and
+agreement fixtures gate the package tests, and promotion additionally requires
+an agreement rate and an injection-resistance rate read from observations. The
+report proposes no threshold; choosing one stays a human decision.
+
+See `docs/adr/0006-judgment-shadow-mode-and-projection.md` in the source
+repository for why this observes first and receives a projection.
 
 ## Memory
 

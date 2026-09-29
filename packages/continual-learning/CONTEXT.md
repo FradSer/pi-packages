@@ -30,6 +30,42 @@ and AGENTS extraction use the same rule format and evaluator.
 - **Retained context** is the conversation currently available to the model after
   branch selection and compaction.
 
+## Judgment vocabulary
+
+Judgment is the second reasoning surface in this package. Where the planners
+are generative and propose content, Judgment is a decision surface: it answers
+bounded questions about observed state and returns typed answers with
+probabilities. It never authors Memory, Harness, or instruction content, and
+that separation is structural rather than advisory — a decision answer has no
+representation for a body of text.
+
+- **Judgment surface** is a per-run, state-dependent decision that returns
+  bounded typed answers rather than prose. It is a reasoning surface, never a
+  mutating one.
+- **Shadow mode** is the state in which a Judgment surface observes a
+  decision made elsewhere and changes nothing. The observed component stays
+  authoritative; the Judgment surface exists to produce a comparable record.
+- **Observation record** is the durable trace of one shadow observation. It
+  carries decisions, confidence, the observed component's own answer, and
+  whether they agreed. It carries no user content.
+- **Projection** is the bounded, code-derived view of observed state that a
+  Judgment surface is given. It is not the observed state itself; it is the
+  part of it that a bounded question needs.
+- **Opaque candidate identifier** is a stable, index-derived name for one
+  candidate within a single request. It is how the observed component
+  correlates an answer back to a real entity without the answer ever naming
+  one.
+- **Containment** is the property that observed content, carried inside a
+  projection, cannot act as instruction. Untrusted content that can steer a
+  decision is not contained.
+- **Promotion gate** is the measured precondition for a Judgment surface
+  leaving shadow mode and becoming authoritative. It is a rate read from
+  observations, compared against a threshold a person chose.
+- **Judgment report** is the read-only view of what a Judgment surface has
+  observed. An unmeasured rate is *not yet measured*, never zero, because a zero
+  would be a claim nobody has evidence for.
+- **Proposal baseline** is what a decision surface makes of one proposal per lesson, before any proposal is written. It is the control for the later question of whether a planner should propose several and one should be chosen. Asking for several candidates before this exists is an opinion rather than a measurement.
+
 ## Harness ownership
 
 Harness configuration has exactly three user-owned layers, plus package defaults:
@@ -134,3 +170,10 @@ The two Memory roots are intentionally asymmetric rather than ordinary override 
 - Private Memory never appears in project `.memory/`.
 - The parent owns all mutation, validation, rollback, index rebuilding, and receipts. Automatic and manual consolidation may permanently delete Memory only with a stale verdict that permits removal plus a mechanically verifiable preservation target; receipt change counts are bound back to the validated plan. Generated shell commands cannot bulk-delete either project Memory directory or the private Pi Memory root.
 - Harness retains its three-layer flat-rule model plus read-only compatibility execution of installed declarations. Legacy files remain unchanged; additions preserve their protections. @docs/adr/0005-preserve-installed-harness-protections.md records why compatibility, not global lockout or silent retirement, is required.
+- Judgment is opt-in. With no resolved API key it is inactive and a run is identical to a run without it.
+- An unresolvable, unreadable, or malformed API configuration fails closed to inactive. A configuration fault never changes learning behavior.
+- A Judgment surface never authors Memory, Harness, or instruction content.
+- In shadow mode the observed component's decision is the one that reaches the parent, always.
+- An observation record contains no user request text and no tool output, and is written beneath the private agent directory but outside both Memory roots: a Memory root admits only regular `.md` children, so a sibling log there fails consolidation's privacy validation and aborts learning.
+- A projection carries observed content as inert data. Embedded instructions inside a projection are a containment failure, not a capability.
+- Judgment failure, throttling, malformed answers, and cancellation are recorded and otherwise inert: an observer failing must not stop the observed work.

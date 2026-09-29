@@ -7,6 +7,8 @@ import { isMemoryFilename } from "./memory-files";
 import { MAX_MEMORY_BYTES, MAX_MEMORY_FILES, sha256Digest, writeFileAtomic } from "./consolidation-run";
 import { resolveMemoryPaths } from "./memory-paths";
 import { buildMemorySelectorPrompt, learningPlannerArgs } from "./planner-prompts";
+import { observeJudgmentShadow } from "./judgment-shadow";
+import type { JudgmentObservation } from "./judgment-observations";
 
 const MAX_TASK_SLICE_ENTRIES = 96;
 const MAX_TASK_SLICE_BYTES = 512_000;
@@ -68,6 +70,8 @@ export interface MemorySelectionResult {
   dossierDigest?: string;
   usage?: PiWorkerUsage;
   error?: string;
+  /** Present only when Judgment is configured. Never authoritative. */
+  judgment?: { model: string | null; outcome: JudgmentObservation["outcome"]; agrees: boolean };
 }
 
 interface FileIdentity {
@@ -419,6 +423,37 @@ function taskSliceMetadata(taskSlice: TaskSlice): { touchedPaths: string[]; harn
   return { touchedPaths: [...paths].slice(0, 64), harnessEvents };
 }
 
+/**
+ * User-authored request text for the projection, and nothing else.
+ *
+ * Tool results are deliberately excluded. They are the untrusted half of a Task
+ * Slice, the unbounded half, and unnecessary for the routing and selection
+ * questions — the harness event summaries already carry what those questions
+ * need, and those summaries passed the package's own regex classifier first.
+ */
+function taskSliceRequestText(taskSlice: TaskSlice): string {
+  const parts: string[] = [];
+  for (const entry of taskSlice.entries) {
+    if (entryRole(entry) !== "user") continue;
+    const record = entry as { message?: { content?: unknown }; content?: unknown };
+    const content = record.message?.content ?? record.content;
+    if (typeof content === "string") {
+      parts.push(content);
+      continue;
+    }
+    if (!Array.isArray(content)) continue;
+    const text = content
+      .flatMap((block) =>
+        block && typeof block === "object" && (block as { type?: unknown }).type === "text" &&
+        typeof (block as { text?: unknown }).text === "string"
+          ? [(block as { text: string }).text]
+          : [])
+      .join("\n");
+    if (text) parts.push(text);
+  }
+  return parts.join("\n\n");
+}
+
 async function buildDossier(
   contextDigest: string,
   taskSlice: TaskSlice,
@@ -447,6 +482,29 @@ async function buildDossier(
     registeredSkills: [...new Set(registeredSkills)].sort(),
     selection,
   };
+}
+
+/**
+ * The whole corpus's metadata, without bodies. The proposal projection needs to
+ * know what already exists so it can ask whether a proposal restates it; it does
+ * not need, and must not be given, the bodies.
+ */
+export async function indexMemoryMetadata(cwd: string): Promise<MemoryMetadata[]> {
+  return (await indexMemoryCorpus(cwd)).map((entry) => entry.metadata);
+}
+
+/** Metadata for a named subset of the corpus. Staleness is asked per entry, so
+ *  only the entries the parent selected are described. */
+export async function selectedMemoryMetadata(
+  cwd: string,
+  names: readonly string[],
+): Promise<Array<{ name: string; description: string }>> {
+  if (names.length === 0) return [];
+  const wanted = new Set(names.map((name) => name.toLowerCase()));
+  return (await indexMemoryCorpus(cwd))
+    .map((entry) => entry.metadata)
+    .filter((metadata) => wanted.has(metadata.name.toLowerCase()))
+    .map((metadata) => ({ name: metadata.name, description: metadata.description }));
 }
 
 export async function selectIncrementalLearning(input: {
@@ -497,19 +555,48 @@ export async function selectIncrementalLearning(input: {
   }
   const selection = parsed.selection;
 
+  // Judgment observes this decision and changes nothing. It runs concurrently so
+  // it adds no serialization to the run, and is settled before returning so the
+  // observation is durable rather than lost to a process exit. Its own timeout
+  // bounds the worst case.
+  const observedPromise = observeJudgmentShadow({
+    cwd: input.cwd,
+    contextDigest: input.contextDigest,
+    projection: {
+      requestText: taskSliceRequestText(input.taskSlice),
+      ...taskSliceMetadata(input.taskSlice),
+      skills: input.registeredSkills ?? [],
+      memories: metadata,
+    },
+    selector: {
+      selected: selection.selected,
+      memory: selection.memory,
+      harness: selection.harness,
+      agents: selection.agents,
+    },
+    ...(input.signal ? { signal: input.signal } : {}),
+  }).then((observation) => ({
+    model: observation.model,
+    outcome: observation.outcome,
+    agrees: observation.agrees,
+  })).catch(() => undefined);
+
   const dossier = await buildDossier(input.contextDigest, input.taskSlice, selection, indexed, input.registeredSkills ?? []);
   if (!dossier) {
+    const observed = await observedPromise;
     return {
       outcome: "failed",
       durationMs: Date.now() - startedAt,
       usage: result.usage,
       error: "selected Memory changed or exceeded the bounded body limit",
+      ...(observed ? { judgment: observed } : {}),
     };
   }
   const text = `${JSON.stringify(dossier, null, 2)}\n`;
   const dossierPath = path.join(input.outputDir, "incremental-learning-dossier.json");
   await fs.mkdir(input.outputDir, { recursive: true });
   await writeFileAtomic(dossierPath, text, 0o600);
+  const observed = await observedPromise;
   return {
     outcome: "selected",
     durationMs: Date.now() - startedAt,
@@ -517,5 +604,6 @@ export async function selectIncrementalLearning(input: {
     dossierPath,
     dossierDigest: sha256Digest(text),
     usage: result.usage,
+    ...(observed ? { judgment: observed } : {}),
   };
 }

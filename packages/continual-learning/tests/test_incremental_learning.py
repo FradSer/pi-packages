@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 
-from support import PKG_DIR, run_bun
+from support import PKG_DIR, isolated_run_bun, run_bun
 
 
 def test_manifest_ships_prompts_instead_of_agent_resources() -> None:
@@ -13,7 +13,7 @@ def test_manifest_ships_prompts_instead_of_agent_resources() -> None:
 
 
 def test_planner_prompt_builder_is_literal_typed_and_fail_closed() -> None:
-    result = run_bun(r"""
+    result = isolated_run_bun(r"""
       import {
         buildMemorySelectorPrompt,
         renderPlannerPromptTemplate,
@@ -40,7 +40,7 @@ def test_planner_prompt_builder_is_literal_typed_and_fail_closed() -> None:
 
 
 def test_current_task_slice_keeps_completed_task_evidence_only() -> None:
-    result = run_bun(r"""
+    result = isolated_run_bun(r"""
       import { currentTaskSlice } from './packages/continual-learning/extensions/incremental-learning.ts';
       const message = (role, text) => ({ type: 'message', message: { role, content: [{ type: 'text', text }] } });
       const entries = [
@@ -68,7 +68,7 @@ def test_current_task_slice_keeps_completed_task_evidence_only() -> None:
 
 
 def test_large_task_slice_preserves_the_final_result() -> None:
-    result = run_bun(r"""
+    result = isolated_run_bun(r"""
       import { currentTaskSlice } from './packages/continual-learning/extensions/incremental-learning.ts';
       const entries = [{ message: { role: 'user', content: 'large task' } }];
       for (let index = 0; index < 120; index += 1) entries.push({ message: { role: 'toolResult', content: 'x'.repeat(6000) } });
@@ -83,7 +83,7 @@ def test_large_task_slice_preserves_the_final_result() -> None:
 
 
 def test_explicit_continuations_keep_the_original_task_but_not_other_tasks() -> None:
-    result = run_bun(r"""
+    result = isolated_run_bun(r"""
       import { currentTaskSlice } from './packages/continual-learning/extensions/incremental-learning.ts';
       const message = (role, content) => ({ message: { role, content } });
       const entries = [
@@ -111,7 +111,7 @@ def test_explicit_continuations_keep_the_original_task_but_not_other_tasks() -> 
 
 
 def test_task_slice_bounds_whole_json_and_keeps_unmodified_evidence() -> None:
-    result = run_bun(r"""
+    result = isolated_run_bun(r"""
       import { currentTaskSlice } from './packages/continual-learning/extensions/incremental-learning.ts';
       const message = (role, content) => ({ message: { role, content } });
       const summarize = entries => {
@@ -147,7 +147,7 @@ def test_task_slice_bounds_whole_json_and_keeps_unmodified_evidence() -> None:
 
 def test_selector_uses_metadata_only_accepts_all_related_and_writes_each_body_once() -> None:
     with tempfile.TemporaryDirectory(prefix="incremental-selector-") as temporary:
-        result = run_bun(r"""
+        result = isolated_run_bun(r"""
           import { mock } from 'bun:test';
           import fs from 'node:fs';
           import path from 'node:path';
@@ -224,7 +224,7 @@ def test_selector_uses_metadata_only_accepts_all_related_and_writes_each_body_on
 
 def test_empty_selection_keeps_memory_enabled_and_builds_empty_scope() -> None:
     with tempfile.TemporaryDirectory(prefix="incremental-empty-selector-") as temporary:
-        result = run_bun(r"""
+        result = isolated_run_bun(r"""
           import { mock } from 'bun:test';
           import fs from 'node:fs';
           import path from 'node:path';
@@ -265,7 +265,7 @@ def test_empty_selection_keeps_memory_enabled_and_builds_empty_scope() -> None:
 
 def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() -> None:
     with tempfile.TemporaryDirectory(prefix="incremental-invalid-selector-") as temporary:
-        result = run_bun(r"""
+        result = isolated_run_bun(r"""
           import { mock } from 'bun:test';
           import fs from 'node:fs';
           import path from 'node:path';
@@ -359,7 +359,7 @@ def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() 
 
 def test_selector_tolerates_echoed_input_fields_but_names_missing_required_ones() -> None:
     with tempfile.TemporaryDirectory(prefix="incremental-selector-schema-") as temporary:
-        result = run_bun(r"""
+        result = isolated_run_bun(r"""
           import { mock } from 'bun:test';
           import fs from 'node:fs';
           import path from 'node:path';
@@ -409,7 +409,7 @@ def test_selector_tolerates_echoed_input_fields_but_names_missing_required_ones(
 
 def test_selector_timeout_is_cancelled_without_dossier_or_fallback() -> None:
     with tempfile.TemporaryDirectory(prefix="incremental-cancelled-selector-") as temporary:
-        result = run_bun(r"""
+        result = isolated_run_bun(r"""
           import { mock } from 'bun:test';
           import fs from 'node:fs';
           import path from 'node:path';
@@ -443,7 +443,7 @@ def test_selector_timeout_is_cancelled_without_dossier_or_fallback() -> None:
 
 def test_selector_ignores_unknown_fields_and_rejects_selected_body_drift() -> None:
     with tempfile.TemporaryDirectory(prefix="incremental-drift-selector-") as temporary:
-        result = run_bun(r"""
+        result = isolated_run_bun(r"""
           import { mock } from 'bun:test';
           import fs from 'node:fs';
           import path from 'node:path';
@@ -489,7 +489,7 @@ def test_selector_ignores_unknown_fields_and_rejects_selected_body_drift() -> No
 
 def test_dossier_harness_events_come_from_harness_owned_entries_only() -> None:
     with tempfile.TemporaryDirectory(prefix="incremental-harness-events-") as temporary:
-        result = run_bun(r"""
+        result = isolated_run_bun(r"""
           import { mock } from 'bun:test';
           import fs from 'node:fs';
           import path from 'node:path';

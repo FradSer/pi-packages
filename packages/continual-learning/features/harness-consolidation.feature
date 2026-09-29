@@ -142,3 +142,30 @@ Feature: Harness consolidation alongside memory consolidation
     Given a consolidation pipeline is running in either phase
     When another /consolidate is triggered
     Then no second planner child is started
+
+  Scenario: A rejected Harness plan gets one bounded repair
+    Given the Harness planner returns a plan that fails validation
+    When the parent prepares to apply it
+    Then a fresh read-only child is given the exact validation errors and the rejected plan
+    And the repaired plan is revalidated
+    And the repair is limited to one attempt
+
+  Scenario: A repair that is still invalid fails the phase
+    Given the Harness planner returns a plan that fails validation
+    And the repair also returns a plan that fails validation
+    When the parent prepares to apply it
+    Then the phase fails
+    And the diagnostic names the remaining defect
+
+  Scenario: A repair may not drift onto different evidence
+    Given the Harness planner returns a plan that fails validation
+    When the repair child runs
+    Then it receives the same frozen snapshot and the same protocol as the original planner
+    And it is asked to repair rather than to plan again
+    And the run identity it returns must match the original run
+
+  Scenario: A repair is skipped when the plan already validates
+    Given the Harness planner returns a plan that passes validation
+    When the parent prepares to apply it
+    Then no repair child runs
+    And the plan is applied exactly as it does today

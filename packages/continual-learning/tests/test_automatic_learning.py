@@ -24,7 +24,7 @@ def test_memory_management_reports_shipped_incremental_planner() -> None:
       process.env.PI_CODING_AGENT_DIR = path.join(root, 'agent');
       const { default: register } = await import('./packages/continual-learning/extensions/inject-memory.ts');
       const commands = new Map(), notices = [];
-      register({ on() {}, registerCommand: (name, command) => commands.set(name, command), getCommands: () => [] });
+      register({ on() {}, registerCommand: (name, command) => commands.set(name, command), getCommands: () => [], registerEntryRenderer: () => {}, appendEntry: () => {} });
       await commands.get('memory').handler('', { cwd: root, hasUI: false, ui: { notify: text => notices.push(text) }, getSystemPromptOptions: () => ({ contextFiles: [] }) });
       const file = /Consolidate procedure: (.+)/.exec(notices.join('\n'))[1];
       console.log(JSON.stringify({ file, exists: fs.existsSync(file) }));
@@ -225,6 +225,7 @@ def test_headless_pipeline_freezes_context_and_finishes_all_phases() -> None:
       const pi = {
         on: (name, handler) => hooks.set(name, [...(hooks.get(name) ?? []), handler]),
         registerCommand: () => {}, getCommands: () => [],
+        registerEntryRenderer: () => {}, appendEntry: () => {}
       };
       const ctx = {
         cwd, mode: 'json', hasUI: false,
@@ -334,7 +335,7 @@ def test_harness_only_evidence_runs_without_memory_mutation_and_records_receipt(
       }));
       const { default: register } = await import('./packages/continual-learning/extensions/inject-memory.ts');
       const hooks = new Map(), notices = [];
-      register({ on: (name, handler) => hooks.set(name, [...(hooks.get(name) ?? []), handler]), registerCommand: () => {}, getCommands: () => [] });
+      register({ on: (name, handler) => hooks.set(name, [...(hooks.get(name) ?? []), handler]), registerCommand: () => {}, getCommands: () => [], registerEntryRenderer: () => {}, appendEntry: () => {} });
       const entries = [
         { message: { role: 'user', content: [{ type: 'text', text: 'Please finish the current task.' }] } },
         { message: { role: 'toolResult', content: [{ type: 'text', text: 'Harness policy blocked a generated write.' }] } },
@@ -414,6 +415,7 @@ def test_failed_memory_gate_persists_receipt_and_skips_later_phases() -> None:
         on: (name, handler) => hooks.set(name, [...(hooks.get(name) ?? []), handler]),
         registerCommand: () => {},
         getCommands: () => [],
+        registerEntryRenderer: () => {}, appendEntry: () => {},
       });
       const entries = [{ message: { role: 'user', content: [{ type: 'text', text: 'Never use npm in this project; use pnpm instead.' }] } }];
       const ctx = {
@@ -467,7 +469,7 @@ def test_consolidate_full_skips_selector_and_uses_exhaustive_planner() -> None:
       }));
       const { default: register } = await import('./packages/continual-learning/extensions/inject-memory.ts');
       const hooks = new Map(), commands = new Map(), notices = [];
-      register({ on: (name, handler) => hooks.set(name, [...(hooks.get(name) ?? []), handler]), registerCommand: (name, command) => commands.set(name, command), getCommands: () => [] });
+      register({ on: (name, handler) => hooks.set(name, [...(hooks.get(name) ?? []), handler]), registerCommand: (name, command) => commands.set(name, command), getCommands: () => [], registerEntryRenderer: () => {}, appendEntry: () => {} });
       const entries = [{ message: { role: 'user', content: 'Earlier task' } }, { message: { role: 'assistant', content: 'Earlier answer' } }, { message: { role: 'user', content: 'Current task' } }];
       const ctx = { cwd, mode: 'json', hasUI: false, ui: { notify: text => notices.push(text), setWidget() {} }, sessionManager: { getBranch: () => entries, buildContextEntries: () => entries } };
       for (const handler of hooks.get('session_start') ?? []) await handler({}, ctx);
@@ -543,7 +545,7 @@ def test_invalid_memory_config_persists_failed_start_receipt() -> None:
           const { default: register } = await import('./packages/continual-learning/extensions/inject-memory.ts');
           const { resolveMemoryPaths } = await import('./packages/continual-learning/extensions/memory-paths.ts');
           const hooks = new Map(), notices = [];
-          register({ on: (name, handler) => hooks.set(name, [...(hooks.get(name) ?? []), handler]), registerCommand: () => {}, getCommands: () => [] });
+          register({ on: (name, handler) => hooks.set(name, [...(hooks.get(name) ?? []), handler]), registerCommand: () => {}, getCommands: () => [], registerEntryRenderer: () => {}, appendEntry: () => {} });
           const entries = [{ message: { role: 'user', content: [{ type: 'text', text: 'Always preserve this durable rule.' }] } }];
           const ctx = { cwd, mode: 'json', hasUI: false, ui: { notify: text => notices.push(text), setWidget: () => {} }, sessionManager: { getBranch: () => entries, buildContextEntries: () => entries } };
           for (const [name, event] of [['session_start', {}], ['input', { source: 'interactive' }], ['agent_settled', {}]]) for (const handler of hooks.get(name) ?? []) await handler(event, ctx);
@@ -601,7 +603,7 @@ mock.module('./packages/kit/src/index.ts', () => ({
 const { default: register } = await import('./packages/continual-learning/extensions/inject-memory.ts');
 const cwd = path.join(base, 'project'); fs.mkdirSync(cwd);
 const hooks = new Map(), notices = [];
-register({on:(name,handler)=>hooks.set(name,[...(hooks.get(name)??[]),handler]),registerCommand:()=>{},getCommands:()=>[]});
+register({on:(name,handler)=>hooks.set(name,[...(hooks.get(name)??[]),handler]),registerCommand:()=>{},getCommands:()=>[],registerEntryRenderer: () => {}, appendEntry: () => {}});
 const evidence = [{message:{role:'user',content:[{type:'text',text:'Always preserve this durable project rule.'}]}}];
 const ctx = {cwd,mode:'json',hasUI:false,ui:{notify:text=>notices.push(text),setWidget:()=>{}},sessionManager:{getBranch:()=>evidence,buildContextEntries:()=>evidence}};
 for (const [name,event] of [['session_start',{}],['input',{source:'interactive'}],['agent_settled',{}]]) {

@@ -70,7 +70,12 @@ import {
 } from "./planner-prompts";
 import { registerAutomaticLearning } from "./automatic-learning";
 import { buildLearningReceipt, formatLearningSummary, isLearningPipelineReceipt, learningSummaryDetails, learningSummarySubject, manualIncrementalScreen, screenLearningEntries, shouldRetryPlanner, snapshotEntries, writeLearningReceipt, type LearningAttempt, type LearningMode, type LearningPipelineReceipt, type LearningScreen } from "./learning-efficiency";
-import { currentTaskSlice, selectIncrementalLearning } from "./incremental-learning";
+import { currentTaskSlice, indexMemoryMetadata, selectedMemoryMetadata, selectIncrementalLearning } from "./incremental-learning";
+import { observeMemoryProposals, observePlanSurface } from "./judgment-shadow";
+import { resolveJudgmentAuthority, surfaceMode, type ResolvedJudgmentAuthority } from "./judgment-config";
+import { planOperationsOf } from "./judgment-plans";
+import type { NewMemoryProposal } from "./consolidation-run";
+import { judgmentEntryFor, registerJudgmentObservability, judgmentProposalEntryFor, judgmentReceiptSummary, JUDGMENT_OBSERVATION_ENTRY, type JudgmentObservationEntry } from "./judgment-observability";
 import { expandIncrementalMemoryPlan } from "./incremental-memory-plan";
 import { automaticPhasePolicies, type PhasePolicies } from "./learning-controls";
 import { checkPendingLearningMutations, memoryMutationFiles, normalizeTrackedMemory, recordLearningMutation, recordLearningProposal, recoverLearningUndo } from "./learning-history";
@@ -901,6 +906,7 @@ async function spawnAsyncConsolidation(
     dossierDigest?: string;
     selectedSourceDigest?: string;
     applyChanges?: boolean;
+    reportJudgment?: (entry: JudgmentObservationEntry) => void;
   },
 ): Promise<boolean> {
   const attempt = opts.attempt ?? 0;
@@ -1339,6 +1345,69 @@ async function spawnAsyncConsolidation(
           if (!ownsCurrentRun()) return;
           await runConsolidationValidator(opts.pkgDir, run, planPath, "plan", expectedSelected);
           if (!ownsCurrentRun()) return;
+          // The plan is validated but not yet written. This is the moment to ask
+          // what a decision surface makes of its proposals, because it is the
+          // last point where nothing has been mutated. Nothing here changes what
+          // is applied: the parent still writes every proposal, exactly as it
+          // does today. What it produces is the baseline for the later question
+          // of whether a planner should produce several candidates and pick one.
+          const proposalPlan = plan as { newMemories?: unknown[]; operations?: unknown[] };
+          // When this surface is authoritative, Judgment's verdict arrives before
+          // the parent's validator rather than after it. Fail open: a service
+          // outage must not stop learning, so an unanswered judgment applies every
+          // proposal exactly as today rather than dropping real knowledge.
+          if (proposalPlan.newMemories && surfaceMode(judgmentAuthority(), "proposals") === "authoritative") {
+            const judged = await observeMemoryProposals({
+              cwd: opts.cwd,
+              contextDigest: run.manifest.snapshotDigest,
+              projection: {
+                proposals: (proposalPlan.newMemories ?? []) as NewMemoryProposal[],
+                memories: await indexMemoryMetadata(opts.cwd),
+                selected: normalizeSelectedScope(plan),
+              },
+            });
+            if (judged.judged && judged.kept) {
+              const kept = new Set(judged.kept);
+              const judgedProposals = (proposalPlan.newMemories ?? []) as NewMemoryProposal[];
+              const reduced = judgedProposals.filter((_proposal, index) => kept.has(`c${index}`));
+              if (reduced.length !== judgedProposals.length) {
+                // The names the parent still applies come from the plan, never
+                // from the model: Judgment narrows a set, it does not name one.
+                proposalPlan.newMemories = reduced;
+              }
+            }
+          }
+          // The plan's operations on *existing* entries were the last Memory
+          // surface left unobserved. Staleness is asked in the parent's own
+          // closed vocabulary so an answer is comparable with a plan.
+          {
+            const memoryOperations = planOperationsOf(plan, "kind");
+            if (memoryOperations.length > 0 || preSelected.length > 0) {
+              void observePlanSurface({
+                cwd: opts.cwd,
+                contextDigest: run.manifest.snapshotDigest,
+                projection: {
+                  surface: "memory-operations",
+                  operations: memoryOperations,
+                  selected: await selectedMemoryMetadata(opts.cwd, preSelected),
+                },
+                              }).catch(() => undefined);
+            }
+          }
+          const proposalCount = Array.isArray(proposalPlan.newMemories) ? proposalPlan.newMemories.length : 0;
+          if (proposalCount > 0 && surfaceMode(judgmentAuthority(), "proposals") !== "authoritative") {
+            void observeMemoryProposals({
+              cwd: opts.cwd,
+              contextDigest: run.manifest.snapshotDigest,
+              projection: {
+                proposals: (proposalPlan.newMemories ?? []) as NewMemoryProposal[],
+                memories: await indexMemoryMetadata(opts.cwd),
+                selected: preSelected,
+              },
+                          }).then((observation) => {
+              if (observation.judged) opts.reportJudgment?.(judgmentProposalEntryFor(observation));
+            }).catch(() => undefined);
+          }
           if (opts.applyChanges === false) {
             const candidate = plan as { operations?: unknown[]; newMemories?: unknown[] };
             proposed = (candidate.operations?.length ?? 0) + (candidate.newMemories?.length ?? 0) > 0;
@@ -1469,11 +1538,18 @@ async function spawnAsyncConsolidation(
 async function startConsolidationPipeline(
   ctx: ExtensionContext,
   state: DreamState,
-  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; availableSkills: readonly string[]; mode: LearningMode; reportResult?: boolean; reportReceipt?: (receipt: LearningPipelineReceipt) => void },
+  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; availableSkills: readonly string[]; mode: LearningMode; reportResult?: boolean; reportReceipt?: (receipt: LearningPipelineReceipt) => void; reportJudgment?: (entry: JudgmentObservationEntry) => void },
 ): Promise<void> {
   if (state.pipeline) return state.pipeline;
   let pipelineScreen: LearningScreen | undefined;
   let selectorRun: ConsolidationRun | undefined;
+  // The digest every Judgment observation in this run is correlated by.
+  let observationContextDigest = "";
+  // Every generative phase runs on this one model. Resolved once so the Memory,
+  // Harness, and AGENTS.md phases cannot drift onto different models.
+  const consolidationModel = memoryConfig.provider && memoryConfig.model
+    ? `${memoryConfig.provider}/${memoryConfig.model}`
+    : undefined;
   let acquiredLaterRun: ConsolidationRun | undefined;
   setDreamingWidget(ctx, opts.mode === "full" || opts.noContext ? "preparing full maintenance" : "selecting current task");
   state.cleanup = () => clearDreamingWidget(ctx);
@@ -1497,7 +1573,7 @@ async function startConsolidationPipeline(
     if (!screen.memory && !screen.harness && !screen.agents) {
       const receipt = buildLearningReceipt(opts.mode, screen, []);
       await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt);
-      if (opts.reportResult) opts.reportReceipt?.(receipt);
+      if (opts.reportResult) opts.reportReceipt?.(receiptWithJudgment(receipt, opts.cwd));
       return;
     }
     state.attempts = [];
@@ -1505,10 +1581,10 @@ async function startConsolidationPipeline(
     state.cancelled = false;
     state.controller = new AbortController();
     const reportReceipt = (receipt: LearningPipelineReceipt): void => {
-      if (opts.reportResult) opts.reportReceipt?.(receipt);
+      if (opts.reportResult) opts.reportReceipt?.(receiptWithJudgment(receipt, opts.cwd));
     };
     const writeCurrentReceipt = async (directory = resolveMemoryPaths(opts.cwd).runsDir): Promise<void> => {
-      const receipt = buildLearningReceipt(opts.mode, screen, state.attempts ?? []);
+      const receipt = receiptWithJudgment(buildLearningReceipt(opts.mode, screen, state.attempts ?? []), opts.cwd);
       await writeLearningReceipt(directory, receipt);
       reportReceipt(receipt);
     };
@@ -1538,6 +1614,12 @@ async function startConsolidationPipeline(
           operations: 0,
           usage: incrementalSelection.usage,
         });
+        // Shadow mode is otherwise invisible: the selector's decision is
+        // unchanged, so without one bounded row there is no evidence the
+        // decision surface ran at all.
+        if (incrementalSelection.judgment) {
+          opts.reportJudgment?.(judgmentEntryFor(incrementalSelection.judgment, opts.cwd));
+        }
         if (incrementalSelection.outcome !== "selected" || !incrementalSelection.selection) {
           if (!state.cancelled) notifyPi(ctx.ui, `Learning selector failed: ${incrementalSelection.error ?? "invalid selection"}`, "warning");
           await writeCurrentReceipt(selectorReceiptDirectory);
@@ -1631,6 +1713,7 @@ async function startConsolidationPipeline(
     }
     const laterRun = await createConsolidationRun(frozenContext, opts.cwd, false, policies.memory === "apply" ? normalizeTrackedMemory : false);
     acquiredLaterRun = laterRun;
+    observationContextDigest = laterRun.manifest.snapshotDigest;
     if (incrementalSelection?.dossierPath && incrementalSelection.dossierDigest) {
       const dossierBytes = await fs.readFile(incrementalSelection.dossierPath);
       if (sha256Digest(dossierBytes) !== incrementalSelection.dossierDigest) throw new Error("incremental dossier changed before later planning");
@@ -1658,7 +1741,11 @@ async function startConsolidationPipeline(
       else if (screen.harness) setDreamingActivity("harness delta");
       else if (screen.agents) setDreamingActivity("AGENTS.md delta");
       const harnessPromise = screen.harness
-        ? planHarnessConsolidationPhase(frozenContext, { pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills, run: laterRun, ...exploration }, {
+        ? planHarnessConsolidationPhase(frozenContext, { pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills, run: laterRun, ...exploration,
+          // The Harness phase must run on the same selected model as the Memory
+          // phase, or "consolidation uses the configured model" is only half true
+          // and the two phases can be different models on the same run.
+          ...(consolidationModel ? { model: consolidationModel } : {}), }, {
             current: () => !state.cancelled && !harnessState.cancelled,
             onChild: (child) => { harnessState.child = child; },
           })
@@ -1667,6 +1754,7 @@ async function startConsolidationPipeline(
         ? planAgentsMdConsolidationPhase(frozenContext, agentsState, {
             pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills,
             budgetBytes: settings.agentsMd?.budgetBytes ?? DEFAULT_AGENTS_MD_BUDGET_BYTES, disabled: false, ...exploration,
+            ...(consolidationModel ? { model: consolidationModel } : {}),
           }, laterRun, laterGeneration)
         : Promise.resolve(undefined);
       const [harnessPlan, agentsPlan] = await Promise.all([harnessPromise, agentsPromise]);
@@ -1674,6 +1762,17 @@ async function startConsolidationPipeline(
         attempts.push({ phase: "harness", attempt: 0, outcome: harnessPlan.ok ? "noop" : "failed", durationMs: harnessPlan.ok ? harnessPlan.value.durationMs : harnessPlan.durationMs, operations: harnessPlan.ok && Array.isArray(harnessPlan.value.plan.operations) ? harnessPlan.value.plan.operations.length : 0, usage: harnessPlan.ok ? harnessPlan.value.usage : harnessPlan.usage });
         if (!harnessPlan.ok && !state.cancelled) notifyPi(ctx.ui, `Harness learning failed: ${harnessPlan.detail.slice(-300)}`, "warning");
         if (harnessPlan.ok) {
+          // Observe the plan before deciding whether it will be applied or only
+          // proposed. Kept out of the apply branch: under a propose policy the
+          // surface would otherwise stop being judged, silently, exactly when a
+          // plan still exists and is worth reading.
+          void observePlanSurface({
+            cwd: opts.cwd,
+            // The planning result carries its own run, so the digest binds the
+            // observation to the evidence the plan was actually built from.
+            contextDigest: observationContextDigest || harnessPlan.value.run.manifest.snapshotDigest,
+            projection: { surface: "harness-operations", operations: planOperationsOf(harnessPlan.value.plan, "op") },
+          }).catch(() => undefined);
           if (policies.harness === "propose") {
             const hasChanges = Array.isArray(harnessPlan.value.plan.operations) && harnessPlan.value.plan.operations.length > 0;
             if (hasChanges) await recordLearningProposal(opts.cwd, "harness", harnessPlan.value.plan);
@@ -1706,6 +1805,14 @@ async function startConsolidationPipeline(
         }
         if (agentsPlan.outcome === "planned") {
           const operations = agentsPlan.planning.operations;
+          // Observe the plan, not the branch that will follow it. This used to sit
+          // in the apply branch, so with the default propose policy the surface was
+          // never judged — the one case where a plan exists and is worth reading.
+          void observePlanSurface({
+            cwd: opts.cwd,
+            contextDigest: observationContextDigest,
+            projection: { surface: "agents-operations", operations: planOperationsOf({ operations }, "op") },
+          }).catch(() => undefined);
           const memoryNames = operations.flatMap(operation => operation.extraction?.target === "memory" ? [operation.extraction.memoryName] : []);
           const hasSkillExtraction = operations.some(operation => operation.extraction?.target === "skillRule");
           const propose = policies.agents === "propose" || (memoryNames.length > 0 && policies.memory !== "apply") || (hasSkillExtraction && policies.harness !== "apply");
@@ -1778,8 +1885,29 @@ async function editInstructions(ctx: ExtensionCommandContext, filePath: string):
 
 const LEARNING_RESULT_MESSAGE = "continual-learning-result";
 
+/** Which surfaces a decision surface may decide. Module level, because the
+ *  pipeline reads it and the registration reports it. Resolved per run rather
+ *  than cached, so a configuration change takes effect on the next run without
+ *  a restart. */
+function judgmentAuthority(): ResolvedJudgmentAuthority {
+  return resolveJudgmentAuthority();
+}
+
+/** The shadow measurement rides the receipt `/consolidate` already prints, so
+ *  there is no second command to remember and no new surface to learn. Absent
+ *  when Judgment is not configured, which keeps the line unchanged for anyone
+ *  who has not opted in. */
+function receiptWithJudgment(receipt: LearningPipelineReceipt, cwd: string): LearningPipelineReceipt {
+  const judgment = judgmentReceiptSummary(cwd);
+  return judgment ? { ...receipt, judgment } : receipt;
+}
+
 export default function (pi: ExtensionAPI) {
   const dreamState: DreamState = { active: false, generation: 0, cancelled: false };
+  const reportJudgmentObservation = (entry: JudgmentObservationEntry): void => {
+    pi.appendEntry(JUDGMENT_OBSERVATION_ENTRY, entry);
+  };
+  registerJudgmentObservability(pi);
   const reportLearningReceipt = (receipt: LearningPipelineReceipt): void => {
     pi.sendMessage(
       { customType: LEARNING_RESULT_MESSAGE, content: formatLearningSummary(receipt), display: true, details: receipt },
@@ -1813,6 +1941,7 @@ export default function (pi: ExtensionAPI) {
         mode: "automatic",
         reportResult: false,
         reportReceipt: reportLearningReceipt,
+        reportJudgment: reportJudgmentObservation,
       });
     },
     reportError: (error, ctx) => notifyPi(ctx.ui, `Automatic learning failed: ${error instanceof Error ? error.message : String(error)}`, "error"),
@@ -1955,6 +2084,7 @@ export default function (pi: ExtensionAPI) {
           mode: "manual",
           reportResult: true,
           reportReceipt: reportLearningReceipt,
+        reportJudgment: reportJudgmentObservation,
         });
       } else if (choice === "Show automatic phase policies" || choice === "Show learning history") {
         await handleLearningManagement(choice === "Show learning history" ? "history" : "policy", ctx, { readSettings, writeSettings, busy: () => Boolean(dreamState.pipeline || dreamState.active) });
@@ -2013,6 +2143,7 @@ export default function (pi: ExtensionAPI) {
         mode: args === "full" || args === "no-context" ? "full" : "manual",
         reportResult: true,
         reportReceipt: reportLearningReceipt,
+        reportJudgment: reportJudgmentObservation,
       });
       if (!ctx.hasUI) await completion;
     },

@@ -7,6 +7,7 @@ import { aggregateDeskSnapshots, selectConsoleDesk } from "./desk-set.ts";
 import { eventsFromMessage, promptFromMessage } from "./events.ts";
 import { scanDirectorySessions, SessionDiscovery } from "./discovery.ts";
 import { DeskReporter, type DeskLinkSnapshot } from "./reporter.ts";
+import { SessionHost } from "./session-host.ts";
 import { CurrentSessionReplay } from "./session-replay.ts";
 import { createTcpTransport } from "./transport.ts";
 
@@ -94,6 +95,10 @@ export default function (pi: ExtensionAPI): void {
     onSnapshot: (sessions) => each((reporter) => reporter.replaceDiscoveredSessions(sessions)),
   });
   const replay = reporters.length === 0 ? null : new CurrentSessionReplay(durableSessionEvents);
+  // A desk's voice agent can drive the session this process is, from inside this process: the
+  // same lifecycle events, a private socket, and no new process or credential. It is created
+  // here and bound only from session_start, so loading the extension binds nothing.
+  const sessionHost = new SessionHost({ pi });
   let currentSessionId = "";
 
   if (reporters.length > 0 && discovery) {
@@ -128,21 +133,33 @@ export default function (pi: ExtensionAPI): void {
         ? ctx.sessionManager.getSessionFile?.()
         : undefined;
       await replay?.start(sessionId, replayFile, (id, events) => each((reporter) => reporter.recordEvents(id, events)));
+      // A reload replaces the previous endpoint cleanly, so a desk never finds a
+      // half-replaced one, and a machine that cannot spare an endpoint still reports.
+      await sessionHost.start(ctx);
     });
     pi.on("session_info_changed", (event) => {
       if (currentSessionId.length > 0) each((reporter) => reporter.renameSession(currentSessionId, event.name));
     });
-    pi.on("agent_start", () => each((reporter) => reporter.markStatus(currentSessionId, "running")));
-    pi.on("agent_settled", () => each((reporter) => reporter.markStatus(currentSessionId, "settled")));
+    pi.on("agent_start", () => {
+      sessionHost.markRunning();
+      each((reporter) => reporter.markStatus(currentSessionId, "running"));
+    });
+    pi.on("agent_settled", () => {
+      sessionHost.markSettled();
+      each((reporter) => reporter.markStatus(currentSessionId, "settled"));
+    });
     // A turn runs several tools before its message ends, and until that message
     // the card would keep showing the prompt that started the turn. The tool that
     // is running now is the newest thing the session is doing, so it is what the
     // card states.
     pi.on("tool_execution_start", (event) => {
       if (currentSessionId.length === 0) return;
-      each((reporter) => reporter.recordActivity(currentSessionId, toolSummary(event)));
+      const activity = toolSummary(event);
+      sessionHost.observeActivity(activity);
+      each((reporter) => reporter.recordActivity(currentSessionId, activity));
     });
     pi.on("message_end", (event) => {
+      sessionHost.observeMessage(event.message);
       if (currentSessionId.length === 0) return;
       const prompt = promptFromMessage(event.message);
       if (prompt.length > 0) each((reporter) => reporter.recordSession({ sessionId: currentSessionId, latestGoal: prompt }));
@@ -150,6 +167,7 @@ export default function (pi: ExtensionAPI): void {
       replay?.append(currentSessionId, events, (id, fresh) => each((reporter) => reporter.recordEvents(id, fresh)));
     });
     pi.on("session_shutdown", () => {
+      void sessionHost.close();
       replay?.invalidate();
       discovery.stop();
       each((reporter) => reporter.markStatus(currentSessionId, "exited"));

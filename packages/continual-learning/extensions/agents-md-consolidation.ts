@@ -514,6 +514,8 @@ export interface AgentsMdConsolidationPhaseOptions {
   transactionFault?: "after-artifacts" | "after-agents" | "before-receipt";
   transactionHook?: (stage: "after-roots-opened" | "before-artifacts") => void | Promise<void>;
   timeoutMs?: number;
+  /** The configured consolidation model, as `provider/model`. */
+  model?: string;
 }
 
 export interface AgentsMdConsolidationPlanResult {
@@ -1024,7 +1026,8 @@ async function planAgentsMdConsolidationPhaseInternal(
   await fs.writeFile(taskFile, taskText, { mode: 0o600 });
   const child = spawnPiChild(
     cli.command,
-    [...cli.args, ...minimalPiWorkerArgs(["read", "grep", "find", "ls"]), ...learningPlannerArgs(), `@${taskFile}`],
+    [...cli.args, ...minimalPiWorkerArgs(["read", "grep", "find", "ls"]), ...learningPlannerArgs(),
+    ...(opts.model ? ["--model", opts.model] : []), `@${taskFile}`],
     { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] },
   );
   if (!current()) {
