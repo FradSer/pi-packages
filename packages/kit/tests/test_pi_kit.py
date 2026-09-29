@@ -2259,6 +2259,53 @@ def test_packed_consumers_resolve_workspace_protocol_dependencies() -> None:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+# The dependency chain created by the subagents / tasks / agent-teams split.
+# Named explicitly rather than derived from the whole workspace: the repository
+# already carries unrelated core-version drift (`impeccable` and `utils` on
+# 0.85.1, the root devDependencies on 0.87.1, everything else on 0.84.1), and
+# `utils` -> `kit` already crosses that drift. Asserting workspace-wide agreement
+# would make this change the bearer of a pre-existing condition it did not cause
+# and cannot fix in scope.
+SPLIT_CHAIN = ("packages/kit", "packages/subagents", "packages/tasks", "packages/agent-teams")
+
+
+def test_the_split_dependency_chain_resolves_one_pi_core_version() -> None:
+    """One core version across the chain whose packages import each other.
+
+    This has bitten three times: each newly added package resolved `"*"` to the
+    latest core while every existing consumer stayed on the version the lockfile
+    was first written against. It was tolerable only while nothing crossed a
+    package boundary with core types, and it is not harmless — `addedToolNames`
+    exists in pi-agent-core 0.84.1 and 0.85.1 but was removed in 0.87.1, so a
+    package resolving 0.87.1 fails to typecheck code written against 0.84.
+
+    A new package in this chain must be aligned to the cohort at creation time
+    rather than left to resolve latest. Aligning means editing the importer's
+    resolved version in pnpm-lock.yaml and re-running `pnpm install`; `"*"` is
+    satisfied by the cohort version, so pnpm keeps it.
+    """
+    lock = (REPO / "pnpm-lock.yaml").read_text(encoding="utf-8")
+    importers = lock.split("importers:", 1)[1].split("\nsnapshots:", 1)[0]
+    found: dict[str, dict[str, str]] = {}
+    for block in re.split(r"\n  (?=\S)", importers):
+        lines = block.strip().splitlines()
+        if not lines:
+            continue
+        name = lines[0].strip().rstrip(":")
+        if name not in SPLIT_CHAIN:
+            continue
+        found[name] = dict(re.findall(
+            r"'(@earendil-works/pi-[a-z-]+)':\n\s+specifier: [^\n]+\n\s+version: ([\d.]+)", block
+        ))
+    assert set(found) == set(SPLIT_CHAIN), f"missing importers: {sorted(set(SPLIT_CHAIN) - set(found))}"
+    for package in sorted({core for versions in found.values() for core in versions}):
+        resolved = {name: versions[package] for name, versions in found.items() if package in versions}
+        assert len(set(resolved.values())) == 1, (
+            f"{package} resolves differently across the split chain: {resolved}. "
+            f"Align the new package to the cohort in pnpm-lock.yaml."
+        )
+
+
 def test_publish_allowlist_orders_kit_before_consumers() -> None:
     script = (REPO / "scripts" / "publish-release.mjs").read_text(encoding="utf-8")
     kit_position = script.index('"@fradser/pi-kit"')
@@ -2267,6 +2314,15 @@ def test_publish_allowlist_orders_kit_before_consumers() -> None:
                  '"@fradser/pi-recap"', '"@fradser/pi-utils"', '"@fradser/pi-vision"',
                  '"@fradser/pi-plan-mode"']:
         assert script.index(name) > kit_position, f"pi-kit must publish before {name}"
+
+
+def test_publish_allowlist_orders_split_layers_before_their_consumer() -> None:
+    """agent-teams' packed manifest depends on both extracted layers at exact
+    versions, so neither may publish after it."""
+    script = (REPO / "scripts" / "publish-release.mjs").read_text(encoding="utf-8")
+    teams = script.index('"@fradser/pi-agent-teams"')
+    for name in ('"@fradser/pi-kit"', '"@fradser/pi-subagents"', '"@fradser/pi-tasks"'):
+        assert script.index(name) < teams, f"{name} must publish before @fradser/pi-agent-teams"
 
 
 def test_pending_changesets_reference_workspace_package_names() -> None:
@@ -2346,3 +2402,53 @@ def test_human_copy_helpers_share_one_vocabulary() -> None:
     assert result["known"] == "over Fix spacing"
     assert result["generic"] == "over its assignment."
     assert result["literal"] == "compare 6d102f1b-cc16-4059-8d86-d5c1192f3776 in the log"
+
+
+def test_set_owned_tools_reasserts_instead_of_trusting_the_snapshot() -> None:
+    """setActiveTools is an allowlist write, so a toggle built on the snapshot
+    erases any tool the snapshot had not published. The helper re-asserts the
+    owned set, which is what makes the write correct at session_start."""
+    result = run_typescript(
+        f"""
+        import {{ setOwnedTools }} from {json.dumps((SRC / "index.ts").as_uri())};
+        // The harness has published bash but not this extension's own gateway.
+        let active = ["bash", "read"];
+        const host = {{ getActiveTools: () => active, setActiveTools: (names) => {{ active = names; }} }};
+        const owned = {json.dumps(["matt_pocock_workflow", "matt_pocock_active", "matt_pocock_ask"])};
+        const toggled = ["matt_pocock_active", "matt_pocock_ask"];
+        const idle = (setOwnedTools(host, {{ owned, always: ["matt_pocock_workflow"], toggled, enabled: false }}), active.slice());
+        setOwnedTools(host, {{ owned, always: ["matt_pocock_workflow"], toggled, enabled: true }});
+        const during = active.slice();
+        setOwnedTools(host, {{ owned, always: ["matt_pocock_workflow"], toggled, enabled: false }});
+        const after = active.slice();
+        // A toggle that never re-adds: proving the old shape still drops the tool.
+        const naive = ["bash", "read"].filter((tool) => !toggled.includes(tool));
+        // Repeated writes must not accumulate duplicates.
+        setOwnedTools(host, {{ owned, always: ["matt_pocock_workflow"], toggled, enabled: true }});
+        setOwnedTools(host, {{ owned, always: ["matt_pocock_workflow"], toggled, enabled: true }});
+        const repeated = active.slice();
+        // A host with no controls must not be written to.
+        let wrote = false;
+        setOwnedTools({{ getActiveTools: undefined, setActiveTools: () => {{ wrote = true; }} }}, {{ owned, enabled: false }});
+        console.log(JSON.stringify({{ idle, during, after, naive, repeated, wrote }}));
+        """
+    )
+    # Gateway is re-asserted even though the snapshot never reported it.
+    assert "matt_pocock_workflow" in result["idle"]
+    assert "matt_pocock_active" not in result["idle"]
+    assert "matt_pocock_ask" not in result["idle"]
+    # Unrelated tools survive, none duplicated.
+    assert result["idle"].count("bash") == 1
+    assert result["idle"].count("read") == 1
+    # The previously-failing shape, kept as the contrast that gives the test meaning.
+    assert result["naive"] == ["bash", "read"]
+    assert "matt_pocock_workflow" not in result["naive"]
+    # Toggling is idempotent in both directions.
+    assert {"matt_pocock_workflow", "matt_pocock_active", "matt_pocock_ask"} <= set(result["during"])
+    assert "matt_pocock_workflow" in result["after"]
+    assert "matt_pocock_active" not in result["after"]
+    # Repeated identical writes do not accumulate.
+    assert len(result["repeated"]) == len(set(result["repeated"]))
+    assert "matt_pocock_workflow" not in result["naive"]
+    # A host without the controls is never written to.
+    assert result["wrote"] is False

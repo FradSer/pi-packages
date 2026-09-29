@@ -427,3 +427,52 @@ Feature: Shared pi-kit runtime helpers
     Then a known handle becomes the resolved words
     And an unknown handle becomes a plain noun without its identifier
     And a bare identifier a person wrote themselves survives verbatim
+
+  Rule: Live-activity rows are ellipsized to the terminal width
+
+    Every live-activity row is ellipsized to the terminal width, and the activity
+    is the part that must not be sacrificed. @fradser/pi-recap is the deliberate
+    exception: it renders its full content across multiple lines.
+
+    Scenario: The activity survives a long identity at any width
+      Given an identity long enough to fill the row on its own
+      When the row is rendered at 40, 80, and 120 columns
+      Then the row is exactly the requested width at each
+      And the separator is present at each
+      And the activity after the separator is non-empty at each
+      And it is ellipsized rather than silently cut
+
+    Scenario: The identity cannot consume the whole row
+      Given an activity is present
+      When the row is rendered
+      Then the identity is bounded so the activity keeps at least its reserved columns
+      And the activity's ellipsis follows the remaining terminal width rather than a fixed length
+
+    Scenario: An explicit opt-out keeps an identity-only row
+      Given a fallback activity of the empty string
+      When the row is rendered
+      Then no separator is emitted
+      And the row is still bounded to the terminal width
+
+    Scenario: Recap is the recorded exception
+      Given the recap widget renders its content
+      When it is displayed
+      Then every recap line is emitted as its own widget row
+      And the full content is shown rather than reduced to one ellipsized row
+
+  Scenario: An extension re-asserts its own tools instead of trusting the snapshot
+    Given an extension registers a gateway tool and one workflow-state tool
+    And the active-tool snapshot does not yet report the gateway
+    When it runs setOwnedTools with the gateway always exposed
+    Then the gateway is present in the written tool set
+    And the workflow-state tool is absent
+    And every tool the snapshot did report is preserved
+    When the workflow becomes active
+    Then both owned tools are present and no duplicate is written
+    When the workflow reaches a terminal state
+    Then only the gateway remains
+
+  Scenario: A host without tool controls is left untouched
+    Given a host that exposes no active-tool controls
+    When it calls setOwnedTools
+    Then no tool set is written
