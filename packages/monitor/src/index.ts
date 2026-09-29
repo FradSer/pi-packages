@@ -5,7 +5,7 @@ import {
   type ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import { isKeyRelease, Key, matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { bindLifecycleRenderers, contentDetailLines, createLiveActivityWidget, createPiThemeStyle, detailField, eventToolLifecycle, fieldLine, notifyPi, renderPiPanel, safeDisplayText } from "@fradser/pi-kit";
+import { bindLifecycleRenderers, contentDetailLines, createLiveActivityWidget, createPiThemeStyle, detailField, eventToolLifecycle, fieldLine, notifyPi, renderPiPanel, safeDisplayText, setOwnedTools } from "@fradser/pi-kit";
 import {
   MonitorManager,
   type Monitor,
@@ -70,12 +70,9 @@ export default function (pi: ExtensionAPI) {
 
   function syncMonitorStopToolDisclosure(): void {
     if (!monitorStopRegistered) return;
-    const activeTools = pi.getActiveTools();
-    const hasRunningMonitors = manager.list().length > 0;
-    const nextTools = hasRunningMonitors
-      ? [...new Set([...activeTools, "monitor_stop"])]
-      : activeTools.filter((tool) => tool !== "monitor_stop");
-    pi.setActiveTools(nextTools);
+    // Rewriting a snapshot-derived list would deactivate any tool the harness had
+    // not published yet, so monitor_stop is re-asserted from the owned set.
+    setOwnedTools(pi, { owned: ["monitor_stop"], toggled: ["monitor_stop"], enabled: manager.list().length > 0 });
   }
 
   function stopMonitors(id?: string): { stopped: string[] } {
