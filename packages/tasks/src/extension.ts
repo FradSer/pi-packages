@@ -6,10 +6,15 @@
  * entry. A separate top-level extension file would split that, and the root
  * `index.ts` is what every other runtime package here loads.
  *
- * It registers exactly one tool and owns nothing else. Board changes are
- * announced through `pi.events` so a coordinator can notice and wake residents
- * without this package knowing what a resident is; with nobody subscribed the
- * emit is a no-op, which is the correct degradation.
+ * It registers exactly one tool and owns nothing else. Board changes are announced
+ * through `pi.events` so a coordinator can notice and wake residents without this
+ * package knowing what a resident is; with nobody subscribed the emit is a no-op,
+ * which is the correct degradation.
+ *
+ * Deliberately does not import the TUI, for the reason given in the subagents
+ * extension: this file is loaded by every headless test as well as by Pi, and
+ * importing pi-tui executes theme code that throws outside a rendered session. The
+ * row renderer is optional and absent by default, so Pi's own default paints it.
  */
 
 import { registerTaskTool } from "./tool.ts";

@@ -26,7 +26,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
+import type { createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
 import {
   completeTaskWithOutcome,
   createTask,
@@ -316,9 +316,57 @@ export async function executeTaskTool(
 /** The single registrant of `task`. Registers unconditionally and owns no other
  *  tool; a collaborator that wants to be told about board changes subscribes to
  *  `pi.events` rather than being called from here. */
+/**
+ * The row for one `task` result.
+ *
+ * The subject is the work, not the id: a reader looking at a row asks what is
+ * being done, and the id is what they look up when they act on it.
+ */
+const taskRowSpec: Parameters<typeof createStaticToolLifecycleResultRenderer>[0]["createSpec"] = (result) => {
+  const details = (result.details ?? {}) as {
+    id?: string;
+    status?: string;
+    outcome?: string;
+    count?: number;
+    task?: { subject?: string; dependsOn?: string[]; resources?: string[]; holder?: string; recoveryRequired?: boolean };
+    tasks?: Array<{ id: string; subject: string; status: string; holder?: string; dependsOn?: string[]; recoveryRequired?: boolean }>;
+  };
+  const content = (result.content ?? []) as Array<{ text?: string }>;
+  const text = content.map((part) => part.text ?? "").join("\n");
+  const state = details.status ?? details.outcome;
+  const subject = details.task?.subject
+    ?? (details.tasks?.length ? `${details.count ?? details.tasks.length} task(s)` : "task");
+  const summary = details.tasks
+    ? details.tasks.flatMap((task) => [
+      `- ${task.subject} · ${task.status}${task.holder ? ` · @${task.holder}` : ""}${task.recoveryRequired ? " · recovery hold" : ""}`,
+    ])
+    : text.split("\n").filter(Boolean).filter((line) => !/^TASK · /.test(line));
+  return {
+    kind: "started",
+    tool: "task",
+    subject: state ? `${subject} · ${state}` : subject,
+    ...(details.outcome && !state ? { label: details.outcome } : {}),
+    summary,
+    details: [
+      ...(details.task?.dependsOn?.length ? [`depends · ${details.task.dependsOn.join(", ")}`] : []),
+      ...(details.task?.resources?.length ? [`resources · ${details.task.resources.join(", ")}`] : []),
+      ...(details.task?.holder ? [`holder · @${details.task.holder}`] : []),
+      ...(details.task?.recoveryRequired ? ["hold · the last attempt failed; take it with a reason"] : []),
+      ...(details.outcome === "failed" ? ["note · a recorded failure returns the task to pending under a recovery hold"] : []),
+      ...(details.outcome === "success" ? ["note · acceptance is a judgement against the task's requirements, not the act of recording"] : []),
+    ],
+  };
+};
+
 export function registerTaskTool(
   pi: ExtensionAPI,
-  options: { env?: NodeJS.ProcessEnv } = {},
+  options: {
+    env?: NodeJS.ProcessEnv;
+    /** Builds the result renderer from a spec. Supplied by the extension entry,
+     *  the only layer allowed to import the TUI. Absent means no custom renderer,
+     *  so a headless caller gets Pi's own default. */
+    renderResult?: (spec: { createSpec: Parameters<typeof createStaticToolLifecycleResultRenderer>[0]["createSpec"] }) => unknown;
+  } = {},
 ): void {
   // Resolved once, defensively. Announcing a transition is optional, so a host
   // without an event bus must degrade to the same no-op as a host with nobody
@@ -334,52 +382,14 @@ export function registerTaskTool(
     parameters: TASK_TOOL_PARAMS as never,
     renderShell: "self",
     renderCall: emptyCall,
+    // Attached only when the caller can supply real geometry. A row built without
+    // it renders in tests and takes the terminal down on the first repaint.
+    ...(options.renderResult ? { renderResult: options.renderResult({ createSpec: taskRowSpec }) as never } : {}),
     // Every tool in this repository draws a row rather than dumping its text. The
     // board row leads with what must be done and keeps the id, the dependencies
     // and the holder for expansion — a row that shows an id is noise, but a row
     // that shows no subject is useless.
-    renderResult: createStaticToolLifecycleResultRenderer({
-      createSpec: (result) => {
-        const details = (result.details ?? {}) as {
-          id?: string;
-          status?: string;
-          outcome?: string;
-          count?: number;
-          task?: { subject?: string; dependsOn?: string[]; resources?: string[]; holder?: string; recoveryRequired?: boolean };
-          tasks?: Array<{ id: string; subject: string; status: string; holder?: string; dependsOn?: string[]; recoveryRequired?: boolean }>;
-        };
-        const content = (result.content ?? []) as Array<{ type: string; text?: string }>;
-        const text = content.map((part) => part.text ?? "").join("\n");
-        const state = details.status ?? details.outcome;
-        // The subject is the work, not the id: a reader looking at a row asks what
-        // is being done, and the id is what they look up when they act on it.
-        const subject = details.task?.subject
-          ?? (details.tasks?.length ? `${details.count ?? details.tasks.length} task(s)` : "task");
-        const summary = details.tasks
-          ? details.tasks.flatMap((task) => [
-            `- ${task.subject} · ${task.status}${task.holder ? ` · @${task.holder}` : ""}${task.recoveryRequired ? " · recovery hold" : ""}`,
-          ])
-          : text.split("\n").filter(Boolean).filter((line) => !/^TASK · /.test(line));
-        return {
-          kind: "started",
-          tool: "task",
-          subject: state ? `${subject} · ${state}` : subject,
-          ...(details.outcome && !state ? { label: details.outcome } : {}),
-          summary,
-          details: [
-            ...(details.task?.dependsOn?.length ? [`depends · ${details.task.dependsOn.join(", ")}`] : []),
-            ...(details.task?.resources?.length ? [`resources · ${details.task.resources.join(", ")}`] : []),
-            ...(details.task?.holder ? [`holder · @${details.task.holder}`] : []),
-            ...(details.task?.recoveryRequired ? ["hold · the last attempt failed; take it with a reason"] : []),
-            ...(details.outcome === "failed" ? ["note · a recorded failure returns the task to pending under a recovery hold"] : []),
-            ...(details.outcome === "success" ? ["note · acceptance is a judgement against the task's requirements, not the act of recording"] : []),
-          ],
-        };
-      },
-      fit: (text) => text,
-      visibleWidth: () => 80,
-      wrapDetail: (line) => [line],
-    }) as never,
+
     async execute(_toolCallId, params) {
       return executeTaskTool(params as Record<string, unknown>, { env: options.env, ...(emit ? { emit } : {}) });
     },

@@ -256,7 +256,13 @@ def test_intent_race_validation_and_grace(tmp_path: Path) -> None:
 
 def test_the_package_imports_no_coordination_concept() -> None:
     """The boundary that makes @fradser/pi-tasks installable without the team runtime."""
-    allowed_prefixes = ("node:", "@earendil-works/pi-coding-agent", "@fradser/pi-kit", "./")
+    allowed_prefixes = (
+        "node:",
+        "@earendil-works/pi-coding-agent",
+        "@earendil-works/pi-tui",
+        "@fradser/pi-kit",
+        "./",
+    )
     for source_file in sorted((PACKAGE / "src").glob("*.ts")):
         text = source_file.read_text(encoding="utf-8")
         for specifier in re.findall(r'from "([^"]+)"', text):
