@@ -476,3 +476,73 @@ Feature: Shared pi-kit runtime helpers
     Given a host that exposes no active-tool controls
     When it calls setOwnedTools
     Then no tool set is written
+
+Feature: Ask a decision model one bounded question set
+  Judgment is the counterpart to runPiWorker: same lifecycle obligations, for a
+  surface that returns probabilities instead of prose. A request with no
+  questions is refused rather than sent, and a silently missing answer is a
+  service fault rather than an empty judgment.
+
+  Scenario: A bounded question set returns typed answers
+    Given a decision endpoint answering one noul and one choice
+    When pi-kit asks both questions in one request
+    Then the response carries the model version and both answers
+    And the choice answer carries its probabilities and confidence
+    And the noul answer carries its probability alone
+
+  Scenario: A request with no questions is refused
+    Given a decision request carrying no questions
+    When pi-kit asks
+    Then the request is refused without reaching the endpoint
+
+  Scenario: A silently missing answer is a service fault
+    Given a decision endpoint that omits one of the asked questions
+    When pi-kit asks
+    Then the response is reported as malformed
+    And the missing answer is not read as an absent judgment
+
+  Scenario: A non-object answer is a service fault
+    Given a decision endpoint answering one question with a non-object
+    When pi-kit asks
+    Then the response is reported as malformed
+
+  Scenario: A rejected credential is not retried
+    Given a decision endpoint answering 401
+    When pi-kit asks
+    Then the failure is reported as unauthorized
+    And the endpoint is contacted once
+
+  Scenario: A throttled request is retried and can recover
+    Given a decision endpoint answering 429 once and then succeeding
+    When pi-kit asks
+    Then the retry honours the retry-after header
+    And the recovered answers are returned
+
+  Scenario: A persistently throttled request gives up
+    Given a decision endpoint answering 429 every time
+    When pi-kit asks
+    Then the failure is reported as throttled
+    And the endpoint is contacted no more than the retry budget allows
+
+  Scenario: An unreachable endpoint is retried then reported
+    Given a decision endpoint refusing the connection
+    When pi-kit asks
+    Then the failure is reported as unreachable
+    And the attempt count respects the retry budget
+
+  Scenario: An oversized response is refused
+    Given a decision endpoint declaring more bytes than the response bound
+    When pi-kit asks
+    Then the response is reported as malformed
+
+  Scenario: Cancellation abandons an in-flight request
+    Given a decision request already in flight
+    When the caller's signal aborts
+    Then the request is abandoned
+    And the failure is reported as cancelled rather than unreachable
+
+  Scenario: A cancellation before the first attempt is reported as cancelled
+    Given an already-aborted signal
+    When pi-kit asks
+    Then the failure is reported as cancelled
+    And the endpoint is never contacted

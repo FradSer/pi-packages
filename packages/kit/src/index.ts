@@ -2714,3 +2714,205 @@ export function resolveCoordination<T>(key: string): T | undefined {
 export function clearCoordination(): void {
   coordination.clear();
 }
+
+// ── Decision-model surface ──────────────────────────────────────────────
+
+/**
+ * A decision question. Deliberately closed: there is no free-form question
+ * type, so a generative answer is unrepresentable rather than discouraged.
+ */
+export type SystemOneQuestion =
+  | { type: "noul"; instructions: string; criteria?: { true?: string; false?: string } }
+  | { type: "choice"; instructions: string; criteria: Record<string, string | null> }
+  | { type: "score"; instructions: string; criteria: Array<string | Record<string, unknown> | unknown[]> };
+
+export type SystemOneAnswer =
+  | { type: "noul"; noul: number }
+  | { type: "choice"; choice: string; probabilities: Record<string, number>; confidence: number }
+  | { type: "score"; score: number; legend: Record<string, string>; probabilities: Record<string, number>; confidence: number };
+
+export interface SystemOneUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
+export interface SystemOneResult {
+  /** The versioned model that answered, reported by the service. */
+  model: string;
+  answers: Record<string, SystemOneAnswer>;
+  usage: SystemOneUsage;
+}
+
+export interface AskSystemOneOptions {
+  baseUrl: string;
+  apiKey: string;
+  /** A versioned model id. Aliases move between releases and silently change
+   *  every answer behind an already-tuned threshold. */
+  model: string;
+  state: unknown;
+  questions: Record<string, SystemOneQuestion>;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  /** Attempts after the first. Throttling and 5xx are retried; nothing else is. */
+  retries?: number;
+}
+
+/** Why a decision request did not produce answers. Callers treat every value
+ *  the same way — as an observation, never as a change of behaviour. */
+export type DecisionFailure =
+  | "cancelled"
+  | "timeout"
+  | "unauthorized"
+  | "throttled"
+  | "unreachable"
+  | "rejected"
+  | "malformed";
+
+export class DecisionServiceError extends Error {
+  readonly failure: DecisionFailure;
+
+  constructor(failure: DecisionFailure, message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "DecisionServiceError";
+    this.failure = failure;
+  }
+}
+
+const DEFAULT_DECISION_TIMEOUT_MS = 20_000;
+const DEFAULT_DECISION_RETRIES = 2;
+const MAX_DECISION_RESPONSE_BYTES = 1_000_000;
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+
+function decisionRetryDelay(attempt: number, response?: Response): number {
+  const header = response?.headers?.get("retry-after");
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, 5_000);
+  }
+  return Math.min(250 * 2 ** attempt, 4_000);
+}
+
+function readBoundedText(response: Response): Promise<string> {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_DECISION_RESPONSE_BYTES) {
+    return Promise.reject(new DecisionServiceError("malformed", `Decision response declares ${declared} bytes`));
+  }
+  return response.text().then((text) => {
+    if (Buffer.byteLength(text, "utf-8") > MAX_DECISION_RESPONSE_BYTES) {
+      throw new DecisionServiceError("malformed", `Decision response exceeds ${MAX_DECISION_RESPONSE_BYTES} bytes`);
+    }
+    return text;
+  });
+}
+
+function parseDecisionAnswers(
+  text: string,
+  expected: readonly string[],
+): SystemOneResult {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (cause) {
+    throw new DecisionServiceError("malformed", "Decision response is not valid JSON", { cause });
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new DecisionServiceError("malformed", "Decision response is not an object");
+  }
+  const record = value as Record<string, unknown>;
+  const answers = record.answers;
+  if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
+    throw new DecisionServiceError("malformed", "Decision response carries no answers");
+  }
+  const answerRecord = answers as Record<string, unknown>;
+  // A silently missing answer is a service fault, not an empty judgment: a
+  // caller that treated it as one would record a decision nobody made.
+  const missing = expected.filter((id) => !(id in answerRecord));
+  if (missing.length > 0) {
+    throw new DecisionServiceError("malformed", `Decision response omits ${missing.length} of ${expected.length} questions`);
+  }
+  for (const id of expected) {
+    const answer = answerRecord[id];
+    if (!answer || typeof answer !== "object" || Array.isArray(answer)) {
+      throw new DecisionServiceError("malformed", `Decision answer ${id} is not an object`);
+    }
+  }
+  const usage = (record.usage ?? {}) as Record<string, unknown>;
+  return {
+    model: typeof record.model === "string" ? record.model : "unknown",
+    answers: answerRecord as Record<string, SystemOneAnswer>,
+    usage: {
+      ...(typeof usage.input_tokens === "number" ? { inputTokens: usage.input_tokens } : {}),
+      ...(typeof usage.output_tokens === "number" ? { outputTokens: usage.output_tokens } : {}),
+    },
+  };
+}
+
+/**
+ * Ask a decision model one bounded question set and return typed answers.
+ *
+ * This is the judgment counterpart to `runPiWorker`: same lifecycle
+ * obligations — abort propagation, bounded response, explicit failure
+ * classification — for a surface that returns probabilities instead of prose.
+ * Throttling and 5xx are retried with backoff honouring `retry-after`; a
+ * refusal, a malformed answer, and a cancellation are not.
+ */
+export async function askSystemOne(options: AskSystemOneOptions): Promise<SystemOneResult> {
+  const { baseUrl, apiKey, model, state, questions, signal } = options;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_DECISION_TIMEOUT_MS;
+  const retries = options.retries ?? DEFAULT_DECISION_RETRIES;
+  const expected = Object.keys(questions);
+  if (expected.length === 0) throw new DecisionServiceError("rejected", "A decision request needs at least one question");
+  const endpoint = `${baseUrl.replace(/\/+$/, "")}/v1/systemone`;
+  const body = JSON.stringify({ model, state, questions });
+
+  for (let attempt = 0; ; attempt += 1) {
+    if (signal?.aborted) throw new DecisionServiceError("cancelled", "Decision request was cancelled before it started");
+    const timer = new AbortController();
+    const abort = () => timer.abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    const deadline = setTimeout(() => timer.abort(), timeoutMs);
+    let response: Response;
+    let text: string;
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+        body,
+        signal: timer.signal,
+      });
+      text = await readBoundedText(response);
+    } catch (cause) {
+      if (signal?.aborted) throw new DecisionServiceError("cancelled", "Decision request was cancelled", { cause });
+      if (cause instanceof DecisionServiceError) throw cause;
+      if (timer.signal.aborted) {
+        throw new DecisionServiceError("timeout", `Decision request exceeded ${timeoutMs}ms`, { cause });
+      }
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, decisionRetryDelay(attempt)));
+        continue;
+      }
+      throw new DecisionServiceError("unreachable", "Decision endpoint is unreachable", { cause });
+    } finally {
+      clearTimeout(deadline);
+      signal?.removeEventListener("abort", abort);
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      throw new DecisionServiceError("unauthorized", `Decision endpoint rejected the credential (${response.status})`);
+    }
+    if (RETRYABLE_STATUSES.has(response.status)) {
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, decisionRetryDelay(attempt, response)));
+        continue;
+      }
+      throw new DecisionServiceError(
+        response.status === 429 ? "throttled" : "unreachable",
+        `Decision endpoint returned ${response.status}`,
+      );
+    }
+    if (!response.ok) {
+      throw new DecisionServiceError("rejected", `Decision endpoint returned ${response.status}`);
+    }
+    return parseDecisionAnswers(text, expected);
+  }
+}
