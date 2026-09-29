@@ -128,7 +128,21 @@ export function installScriptedProvider(pi: ExtensionAPI, options: ScriptedOptio
     parameters: { type: "object", properties: {}, required: [], additionalProperties: false } as never,
     renderShell: "self",
     renderCall: () => undefined as never,
-    execute() {
+    execute(_id, params) {
+      const asked = (params as { probe?: string } | undefined)?.probe;
+      if (asked === "reports") {
+        const seen = (globalThis as Record<string, unknown>)["live-child-report"] ?? null;
+        return {
+          content: [{ type: "text", text: JSON.stringify({ reports: seen }) }],
+          details: { reports: seen },
+        };
+      }
+      if (asked === "wait") {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ waited: true }) }],
+          details: { waited: true },
+        };
+      }
       surface = typeof pi.getAllTools === "function"
         ? pi.getAllTools().map((tool) => tool.name).sort()
         : [];

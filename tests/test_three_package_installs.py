@@ -186,6 +186,15 @@ def test_bundle_exposes_all_three_and_delivers_peer_mail(tmp_path: Path) -> None
     board = run.calls_named("task")
     assert [call["details"]["status"] for call in board] == ["pending", "in_progress"], board
 
+    # The bundle publishes a coordinator, so `agent` spawns through the team path
+    # and a name with no role is refused there. A subagent installed alone would
+    # synthesise a role and start instead, and that difference is what proves the
+    # seam is live — a `agent` tool that registered but never reached the team
+    # runtime would discard every child's output.
+    refused_role = run.calls_named("agent")[-1]
+    assert refused_role["isError"] is True or "not found in any scope" in refused_role["text"], refused_role
+    assert "not found in any scope" in refused_role["text"], refused_role["text"]
+
     delivered = run.call("message")["details"]
     assert delivered["to"] == "scout"
     # `steered` is the delivery outcome for a live recipient with an open
@@ -214,10 +223,14 @@ def test_a_tool_from_an_absent_package_is_refused_not_merely_absent(tmp_path: Pa
     # absence would mean the transcript was truncated rather than that the tool is
     # genuinely not installed.
     for absent in ("agent", "message"):
+        # Every attempt, not just the first: the script calls `agent` twice, and a
+        # scenario that skipped one would pass on a tool that refused only some of
+        # the time.
         refused = run.calls_named(absent)
-        assert len(refused) == 1, refused
-        assert refused[0]["isError"] is True, refused[0]
-        assert f"Tool {absent} not found" in refused[0]["text"], refused[0]["text"]
+        assert refused, f"{absent} was never called, so nothing was refused"
+        for call in refused:
+            assert call["isError"] is True, call
+            assert f"Tool {absent} not found" in call["text"], call["text"]
         assert absent not in coordination_tools(run)
 
 

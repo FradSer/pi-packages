@@ -70,16 +70,39 @@ export interface AgentHost {
   stop(name: string, spawnId: string): Promise<{ ok: true; body?: string } | { ok: false; error: string }>;
 }
 
-let agentHost: AgentHost | undefined;
+/**
+ * Where a published host is kept.
+ *
+ * On `globalThis` under a `Symbol.for` key, deliberately, and not in a module
+ * variable. Pi loads each installed package with its own module root, so a team
+ * runtime that imports `@fradser/pi-subagents` and the very same extension entry Pi
+ * loaded through a `node_modules` path can end up with two module instances — and
+ * a module-level variable set by one is invisible to the other. That is not
+ * hypothetical here: it is exactly how a published host went missing, leaving
+ * every spawn on the standalone path and every child's output discarded.
+ *
+ * `Symbol.for` rather than a plain string so two copies of this module still agree
+ * on the key, and `globalThis` so they agree on the slot.
+ */
+const AGENT_HOST_KEY = Symbol.for("fradser.pi-subagents.agent-host");
+
+interface AgentHostCarrier {
+  [AGENT_HOST_KEY]?: AgentHost;
+}
+
+function carrier(): AgentHostCarrier {
+  return globalThis as AgentHostCarrier;
+}
 
 /** Publish the coordinator's richer spawn path. Called by a team runtime at
  *  session start; absent leaves this tool on the raw spawner. */
 export function setAgentHost(host: AgentHost | undefined): void {
-  agentHost = host;
+  if (host === undefined) delete carrier()[AGENT_HOST_KEY];
+  else carrier()[AGENT_HOST_KEY] = host;
 }
 
 export function resolveAgentHost(): AgentHost | undefined {
-  return agentHost;
+  return carrier()[AGENT_HOST_KEY];
 }
 
 const NAME_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/i;
