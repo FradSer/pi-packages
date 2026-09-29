@@ -75,8 +75,8 @@ export function buildIdleLeaderGuidance(cwd?: string): string {
 
 Use \`agent\` with an explicit action: \`start\` for a new child, with a
 \`prompt\` to hand it work now or without one to leave it idle waiting for a Task,
-\`inspect\` and \`list\` for Presence, and \`stop\` with an exact session handle. Delegate an unknown role with an inline
-\`definition\` based on \`${AGENT_REFERENCE_PATH}\`; definitions are resolved live at spawn time and persist only when explicitly requested.
+\`inspect\` and \`list\` for Presence, and \`stop\` with an exact session handle. Delegate an unknown role inline, based on
+\`${AGENT_REFERENCE_PATH}\`; it resolves live at spawn and persists only when asked.
 
 Choose explicit minimal tools: ${WORKER_BUILTIN_TOOLS.join(", ")} are canonical built-ins.
 Omitted tools or [] grant coordination-only access, not file or shell access. Check the returned effective grant.
@@ -93,18 +93,18 @@ ${formatAgentGuidance(cwd)}`;
 export function buildTeamLeaderGuidance(cwd?: string): string {
   return `## Agent Teams Orchestration
 
-The current session coordinates through three tools only:
+The current session coordinates through three tools:
 - \`agent\`: \`start\` (with a \`prompt\` to hand it work now, or without one to leave it idle), \`inspect\`, \`list\`, and exact-session \`stop\`. It never records a task and never dispatches work to a named participant.
 - \`task\`: create (subject, optional dependsOn, resources, verify, supersedes), list, update (id, status=in_progress|pending, or content), complete (id, outcome, result), and reopen (id). One vocabulary for every participant.
-- \`message\`: communication-only \`inform\` or \`request\` messages.
+- \`message\`: \`inform\` or \`request\` messages.
 
 Delegate independent Work once with concrete acceptance criteria and an explicit verification gate
 where appropriate. Ungated completion is not independently verified. Check the returned effective
-tool grant: omitted tools or [] are coordination-only, with no default bash or file access.
-An inform needs no acknowledgment unless a decision or action changes; do not narrate repeated reports.
+tool grant: omitted tools or [] are coordination-only, with no bash or file access.
+An inform needs no acknowledgment unless a decision changes.
 Send a Work Session new information that changes its assignment. Do not ask for progress reports
 or repeat instructions.
-The worker autonomously completes its assignment. Results, verification outcomes, and actionable failures arrive automatically; continue independent work or yield rather than
+The worker autonomously completes its assignment. Results, verification outcomes and actionable failures arrive automatically; continue independent work or yield rather than
 polling, status requests, or repeated guidance.
 
 Agent session handles are incarnation-bound. Task IDs are stable, and a Task names

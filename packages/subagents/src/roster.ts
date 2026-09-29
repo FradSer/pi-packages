@@ -86,11 +86,30 @@ export interface Teammate {
   lastOutputAt?: number;
 }
 
-/** The live roster, exported by identity.
+/**
+ * The live roster, exported by identity.
  *
  * Created without a prototype: a teammate named `constructor` is a legal name, so
- * the map must not inherit one. */
-export const teammates: Record<string, Teammate> = Object.create(null);
+ * the map must not inherit one.
+ *
+ * Held on `globalThis` under a `Symbol.for` key rather than in a module variable,
+ * for the same reason the published host is. Pi loads each installed package with
+ * its own module root, so the team runtime's roster and the agent tool's roster can
+ * be two module instances — and then a spawn writes a child the leader cannot
+ * list, which is how a real child ended up invisible one call after it started.
+ * Sharing the object is what makes `list` and `inspect` able to see what `start`
+ * just wrote.
+ */
+const ROSTER_KEY = Symbol.for("fradser.pi-subagents.roster");
+
+interface RosterCarrier {
+  [ROSTER_KEY]?: Record<string, Teammate>;
+}
+
+const carrier = globalThis as RosterCarrier;
+
+export const teammates: Record<string, Teammate> = carrier[ROSTER_KEY]
+  ?? (carrier[ROSTER_KEY] = Object.create(null));
 
 let rosterRevisionCounter = 0;
 let progressRevisionCounter = 0;
