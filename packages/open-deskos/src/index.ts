@@ -98,7 +98,12 @@ export default function (pi: ExtensionAPI): void {
   // A desk's voice agent can drive the session this process is, from inside this process: the
   // same lifecycle events, a private socket, and no new process or credential. It is created
   // here and bound only from session_start, so loading the extension binds nothing.
+  //
+  // It is opt-in, because an endpoint that lets something else hand this session work is a
+  // capability rather than a default: a machine that wants one names the directory it belongs
+  // in with ODK_SESSION_HOST_SOCKET, and a machine that does not is never reachable.
   const sessionHost = new SessionHost({ pi });
+  const sessionHostEnabled = (process.env.ODK_SESSION_HOST_SOCKET ?? "").length > 0;
   let currentSessionId = "";
 
   if (reporters.length > 0 && discovery) {
@@ -135,7 +140,7 @@ export default function (pi: ExtensionAPI): void {
       await replay?.start(sessionId, replayFile, (id, events) => each((reporter) => reporter.recordEvents(id, events)));
       // A reload replaces the previous endpoint cleanly, so a desk never finds a
       // half-replaced one, and a machine that cannot spare an endpoint still reports.
-      await sessionHost.start(ctx);
+      if (sessionHostEnabled) await sessionHost.start(ctx);
     });
     pi.on("session_info_changed", (event) => {
       if (currentSessionId.length > 0) each((reporter) => reporter.renameSession(currentSessionId, event.name));

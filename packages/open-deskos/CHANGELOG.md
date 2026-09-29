@@ -1,3 +1,7 @@
+## Unreleased
+
+- A desk's voice agent can drive the Pi session this machine is running. When `ODK_SESSION_HOST_SOCKET` names a directory, every session on this machine publishes its own endpoint from `session_start` and withdraws it on `session_shutdown`, serving the task protocol a desk already speaks: `list`, `status`, `prompt` and `cancel`, with `start`/`launch`/`end`/`history` refused as a session that is not a session host. Each session has its own socket and descriptor, so several sessions on one machine are all reachable and none is refused for an endpoint another holds. The `session-control` launcher finds a node runtime itself, because a login session's PATH is not the one an interactive shell has, and resolves the session from the request's project when no socket is named.
+
 # pi-open-deskos
 
 ## 0.3.0

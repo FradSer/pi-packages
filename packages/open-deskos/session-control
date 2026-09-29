@@ -1,0 +1,38 @@
+#!/bin/sh
+# What a desk runs on the far side of its own SSH session to reach a session on this
+# machine. It exists because that session's PATH is whatever the login shell happens
+# to carry: on a machine where node is a version manager's install, node is not on
+# the PATH a non-interactive SSH session gets, and a client that assumed it would
+# answer nothing at all.
+#
+# The frame arrives on standard input and the answer leaves on standard output, so
+# this launcher adds no behaviour of its own: it finds a node runtime and execs the
+# relay beside itself.
+set -eu
+
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+client="$here/src/session-host-client.mjs"
+
+if [ ! -f "$client" ]; then
+  echo "session-control: the session relay is missing at $client" >&2
+  exit 1
+fi
+
+# An operator who knows which runtime this machine uses can say so; otherwise the
+# first one that exists wins, and a stable version-manager alias is preferred over a
+# versioned path that the next upgrade replaces.
+for node in \
+  "${ODK_NODE:-}" \
+  "$(command -v node 2>/dev/null || true)" \
+  "$HOME/.local/share/fnm/aliases/default/bin/node" \
+  "$HOME/.local/share/fnm/node-versions"/*/installation/bin/node \
+  /opt/homebrew/bin/node \
+  /usr/local/bin/node \
+  /usr/bin/node; do
+  if [ -n "$node" ] && [ -x "$node" ]; then
+    exec "$node" "$client" "$@"
+  fi
+done
+
+echo "session-control: no node runtime was found on this host; set ODK_NODE to one" >&2
+exit 1

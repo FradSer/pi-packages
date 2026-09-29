@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import net from "node:net";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { SessionHost, resolveSessionEndpoint, sessionRuntimeDir } from "../src/session-host.ts";
@@ -60,8 +60,8 @@ async function fixtureRoot(t, prefix) {
 /** A bound session over a real Unix socket in a tmpdir, with a fake pi and ctx. */
 async function session(t, options = {}) {
   const root = await fixtureRoot(t, options.prefix ?? "odk-sh-");
-  const runtimeDir = join(root, "run");
-  const cwd = join(root, "project");
+  const runtimeDir = options.runtimeDir ?? join(root, "run");
+  const cwd = options.cwd ?? join(root, "project");
   await mkdir(join(cwd, "src"), { recursive: true });
   const sent = [];
   const aborts = { count: 0 };
@@ -119,21 +119,18 @@ test("the endpoint is private to the user who owns it", async (t) => {
 
 test("the socket path is the override, then the runtime directory", () => {
   const id = "11111111-1111-4111-8111-111111111111";
-  const override = resolveSessionEndpoint({ XDG_RUNTIME_DIR: "/run/user/1000", ODK_SESSION_HOST_SOCKET: "/tmp/custom.sock" }, "linux", id);
-  assert.equal(override.socketPath, "/tmp/custom.sock", "a name that already reads as a socket is this session's own path");
-  assert.equal(override.descriptorPath, `/tmp/${id}.json`, "the descriptor sits beside its own socket");
-  // A directory override places this session's socket inside it rather than colliding in it.
-  const directory = resolveSessionEndpoint({ XDG_RUNTIME_DIR: "/run/user/1000", ODK_SESSION_HOST_SOCKET: "/tmp/odk" }, "linux", id);
-  assert.equal(directory.socketPath, `/tmp/odk/${id}.sock`);
+  const override = resolveSessionEndpoint({ XDG_RUNTIME_DIR: "/run/user/1000", ODK_SESSION_HOST_SOCKET: "/tmp/odk" }, "linux", id);
+  assert.equal(override.socketPath, `/tmp/odk/${id}.sock`, "the declared directory holds this session's own socket");
+  assert.equal(override.descriptorPath, `/tmp/odk/${id}.json`, "and its own descriptor beside it");
   const relative = resolveSessionEndpoint({ XDG_RUNTIME_DIR: "/run/user/1000", ODK_SESSION_HOST_SOCKET: "relative.sock" }, "linux", id);
   assert.equal(relative.socketPath, `/run/user/1000/open-deskos/sessions/${id}.sock`, "a relative override is not honored");
   assert.equal(sessionRuntimeDir({ XDG_RUNTIME_DIR: "/run/user/1000" }, "linux"), "/run/user/1000");
   assert.equal(sessionRuntimeDir({ XDG_RUNTIME_DIR: "run/user/1000" }, "linux"), join(homedir(), ".local", "run"), "a relative XDG runtime directory is not a runtime directory");
   assert.equal(sessionRuntimeDir({}, "darwin"), join(homedir(), ".local", "run"), "macOS falls back to its own run directory");
   assert.equal(sessionRuntimeDir({ LOCALAPPDATA: "C:\\Users\\me\\AppData\\Local" }, "win32"), "C:\\Users\\me\\AppData\\Local");
-  const windows = resolveSessionEndpoint({ LOCALAPPDATA: "C:\\Users\\me\\AppData\\Local" }, "win32");
-  assert.equal(windows.socketPath, "C:\\Users\\me\\AppData\\Local\\open-deskos\\session-control.sock");
-  assert.equal(windows.descriptorPath, "C:\\Users\\me\\AppData\\Local\\open-deskos\\session-endpoint.json");
+  const windows = resolveSessionEndpoint({ LOCALAPPDATA: "C:\\Users\\me\\AppData\\Local" }, "win32", id);
+  assert.equal(windows.socketPath, `C:\\Users\\me\\AppData\\Local\\open-deskos\\sessions\\${id}.sock`);
+  assert.equal(windows.descriptorPath, `C:\\Users\\me\\AppData\\Local\\open-deskos\\sessions\\${id}.json`);
 });
 
 test("list answers with this one session and nothing invented", async (t) => {
@@ -320,14 +317,18 @@ test("a reload replaces the previous bind instead of stacking one", async (t) =>
   const h = await session(t);
   h.host.markRunning();
   h.becomes("8a8b4c4d-5555-6666-7777-888888888888");
+  const previous = h.socketPath;
   const restarted = await h.host.start(h.ctx);
   assert.equal(restarted.bound, true);
-  assert.equal(restarted.socketPath, h.socketPath, "the same session owns the same endpoint");
-  assert.equal((await ask(h.socketPath, { version: 1, requestId: "l1", command: "status" })).task.taskId, "8a8b4c4d-5555-6666-7777-888888888888");
-  const interrupted = await ask(h.socketPath, { version: 1, requestId: "l2", command: "status" });
+  assert.notEqual(restarted.socketPath, previous, "a different session answers at its own endpoint");
+  assert.equal(await refused(previous), true, "and the endpoint it replaced is withdrawn, not left answering");
+  assert.equal((await ask(restarted.socketPath, { version: 1, requestId: "l1", command: "status" })).task.taskId, "8a8b4c4d-5555-6666-7777-888888888888");
+  const interrupted = await ask(restarted.socketPath, { version: 1, requestId: "l2", command: "status" });
   assert.equal(interrupted.task.turnOutcome, "interrupted", "a turn in flight when the session was replaced did not finish here");
-  assert.deepEqual(JSON.parse(await readFile(h.descriptorPath, "utf8")), { version: 1, socketPath: h.socketPath });
-  assert.equal((await ask(h.socketPath, { version: 1, requestId: "l3", command: "list" })).tasks.length, 1, "only one host answers");
+  const descriptor = JSON.parse(await readFile(restarted.descriptorPath, "utf8"));
+  assert.equal(descriptor.socketPath, restarted.socketPath);
+  assert.equal(descriptor.sessionId, "8a8b4c4d-5555-6666-7777-888888888888");
+  assert.equal((await ask(restarted.socketPath, { version: 1, requestId: "l3", command: "list" })).tasks.length, 1, "only one host answers");
 });
 
 test("a socket another process still owns is never taken over", async (t) => {
@@ -347,7 +348,7 @@ test("the desk relays one frame over SSH with no build step", async (t) => {
   const h = await session(t);
   const request = { version: 1, requestId: "cli-1", command: "status", taskId: SESSION };
   const relayed = await runClient(t, h.socketPath, `${JSON.stringify(request)}\n`);
-  assert.equal(relayed.code, 0);
+  assert.equal(relayed.code, 0, relayed.stderr);
   assert.equal(relayed.stderr, "", "the client prints nothing but the reply frame");
   const answer = JSON.parse(relayed.stdout);
   assert.equal(answer.requestId, "cli-1");
@@ -357,7 +358,7 @@ test("the desk relays one frame over SSH with no build step", async (t) => {
 
   h.host.markRunning();
   const prompted = await runClient(t, h.socketPath, `${JSON.stringify({ version: 1, requestId: "cli-2", command: "prompt", taskId: SESSION, prompt: "ship it", streamingBehavior: "steer" })}\n`);
-  assert.equal(prompted.code, 0);
+  assert.equal(prompted.code, 0, prompted.stderr);
   assert.equal(JSON.parse(prompted.stdout).accepted, true);
   assert.deepEqual(h.sent[0], { content: "ship it", options: { deliverAs: "steer" } });
 
@@ -376,14 +377,19 @@ test("the client refuses a reply that is not this request's", async (t) => {
   const relayed = await runClient(t, socketPath, `${JSON.stringify({ version: 1, requestId: "mine", command: "list" })}\n`);
   assert.notEqual(relayed.code, 0, "an uncorrelated frame is not an answer");
   assert.equal(relayed.stdout, "");
-  const usage = await runClient(t, undefined, `${JSON.stringify({ version: 1, requestId: "mine", command: "list" })}\n`);
-  assert.notEqual(usage.code, 0, "and a missing socket path is a usage failure, not an answer");
+  // With no socket named the client looks for the session that owns the project, and
+  // answers this frame's own refusal when none does: a desk reads an answer, not a usage note.
+  const unserved = await runClient(t, undefined, `${JSON.stringify({ version: 1, requestId: "mine", command: "list", project: "/nowhere" })}\n`, { env: { ...process.env, XDG_RUNTIME_DIR: await fixtureRoot(t, "odk-empty-") } });
+  assert.equal(unserved.code, 0, unserved.stderr);
+  assert.equal(JSON.parse(unserved.stdout).error, "项目不在允许的开发目录内");
+  const usage = await runClient(t, "relative.sock", `${JSON.stringify({ version: 1, requestId: "mine", command: "list" })}\n`);
+  assert.notEqual(usage.code, 0, "and a name that is not an absolute socket path is a usage failure, not an answer");
 });
 
 /** The client as a desk runs it: one frame in on stdin, one frame out on stdout. */
 function runClient(t, socketPath, input, { args, env } = {}) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [...(args ?? (socketPath ? [socketPath] : [])), CLIENT], {
+    const child = spawn(process.execPath, [CLIENT, ...(args ?? (socketPath ? [socketPath] : []))], {
       ...(env ? { env } : {}),
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -421,7 +427,9 @@ test("the extension binds its own session and never a reported one twice", async
   process.env.ODK_DESK_LINK_DESKS_FILE = desksFile;
   process.env.PI_DIRECTORY_SESSIONS_DIR = root;
   process.env.XDG_RUNTIME_DIR = join(root, "run");
-  delete process.env.ODK_SESSION_HOST_SOCKET;
+  // The endpoint is a declared capability, so this fixture declares one inside its own
+  // directory; a machine that declares none is left unreachable (pinned below).
+  process.env.ODK_SESSION_HOST_SOCKET = join(root, "run");
   const { default: extension } = await import("../index.ts");
   const handlers = new Map();
   extension({ on(name, fn) { handlers.set(name, fn); }, registerCommand() {}, registerMessageRenderer() {}, registerEntryRenderer() {}, registerTool() {} });
@@ -435,7 +443,7 @@ test("the extension binds its own session and never a reported one twice", async
     ui: { notify() {}, setStatus() {} },
   };
   await handlers.get("session_start")({ reason: "startup" }, ctx);
-  const socketPath = join(root, "run", "open-deskos", "session-control.sock");
+  const socketPath = join(root, "run", `${SESSION}.sock`);
   const bound = await ask(socketPath, { version: 1, requestId: "w1", command: "list" });
   assert.equal(bound.ok, true, "the extension's own session is drivable from inside its own process");
   assert.equal(bound.tasks[0].taskId, SESSION);
@@ -450,7 +458,7 @@ test("the extension binds its own session and never a reported one twice", async
 
   await handlers.get("session_shutdown")({ reason: "quit" }, ctx);
   assert.equal(await refused(socketPath), true, "the endpoint is gone with the session");
-  assert.equal(await refused(join(root, "run", "open-deskos", "session-endpoint.json")), true);
+  assert.equal(await refused(join(root, "run", `${SESSION}.json`)), true);
 
   // A reload brings the endpoint back rather than leaving a dead one behind.
   await handlers.get("session_start")({ reason: "reload" }, ctx);
@@ -462,10 +470,17 @@ test("the extension binds its own session and never a reported one twice", async
 // later one, so on a machine with several Pi sessions a desk reached the wrong one
 // and the intended one was invisible. Each session now owns its own endpoint.
 test("two sessions on one machine are both reachable and neither is refused", async (t) => {
-  const first = await session(t, { sessionId: "22222222-2222-4222-8222-222222222222", cwd: join(fixtureRoot(t, "odk-a-"), "project") });
-  const second = await session(t, { sessionId: "33333333-3333-4333-8333-333333333333" });
-  t.after(() => mkdir(join(first.cwd, "src"), { recursive: true }));
-  // Same runtime directory is the point: this is one machine with two sessions.
+  // One runtime directory is the point: this is one machine with two sessions, each in
+  // its own project, both of which a desk must be able to reach by name.
+  const machine = await fixtureRoot(t, "odk-machine-");
+  const runtimeDir = join(machine, "run");
+  const projectA = join(machine, "project-a");
+  const projectB = join(machine, "project-b");
+  const first = await session(t, { sessionId: "22222222-2222-4222-8222-222222222222", runtimeDir, cwd: projectA });
+  const second = await session(t, { sessionId: "33333333-3333-4333-8333-333333333333", runtimeDir, cwd: projectB });
+  await mkdir(join(projectA, "src"), { recursive: true });
+  await mkdir(join(projectB, "src"), { recursive: true });
+  assert.equal(first.runtimeDir, second.runtimeDir, "both sessions publish into the same machine directory");
   assert.equal(first.started.bound, true, "the first session is bound");
   assert.equal(second.started.bound, true, "and the second one is bound beside it, not refused");
   assert.notEqual(first.socketPath, second.socketPath, "each session answers at its own socket");
@@ -491,12 +506,15 @@ test("a reload that switches sessions moves this session's own endpoint", async 
 });
 
 test("the client finds the session that owns a project, and refuses one none does", async (t) => {
-  const wanted = await session(t, { sessionId: "66666666-6666-4666-8666-666666666666" });
-  const other = await session(t, { sessionId: "77777777-7777-4777-8777-777777777777", cwd: join(fixtureRoot(t, "odk-other-"), "elsewhere") });
-  t.after(() => mkdir(join(other.cwd, "src"), { recursive: true }));
+  const machine = await fixtureRoot(t, "odk-find-");
+  const runtimeDir = join(machine, "run");
+  const wanted = await session(t, { sessionId: "66666666-6666-4666-8666-666666666666", runtimeDir, cwd: join(machine, "project") });
+  const other = await session(t, { sessionId: "77777777-7777-4777-8777-777777777777", runtimeDir, cwd: join(machine, "elsewhere") });
+  await mkdir(join(wanted.cwd, "src"), { recursive: true });
+  await mkdir(join(other.cwd, "src"), { recursive: true });
   const env = { ...process.env, XDG_RUNTIME_DIR: wanted.runtimeDir };
-  const find = async (request) => {
-    const relayed = await runClient(t, null, `${JSON.stringify(request)}\n`, { args: ["--find"], env });
+  const find = async (request, args = ["--find"]) => {
+    const relayed = await runClient(t, null, `${JSON.stringify(request)}\n`, { args, env });
     assert.equal(relayed.code, 0, relayed.stderr);
     return JSON.parse(relayed.stdout);
   };
@@ -510,7 +528,44 @@ test("the client finds the session that owns a project, and refuses one none doe
   assert.equal(other_.ok, true, "the other project reaches the other session");
   assert.equal(other_.tasks[0].project, other.cwd, "never the first session's reply");
 
-  const outside = await find({ version: 1, requestId: "req-find-3", command: "list", project: join(wanted.root, "nowhere") });
+  // The desk declares one executable and no socket, so the client finds the session itself.
+  const implicit = await find({ version: 1, requestId: "req-find-4", command: "list", project: other.cwd }, []);
+  assert.equal(implicit.ok, true, "with no socket named, the client still answers from the frame's project");
+  assert.equal(implicit.tasks[0].project, other.cwd);
+
+  const outside = await find({ version: 1, requestId: "req-find-3", command: "list", project: join(machine, "nowhere") });
   assert.equal(outside.ok, false, "a project no session serves is refused, not answered by another one");
-  assert.equal(outside.error, "项目不在允许的开发目录内");
+  assert.equal(outside.error, "项目不在允许的开发目录内", "and the refusal is the protocol's own");
+  assert.equal(outside.requestId, "req-find-3", "and it is this request's frame, so a desk can read it");
+});
+
+test("a machine that declared no endpoint has none to reach", async (t) => {
+  const root = await fixtureRoot(t, "odk-optin-");
+  const previous = process.env.ODK_SESSION_HOST_SOCKET;
+  delete process.env.ODK_SESSION_HOST_SOCKET;
+  t.after(() => { if (previous === undefined) delete process.env.ODK_SESSION_HOST_SOCKET; else process.env.ODK_SESSION_HOST_SOCKET = previous; });
+  const handlers = new Map();
+  const extension = (await import("../index.ts")).default;
+  extension({ on(name, fn) { handlers.set(name, fn); }, registerCommand() {}, registerMessageRenderer() {}, registerEntryRenderer() {}, registerTool() {} });
+  await handlers.get("session_start")({ reason: "startup" }, {
+    cwd: join(root, "project"),
+    isIdle: () => true,
+    abort() {},
+    sessionManager: { getSessionId: () => SESSION, getSessionName: () => undefined, getHeader: () => undefined, getBranch: () => [] },
+    ui: { notify() {}, setStatus() {} },
+  });
+  assert.equal(await access(join(root, "run")).then(() => true, () => false), false, "nothing was bound without a declared endpoint");
+});
+
+// A desk reaches a session through this machine's login shell, whose PATH is not
+// the one an interactive shell has. A launcher that assumed node was on it answered
+// nothing at all, which is what a Windows handheld saw.
+test("the desk's launcher finds a node runtime without the login shell's PATH", async (t) => {
+  const launcherPath = join(dirname(fileURLToPath(import.meta.url)), "..", "session-control");
+  const launcher = await readFile(launcherPath, "utf8");
+  assert.match(launcher, /^#!\/bin\/sh\n/, "it is a shell script, so no build step and no runtime assumption");
+  assert.match(launcher, /fnm\/aliases\/default\/bin\/node/, "a version manager's stable alias is one candidate");
+  assert.match(launcher, /ODK_NODE/, "and an operator can name the runtime outright");
+  assert.match(launcher, /src\/session-host-client\.mjs/, "it execs the relay beside itself");
+  assert.ok((await stat(launcherPath)).mode & 0o111, "and it is executable, so a desk needs no shell quoting of its own");
 });

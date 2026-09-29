@@ -125,14 +125,10 @@ export function resolveSessionEndpoint(
   const runtimeDir = sessionRuntimeDir(env, platform);
   const override = env.ODK_SESSION_HOST_SOCKET ?? "";
   const flavour = platform === "win32" ? win32 : posix;
-  // A name that already reads as a socket is this session's own path; anything else
-  // absolute is the directory its per-session socket belongs in.
-  const inOverride = flavour.isAbsolute(override)
-    ? (override.endsWith(".sock") ? override : flavour.join(override, `${sessionId}.sock`))
-    : undefined;
-  const directory = inOverride === undefined ? flavour.join(runtimeDir, "open-deskos", "sessions") : dirname(inOverride);
+  // The variable names the directory, which is what keeps two sessions apart inside it.
+  const directory = flavour.isAbsolute(override) ? override : flavour.join(runtimeDir, "open-deskos", "sessions");
   return {
-    socketPath: inOverride ?? flavour.join(directory, `${sessionId}.sock`),
+    socketPath: flavour.join(directory, `${sessionId}.sock`),
     descriptorPath: flavour.join(directory, `${sessionId}.json`),
   };
 }
@@ -427,6 +423,9 @@ export class SessionHost {
     return new Promise<Server>((resolve, reject) => {
       const server = createServer((socket) => { this.#serve(socket); });
       server.once("error", reject);
+      // The endpoint must never be the reason a Pi process stays alive: a desk
+      // reaching this session is not a reason this session cannot be closed.
+      server.unref();
       server.listen(socketPath, () => {
         server.off("error", reject);
         resolve(server);

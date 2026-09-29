@@ -82,6 +82,24 @@ The default registry is `~/.pi/agent/directory-sessions`. `PI_DIRECTORY_SESSIONS
 - **The desk stays in charge of itself.** While this machine drives a Hosted Pi, the desk names it in the Pi Sessions overview header, and local touch and keyboard keep working.
 - **Tools.** The assistant can call `desk_*` tools to list, start, attach, prompt, cancel, end, and read history. The console surface owns its own keyboard input and never intercepts global terminal input.
 
+## Letting a desk drive this session
+
+A reported session is read-only: a desk can see what this session is doing, and nothing more. This package can also make *this* session drivable, from inside this session, with no process installed and no second credential.
+
+Declare where this machine's session endpoints live, and every Pi session on this machine publishes its own endpoint from `session_start` and withdraws it on `session_shutdown`:
+
+```bash
+export ODK_SESSION_HOST_SOCKET="$HOME/.local/run/open-deskos/sessions"
+```
+
+Each session then serves the task protocol a desk's voice agent already speaks — `list`, `status`, `prompt`, `cancel` — on `<directory>/<sessionId>.sock`, with a `0600` descriptor beside it naming its socket, project and state. `start`, `launch`, `end` and `history` are refused with one fixed reason: this process is one session, not a session host.
+
+- **It is a declared capability, never a default.** A machine that declares no endpoint has none to reach. An endpoint that lets something else hand a session work is a decision, not something a package turns on.
+- **Ownership is the only gate.** The socket lives in a `0700` directory with a `0600` socket. There is no token to present, and nothing listens on the network.
+- **A desk reaches it over your own SSH session.** Run the `session-control` launcher on the far side of it; it finds a node runtime itself, because a login session's PATH is not the one an interactive shell has. With no socket named it resolves the session from the request's own project, and a project no session serves is answered with the protocol's own refusal rather than with some other session's reply.
+- **Every session answers at its own endpoint.** A desk that means one of several sessions says which project, not whichever bound first.
+- **The endpoint never keeps Pi alive.** It is unref'd, so reaching this session is not a reason this session cannot be closed.
+
 ## What is not
 
 - **Reporting is never management.** A machine holding only the reporting token can report and nothing else: the package never sends a prompt, blocks a turn, or mutates a message on a reported session, and visibility through a Desk Link never makes a session controllable.

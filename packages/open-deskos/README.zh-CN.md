@@ -82,6 +82,24 @@ export ODK_DESK_LINK_CONTROL_TOKEN="<control credential>"   # 可选：使本机
 - **desk 自己说了算。** 本机驱动期间，desk 会在 Pi Sessions 总览标题上标明驱动方，本地触控与键盘始终可用。
 - **工具面。** 助手可调用 `desk_*` 工具完成 list / start / attach / prompt / cancel / end / history。控制台面板自己接管键盘输入，不拦截全局终端输入。
 
+## 让 desk 指挥这个会话
+
+上报的会话是只读的：desk 能看到它在做什么，仅此而已。这个包也可以让**这个**会话从内部变得可被指挥，不装任何进程，也不要第二把凭据。
+
+声明这台机器的会话端点放在哪里，之后这台机器上每个 Pi session 都会在 `session_start` 发布自己的端点、在 `session_shutdown` 收掉它：
+
+```bash
+export ODK_SESSION_HOST_SOCKET="$HOME/.local/run/open-deskos/sessions"
+```
+
+于是每个 session 在 `<目录>/<sessionId>.sock` 上提供 desk 语音 agent 已经在说的那个协议 —— `list`、`status`、`prompt`、`cancel` —— 旁边还有一个 `0600` 的描述文件，写明自己的 socket、project 和状态。`start`、`launch`、`end`、`history` 用同一个固定理由拒绝：这个进程是一个会话，不是会话宿主。
+
+- **它是声明出来的能力，不是默认。** 没声明端点的机器就没有端点可被到达；让别人给这个会话派活的端点是一个决定，不是某个包顺手打开的开关。
+- **属主是唯一的门。** socket 在 `0700` 目录里、自己是 `0600`；没有令牌要出示，也没有任何东西监听网络。
+- **desk 通过你自己的 SSH 会话到达它。** 在那一侧运行 `session-control` 启动器即可，它自己找 node 运行时 —— 登录会话的 PATH 和交互式 shell 的不是一回事。命令里不带 socket 路径时，它按请求自己的 project 找会话；没有任何 session 服务那个 project 时，返回的是协议自己的拒绝，而不是别的会话的回答。
+- **每个 session 都用自己的端点。** 机器上有多个 session 时，desk 说的是哪个 project，而不是谁先绑定上就算谁的。
+- **这个端点不会让 Pi 活不下去。** 它被 unref，所以"这个 session 能被别人到达"不构成"这个 session 不能关闭"的理由。
+
 ## 不上报什么
 
 - **上报永远不等于管理。** 只持有上报 token 的机器只能上报：package 从不向被上报的会话发送 prompt、不阻塞回合、不修改消息；通过 Desk Link 可见**不等于**可管理。

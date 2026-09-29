@@ -18,6 +18,9 @@ const REQUEST_TIMEOUT = 8000
 const DEADLINE = REQUEST_TIMEOUT + 1000
 const FAILURE = '会话控制通信失败，结果未知'
 const USAGE = '用法: session-host-client.mjs <session-control socket path> | --find，stdin 上一个 JSON 请求帧'
+// The protocol's own admission refusal, so a project no session serves is answered in
+// the frame a desk already reads rather than as a client usage error.
+const PROJECT_NOT_SERVED = '项目不在允许的开发目录内'
 
 /** Read exactly one bounded JSON line, as the protocol's own one-shot client does. */
 function readFrame(stream) {
@@ -136,9 +139,15 @@ try {
   // client's work: --find asks each session's own descriptor which one owns the requested
   // project and relays the frame to that session. A socket path named directly still
   // addresses exactly one session.
-  const first = process.argv[2]
-  const socketPath = first === '--find' ? findSession(request) : first
-  if (typeof socketPath !== 'string' || !socketPath.length || !isAbsolute(socketPath) || /[\x00-\x1f\x7f]/.test(socketPath)) {
+  // A desk declares one executable and sends one frame, so with no socket named the
+  // client finds the session that owns the frame's project by itself.
+  const first = process.argv[2] ?? '--find'
+  const finding = first === '--find'
+  const socketPath = finding ? findSession(request) : first
+  if (finding && socketPath === undefined) {
+    // No session on this machine owns that project, which is an answer, not a usage error.
+    process.stdout.write(`${JSON.stringify({ version: 1, requestId: request.requestId, ok: false, error: PROJECT_NOT_SERVED })}\n`)
+  } else if (typeof socketPath !== 'string' || !socketPath.length || !isAbsolute(socketPath) || /[\x00-\x1f\x7f]/.test(socketPath)) {
     process.stderr.write(`${USAGE}\n`)
     process.exitCode = 2
   } else {

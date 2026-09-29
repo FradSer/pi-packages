@@ -75,3 +75,29 @@ Feature: Let a desk's voice agent drive the session this process is
     When the desk runs the one-shot client on the far side of its own SSH session
     Then the request frame is written to the socket and the reply frame is printed
     And nothing else is printed, the request is never logged, and a transport failure exits non-zero
+
+  Scenario: A machine that declares no endpoint has none to reach
+    Given a machine that runs this package without declaring a session endpoint
+    When its Pi sessions start
+    Then no socket and no descriptor are created
+    And the package's reporting is unchanged
+    And an endpoint that lets something else hand this session work is a declared capability, never a default
+
+  Scenario: Every session on a machine answers at its own endpoint
+    Given a machine with two Pi sessions in two projects
+    When both sessions run
+    Then each publishes its own descriptor and its own socket
+    And neither session is refused for an endpoint the other one already holds
+    And a desk resolves the session a project belongs to rather than whichever bound first
+
+  Scenario: The desk finds the session without naming a socket
+    Given a desk that declares one executable and sends one request frame
+    When the frame names a project
+    Then the launcher runs on the far side of the desk's own SSH session and finds the session that owns that project
+    And a project no session serves is answered with the protocol's own refusal rather than with another session's reply
+
+  Scenario: The desk's launcher does not assume the login shell's PATH
+    Given a machine where node is a version manager's install rather than a system command
+    When a desk runs the launcher from a non-interactive SSH session
+    Then the launcher finds a node runtime itself and relays the one frame
+    And an operator can name the runtime outright
