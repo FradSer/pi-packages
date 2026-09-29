@@ -371,3 +371,7 @@ pyrightconfig.json
 # Runtime source files in these package paths must remain visible to Git.
 !packages/impeccable/scripts/lib/
 !packages/impeccable/scripts/lib/*.mjs
+
+# Pi's own runtime state: goal ledger, harness overrides, worktrees.
+# Not source, and a checkout should never carry another session's goals.
+.pi/
