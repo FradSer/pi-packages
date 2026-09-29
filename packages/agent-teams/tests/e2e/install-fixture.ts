@@ -22,30 +22,6 @@ import { installScriptedProvider, type ScriptedTurn } from "../../../../tests/e2
 const SCENARIO = process.env.PI_E2E_SCENARIO ?? "surface";
 const PROBE = process.env.PI_E2E_PROBE ?? "e2e_probe";
 
-/**
- * Resolve `$prev.a.b` against the tool results so far, newest first.
- *
- * A script usually reads a list between creating a task and acting on it, so the
- * value being referenced is rarely in the immediately preceding result. Falling
- * back through the results means a script names the field it wants and the
- * harness finds the call that produced it, rather than every script having to
- * thread a value through a step it does not care about.
- */
-function resolve(value: unknown, results: unknown[]): unknown {
-  if (typeof value !== "string" || !value.startsWith("$prev")) return value;
-  const path = value.slice("$prev".length).replace(/^\./, "");
-  for (const details of [...results].reverse()) {
-    let current: unknown = details;
-    let found = true;
-    for (const key of path.split(".").filter(Boolean)) {
-      if (current === null || typeof current !== "object") { found = false; break; }
-      current = (current as Record<string, unknown>)[key];
-    }
-    if (found && current !== undefined) return current;
-  }
-  return undefined;
-}
-
 const SURFACE: ScriptedTurn[] = [{ tool: PROBE, args: {} }];
 
 /**
@@ -254,6 +230,5 @@ export default async function e2eInstall(pi: ExtensionAPI): Promise<void> {
     provider: "e2e-scripted",
     probe: PROBE,
     turns: SCENARIOS[SCENARIO] ?? SURFACE,
-    resolve: (value: unknown, previous: unknown) => resolve(value, previous),
   });
 }
