@@ -536,4 +536,28 @@ assert.ok(stripVTControlCharacters(report.render(90).join("\n")).includes("Full 
 assert.equal(report.handleMouse?.({ type: "click", button: "left", x: 5, y: 1, width: 90, height: 3 })?.handled, true);
 assert.ok(contentRows(report, 90)[0].endsWith(" · ctrl+shift+e to expand"));
 
+
+// Every renderer a registered tool exposes must hand back a component, not
+// undefined. Pi builds a container and a mouse region over the call and result
+// components, so an undefined one surfaces as MouseRegion reading render of
+// undefined on the first real repaint. `--print` never paints, so an offline run
+// cannot see it: asserting on the returned value is the only place this is
+// catchable, which is why it is asserted here rather than left to a TUI session.
+{
+  const fakeResult = { content: [{ type: "text" as const, text: "x" }], details: {} };
+  const options = { expanded: false, isPartial: false };
+  for (const [key, tool] of tools) {
+    for (const [name, render] of [["renderCall", tool.renderCall], ["renderResult", tool.renderResult]] as const) {
+      if (typeof render !== "function") continue;
+      const component = (render as (...args: unknown[]) => unknown)(fakeResult, options, theme, { args: {}, isError: false });
+      assert.ok(component && typeof component === "object", `${key}:${name} returned ${component}`);
+      const shape = component as { render?: unknown; invalidate?: unknown };
+      assert.equal(typeof shape.render, "function", `${key}:${name} has no render()`);
+      assert.equal(typeof shape.invalidate, "function", `${key}:${name} has no invalidate()`);
+      const lines = shape.render(80);
+      assert.ok(Array.isArray(lines), `${key}:${name}.render() must return an array`);
+    }
+  }
+}
+
 console.log("COORDINATION_ROWS_OK");

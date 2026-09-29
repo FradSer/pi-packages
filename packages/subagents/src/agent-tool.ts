@@ -32,7 +32,7 @@ import { registerSessionAgent, resolveAgent } from "./agents.ts";
 import { configureBoardStoreIfUnset, resourcesConflict, type WorkAssignment } from "@fradser/pi-tasks";
 import { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
 import { getTeammate, listTeammates, livingTeammates, registerTeammate, updateTeammate, type Teammate } from "./roster.ts";
-import type { createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
+import { emptyToolCall, type createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
 import { exactSessionRoute, parseExactSessionRoute, resolveExactSession } from "./session-route.ts";
 import { spawnResident, terminateTeammate, deliverPrompt } from "./spawner.ts";
 import { snapshotWorkContext } from "./work-context.ts";
@@ -622,7 +622,7 @@ export function registerAgentTool(pi: ExtensionAPI, options: AgentToolOptions = 
     // A start can take a while, and a stopped child is a state change worth one
     // line. Rendering through the shared lifecycle renderer keeps the row shape
     // identical to the other coordination tools instead of inventing a fourth.
-    renderCall: () => undefined as never,
+    renderCall: emptyToolCall,
     // Attached only when the caller can supply real geometry. A row built without
     // it is worse than no row: it renders in tests and takes the terminal down on
     // the first repaint.

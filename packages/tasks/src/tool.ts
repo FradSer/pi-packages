@@ -26,7 +26,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
+import { emptyToolCall, type createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
 import {
   completeTaskWithOutcome,
   createTask,
@@ -102,8 +102,6 @@ export const TASK_TOOL_PARAMS = {
 } as const;
 
 /** The call line is shown by the host, so the extension draws nothing itself. */
-const emptyCall = () => undefined as never;
-
 /** Bounded so a long-lived board cannot make one tool result the whole context. */
 export const MAX_LISTED_TASKS = 40;
 
@@ -381,7 +379,7 @@ export function registerTaskTool(
     description: "The shared task board. Record what must be done with create, replace an obsolete task with create supersedes, find work with list, take it with update status=in_progress, return a completed one with reopen, deliver it with complete outcome=success, and report a blocker with complete outcome=failed. This tool never starts or stops an agent and never dispatches work to a named participant: it states what must be done, and a participant takes it.",
     parameters: TASK_TOOL_PARAMS as never,
     renderShell: "self",
-    renderCall: emptyCall,
+    renderCall: emptyToolCall,
     // Attached only when the caller can supply real geometry. A row built without
     // it renders in tests and takes the terminal down on the first repaint.
     ...(options.renderResult ? { renderResult: options.renderResult({ createSpec: taskRowSpec }) as never } : {}),
