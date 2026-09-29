@@ -90,6 +90,10 @@ const BUNDLE: ScriptedTurn[] = [
   { tool: "task", args: { action: "create", subject: "Coordinate the release" } },
   { tool: "task", args: { action: "update", id: "$prev.id", status: "in_progress" } },
   { tool: "message", args: { to: "scout", body: "Take the parser first", kind: "request" } },
+  // A name with no role. The team spawn refuses it, because a resident is a role
+  // with a process attached; the standalone path would synthesise a role and
+  // succeed. So this one call says which path ran, with no model turn and no child.
+  { tool: "agent", args: { action: "start", name: "no-such-role-here" } },
 ];
 
 const SCENARIOS: Record<string, ScriptedTurn[]> = {

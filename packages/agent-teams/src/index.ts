@@ -9,6 +9,7 @@ import { getMarkdownTheme, keyHint, ToolExecutionComponent } from "@earendil-wor
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildIdleLeaderGuidance, buildTeamLeaderGuidance, WORKER_GUIDANCE } from "./guidance.ts";
 import { clearSessionAgents } from "@fradser/pi-subagents";
+import { publishAgentHost } from "./agent-host.ts";
 import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, onBoardTaskChanged, onBoardTaskCreated, onBoardTaskTaken, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownTeammates } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
 import { getTask, getTeammate, livingTeammates, listTasks, resetState } from "./state.ts";
@@ -300,6 +301,10 @@ export default function (pi: ExtensionAPI) {
         refreshTeamUI(leaderCtx);
       },
     });
+    // The `agent` tool is @fradser/pi-subagents'. It reaches this package's
+    // spawn only through a published host, and without one a child's output is
+    // discarded: the standalone path records exit status and nothing else.
+    publishAgentHost(ctx.sessionManager);
     clearPiStatus(ctx.ui, "teammate");
     refreshTeamUI(ctx);
     void cleanupExpiredStateDirs(STATE_DIR_MAX_AGE_MS);
