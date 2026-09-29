@@ -121,7 +121,7 @@ test("the socket path is the override, then the runtime directory", () => {
   const id = "11111111-1111-4111-8111-111111111111";
   const override = resolveSessionEndpoint({ XDG_RUNTIME_DIR: "/run/user/1000", ODK_SESSION_HOST_SOCKET: "/tmp/custom.sock" }, "linux", id);
   assert.equal(override.socketPath, "/tmp/custom.sock", "a name that already reads as a socket is this session's own path");
-  assert.equal(override.descriptorPath, "/tmp/custom.json");
+  assert.equal(override.descriptorPath, `/tmp/${id}.json`, "the descriptor sits beside its own socket");
   // A directory override places this session's socket inside it rather than colliding in it.
   const directory = resolveSessionEndpoint({ XDG_RUNTIME_DIR: "/run/user/1000", ODK_SESSION_HOST_SOCKET: "/tmp/odk" }, "linux", id);
   assert.equal(directory.socketPath, `/tmp/odk/${id}.sock`);
