@@ -13,6 +13,7 @@ import {
   fieldLine,
   notifyPi,
   safeDisplayText,
+  setOwnedTools,
   startedToolLifecycle,
 } from "@fradser/pi-kit";
 import {
@@ -56,7 +57,11 @@ import {
   type WorkflowState,
 } from "./workflow.ts";
 
+/** Tools activated only while a workflow is active. */
 const ACTIVE_TOOLS = ["matt_pocock_active", "matt_pocock_ask"] as const;
+/** Tool ids this extension registers. The gateway is unconditional: every routing
+ *  prompt names it, so a session must never be left without it. */
+const OWNED_TOOLS = ["matt_pocock_workflow", ...ACTIVE_TOOLS] as const;
 const PROCEDURE_ENTRY = "matt-pocock-procedure";
 
 /** Session details for one delivered procedure: a workflow state, a standalone capability, and the user's own task. */
@@ -122,9 +127,10 @@ let activeWorkflow: WorkflowState | undefined;
 
 function refreshActiveTools(active: boolean): void {
   if (typeof pi.getActiveTools !== "function" || typeof pi.setActiveTools !== "function") return;
-  const tools = pi.getActiveTools();
-  const withoutActive = tools.filter((tool) => !ACTIVE_TOOLS.includes(tool as typeof ACTIVE_TOOLS[number]));
-  pi.setActiveTools(active ? [...withoutActive, ...ACTIVE_TOOLS] : withoutActive);
+  // The gateway is re-asserted on every write, never read back from the snapshot:
+  // /matt-pocock delivers a routing prompt that names it, so a session that lost
+  // it would instruct the model to call a tool it cannot see. See setOwnedTools.
+  setOwnedTools(pi, { owned: OWNED_TOOLS, always: ["matt_pocock_workflow"], toggled: ACTIVE_TOOLS, enabled: active });
 }
 
 /** Deliver a procedure as one lifecycle row: users see their own task, the model sees the whole body. */

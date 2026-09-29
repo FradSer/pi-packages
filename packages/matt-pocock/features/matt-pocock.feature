@@ -183,6 +183,17 @@ Feature: Matt Pocock workflow harness
     When the workflow reaches a terminal state
     Then those active-state operations become inactive again
 
+  Scenario: The gateway survives its own tool disclosure write
+    Given no Matt Pocock workflow is active in the session
+    And the active-tool snapshot does not yet report matt_pocock_workflow
+    When a session starts and the extension reconciles its tool disclosure
+    Then matt_pocock_workflow is active because /matt-pocock names it
+    And matt_pocock_active and matt_pocock_ask remain inactive
+    And no tool the snapshot reported is dropped
+    When a workflow starts and then completes
+    Then the two active-state tools appear and disappear again
+    And matt_pocock_workflow is active throughout
+
   Scenario: A stale restored workflow explicitly cancels after validation fails
     Given the session branch contains a workflow state with an unavailable procedure
     When the harness fails to restore that workflow

@@ -774,3 +774,53 @@ def test_tool_descriptions_stay_under_char_budget() -> None:
     # Budget pins the compressed workflow gateway description; the
     # pre-optimization version was ~353 chars.
     assert len(match.group(1)) <= 345
+
+
+def test_session_start_never_deactivates_the_gateway_tool() -> None:
+    """Regression: setActiveTools is an allowlist write, and the tool snapshot a
+    session reads at session_start does not necessarily contain this extension's
+    own registrations yet. Filtering the snapshot and writing it back therefore
+    erased matt_pocock_workflow for the whole session, while /matt-pocock kept
+    delivering routing prompts that name it. The seed below omits the gateway
+    deliberately: no other fixture can represent the real harness at that point.
+    """
+    result = run_typescript("""
+        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+        const mattPocock = importedMattPocock.default ?? importedMattPocock;
+        const tools = new Map(), events = new Map(), entries = [];
+        // The harness has published bash but not yet this extension's gateway.
+        let activeTools = ["bash", "read"];
+        const pi = {
+          on(name, handler) { events.set(name, handler); }, registerCommand() {},
+          registerTool(tool) { tools.set(tool.name, tool); },
+          appendEntry(customType, data) { entries.push({ customType, data }); },
+          sendMessage() {}, sendUserMessage() {},
+          getActiveTools() { return activeTools; }, setActiveTools(names) { activeTools = names; },
+        };
+        mattPocock(pi);
+        const sessionCtx = {
+          sessionManager: { getBranch: () => [] },
+          ui: { setStatus() {}, notify() {} },
+        };
+        await events.get("session_start")({}, sessionCtx);
+        const afterIdleStart = activeTools.slice();
+        await tools.get("matt_pocock_workflow").execute("start", { mode: "workflow", route: "architecture" }, undefined, undefined, sessionCtx);
+        const afterStart = activeTools.slice();
+        await tools.get("matt_pocock_active").execute("end", { action: "complete" }, undefined, undefined, sessionCtx);
+        const afterComplete = activeTools.slice();
+        console.log(JSON.stringify({ afterIdleStart, afterStart, afterComplete }));
+    """)
+    # Idle session: the gateway is the entry point every routing prompt names, so
+    # it must be present even when the snapshot never reported it. The two
+    # workflow-state tools stay hidden, and unrelated tools are untouched.
+    assert "matt_pocock_workflow" in result["afterIdleStart"]
+    assert "matt_pocock_active" not in result["afterIdleStart"]
+    assert "matt_pocock_ask" not in result["afterIdleStart"]
+    assert result["afterIdleStart"].count("bash") == 1
+    assert result["afterIdleStart"].count("read") == 1
+    # Active workflow: the two state tools appear, the gateway is not consumed.
+    assert {"matt_pocock_workflow", "matt_pocock_active", "matt_pocock_ask"} <= set(result["afterStart"])
+    # Terminal state: the two state tools go away, the gateway stays.
+    assert "matt_pocock_workflow" in result["afterComplete"]
+    assert "matt_pocock_active" not in result["afterComplete"]
+    assert "matt_pocock_ask" not in result["afterComplete"]
