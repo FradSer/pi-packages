@@ -18,7 +18,15 @@ def run_typescript(script: str) -> subprocess.CompletedProcess[str]:
     # Node 24 can run these fixtures without tsx on an isolated verification host.
     loader = [] if os.environ.get("ODK_TEST_NATIVE_TS") == "1" else ["--import", "tsx"]
     with tempfile.TemporaryDirectory(prefix="desk-test-registry-") as registry:
-        env = dict(os.environ, PI_DIRECTORY_SESSIONS_DIR=registry)
+        # The default desks file is resolved from the home directory, so stripping
+        # ODK_ environment variables is not enough on its own: a developer machine
+        # that actually runs Desk Link would have its real desks read instead of the
+        # configuration each script declares, and the harness would silently report
+        # to a real desk rather than to its own local server. Isolating HOME keeps
+        # the declared environment authoritative.
+        home = os.path.join(registry, "home")
+        os.makedirs(home, exist_ok=True)
+        env = dict(os.environ, PI_DIRECTORY_SESSIONS_DIR=registry, HOME=home)
         # A developer machine that runs the Desk Link host exports its own control
         # credentials; the suite must never inherit them, or it silently tests a
         # configured control surface instead of the one each script declares.
@@ -537,7 +545,19 @@ def test_a_configured_machine_registers_the_reporting_hooks() -> None:
         console.log(JSON.stringify({ hooks, commands }));
         '''
     )
-    assert result["hooks"] == ["session_start", "session_info_changed", "agent_start", "agent_settled", "message_end", "session_shutdown"]
+    # The exact list, because a hook added or removed here is a behaviour change:
+    # a reporter that gained a listener for tool activity reports differently, and a
+    # subset assertion would not notice. `tool_execution_start` arrived with session
+    # cards reporting the active tool.
+    assert result["hooks"] == [
+        "session_start",
+        "session_info_changed",
+        "agent_start",
+        "agent_settled",
+        "tool_execution_start",
+        "message_end",
+        "session_shutdown",
+    ]
     assert result["commands"] == ["open-deskos"]
 
 
