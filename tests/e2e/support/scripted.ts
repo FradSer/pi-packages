@@ -29,14 +29,12 @@ export interface ScriptedOptions {
   /** The tool that reports the tool surface the host actually registered. */
   probe: string;
   turns: ScriptedTurn[];
+  /** Defaults to {@link resolveFromResults}; override only to test the harness. */
+  resolve?: (value: unknown, results: unknown[]) => unknown;
   /** When set, the live tool list is written here on the first probe call.
    *  Used by the install-wiring check, which needs the surface a real configured
    *  install produced rather than the surface this harness chose. */
   dumpPath?: string;
-  /** Fills a scripted argument from an earlier tool result, so a task id a create
-   *  call returned is the same id a later call acts on. Given every result so far,
-   *  because a script usually reads a list in between. */
-  resolve?: (value: unknown, results: unknown[]) => unknown;
 }
 
 /** Prefixed to the final assistant text so the harness can find the report. */
@@ -48,6 +46,30 @@ export const E2E_OK = "E2E_OK";
 export interface E2EReport {
   tools: string[];
   calls: Array<{ name: string; isError: boolean; text: string; details: unknown }>;
+}
+
+/**
+ * Resolve `$prev.path` against the tool results so far, newest first.
+ *
+ * Lives here rather than in a fixture because it is harness machinery, not
+ * scenario data: a script names the field it wants and the harness finds the call
+ * that produced it, rather than every fixture re-implementing a fallback walk. A
+ * script also usually reads a list between creating a record and acting on it, so
+ * the value being referenced is rarely in the immediately preceding result.
+ */
+export function resolveFromResults(value: unknown, results: unknown[]): unknown {
+  if (typeof value !== "string" || !value.startsWith("$prev")) return value;
+  const path = value.slice("$prev".length).replace(/^\./, "");
+  for (const details of [...results].reverse()) {
+    let current: unknown = details;
+    let found = true;
+    for (const key of path.split(".").filter(Boolean)) {
+      if (current === null || typeof current !== "object") { found = false; break; }
+      current = (current as Record<string, unknown>)[key];
+    }
+    if (found && current !== undefined) return current;
+  }
+  return undefined;
 }
 
 /** Substitute a resolved argument for every placeholder in a scripted arg set. */
@@ -94,7 +116,8 @@ function reportFrom(messages: Message[], probe: string): E2EReport {
  * registerTool worked" from "Pi accepted my tool".
  */
 export function installScriptedProvider(pi: ExtensionAPI, options: ScriptedOptions): void {
-  const { provider, probe, turns, resolve, dumpPath } = options;
+  const { provider, probe, turns, dumpPath } = options;
+  const resolve = options.resolve ?? resolveFromResults;
   let surface: string[] = [];
   const observed: E2EReport["calls"] = [];
 

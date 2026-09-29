@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -23,6 +24,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 AGENT_TEAMS = REPO / "packages" / "agent-teams"
 PROBE = AGENT_TEAMS / "tests" / "install-probe.ts"
+PROBE_SOURCE = PROBE
 
 # The three packages the split produces, and the tool each one owns.
 PACKAGE_TOOLS = {
@@ -164,3 +166,74 @@ def test_packed_manifests_carry_no_workspace_protocol() -> None:
             target = (package / entry.removeprefix("./")).resolve()
             assert target.is_file(), f"{name} bundles {entry}, which does not resolve"
         assert tool, f"{name} owns no tool"
+
+
+SMOKE = AGENT_TEAMS / "tests" / "live-smoke.ts"
+
+
+def test_the_harness_probe_is_not_one_of_the_three() -> None:
+    """The suite's own probe must not be mistaken for a coordination tool.
+
+    Every surface assertion in this repository is written as "these three, and no
+    others", so a harness that reported itself would make those checks off by one
+    while still reading as a real tool. Asserted on the source, since the name is a
+    static fact and a process would only restate it.
+    """
+    probe_name = re.search(r'probe:\s*"([a-z_]+)"', PROBE_SOURCE.read_text(encoding="utf-8"))
+    assert probe_name, f"no probe name found in {PROBE_SOURCE}"
+    assert probe_name.group(1) not in {"agent", "task", "message"}, probe_name.group(1)
+
+
+def test_the_configured_install_runs_the_tools_end_to_end() -> None:
+    """Registration is not the same as working.
+
+    The suite above proves the three tools are present in a real install. This one
+    calls them, because a tool that registers and then refuses every call is still
+    broken and only execution shows the difference. It runs against the configured
+    package set with no package chosen by hand, so it covers the path a user gets.
+
+    The script drives create, list, take and complete on the board, then checks the
+    two boundaries a surface assertion cannot: a removed verb is refused, and a
+    message to a recipient that does not exist is refused with a reason rather than
+    reported as sent.
+    """
+    pi = shutil.which("pi")
+    if pi is None:
+        pytest.skip("the Pi CLI is required for the live smoke")
+    if not SMOKE.is_file():
+        pytest.fail(f"the live smoke script is missing at {SMOKE}")
+
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PI_TEAMMATE_")}
+    env.update({"PI_E2E_AUTH": secrets.token_hex(16), "PI_OFFLINE": "1"})
+    result = subprocess.run(
+        [pi, "--print", "--no-session", "--no-context-files", "--no-skills",
+         "--no-prompt-templates", "--no-themes", "--provider", "live-smoke",
+         "--model", "deterministic", "--thinking", "off",
+         "--extension", str(SMOKE), "run the smoke"],
+        cwd=REPO, env=env, capture_output=True, text=True, timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    line = next(
+        (raw for raw in result.stdout.splitlines() if raw.strip().startswith("E2E_REPORT")), None
+    )
+    assert line, f"the smoke run produced no report:\n{result.stdout}"
+    calls = json.loads(line.strip()[len("E2E_REPORT "):])["calls"]
+    by_name: dict[str, list[dict]] = {}
+    for call in calls:
+        by_name.setdefault(call["name"], []).append(call)
+
+    board = by_name.get("task", [])
+    assert len(board) == 5, [c["text"][:40] for c in board]
+    states = [c["details"].get("status") for c in board[:4]]
+    assert states == ["pending", None, "in_progress", "completed"], states
+    # Taking records the caller as the holder. A Task has no assignee field, so
+    # this is the only place an owner can come from.
+    assert board[2]["details"]["task"]["holder"] == "main", board[2]["details"]
+    # The fifth task call is a removed verb, refused rather than ignored.
+    assert board[4]["isError"] is True and "assign" in board[4]["text"], board[4]["text"]
+
+    message = (by_name.get("message") or [{}])[0]
+    assert "nobody-here" in message.get("text", ""), message
+
+    agent = (by_name.get("agent") or [{}])[0]
+    assert agent.get("isError") is True, "an invalid agent name must not validate"
