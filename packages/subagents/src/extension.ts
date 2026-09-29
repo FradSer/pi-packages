@@ -9,6 +9,12 @@
  * It registers exactly one tool and owns no other surface. A team runtime
  * publishes a richer spawn path through `setAgentHost`; without one, `agent`
  * falls back to the raw spawner, which is what makes this package usable alone.
+ *
+ * Deliberately does not import the TUI. Terminal geometry would have to be bound
+ * somewhere, and this file is loaded by every headless test as well as by Pi, so
+ * importing pi-tui here executes theme code that throws outside a rendered
+ * session. The row renderer is therefore optional: supplied by whichever caller is
+ * painting, and absent otherwise, in which case Pi's own default is used.
  */
 
 import { registerAgentTool } from "./agent-tool.ts";

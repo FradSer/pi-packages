@@ -28,11 +28,11 @@
 
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
 import { registerSessionAgent, resolveAgent } from "./agents.ts";
 import { configureBoardStoreIfUnset, resourcesConflict, type WorkAssignment } from "@fradser/pi-tasks";
 import { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
 import { getTeammate, listTeammates, livingTeammates, registerTeammate, updateTeammate, type Teammate } from "./roster.ts";
+import type { createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
 import { exactSessionRoute, parseExactSessionRoute, resolveExactSession } from "./session-route.ts";
 import { spawnResident, terminateTeammate, deliverPrompt } from "./spawner.ts";
 import { snapshotWorkContext } from "./work-context.ts";
@@ -205,9 +205,97 @@ function project(teammate: Teammate) {
   };
 }
 
+/**
+ * The row for one `agent` result.
+ *
+ * Built as a named spec rather than inline so the renderer can be attached only
+ * when the caller can supply real terminal geometry. A row built without geometry
+ * renders in every offline test and then fails on the first real repaint, because
+ * `--print` never paints a frame.
+ */
+const agentRowSpec: Parameters<typeof createStaticToolLifecycleResultRenderer>[0]["createSpec"] = (result) => {
+  const details = (result.details ?? {}) as {
+    name?: string;
+    agent?: string;
+    session?: string;
+    status?: string;
+    role?: string;
+    model?: string;
+    grant?: string[];
+    prompt?: string;
+    outcome?: string;
+    body?: string;
+    count?: number;
+    evidence?: string;
+    agents?: Array<{ name: string; status: string; activeTool?: string }>;
+    sessions?: Array<{ name: string; status: string; activeTool?: string }>;
+  };
+  const content = (result.content ?? []) as Array<{ text?: string }>;
+  const text = content.map((part) => part.text ?? "").join("\n");
+  // The prompt is the deliverable of a start, so it leads; everything after it on
+  // the first line is a receipt, and a collapsed row that lists its own receipts
+  // is noise. A handle never appears collapsed.
+  const carried = text
+    .split("\n")
+    .filter(Boolean)
+    .filter((line) => !/session:[^\s]+/.test(line))
+    .map((line) => line.replace(/^WORKING · /, ""))
+    .filter((line) => !/^(AGENT|IDLE|GRANT|ROLE) ·/.test(line));
+  // A presence row leads with who is what, then what they are doing right now. The
+  // activity line is the whole point of `inspect`: it is how a leader sees
+  // progress without spending a turn asking.
+  const described = (agent: { name: string; status: string; activeTool?: string }) =>
+    [`- @${agent.name} · ${agent.status}`, ...(agent.activeTool ? [`now · ${agent.activeTool}`] : [])];
+  const summary = details.agents
+    ? details.agents.flatMap(described)
+    : details.sessions
+      ? details.sessions.flatMap(described)
+      : carried;
+  const stateWord = details.outcome === "stopped" ? "stopped" : undefined;
+  return {
+    kind: "started",
+    tool: "agent",
+    // Name then state, in one subject line: the renderer puts a label before the
+    // subject, and splitting them would read `stopped · @reviewer`.
+    subject: `${details.name || details.agent ? `@${details.name ?? details.agent}` : "agent"}${stateWord ? ` · ${stateWord}` : ""}`,
+    ...(details.outcome && !stateWord ? { label: details.outcome } : {}),
+    summary,
+    details: [
+      ...(details.role ? [`role · ${details.role}`] : []),
+      ...(details.model ? [`model · ${details.model}`] : []),
+      ...(details.grant?.length ? [`tools · ${details.grant.join(", ")}`] : []),
+      // A child with no file or shell access cannot do implementation work. Saying
+      // so on the row is the difference between a caller noticing and a child that
+      // quietly cannot read anything.
+      ...(details.grant && !details.grant.some((tool) => WORKER_BUILTIN_TOOLS.includes(tool as never))
+        ? ["warning · coordination-only: no file or shell tools granted. Delegate implementation work with explicit canonical tools; no bash is granted by default."]
+        : []),
+      // The shutdown summary the runtime reported, then the caveat: a dead process
+      // is not a finished task, and that is the mistake a reader would make.
+      ...(details.body ? [details.body] : []),
+      ...(details.outcome === "stopped"
+        ? ["note · a stopped process is not evidence the work completed; check the task board"]
+        : []),
+      // Expansion reveals the whole prompt. The collapsed row shows its first line,
+      // which is the deliverable; dropping the tail would mean the row could never
+      // show what was asked.
+      ...(details.prompt ? details.prompt.trim().split("\n").slice(1) : []),
+    ],
+  };
+};
+
 export interface AgentToolOptions {
   cwd?: string;
   /** Injectable so the surface is testable without a real child process. */
+  /**
+   * Builds the result renderer from a spec. Supplied by the extension entry, which
+   * is the only layer allowed to import the TUI: a row needs real terminal
+   * geometry, and a renderer without it builds a layout the host cannot draw.
+   *
+   * Absent means no custom renderer at all, so a headless caller gets Pi's own
+   * default rather than a row that would fail on the first repaint.
+   */
+  renderResult?: (spec: { createSpec: Parameters<typeof createStaticToolLifecycleResultRenderer>[0]["createSpec"] }) => unknown;
   spawn?: typeof spawnResident;
   terminate?: typeof terminateTeammate;
   deliver?: typeof deliverPrompt;
@@ -535,98 +623,11 @@ export function registerAgentTool(pi: ExtensionAPI, options: AgentToolOptions = 
     // line. Rendering through the shared lifecycle renderer keeps the row shape
     // identical to the other coordination tools instead of inventing a fourth.
     renderCall: () => undefined as never,
-    renderResult: createStaticToolLifecycleResultRenderer({
-      createSpec: (result) => {
-        const details = (result.details ?? {}) as {
-          name?: string;
-          agent?: string;
-          session?: string;
-          status?: string;
-          outcome?: string;
-          error?: string;
-          role?: string;
-          prompt?: string;
-          model?: string;
-          grant?: string[];
-          body?: string;
-          prompted?: boolean;
-          count?: number;
-          agents?: Array<{ name: string; status: string; activeTool?: string }>;
-          sessions?: Array<{ name: string; status: string; activeTool?: string }>;
-        };
-        // Projected from the structured result, never from the result text. The
-        // text carries the exact session handle, and a collapsed row that shows
-        // a handle is noise: the handle is what you look up, not what you read.
-        // It belongs in the expanded body.
-        const content = (result.content ?? []) as Array<{ type: string; text?: string }>;
-        const text = content.map((part) => part.text ?? "").join("\n");
-        // `WORKING · <first line>` is the content, not a receipt: it is the work
-        // the child was handed. The rest are receipts, and a collapsed row that
-        // lists its own receipts is noise. A handle never appears collapsed.
-        // A stop names its resulting state; an inspect names it per session.
-        const stateWord = details.outcome === "stopped" ? "stopped" : undefined;
-        const carried = text
-          .split("\n")
-          .filter(Boolean)
-          .filter((line) => !/session:[^\s]+/.test(line))
-          .map((line) => line.replace(/^WORKING · /, ""))
-          .filter((line) => !/^(AGENT|IDLE|GRANT|ROLE) ·/.test(line));
-        // A presence row leads with who is what, then what they are doing right
-        // now. The activity line is the whole point of `inspect`: it is how a
-        // leader sees progress without spending a turn asking.
-        const described = (agent: { name: string; status: string; activeTool?: string }) =>
-          [`- @${agent.name} · ${agent.status}`, ...(agent.activeTool ? [`now · ${agent.activeTool}`] : [])];
-        const summary = details.agents
-          ? details.agents.flatMap(described)
-          : details.sessions
-            ? details.sessions.flatMap(described)
-            : carried;
-        return {
-          kind: "started",
-          tool: "agent",
-          // Name then state, in one subject line: `@reviewer · stopped`. The
-          // renderer puts a label before the subject, so splitting them would
-          // read `stopped · @reviewer` — the reverse of how a row is read
-          // everywhere else in the coordination vocabulary.
-          subject: details.name || details.agent
-            ? `@${details.name ?? details.agent}${stateWord ? ` · ${stateWord}` : ""}`
-            : (details.count !== undefined ? `${details.count} agent(s)` : "agent"),
-          ...(details.outcome && !stateWord ? { label: details.outcome } : {}),
-          summary,
-          details: [
-            ...(details.role ? [`role · ${details.role}`] : []),
-            ...(details.model ? [`model · ${details.model}`] : []),
-            ...(details.grant?.length ? [`tools · ${details.grant.join(", ")}`] : []),
-            // The exact handle is deliberately absent from the row, expanded
-            // included. It is in the structured result and in the transcript, and
-            // a row that shows an identifier is noise: nobody reads a handle off a
-            // row to use it.
-            ...(details.prompted === false ? ["idle · no prompt; it will take work assigned to it"] : []),
-            // The shutdown summary, and the caveat that a stopped process is not
-            // a completed task. Both belong on the row: the summary is what the
-            // runtime reported, and the caveat is the mistake a reader would
-            // otherwise make from a silently dead process.
-            ...(details.body ? [details.body] : []),
-            ...(details.outcome === "stopped"
-              ? ["note · a stopped process is not evidence the work completed; check the task board"]
-              : []),
-            // A child with no file or shell access cannot do implementation
-            // work. Saying so on the row is the difference between a caller
-            // noticing and a child that quietly cannot read anything.
-            ...(details.grant && !details.grant.some((tool) => WORKER_BUILTIN_TOOLS.includes(tool as never))
-              ? ["warning · coordination-only: no file or shell tools granted. Delegate execution work with explicit canonical tools; no bash is granted by default."]
-              : []),
-            // Expansion reveals the whole prompt. The collapsed row shows its
-            // first line, which is the deliverable; dropping the tail on
-            // expansion would mean the row could never show what was asked.
-            ...(details.prompt ? details.prompt.trim().split("\n").slice(1) : []),
-          ],
-        };
-      },
-      fit: (text) => text,
-      visibleWidth: () => 80,
-      wrapDetail: (line) => [line],
-    }) as never,
+    // Attached only when the caller can supply real geometry. A row built without
+    // it is worse than no row: it renders in tests and takes the terminal down on
+    // the first repaint.
+    ...(options.renderResult ? { renderResult: options.renderResult({ createSpec: agentRowSpec }) as never } : {}),
+
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       return executeAgentAction(params as Record<string, unknown>, {
         ...options,
