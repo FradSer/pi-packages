@@ -25,6 +25,7 @@ import {
   isSameDirectory,
   notifyPi,
   safeDisplayText,
+  setOwnedTools,
 } from "@fradser/pi-kit";
 import { Type } from "typebox";
 
@@ -357,15 +358,9 @@ export default function (pi: ExtensionAPI) {
   }
 
   function setSessionToolActive(active: boolean): void {
-    if (typeof pi.getActiveTools !== "function") return;
-    const activeTools = pi.getActiveTools();
-    const isActive = activeTools.includes("list_directory_sessions");
-    if (isActive === active) return;
-    pi.setActiveTools(
-      active
-        ? [...activeTools, "list_directory_sessions"]
-        : activeTools.filter((tool) => tool !== "list_directory_sessions"),
-    );
+    // Re-asserted from the owned set: a snapshot-derived write would deactivate
+    // tools the harness had not published yet. See setOwnedTools.
+    setOwnedTools(pi, { owned: ["list_directory_sessions"], toggled: ["list_directory_sessions"], enabled: active });
   }
 
   function syncSessionTool(ctxCwd: string): SessionInfo[] {

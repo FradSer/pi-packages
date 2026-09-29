@@ -23,6 +23,7 @@ import {
 	eventToolLifecycle,
 	notifyPi,
 	safeDisplayText,
+	setOwnedTools,
 } from "@fradser/pi-kit";
 import { Type } from "typebox";
 
@@ -426,11 +427,10 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 	let transitionSignal: AbortSignal | undefined;
 
 	function setWorktreeToolActive(name: "enter_worktree" | "exit_worktree", active: boolean): void {
-		if (typeof pi.getActiveTools !== "function") return;
-		const activeTools = pi.getActiveTools();
-		const isActive = activeTools.includes(name);
-		if (isActive === active) return;
-		pi.setActiveTools(active ? [...activeTools, name] : activeTools.filter((tool) => tool !== name));
+		// Only `name` is managed here: the sibling is left exactly as the snapshot
+		// reports it, because its disclosure is decided by its own call site.
+		// Declaring both as owned would erase the sibling on this write.
+		setOwnedTools(pi, { owned: [name], toggled: [name], enabled: active });
 	}
 
 	function syncWorktreeTools(ctx: Pick<ExtensionContext, "sessionManager">): void {
