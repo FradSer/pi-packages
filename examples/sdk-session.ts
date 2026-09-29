@@ -10,6 +10,7 @@
  * Requires a configured model/auth for a live prompt; discovery still works offline.
  */
 
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -22,16 +23,24 @@ import {
 const here = path.dirname(fileURLToPath(import.meta.url));
 const packagesRoot = path.resolve(here, "..", "packages");
 
+// `memory` was consolidated into `continual-learning`. Every path listed here must
+// exist: `DefaultResourceLoader` tolerates a missing additional extension path
+// silently, so a stale entry looks wired in the output while contributing nothing.
 const packageRoots = [
   "context",
-  "memory",
+  "continual-learning",
 ].map((name) => path.join(packagesRoot, name));
 
 const extensionPaths = [
-  path.join(packagesRoot, "memory/extensions/inject-memory.ts"),
+  path.join(packagesRoot, "continual-learning/extensions/inject-memory.ts"),
   path.join(packagesRoot, "context/extensions/context-tools.ts"),
   path.join(packagesRoot, "context/extensions/context-command.ts"),
-];
+].filter((extensionPath) => {
+  if (!existsSync(extensionPath)) {
+    throw new Error(`example extension path does not exist: ${extensionPath}`);
+  }
+  return true;
+});
 
 const resourceLoader = new DefaultResourceLoader({
   cwd: process.cwd(),
