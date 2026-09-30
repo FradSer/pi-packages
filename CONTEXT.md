@@ -8,7 +8,7 @@ The vocabulary below is split by owning package. Each term is implemented by exa
 
 | Package | Owns | Model-facing surface |
 | --- | --- | --- |
-| `@fradser/pi-subagents` | Agent, Work Session, Assignment Attempt, Agent Memory, Computer Lease | `agent` |
+| `@fradser/pi-subagents` | Agent, Work Session, Assignment Attempt, Session Result, Agent Memory, Computer Lease | `agent` |
 | `@fradser/pi-tasks` | Task, Task Board, Task Status, Recovery Hold, Submission, Task Acceptance | `task` |
 | `@fradser/pi-agent-teams` | Message, Coordination Event, Agent Presence, Team Console | `message` |
 
@@ -117,6 +117,10 @@ _Avoid_: Handoff summary, shared mutable conversation, workspace copy
 **Process Incarnation**:
 One temporary process executing a Work Session. A Process Incarnation may stop and later be replaced without ending the Agent, Work Session, or responsibility.
 _Avoid_: Agent, Work Session, identity, permanent worker
+
+**Session Result**:
+The settled output one Work Session turn produced for the work it was given, handed to the Leader's session once per settled turn. It carries that turn's final answer verbatim and names its Agent and Process Incarnation; it is not a claim that the work was accepted, and an ended Process Incarnation whose turn produced none says so without requiring a turn.
+_Avoid_: Submission, Message, Agent Presence, report receipt, progress update
 
 **Agent Inbox**:
 The Agent's persistent addressed-message queue. A message may wait with no active Work Session; an available Agent Teams runtime starts a Session only when the message requires a response or creates work.
