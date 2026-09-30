@@ -152,6 +152,19 @@ class TestContinueExtension(unittest.TestCase):
             self.assertEqual(json.loads(result.stdout), ["continued"])
 
 
+    def test_a_keyword_during_work_queues_the_next_turn(self) -> None:
+        """Mid-work, a continuation belongs to the session's next turn.
+
+        A direct continuation means resuming a turn that has ended, so while a turn is
+        in flight it did nothing at all: the request disappeared, and a desk driving
+        this session reported it as handed over.
+        """
+        content = self.ext_source()
+        keyword_branch = content.split('pi.on("input"', 1)[1]
+        self.assertNotIn("sendDirectContinuation(pi);", keyword_branch)
+        self.assertIn('deliverAs: "followUp"', keyword_branch)
+        self.assertIn("COMPLETED_CONTINUATION_PROMPT", keyword_branch)
+
     def test_a_continuation_during_work_says_how_it_is_queued(self) -> None:
         """A user message that arrives mid-turn is only kept when the delivery says how.
 

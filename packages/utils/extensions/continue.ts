@@ -229,7 +229,11 @@ export default function registerContinue(pi: ExtensionAPI): void {
       return { action: "handled" };
     }
 
-    sendDirectContinuation(pi);
+    // Work is in flight, so a direct continuation would mean resuming a turn that
+    // has not ended. The request belongs to the session's next turn instead: Pi
+    // keeps a user message that declares how it is queued, and without a delivery it
+    // drops the message and whoever sent it believes the work was handed over.
+    await pi.sendUserMessage(COMPLETED_CONTINUATION_PROMPT, { deliverAs: "followUp" });
     return { action: "handled" };
   });
 
