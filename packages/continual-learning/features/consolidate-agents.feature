@@ -151,7 +151,3 @@ Feature: AGENTS.md consolidation as the third pipeline phase
     Then memory and harness results remain untouched
     And the user receives an AGENTS.md-specific diagnostic instead of an overall failure
 
-  Scenario: no-context skips the AGENTS.md phase
-    Given the user invoked /consolidate no-context
-    When the pipeline reaches the third phase
-    Then no planner child is spawned and the user is informed why

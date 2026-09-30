@@ -2,7 +2,16 @@
 
 ## Status
 
-Accepted. Scope: the decision-model surface in
+**Superseded.** The judgment surface this record describes was removed by
+`refactor(cl): remove the judgment surface entirely` on
+`pi/worktree/jev-continual-learning`, and merging that branch deleted the
+surface from `main`: the seven `judgment-*.ts` modules, the shadow tests, the
+feature file, and `JUDGMENT-MODEL-SPEC.md`. The receipt plumbing it added to
+`learning-efficiency.ts` went with it. This record is kept because the reasoning
+and the measurements behind the decision still explain why the surface was tried
+and why it did not survive; nothing in the tree implements it.
+
+Accepted (historical). Scope: the decision-model surface in
 `packages/continual-learning`. Does not change the generative planner, the
 parent-owned validation and mutation boundary, or the deterministic Harness
 execution gates.

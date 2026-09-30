@@ -256,9 +256,8 @@ def test_consolidate_pipeline_gates_harness_phase() -> None:
     src = (PKG_DIR / "extensions" / "inject-memory.ts").read_text(encoding="utf-8")
     assert 'planHarnessConsolidationPhase, shouldRunHarnessPhase' in src
     assert "applyHarnessConsolidationPlan" in src
-    assert 'shouldRunHarnessPhase(state, opts.noContext)' in src
-    assert 'gate !== "run"' in src
-    assert 'if (opts.noContext)' in src
+    assert 'shouldRunHarnessPhase(state) !== "run"' in src
+    assert "noContext" not in src
     assert 'await writeCurrentReceipt()' in src
     assert "await startConsolidationPipeline(ctx, dreamState," in src
     assert "selectedScope: incrementalSelection?.selection?.selected" in src
@@ -363,7 +362,6 @@ def test_should_run_harness_phase_decision_table() -> None:
           failedSkips: shouldRunHarnessPhase({{ outcome: "failed", active: false, cancelled: false }}),
           unverifiedSkips: shouldRunHarnessPhase({{ outcome: "unverified", active: false, cancelled: false }}),
           completedRuns: shouldRunHarnessPhase({{ outcome: "completed", active: false, cancelled: false }}),
-          noContextSkipsEvenWhenCompleted: shouldRunHarnessPhase({{ outcome: "completed", active: false, cancelled: false }}, true),
         }};
         console.log(JSON.stringify(table));
     """
@@ -375,7 +373,6 @@ def test_should_run_harness_phase_decision_table() -> None:
         "failedSkips": "skip",
         "unverifiedSkips": "skip",
         "completedRuns": "run",
-        "noContextSkipsEvenWhenCompleted": "skip-no-context",
     }
 
 

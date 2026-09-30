@@ -1,16 +1,43 @@
-/** Built-in < user shared < project shared < project personal flat rules. */
+/** Built-in defaults < user shared < user scoped to this project < project
+ *  shared < project personal flat rules. */
 import fs from "node:fs";
 import path from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_RULES, mergeLayers, validateRuleContainer } from "./guardrail-engine.ts";
+import { escapedProjectPath } from "./memory-paths.ts";
 import type { ResolvedHarnessConfig, RuleLayer } from "./guardrail-types.ts";
 
-export interface ConfigPaths { user: string; project: string; projectLocal: string }
+export interface ConfigPaths {
+  /** Personal rules for every project. */
+  user: string;
+  /** Personal rules for one project, named by the same scope key Memory uses. */
+  userScoped: string;
+  project: string;
+  projectLocal: string;
+}
 export interface ResolvedHarnessConfigWithPaths { config: ResolvedHarnessConfig; paths: ConfigPaths }
 
+/**
+ * Where a project's personal Harness configuration lives.
+ *
+ * Memory already scopes private state per canonical project path, so rules
+ * authored for one project cannot silently govern another. The user layer is
+ * scoped the same way, in a directory parallel to `memory/` rather than inside
+ * it: a Memory root admits only regular `.md` children, so placing a JSON
+ * configuration there fails consolidation's privacy validation and aborts the
+ * run. The same escaped-canonical-path key is reused so the two are easy to
+ * correlate, and the global file is kept as the lowest user layer so a
+ * cross-project rule still applies everywhere.
+ */
+function scopedUserConfigPath(agentDir: string, cwd: string): string {
+  return path.join(agentDir, "harness", `${escapedProjectPath(cwd)}.json`);
+}
+
 export function configPaths(cwd: string, agentDir?: string): ConfigPaths {
+  const root = agentDir ?? getAgentDir();
   return {
-    user: path.join(agentDir ?? getAgentDir(), "harness.json"),
+    user: path.join(root, "harness.json"),
+    userScoped: scopedUserConfigPath(root, cwd),
     project: path.join(cwd, ".pi", "harness.json"),
     projectLocal: path.join(cwd, ".pi", "harness.local.json"),
   };
@@ -53,7 +80,14 @@ function readLayer(source: string, file: string): RuleLayer | undefined {
 
 export function loadLayers(cwd: string, agentDir?: string): RuleLayer[] {
   const paths = configPaths(cwd, agentDir);
-  return ([['user', paths.user], ['project', paths.project], ['project.local', paths.projectLocal]] as const)
+  // Nearest wins: project personal, then project shared, then this project's
+  // personal user layer, then the all-projects user layer, then built-ins.
+  return ([
+    ['user', paths.user],
+    ['user.scoped', paths.userScoped],
+    ['project', paths.project],
+    ['project.local', paths.projectLocal],
+  ] as const)
     .flatMap(([source, file]) => { const layer = readLayer(source, file); return layer ? [layer] : []; });
 }
 

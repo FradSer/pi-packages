@@ -341,7 +341,7 @@ export interface ContextManifest {
   runId: string;
   scopeKey: string;
   contextEnabled: boolean;
-  mode: "snapshot" | "no-context";
+  mode: "snapshot";
   snapshotFile?: string;
   snapshotDigest?: string;
   entryCount: number;
@@ -359,7 +359,7 @@ export interface ConsolidationManifest {
   publicDir?: string;
   runDir: string;
   contextEnabled: boolean;
-  contextMode: "snapshot" | "no-context";
+  contextMode: "snapshot";
   snapshotPath: string;
   snapshotDigest: string;
   createdAt: string;
@@ -612,16 +612,6 @@ export async function captureConsolidationSnapshot(
   return { snapshot, manifest, digest: snapshotDigest };
 }
 
-export async function writeNoContextManifest(paths: ConsolidationRunPaths, reason = "no-context"): Promise<ContextManifest> {
-  await ensureConsolidationRunDir(paths);
-  const manifest: ContextManifest = {
-    schemaVersion: CONSOLIDATION_SCHEMA_VERSION, runId: paths.runId, scopeKey: paths.memory.scopeKey,
-    contextEnabled: false, mode: "no-context", entryCount: 0, createdAt: new Date().toISOString(), reason,
-  };
-  await writeJsonAtomic(paths.contextManifestFile, manifest);
-  return manifest;
-}
-
 export interface MirrorRepair {
   name: string;
   direction: "harness-to-public" | "public-to-harness";
@@ -734,32 +724,24 @@ export async function normalizeMirrorDrift(memory: MemoryPaths): Promise<MirrorN
   return { repaired: [...repairLog.values()].sort((left, right) => left.name.localeCompare(right.name)), removed: [...removed].sort() };
 }
 
-export async function createConsolidationRun(ctx: ExtensionContext, cwd: string, noContext = false, normalization: typeof normalizeMirrorDrift | false = normalizeMirrorDrift): Promise<ConsolidationRun> {
+export async function createConsolidationRun(ctx: ExtensionContext, cwd: string, normalization: typeof normalizeMirrorDrift | false = normalizeMirrorDrift): Promise<ConsolidationRun> {
   const paths = resolveConsolidationRunPaths(cwd);
   const lock = await acquireConsolidationLock(paths, { runId: paths.runId, cwd });
   try {
     await ensureConsolidationRunDir(paths);
     const normalized = normalization ? await normalization(paths.memory) : { repaired: [], removed: [] };
-    const captured = noContext ? undefined : await captureConsolidationSnapshot(ctx, paths);
-    const contextManifest = captured?.manifest ?? await writeNoContextManifest(paths);
-    const snapshot = captured?.snapshot ?? {
-      schemaVersion: CONSOLIDATION_SCHEMA_VERSION, runId: paths.runId, scopeKey: paths.memory.scopeKey,
-      capturedAt: contextManifest.createdAt, source: "empty" as const, contextEnabled: false, entries: [],
-    } satisfies ConsolidationSnapshot;
-    let snapshotDigest: string;
-    if (captured) {
-      snapshotDigest = captured.digest;
-    } else {
-      const snapshotText = jsonText(snapshot);
-      await writeFileAtomic(paths.snapshotFile, snapshotText);
-      snapshotDigest = sha256Digest(snapshotText);
-    }
+    // Every run carries a frozen snapshot. The former no-context mode skipped it
+    // and had the planners work from an unfrozen context, which left
+    // "evidence" ungroundable and made a proposal's provenance unverifiable.
+    const captured = await captureConsolidationSnapshot(ctx, paths);
+    const contextManifest = captured.manifest;
+    const snapshotDigest = captured.digest;
     const manifest: ConsolidationManifest = {
       schemaVersion: CONSOLIDATION_SCHEMA_VERSION, runId: paths.runId, cwd: paths.memory.cwd,
       scopeKey: paths.memory.scopeKey,
-      scopeDigest: digest({ runId: paths.runId, scopeKey: paths.memory.scopeKey, snapshotDigest, contextEnabled: !noContext }),
+      scopeDigest: digest({ runId: paths.runId, scopeKey: paths.memory.scopeKey, snapshotDigest, contextEnabled: true }),
       harnessDir: paths.memory.harnessDir, publicDir: paths.memory.publicDir, runDir: paths.runDir,
-      contextEnabled: !noContext, contextMode: noContext ? "no-context" : "snapshot", snapshotPath: paths.snapshotFile,
+      contextEnabled: true, contextMode: "snapshot", snapshotPath: paths.snapshotFile,
       snapshotDigest, createdAt: contextManifest.createdAt,
       sourceHashes: { harness: await hashMemoryRoot(paths.memory.harnessDir), public: paths.memory.publicDir ? await hashMemoryRoot(paths.memory.publicDir) : {} },
     };
@@ -1448,10 +1430,43 @@ function newMemoryKind(value: unknown, label: string): NewMemoryKind {
   throw new Error(`${label} must be preference or project`);
 }
 
-function newMemoryClassification(value: unknown, kind: NewMemoryKind, label: string): NewMemoryClassification {
+/**
+ * First-person preference stated as such.
+ *
+ * The parent already refuses a plan that declares `preference` with a `safe`
+ * classification, so a declared contradiction cannot leak. What it could not
+ * catch was a *mislabel*: the planner declaring `project` and `safe` for
+ * something the user stated as a personal preference. The live smoke
+ * reproduced this three runs in a row — a preference reached the project
+ * surface — because a guard on the declared kind is only as strong as the
+ * planner's honesty about it.
+ *
+ * This is a surface pattern, in the same idiom the package already uses to
+ * decide which phases to run (`DURABLE_USER_PATTERN` in learning-efficiency).
+ * It only ever *demotes* safe to private, so a false positive costs
+ * collaboration and never costs privacy. The failure mode of getting this
+ * wrong is one direction only.
+ */
+const STATED_PREFERENCE_PATTERN =
+  /\b(?:i|we)\s+(?:prefer|want|like|hate|dislike|always want|always prefer)\b|(?:i['’]m|i am)\s+(?:not\s+)?(?:a\s+)?fan\b|(?:the\s+)?user\s+(?:prefers|wants|likes|hates|dislikes|asks for)\b|我(?:更)?(?:喜欢|不喜欢|想要|不想|偏好|希望)|我(?:不喜欢|讨厌)/iu;
+
+export function statesPreferenceAsSuch(text: string): boolean {
+  return STATED_PREFERENCE_PATTERN.test(text);
+}
+
+function newMemoryClassification(value: unknown, kind: NewMemoryKind, label: string, statements: readonly string[] = []): NewMemoryClassification {
   if (value === undefined) return kind === "preference" ? "private" : "safe";
   if (value !== "safe" && value !== "private") throw new Error(`${label} must be safe or private`);
-  if (kind === "preference" && value === "safe") throw new Error(`${label}: preferences must remain private`);
+  // Both a declared contradiction and a stated preference resolve the same way:
+  // the knowledge is kept and made private.
+  //
+  // This used to reject a plan declaring `preference` with `safe`, on the
+  // reasoning that the planner had not thought. But the knowledge was never in
+  // doubt — the user did state a preference — so rejecting threw away real
+  // learning over a label error and aborted the phase. With no external
+  // judgment surface to reconcile it, the parent has to: the planner is
+  // inconsistent about labels far more reliably than it is about knowledge.
+  if (value === "safe" && (kind === "preference" || statements.some(statesPreferenceAsSuch))) return "private";
   return value;
 }
 
@@ -1515,7 +1530,6 @@ export function normalizeNewMemoryProposals(
     if (names.has(key)) throw new Error(`${label}: duplicate new memory name: ${name}`);
     names.add(key);
     const kind = newMemoryKind(item.kind, `${label}.kind`);
-    const classification = newMemoryClassification(item.classification, kind, `${label}.classification`);
     const content = item.content;
     if (typeof content !== "string" || content.length === 0) throw new Error(`${label}.content must be a non-empty string`);
     const contentBytes = Buffer.byteLength(content, "utf8");
@@ -1524,6 +1538,14 @@ export function normalizeNewMemoryProposals(
     totalBytes += contentBytes;
     if (totalBytes > MAX_NEW_MEMORY_TOTAL_BYTES) throw new Error(`newMemories content exceeds ${MAX_NEW_MEMORY_TOTAL_BYTES} bytes`);
     const evidence = normalizeNewMemoryEvidence(item.evidence, entries, `${label}.evidence`);
+    // Classification is resolved after the evidence, because the demotion reads
+    // the proposal's own wording as well as the quotes it rests on.
+    const classification = newMemoryClassification(
+      item.classification,
+      kind,
+      `${label}.classification`,
+      [String(content), ...evidence.map((entry) => String(entry.quote ?? ""))],
+    );
     return { name, kind, classification, content, evidence };
   });
 }

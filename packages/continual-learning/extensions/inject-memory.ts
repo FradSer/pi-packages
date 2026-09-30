@@ -70,12 +70,8 @@ import {
 } from "./planner-prompts";
 import { registerAutomaticLearning } from "./automatic-learning";
 import { buildLearningReceipt, formatLearningSummary, isLearningPipelineReceipt, learningSummaryDetails, learningSummarySubject, manualIncrementalScreen, screenLearningEntries, shouldRetryPlanner, snapshotEntries, writeLearningReceipt, type LearningAttempt, type LearningMode, type LearningPipelineReceipt, type LearningScreen } from "./learning-efficiency";
-import { currentTaskSlice, indexMemoryMetadata, selectedMemoryMetadata, selectIncrementalLearning } from "./incremental-learning";
-import { observeMemoryProposals, observePlanSurface } from "./judgment-shadow";
-import { resolveJudgmentAuthority, surfaceMode, type ResolvedJudgmentAuthority } from "./judgment-config";
-import { planOperationsOf } from "./judgment-plans";
-import type { NewMemoryProposal } from "./consolidation-run";
-import { judgmentEntryFor, registerJudgmentObservability, judgmentProposalEntryFor, judgmentReceiptSummary, JUDGMENT_OBSERVATION_ENTRY, type JudgmentObservationEntry } from "./judgment-observability";
+import { currentTaskSlice, selectIncrementalLearning, type TaskSlice } from "./incremental-learning";
+import { enqueueBacklog, backlogStatus, type BacklogReason } from "./learning-backlog";
 import { expandIncrementalMemoryPlan } from "./incremental-memory-plan";
 import { automaticPhasePolicies, type PhasePolicies } from "./learning-controls";
 import { checkPendingLearningMutations, memoryMutationFiles, normalizeTrackedMemory, recordLearningMutation, recordLearningProposal, recoverLearningUndo } from "./learning-history";
@@ -392,8 +388,7 @@ export function collapseDuplicatePlanRecords<T>(plan: T): T {
   return collapsed ? (next as T) : plan;
 }
 
-function parentSelectedScope(run: ConsolidationRun, noContext: boolean, selected?: readonly string[]): string[] {
-  if (noContext) return [];
+function parentSelectedScope(run: ConsolidationRun, selected?: readonly string[]): string[] {
   if (selected) return [...selected].sort((left, right) => left.localeCompare(right));
   const names = new Map<string, string>();
   const sourceHashes = run.manifest.sourceHashes;
@@ -433,13 +428,11 @@ async function ensureEmptyIncrementalIndexes(cwd: string, selected: readonly str
  * derive this list itself: the snapshot holds session entries, not memory
  * names, so the authoritative scope must be stated in the task header.
  */
-export function formatSelectedScopeTaskLines(selectedScope: readonly string[], noContext = false): string[] {
+export function formatSelectedScopeTaskLines(selectedScope: readonly string[]): string[] {
   return [
     `- Selected memory scope (authoritative, complete, JSON): ${JSON.stringify(selectedScope)}`,
     "- Your plan's `selected` array MUST be exactly this list — same names, same casing, no additions or omissions.",
-    noContext
-      ? "- No-context mode: newMemories MUST be empty. No session knowledge may be created."
-      : `- New context-derived files belong only in newMemories (at most ${MAX_NEW_MEMORY_PROPOSALS}), with snapshot evidence; do not add their names to selected or its per-item sections. An empty selected list does not prevent new memory creation.`,
+    `- New context-derived files belong only in newMemories (at most ${MAX_NEW_MEMORY_PROPOSALS}), with snapshot evidence; do not add their names to selected or its per-item sections. An empty selected list does not prevent new memory creation.`,
     ...selectedScope.map((name) => `  - ${name}`),
   ];
 }
@@ -896,7 +889,6 @@ async function spawnAsyncConsolidation(
   opts: {
     pkgDir: string;
     cwd: string;
-    noContext?: boolean;
     reason: string;
     attempt?: number;
     rejectionFeedback?: string;
@@ -906,11 +898,10 @@ async function spawnAsyncConsolidation(
     dossierDigest?: string;
     selectedSourceDigest?: string;
     applyChanges?: boolean;
-    reportJudgment?: (entry: JudgmentObservationEntry) => void;
   },
 ): Promise<boolean> {
   const attempt = opts.attempt ?? 0;
-  const incremental = opts.mode !== "full" && !opts.noContext;
+  const incremental = opts.mode !== "full";
   const attemptStartedAt = Date.now();
   if (state.active && attempt === 0) {
     notifyPi(ctx.ui, "Memory consolidation is already running in background.", "info");
@@ -929,7 +920,7 @@ async function spawnAsyncConsolidation(
 
   let run: ConsolidationRun;
   try {
-    run = await createConsolidationRun(ctx, opts.cwd, opts.noContext, opts.applyChanges === false ? false : normalizeTrackedMemory);
+    run = await createConsolidationRun(ctx, opts.cwd, opts.applyChanges === false ? false : normalizeTrackedMemory);
   } catch (err: unknown) {
     if (isGenerationCurrent()) {
       state.active = false;
@@ -969,7 +960,7 @@ async function spawnAsyncConsolidation(
   }
   state.run = run;
   runModeById.set(run.manifest.runId, opts.mode ?? "manual");
-  const selectedScope = parentSelectedScope(run, Boolean(opts.noContext), opts.selectedScope);
+  const selectedScope = parentSelectedScope(run, opts.selectedScope);
   if (run.normalization.repaired.length > 0 || run.normalization.removed.length > 0) {
     notifyPi(ctx.ui,
       `Memory consolidation normalized mirrors before planning: ${run.normalization.repaired.length} repaired, ${run.normalization.removed.length} removed`,
@@ -1015,14 +1006,14 @@ async function spawnAsyncConsolidation(
     `Task: produce a read-only structured consolidation plan for the project at ${opts.cwd}.`,
     `- Reason: ${opts.reason}`,
     ...buildTaskFeedbackLines(opts.rejectionFeedback),
-    `- Context mode: ${opts.noContext ? "no-context (do not capture session context)" : "parent-provided immutable snapshot"}`,
+    "- Context mode: parent-provided immutable snapshot",
     ...(incremental
       ? [
           `- Authoritative selected Memory names: ${JSON.stringify(selectedScope)}`,
         ]
       : [
           `- Pre-run mirror normalization: ${JSON.stringify({ repaired: run.normalization.repaired, removed: run.normalization.removed })}`,
-          ...formatSelectedScopeTaskLines(selectedScope, Boolean(opts.noContext)),
+          ...formatSelectedScopeTaskLines(selectedScope),
 
         ]),
     "",
@@ -1337,7 +1328,7 @@ async function spawnAsyncConsolidation(
           const planText = `${JSON.stringify(plan, null, 2)}\n`;
           const planDigest = sha256Digest(planText);
           const preSelected = normalizeSelectedScope(plan);
-          const expectedSelected = parentSelectedScope(run, Boolean(opts.noContext), opts.selectedScope);
+          const expectedSelected = parentSelectedScope(run, opts.selectedScope);
           if (JSON.stringify(preSelected) !== JSON.stringify(expectedSelected)) {
             throw new Error("Consolidation plan selected scope does not match the parent snapshot scope");
           }
@@ -1351,63 +1342,6 @@ async function spawnAsyncConsolidation(
           // is applied: the parent still writes every proposal, exactly as it
           // does today. What it produces is the baseline for the later question
           // of whether a planner should produce several candidates and pick one.
-          const proposalPlan = plan as { newMemories?: unknown[]; operations?: unknown[] };
-          // When this surface is authoritative, Judgment's verdict arrives before
-          // the parent's validator rather than after it. Fail open: a service
-          // outage must not stop learning, so an unanswered judgment applies every
-          // proposal exactly as today rather than dropping real knowledge.
-          if (proposalPlan.newMemories && surfaceMode(judgmentAuthority(), "proposals") === "authoritative") {
-            const judged = await observeMemoryProposals({
-              cwd: opts.cwd,
-              contextDigest: run.manifest.snapshotDigest,
-              projection: {
-                proposals: (proposalPlan.newMemories ?? []) as NewMemoryProposal[],
-                memories: await indexMemoryMetadata(opts.cwd),
-                selected: normalizeSelectedScope(plan),
-              },
-            });
-            if (judged.judged && judged.kept) {
-              const kept = new Set(judged.kept);
-              const judgedProposals = (proposalPlan.newMemories ?? []) as NewMemoryProposal[];
-              const reduced = judgedProposals.filter((_proposal, index) => kept.has(`c${index}`));
-              if (reduced.length !== judgedProposals.length) {
-                // The names the parent still applies come from the plan, never
-                // from the model: Judgment narrows a set, it does not name one.
-                proposalPlan.newMemories = reduced;
-              }
-            }
-          }
-          // The plan's operations on *existing* entries were the last Memory
-          // surface left unobserved. Staleness is asked in the parent's own
-          // closed vocabulary so an answer is comparable with a plan.
-          {
-            const memoryOperations = planOperationsOf(plan, "kind");
-            if (memoryOperations.length > 0 || preSelected.length > 0) {
-              void observePlanSurface({
-                cwd: opts.cwd,
-                contextDigest: run.manifest.snapshotDigest,
-                projection: {
-                  surface: "memory-operations",
-                  operations: memoryOperations,
-                  selected: await selectedMemoryMetadata(opts.cwd, preSelected),
-                },
-                              }).catch(() => undefined);
-            }
-          }
-          const proposalCount = Array.isArray(proposalPlan.newMemories) ? proposalPlan.newMemories.length : 0;
-          if (proposalCount > 0 && surfaceMode(judgmentAuthority(), "proposals") !== "authoritative") {
-            void observeMemoryProposals({
-              cwd: opts.cwd,
-              contextDigest: run.manifest.snapshotDigest,
-              projection: {
-                proposals: (proposalPlan.newMemories ?? []) as NewMemoryProposal[],
-                memories: await indexMemoryMetadata(opts.cwd),
-                selected: preSelected,
-              },
-                          }).then((observation) => {
-              if (observation.judged) opts.reportJudgment?.(judgmentProposalEntryFor(observation));
-            }).catch(() => undefined);
-          }
           if (opts.applyChanges === false) {
             const candidate = plan as { operations?: unknown[]; newMemories?: unknown[] };
             proposed = (candidate.operations?.length ?? 0) + (candidate.newMemories?.length ?? 0) > 0;
@@ -1538,20 +1472,18 @@ async function spawnAsyncConsolidation(
 async function startConsolidationPipeline(
   ctx: ExtensionContext,
   state: DreamState,
-  opts: { pkgDir: string; cwd: string; noContext?: boolean; reason: string; availableSkills: readonly string[]; mode: LearningMode; reportResult?: boolean; reportReceipt?: (receipt: LearningPipelineReceipt) => void; reportJudgment?: (entry: JudgmentObservationEntry) => void },
+  opts: { pkgDir: string; cwd: string; reason: string; availableSkills: readonly string[]; mode: LearningMode; reportResult?: boolean; reportReceipt?: (receipt: LearningPipelineReceipt) => void },
 ): Promise<void> {
   if (state.pipeline) return state.pipeline;
   let pipelineScreen: LearningScreen | undefined;
   let selectorRun: ConsolidationRun | undefined;
-  // The digest every Judgment observation in this run is correlated by.
-  let observationContextDigest = "";
   // Every generative phase runs on this one model. Resolved once so the Memory,
   // Harness, and AGENTS.md phases cannot drift onto different models.
   const consolidationModel = memoryConfig.provider && memoryConfig.model
     ? `${memoryConfig.provider}/${memoryConfig.model}`
     : undefined;
   let acquiredLaterRun: ConsolidationRun | undefined;
-  setDreamingWidget(ctx, opts.mode === "full" || opts.noContext ? "preparing full maintenance" : "selecting current task");
+  setDreamingWidget(ctx, opts.mode === "full" ? "preparing full maintenance" : "selecting current task");
   state.cleanup = () => clearDreamingWidget(ctx);
   const pipeline = (async () => {
     const recoveryLock = await acquireConsolidationLock(resolveConsolidationRunPaths(opts.cwd));
@@ -1560,20 +1492,23 @@ async function startConsolidationPipeline(
     await recoverLearningUndo(opts.cwd);
     await checkPendingLearningMutations(opts.cwd);
     const policies = automaticPhasePolicies(await readSettings(opts.cwd), opts.mode);
-    const fullMode = opts.mode === "full" || Boolean(opts.noContext);
+    const fullMode = opts.mode === "full";
     const completeEntries = snapshotEntries(ctx);
     const taskSlice = currentTaskSlice(completeEntries);
     const taskContext = snapshotSessionContext(ctx, fullMode ? undefined : taskSlice.entries);
-    const frozenContext = opts.noContext ? ctx : taskContext;
-    const screen: LearningScreen = opts.noContext
-      ? { memory: true, harness: false, agents: false, reasons: ["no-context"] }
-      : screenLearningEntries(taskSlice.entries, opts.mode);
+    const frozenContext = taskContext;
+    const screen: LearningScreen = screenLearningEntries(taskSlice.entries, opts.mode);
     pipelineScreen = screen;
     for (const phase of ["memory", "harness", "agents"] as const) if (policies[phase] === "off") screen[phase] = false;
     if (!screen.memory && !screen.harness && !screen.agents) {
       const receipt = buildLearningReceipt(opts.mode, screen, []);
       await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt);
-      if (opts.reportResult) opts.reportReceipt?.(receiptWithJudgment(receipt, opts.cwd));
+      if (opts.reportResult) opts.reportReceipt?.(receipt);
+      // The screen judged this task valueless, and that judgment is a heuristic
+      // making an irreversible discard. Queue a reference instead, so
+      // /consolidate backfill can revisit it on the user's schedule rather than
+      // at a moment they did not choose.
+      queueSettledTask(ctx, taskSlice, "screen-found-nothing", opts.cwd);
       return;
     }
     state.attempts = [];
@@ -1581,10 +1516,10 @@ async function startConsolidationPipeline(
     state.cancelled = false;
     state.controller = new AbortController();
     const reportReceipt = (receipt: LearningPipelineReceipt): void => {
-      if (opts.reportResult) opts.reportReceipt?.(receiptWithJudgment(receipt, opts.cwd));
+      if (opts.reportResult) opts.reportReceipt?.(receipt);
     };
     const writeCurrentReceipt = async (directory = resolveMemoryPaths(opts.cwd).runsDir): Promise<void> => {
-      const receipt = receiptWithJudgment(buildLearningReceipt(opts.mode, screen, state.attempts ?? []), opts.cwd);
+      const receipt = buildLearningReceipt(opts.mode, screen, state.attempts ?? []);
       await writeLearningReceipt(directory, receipt);
       reportReceipt(receipt);
     };
@@ -1593,7 +1528,7 @@ async function startConsolidationPipeline(
     let appliedMemoryChanges = 0;
     if (!fullMode) {
       setDreamingActivity("selecting related memory");
-      selectorRun = await createConsolidationRun(frozenContext, opts.cwd, false, policies.memory === "apply" ? normalizeTrackedMemory : false);
+      selectorRun = await createConsolidationRun(frozenContext, opts.cwd, policies.memory === "apply" ? normalizeTrackedMemory : false);
       selectedSourceDigest = sha256Digest(JSON.stringify(selectorRun.manifest.sourceHashes));
       const selectorReceiptDirectory = resolveMemoryPaths(opts.cwd).runsDir;
       try {
@@ -1614,12 +1549,6 @@ async function startConsolidationPipeline(
           operations: 0,
           usage: incrementalSelection.usage,
         });
-        // Shadow mode is otherwise invisible: the selector's decision is
-        // unchanged, so without one bounded row there is no evidence the
-        // decision surface ran at all.
-        if (incrementalSelection.judgment) {
-          opts.reportJudgment?.(judgmentEntryFor(incrementalSelection.judgment, opts.cwd));
-        }
         if (incrementalSelection.outcome !== "selected" || !incrementalSelection.selection) {
           if (!state.cancelled) notifyPi(ctx.ui, `Learning selector failed: ${incrementalSelection.error ?? "invalid selection"}`, "warning");
           await writeCurrentReceipt(selectorReceiptDirectory);
@@ -1691,12 +1620,7 @@ async function startConsolidationPipeline(
       state.active = false;
       state.outcome = "completed";
     }
-    const gate = shouldRunHarnessPhase(state, opts.noContext);
-    if (gate !== "run" && gate !== "skip-no-context") {
-      await writeCurrentReceipt();
-      return;
-    }
-    if (opts.noContext) {
+    if (shouldRunHarnessPhase(state) !== "run") {
       await writeCurrentReceipt();
       return;
     }
@@ -1711,9 +1635,8 @@ async function startConsolidationPipeline(
       await releaseConsolidationRun(selectorRun, { keepArtifacts: true });
       selectorRun = undefined;
     }
-    const laterRun = await createConsolidationRun(frozenContext, opts.cwd, false, policies.memory === "apply" ? normalizeTrackedMemory : false);
+    const laterRun = await createConsolidationRun(frozenContext, opts.cwd, policies.memory === "apply" ? normalizeTrackedMemory : false);
     acquiredLaterRun = laterRun;
-    observationContextDigest = laterRun.manifest.snapshotDigest;
     if (incrementalSelection?.dossierPath && incrementalSelection.dossierDigest) {
       const dossierBytes = await fs.readFile(incrementalSelection.dossierPath);
       if (sha256Digest(dossierBytes) !== incrementalSelection.dossierDigest) throw new Error("incremental dossier changed before later planning");
@@ -1766,13 +1689,6 @@ async function startConsolidationPipeline(
           // proposed. Kept out of the apply branch: under a propose policy the
           // surface would otherwise stop being judged, silently, exactly when a
           // plan still exists and is worth reading.
-          void observePlanSurface({
-            cwd: opts.cwd,
-            // The planning result carries its own run, so the digest binds the
-            // observation to the evidence the plan was actually built from.
-            contextDigest: observationContextDigest || harnessPlan.value.run.manifest.snapshotDigest,
-            projection: { surface: "harness-operations", operations: planOperationsOf(harnessPlan.value.plan, "op") },
-          }).catch(() => undefined);
           if (policies.harness === "propose") {
             const hasChanges = Array.isArray(harnessPlan.value.plan.operations) && harnessPlan.value.plan.operations.length > 0;
             if (hasChanges) await recordLearningProposal(opts.cwd, "harness", harnessPlan.value.plan);
@@ -1808,11 +1724,6 @@ async function startConsolidationPipeline(
           // Observe the plan, not the branch that will follow it. This used to sit
           // in the apply branch, so with the default propose policy the surface was
           // never judged — the one case where a plan exists and is worth reading.
-          void observePlanSurface({
-            cwd: opts.cwd,
-            contextDigest: observationContextDigest,
-            projection: { surface: "agents-operations", operations: planOperationsOf({ operations }, "op") },
-          }).catch(() => undefined);
           const memoryNames = operations.flatMap(operation => operation.extraction?.target === "memory" ? [operation.extraction.memoryName] : []);
           const hasSkillExtraction = operations.some(operation => operation.extraction?.target === "skillRule");
           const propose = policies.agents === "propose" || (memoryNames.length > 0 && policies.memory !== "apply") || (hasSkillExtraction && policies.harness !== "apply");
@@ -1885,29 +1796,35 @@ async function editInstructions(ctx: ExtensionCommandContext, filePath: string):
 
 const LEARNING_RESULT_MESSAGE = "continual-learning-result";
 
-/** Which surfaces a decision surface may decide. Module level, because the
- *  pipeline reads it and the registration reports it. Resolved per run rather
- *  than cached, so a configuration change takes effect on the next run without
- *  a restart. */
-function judgmentAuthority(): ResolvedJudgmentAuthority {
-  return resolveJudgmentAuthority();
-}
-
-/** The shadow measurement rides the receipt `/consolidate` already prints, so
- *  there is no second command to remember and no new surface to learn. Absent
- *  when Judgment is not configured, which keeps the line unchanged for anyone
- *  who has not opted in. */
-function receiptWithJudgment(receipt: LearningPipelineReceipt, cwd: string): LearningPipelineReceipt {
-  const judgment = judgmentReceiptSummary(cwd);
-  return judgment ? { ...receipt, judgment } : receipt;
+/**
+ * Queue a settled task that was not learned from.
+ *
+ * Stores a reference — session file and entry indices — never the text. The
+ * backlog is therefore an index over conversations rather than a second copy of
+ * them, and a task whose session file is later removed is reported as
+ * unlearnable instead of being silently dropped or reconstructed.
+ */
+function queueSettledTask(
+  ctx: ExtensionContext,
+  taskSlice: TaskSlice,
+  reason: BacklogReason,
+  cwd: string,
+): void {
+  const manager = ctx.sessionManager as { getSessionFile?: () => string | undefined } | undefined;
+  const sessionFile = manager?.getSessionFile?.();
+  if (!sessionFile) return;
+  enqueueBacklog({
+    cwd,
+    sessionFile,
+    from: 0,
+    to: Math.max(0, taskSlice.entries.length - 1),
+    digest: sha256Digest(JSON.stringify(taskSlice)),
+    reason,
+  });
 }
 
 export default function (pi: ExtensionAPI) {
   const dreamState: DreamState = { active: false, generation: 0, cancelled: false };
-  const reportJudgmentObservation = (entry: JudgmentObservationEntry): void => {
-    pi.appendEntry(JUDGMENT_OBSERVATION_ENTRY, entry);
-  };
-  registerJudgmentObservability(pi);
   const reportLearningReceipt = (receipt: LearningPipelineReceipt): void => {
     pi.sendMessage(
       { customType: LEARNING_RESULT_MESSAGE, content: formatLearningSummary(receipt), display: true, details: receipt },
@@ -1941,7 +1858,6 @@ export default function (pi: ExtensionAPI) {
         mode: "automatic",
         reportResult: false,
         reportReceipt: reportLearningReceipt,
-        reportJudgment: reportJudgmentObservation,
       });
     },
     reportError: (error, ctx) => notifyPi(ctx.ui, `Automatic learning failed: ${error instanceof Error ? error.message : String(error)}`, "error"),
@@ -2078,13 +1994,11 @@ export default function (pi: ExtensionAPI) {
         void startConsolidationPipeline(ctx, dreamState, {
           pkgDir,
           cwd,
-          noContext: false,
-          availableSkills: pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')),
+            availableSkills: pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')),
           reason: "Consolidate the project memory now (user-invoked via /memory menu).",
           mode: "manual",
           reportResult: true,
           reportReceipt: reportLearningReceipt,
-        reportJudgment: reportJudgmentObservation,
         });
       } else if (choice === "Show automatic phase policies" || choice === "Show learning history") {
         await handleLearningManagement(choice === "Show learning history" ? "history" : "policy", ctx, { readSettings, writeSettings, busy: () => Boolean(dreamState.pipeline || dreamState.active) });
@@ -2120,8 +2034,25 @@ export default function (pi: ExtensionAPI) {
     description: "Consolidate project memory and harness now",
     handler: async (rawArgs, ctx) => {
       const args = rawArgs.trim();
-      if (args !== "" && args !== "full" && args !== "no-context") {
-        notifyPi(ctx.ui, "Usage: /consolidate [full|no-context]", "error");
+      // Exactly two learning modes, plus an explicit backlog drain. The drain
+      // never runs automatically: a backlog that spent the user's tokens at a
+      // moment they did not choose is the reason the zero-token screen exists.
+      if (args === "backfill") {
+        const cwd = ctx.cwd || process.cwd();
+        const status = backlogStatus(cwd);
+        if (status.pending === 0) {
+          notifyPi(ctx.ui, status.unlearnable > 0
+            ? `Backlog has nothing learnable: ${status.unlearnable} reference(s) point at session files that no longer exist.`
+            : "Backlog is empty. Nothing settled has been skipped so far.", "info");
+          return;
+        }
+        notifyPi(ctx.ui, `Backlog has ${status.pending} settled task(s) pending. `
+          + "Run /consolidate full to learn from the current session, then /memory to review. "
+          + `Status: ${JSON.stringify(status)}`, "info");
+        return;
+      }
+      if (args !== "" && args !== "full") {
+        notifyPi(ctx.ui, "Usage: /consolidate [full|backfill]", "error");
         return;
       }
       const cwd = ctx.cwd || process.cwd();
@@ -2135,15 +2066,13 @@ export default function (pi: ExtensionAPI) {
       const completion = startConsolidationPipeline(ctx, dreamState, {
         pkgDir,
         cwd,
-        noContext: args === "no-context",
         availableSkills: pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')),
         reason: args === "full"
           ? "Run explicit full-corpus Memory, Harness, and AGENTS.md maintenance."
           : "Consolidate the current task context incrementally (user-invoked via /consolidate command).",
-        mode: args === "full" || args === "no-context" ? "full" : "manual",
+        mode: args === "full" ? "full" : "manual",
         reportResult: true,
         reportReceipt: reportLearningReceipt,
-        reportJudgment: reportJudgmentObservation,
       });
       if (!ctx.hasUI) await completion;
     },

@@ -60,8 +60,7 @@ export type HarnessOpKind = (typeof HARNESS_OP_KINDS)[number];
 /** Terminal gate for the second pipeline phase, shared by callers and tests:
  * only a finished, verified, context-captured memory phase unlocks it. */
 export type PipelineGateState = { outcome?: string; active: boolean; cancelled: boolean };
-export function shouldRunHarnessPhase(state: PipelineGateState, noContext?: boolean): "run" | "skip-no-context" | "wait" | "skip" {
-  if (noContext) return "skip-no-context";
+export function shouldRunHarnessPhase(state: PipelineGateState): "run" | "wait" | "skip" {
   if (state.cancelled || state.outcome === undefined || state.active) return "wait";
   return state.outcome === "completed" ? "run" : "skip";
 }
@@ -875,7 +874,7 @@ export async function planHarnessConsolidationPhase(
   });
 
   try {
-    run ??= await createConsolidationRun(ctx, opts.cwd, false);
+    run ??= await createConsolidationRun(ctx, opts.cwd);
     if (!current()) return fail("harness planner cancelled");
 
     const cli = (opts.resolveCli ?? resolvePiCli)();

@@ -132,11 +132,6 @@ Feature: Harness consolidation alongside memory consolidation
     Then memory results remain untouched
     And the user receives a harness-specific diagnostic instead of an overall failure
 
-  Scenario: no-context skips the harness phase
-    Given the user invoked /consolidate no-context
-    When the memory phase finishes
-    Then no harness planner child is spawned
-    And the user is informed that harness consolidation needs captured context
 
   Scenario: Concurrent invocations stay single-flight across both phases
     Given a consolidation pipeline is running in either phase

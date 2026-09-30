@@ -41,7 +41,7 @@ def test_harness_target_resolution_defaults_and_flags() -> None:
     assert all(r['request'] == 'x' for r in result)
 
 
-def test_exact_three_layers_and_no_mtime_cache_blind_spot(tmp_path: Path) -> None:
+def test_exact_layer_order_and_no_mtime_cache_blind_spot(tmp_path: Path) -> None:
     agent = tmp_path / 'agent'
     project = tmp_path / 'project'
     (project / '.pi/agent').mkdir(parents=True)
@@ -59,7 +59,11 @@ def test_exact_three_layers_and_no_mtime_cache_blind_spot(tmp_path: Path) -> Non
       const second=resolveHarnessConfig(cwd,agent);
       console.log(JSON.stringify({{keys:Object.keys(configPaths(cwd,agent)),sources:loadLayers(cwd,agent).map(l=>l.source),first:first.config.rules.find(r=>r.id==='layered').message,second:second.config.rules.find(r=>r.id==='layered').message}}));
     ''')
-    assert result == {'keys':['user','project','projectLocal'],'sources':['user','project','project.local'],'first':'local','second':'newer'}
+    assert result == {'keys':['user','userScoped','project','projectLocal'],
+                      # This fixture writes no scoped user file, so that layer is
+                      # absent; coverage for it lives in test_harness_user_scope.py.
+                      'sources':['user','project','project.local'],
+                      'first':'local','second':'newer'}
 
 
 @pytest.mark.parametrize('malformed', ['{broken', '{"rules":[{"id":"same","bash":"x","message":"x"},{"id":"same","enabled":false}]}', '{"rules":[],"policies":{}}'])

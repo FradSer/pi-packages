@@ -83,7 +83,17 @@ def test_consolidation_contract_is_parent_owned() -> None:
     assert "createConsolidationReceipt" in content
     assert "releaseConsolidationRun" in content
     assert "parent-owned validation receipt" in content
-    assert "getSessionFile" not in content
+    # Consolidation evidence must come from the frozen snapshot, never a live
+    # session read. The learning backlog is the one permitted exception and it
+    # resolves a *path* to queue later, not content to learn from. So the guard
+    # is split: naming the accessor is allowed, reading the file is not.
+    backlog = content[content.index("function queueSettledTask("):]
+    assert backlog, "the backlog queueing helper is missing"
+    assert "getSessionFile" in backlog, content
+    outside = content[:content.index("function queueSettledTask(")]
+    assert "getSessionFile" not in outside, content
+    for read in ("readFileSync(sessionFile", "readFile(entry.sessionFile", "Bun.file(sessionFile"):
+        assert read not in content, read
     assert "G1" not in content
     assert "G8" not in content
 
@@ -508,7 +518,10 @@ def test_empty_first_run_apply_creates_only_verifiable_indexes() -> None:
     assert result["public"] == "# Memory Index\n\n"
 
 
-def test_no_context_snapshot_digest_matches_exact_snapshot_bytes() -> None:
+def test_every_run_advertises_the_digest_of_its_actual_snapshot_bytes() -> None:
+    """Kept from the removed no-context mode, where it guarded the written
+    placeholder snapshot. Every run freezes a snapshot now, so the invariant is
+    the same and broader: the advertised digest is the digest of the bytes."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         repo = root / "repo"
@@ -520,15 +533,20 @@ def test_no_context_snapshot_digest_matches_exact_snapshot_bytes() -> None:
             const {{ createHash }} = await import('node:crypto');
             const {{ readFile }} = await import('node:fs/promises');
             const {{ createConsolidationRun, releaseConsolidationRun }} = await import('./packages/continual-learning/extensions/consolidation-run.ts');
-            const run = await createConsolidationRun({{}}, {json.dumps(str(repo))}, true);
+            const run = await createConsolidationRun({{
+              cwd: {json.dumps(str(repo))},
+              sessionManager: {{ getBranch: () => [{{ message: {{ role: 'user', content: 'a' }} }}], buildContextEntries: () => [{{ message: {{ role: 'user', content: 'a' }} }}] }},
+            }}, {json.dumps(str(repo))});
             const bytes = await readFile(run.manifest.snapshotPath);
             const actual = createHash('sha256').update(bytes).digest('hex');
-            const result = {{ advertised: run.manifest.snapshotDigest, actual }};
+            const result = {{ advertised: run.manifest.snapshotDigest, actual, contextEnabled: run.manifest.contextEnabled }};
             await releaseConsolidationRun(run);
             console.log(JSON.stringify(result));
             """
         )
         assert result["advertised"] == result["actual"]
+        # No run may claim a captured context it does not have.
+        assert result["contextEnabled"] is True
 
 
 def test_cancelled_apply_rolls_back_harness_and_public_bytes() -> None:
@@ -715,12 +733,17 @@ def test_project_instruction_resolution_uses_pi_context_resource_objects() -> No
         assert result == {"path": str(override_file), "display": "AGENTS.override.md"}
 
 
-def test_consolidate_command_distinguishes_incremental_full_and_no_context() -> None:
+def test_consolidate_command_has_exactly_two_learning_modes_plus_an_explicit_drain() -> None:
     content = source()
-    assert 'args !== "" && args !== "full" && args !== "no-context"' in content
-    assert 'Usage: /consolidate [full|no-context]' in content
-    assert 'noContext: args === "no-context"' in content
-    assert 'mode: args === "full" || args === "no-context" ? "full" : "manual"' in content
+    # Two learning modes. The drain is a third argument, but it is a backlog
+    # status, not a way to learn — it never runs the pipeline.
+    assert 'args === "backfill"' in content
+    assert 'args !== "" && args !== "full"' in content
+    assert 'Usage: /consolidate [full|backfill]' in content
+    assert 'mode: args === "full" ? "full" : "manual"' in content
+    # The removed third mode is gone, not merely undocumented.
+    assert "no-context" not in content
+    assert "noContext" not in content
     assert "buildIncrementalMemoryConsolidatorPrompt" in content
     assert "buildMemoryConsolidatorPrompt" in content
     assert 'minimalPiWorkerArgs(incremental ? ["read"] : ["read", "grep", "find", "ls"])' in content
@@ -790,11 +813,11 @@ def test_worker_environment_is_an_explicit_non_credential_allowlist() -> None:
 
 def test_child_task_uses_selector_scope_for_incremental_and_full_scope_for_full_mode() -> None:
     content = source()
-    assert "const selectedScope = parentSelectedScope(run, Boolean(opts.noContext), opts.selectedScope);" in content
+    assert "const selectedScope = parentSelectedScope(run, opts.selectedScope);" in content
     assert "Authoritative selected Memory names" in content
     incremental = (MEMORY_PKG_DIR / "prompts" / "incremental-memory-consolidator.md").read_text(encoding="utf-8")
     assert "Read `dossierPath` only by default" in incremental
-    assert "...formatSelectedScopeTaskLines(selectedScope, Boolean(opts.noContext))," in content
+    assert "...formatSelectedScopeTaskLines(selectedScope)," in content
     procedure = (MEMORY_PKG_DIR / "prompts" / "memory-consolidator.md").read_text(encoding="utf-8")
     assert "authoritative selected memory scope" in procedure and "newMemories" in procedure
 
@@ -806,13 +829,13 @@ def test_selected_scope_task_lines_render_exact_contract() -> None:
         console.log(JSON.stringify({
           empty: formatSelectedScopeTaskLines([]),
           named: formatSelectedScopeTaskLines(['a.md', 'B.md']),
-          noContext: formatSelectedScopeTaskLines([], true),
         }));
         """
     )
     assert result["empty"][0].endswith("JSON): []")
     assert "An empty selected list does not prevent new memory creation" in result["empty"][2]
-    assert "newMemories MUST be empty" in result["noContext"][2]
+    # The no-context override that used to live here is gone with the mode.
+    assert len(result["empty"]) == 3
     named = result["named"]
     assert isinstance(named, list)
     assert 'JSON): ["a.md","B.md"]' in named[0]

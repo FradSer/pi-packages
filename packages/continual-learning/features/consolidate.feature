@@ -111,12 +111,6 @@ Feature: Memory management with automatic learning and manual consolidation
     And the child reads the snapshot instead of a live session file
     And later turns, compaction, or branch changes do not alter the captured input
 
-  Scenario: no-context explicitly disables session capture
-    Given the user types /consolidate no-context
-    When manual consolidation starts
-    Then the run records that context capture is disabled
-    And the child does not read a session file or live branch
-    And the advertised snapshot digest matches the exact disabled snapshot bytes
 
   Scenario: Incremental consolidation can create Memory without a selected existing file
     Given the current task contains durable evidence

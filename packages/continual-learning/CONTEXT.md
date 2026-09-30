@@ -68,13 +68,16 @@ representation for a body of text.
 
 ## Harness ownership
 
-Harness configuration has exactly three user-owned layers, plus package defaults:
+Harness configuration has four user-owned layers, plus package defaults, nearest first:
 
-1. User shared: `~/.pi/agent/harness.json`
+1. Project personal: `<project>/.pi/harness.local.json`
 2. Project shared: `<project>/.pi/harness.json`
-3. Project personal: `<project>/.pi/harness.local.json`
+3. User scoped to this project: `~/.pi/agent/harness/<scopeKey>.json`
+4. User shared: `~/.pi/agent/harness.json`
 
-Precedence is project personal over project shared over user shared over built-in defaults. Flat rule IDs are the addressable override keys across new selectors; nearer declarations replace a whole rule. Installed legacy policy/skill-prompt containers retain their original name-based override and disablement semantics through compatibility execution, including the historical effect of cumulative disabled names on same-ID flat rules. Compatible data is a notice, not an error; loading never migrates files. The obsolete user-personal `~/.pi/agent/harness.local.json` and project `.pi/agent/harness*.json` paths are not loaded, displayed, or targeted.
+The scoped user layer reuses Memory's scope key — the canonical project path with separators replaced — so rules authored for one project cannot silently govern another. It lives in a directory parallel to `memory/` and never inside a Memory root: a Memory root admits only regular `.md` children, so a JSON configuration beside them fails consolidation's privacy validation and aborts the run. The all-projects user layer is kept as the lowest user layer, so a genuinely cross-project rule still applies everywhere.
+
+Flat rule IDs are the addressable override keys across new selectors; nearer declarations replace a whole rule. Installed legacy policy/skill-prompt containers retain their original name-based override and disablement semantics through compatibility execution, including the historical effect of cumulative disabled names on same-ID flat rules. Compatible data is a notice, not an error; loading never migrates files. The obsolete user-personal `~/.pi/agent/harness.local.json` and project `.pi/agent/harness*.json` paths are not loaded, displayed, or targeted.
 
 Direct authoring and automatic Harness consolidation default to `<project>/.pi/harness.json`. Other layers are read-only inputs to consolidation. Project personal `.pi/harness.local.json` is selected only by an explicit personal-configuration request; a global local variant is unsupported.
 
@@ -140,10 +143,13 @@ The flat escaped canonical-path directory is the sole agent-private runtime root
 
 ## Commands and settings
 
-- `/memory` manages the consolidation model, auto-memory toggle, instructions, and opens the Harness/private Memory directory.
-- `/consolidate` incrementally learns from the current completed Task Slice.
-- `/consolidate full` explicitly runs exhaustive Memory, Harness, and AGENTS.md maintenance.
-- `/consolidate no-context` performs the context-disabled full Memory path and skips Harness and AGENTS.md, which require task evidence.
+- `/memory` manages the consolidation model, auto-memory toggle, instructions, phase policies, history, and opens the Harness/private Memory directory.
+- `/consolidate` has exactly two modes and no others.
+  - `/consolidate` learns from **the current context only**: the metadata-only Memory Selector picks the minimum sufficient related existing Memory for the one completed Task Slice, and the planners consume that dossier.
+  - `/consolidate full` learns **across the whole codebase**: the Memory scope is the entire corpus rather than a selected subset, the Memory planner is given bounded read-only discovery (`read`, `grep`, `find`, `ls`) instead of `read` alone, and the frozen evidence is the whole current session rather than one Task Slice. It is the exhaustive maintenance path and is never reached implicitly.
+- Neither mode reads past sessions. Learning inputs are the current conversation and the Memory corpus; a task that settled while auto-learning was off, or that the zero-token screen judged valueless, is not revisited. `learning-history.ts` is the mutation audit trail for undo, not a learning input, despite the name.
+- There is no third mode. A former context-disabled variant is gone: every run freezes a snapshot before any planner starts, and an unrecognised argument is refused rather than silently downgraded.
+- The **learning backlog** is a queue of settled tasks that were not learned from, because auto-learning was off or the zero-token screen judged them valueless. It stores references — session file and entry indices — never conversation text, and an entry whose session file is gone is reported as unlearnable rather than dropped or reconstructed. `/consolidate backfill` reports its status; it never drains on its own, because a backlog that spent tokens at a moment the user did not choose is the reason the zero-token screen exists.
 - `/harness` displays resolved rules and creates rules in the selected Harness configuration layer. Unsupported or ambiguous requests do not create empty files or authorize edits elsewhere.
 
 Auto-memory enables learning after `agent_settled` for real user input. It coalesces pending completed tasks, ignores extension-generated continuations as independent triggers, and waits for the full pipeline in headless mode. Existing Memory remains available regardless of the toggle. The main model is not asked to write memories directly; the parent validates new-memory proposals even when the existing corpus is empty.

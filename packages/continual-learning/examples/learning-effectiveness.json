@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "baseline": { "memories": {} },
+  "candidate": {
+    "memories": {
+      "project_orbit_channel.md": "---\nname: project_orbit_channel\ndescription: Project ORBIT ships through the canary channel before stable\ntype: project\n---\nFor Project ORBIT, the approved release channel is canary. A release goes to canary first and only reaches stable after the canary checks pass. This is a synthetic evaluation fact used only by the paired learning evaluation, not a real deployment authorization.\n",
+      "project_orbit_build.md": "---\nname: project_orbit_build\ndescription: Project ORBIT builds with pnpm, not npm\ntype: project\n---\nProject ORBIT installs and builds with pnpm. npm is not the package manager for this project and using it will not reproduce a working install. This is a synthetic evaluation fact for the paired learning evaluation.\n",
+      "project_orbit_ticket_prefix.md": "---\nname: project_orbit_ticket_prefix\ndescription: Project ORBIT work items are prefixed ORB\ntype: project\n---\nEvery work item in Project ORBIT is filed under the ORB prefix, so tracking identifiers begin ORB-. This is a synthetic evaluation fact for the paired learning evaluation.\n"
+    }
+  },
+  "cases": [
+    {
+      "id": "orbit-release-channel",
+      "prompt": "Which release channel does Project ORBIT use? Read available project knowledge if necessary. If it is unknown, say unknown. Reply with only the channel name.",
+      "required": ["canary"],
+      "forbidden": []
+    },
+    {
+      "id": "orbit-package-manager",
+      "prompt": "Which package manager does Project ORBIT use for install and build? Read available project knowledge if necessary. If it is unknown, say unknown. Reply with only the package manager name.",
+      "required": ["pnpm"],
+      "forbidden": ["npm install", "npm run"]
+    },
+    {
+      "id": "orbit-ticket-prefix",
+      "prompt": "What prefix do Project ORBIT work item identifiers use? Read available project knowledge if necessary. If it is unknown, say unknown. Reply with only the prefix.",
+      "required": ["ORB"],
+      "forbidden": []
+    }
+  ]
+}
