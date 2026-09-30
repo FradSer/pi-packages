@@ -66,11 +66,13 @@ async function session(t, options = {}) {
   const sent = [];
   const aborts = { count: 0 };
   let idle = options.idle ?? true;
+  let pending = options.pending ?? 0;
   let sessionId = options.sessionId ?? SESSION;
   const pi = { sendUserMessage(content, opts) { sent.push({ content, options: opts === undefined ? undefined : { ...opts } }); } };
   const ctx = {
     cwd,
     isIdle: () => idle,
+    hasPendingMessages: () => pending > 0,
     abort() { aborts.count += 1; },
     sessionManager: { getSessionId: () => sessionId, getSessionName: () => options.name },
   };
@@ -84,6 +86,8 @@ async function session(t, options = {}) {
   return {
     root, runtimeDir, cwd, host, started, sent, aborts, ctx,
     socketPath: started.socketPath,
+    /** One frame in, the correlated frame back, over this session's own socket. */
+    ask: (request) => ask(started.socketPath, request),
     /** The socket and the descriptor, which are the only two files this owns. */
     descriptorPath: started.descriptorPath,
     idle(value) { idle = value; },
@@ -568,4 +572,26 @@ test("the desk's launcher finds a node runtime without the login shell's PATH", 
   assert.match(launcher, /ODK_NODE/, "and an operator can name the runtime outright");
   assert.match(launcher, /src\/session-host-client\.mjs/, "it execs the relay beside itself");
   assert.ok((await stat(launcherPath)).mode & 0o111, "and it is executable, so a desk needs no shell quoting of its own");
+});
+
+// An instruction that Pi drops is the worst answer a desk can get: it believes
+// the work was handed over. A keyword re-sent by a local extension while the agent
+// is streaming arrives without a delivery, so the host verifies the queue instead
+// of assuming it.
+test("an instruction a running session did not queue is refused, not reported as delivered", async (t) => {
+  const h = await session(t, { idle: false, pending: 0 });
+  const refused = await h.ask({ version: 1, requestId: "q1", command: "prompt", taskId: SESSION, prompt: "继续", streamingBehavior: "followUp" });
+  assert.equal(refused.ok, false, "a desk must not be told an instruction arrived when it did not");
+  assert.match(refused.error, /指令未送达/);
+  assert.deepEqual(h.sent, [{ content: "继续", options: { deliverAs: "followUp" } }], "it was offered to the session, which dropped it");
+});
+
+test("an instruction a running session queued, and one an idle session runs, are both delivered", async (t) => {
+  const running = await session(t, { idle: false, pending: 1 });
+  assert.equal((await running.ask({ version: 1, requestId: "q2", command: "prompt", taskId: SESSION, prompt: "继续", streamingBehavior: "followUp" })).ok, true);
+  assert.deepEqual(running.sent, [{ content: "继续", options: { deliverAs: "followUp" } }]);
+
+  const idle = await session(t, { idle: true, pending: 0 });
+  assert.equal((await idle.ask({ version: 1, requestId: "q3", command: "prompt", taskId: SESSION, prompt: "继续", streamingBehavior: "followUp" })).ok, true);
+  assert.deepEqual(idle.sent, [{ content: "继续", options: { deliverAs: "followUp" } }]);
 });

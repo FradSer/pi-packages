@@ -39,6 +39,12 @@ const PROJECT_NOT_ADMITTED = "项目不在允许的开发目录内";
 const UNKNOWN_COMMAND = "未知任务命令";
 const TASK_NOT_FOUND = "未找到任务";
 const PROMPT_INVALID = "任务 ID 或提示无效";
+// Pi drops a user message that arrives while the agent is streaming unless the
+// delivery says how to queue it, and an extension that re-sends a keyword can
+// drop it even when the desk asked for a queue. Reporting that as accepted would
+// tell a desk its instruction arrived when nothing did, so the delivery is
+// verified here and an instruction that did not land is refused with this reason.
+const DELIVERY_NOT_ACCEPTED = "指令未送达：该会话正在运行，且这条消息没有被排队";
 /** One fixed reason for the four verbs a session host cannot serve at all. */
 export const NOT_A_SESSION_HOST = "此端点是当前 Pi 会话，不是 Hosted Pi 任务服务";
 
@@ -539,11 +545,18 @@ export class SessionHost {
   /** Refuse an unusable instruction before anything is delivered into the session. */
   #deliver(prompt: unknown, streamingBehavior: unknown): void {
     if (!validText(prompt, SESSION_REQUEST_LIMIT) || prompt.trim().length === 0) throw new Error(PROMPT_INVALID);
+    const ctx = this.#ctx;
+    if (!ctx) throw new Error(TASK_NOT_FOUND);
     // Only the two behaviors the protocol names are delivered as a behavior; anything else is
     // delivered as an ordinary message rather than guessed into a delivery mode.
     const behavior: "steer" | "followUp" | undefined =
       streamingBehavior === "steer" || streamingBehavior === "followUp" ? streamingBehavior : undefined;
+    const wasIdle = ctx.isIdle();
     this.#pi.sendUserMessage(prompt, behavior === undefined ? undefined : { deliverAs: behavior });
+    // An idle session runs the message at once, and a running one either queues it
+    // or loses it. Only the queue is observable from here, so that is what decides
+    // whether this desk may report the instruction as delivered.
+    if (!wasIdle && !ctx.hasPendingMessages()) throw new Error(DELIVERY_NOT_ACCEPTED);
     this.#outcome = undefined;
     this.#observed = false;
     this.#cancelRequested = false;
