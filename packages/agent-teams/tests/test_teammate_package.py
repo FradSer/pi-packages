@@ -147,16 +147,24 @@ def test_the_coordination_contribution_is_declared_and_passed_to_every_spawn() -
     worker = source("worker.ts")
     for tool in ("message", "task"):
         assert f'name: "{tool}"' in worker, tool
-    # Every spawn contributes both worker extensions and the union of the two
-    # capability sets. Neither package may hardcode the other's contribution.
+    # Every spawn contributes this package's worker extension and capability
+    # set. Neither package may hardcode the other's contribution.
     machine = source("team-machine.ts")
     assert "spawnResident(" in machine
     assert "SUBAGENT_WORKER_EXTENSION_PATH" in machine and "WORKER_EXTENSION_PATH" in machine
     assert "extensions: workerExtensions" in machine
-    assert "...SUBAGENT_CAPABILITY_TOOLS" in machine and "...WORKER_CAPABILITY_TOOLS" in machine
+    assert "...WORKER_CAPABILITY_TOOLS" in machine
     assert "capabilityTools," in machine
     # The two extensions really are combined into one list, not chosen between.
-    assert "const workerExtensions = [SUBAGENT_WORKER_EXTENSION_PATH, WORKER_EXTENSION_PATH];" in machine
+    assert "WORKER_EXTENSION_PATH," in machine and "] : [" in machine
+    # The subagents contribution is memory-gated: a child with no memory folder
+    # is handed neither the extension that registers agent_memory nor the tool,
+    # so a grant line can never promise a capability the child lacks. Asserted
+    # behaviourally in test_capability_and_blocker_contract.py; this pins the
+    # two lists to one decision so they cannot drift apart.
+    assert "const memoryEnabled = agent.memory;" in machine
+    assert "...(memoryEnabled ? SUBAGENT_CAPABILITY_TOOLS : [])" in machine
+    assert "...(memoryEnabled ? [SUBAGENT_WORKER_EXTENSION_PATH] : [])" in machine
     # And the execution layer stays agnostic about this package's tool names.
     assert "agent_event" not in subagents_source("spawner.ts")
 

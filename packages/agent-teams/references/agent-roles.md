@@ -21,6 +21,11 @@ Frontmatter:
 - optional `model`, `verify`, `worktree`. `verify` is an independent completion-gate
   reviewer prompt, not a shell command. State the evidence and acceptance criteria
   the gate should inspect; a concrete local gate is not a second broad project review.
+- optional `memory: true` gives this role its own Agent Memory folder, so it can
+  record reusable capability lessons across sessions. Only a persisted definition
+  with this field gets it: an inline Temporary Agent, or a definition without the
+  field, is spawned with no memory tool at all. Promotion is what creates the
+  folder, not the request.
 
 The Markdown body is the role prompt, built from five parts:
 

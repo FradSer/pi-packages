@@ -148,3 +148,99 @@ def test_inline_tools_schema_explains_least_privilege() -> None:
       }}
       console.log(JSON.stringify({{ ok: true }}));
     ''')
+
+
+def _write_agent(path: Path, name: str, frontmatter: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"---\nname: {name}\ndescription: A test role\ntools: read, bash\nworktree: false\n{frontmatter}\n---\n\nRole body.\n",
+        encoding="utf-8",
+    )
+
+
+def test_agent_memory_reaches_only_a_fixed_agents_spawn(tmp_path: Path) -> None:
+    """Agent Memory is a persisted Agent's own capability, so only its spawn
+    carries the tool and the worker extension that registers it.
+
+    A Temporary Agent owns no folder to write, so a grant it cannot use is a
+    receipt that lies: the row would say the child may record capability lessons
+    and the child would find no such tool.
+    """
+    _write_agent(tmp_path / ".pi" / "agents" / "fixed.md", "fixed", "memory: true")
+    _write_agent(tmp_path / ".pi" / "agents" / "plain.md", "plain", "")
+    payload = run_node(
+        f'''
+        import childProcess from "node:child_process";
+        import {{ EventEmitter }} from "node:events";
+        import {{ syncBuiltinESMExports }} from "node:module";
+        import {{ PassThrough }} from "node:stream";
+        import {{ mock }} from "node:test";
+        import * as kit from "@fradser/pi-kit";
+        const children = [];
+        mock.module("@fradser/pi-kit", {{
+          namedExports: {{
+            ...kit,
+            resolvePiCli: () => ({{ command: "unused-mock", args: [] }}),
+            spawnPiChild: (command, args) => {{
+              const child = Object.assign(new EventEmitter(), {{
+                pid: 100, stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
+              }});
+              children.push({{ command, args, child }});
+              return child;
+            }},
+            terminateChildProcess: async () => true,
+          }},
+        }});
+        const {{ initTeamMachine, shutdownTeamMachine, spawnTeammate }} = await import({(SRC / "team-machine.ts").as_uri()!r});
+        const {{ getTeammate, resetState }} = await import({(SRC / "state.ts").as_uri()!r});
+        const root = {str(tmp_path)!r};
+        resetState();
+        initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
+        const fixed = spawnTeammate({{ name: "fixed-child", agent: "fixed" }});
+        const plain = spawnTeammate({{ name: "plain-child", agent: "plain" }});
+        const temporary = spawnTeammate({{ name: "temp-child", agent: "temp-role",
+          definition: {{ description: "One answer", prompt: "Answer once.", tools: ["read"], worktree: false }} }});
+        const refused = spawnTeammate({{ name: "memory-child", agent: "memory-role",
+          definition: {{ description: "Wants memory", prompt: "Remember this.", tools: ["agent_memory"], worktree: false }} }});
+        const toolsOf = (spawn) => spawn.ok ? getTeammate(spawn.teammate.name)?.tools : null;
+        // Spawns are sequential, so child N is the argv of spawn N — and a
+        // refused spawn contributing no child is itself the assertion.
+        const toolArgv = (args) => args[args.indexOf("--tools") + 1];
+        const extensionsOf = (args) => args.reduce((all, value, index) =>
+          args[index - 1] === "--extension" ? [...all, value] : all, []);
+        const argvOf = (index) => children[index].args;
+        console.log(JSON.stringify({{
+          fixed: {{ ok: fixed.ok, tools: toolsOf(fixed), argv: toolArgv(argvOf(0)),
+            extensions: extensionsOf(argvOf(0)) }},
+          plain: {{ ok: plain.ok, tools: toolsOf(plain), argv: toolArgv(argvOf(1)),
+            extensions: extensionsOf(argvOf(1)) }},
+          temporary: {{ ok: temporary.ok, tools: toolsOf(temporary), argv: toolArgv(argvOf(2)),
+            extensions: extensionsOf(argvOf(2)) }},
+          refused: {{ ok: refused.ok, error: refused.ok ? null : refused.error }},
+          spawned: children.length,
+        }}));
+        shutdownTeamMachine();
+        for (const entry of children) entry.child.emit("close", 0, null);
+        ''',
+        module_mocks=True,
+        env_overrides={"PI_CODING_AGENT_DIR": str(tmp_path / "agent")},
+    )
+
+    assert payload["spawned"] == 3, "a refused spawn must not start a child"
+    # A fixed Agent: the memory tool is real, and something registers it.
+    assert payload["fixed"]["ok"] is True
+    assert "agent_memory" in payload["fixed"]["tools"]
+    assert payload["fixed"]["argv"].split(",") == payload["fixed"]["tools"]
+    assert any("worker-extension" in path for path in payload["fixed"]["extensions"]), payload["fixed"]["extensions"]
+    # A persisted Agent without the opt-in, and a Temporary Agent: minimal grants
+    # that name nothing the child cannot use.
+    for label in ("plain", "temporary"):
+        assert payload[label]["ok"] is True
+        assert "agent_memory" not in payload[label]["tools"], label
+        assert payload[label]["argv"].split(",") == payload[label]["tools"], label
+        assert not any("worker-extension" in path for path in payload[label]["extensions"]), label
+    assert payload["plain"]["tools"] == ["read", "bash", "message", "task"]
+    assert payload["temporary"]["tools"] == ["read", "message", "task"]
+    # Asking for the tool with no folder is refused rather than silently dropped.
+    assert payload["refused"]["ok"] is False
+    assert "memory" in str(payload["refused"]["error"])

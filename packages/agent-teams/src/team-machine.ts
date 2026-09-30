@@ -638,14 +638,31 @@ export function spawnTeammate(input: {
   }
   if (!agent) return { ok: false, error: unknownAgentError(input.agent, leaderCwd) };
 
+  // Agent Memory belongs to a persisted Agent that opted in, so it is the only
+  // spawn that carries the memory capability. A role naming the tool without
+  // that opt-in is refused here rather than handed an id the child's --tools
+  // allowlist would drop, because "a child may record its own lessons" is
+  // exactly the promise the grant line would otherwise print and break.
+  if (agent.tools.some((tool) => SUBAGENT_CAPABILITY_TOOLS.includes(tool)) && !agent.memory) {
+    return { ok: false, error: agentMemoryUnavailableError(agent.name, input.definition?.persist) };
+  }
+
   // Both packages contribute a worker extension to one child. `--extension` is
   // repeatable and `--no-extensions` still loads explicit paths, so neither
   // package has to know about the other; each declares its own capability tools.
-  const capabilityTools = [...SUBAGENT_CAPABILITY_TOOLS, ...WORKER_CAPABILITY_TOOLS];
-  const workerExtensions = [SUBAGENT_WORKER_EXTENSION_PATH, WORKER_EXTENSION_PATH];
-  const effectiveTools = resolveWorkerTools(agent.tools, capabilityTools);
-  // agents.ts already forces memory off for a session-scoped (Temporary) Agent.
+  // The subagents contribution is conditional: loading its extension into a
+  // child that has no memory folder would register nothing and advertise a tool
+  // the child cannot use.
   const memoryEnabled = agent.memory;
+  const capabilityTools = [
+    ...(memoryEnabled ? SUBAGENT_CAPABILITY_TOOLS : []),
+    ...WORKER_CAPABILITY_TOOLS,
+  ];
+  const workerExtensions = [
+    ...(memoryEnabled ? [SUBAGENT_WORKER_EXTENSION_PATH] : []),
+    WORKER_EXTENSION_PATH,
+  ];
+  const effectiveTools = resolveWorkerTools(agent.tools, capabilityTools);
 
   // Isolation is the default rather than an opt-in: a durable per-Agent workspace
   // is what makes Pi's own per-working-directory session storage usable as that
@@ -783,6 +800,19 @@ export function spawnTeammate(input: {
  *  scopes are user-owned and always win over inline input. */
 export function inlineDefinitionApplies(resolved: AgentDefinition | undefined): boolean {
   return !resolved || resolved.scope === "session";
+}
+
+/** Spawn failure for an Agent Memory tool request with no memory folder. A
+ *  different refusal from an unknown id on purpose: the id is real, and the
+ *  only thing missing is the opt-in, so the copy names the field that grants
+ *  it rather than listing a universe the caller could never satisfy. */
+export function agentMemoryUnavailableError(name: string, persisted: boolean | undefined): string {
+  return [
+    `Agent "${name}" requests ${SUBAGENT_CAPABILITY_TOOLS.join(", ")}, which needs an Agent Memory folder the Agent does not have.`,
+    persisted
+      ? `Add memory: true to the persisted definition for ${name} in .pi/agents/, or drop ${SUBAGENT_CAPABILITY_TOOLS.join(" and ")} from its tools.`
+      : `A Temporary Agent never has Agent Memory. Persist the role and opt in with memory: true, or drop ${SUBAGENT_CAPABILITY_TOOLS.join(" and ")} from its tools.`,
+  ].join(" ");
 }
 
 /** Spawn failure for execution-tool ids outside the teammate universe. */
