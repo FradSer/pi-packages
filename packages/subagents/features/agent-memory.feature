@@ -99,6 +99,28 @@ Feature: Agent Memory is a persisted Agent's own capability record
       When it records a proposal
       Then the proposal is accepted, because proposing is reporting, not writing memory
 
+  Rule: Only a fixed Agent's spawn carries the capability
+
+    Scenario: A fixed Agent's spawn grants and registers the memory tool
+      Given a persisted definition carrying memory: true
+      When a child is spawned for it
+      Then the subagents worker extension is loaded into the child
+      And agent_memory is in the effective grant
+
+    Scenario: A Temporary Agent's spawn carries neither
+      Given a session-scoped definition
+      When a child is spawned for it
+      Then no subagents worker extension is loaded into the child
+      And agent_memory is absent from the effective grant
+      And the remaining grant is unchanged
+
+    Scenario: Requesting the tool without a memory folder is refused
+      Given a definition whose tool list names agent_memory
+      And no Agent Memory folder for it
+      When a child is spawned
+      Then the spawn is refused naming the missing memory opt-in
+      And no child process is started
+
   Rule: A Temporary Agent owns no Agent Memory
 
     Scenario: A session-scoped definition never gets memory

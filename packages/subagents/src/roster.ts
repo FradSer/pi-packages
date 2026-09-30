@@ -63,6 +63,9 @@ export interface Teammate {
   turns?: number;
   /** The child finished its current sequence and awaits the next prompt. */
   sequenceEnded?: boolean;
+  /** The Leader asked for this child to stop, so its ending is planned rather
+   *  than a death. Cleared by the next start, which reserves a fresh entry. */
+  leaderRequestedEnd?: boolean;
   /** Reports are closed until a new prompt starts after a terminal report. */
   reportSequenceEnded?: boolean;
   /** When the harness last sent a claimable-task notice to this teammate. */
@@ -180,6 +183,7 @@ const VOLATILE_TEAMMATE_FIELDS = new Set<string>([
   "activeTool",
   "turns",
   "sequenceEnded",
+  "leaderRequestedEnd",
   "modelOutputSeen",
   "usage",
   "lastOutputAt",

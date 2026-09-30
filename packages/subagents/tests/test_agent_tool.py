@@ -24,7 +24,6 @@ PREAMBLE = """
 const spawned = [];
 const failedOnce = new Set();
 const terminated = [];
-const delivered = [];
 const fakeSpawn = (options) => {
   // Fails once per name, so a retry can distinguish "the name was still held"
   // from "the child failed again".
@@ -39,7 +38,6 @@ const fakeTerminate = async (name) => {
   terminated.push(name);
   return { outcome: name === "ghost" ? "missing" : "closed" };
 };
-const fakeDeliver = (name, message) => { delivered.push({ name, message }); return true; };
 const tools = new Map();
 const pi = { registerTool: (t) => tools.set(t.name, t), on() {}, events: { emit() {} } };
 piSubagentsExtension(pi);
@@ -48,7 +46,6 @@ const call = (params) => executeAgentAction(params, {
   cwd: process.cwd(),
   spawn: fakeSpawn,
   terminate: fakeTerminate,
-  deliver: fakeDeliver,
 }).then((r) => ({ ...r, text: r.content[0].text }));
 """
 

@@ -4,10 +4,11 @@ The subagent execution layer: what it takes to spawn one Agent child process,
 give it an identity, a workspace, a context, and an environment it can be
 trusted with, and get its reports back.
 
-This is an internal workspace runtime library in the `pi-packages` monorepo, in
-the same category as `@fradser/pi-kit`. It declares no `pi` manifest key and is
-not installed as a Pi extension on its own. `@fradser/pi-agent-teams` consumes
-it; the planned `@fradser/pi-tasks` package does not.
+It is a runtime library in the `pi-packages` monorepo, in the same category as
+`@fradser/pi-kit`, and it is also a complete Pi package on its own: the manifest
+declares `pi.extensions`, so installing it registers the `agent` tool by itself.
+`@fradser/pi-agent-teams` and `@fradser/pi-tasks` consume the library, and
+`@fradser/pi-agent-teams` is a bundle that loads all three.
 
 ## Boundary
 
@@ -24,11 +25,41 @@ peer messaging, task boards, or team presence.
 | `src/worker-tools.ts` | The canonical pi built-in tool ids a bare child can be granted |
 | `src/workspace.ts` | Durable per-Agent workspaces and their preserve/release lifecycle |
 | `src/memory.ts` | Agent Memory: the Agent's own capability record, its bounded index, and Memory Proposals |
+| `src/session-result.ts` | The Session Result contract: a settled child's answer handed back to the Leader's session |
+| `src/roster.ts` | The child roster: one entry per name, its progress, and its session routes |
+| `src/session-route.ts` | `session:<name>` and the exact `session:<name>:<incarnation>` handle |
+| `src/agent-tool.ts` | The `agent` tool: start, inspect, list, stop, and the standalone delivery decision |
+| `src/extension.ts` | The extension entry: the tool, the row geometry, and the session sender |
+| `src/rows.ts` | The only module that imports pi-tui: the shared lifecycle row bindings |
 | `src/worker-extension.ts` | This package's worker extension, contributed to a child with `-e` |
 | `src/types.ts` | `WorkerUsage` |
 
 Coordination vocabulary deliberately stays out. A consumer that installs only
 this layer gets a spawnable child with pi built-ins and nothing else.
+
+## Session Result
+
+A child's answer is produced inside its own process, so it has to be carried out
+of that process or it is lost. `src/session-result.ts` owns the shape of what
+comes back: one **Session Result** per settled turn, the child's final text
+verbatim behind an `<agent-result from=… session=… turn=…>` envelope, and a
+lifecycle row in the transcript that shows the Agent and the result's first line.
+
+- The delivery is injected. A tool's execution context has no `sendMessage`, so
+  `src/extension.ts` holds the session API and hands the library a sender; a
+  consumer embedding the library directly spawns, records, and inspects, and
+  delivers nothing.
+- A result enters the Leader's next turn as a `followUp` with a triggered turn.
+  An ended Work Session is different: it is one visible line with
+  `triggerTurn: false`, because recoverable execution is internal (ADR-0002) and
+  a death is not a decision the Leader has to make.
+- A published coordinator host suppresses this delivery. With
+  `@fradser/pi-agent-teams` installed, the host owns the spawn and the report and
+  each result is delivered exactly once.
+- The roster keeps the child's live text, so a delivered result stays readable
+  through `agent action=list`.
+
+See ADR-0007 and `docs/spec-standalone-session-result.md`.
 
 ## Contributed capabilities
 
@@ -39,7 +70,7 @@ are supplied per spawn:
 spawnResident({
   workerName: "reviewer",
   extensions: [WORKER_EXTENSION_PATH],       // the consumer's own worker entry
-  capabilityTools: ["agent_event", "work"],  // what that extension registers
+  capabilityTools: ["message", "task"],     // what that extension registers
   tools: ["read", "bash"],                   // the role's grant
   ...
 });

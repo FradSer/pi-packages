@@ -31,10 +31,11 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerSessionAgent, resolveAgent } from "./agents.ts";
 import { configureBoardStoreIfUnset, resourcesConflict, type WorkAssignment } from "@fradser/pi-tasks";
 import { WORKER_BUILTIN_TOOLS } from "./worker-tools.ts";
-import { getTeammate, listTeammates, livingTeammates, registerTeammate, updateTeammate, type Teammate } from "./roster.ts";
+import { getTeammate, listTeammates, livingTeammates, registerTeammate, updateTeammate, updateTeammateProgress, type Teammate } from "./roster.ts";
 import { emptyToolCall, type createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
 import { exactSessionRoute, parseExactSessionRoute, resolveExactSession } from "./session-route.ts";
-import { spawnResident, terminateTeammate, deliverPrompt } from "./spawner.ts";
+import { type SessionEndedNotice, type SessionNoticeSender, type SessionResultNotice } from "./session-result.ts";
+import { spawnResident, terminateTeammate } from "./spawner.ts";
 import { snapshotWorkContext } from "./work-context.ts";
 
 /** Tool ids this extension registers. Declared so a spawner can grant it without
@@ -106,6 +107,11 @@ export function resolveAgentHost(): AgentHost | undefined {
 }
 
 const NAME_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/i;
+
+/** What an idle resident is doing, in the row's own words. Mirrors the receipt
+ *  line the model reads, so a person and the model are never told different
+ *  things about a child that is up and waiting. */
+const IDLE_NOTICE = "no prompt; it will take work assigned to it";
 
 /** One line describing how a child ended, for the roster entry it leaves behind. */
 function describeExit(result: { exitCode?: number | null; signal?: string | null; stderr?: string }): string {
@@ -200,6 +206,9 @@ function project(teammate: Teammate) {
     ...(teammate.tools ? { tools: teammate.tools } : {}),
     ...(teammate.model ? { model: teammate.model } : {}),
     ...(teammate.activeTool ? { activeTool: teammate.activeTool } : {}),
+    // The child's own words, so a result has a second read after it has been
+    // delivered. Bounded by the same cap the delivered message uses.
+    ...(teammate.liveText?.trim() ? { liveText: teammate.liveText } : {}),
     ...(teammate.pid ? { pid: teammate.pid } : {}),
     ...(teammate.error ? { error: teammate.error } : {}),
   };
@@ -223,6 +232,7 @@ const agentRowSpec: Parameters<typeof createStaticToolLifecycleResultRenderer>[0
     model?: string;
     grant?: string[];
     prompt?: string;
+    prompted?: boolean;
     outcome?: string;
     body?: string;
     count?: number;
@@ -250,7 +260,13 @@ const agentRowSpec: Parameters<typeof createStaticToolLifecycleResultRenderer>[0
     ? details.agents.flatMap(described)
     : details.sessions
       ? details.sessions.flatMap(described)
-      : carried;
+      // An idle resident has no prompt to lead with, and the filter above
+      // dropped the receipt line that said so. The row is a person's view of the
+      // same fact, so it states it: a child that is up and waiting for work is
+      // the case most easily mistaken for one that lost its work.
+      : carried.length > 0 || details.prompted !== false
+        ? carried
+        : [IDLE_NOTICE];
   const stateWord = details.outcome === "stopped" ? "stopped" : undefined;
   return {
     kind: "started",
@@ -298,7 +314,16 @@ export interface AgentToolOptions {
   renderResult?: (spec: { createSpec: Parameters<typeof createStaticToolLifecycleResultRenderer>[0]["createSpec"] }) => unknown;
   spawn?: typeof spawnResident;
   terminate?: typeof terminateTeammate;
-  deliver?: typeof deliverPrompt;
+  /**
+   * Hands one settled child turn, or one child that ended without one, to the
+   * Leader's session. Supplied by the loaded extension entry, which is the only
+   * layer holding the session API; absent means the library spawns and records
+   * without delivering, which is what a consumer embedding it directly gets.
+   *
+   * Ignored when a coordinator host is published: the host owns the spawn and
+   * the report, and a second copy of every result is worse than none.
+   */
+  deliverSessionResult?: SessionNoticeSender;
   contextMessages?: () => unknown;
 }
 
@@ -382,7 +407,7 @@ export async function executeAgentAction(
       return ok(
         [
           `AGENT · ${name} · started · ${started.session}`,
-          ...(request.prompt ? [`WORKING · ${firstLine(request.prompt)}`] : ["IDLE · no prompt; it will take work assigned to it"]),
+          ...(request.prompt ? [`WORKING · ${firstLine(request.prompt)}`] : [`IDLE · ${IDLE_NOTICE}`]),
           `GRANT · ${grant.length > 0 ? grant.join(", ") : "coordination only"}`,
           // Say so plainly when the child has no standing instructions, on this
           // path too. It is the caller's only signal, and a later turn spent
@@ -437,6 +462,37 @@ export async function executeAgentAction(
     // an orphan process running with no roster entry to stop it by.
     const spawnId = randomUUID();
     const now = Date.now();
+    // Delivery bookkeeping for this incarnation only. A replacement incarnation
+    // under the same name gets a fresh closure, so a retired child's late frame
+    // can neither deliver nor be counted as the successor's.
+    const session = exactSessionRoute(name, spawnId);
+    const deliverSessionResult = options.deliverSessionResult;
+    let settledTurns = 0;
+    let deliveredThisTurn = false;
+    // Whether the turn now in flight has been answered. Per turn, not per
+    // incarnation: a Work Session that answered turn 1 and then died answering
+    // turn 2 has still left the Leader a question with no answer.
+    let turnAnswered = false;
+    /** Only the incarnation that holds the name may write to it. A late close
+     *  from a retired child must not stop its living replacement. */
+    const isCurrent = () => getTeammate(name)?.spawnId === spawnId;
+    const notice = (result: SessionResultNotice | SessionEndedNotice): boolean => {
+      if (!deliverSessionResult) return false;
+      try {
+        deliverSessionResult(result);
+        return true;
+      } catch (error) {
+        // A delivery failure must not take the roster with it: the Work Session
+        // is real whether or not the Leader's session accepted its answer, and
+        // the roster still holds the text.
+        if (isCurrent()) {
+          updateTeammate(name, {
+            error: `Session Result delivery failed: ${error instanceof Error ? error.message : String(error)}`,
+          });
+        }
+        return false;
+      }
+    };
     const reservation = registerTeammate({
       name,
       agent: definition.name,
@@ -451,6 +507,11 @@ export async function executeAgentAction(
     });
     if (!reservation.ok) return fail(reservation.error);
 
+    // The kickoff prompt is the spawn's own `description`: the spawner writes it
+    // to the child's control stream and opens the turn baseline there.
+    // Delivering it a second time through `deliverPrompt` ran the same turn
+    // twice — twice the child's tokens, and twice the Leader's turns once a
+    // settled turn is delivered as a Session Result.
     const spawned = spawn({
       workerName: name,
       ...(request.prompt ? { description: request.prompt } : {}),
@@ -459,35 +520,88 @@ export async function executeAgentAction(
       ...(params.fork === true && options.contextMessages
         ? { context: options.contextMessages() as never }
         : {}),
+      // A settled turn is one result, not one per frame. The dedupe is armed by
+      // the turn and released by the next one, and a settle carrying no text
+      // does neither: a real child settles empty before it settles with its
+      // answer, and treating that empty settle as the turn's result would
+      // suppress the answer for the life of the Work Session.
+      onUpdate: (update) => {
+        if (!isCurrent()) return;
+        updateTeammateProgress(name, spawnId, {
+          liveText: update.text,
+          liveThinking: update.liveThinking,
+          activeTool: update.activeTool,
+          turns: update.turns,
+          sequenceEnded: update.finalResponse,
+          modelOutputSeen: update.modelOutputSeen,
+          usage: update.usage,
+        });
+        if (update.finalResponse === false) {
+          deliveredThisTurn = false;
+          turnAnswered = false;
+          return;
+        }
+        // Nothing to say is not a result, and it is not this turn's one delivery
+        // either: the answer may still be coming.
+        if (update.finalResponse !== true || deliveredThisTurn || !update.text.trim()) return;
+        deliveredThisTurn = true;
+        settledTurns += 1;
+        // A settled turn is not work in progress. The roster transitions itself
+        // out of `starting`, and only on that first transition, so a child that
+        // answered would otherwise be listed as working forever.
+        if (update.finalResponse && getTeammate(name)?.status !== "idle") {
+          updateTeammate(name, { status: "idle", activeTool: undefined });
+        }
+        // Counted as answered only once the Leader's session has taken it: a
+        // result lost in delivery is still lost, and pretending otherwise would
+        // also silence the notice a later death owes the Leader.
+        if (notice({
+          kind: "result", name, session, turn: settledTurns, text: update.text,
+          ...(update.usage ? { usage: update.usage } : {}),
+          deliveredAt: Date.now(),
+        })) turnAnswered = true;
+      },
       // A child that exits leaves the roster. Without this the name stays held by a
       // process that no longer exists, and a later start of the same name is
       // refused against a dead entry.
       onExit: (result) => {
-        updateTeammate(name, { status: "stopped", error: describeExit(result) });
+        if (!isCurrent()) return;
+        const reason = describeExit(result);
+        updateTeammate(name, { status: "stopped", error: reason });
+        // A shutdown the Leader asked for is not news: it already has a receipt
+        // from `action=stop`, and painting it on the failure band would report a
+        // planned stop as a death.
+        if (turnAnswered || getTeammate(name)?.leaderRequestedEnd) return;
+        // A death the Leader never heard about is a request that will never be
+        // answered. Visible, but not a turn: recoverable execution stays internal.
+        notice({ kind: "ended", name, session, reason, deliveredAt: Date.now() });
       },
       onError: (error) => {
+        if (!isCurrent()) return;
         updateTeammate(name, { status: "stopped", error: error.message });
+        if (turnAnswered) return;
+        notice({
+          kind: "ended", name, session,
+          reason: `The Work Session could not be confirmed: ${error.message}`,
+          deliveredAt: Date.now(),
+        });
       },
     });
     if ("error" in spawned) {
       // Release the reservation. A name that stays reserved by a child which
       // never started is the worst outcome: the name looks taken and nothing is
-      // running under it.
-      updateTeammate(name, { status: "stopped" });
+      // running under it — and the reason belongs on the entry, or the roster
+      // holds a name that looks taken with nothing to explain it.
+      updateTeammate(name, { status: "stopped", error: spawned.error });
       return fail(`${spawned.error} @${name} was not started.`);
     }
     updateTeammate(name, { pid: spawned.pid, ...(spawned.envPolicy ? { envPolicy: spawned.envPolicy } : {}) });
     if (!request.prompt) updateTeammate(name, { status: "idle" });
-    if (request.prompt) {
-      const deliver = options.deliver ?? deliverPrompt;
-      deliver(name, request.prompt);
-    }
-    const session = exactSessionRoute(name, spawnId);
     const grant = strArray("tools") ?? [];
     return ok(
       [
         `AGENT · ${name} · started · ${session}`,
-        ...(request.prompt ? [`WORKING · ${firstLine(request.prompt)}`] : ["IDLE · no prompt; it will take work assigned to it"]),
+        ...(request.prompt ? [`WORKING · ${firstLine(request.prompt)}`] : [`IDLE · ${IDLE_NOTICE}`]),
         `GRANT · ${grant.length > 0 ? grant.join(", ") : "coordination only"}`,
         // Say so plainly when the child has no standing instructions, on this
         // path too. It is the caller's only signal, and a later turn spent
@@ -560,7 +674,10 @@ export async function executeAgentAction(
           : { ok: true };
     }
     if (!closed.ok) return fail(closed.error);
-    updateTeammate(matched.name, { status: "stopped" });
+    // Mark the ending as requested before the close lands, so the child's exit
+    // is recognised as the shutdown it is rather than reported as a death the
+    // Leader never heard about. `action=stop`'s own receipt is the report.
+    updateTeammate(matched.name, { status: "stopped", leaderRequestedEnd: true });
     return ok(
       `AGENT · @${matched.name} · stopped`,
       // A stopped process is not a completed task. Saying so here is cheaper
@@ -610,7 +727,6 @@ function publishRosterAsBoardStore(): void {
 
 /** The single registrant of `agent`. */
 export function registerAgentTool(pi: ExtensionAPI, options: AgentToolOptions = {}): void {
-  publishRosterAsBoardStore();
   publishRosterAsBoardStore();
   pi.registerTool({
     name: "agent",

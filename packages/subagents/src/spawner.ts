@@ -689,6 +689,13 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
     const lines = stdoutBuffer.split("\n");
     stdoutBuffer = lines.pop() ?? "";
     let changed = false;
+    // A settle is an event, and a consumer that waits for one to decide what
+    // to do must not miss it because the same chunk also carried the next turn's
+    // start. Coalescing to one frame per chunk would turn "the child answered,
+    // then started a new turn" into "the child started a new turn", and the
+    // answer would never be reported. The edge is therefore emitted as it
+    // happens, not after the chunk is read.
+    let settledBefore = streamState.finalResponse;
     for (const line of lines) {
       if (Buffer.byteLength(line, "utf8") > MAX_JSONL_LINE_BYTES) {
         failWorker(`Resident worker JSONL line exceeded ${MAX_JSONL_LINE_BYTES} bytes.`);
@@ -696,6 +703,12 @@ export function spawnResident(options: ResidentSpawnOptions): SpawnedResident | 
       }
       changed = applyStreamLine(streamState, line, child) || changed;
       if (streamState.finalResponse) startFreshAssignmentReset(options.workerName);
+      if (streamState.finalResponse && !settledBefore) {
+        streamTurns.set(options.workerName, streamState.turns);
+        emitProgress();
+        changed = false;
+      }
+      settledBefore = streamState.finalResponse;
       if (streamState.outputLimitError) {
         failWorker(streamState.outputLimitError);
         return;
