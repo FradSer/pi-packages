@@ -417,6 +417,22 @@ export class SessionHost {
     }
   }
 
+  /**
+   * Whether the session's queue holds an instruction this host just offered.
+   *
+   * @param ctx The session context the message was sent through.
+   */
+  async #queued(ctx: ExtensionContext): Promise<boolean> {
+    // Bounded by this host's own request timeout, so judging a delivery can never be
+    // what makes a caller's own request time out.
+    const attempts = Math.min(8, Math.max(1, Math.floor(this.#timeoutMs / 1000)));
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      if (ctx.hasPendingMessages()) return true;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    return ctx.hasPendingMessages();
+  }
+
   async #resolve(path: string): Promise<string> {
     try {
       return await realpath(path);
@@ -507,8 +523,11 @@ export class SessionHost {
     }
     if (request.command === "prompt") {
       this.#ownTask(request.taskId);
-      this.#deliver(request.prompt, request.streamingBehavior);
-      return { task: this.#task(), accepted: true };
+      // What happened to the instruction is part of the answer, because a caller
+      // reporting on a session has to say whether it ran or is waiting its turn.
+      const delivery = this.#ctx && !this.#ctx.isIdle() ? "queued" : "ran";
+      await this.#deliver(request.prompt, request.streamingBehavior);
+      return { task: this.#task(), accepted: true, delivery };
     }
     if (request.command === "cancel") {
       this.#ownTask(request.taskId);
@@ -543,7 +562,7 @@ export class SessionHost {
   }
 
   /** Refuse an unusable instruction before anything is delivered into the session. */
-  #deliver(prompt: unknown, streamingBehavior: unknown): void {
+  async #deliver(prompt: unknown, streamingBehavior: unknown): Promise<void> {
     if (!validText(prompt, SESSION_REQUEST_LIMIT) || prompt.trim().length === 0) throw new Error(PROMPT_INVALID);
     const ctx = this.#ctx;
     if (!ctx) throw new Error(TASK_NOT_FOUND);
@@ -553,10 +572,12 @@ export class SessionHost {
       streamingBehavior === "steer" || streamingBehavior === "followUp" ? streamingBehavior : undefined;
     const wasIdle = ctx.isIdle();
     this.#pi.sendUserMessage(prompt, behavior === undefined ? undefined : { deliverAs: behavior });
-    // An idle session runs the message at once, and a running one either queues it
-    // or loses it. Only the queue is observable from here, so that is what decides
-    // whether this desk may report the instruction as delivered.
-    if (!wasIdle && !ctx.hasPendingMessages()) throw new Error(DELIVERY_NOT_ACCEPTED);
+    // An idle session runs the message at once; a running one takes it as the next
+    // turn. Whether the queue is observable depends on who re-sends: a local
+    // extension intercepting the message does so asynchronously, so the queue is
+    // polled briefly before this desk concludes that nothing arrived. Judging it on
+    // the first look turned a queued instruction into a false refusal.
+    if (!wasIdle && !(await this.#queued(ctx))) throw new Error(DELIVERY_NOT_ACCEPTED);
     this.#outcome = undefined;
     this.#observed = false;
     this.#cancelRequested = false;

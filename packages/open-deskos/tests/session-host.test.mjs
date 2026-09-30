@@ -579,7 +579,7 @@ test("the desk's launcher finds a node runtime without the login shell's PATH", 
 // is streaming arrives without a delivery, so the host verifies the queue instead
 // of assuming it.
 test("an instruction a running session did not queue is refused, not reported as delivered", async (t) => {
-  const h = await session(t, { idle: false, pending: 0 });
+  const h = await session(t, { idle: false, pending: 0, requestTimeoutMs: 3000 });
   const refused = await h.ask({ version: 1, requestId: "q1", command: "prompt", taskId: SESSION, prompt: "继续", streamingBehavior: "followUp" });
   assert.equal(refused.ok, false, "a desk must not be told an instruction arrived when it did not");
   assert.match(refused.error, /指令未送达/);
@@ -594,4 +594,18 @@ test("an instruction a running session queued, and one an idle session runs, are
   const idle = await session(t, { idle: true, pending: 0 });
   assert.equal((await idle.ask({ version: 1, requestId: "q3", command: "prompt", taskId: SESSION, prompt: "继续", streamingBehavior: "followUp" })).ok, true);
   assert.deepEqual(idle.sent, [{ content: "继续", options: { deliverAs: "followUp" } }]);
+});
+
+// A caller reporting on a session has to say whether the instruction ran or is
+// waiting its turn, so the answer carries that rather than leaving it to be
+// guessed from the session's state.
+test("a prompt answers whether it ran or is queued", async (t) => {
+  const idle = await session(t, { idle: true });
+  const ran = await idle.ask({ version: 1, requestId: "d1", command: "prompt", taskId: SESSION, prompt: "继续", streamingBehavior: "followUp" });
+  assert.equal(ran.delivery, "ran", "an idle session runs the instruction at once");
+
+  const running = await session(t, { idle: false, pending: 1 });
+  const queued = await running.ask({ version: 1, requestId: "d2", command: "prompt", taskId: SESSION, prompt: "继续", streamingBehavior: "followUp" });
+  assert.equal(queued.delivery, "queued", "a working session takes the instruction as its next turn");
+  assert.equal(queued.task.state, "running", "and the answer still states what the session is doing");
 });
