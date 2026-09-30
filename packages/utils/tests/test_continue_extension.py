@@ -152,6 +152,18 @@ class TestContinueExtension(unittest.TestCase):
             self.assertEqual(json.loads(result.stdout), ["continued"])
 
 
+    def test_a_continuation_during_work_says_how_it_is_queued(self) -> None:
+        """A user message that arrives mid-turn is only kept when the delivery says how.
+
+        Pi drops it otherwise, so the request disappears and whoever sent it believes
+        the work was handed over — which is exactly what a desk driving a remote
+        session reported.
+        """
+        content = self.ext_source()
+        self.assertIn("deliverAs", content)
+        self.assertIn('deliverAs: "followUp"', content)
+        self.assertIn("ctx.isIdle()", content)
+
     def test_continuation_keyword_routes_through_public_command(self) -> None:
         content = self.ext_source()
         # No hidden internal command: the keyword path reuses the registered /continue

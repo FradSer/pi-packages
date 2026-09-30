@@ -184,7 +184,12 @@ async function performContinuation(
     return;
   }
 
-  await host.sendUserMessage(target.promptText);
+  // A user message that arrives while the agent is streaming is only queued when the
+  // delivery says how, and without it Pi drops the message: the request vanishes and
+  // whoever sent it is left believing the work was handed over. An idle session runs
+  // the message at once, so the delivery only matters while work is running.
+  const delivery = ctx.isIdle() ? undefined : ({ deliverAs: "followUp" } as const);
+  await host.sendUserMessage(target.promptText, delivery);
 }
 
 export async function runContinuation(args: string, ctx: ExtensionCommandContext, pi: ExtensionAPI): Promise<void> {
