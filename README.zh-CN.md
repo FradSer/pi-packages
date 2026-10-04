@@ -10,15 +10,25 @@
 
 ### [`@fradser/pi-agent-teams`](packages/agent-teams/)
 
-通过简洁的 `agent` 委派和共享 `agent_event` 通信进行协作。每次新工作启动独立会话，默认使用全新上下文，也可用 `fork: true` 继承 Leader 上下文；最终回答自动回传，`work` 定向已有执行。仍支持常驻团队、任务看板和点对点消息。
+通过简洁的 `agent` 委派和共享 `agent_event` 通信进行协作。每次新工作启动独立会话，默认使用全新上下文，也可用 `fork: true` 继承 Leader 上下文；最终回答自动回传，`work` 定向已有执行。仍支持常驻团队、共享任务和点对点消息。
 
 省略 `definition.tools` 或传入 `[]` 只授权协调工具，不默认提供文件或 shell 能力；委派、启动和检查结果会显示实际工具授权。执行任务需明确选择最小工具集（`read`、`bash`、`edit`、`write`、`grep`、`find`、`ls`）。无法执行时，Worker 必须用 `work` 的 `submit` 动作明确提交 `outcome: "failed"`，不能只在最终回答里描述阻塞。普通最终回答是成功候选；没有验证门的完成并不表示独立验证通过。Leader 应委派具体的真实验收标准，必要时设置验证门；信息报告无需重复确认，除非决策或行动发生变化。
 
-`agent start` 创建未分配的常驻会话，不伪造 Work ID，也不运行无任务的初始模型轮次；公开调用会等待原生就绪确认，返回后可立即向该精确会话分配任务，无需调用方轮询。后续看板通知和自主认领仍保留。恢复时先明确释放原 Work，确认执行权限真正释放后再分配同一 Work，不通过重复委派制造竞争任务。
+`agent start` 创建未分配的常驻会话，不伪造 Work ID，也不运行无任务的初始模型轮次；公开调用会等待原生就绪确认，返回后可立即向该精确会话分配任务，无需调用方轮询。后续任务通知和自主认领仍保留。恢复时先明确释放原 Work，确认执行权限真正释放后再分配同一 Work，不通过重复委派制造竞争任务。
 
 [调度指导](packages/agent-teams/README.md#coordination-and-delivery) 明确单一集成验证负责人，将评审证据绑定到候选版本，并要求阻断评审返回、问题解决后再交付实现。纯评审任务返回报告即结束，定向复核需显式交接更新后的候选 brief。这是 Agent 指导，不是新增调度器或运行时完成锁。
 
-**工具：** `agent`、`work`、`agent_event`
+捆绑的 [subagent 执行层](packages/subagents/README.md#intent-tools) 在启动时确认输入接收，答案异步回传；所有子进程交付后都进入 IDLE，可继续 `send`，直到 `stop` 或父 Pi 关闭。用户编写的磁盘 `agent.md` 是唯一持久身份判据，工具不能创建它，也没有持久性、Memory 或 worktree 开关。持久身份的数据统一存于自己的 home；scratch 是普通目录，不是项目 checkout，也不提供 Git 隔离。诊断或继续输入须完整复制带 `session:` 前缀的句柄；只读 `inspect` 可以读取 roster 中仍保留的 live 或 stopped 记录，控制操作仍仅允许存活的精确实例，旧句柄不会转向替代进程。工具拒绝错用字段，管理查询分页且整体限长，codemode 接收结构化回执；取消已派发调用的等待不会结束对应子进程。输入框上方活动显示仍由 pi-kit 统一负责且不重复团队行。独立子进程的空白、失败或截断输出会回传带诊断的 unanswered 通知，不再表现为空白评审结论。
+
+**子代理工具：** `agent_start`、`agent_input`、`agent_stop`、`agent_inspect`、`agent_list`。
+旧分支保留 `agent`。新接口明确区分持久身份、显示名称，以及 next／steer 输入。
+队列限制和兼容方式见[意图接口](packages/subagents/README.md#intent-tools)。
+
+TUI 操作行显示子代理名称和任务摘要，精确的会话与输入标识在展开后显示。独立子代理返回结果后仍在输入框上方显示静态的 `Idle` 行，明确表示可继续接收输入，直到进程关闭。
+
+独立子进程在启动时显式获授 `agent_message` 后，可以向父会话发送中间进度消息。消息携带精确的子会话和当前输入标识，与最终答案分开显示，发送后子进程继续工作。临时代理默认不启用这项能力；持久代理的磁盘工具授权上限也须包含它。
+
+持久子代理的历史按父 Pi 会话和项目隔离。重新打开同一父会话可恢复自己的历史；不同父会话共享该身份的 Memory 和 scratch，各自保留独立对话。原有项目历史保留原位，不自动导入新的父会话分区。
 
 **命令：** `/agent-teams`
 
@@ -54,13 +64,15 @@ pi install npm:@fradser/pi-context
 
 ### [`pi-continual-learning`](packages/continual-learning/)
 
-从完成的用户任务中自动学习持久记忆与有明确范围的规则。Memory 提供有预算且可继续查阅的索引；扁平 Harness `rules` 提供 skill/text 指导，以及 Bash 消息、确认或阻止。也可通过 `/consolidate` 显式整理。存量 `policies`/`skillPrompts` 通过只读兼容保留原有保护，包括已有 output/artifact 检查；升级不改写配置，也不会仅因文件格式较旧就阻止无关命令。
+从完成的任务证据中学习：Memory 积累可复用知识，在生成前注入相关性索引，需要时读取全文；Harness 将可执行的约束交给运行检查，包括 Bash 确认和阻止，skill/text 规则则提供有范围的提示。规划模型提出方案，父进程验证证据、隐私、规则正反样例和所有权后应用。也可通过 `/consolidate` 显式整理。存量 `policies`/`skillPrompts` 通过只读兼容保留原有保护，包括已有 output/artifact 检查。
 
-**命令：** `/memory`、`/consolidate`、`/harness`
+**命令：** `/memory` 打开 Browse memories、Learning settings 和 Recent learning；`/memory <request>` 记录明确的 Memory 请求；`/consolidate` 学习当前任务；`/consolidate full` 执行完整维护；`/harness` 打开规则面板；`/harness <request>` 默认在项目共享配置中编写规则。
 
-Memory、Harness 和 AGENTS.md 默认仍自动应用通过验证的变更。`/memory policy` 可将各阶段设为应用、仅提案或关闭；`/memory history` 和 `/memory undo <id>` 用于查看和安全撤销已记录变更。`/memory evaluate <suite.json>` 使用独立样例检查规则，包内另提供在临时项目中对照 Memory 快照的真实任务评测脚本。
+Memory、Harness 和 AGENTS.md 默认仍自动应用通过验证的变更。即使关闭自动学习，也可以显式执行 `/memory` 请求；请求由父进程验证，若内容不够持久或不安全，也可以不产生写入。各阶段策略位于 Memory 面板的 Advanced 区域，历史记录内提供 Undo。旧版 `/memory model`、`/memory status`、`/memory policy`、`/memory history`、`/memory undo`、`/memory evaluate`、`/consolidate backfill` 及 Harness 范围别名仍兼容。
 
-Harness 编写与自动学习默认写入项目 `.pi/harness.json`；只有明确请求不纳入 Git 的个人配置时，才使用 `.pi/harness.local.json`（`/harness --local`）。全局配置仅支持 `~/.pi/agent/harness.json`。Skill 指导需要已注册的 skill 及其展开后的调用；文件保存成功不等于触发验证通过，更不代表全局语义强制执行。
+学习在异步处理前冻结任务，关闭会话后停止。学习设置损坏时关闭自动学习并报告原因；`/memory status` 查看实际策略、存储、学习状态和队列诊断。跳过的任务只保存私有、按项目隔离的引用，`/consolidate backfill` 查看其状态，不回放历史或调用模型。关闭自动学习后，已有知识仍可读取。
+
+Harness 编写与自动学习默认写入项目 `.pi/harness.json`；明确请求个人配置时使用 `.pi/harness.local.json`（`/harness --local`）。用户层包括 `~/.pi/agent/harness.json` 和按项目隔离的 `~/.pi/agent/harness/<scopeKey>.json`，项目层优先。Skill 指导需要已注册的 skill 及其展开后的调用；文件保存成功不等于触发验证通过，更不代表全局语义强制执行。
 
 **安装：**
 
@@ -96,7 +108,7 @@ pi install npm:pi-keyboard
 
 ### [`pi-matt-pocock`](packages/matt-pocock/)
 
-提供持久化 Pi 工作流 harness，覆盖适配 Pi 的 BDD、TDD、实现、评审、调试、架构、调研、规划、教学与 skill 编写流程。
+提供持久化 Pi v1.0 工作流 harness，覆盖 BDD、TDD、实现、评审、调试、架构、调研、规划、教学、skill 编写、PR 正文与会话复盘。
 
 **工具：** `matt_pocock_workflow`
 
@@ -110,7 +122,9 @@ pi install npm:pi-matt-pocock
 
 ### [`@fradser/pi-monitor`](packages/monitor/)
 
-按明确的结果契约在后台运行命令，并发送一条结构化终态结果。
+按明确的结果契约运行输出繁杂的有限命令，返回一条结构化终态结果。有限工作流建议使用 `completion="exit"`，最终验证后等待退出码为零，并校验捕获的 JSON；默认匹配模式在首次终态匹配时停止进程组。Pi v1.0 中仅含 monitor 的界面工具批次异步唤醒；混合批次、codemode 和无界面调用直接返回终态。输出背压、大小限制和相同捕获值的引用去重控制上下文开销，`/monitor` 提供可滚动的诊断。
+
+原生离线实测中，重复捕获场景比优化前降低约 60% 的累计输入估算，高噪声成功场景比未加载插件的 bash 降低约 90.4%。小输出和完整的大 JSON 仍可能更贵。验证覆盖 36 个原生传输场景、44 次 monitor 调用及 6 个 CLI/JSON/RPC/TUI 场景；另有 76 个原生会话、208 次命令执行测量 token。完整结果、方法和准确性边界见[包 README](packages/monitor/README.md#optimization-results-and-measured-limits)。这些数据采用脚本提供响应和本地分词估算；简单小命令继续使用 bash，相关任务可用 codemode 批量等待并返回经过校验的必要字段。
 
 **工具：** `monitor_start`、`monitor_stop`
 
@@ -132,6 +146,18 @@ pi install npm:@fradser/pi-monitor
 
 ```bash
 pi install npm:pi-open-deskos
+```
+
+### [`@fradser/pi-goal`](packages/goal/)
+
+持久化目标运行时。单一变更边界管原子记录与追加式 ledger，创建前可用独立模型做只读探索，自动续跑只由落盘决策授权，完成由独立进程中的审计员判定。
+
+**唯一命令：** `/goal <目标和验收条件>`；裸 `/goal` 查看当前线程目标。使用 `/goal pause`、`/goal resume`、`/goal clear` 管理目标。
+
+**安装：**
+
+```bash
+pi install npm:@fradser/pi-goal
 ```
 
 ### [`@fradser/pi-plan-mode`](packages/plan-mode/)
@@ -212,6 +238,8 @@ pnpm check
 `pnpm check` 会运行包测试和根目录 pytest 测试、扩展 TypeScript 项目检查，以及对每个工作区包进行无需访问 registry 的打包清单检查。使用 `pnpm check:install` 可以单独审计当前 Pi 设置文件中的已安装包。
 
 测试需要 Python 3、`pytest` 以及供子进程测试使用的 Bun 1.4.1。CI 工作流会在运行 `pnpm check` 前安装这两个运行时。
+
+`kit` / `subagents` / `tasks` / `agent-teams` 开发链显式选用根仓库的 Pi 1.0.0 验证版本；发布清单中的 Pi core 仍是由宿主提供的 `"*"` peers，不是运行时依赖。@features/pi-core-cohort.feature 和 @tests/test_pi_core_cohort.py 同时检查实际模块解析与清单。
 
 在仓库根目录执行 `pnpm --dir packages/<name> pack --dry-run` 可以检查单个包将要发布的文件。
 

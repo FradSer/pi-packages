@@ -11,6 +11,8 @@ scopes:
       description: Subagent execution — definitions, child spawn and lifecycle, workspace isolation, child environment policy, and report channel in packages/subagents/; does not cover task-board or team coordination.
     - name: tasks
       description: Task domain — data model, status machine, dependency-graph and resource-conflict rules, durable board persistence, and the `task` tool in packages/tasks/; does not cover processes, rosters, or messaging.
+    - name: goal
+      description: Durable goal runtime — record and ledger storage, one mutation boundary, continuation authorization, completion auditing, and the goal tools in packages/goal/; does not cover shared kit internals or the task board.
     - name: btw
       description: Read-only side-question overlay and child-session behavior in packages/btw/; does not cover other package runtimes.
     - name: key

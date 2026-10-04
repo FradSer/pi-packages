@@ -10,13 +10,23 @@ Native Pi packages for reusable skills, extensions, and workflow commands.
 
 ### [`@fradser/pi-agent-teams`](packages/agent-teams/)
 
-Compact `agent` delegation and shared `agent_event` communication for Pi. New work starts an independent session, fresh by default or forked from the Leader's context with `fork: true`; final answers return automatically. Work IDs target existing execution. Resident teams, board work, and peer messaging remain available.
+Compact `agent` delegation and shared `agent_event` communication for Pi. New work starts an independent session, fresh by default or forked from the Leader's context with `fork: true`; final answers return automatically. Work IDs target existing execution. Resident teams, shared tasks, and peer messaging remain available.
 
-`agent start` creates unassigned presence without an initial model turn or fabricated Work ID; the public call awaits native readiness so immediate exact-session assignment needs no caller wait. Later autonomous board claims remain enabled. Recovery releases and reassigns the same Work after authority is actually released, rather than delegating competing duplicate Work.
+`agent start` creates unassigned presence without an initial model turn or fabricated Work ID; the public call awaits native readiness so immediate exact-session assignment needs no caller wait. Later autonomous task claims remain enabled. Recovery releases and reassigns the same Work after authority is actually released, rather than delegating competing duplicate Work.
 
 [Coordination guidance](packages/agent-teams/README.md#coordination-and-delivery) assigns one integration verification owner, binds review evidence to a candidate, and keeps implementation delivery pending until blocking reviews return and findings are resolved. Review-only work ends with its report; bounded rechecks receive an explicitly refreshed candidate brief. These are agent instructions, not a new scheduler or a runtime completion lock.
 
-**Tools:** `agent`, `work`, `agent_event`
+The bundled [subagent execution layer](packages/subagents/README.md#intent-tools) confirms input at startup and returns answers asynchronously. All children settle to IDLE and accept `send` until stopped or their parent exits. A user-authored disk `agent.md` is the only durable identity; the tool cannot create one or select persistence/Memory/worktree flags. Durable identities have one private data home; scratch directories are ordinary folders, not project checkouts or Git isolation. Copy full `session:` handles. Read-only `inspect` accepts known live or stopped roster entries; process controls remain living-only and never retarget replacements. Tool inputs reject misplaced fields, management readbacks are paged/bounded, codemode receives structured receipts, and cancelling a dispatched tool wait does not end its resident. pi-kit owns passive above-editor activity, without duplicate team rows. Empty, failed or truncated standalone output returns an explicit unanswered follow-up with diagnostics, not a blank review verdict.
+
+**Subagent tools:** `agent_start`, `agent_input`, `agent_stop`, `agent_inspect`, `agent_list`.
+Recorded legacy branches retain `agent`. Use explicit identity selection and next/steer input.
+See [the intent interface](packages/subagents/README.md#intent-tools) for queue limits and compatibility.
+
+TUI operation rows show readable child names and task previews; exact session/input identifiers appear on expansion. Standalone children remain visible above the editor as `Idle` after returning a result, so their availability for further input stays explicit until they close.
+
+Standalone children can send intermediate updates through `agent_message` when that tool is explicitly granted at startup. Updates carry the child's exact session and current input, appear separately from final answers, and leave the child running. Temporary agents do not gain this capability by default; durable agents also need it in their saved tool ceiling.
+
+Durable child history is separated by parent Pi session and project. Reopening the same parent session restores its own history; different parents share the identity's Memory and scratch while keeping independent conversations. Existing project-only histories remain in place and are not automatically imported.
 
 **Command:** `/agent-teams`
 
@@ -52,13 +62,15 @@ pi install npm:@fradser/pi-context
 
 ### [`pi-continual-learning`](packages/continual-learning/)
 
-Learns durable memory and scoped rules from completed user tasks. Memory supplies a bounded, discoverable index; flat Harness `rules` provide skill/text guidance and Bash messages, confirmation, or blocking. `/consolidate` also runs learning explicitly. Installed `policies`/`skillPrompts` retain their protections through read-only compatibility, including existing output/artifact checks; upgrades do not rewrite configuration or block unrelated commands merely because a file uses the older format.
+Learns from settled task evidence: Memory retains reusable knowledge and supplies a bounded relevance index before generation; full entries are read when needed. Harness evaluates executable constraints, including Bash confirmation and blocking; skill/text rules provide scoped guidance. Planners propose and the parent validates evidence, privacy, rule cases and ownership before applying changes. `/consolidate` also runs learning explicitly. Installed `policies`/`skillPrompts` retain their protections through read-only compatibility, including existing output/artifact checks.
 
-**Commands:** `/memory`, `/consolidate`, `/harness`
+**Commands:** `/memory` opens Browse memories, Learning settings and Recent learning; `/memory <request>` records an explicit Memory request; `/consolidate` learns from the current task; `/consolidate full` performs full maintenance; `/harness` opens the rules panel; and `/harness <request>` authors a rule in project shared configuration by default.
 
-Automatic Memory, Harness and AGENTS.md still default to applying validated changes. `/memory policy` sets each phase to apply, propose or off; `/memory history` and `/memory undo <id>` inspect and safely restore recorded changes. `/memory evaluate <suite.json>` checks independent rule cases, and the package's paired task evaluator measures supplied Memory snapshots in disposable projects.
+Automatic Memory, Harness and AGENTS.md still default to applying validated changes. Explicit `/memory` requests remain available when automatic learning is off, are parent-validated, and can produce no write when the request is not durable or safe. Phase policies are under the Memory panel's Advanced section; history entries include Undo. Older `/memory model`, `/memory status`, `/memory policy`, `/memory history`, `/memory undo`, `/memory evaluate`, `/consolidate backfill`, and Harness scope aliases remain compatible.
 
-Harness authoring and automatic learning default to project `.pi/harness.json`; `.pi/harness.local.json` is only for explicitly requested non-Git-tracked personal configuration (`/harness --local`). Global configuration uses only `~/.pi/agent/harness.json`. Skill guidance requires a registered skill and its expanded invocation; persistence is not trigger verification or global semantic enforcement.
+Learning freezes the task before asynchronous work and stops on shutdown. Invalid learning settings disable automatic learning with a diagnosis. `/memory status` reports effective controls, storage, pipeline and backlog diagnostics. Skipped task references are private and project-scoped; `/consolidate backfill` reports their status without historical replay or model calls. Existing knowledge remains available when automatic learning is off.
+
+Harness authoring and automatic learning default to project `.pi/harness.json`; `.pi/harness.local.json` is for explicitly requested personal configuration (`/harness --local`). User layers are `~/.pi/agent/harness.json` and project-scoped `~/.pi/agent/harness/<scopeKey>.json`; project layers take precedence. Skill guidance requires a registered skill and its expanded invocation; persistence is not trigger verification or global semantic enforcement.
 
 **Install:**
 
@@ -94,7 +106,7 @@ pi install npm:pi-keyboard
 
 ### [`pi-matt-pocock`](packages/matt-pocock/)
 
-Provides `/matt-pocock`, a persisted Pi workflow harness for BDD, TDD, implementation, review, debugging, architecture, research, planning, teaching, and skill-writing procedures.
+Provides `/matt-pocock`, a persisted Pi v1.0 workflow harness for BDD, TDD, implementation, review, debugging, architecture, research, planning, teaching, skill writing, PR bodies, and session retrospectives.
 
 **Tool:** `matt_pocock_workflow`
 
@@ -108,7 +120,9 @@ pi install npm:pi-matt-pocock
 
 ### [`@fradser/pi-monitor`](packages/monitor/)
 
-Runs background commands against an explicit result contract and reports one structured terminal result.
+Runs finite noisy commands against an explicit result contract and reports one structured terminal result. Use `completion="exit"` to confirm exit zero and valid captured JSON after final verification; the default match mode stops on its first terminal match. Pi v1.0 monitor-only UI batches wake asynchronously; mixed batches, codemode and headless calls return the terminal directly. Backpressure, bounded output and exact-value capture aliases limit context; `/monitor` provides scrollable diagnostics.
+
+Native offline measurements reduced the overlapping-capture case by 60% versus the previous implementation and noisy-success input by 90.4% versus bare bash. Small outputs and full large JSON can still cost more. The [package README](packages/monitor/README.md#optimization-results-and-measured-limits) records the comparison, exit-mode accuracy cases and verification limits; use bash for quick small commands and validated codemode summaries for related jobs.
 
 **Tools:** `monitor_start`, `monitor_stop`
 
@@ -130,6 +144,18 @@ Reports this machine's Pi sessions and their operating events to Open DeskOS ove
 
 ```bash
 pi install npm:pi-open-deskos
+```
+
+### [`@fradser/pi-goal`](packages/goal/)
+
+Durable goal runtime. One mutation boundary over an atomic record and an append-only ledger, read-only research before creation on its own model, continuation authorized only by a durable decision, and completion decided by an independent auditor in its own minimal process.
+
+**Command:** `/goal <objective and completion conditions>`; bare `/goal` shows this thread’s goal. Manage it with `/goal pause`, `/goal resume`, and `/goal clear`.
+
+**Install:**
+
+```bash
+pi install npm:@fradser/pi-goal
 ```
 
 ### [`@fradser/pi-plan-mode`](packages/plan-mode/)
@@ -210,6 +236,8 @@ Each package keeps behavior scenarios in `features/` and tests in `tests/`.
 `pnpm check` runs the package and root pytest suites, the extension TypeScript project, and a registry-free packed-manifest check for every workspace package. Use `pnpm check:install` separately to audit the packages in the live Pi settings file.
 
 The test suite requires Python 3 with `pytest` and Bun 1.4.1 for subprocess fixtures. The CI workflows install both runtimes before running `pnpm check`.
+
+The `kit` / `subagents` / `tasks` / `agent-teams` development chain selects the root Pi 1.0.0 cohort explicitly. Published Pi core imports remain `"*"` peers supplied by the host, never runtime dependencies. @features/pi-core-cohort.feature and @tests/test_pi_core_cohort.py check both installed resolution and manifests.
 
 Use `pnpm --dir packages/<name> pack --dry-run` to inspect one package's contents before publishing.
 

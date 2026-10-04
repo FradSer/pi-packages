@@ -1,0 +1,129 @@
+/**
+ * Layered settings: global defaults, then a project override, then the
+ * environment. A later layer wins per field, not wholesale, so setting one
+ * project option does not silently reset the others.
+ *
+ * `undefined` means "not set at this layer" and falls through. `null` is not
+ * accepted as a value: clearing an override means removing it from the file, so
+ * an inherited default can never be turned into "no value" by accident.
+ */
+
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { nonEmpty, parseModelRef, writeJsonAtomic } from "@fradser/pi-kit";
+import { GOALS_DIR } from "./paths.ts";
+
+export interface GoalSettings {
+  /** Whole autonomous runs allowed per creation or resume period. Undefined is
+   * unlimited; 0 disables automatic continuation entirely. */
+  maxAutonomousRuns?: number;
+  /** Hide the goal's completion contract from the check prompt. */
+  disableContracts?: boolean;
+  /** Close a goal without asking the completion check, and record the skip. */
+  disableCheck?: boolean;
+  /** Focus the only open goal when a session starts with none focused. */
+  autoSelectSingleGoal?: boolean;
+  /** Provider and model the completion check uses instead of the session's. */
+  provider?: string;
+  model?: string;
+  thinkingLevel?: string;
+  /** Provider and model the pre-creation research child uses instead of the
+   * session's. Separate from the check's so each can be set alone. */
+  researchProvider?: string;
+  researchModel?: string;
+}
+
+const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
+
+/** Project override file, inside the goals directory so a project's goal state
+ * and its goal settings live together and travel with the project. */
+export function projectSettingsPath(projectRoot: string): string {
+  return path.join(projectRoot, GOALS_DIR, "settings.json");
+}
+
+/** Global defaults, under the agent directory so they apply everywhere. */
+export function globalSettingsPath(): string {
+  return path.join(agentDir(), "goal.json");
+}
+
+export function agentDir(): string {
+  const configured = nonEmpty(process.env.PI_CODING_AGENT_DIR);
+  if (configured) {
+    return configured === "~" || configured.startsWith("~/")
+      ? path.join(process.env.HOME ?? os.homedir(), configured.slice(1))
+      : configured;
+  }
+  return path.join(process.env.HOME ?? os.homedir(), ".pi", "agent");
+}
+
+function readSettingsFile(file: string): Partial<GoalSettings> {
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf-8"));
+    if (typeof parsed !== "object" || parsed === null) return {};
+    return parsed as Partial<GoalSettings>;
+  } catch {
+    // An unreadable or malformed settings file is treated as absent rather than
+    // fatal: losing a preference must never stop the session from working.
+    return {};
+  }
+}
+
+/** Accept a value only if it is of the right shape, so one bad field cannot
+ * make the whole layer unusable. */
+function sanitize(raw: Partial<GoalSettings>): Partial<GoalSettings> {
+  const out: Partial<GoalSettings> = {};
+  if (typeof raw.maxAutonomousRuns === "number" && Number.isSafeInteger(raw.maxAutonomousRuns) && raw.maxAutonomousRuns >= 0) {
+    out.maxAutonomousRuns = raw.maxAutonomousRuns;
+  }
+    if (typeof raw.disableContracts === "boolean") out.disableContracts = raw.disableContracts;
+  if (typeof raw.disableCheck === "boolean") out.disableCheck = raw.disableCheck;
+  if (typeof raw.autoSelectSingleGoal === "boolean") out.autoSelectSingleGoal = raw.autoSelectSingleGoal;
+  if (nonEmpty(raw.provider)) out.provider = raw.provider;
+  if (nonEmpty(raw.model)) out.model = raw.model;
+  if (nonEmpty(raw.researchProvider)) out.researchProvider = raw.researchProvider;
+  if (nonEmpty(raw.researchModel)) out.researchModel = raw.researchModel;
+  const thinking = nonEmpty(raw.thinkingLevel);
+  if (thinking && THINKING_LEVELS.has(thinking)) out.thinkingLevel = thinking;
+  return out;
+}
+
+/** Global defaults with the project override applied on top, then the
+ * environment last so a one-off run can override a saved preference. */
+export function loadGoalSettings(projectRoot: string): GoalSettings {
+  const resolved: GoalSettings = {
+    ...sanitize(readSettingsFile(globalSettingsPath())),
+    ...sanitize(readSettingsFile(projectSettingsPath(projectRoot))),
+  };
+  const envModel = parseModelRef(process.env.PI_GOAL_MODEL);
+  const envProvider = nonEmpty(process.env.PI_GOAL_PROVIDER);
+  if (envModel?.provider) resolved.provider = envModel.provider;
+  if (envModel?.model) resolved.model = envModel.model;
+  if (envProvider) resolved.provider = envProvider;
+  const envResearchModel = parseModelRef(process.env.PI_GOAL_RESEARCH_MODEL);
+  const envResearchProvider = nonEmpty(process.env.PI_GOAL_RESEARCH_PROVIDER);
+  if (envResearchModel?.provider) resolved.researchProvider = envResearchModel.provider;
+  if (envResearchModel?.model) resolved.researchModel = envResearchModel.model;
+  if (envResearchProvider) resolved.researchProvider = envResearchProvider;
+  const envRuns = process.env.PI_GOAL_MAX_RUNS;
+  if (envRuns !== undefined && /^\d+$/.test(envRuns)) resolved.maxAutonomousRuns = Number.parseInt(envRuns, 10);
+  return resolved;
+}
+
+export function writeGlobalSettings(settings: GoalSettings): void {
+  writeJsonAtomic(globalSettingsPath(), settings);
+}
+
+export function writeProjectSettings(projectRoot: string, settings: GoalSettings): void {
+  const file = projectSettingsPath(projectRoot);
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  writeJsonAtomic(file, settings);
+}
+
+export function removeProjectSettings(projectRoot: string): void {
+  fs.rmSync(projectSettingsPath(projectRoot), { force: true });
+}
+
+export function thinkingLevels(): string[] {
+  return [...THINKING_LEVELS];
+}

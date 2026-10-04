@@ -1,0 +1,44 @@
+{
+  "name": "@fradser/pi-goal",
+  "version": "0.1.0",
+  "description": "Thread-scoped goals for Pi with one command, read-only research, authorized continuation, and an independent completion check.",
+  "keywords": [
+    "pi-package",
+    "goal",
+    "long-running",
+    "autonomous",
+    "planning"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./index.ts"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "features",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "dependencies": {
+    "@fradser/pi-kit": "workspace:*"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

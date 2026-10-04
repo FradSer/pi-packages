@@ -21,6 +21,7 @@ export const PUBLISH_SCOPE = Object.freeze([
   "@fradser/pi-utils",
   "@fradser/pi-vision",
   "@fradser/pi-plan-mode",
+  "@fradser/pi-goal",
   "@fradser/pi-recap",
   "pi-keyboard",
   "@fradser/pi-agent-teams",
