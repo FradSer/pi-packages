@@ -4,9 +4,8 @@
  * The order of these is the runtime. `turn_start` opens a turn and its stop
  * guard; `context` injects goal state at the tail of the request in a form the
  * provider's implicit prefix cache can reuse; `tool_call` enforces the stop
- * guard and refuses a stale checkpoint; `agent_settled` decides whether the loop
- * itself can close the goal before another run is authorized
- * run is authorized at all.
+ * guard and refuses a stale checkpoint; `agent_before_settle` decides whether
+ * the loop itself can close the goal before another run is authorized.
  */
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -50,8 +49,8 @@ export function registerGoalEvents(core: GoalCore): void {
   });
 
   pi.on("session_tree", async (_event, ctx) => {
-    // Branch navigation changes what this session has focused, so the cached
-    // copies and any armed continuation both belong to the branch we left.
+    // Branch navigation changes what this session has focused, so anything read
+    // from disk and any armed continuation both belong to the branch we left.
     core.scheduler.shutdown();
     core.restore(ctx);
     refreshGoalToolSurface(core, ctx);
@@ -119,7 +118,7 @@ export function registerGoalEvents(core: GoalCore): void {
     if (stopped !== null && !allowsAfterStop(event.toolName)) {
       return {
         block: true,
-        reason: `Goal ${stopped} was already given its disposition earlier in this turn. Do not call more tools; end the turn with a brief summary.`,
+        reason: `The goal was already given its disposition earlier in this turn. Do not call more tools; end the turn with a brief summary.`,
       };
     }
     return;
@@ -183,7 +182,7 @@ export function registerGoalEvents(core: GoalCore): void {
     }
     // The check comes before settling. A goal that turns out to be met closes
     // here and never queues a continuation for a goal that no longer exists.
-    if (!failed && goal.status === "active" && goal.autoContinue && !core.turnRequestedCompletion()) {
+    if (!failed && goal.status === "active" && goal.autoContinue && !core.turnRequestedCompletion() && !core.hasActiveBackgroundWork()) {
       const settled = await runLoopCheck(core, ctx, goal);
       if (settled) return;
     }
@@ -229,7 +228,7 @@ async function runLoopCheck(core: GoalCore, ctx: import("@earendil-works/pi-codi
       core.notify(ctx, outcome.message, "error");
       return false;
     }
-    core.notify(ctx, `Goal ${goal.id} met its objective and is archived.`, "info");
+    core.notify(ctx, "Goal met its objective and is archived.", "info");
     return true;
   }
   core.setUnmet(verdict.report);

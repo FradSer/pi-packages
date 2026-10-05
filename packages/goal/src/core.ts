@@ -58,7 +58,7 @@ export class GoalCore {
   /** Abort for the check in flight, so focus change or shutdown stops it. */
   private checkAbort: AbortController | undefined;
   /** Check progress for the surface. */
-  checkProgress: { label: string; detail?: string } | undefined;
+  checkProgress: { label: string } | undefined;
   /** Tool names this extension owns, re-asserted on every surface change. */
   private readonly runCheck: typeof runCompletionCheck;
   private readonly runResearch: typeof runGoalResearch;
@@ -132,17 +132,15 @@ export class GoalCore {
     return this.focusedGoalId;
   }
 
-  get openGoals(): GoalRecord[] {
-    return this.store.readPool();
-  }
+  
 
   settings(ctx: ExtensionContext): GoalSettings {
     return loadGoalSettings(ctx.cwd);
   }
 
-  /** Reload state at a session boundary: drop every cached copy and rebuild
-   * focus from the session's own entries, so another session's work is seen
-   * and this session's focus is not inherited from anywhere else. */
+  /** Reload state at a session boundary: reread from disk and rebuild focus
+   * from the session's own entries, so another session's work is seen and this
+   * session's focus is not inherited from anywhere else. */
   restore(ctx: ExtensionContext): void {
     this.cancelGoalActivation();
     this.cancelContinuation(this.focusedGoalId ?? "");
@@ -150,7 +148,6 @@ export class GoalCore {
     this.abortCheck();
     this.pendingResearch = undefined;
     this.researchGeneration += 1;
-    this.store.invalidate();
     this.lastSessionId = ctx.sessionManager.getSessionId();
     this.bindUi(ctx);
     let focused: string | undefined;
@@ -167,7 +164,7 @@ export class GoalCore {
   focus(goalId: string, ctx: ExtensionContext, reason: GoalFocusEntry["reason"]): boolean {
     const record = this.store.readGoalFromDisk(goalId);
     if (!record || (record.threadId && record.threadId !== this.owner())) {
-      this.notify(ctx, `No goal ${goalId} is open.`, "warning");
+      this.notify(ctx, "No goal is open.", "warning");
       return false;
     }
     this.focusedGoalId = goalId;
@@ -181,19 +178,7 @@ export class GoalCore {
     return true;
   }
 
-  unfocus(ctx: ExtensionContext): void {
-    const previous = this.focusedGoalId;
-    this.focusedGoalId = undefined;
-    this.appendFocusEntry(null, "unfocused");
-    this.abortCheck();
-    if (previous) {
-      this.cancelContinuation(previous);
-      // The goal itself stays open and unchanged: unfocusing detaches this
-      // session, it does not end anybody's work.
-      this.scheduler.takeover(this.store.readGoal(previous) ?? { ...emptyGoal(previous) });
-    }
-    this.refreshUi(ctx);
-  }
+  
 
   private appendFocusEntry(goalId: string | null, reason: GoalFocusEntry["reason"]): void {
     const entry: GoalFocusEntry = { version: 1, focusedGoalId: goalId, reason };
@@ -442,14 +427,22 @@ export class GoalCore {
         const outcome = this.store.apply({
           expectedGoalId: goal.id,
           expectedRevision: current.revision,
-          mutate: draft => ({
-            ...draft, completionFailures: attempts,
-            ...(stop ? {
-              status: "paused" as const, autoContinue: false, stopReason: "agent" as const,
-              pauseReason: `Three final completion attempts were refused.\n${advice}`,
-              scheduler: draft.scheduler ? { ...draft.scheduler, phase: "idle" as const, dispatch: undefined, generation: randomToken() } : undefined,
-            } : {}),
-          }),
+          mutate: draft => {
+            // This write sets `status` directly rather than going through
+            // pause(), so it carries its own ownership guard. Another session
+            // can resume the goal while the check runs, and stopping a goal this
+            // session no longer owns is a real action taken on someone else's
+            // work.
+            if (stop && !this.scheduler.owns(draft)) return undefined;
+            return {
+              ...draft, completionFailures: attempts,
+              ...(stop ? {
+                status: "paused" as const, autoContinue: false, stopReason: "agent" as const,
+                pauseReason: `Three final completion attempts were refused.\n${advice}`,
+                scheduler: draft.scheduler ? { ...draft.scheduler, phase: "idle" as const, dispatch: undefined, generation: randomToken() } : undefined,
+              } : {}),
+            };
+          },
           ledger: [{ type: "completion_refused", goalId: goal.id, attempts, report: result.report, advice, at: nowIso() }],
         });
         if (!outcome.ok) return { met: false, report: outcome.message, stale: true };
@@ -520,8 +513,23 @@ export class GoalCore {
     this.runPerformedWork = true;
   }
 
+  hasActiveBackgroundWork(): boolean {
+    try {
+      const rosterKey = Symbol.for("fradser.pi-subagents.roster");
+      const carrier = (globalThis as Record<symbol, Record<string, { status?: string }>>)[rosterKey];
+      if (carrier && typeof carrier === "object") {
+        for (const agent of Object.values(carrier)) {
+          if (agent && typeof agent === "object" && (agent.status === "starting" || agent.status === "working")) {
+            return true;
+          }
+        }
+      }
+    } catch {}
+    return false;
+  }
+
   performedWork(): boolean {
-    return this.runPerformedWork;
+    return this.runPerformedWork || this.hasActiveBackgroundWork();
   }
 
   /** Reset bookkeeping when a new turn opens. */
@@ -596,18 +604,28 @@ export class GoalCore {
   }
 
   private markBudgetLimited(ctx: ExtensionContext, goal: GoalRecord): void {
-    this.store.apply({
+    const outcome = this.store.apply({
       expectedGoalId: goal.id,
-      mutate: (draft) => ({
-        ...draft,
-        status: "budget_limited",
-        autoContinue: false,
-        pauseReason: `The lifetime token cap of ${draft.tokenBudget} tokens was reached.`,
-      }),
+      mutate: (draft) => {
+        // This write sets `status` directly rather than going through pause(),
+        // so it carries its own ownership guard. Ownership can rotate between
+        // the usage write that reaches the cap and this stop, and stopping a
+        // goal this session no longer owns is a real action taken on someone
+        // else's work.
+        if (!this.scheduler.owns(draft)) return undefined;
+        return {
+          ...draft,
+          status: "budget_limited",
+          autoContinue: false,
+          pauseReason: `The lifetime token cap of ${draft.tokenBudget} tokens was reached.`,
+        };
+      },
       ledger: [{ type: "goal_budget_limited", goalId: goal.id, tokenBudget: goal.tokenBudget ?? 0, at: nowIso() }],
     });
     this.cancelContinuation(goal.id);
-    this.notify(ctx, `Goal ${goal.id} reached its token cap and stopped.`, "warning");
+    // Report what happened, not what was attempted: a stop declined because
+    // another session took the goal over must not tell this user it stopped.
+    if (outcome.ok) this.notify(ctx, "Goal reached its token cap and stopped.", "warning");
   }
 
   appendEvents(ctx: ExtensionContext, events: GoalLedgerEvent[]): void {
@@ -690,15 +708,3 @@ export class GoalCore {
   }
 }
 
-function emptyGoal(id: string): GoalRecord {
-  return {
-    id,
-    objective: "",
-    status: "paused",
-    autoContinue: false,
-    usage: { tokensUsed: 0, activeSeconds: 0 },
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-    revision: 0,
-  };
-}

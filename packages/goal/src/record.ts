@@ -100,11 +100,6 @@ export interface GoalRecord {
  * ones would have. */
 export const GOAL_RECORD_VERSION = 1;
 
-export interface PersistedGoalRecord {
-  version: number;
-  goal: GoalRecord;
-}
-
 export const MAX_OBJECTIVE_CHARS = 4000;
 
 export function nowIso(): string {
@@ -177,8 +172,9 @@ function normalizeScheduler(raw: Record<string, unknown> | undefined): GoalSched
   if (!owner) return undefined;
   const scheduler: GoalSchedulerState = {
     owner,
-    // A record from a version with waiting or repair states reads as `ready`,
-    // which is the safe reading: it authorizes one more run rather than none.
+    // A record from a version whose phase this one does not know reads as
+    // `idle`, which is the safe reading: it authorizes no run on its own, and a
+    // fresh decision has to be armed before anything may claim it.
     phase: oneOf(raw?.phase, ["idle", "ready", "claimed", "running", "interrupted"] as const) ?? "idle",
     used: asWholeNumber(raw?.used) ?? 0,
     idleRuns: asWholeNumber(raw?.idleRuns) ?? 0,
@@ -221,7 +217,17 @@ export function newGoalScheduler(owner: string, generation: string): GoalSchedul
 
 /** Elapsed time, the one progress figure a goal has. A goal is not partway
  * through a list, so "how long has this been going" is the only honest answer to
- * "how is it doing". */
+ * "how is it doing".
+ *
+ * The figure scales with the run. A goal can last minutes, hours or days, and
+ * total minutes stop being readable past an hour: "107m" is not what a person
+ * reads a two-hour run as. Two units are shown, the larger one first, and the
+ * smaller one only while it carries information. */
 export function formatElapsed(seconds: number): string {
-  return `${Math.max(0, Math.floor(seconds / 60))}m`;
+  const minutes = Math.max(0, Math.floor(seconds / 60));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h`;
 }

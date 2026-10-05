@@ -27,8 +27,7 @@ import { describeUnmet } from "./check.ts";
 import type { GoalCore } from "./core.ts";
 import { nowIso, type GoalRecord } from "./record.ts";
 import type { GoalSettings } from "./settings.ts";
-
-export { GOAL_SECTIONS, GOAL_STATUSES };
+import type { GoalStore } from "./store.ts";
 
 export const GOAL_TOOLS = ["get_goal", "create_goal", "update_goal", "research_goal"] as const;
 
@@ -176,26 +175,32 @@ function goalGet(core: GoalCore) {
           goal.verificationContract ? `\nContract:\n${goal.verificationContract}` : "",
           goal.pauseReason ? `\nPaused:\n${goal.pauseReason}` : "",
         ].filter(Boolean).join("\n");
-        return bounded(goal.id, "objective", parts);
+        return bounded("objective", parts);
       }
       if (section === "history") {
         const page = core.store.readHistory(goal.id, params.cursor);
         const lines = page.events.map((event) => `${event.at} ${event.type}`);
+        // The cursor is the only way to reach the events this page did not
+        // return. The tool accepts one as input, so it must hand one back or a
+        // long history silently ends at the first page.
+        const more = page.cursor
+          ? `More history remains. Continue with get_goal(section="history", cursor="${page.cursor}").`
+          : "End of history.";
         return result({
-          subject: `${goal.id}: ${page.events.length} ledger events`,
-          summary: lines.join("\n"),
+          subject: `${page.events.length} ledger events`,
+          summary: [lines.join("\n"), more].join("\n"),
           details: page.diagnostics.length > 0 ? [`Ledger diagnostics: ${page.diagnostics.join("; ")}`] : [],
         });
       }
       if (section === "research") {
         const research = core.store.readResearch(goal.id).trim();
         if (!research) {
-          return result({ subject: `${goal.id}: no research`, summary: "No research was attached when this goal was created." });
+          return result({ subject: "no research", summary: "No research was attached when this goal was created." });
         }
-        return bounded(goal.id, "research", research);
+        return bounded("research", research);
       }
-      return bounded(goal.id, "summary", [
-        `Goal ${goal.id} — ${goal.status}`,
+      return bounded("summary", [
+        `Goal — ${goal.status}`,
         goal.objective,
         goal.verificationContract ? `Contract: ${goal.verificationContract}` : "",
         goal.pauseReason ? `Paused: ${goal.pauseReason}` : "",
@@ -204,11 +209,13 @@ function goalGet(core: GoalCore) {
   });
 }
 
-function bounded(goalId: string, section: string, body: string) {
+function bounded(section: string, body: string) {
   const cap = 4000;
-  if (body.length <= cap) return result({ subject: `${goalId}: ${section}`, summary: body });
+  // No goal id in the subject: a session has one goal, so its id is noise the
+  // reader must filter on every line.
+  if (body.length <= cap) return result({ subject: section, summary: body });
   return result({
-    subject: `${goalId}: ${section} (${body.length} chars)`,
+    subject: `${section} (${body.length} chars)`,
     summary: `${body.slice(0, cap)}\n\n[truncated at ${cap} characters.]`,
   });
 }
@@ -260,7 +267,7 @@ function goalCreate(core: GoalCore) {
       core.scheduler.schedule(created.goal, core.settings(ctx));
       refreshGoalToolSurface(core, ctx);
       return result({
-        subject: `Goal ${created.goal.id} created and focused`,
+        subject: "Goal created and focused",
         summary: `It now runs on its own until the completion check says it is met.${research ? " Read-only research gathered this session is attached." : ""}\n\n${objective}`,
       });
     },
@@ -319,6 +326,39 @@ function goalUpdate(core: GoalCore) {
   });
 }
 
+/**
+ * The one way a goal's requirements change.
+ *
+ * A revision is three fields or none: the objective prose, the start of the
+ * evidence window, and the reset of the refusal count. Anything that writes
+ * only the objective leaves `prompt.md` describing the superseded goal, keeps
+ * observations collected under the old requirement admissible for the new one,
+ * and lets a stale refusal count stop a goal under requirements it never
+ * refused. Both the `update_goal` tool and `/goal` route through here so the
+ * two cannot drift apart.
+ */
+export function applyRevision(
+  store: GoalStore,
+  goalId: string,
+  objective: string,
+  contract?: string,
+): { ok: true; goal: GoalRecord } | { ok: false; message: string } {
+  return store.apply({
+    expectedGoalId: goalId,
+    writePrompt: true,
+    mutate: (draft) => {
+      const nextContract = contract !== undefined ? contract.trim() || undefined : draft.verificationContract;
+      const changed = objective !== draft.objective || nextContract !== draft.verificationContract;
+      return {
+        ...draft,
+        ...(changed ? { evidenceSince: nowIso(), completionFailures: 0 } : {}),
+        objective,
+        verificationContract: nextContract,
+      };
+    },
+  });
+}
+
 function revise(
   core: GoalCore,
   ctx: ExtensionContext,
@@ -330,33 +370,35 @@ function revise(
   if (nextObjective !== undefined && !nextObjective) {
     return result({ subject: "Empty objective", summary: "A revision needs text." }, true);
   }
-  const outcome = core.store.apply({
-    expectedGoalId: goal.id,
-    writePrompt: nextObjective !== undefined,
-    mutate: (draft) => {
-      const nextContract = contract !== undefined ? contract.trim() || undefined : draft.verificationContract;
-      const changed = (nextObjective ?? draft.objective) !== draft.objective || nextContract !== draft.verificationContract;
-      return {
-        ...draft,
-        ...(changed ? { evidenceSince: nowIso(), completionFailures: 0 } : {}),
-        objective: nextObjective ?? draft.objective,
-        verificationContract: nextContract,
-      };
-    },
-  });
+  // Lifecycle state is checked even though `update_goal` is withdrawn for these
+  // goals, because a call can arrive one transition late. A budget-limited goal
+  // has spent its lifetime tokens and a completed goal is archived; rewriting
+  // their requirements, prose and refusal count would revive work that stopped.
+  if (goal.status !== "active" && goal.status !== "paused" && goal.status !== "blocked") {
+    return result(
+      { subject: "Goal not revisable", summary: `A ${goal.status.replace("_", " ")} goal cannot be revised. Use /goal resume to continue it.` },
+      true,
+    );
+  }
+  const outcome = applyRevision(
+    core.store,
+    goal.id,
+    nextObjective ?? goal.objective,
+    contract,
+  );
   if (!outcome.ok) return result({ subject: "Objective not revised", summary: outcome.message }, true);
   const activated = core.activateRequestedRevision(goal.id, ctx);
   core.refreshUi(ctx);
   refreshGoalToolSurface(core, ctx);
   return result({
-    subject: `Goal ${goal.id} revised${activated === true ? " and activated" : ""}`,
+    subject: `Goal revised${activated === true ? " and activated" : ""}`,
     summary: `${outcome.goal.objective}${activated === false ? "\n\nThe revision was saved, but continuation is blocked by its current limits." : ""}`,
   });
 }
 
 function saveNextAction(core: GoalCore, _ctx: ExtensionContext, goal: GoalRecord, settings: GoalSettings, nextAction: string) {
   const generation = goal.scheduler?.generation;
-  if (!generation) return result({ subject: "No scheduling state", summary: `Goal ${goal.id} is not scheduled.` }, true);
+  if (!generation) return result({ subject: "No scheduling state", summary: "Goal is not scheduled." }, true);
   const declared = core.scheduler.declare(goal, nextAction, settings);
   if (!declared.ok) return result({ subject: "Decision not saved", summary: declared.message }, true);
   core.markTurnStopped();
@@ -377,7 +419,7 @@ function pauseGoal(core: GoalCore, ctx: ExtensionContext, goal: GoalRecord, reas
   }
   core.markTurnStopped();
   refreshGoalToolSurface(core, ctx);
-  return result({ subject: `Goal ${goal.id} paused`, summary: reason.trim() });
+  return result({ subject: "Goal paused", summary: reason.trim() });
 }
 
 async function completeGoal(core: GoalCore, ctx: ExtensionContext, goal: GoalRecord, settings: GoalSettings, claim: string | undefined) {
@@ -400,7 +442,7 @@ async function completeGoal(core: GoalCore, ctx: ExtensionContext, goal: GoalRec
     refreshGoalToolSurface(core, ctx);
     return {
       ...result({
-        subject: verdict.stopped ? `Goal ${current.id} paused after three final refusals` : `Goal ${current.id} is not met`,
+        subject: verdict.stopped ? "Goal paused after three final refusals" : "Goal is not met",
         summary: `${describeUnmet(verdict)}${verdict.advice ? `\n\n${verdict.advice}` : ""}`,
       }, !verdict.stopped),
       ...(verdict.stopped ? { terminate: true } : {}),
@@ -411,9 +453,9 @@ async function completeGoal(core: GoalCore, ctx: ExtensionContext, goal: GoalRec
 
 function archive(core: GoalCore, ctx: ExtensionContext, goal: GoalRecord, summary: string) {
   const outcome = core.completeCheckedGoal(ctx, goal);
-  if (!outcome.ok) return result({ subject: `Goal ${goal.id} could not be archived`, summary: outcome.message }, true);
+  if (!outcome.ok) return result({ subject: "Goal could not be archived", summary: outcome.message }, true);
   refreshGoalToolSurface(core, ctx);
-  return result({ subject: `Goal ${goal.id} completed`, summary: `${summary}\n\nArchived under .pi/goals/archived/.` });
+  return result({ subject: "Goal completed", summary: `${summary}\n\nArchived under .pi/goals/archived/.` });
 }
 
 // ── research_goal ────────────────────────────────────────────────────────────

@@ -7,14 +7,13 @@
  * that skipped the ordered pipeline would be a mutation nobody could reason
  * about. Handlers validate and decide; they never touch storage.
  *
- *   reconcile from disk  (disk wins over any cached copy)
+ *   reconcile from disk  (disk is the truth; no in-memory copy)
  *   -> identity checks   (expected goal id, expected revision)
  *   -> mutate a clone    (never the caller's live object)
  *   -> exclusive lock    (pi-kit exclusive create: one writer at a time)
  *   -> atomic write      (pi-kit atomic replace)
  *   -> archive           (when completing or clearing)
  *   -> ledger append     (best effort, after the authoritative write)
- *   -> commit to cache
  *
  * If the write fails, nothing is committed and no event is appended. If the
  * ledger append fails after a successful write, the transition still stands and
@@ -30,10 +29,7 @@ import {
   writeJsonAtomic,
 } from "@fradser/pi-kit";
 import {
-  appendGoalEvent,
   appendGoalEvents,
-  encodeCursor,
-  isGoalLedgerEvent,
   readGoalHistoryPage,
   type GoalHistoryPage,
   type GoalLedgerEvent,
@@ -96,10 +92,6 @@ export interface GoalStoreOptions {
 
 export class GoalStore {
   private readonly projectRoot: string;
-  /** Cached pool, keyed by goal id. A cache entry is dropped whenever this
-   * store writes or archives that goal, so an extension-mediated change is
-   * always observed on the next read. */
-  private readonly cache = new Map<string, GoalRecord>();
 
   constructor(options: GoalStoreOptions) {
     this.projectRoot = path.resolve(options.projectRoot);
@@ -138,11 +130,10 @@ export class GoalStore {
   /** One goal by id, or undefined. */
   readGoal(goalId: string): GoalRecord | undefined {
     const record = this.readRecordFile(goalRecordPath(this.projectRoot, goalId));
-    if (record) this.cache.set(goalId, record);
     return record;
   }
 
-  /** Read straight from disk, ignoring the cache. The write path uses this so
+  /** Read straight from disk. The write path uses this so
    * a mutation always starts from what is actually stored. */
   readGoalFromDisk(goalId: string): GoalRecord | undefined {
     return this.readRecordFile(goalRecordPath(this.projectRoot, goalId));
@@ -216,7 +207,7 @@ export class GoalStore {
       const locked: { ok: true; goal: GoalRecord } | { ok: false; message: string } =
         this.withLock(input.id, (stillHeld) => {
           if (this.readGoalFromDisk(input.id)) {
-            return { ok: false as const, message: `Goal ${input.id} already exists.` };
+            return { ok: false as const, message: `A goal with that id already exists.` };
           }
           this.writeGoalFiles(goal, { writePrompt: true, research: input.research?.text, recordLast: true }, stillHeld);
           return { ok: true as const, goal };
@@ -239,7 +230,6 @@ export class GoalStore {
         });
       }
       const diagnostics = appendGoalEvents(this.projectRoot, events);
-      this.cache.set(goal.id, goal);
       return { ok: true, goal, diagnostics };
     } catch (error) {
       return { ok: false, message: `Goal creation failed: ${describe(error)}`, diagnostics: [] };
@@ -257,19 +247,19 @@ export class GoalStore {
         this.withLock(goalId, (stillHeld) => {
           // 1. Reconcile: disk is authoritative.
           const current = this.readGoalFromDisk(goalId);
-          if (!current) return { ok: false as const, message: `Goal ${goalId} no longer exists.` };
+          if (!current) return { ok: false as const, message: `The goal no longer exists.` };
           // 2. Identity checks against the record just read.
           if (spec.expectedRevision !== undefined && current.revision !== spec.expectedRevision) {
             return {
               ok: false as const,
-              message: `Goal ${goalId} changed underneath this write (expected revision ${spec.expectedRevision}, found ${current.revision}). Nothing was written.`,
+              message: `The goal changed underneath this write (expected revision ${spec.expectedRevision}, found ${current.revision}). Nothing was written.`,
             };
           }
           // 3. Mutate a clone.
           const draft = cloneGoal(current);
           const next = spec.mutate(draft);
           if (!next) {
-            return { ok: false as const, message: `The change to goal ${goalId} was declined; nothing was written.` };
+            return { ok: false as const, message: `The change to the goal was declined; nothing was written.` };
           }
           next.revision = current.revision + 1;
           next.updatedAt = nowIso();
@@ -293,37 +283,9 @@ export class GoalStore {
       // aimed at the open path would recreate an empty directory beside the
       // archive and leave the completing event in a ledger of its own.
       const diagnostics = spec.ledger?.length ? appendGoalEvents(this.projectRoot, spec.ledger, spec.archive === true) : [];
-      // 6. Commit to cache. An archived goal leaves the open pool.
-      if (spec.archive) this.cache.delete(written.id);
-      else this.cache.set(written.id, written);
       return { ok: true, goal: written, diagnostics };
     } catch (error) {
       return { ok: false, message: describe(error), diagnostics: [] };
-    }
-  }
-
-  /**
-   * Replace the editable prose for a goal without touching the record.
-   *
-   * A separate path because prose is user data: the user may edit it between
-   * sessions, and the store must be able to pick that up without inventing a
-   * record revision for an edit it did not make.
-   */
-  writePrompt(goalId: string, text: string): string | undefined {
-    const file = goalPromptPath(this.projectRoot, goalId);
-    if (!isInside(goalsRoot(this.projectRoot), file)) {
-      return `Refused to write prose outside the goals directory.`;
-    }
-    try {
-      this.assertSafePath(file);
-      fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-      const tmp = `${file}.${process.pid}.tmp`;
-      this.assertSafePath(tmp);
-      fs.writeFileSync(tmp, text, { encoding: "utf-8", mode: 0o600 });
-      fs.renameSync(tmp, file);
-      return undefined;
-    } catch (error) {
-      return `Prose write failed: ${describe(error)}`;
     }
   }
 
@@ -331,12 +293,6 @@ export class GoalStore {
    * that could not be written. */
   appendLedger(events: GoalLedgerEvent[], archived = false): string[] {
     return appendGoalEvents(this.projectRoot, events, archived);
-  }
-
-  /** Drop cached copies. Called on session start so a new process reads what
-   * another process wrote rather than what this one remembers. */
-  invalidate(): void {
-    this.cache.clear();
   }
 
   // ── internals ──────────────────────────────────────────────────────
@@ -383,6 +339,9 @@ export class GoalStore {
     // A version this version does not understand is refused rather than read on
     // its known fields, because a newer record's extra fields may carry the
     // state the missing ones would have.
+    // A parsed `null` is a readable file that holds no record. It is skipped
+    // like unreadable bytes, so one bad file never hides its valid siblings.
+    if (typeof parsed !== "object" || parsed === null) return undefined;
     const version = typeof (parsed as { version?: unknown }).version === "number"
       ? (parsed as { version: number }).version
       : undefined;
@@ -393,7 +352,7 @@ export class GoalStore {
   private writeGoalFiles(goal: GoalRecord, options: { writePrompt: boolean; research?: string; recordLast?: boolean }, stillHeld: () => void = () => {}): void {
     const file = goalRecordPath(this.projectRoot, goal.id);
     if (!isInside(goalsRoot(this.projectRoot), file)) {
-      throw new Error(`Refused to write goal ${goal.id} outside the goals directory.`);
+      throw new Error(`Refused to write outside the goals directory.`);
     }
     this.assertSafePath(file);
     if (options.writePrompt) this.assertSafePath(goalPromptPath(this.projectRoot, goal.id));
@@ -413,7 +372,7 @@ export class GoalStore {
     if (options.research !== undefined) {
       const research = goalResearchPath(this.projectRoot, goal.id);
       if (!isInside(goalsRoot(this.projectRoot), research)) {
-        throw new Error(`Refused to write research for goal ${goal.id} outside the goals directory.`);
+        throw new Error(`Refused to write research outside the goals directory.`);
       }
       const tmp = `${research}.${process.pid}.tmp`;
       this.assertSafePath(tmp);
@@ -435,7 +394,7 @@ export class GoalStore {
     const from = goalDir(this.projectRoot, goal.id);
     const to = archivedGoalDir(this.projectRoot, goal.id);
     if (!isInside(path.join(this.projectRoot, ARCHIVED_GOALS_DIR), to)) {
-      throw new Error(`Refused to archive goal ${goal.id} outside the archive directory.`);
+      throw new Error(`Refused to archive outside the archive directory.`);
     }
     this.assertSafePath(from);
     this.assertSafePath(to);
@@ -457,15 +416,12 @@ export class GoalStore {
   }
 
   /**
-   * Run `body` while holding this goal's write lock.
+   * Run `body` while holding this goal's write lock, passing it a guard.
    *
    * Exclusion is pi-kit's exclusive create: exactly one process can win
    * `createExclusiveJsonFile` for a given name, so the winner is the only
    * writer until it releases. A lock older than `LOCK_STALE_MS` is taken over,
    * because a process that died mid-write must not leave the goal unwritable.
-   */
-  /**
-   * Run `body` while holding this goal's write lock, passing it a guard.
    *
    * The guard is not decoration. A stale takeover deliberately breaks
    * exclusivity — that is what makes a crashed holder recoverable — so a
@@ -497,12 +453,12 @@ export class GoalStore {
         continue;
       }
       if (Date.now() > deadline) {
-        throw new Error(`Goal ${goalId} is locked by another writer. Nothing was written.`);
+        throw new Error(`The goal is locked by another writer. Nothing was written.`);
       }
       sleep(LOCK_POLL_MS);
     }
     try {
-      return body(() => assertLockHeld(file, token, goalId));
+      return body(() => assertLockHeld(file, token));
     } finally {
       // Release only our own lock: a stale takeover may already hold it.
       try {
@@ -515,10 +471,11 @@ export class GoalStore {
 }
 
 /** Refuse to write once this holder's lock has been taken from it. */
-function assertLockHeld(file: string, token: string, goalId: string): void {
+function assertLockHeld(file: string, token: string): void {
   if (readLockToken(file) !== token) {
     throw new Error(
-      `Goal ${goalId} lost its write lock while the change was being prepared, so the change was discarded rather than written over another writer's.`,
+      `The goal lost its write lock while the change was being prepared, so the change was discarded `
+        + `rather than written over another writer's.`,
     );
   }
 }
@@ -552,12 +509,14 @@ function randomToken(): string {
 }
 
 function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) {
+    return error.message.replace(/,\s*(?:open|mkdir|rename|unlink|rmdir|copyfile|scandir|stat|lstat)\s+.*$/i, "").trim();
+  }
+  return String(error);
 }
 
-/** Exported for the command layer, which needs a fresh id for a new goal. */
+/** Exported for the tool layer, which needs a fresh id for a new goal. */
 export function newGoalId(): string {
   return `goal_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export { encodeCursor, isGoalLedgerEvent, appendGoalEvent };

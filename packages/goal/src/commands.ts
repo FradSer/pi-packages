@@ -4,7 +4,7 @@ import type { GoalCore } from "./core.ts";
 import { clearDashboard, refreshDashboard } from "./dashboard.ts";
 import { goalRequest, statusLabel } from "./prompt.ts";
 import { nowIso } from "./record.ts";
-import { refreshGoalToolSurface } from "./tools.ts";
+import { applyRevision, refreshGoalToolSurface } from "./tools.ts";
 
 export function registerGoalCommands(core: GoalCore): void {
   core.pi.registerCommand("goal", {
@@ -35,18 +35,18 @@ export function registerGoalCommands(core: GoalCore): void {
         if (action === "pause") {
           core.abortCheck();
           if (core.scheduler.pause(goal, "Paused by the user.", "user")) {
-            notifyPi(ctx.ui, `Goal ${goal.id} paused. Use /goal resume to continue.`, "info");
+            notifyPi(ctx.ui, "Goal paused. Use /goal resume to continue.", "info");
           }
         } else if (action === "resume") {
           if (core.scheduler.resume(goal, core.settings(ctx))) {
-            notifyPi(ctx.ui, `Goal ${goal.id} resumed; one continuation is authorized.`, "info");
+            notifyPi(ctx.ui, "Goal resumed; one continuation is authorized.", "info");
           }
         } else {
           if (!ctx.hasUI) {
             notifyPi(ctx.ui, "Clearing a goal requires interactive confirmation.", "warning");
             return;
           }
-          const choice = await ctx.ui.select(`Clear goal ${goal.id}?`, ["Clear goal", "Keep goal"]);
+          const choice = await ctx.ui.select("Clear this goal?", ["Clear goal", "Keep goal"]);
           if (choice !== "Clear goal") return;
           core.abortCheck();
           core.cancelContinuation(goal.id);
@@ -59,7 +59,7 @@ export function registerGoalCommands(core: GoalCore): void {
           core.scheduler.shutdown();
           core.clearFocus(ctx, "cleared");
           clearDashboard(ctx);
-          notifyPi(ctx.ui, `Goal ${goal.id} cleared and archived.`, "info");
+          notifyPi(ctx.ui, "Goal cleared and archived.", "info");
         }
         refreshGoalToolSurface(core, ctx);
         refreshDashboard(core, ctx);
@@ -67,7 +67,23 @@ export function registerGoalCommands(core: GoalCore): void {
       }
       // Full-text matching keeps “clear my schedule” an objective, not an action.
       if (!ctx.isIdle() || ctx.hasPendingMessages()) {
-        notifyPi(ctx.ui, "Pi is processing another request. Wait for it to finish, then enter /goal again.", "warning");
+        // A goal actually being pursued takes the new text as a revision
+        // rather than a rejection: the user is redirecting work under way, and
+        // the loop picks the new objective up on its next turn. A paused goal
+        // has nothing running, so retyping there must not silently rewrite it
+        // while something else is in flight.
+        const active = core.goal;
+        if (!active || active.status !== "active" || !active.autoContinue) {
+          notifyPi(ctx.ui, "Pi is processing another request. Wait for it to finish, then enter /goal again.", "warning");
+          return;
+        }
+        // Routed through the same writer as `update_goal`, so a revision from
+        // the command cannot skip what a revision from the tool does: prompt
+        // prose, the evidence boundary and the refusal count move together.
+        const revised = applyRevision(core.store, active.id, input);
+        if (!revised.ok) { notifyPi(ctx.ui, revised.message, "error"); return; }
+        refreshDashboard(core, ctx);
+        notifyPi(ctx.ui, "Goal updated. The work continues on it.", "info");
         return;
       }
       const request = goalRequest(input);

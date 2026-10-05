@@ -70,8 +70,7 @@ export function isInside(root: string, candidate: string): boolean {
   return resolved.startsWith(resolvedRoot + path.sep);
 }
 
-/** The highest revision any goal in this project has reached, used to keep a
- * newly created goal's id from colliding with a record it cannot see. */
+/** The directory holding every goal's files in this project. */
 export function goalsRoot(projectRoot: string): string {
   return path.join(projectRoot, GOALS_DIR);
 }

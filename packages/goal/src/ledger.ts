@@ -49,8 +49,6 @@ export type GoalLedgerEvent =
   | { type: "check_skipped"; goalId: string; reason: string; at: string }
   | { type: "goal_completed"; goalId: string; archivePath: string; at: string };
 
-export type GoalLedgerEventType = GoalLedgerEvent["type"];
-
 /**
  * One goal's ledger. Reading is paged by byte offset, so a caller that only
  * wants the recent tail never materializes the whole history.
@@ -73,12 +71,29 @@ export function ledgerPath(projectRoot: string, goalId: string, archived = false
  * real, and discarding it because history could not be written would be a worse
  * lie than a gap in history.
  */
+
+/** The class of a failure, without the paths its message carries.
+
+ * A goal id never reaches the user through a diagnostic: `EACCES: permission
+ * denied` says what went wrong, while the path it names belongs in a log.
+ */
+function errorKind(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message.replace(/,\s*(?:open|mkdir|rename|unlink|rmdir|copyfile|scandir|stat|lstat)\s+.*$/i, "").trim();
+  }
+  return String(error);
+}
+
 export function appendGoalEvent(projectRoot: string, event: GoalLedgerEvent, archived = false): string | undefined {
   try {
+    // `goal_unfocused` carries no goal, so its history lands in a shared pool file.
     appendJsonlLine(ledgerPath(projectRoot, event.goalId ?? "pool", archived), event, { label: "Goal ledger event" });
     return undefined;
   } catch (error) {
-    return `ledger append failed for ${event.type}: ${error instanceof Error ? error.message : String(error)}`;
+    // A filesystem error's message carries the absolute path, which carries
+    // the goal id. The user is told what kind of failure it was, not where it
+    // happened: the path belongs in a log, not in the transcript.
+    return `ledger append failed for ${event.type}: ${errorKind(error)}`;
   }
 }
 
@@ -119,8 +134,8 @@ export function readGoalHistoryPage(projectRoot: string, goalId: string, cursor?
   if (!fs.existsSync(file)) return { events: [], diagnostics: [] };
   const offset = decodeCursor(cursor);
   const batch: JsonlBatch = maxBytes === undefined
-    ? readJsonlBatch(ledgerPath(projectRoot, goalId, archived), offset)
-    : readJsonlBatch(ledgerPath(projectRoot, goalId, archived), offset, Number.POSITIVE_INFINITY, maxBytes);
+    ? readJsonlBatch(file, offset)
+    : readJsonlBatch(file, offset, Number.POSITIVE_INFINITY, maxBytes);
   const events: GoalLedgerEvent[] = [];
   const rejected: string[] = [];
   for (const record of batch.records) {
@@ -129,11 +144,11 @@ export function readGoalHistoryPage(projectRoot: string, goalId: string, cursor?
     // is not an event is a different failure — corruption, or a ledger written
     // by a newer version — and it is reported here so a reader never silently
     // loses an event it could not interpret.
-    else rejected.push(`${goalId}: unrecognized ledger record was consumed`);
+    else rejected.push("an unrecognized ledger record was consumed");
   }
   const page: GoalHistoryPage = {
     events,
-    diagnostics: [...batch.diagnostics.map((diagnostic) => `${goalId}: ${diagnostic}`), ...rejected],
+    diagnostics: [...batch.diagnostics.map((diagnostic) => diagnostic), ...rejected],
   };
   // The end of the file is offset + bytes read, which pi-kit reports as
   // `nextOffset`. Reaching it exactly means there is nothing left to page.
@@ -232,11 +247,4 @@ export function rebuildGoalFromLedger(projectRoot: string, goalId: string, archi
   }
   rebuilt.updatedAt = events[events.length - 1]!.at;
   return rebuilt;
-}
-
-/** Projection for prompts and the dashboard: the recent tail, newest last, plus
- * anything worth pinning regardless of recency (lifecycle and verification). */
-export function projectHistory(projectRoot: string, goalId: string, limit = 12, archived = false): GoalLedgerEvent[] {
-  const events = readGoalLedger(projectRoot, goalId, undefined, archived);
-  return events.slice(-limit);
 }

@@ -22,19 +22,14 @@ export interface GoalSettings {
   disableContracts?: boolean;
   /** Close a goal without asking the completion check, and record the skip. */
   disableCheck?: boolean;
-  /** Focus the only open goal when a session starts with none focused. */
-  autoSelectSingleGoal?: boolean;
   /** Provider and model the completion check uses instead of the session's. */
   provider?: string;
   model?: string;
-  thinkingLevel?: string;
   /** Provider and model the pre-creation research child uses instead of the
    * session's. Separate from the check's so each can be set alone. */
   researchProvider?: string;
   researchModel?: string;
 }
-
-const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
 
 /** Project override file, inside the goals directory so a project's goal state
  * and its goal settings live together and travel with the project. */
@@ -76,15 +71,12 @@ function sanitize(raw: Partial<GoalSettings>): Partial<GoalSettings> {
   if (typeof raw.maxAutonomousRuns === "number" && Number.isSafeInteger(raw.maxAutonomousRuns) && raw.maxAutonomousRuns >= 0) {
     out.maxAutonomousRuns = raw.maxAutonomousRuns;
   }
-    if (typeof raw.disableContracts === "boolean") out.disableContracts = raw.disableContracts;
+  if (typeof raw.disableContracts === "boolean") out.disableContracts = raw.disableContracts;
   if (typeof raw.disableCheck === "boolean") out.disableCheck = raw.disableCheck;
-  if (typeof raw.autoSelectSingleGoal === "boolean") out.autoSelectSingleGoal = raw.autoSelectSingleGoal;
   if (nonEmpty(raw.provider)) out.provider = raw.provider;
   if (nonEmpty(raw.model)) out.model = raw.model;
   if (nonEmpty(raw.researchProvider)) out.researchProvider = raw.researchProvider;
   if (nonEmpty(raw.researchModel)) out.researchModel = raw.researchModel;
-  const thinking = nonEmpty(raw.thinkingLevel);
-  if (thinking && THINKING_LEVELS.has(thinking)) out.thinkingLevel = thinking;
   return out;
 }
 
@@ -110,20 +102,8 @@ export function loadGoalSettings(projectRoot: string): GoalSettings {
   return resolved;
 }
 
-export function writeGlobalSettings(settings: GoalSettings): void {
-  writeJsonAtomic(globalSettingsPath(), settings);
-}
-
 export function writeProjectSettings(projectRoot: string, settings: GoalSettings): void {
   const file = projectSettingsPath(projectRoot);
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   writeJsonAtomic(file, settings);
-}
-
-export function removeProjectSettings(projectRoot: string): void {
-  fs.rmSync(projectSettingsPath(projectRoot), { force: true });
-}
-
-export function thinkingLevels(): string[] {
-  return [...THINKING_LEVELS];
 }

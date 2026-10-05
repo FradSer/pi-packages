@@ -29,6 +29,9 @@ export interface CheckVerdict {
   met: boolean;
   /** One line naming what is still missing, or why the evidence is insufficient. */
   report: string;
+  /** False when the answer carried no verdict marker. An answer that never said
+   * MET or NOT MET is unusable, and must not spend one of the valid attempts. */
+  valid?: boolean;
   usage?: PiWorkerUsage;
   model?: string;
   error?: string;
@@ -45,15 +48,20 @@ export interface CheckVerdict {
  * Matching anywhere would let a report that discusses the marker be read as the
  * verdict, which is the one failure a marker contract has to design against.
  */
-export function parseCheckVerdict(output: string): { met: boolean; report: string } {
+export function parseCheckVerdict(output: string): { met: boolean; report: string; valid: boolean } {
   const lines = output.split("\n").map((line) => line.trim()).filter(Boolean);
   const last = lines[lines.length - 1] ?? "";
   const met = last === "MET";
+  // Only a marker on the final line counts. Without one the checker gave no
+  // verdict, so the answer is unusable rather than a refusal: treating it as a
+  // refusal let three unparseable answers consume the whole allowance and stop
+  // a goal that was never actually judged.
+  const valid = last === "MET" || last === "NOT MET";
   // Whatever came before the marker is the reasoning, and the most useful part of
   // it is the last thing said before the verdict.
   const reasoning = lines.slice(0, -1).filter(Boolean);
   const report = reasoning[reasoning.length - 1] ?? (met ? "Met." : "Not met.");
-  return { met, report };
+  return { met, report, valid };
 }
 
 /** Escape a payload so it cannot close its own delimiter and have the remainder
@@ -139,8 +147,16 @@ export async function runCompletionCheck(options: RunCheckOptions): Promise<Chec
     return { met: false, report: "", usage: result.usage, model: options.model, error: "The check returned nothing." };
   }
   // A report with no marker is a rejection. An unparseable answer must never open
-  // the path that closes a goal.
-  return { ...parseCheckVerdict(text), usage: result.usage, model: options.model };
+  // the path that closes a goal, and it is not a decision at all, so it is
+  // returned as an error rather than as a refusal the accounting would count.
+  const parsed = parseCheckVerdict(text);
+  if (!parsed.valid) {
+    return {
+      met: false, report: "", usage: result.usage, model: options.model,
+      error: "The check returned no verdict marker, so it decided nothing.",
+    };
+  }
+  return { ...parsed, usage: result.usage, model: options.model };
 }
 
 export function completionAdvice(verdict: CheckVerdict, evidence: GoalEvidence): string {

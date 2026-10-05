@@ -96,6 +96,18 @@ Feature: One thread and one command
     When /goal clear is confirmed
     Then its goal is archived and no continuation survives
 
+  Scenario: Objective text entered while the thread is busy
+    Given a goal this thread is pursuing
+    And something else is still in flight
+    When /goal is entered with a replacement objective
+    Then the goal takes the new objective and the run continues on it
+    And its objective prose and evidence window move with it
+    And the refusal count is reset for the new requirement
+    Given a goal this thread is not pursuing
+    And something else is still in flight
+    When /goal is entered with a replacement objective
+    Then the goal is unchanged and the user is told to retry when idle
+
   Scenario: New threads cannot adopt project goals
     Given another thread has an open goal
     When a fresh thread starts
@@ -420,7 +432,7 @@ Feature: Research before creation
   Scenario: Research material never reaches the completion check
     Given a goal with attached research
     When the completion check prompt is built
-    Then it carries the objective, the contract, and the claim only
+    Then it carries the objective, the contract, the claim and the recorded observations
     And the research findings are not part of it
 
 Feature: Below-editor status and minute display
@@ -432,7 +444,10 @@ Feature: Below-editor status and minute display
     And the elapsed time is 0m with no seconds suffix
     Given more than one hour of recorded work
     When the elapsed time is displayed
-    Then it still uses whole minutes
+    Then it uses hours and minutes
+    Given more than one day of recorded work
+    When the elapsed time is displayed
+    Then it uses days and hours
 
 Feature: What the surface shows
 
@@ -441,20 +456,6 @@ Feature: What the surface shows
     When its state is displayed
     Then the elapsed time is shown
     And no fraction of an imagined list is shown
-
-  Scenario: The panel fits the terminal it is given
-    Given a long objective, a contract, and a pause reason
-    When the panel is rendered at any width from 20 to 240 columns
-    Then every line fits that width
-    And truncation leaves no half-written colour sequence
-    And a double-width objective wraps rather than overrunning
-
-  Scenario: The panel owns its own input and closes predictably
-    Given the expanded dashboard is open
-    When the arrow keys, Home, End, or Escape are pressed
-    Then the view scrolls and clamps at both ends
-    And Escape closes it
-    And a terminal resize is followed
 
   Scenario: Injected state does not disturb the prompt cache
     Given goal state is injected at the tail of each request
